@@ -1,0 +1,22 @@
+{
+  "name": "@braivo/server",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    "./client": "./api/client.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch --env-file=../../.env cli/index.ts serve",
+    "auth:generate": "bun --bun better-auth generate --config better-auth.config.ts --output ../../packages/db/schema/auth.ts -y"
+  },
+  "dependencies": {
+    "@braivo/db": "workspace:*",
+    "better-auth": "1.7.5",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "auth": "1.7.5"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  // Repeated per language: a user-level language setting would otherwise win
+  // over the workspace default.
+  "[javascript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[javascriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  // Lint and format settings live in the root vite.config.ts only.
+  "oxc.disableNestedConfig": true,
+  "oxc.fmt.disableNestedConfig": true,
+  // Oxfmt formats whole files on save; Oxlint applies its fixes on an explicit
+  // save. This is the Vite+ recommended setup.
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
+  }
+}

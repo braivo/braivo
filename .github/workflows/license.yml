@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# Every file Braivo writes declares its license (ADR 0002), and `reuse lint` is
+# what enforces it. Running it here makes it a gate rather than a local habit.
+name: License
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  reuse:
+    name: reuse lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - uses: astral-sh/setup-uv@v5
+
+      # The repository's own script, so this check and the local one cannot
+      # drift. No `bun install`: it shells out to uvx and needs no packages —
+      # and a checkout with no build output is what keeps `dist/` out of
+      # reuse's view, which is why this passes here and can fail locally.
+      - run: bun run license:check
