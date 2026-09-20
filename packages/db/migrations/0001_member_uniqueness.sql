@@ -1,0 +1,11 @@
+-- Hand-written, the exception ADR 0005 asks to be justified: Better Auth owns
+-- the `member` declaration in generated `schema/auth.ts`, which is never
+-- hand-edited (ADR 0006), so Braivo cannot declare this index there.
+--
+-- Better Auth places no uniqueness on (organization_id, user_id), so two
+-- invitation acceptances that race can each pass the pending-invitation check
+-- and both create a membership. `readOrganizationRoles` reads one row, so a
+-- duplicate leaves a removed administrator still passing every authorization
+-- check Braivo makes. One row per member is Better Auth's own model: it stores
+-- several roles as one comma-separated string, not as several rows.
+CREATE UNIQUE INDEX "member_organization_user_uidx" ON "member" ("organization_id","user_id");

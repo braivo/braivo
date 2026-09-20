@@ -1,0 +1,24 @@
+{
+  "name": "@braivo/storybook",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "storybook dev --port 6006 --no-open",
+    "build": "storybook build --output-dir dist"
+  },
+  "dependencies": {
+    "@braivo/ui": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "10.6.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "storybook": "10.6.0",
+    "tailwindcss": "^4.3.3",
+    "vite-plus": "0.3.2"
+  }
+}

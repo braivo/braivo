@@ -1,0 +1,31 @@
+{
+  "name": "braivo",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "vp run --parallel --filter '@braivo/*' --filter '!@braivo/storybook' dev",
+    "storybook": "vp run @braivo/storybook#dev",
+    "build": "vp run -r build",
+    "test": "bun --bun vp test",
+    "db:generate": "vp run @braivo/db#generate",
+    "db:migrate": "bun apps/server/cli/index.ts db migrate",
+    "serve": "bun apps/server/cli/index.ts serve",
+    "prepare": "vp config --no-agent",
+    "license:check": "uvx --from 'reuse[charset-normalizer]' reuse lint"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7.0.2",
+    "vite-plus": "0.3.2"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.2",
+    "vitest": "4.1.11"
+  },
+  "packageManager": "bun@1.4.2"
+}
