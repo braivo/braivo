@@ -1,0 +1,5 @@
+# Local files each new worktree copies from the main checkout, read by Claude
+# Code and tooling/worktree-setup.ts. Literal paths only (docs/adr/0014-worktree-setup.md).
+.env
+.envrc
+AGENTS.local.md

@@ -12,6 +12,7 @@ path = [
   "**/*.json",
   "**/*.html",
   ".gitignore",
+  ".worktreeinclude",
   "bun.lock",
   "apps/*/routeTree.gen.ts",
   "packages/db/schema/auth.ts",

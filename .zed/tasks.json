@@ -1,0 +1,12 @@
+// Bootstraps each worktree Zed creates (docs/adr/0014-worktree-setup.md).
+[
+  {
+    "label": "Set up worktree",
+    "command": "bun",
+    "args": ["tooling/worktree-setup.ts"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "hooks": ["create_worktree"],
+    "reveal": "no_focus",
+    "hide": "on_success"
+  }
+]
