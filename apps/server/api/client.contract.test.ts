@@ -149,6 +149,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     // it: a rename on either side stops matching here.
     expect(activity).toEqual({
       decision: { objectiveId: pastTense, modelVersion: "v1", intent: "introduce" },
+      objective: { id: pastTense, title: "Past tense" },
       task: {
         id: pastTenseTask,
         kind: "choice",
@@ -169,7 +170,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(grade).toEqual({ outcome: "failure", correctChoice: 0 });
 
     const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
-    expect(next).toEqual({ retryAfter: expect.any(Number) });
+    expect(next).toEqual({
+      objective: { id: pastTense, title: "Past tense" },
+      retryAfter: expect.any(Number),
+    });
 
     const early = client.submitAttempt(
       { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } },

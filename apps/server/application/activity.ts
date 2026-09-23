@@ -16,6 +16,8 @@ import {
   readCourseOrganization,
   readCourseTask,
   readNextTask,
+  readObjective,
+  type Objective,
   readObjectivesWithTasks,
   recordAttempt,
   RestingTask,
@@ -81,21 +83,29 @@ export async function chooseNextActivity(input: {
   });
   if (decision === undefined) return { kind: "no-activity" };
 
-  // It had a task a moment ago, so its last one was retired since; the next
-  // asking skips the objective.
-  const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
-  if (task === undefined) return { kind: "no-activity" };
+  const [task, objective] = await Promise.all([
+    readNextTask(database, { learnerId, objectiveId: decision.objectiveId }),
+    readObjective(database, decision.objectiveId),
+  ]);
+  // An objective is never deleted while a course orders it, so only a task can
+  // be missing: its last one was retired since, and the next asking skips it.
+  if (task === undefined || objective === undefined) return { kind: "no-activity" };
 
   // Waiting rather than selecting again without this objective, which can
   // introduce unseen material ahead of it unless a second selection rule
   // prevents that (docs/adr/0017-task-rest.md).
   const restsUntil = restingUntil(task.lastAttemptAt, now);
-  if (restsUntil !== undefined) return { kind: "resting", retryAt: restsUntil };
+  if (restsUntil !== undefined) return { kind: "resting", objective, retryAt: restsUntil };
 
   // JSON keeps the parts apart. `lastAttemptAt` reseeds the order after each
   // accepted answer and holds it across reloads.
   const seed = JSON.stringify([learnerId, task.id, task.lastAttemptAt?.getTime() ?? null]);
-  return { kind: "decided", decision, task: { id: task.id, ...presentTask(task.body, seed) } };
+  return {
+    kind: "decided",
+    decision,
+    objective,
+    task: { id: task.id, ...presentTask(task.body, seed) },
+  };
 }
 
 /** When a task answered at `lastAttemptAt` may be answered again, or nothing if it already may. */
@@ -109,13 +119,19 @@ function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefi
  * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
  * a due objective may have no task (glossary: No activity). `resting`: every
  * task of the decided objective rests until `retryAt`; the decision is left
- * out, as it may no longer hold by then.
+ * out, as it may no longer hold by then. Both name the objective, so a learner
+ * is told what they are practising and not only why.
  */
 export type NextActivity =
   | { kind: "unavailable" }
   | { kind: "no-activity" }
-  | { kind: "resting"; retryAt: Date }
-  | { kind: "decided"; decision: LearningDecision; task: { id: string } & PresentedTask };
+  | { kind: "resting"; objective: Objective; retryAt: Date }
+  | {
+      kind: "decided";
+      decision: LearningDecision;
+      objective: Objective;
+      task: { id: string } & PresentedTask;
+    };
 
 /**
  * The loop's second half: grades a learner's answer and records the attempt

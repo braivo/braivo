@@ -52,8 +52,12 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
  * answered too recently, in how many seconds to ask again.
  */
 export type Activity =
-  | { decision: LearningDecision; task: { id: string } & content.PresentedTask }
-  | { retryAfter: number };
+  | {
+      decision: LearningDecision;
+      objective: Objective;
+      task: { id: string } & content.PresentedTask;
+    }
+  | { objective: Objective; retryAfter: number };
 
 /** A learner's answer to a task, as posted in an attempt. */
 export type TaskResponse = content.TaskResponse;

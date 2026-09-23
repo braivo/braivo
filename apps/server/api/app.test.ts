@@ -1038,6 +1038,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toEqual({
       decision: { objectiveId: pastTense, modelVersion: activeModel.version, intent: "introduce" },
+      objective: { id: pastTense, title: "Past tense" },
       task: {
         id: pastTenseTask,
         kind: "choice",
@@ -1069,9 +1070,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
     // Its only task rests, since the learner was just shown the answer.
     // Whole seconds; the exact boundary is the application tests'.
-    const { retryAfter } = (await (await activity(courseId, learner.cookie)).json()) as {
+    const { objective, retryAfter } = (await (await activity(courseId, learner.cookie)).json()) as {
+      objective: unknown;
       retryAfter: number;
     };
+    expect(objective).toEqual({ id: pastTense, title: "Past tense" });
     expect(Number.isInteger(retryAfter)).toBe(true);
     expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(600);

@@ -73,7 +73,11 @@ function NextStep() {
         // be due (glossary: No activity), and the summary above says so.
         <Notice title="Nothing to practise right now" />
       ) : "retryAfter" in activity ? (
-        <Resting key={attemptId} retryAfter={activity.retryAfter} />
+        <Resting
+          key={attemptId}
+          objective={activity.objective.title}
+          retryAfter={activity.retryAfter}
+        />
       ) : (
         // Keyed, so the next activity starts unanswered.
         <Practice key={attemptId} activity={activity} attemptId={attemptId} />
@@ -151,7 +155,7 @@ function CourseError() {
 }
 
 /** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
-function Resting({ retryAfter }: { retryAfter: number }) {
+function Resting({ objective, retryAfter }: { objective: string; retryAfter: number }) {
   const router = useRouter();
   const delay = retryAfter * 1000;
   // Display only: the timer waits out the duration, so the device's clock cannot move it.
@@ -165,7 +169,7 @@ function Resting({ retryAfter }: { retryAfter: number }) {
   return (
     <Notice
       title="Take a short break"
-      description={`You answered this question recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+      description={`You practised ${objective} recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
     />
   );
 }
@@ -193,7 +197,7 @@ function Practice({
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const focused = useFocusOnMount<HTMLElement>();
-  const { decision, task } = activity;
+  const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
   // act on whatever page the learner has moved on to. Created in the effect,
@@ -256,7 +260,9 @@ function Practice({
 
   return (
     <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
-      <MutedText>{INTENT_LABELS[decision.intent]}</MutedText>
+      <MutedText>
+        {INTENT_LABELS[decision.intent]} · {objective.title}
+      </MutedText>
       <ChoiceQuestion
         prompt={task.prompt}
         options={task.options}

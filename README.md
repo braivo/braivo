@@ -110,6 +110,7 @@ curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
 ACTIVITY=$(curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity)
 echo "$ACTIVITY"
 # {"decision":{"objectiveId":"…","modelVersion":"v1","intent":"introduce"},
+#  "objective":{"id":"…","title":"Greetings"},
 #  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?",
 #          "options":[{"choice":1,"text":"Adiós"},{"choice":0,"text":"Hola"}]}}
 # Options come shuffled; each carries the `choice` that answers with it.

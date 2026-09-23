@@ -19,6 +19,7 @@ afterEach(cleanup);
 
 const activity: Activity = {
   decision: { objectiveId: "o1", modelVersion: "v1", intent: "introduce" },
+  objective: { id: "o1", title: "Past tense" },
   task: {
     id: "t1",
     kind: "choice",
@@ -39,6 +40,7 @@ const anotherActivity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
+  objective: { id: "o1", title: "Past tense" },
   task: {
     id: "t2",
     kind: "choice",
@@ -187,6 +189,8 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    // What is being practised, not only why.
+    expect(screen.getByText("New · Past tense")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledWith("c1", { signal: expect.any(AbortSignal) });
 
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
@@ -335,12 +339,13 @@ describe("the learn app", () => {
   test("says when a just-answered task comes back, and asks again then", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
-      .mockResolvedValueOnce({ retryAfter: 0.05 })
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
       .mockResolvedValueOnce(activity);
     renderAt("/courses/c1", { signedIn: true, nextActivity });
 
     const notice = await screen.findByRole("region", { name: "Take a short break" });
     expect(document.activeElement).toBe(notice);
+    expect(notice.textContent).toContain("You practised Past tense recently.");
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
@@ -356,7 +361,7 @@ describe("the learn app", () => {
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
-        .mockResolvedValueOnce({ retryAfter: 0.05 })
+        .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
         .mockResolvedValueOnce(reshuffled),
     });
 
@@ -379,7 +384,7 @@ describe("the learn app", () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce({ retryAfter: 600 });
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600 });
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity,

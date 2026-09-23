@@ -394,9 +394,16 @@ export function createApi(options: ApiOptions) {
       case "no-activity":
         return context.body(null, 204);
       case "resting":
-        return context.json({ retryAfter: secondsUntil(next.retryAt, now) });
+        return context.json({
+          objective: next.objective,
+          retryAfter: secondsUntil(next.retryAt, now),
+        });
       case "decided":
-        return context.json({ decision: next.decision, task: next.task });
+        return context.json({
+          decision: next.decision,
+          objective: next.objective,
+          task: next.task,
+        });
       default:
         throw new Error(`Unhandled answer: ${JSON.stringify(next satisfies never)}`);
     }
