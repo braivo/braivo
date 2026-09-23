@@ -93,7 +93,14 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     pastTenseTask = await testing.createTask(database, {
       organizationId,
       objectiveId: pastTense,
-      body: { kind: "choice", prompt: "Past tense?", options: ["hablé", "hablo"], answer: 0 },
+      // Kept in order, so the shape below can be pinned exactly.
+      body: {
+        kind: "choice",
+        prompt: "Past tense?",
+        options: ["hablé", "hablo"],
+        answer: 0,
+        keepOrder: true,
+      },
       createdAt: at,
     });
     emptyCourseId = await createCourse(database, {
@@ -127,7 +134,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         id: pastTenseTask,
         kind: "choice",
         prompt: "Past tense?",
-        options: ["hablé", "hablo"],
+        options: [
+          { choice: 0, text: "hablé" },
+          { choice: 1, text: "hablo" },
+        ],
       },
     });
   });

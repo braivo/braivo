@@ -64,7 +64,15 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     const next = await chooseNextActivity({ database, learnerId: learner, courseId, now });
     expect(next).toMatchObject({
       kind: "decided",
-      task: { id: taskId, kind: "choice", prompt: "Which?", options: ["this", "that"] },
+      task: {
+        id: taskId,
+        kind: "choice",
+        prompt: "Which?",
+        options: expect.arrayContaining([
+          { choice: 0, text: "this" },
+          { choice: 1, text: "that" },
+        ]),
+      },
     });
     expect(next).not.toHaveProperty("task.answer");
   });

@@ -17,7 +17,12 @@ const activity: Activity = {
     id: "t1",
     kind: "choice",
     prompt: "Past tense of 'hablar'?",
-    options: ["hablé", "hablo"],
+    // Shown in another order than the author's, where "hablé" is choice 0: what
+    // the learn app sends and marks must be the choice, never the position.
+    options: [
+      { choice: 1, text: "hablo" },
+      { choice: 0, text: "hablé" },
+    ],
   },
 };
 
@@ -28,7 +33,15 @@ const anotherActivity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
-  task: { id: "t2", kind: "choice", prompt: "Past tense of 'comer'?", options: ["comí", "como"] },
+  task: {
+    id: "t2",
+    kind: "choice",
+    prompt: "Past tense of 'comer'?",
+    options: [
+      { choice: 0, text: "comí" },
+      { choice: 1, text: "como" },
+    ],
+  },
 };
 
 /**

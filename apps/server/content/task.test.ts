@@ -24,6 +24,12 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual(choice);
   });
 
+  test("keeps keepOrder only when true", () => {
+    expect(parseTaskBody({ ...choice, keepOrder: true })).toEqual({ ...choice, keepOrder: true });
+    expect(parseTaskBody({ ...choice, keepOrder: false })).toEqual(choice);
+    expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toBeUndefined();
+  });
+
   test("accepts one without an explanation", () => {
     const { explanation: _, ...bare } = choice;
     expect(parseTaskBody(bare)).toEqual(bare);
@@ -44,11 +50,38 @@ describe("parseTaskBody", () => {
   });
 });
 
-test("presents a task without its answer or explanation", () => {
-  expect(presentTask(choice)).toEqual({
-    kind: "choice",
-    prompt: choice.prompt,
-    options: choice.options,
+describe("presentTask", () => {
+  const many: TaskBody = { ...choice, options: ["a", "b", "c", "d", "e", "f"], answer: 0 };
+
+  test("presents a task without its answer or explanation", () => {
+    const presented = presentTask(choice, "seed");
+
+    expect(Object.keys(presented)).toEqual(["kind", "prompt", "options"]);
+    expect(presented.prompt).toBe(choice.prompt);
+  });
+
+  test("shows every option once, each with its own choice wherever it lands", () => {
+    const { options } = presentTask(many, "seed");
+
+    expect(options.toSorted((a, b) => a.choice - b.choice)).toEqual(
+      many.options.map((text, choice) => ({ choice, text })),
+    );
+  });
+
+  test("orders by the seed alone, and reorders for other seeds", () => {
+    const order = (seed: string) => presentTask(many, seed).options.map(({ choice }) => choice);
+
+    expect(order("same")).toEqual(order("same"));
+    // Not every seed changes a given order, but among several some must.
+    const orders = new Set(["a", "b", "c", "d", "e"].map((seed) => order(seed).join()));
+    expect(orders.size).toBeGreaterThan(1);
+    expect(orders.has("0,1,2,3,4,5")).toBe(false);
+  });
+
+  test("keeps the author's order when asked to", () => {
+    const kept = presentTask({ ...many, keepOrder: true }, "seed").options;
+
+    expect(kept.map(({ choice }) => choice)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });
 

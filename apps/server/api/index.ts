@@ -40,7 +40,13 @@
 // decision with the task, never its answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
-//     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
+//     "task": { "id": "…", "kind": "choice", "prompt": "…",
+//               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
+//
+// Options come shuffled, unless the author kept their order, so a learner asked
+// again cannot answer by position. Show them in the order given, and answer with
+// the chosen option's `choice`, never its position. The order holds until the
+// learner answers the task again, so a reload does not reshuffle it.
 //
 // A task rests for ten minutes after Braivo accepts an answer to it, because
 // the grade reveals the answer. When every task for the decision is resting,
@@ -51,7 +57,8 @@
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
-// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
+// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
+// the chosen option's, as the activity gave it. `id` is the
 // client's, unique per learner, at most 128 characters (a UUID will do). Mint it
 // once per answer, and when delivery is uncertain (a network error, a 5xx)
 // resend that same ID: the resend records nothing twice and answers the same
@@ -154,7 +161,9 @@
 //                 "options": ["…", "…"], "answer": 0, "explanation": "…" }] }
 //
 // `choice` is the only kind: 2 to 26 distinct non-blank options, `answer` the
-// index of the correct one, `explanation` optional and shown after grading.
+// index of the correct one, `explanation` optional and shown after grading, and
+// `keepOrder: true` to present the options as written rather than shuffled —
+// for "all of the above", or a scale.
 // Tasks are immutable, and nothing retires one yet. Answers 201 with
 // `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
 // valid one of its kind, and 403 when an objective is not this organization's.

@@ -137,7 +137,11 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       id: pastTenseTask,
       kind: "choice",
       prompt: "Past tense?",
-      options: ["right", "wrong"],
+      // In whichever order they were shuffled into, each with its own choice.
+      options: expect.arrayContaining([
+        { choice: 0, text: "right" },
+        { choice: 1, text: "wrong" },
+      ]),
     });
 
     expect(await answer("a1", pastTenseTask, 1, later(1))).toEqual({

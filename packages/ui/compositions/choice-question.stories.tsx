@@ -9,7 +9,13 @@ const meta = {
   component: ChoiceQuestion,
   args: {
     prompt: "Past tense of 'hablar', first person singular?",
-    options: ["hablo", "hablé", "hablaba", "hablaré"],
+    // Shown shuffled: each option keeps its own choice wherever it appears.
+    options: [
+      { choice: 2, text: "hablaba" },
+      { choice: 0, text: "hablo" },
+      { choice: 3, text: "hablaré" },
+      { choice: 1, text: "hablé" },
+    ],
     onChoose: () => {},
   },
   decorators: [
