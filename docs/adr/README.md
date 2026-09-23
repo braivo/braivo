@@ -10,6 +10,7 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0002: AGPL-3.0-only for Braivo's code, with a commercial license, and no SDK package](0002-agpl-only.md)
 - [0003: Two apps, a database package, and Vite+ as the one toolchain](0003-workspace-layout.md)
 - [0004: One application origin, addressed by organization](0004-one-application-origin.md)
+- [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
 
 ## Server
 

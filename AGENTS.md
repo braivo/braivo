@@ -20,7 +20,7 @@ apps/storybook         catalog of @braivo/ui
 packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
-tooling/               shared dev config: dev proxy, Bun test guard
+tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup
 docs/                  product, architecture, glossary, adr/, specs/
 ```
 
@@ -28,6 +28,7 @@ docs/                  product, architecture, glossary, adr/, specs/
 
 One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`.
 
+- Zed worktrees, and linked worktrees where a new Claude Code session starts, are bootstrapped automatically (`docs/adr/0014-worktree-setup.md`). In any other linked worktree, run `bun tooling/worktree-setup.ts` before development commands.
 - `bunx vp check --fix` formats, lints, and type-checks everything. Run it before finishing a change.
 - `bun run test` runs every test. Not `vp test`: the server needs Bun, and `vp test` starts Node.
 - Lint, format, and test settings live only in the root `vite.config.ts`.
