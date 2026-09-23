@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Database } from "@braivo/db";
 import { attempt, courseObjective, learnerEvidence, task } from "@braivo/db/schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
@@ -21,6 +21,14 @@ export class ConflictingAttempt extends Error {
   constructor(readonly id: string) {
     super(`Attempt "${id}" is already recorded with a different task or response.`);
     this.name = "ConflictingAttempt";
+  }
+}
+
+/** A new attempt on a task this learner answered, in another attempt, at `lastAttemptAt`. */
+export class RestingTask extends Error {
+  constructor(readonly lastAttemptAt: Date) {
+    super(`The task was answered at ${lastAttemptAt.toISOString()}, too recently to answer again.`);
+    this.name = "RestingTask";
   }
 }
 
@@ -72,20 +80,27 @@ export async function readObjectivesWithTasks(
  * The objective's task this learner attempted least recently, never-attempted
  * first, then oldest: rotating through an objective's tasks keeps a learner from
  * answering the one they just saw. `undefined` when the objective has none.
+ *
+ * `lastAttemptAt` is when this learner last answered it, if ever. It is the
+ * least recent, so if it was answered too recently to offer, so was every task
+ * of the objective.
  */
 export async function readNextTask(
   database: Database,
   input: { learnerId: string; objectiveId: string },
-): Promise<Task | undefined> {
+): Promise<(Task & { lastAttemptAt: Date | undefined }) | undefined> {
+  const lastAttemptAt = sql<Date | null>`max(${attempt.at})`.mapWith(attempt.at);
   const [row] = await database
-    .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
+    .select({ id: task.id, objectiveId: task.objectiveId, body: task.body, lastAttemptAt })
     .from(task)
     .leftJoin(attempt, and(eq(attempt.taskId, task.id), eq(attempt.learnerId, input.learnerId)))
     .where(eq(task.objectiveId, input.objectiveId))
     .groupBy(task.id)
-    .orderBy(sql`max(${attempt.at}) asc nulls first`, asc(task.createdAt), asc(task.id))
+    .orderBy(sql`${lastAttemptAt} asc nulls first`, asc(task.createdAt), asc(task.id))
     .limit(1);
-  return row && { ...row, body: row.body as TaskBody };
+  return (
+    row && { ...row, body: row.body as TaskBody, lastAttemptAt: row.lastAttemptAt ?? undefined }
+  );
 }
 
 /**
@@ -118,6 +133,11 @@ export async function readCourseTask(
  * first submission's date. The same ID with anything else is `ConflictingAttempt`.
  * Compared after the insert, inside the transaction, so two racing submissions
  * see whichever one won (see `recordEvidence`).
+ *
+ * A new attempt is `RestingTask` when the learner answered the same task in
+ * another attempt after `restedSince` (docs/adr/0017-task-rest.md). Checked only
+ * once the insert shows the attempt is new, so a resend is never mistaken for
+ * another answer, whatever was answered since.
  */
 export async function recordAttempt(
   database: Database,
@@ -127,11 +147,12 @@ export async function recordAttempt(
     taskId: string;
     response: TaskResponse;
     at: Date;
+    restedSince: Date;
     /** Dated by the attempt. */
     evidence: Omit<Evidence, "at">;
   },
 ): Promise<void> {
-  const { learnerId, attemptId, taskId, response, at, evidence } = input;
+  const { learnerId, attemptId, taskId, response, at, restedSince, evidence } = input;
 
   await database.transaction(async (transaction) => {
     const inserted = await transaction
@@ -148,6 +169,22 @@ export async function recordAttempt(
       if (stored?.taskId === taskId && isDeepStrictEqual(stored.response, response)) return;
       throw new ConflictingAttempt(attemptId);
     }
+
+    const [previous] = await transaction
+      .select({ at: attempt.at })
+      .from(attempt)
+      .where(
+        and(
+          eq(attempt.learnerId, learnerId),
+          eq(attempt.taskId, taskId),
+          ne(attempt.id, attemptId),
+          gt(attempt.at, restedSince),
+        ),
+      )
+      .orderBy(desc(attempt.at))
+      .limit(1);
+    // Thrown inside the transaction, so the attempt just inserted goes with it.
+    if (previous) throw new RestingTask(previous.at);
 
     await transaction.insert(learnerEvidence).values({ ...evidence, learnerId, at });
   });

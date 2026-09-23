@@ -5,7 +5,13 @@ import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
@@ -49,18 +55,30 @@ function NextStep() {
   // Not "caught up": an objective with no task to practise it can still be due
   // (glossary: No activity), so waiting may not help either.
   if (!activity) return <Notice title="Nothing to practise right now" />;
+  if ("retryAfter" in activity) {
+    return <Resting key={attemptId} retryAfter={activity.retryAfter} />;
+  }
   // Keyed, so the next activity starts unanswered.
   return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
 }
 
 /** What the page says instead of a question, focused as a question would be. */
-function Notice({ title, children }: { title: string; children?: ReactNode }) {
+function Notice({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
   const focused = useFocusOnMount<HTMLDivElement>();
   const titleId = useId();
   return (
     <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
       <EmptyHeader>
         <EmptyTitle id={titleId}>{title}</EmptyTitle>
+        {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
       {children && <EmptyContent>{children}</EmptyContent>}
     </Empty>
@@ -80,13 +98,42 @@ function CourseError() {
   );
 }
 
+/**
+ * Every task for what comes next was just answered. Reloads by itself when one
+ * may be asked again, so a learner who waits on the page is not left waiting.
+ */
+function Resting({ retryAfter }: { retryAfter: number }) {
+  const router = useRouter();
+  // Fixed when this mounts, which is when Braivo answered: a duration from its
+  // answer, so the device's clock is only ever read to add to itself.
+  const [retryAt] = useState(() => Date.now() + retryAfter * 1000);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void router.invalidate(), retryAt - Date.now());
+    return () => clearTimeout(timer);
+  }, [retryAt, router]);
+
+  return (
+    <Notice
+      title="Take a short break"
+      description={`You just saw this answer, so it comes back at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, when answering it shows what you remember.`}
+    />
+  );
+}
+
 const INTENT_LABELS: Record<Activity["decision"]["intent"], string> = {
   introduce: "New",
   reteach: "Try again",
   review: "Review",
 };
 
-function Practice({ activity, attemptId }: { activity: Activity; attemptId: string }) {
+function Practice({
+  activity,
+  attemptId,
+}: {
+  activity: Extract<Activity, { task: unknown }>;
+  attemptId: string;
+}) {
   const { braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
   const router = useRouter();
@@ -123,8 +170,10 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
       if (error instanceof BraivoError) {
         // Reloading explains these. 401: the guard sends the learner to sign
         // in. 404: the course or task is gone. 409: this attempt was answered
-        // already, its grade lost on the way back; that answer stands.
-        if ([401, 404, 409].includes(error.status)) {
+        // already, its grade lost on the way back; that answer stands. 429:
+        // the task was answered moments ago elsewhere, another tab say, and
+        // the reload says when it may be answered again.
+        if ([401, 404, 409, 429].includes(error.status)) {
           await router.invalidate();
           return;
         }

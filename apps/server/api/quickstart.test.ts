@@ -127,6 +127,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
     expect(output).toContain('"intent":"introduce"');
     expect(output).toContain('"outcome":"failure"');
     expect(output).toContain('"intent":"reteach"');
+    expect(output).toContain('"prompt":"Goodbye, in Spanish?"');
     expect(output).toContain('"phase":"acquiring"');
     expect(output).toContain('"phase":"unseen"');
   });

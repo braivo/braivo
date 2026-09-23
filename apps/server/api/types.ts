@@ -46,11 +46,15 @@ export type KnowledgeReport = Json<learning.KnowledgeReport>;
  */
 export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" | "outcome" | "at">>;
 
-/** What a learner is to do next, as `GET /api/courses/:courseId/activity` answers it. */
-export type Activity = {
-  decision: LearningDecision;
-  task: { id: string } & content.PresentedTask;
-};
+/**
+ * What a learner is to do next, as `GET /api/courses/:courseId/activity`
+ * answers it: a task to answer now, or, when every task for the decision was
+ * answered too recently, in how many seconds to ask again.
+ */
+export type Activity = { decision: LearningDecision } & (
+  | { task: { id: string } & content.PresentedTask }
+  | { retryAfter: number }
+);
 
 /** A learner's answer to a task, as posted in an attempt. */
 export type TaskResponse = content.TaskResponse;

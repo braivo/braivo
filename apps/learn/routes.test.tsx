@@ -241,6 +241,21 @@ describe("the learn app", () => {
     expect(router.state.location.pathname).toBe("/sign-in");
   });
 
+  test("says when a just-answered task comes back, and asks again then", async () => {
+    let resting = true;
+    const { nextActivity } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () =>
+        resting ? { decision: activity.decision, retryAfter: 0.05 } : activity,
+    });
+
+    expect(await screen.findByText("Take a short break")).toBeTruthy();
+
+    resting = false;
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(nextActivity).toHaveBeenCalledTimes(2);
+  });
+
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
     renderAt("/courses/c1", { signedIn: true });
 

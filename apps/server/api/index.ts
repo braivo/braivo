@@ -42,6 +42,13 @@
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
 //
+// A task rests for ten minutes after the learner answers it, since grading
+// showed them the answer. When every task for the decision is resting, 200
+// answers the decision with in how many seconds to ask again, instead of a
+// task — a duration, like `Retry-After`, so the client's clock does not matter:
+//
+//   { "decision": { … }, "retryAfter": 540 }
+//
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
@@ -56,6 +63,8 @@
 //   404  the course does not exist, is not the learner's, or has no such task
 //   409  `id` was already used for a different task or response
 //   413  the body is larger than 1 MB
+//   429  the learner answered this task in another attempt less than ten
+//        minutes ago; `Retry-After` says in how many seconds it may be answered
 //   200  the grade: `{ "outcome": "failure", "answer": 0, "explanation": "…" }`,
 //        `explanation` present only when the task has one.
 //

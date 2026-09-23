@@ -7,7 +7,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody } from "../content/index.ts";
 import { createCourse, createObjectives, readLearnerEvidence } from "../persistence/index.ts";
-import { chooseNextActivity, submitAttempt } from "./activity.ts";
+import { chooseNextActivity, submitAttempt, TASK_REST_MS } from "./activity.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -142,14 +142,20 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "graded",
       grade: { outcome: "failure", answer: 0 },
     });
-    expect((await decided(later(2))).decision).toMatchObject({
+    // Its one task rests, since the learner has just been shown the answer.
+    expect(await activity(later(2))).toMatchObject({
+      kind: "resting",
+      decision: { objectiveId: pastTense, intent: "reteach" },
+      retryAt: later(11),
+    });
+    expect((await decided(later(11))).decision).toMatchObject({
       objectiveId: pastTense,
       intent: "reteach",
     });
 
-    await answer("a2", pastTenseTask, 0, later(3));
+    await answer("a2", pastTenseTask, 0, later(12));
     // Untaught has no task, so selection moves past it rather than stopping.
-    expect((await decided(later(4))).decision).toMatchObject({
+    expect((await decided(later(13))).decision).toMatchObject({
       objectiveId: fractions,
       intent: "introduce",
     });
@@ -165,7 +171,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         id: `attempt:a2:${pastTense}`,
         objectiveId: pastTense,
         outcome: "success",
-        at: later(3),
+        at: later(12),
       },
     ]);
   });
@@ -184,7 +190,32 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect((await decided(later(3))).task.id).toBe(second);
 
     await answer("f2", second, 1, later(4));
-    expect((await decided(later(5))).task.id).toBe(first);
+    // Both answered within the rest, so neither is asked until the first has rested.
+    expect(await activity(later(5))).toMatchObject({ kind: "resting", retryAt: later(12) });
+    expect((await decided(later(12))).task.id).toBe(first);
+  });
+
+  test("refuses a new answer to a task still resting, but not a resend of the same one", async () => {
+    await answer("first", pastTenseTask, 1, start);
+
+    // Straight after seeing the answer: refused, recording nothing.
+    expect(await answer("second", pastTenseTask, 0, later(1))).toEqual({
+      kind: "resting",
+      retryAt: new Date(start.getTime() + TASK_REST_MS),
+    });
+    // The first attempt, resent, is the same answer rather than another one.
+    expect(await answer("first", pastTenseTask, 1, later(1))).toMatchObject({ kind: "graded" });
+    expect(await stored()).toMatchObject([{ id: `attempt:first:${pastTense}` }]);
+
+    expect(await answer("second", pastTenseTask, 0, later(10))).toMatchObject({
+      kind: "graded",
+      grade: { outcome: "success" },
+    });
+
+    // A resend of the first, after the second: still a resend, not another
+    // answer. A reuse of its ID for a different answer is still a conflict.
+    expect(await answer("first", pastTenseTask, 1, later(11))).toMatchObject({ kind: "graded" });
+    expect(await answer("first", pastTenseTask, 0, later(11))).toEqual({ kind: "conflict" });
   });
 
   test("records a resubmitted attempt once, and grades it the same", async () => {

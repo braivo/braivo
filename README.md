@@ -91,11 +91,15 @@ COURSE=$(curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/courses \
   -H 'content-type: application/json' \
   -d "{\"title\":\"Beginners\",\"objectiveIds\":$OBJECTIVES}" | field 'r.courseId')
 
-# Give each objective something to practise: a question with one right answer.
+# Give each objective questions with one right answer. Greetings gets two: a
+# task rests for ten minutes once answered, since grading shows the answer, so
+# a learner who misses one is asked the other in the meantime.
 curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
   -H 'content-type: application/json' -d "{\"tasks\":[
     {\"objectiveId\":\"$FIRST\",\"kind\":\"choice\",\"prompt\":\"Hello, in Spanish?\",
      \"options\":[\"Hola\",\"Adiós\"],\"answer\":0,\"explanation\":\"Adiós is goodbye.\"},
+    {\"objectiveId\":\"$FIRST\",\"kind\":\"choice\",\"prompt\":\"Goodbye, in Spanish?\",
+     \"options\":[\"Hola\",\"Adiós\"],\"answer\":1},
     {\"objectiveId\":\"$SECOND\",\"kind\":\"choice\",\"prompt\":\"Three, in Spanish?\",
      \"options\":[\"Dos\",\"Tres\"],\"answer\":1}]}" >/dev/null
 
@@ -112,9 +116,9 @@ curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
   -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1}}"
 # {"outcome":"failure","answer":0,"explanation":"Adiós is goodbye."}
 
-# What comes next follows from that answer.
+# What comes next follows from that answer: greetings again, with the other task.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
-# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"task":{…}}
+# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"task":{…,"prompt":"Goodbye, in Spanish?",…}}
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress

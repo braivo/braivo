@@ -936,10 +936,15 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       explanation: "Preterite.",
     });
 
-    const next = (await (await activity(courseId, learner.cookie)).json()) as {
-      decision: { intent: string };
-    };
-    expect(next.decision.intent).toBe("reteach");
+    // Its only task rests, since the learner was just shown the answer.
+    expect(await (await activity(courseId, learner.cookie)).json()).toEqual({
+      decision: expect.objectContaining({ intent: "reteach" }),
+      retryAfter: 600,
+    });
+    const again = { ...attempt, id: crypto.randomUUID(), response: { choice: 0 } };
+    const early = await postAttempt(courseId, again, learner.cookie);
+    expect(early.status).toBe(429);
+    expect(Number(early.headers.get("retry-after"))).toBeGreaterThan(590);
 
     // Resent after a lost answer: the same grade, and no second record.
     expect((await postAttempt(courseId, attempt, learner.cookie)).status).toBe(200);

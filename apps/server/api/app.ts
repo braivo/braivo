@@ -191,6 +191,16 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
   return parsed;
 }
 
+/**
+ * How long until `when`, in whole seconds rounded up, so a client honouring it
+ * is never early. A duration rather than a date, as `Retry-After` gives it,
+ * because a date would be read against the client's clock, which need not
+ * agree with this one.
+ */
+function secondsUntil(when: Date, now: Date): number {
+  return Math.ceil((when.getTime() - now.getTime()) / 1000);
+}
+
 /** Enough for that many records, and far less than a body worth buffering. */
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -315,11 +325,12 @@ export function createApi(options: ApiOptions) {
     const session = await sessionFor(context);
     if (!session) return context.body(null, 401);
 
+    const now = new Date();
     const next = await chooseNextActivity({
       database,
       learnerId: session.user.id,
       courseId: context.req.param("courseId"),
-      now: new Date(),
+      now,
     });
 
     switch (next.kind) {
@@ -327,6 +338,11 @@ export function createApi(options: ApiOptions) {
         return context.body(null, 404);
       case "no-activity":
         return context.body(null, 204);
+      case "resting":
+        return context.json({
+          decision: next.decision,
+          retryAfter: secondsUntil(next.retryAt, now),
+        });
       case "decided":
         return context.json({ decision: next.decision, task: next.task });
       default:
@@ -350,6 +366,7 @@ export function createApi(options: ApiOptions) {
       const attempt = parseAttempt(await context.req.json().catch(() => undefined));
       if (attempt === undefined) return context.body(null, 400);
 
+      const now = new Date();
       const submitted = await submitAttempt({
         database,
         learnerId: session.user.id,
@@ -357,7 +374,7 @@ export function createApi(options: ApiOptions) {
         attemptId: attempt.id,
         taskId: attempt.taskId,
         response: attempt.response,
-        now: new Date(),
+        now,
       });
 
       switch (submitted.kind) {
@@ -367,6 +384,10 @@ export function createApi(options: ApiOptions) {
           return context.body(null, 400);
         case "conflict":
           return context.body(null, 409);
+        case "resting": {
+          context.header("retry-after", String(secondsUntil(submitted.retryAt, now)));
+          return context.body(null, 429);
+        }
         case "graded":
           return context.json(submitted.grade);
         default:

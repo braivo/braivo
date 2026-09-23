@@ -29,4 +29,5 @@ export {
   readNextTask,
   readObjectivesWithTasks,
   recordAttempt,
+  RestingTask,
 } from "./task.ts";
