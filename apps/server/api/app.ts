@@ -455,10 +455,11 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * Where a learner stands on each objective in a course, for a content owner.
+   * Where a learner stands on each objective in a course, for a content owner
+   * or the learner themselves.
    *
    * The learner is named in the path, as the evidence route names one, because
-   * the reader is someone else. Who that reader is comes from the session and is
+   * the reader may be someone else. Who that reader is comes from the session and is
    * never named; whether they may read it is decided by the use case.
    */
   api.get("/api/courses/:courseId/learners/:learnerId/progress", async (context) => {

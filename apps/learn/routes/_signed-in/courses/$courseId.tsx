@@ -174,6 +174,28 @@ function Resting({ objective, retryAfter }: { objective: string; retryAfter: num
   );
 }
 
+/**
+ * Why this comes now, from the values the decision was made on — the learner's
+ * side of the principle that decisions are explainable. A reteach is always
+ * after a miss, since only a failure leaves an objective being learned.
+ */
+function Reason({ decision }: { decision: LearningDecision }) {
+  switch (decision.intent) {
+    case "introduce":
+      return null;
+    case "reteach":
+      return <MutedText>You missed this last time.</MutedText>;
+    case "review":
+      return (
+        <MutedText>
+          Due for review: about {Math.round(decision.retrievability * 100)}% likely to recall now.
+        </MutedText>
+      );
+    default:
+      return decision satisfies never;
+  }
+}
+
 const INTENT_LABELS: Record<LearningDecision["intent"], string> = {
   introduce: "New",
   reteach: "Try again",
@@ -260,9 +282,12 @@ function Practice({
 
   return (
     <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
-      <MutedText>
-        {INTENT_LABELS[decision.intent]} · {objective.title}
-      </MutedText>
+      <div>
+        <MutedText>
+          {INTENT_LABELS[decision.intent]} · {objective.title}
+        </MutedText>
+        <Reason decision={decision} />
+      </div>
       <ChoiceQuestion
         prompt={task.prompt}
         options={task.options}

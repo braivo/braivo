@@ -466,6 +466,25 @@ describe("the learn app", () => {
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
   });
 
+  test("says why a question comes now", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => ({
+        ...activity,
+        decision: {
+          objectiveId: "o1",
+          modelVersion: "v1",
+          intent: "review",
+          retrievability: 0.724,
+          stability: 3,
+        },
+      }),
+    });
+
+    expect(await screen.findByText("Review · Past tense")).toBeTruthy();
+    expect(screen.getByText("Due for review: about 72% likely to recall now.")).toBeTruthy();
+  });
+
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
     renderAt("/courses/c1", { signedIn: true });
 
