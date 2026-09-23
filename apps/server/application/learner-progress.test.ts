@@ -17,6 +17,8 @@ const database = testing.sharedDatabase(connectionString ?? "");
 const organizationId = "learner-progress-test-org";
 const otherOrganizationId = "learner-progress-test-other-org";
 const learner = "learner-progress-test-learner";
+/** In the same organization as the learner, and so entitled to nothing about them. */
+const classmate = "learner-progress-test-classmate";
 /** Administers the organization, and so may read its learners' progress. */
 const teacher = "learner-progress-test-teacher";
 /** Administers a different organization, which gives them nothing here. */
@@ -53,7 +55,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     await runMigrations(connectionString ?? "");
     await testing.seedOrganization(database, {
       organizationId,
-      learnerIds: [learner],
+      learnerIds: [learner, classmate],
       adminIds: [teacher],
       at: now,
     });
@@ -159,10 +161,9 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     });
   });
 
-  test("refuses a reader who does not administer the organization", async () => {
-    // Including the learner reading their own: a member does not administer,
-    // and self-service is not what this covers.
-    expect(await progress({ viewedBy: learner })).toEqual({ kind: "unavailable" });
+  test("lets a learner read their own, and no other member read it", async () => {
+    expect(await progress({ viewedBy: learner })).toMatchObject({ kind: "assessed" });
+    expect(await progress({ viewedBy: classmate })).toEqual({ kind: "unavailable" });
     expect(await progress({ viewedBy: stranger })).toEqual({ kind: "unavailable" });
   });
 

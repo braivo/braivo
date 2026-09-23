@@ -9,18 +9,18 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
 
 /**
- * Where a learner stands on each objective in a course, for a content owner.
+ * Where a learner stands on each objective in a course, for a content owner or
+ * for the learner themselves.
  *
  * Loaded through `loadLearnerInCourse`, like `chooseNextObjective`, so both read
  * the same evidence under the same model, and what this reports as due is what
  * selection would review.
  *
  * `viewedBy` is the reader, not the learner, so it is authorized
- * (docs/adr/0010-hono-http-layer.md): it must administer the course's
- * organization, and the learner must belong to it.
- *
- * A learner reading their own progress is out of scope for now: a `member` does
- * not administer, so they are told the course is unavailable.
+ * (docs/adr/0010-hono-http-layer.md): it must be the learner, or administer the
+ * course's organization; either way, the learner must belong to it. Seeing what
+ * they know, are still learning, and are due to review is part of learning,
+ * not only of teaching; another member's standing stays the administrators'.
  */
 export async function readLearnerProgress(input: {
   database: Database;
@@ -41,7 +41,8 @@ export async function readLearnerProgress(input: {
     learnerId,
     host,
     now,
-    authorize: (organizationId) => mayAdminister(database, { organizationId, userId: viewedBy }),
+    authorize: (organizationId) =>
+      viewedBy === learnerId || mayAdminister(database, { organizationId, userId: viewedBy }),
   });
   if (learner === undefined) return { kind: "unavailable" };
 
@@ -58,8 +59,7 @@ export async function readLearnerProgress(input: {
 
 /**
  * `unavailable` covers four cases on purpose. A missing course and one the reader
- * does not administer look alike, so a reader cannot confirm that a course
- * exists. A learner outside the organization and an ID that belongs to nobody
+ * may not read look alike, so a reader cannot confirm that a course exists. A learner outside the organization and an ID that belongs to nobody
  * look alike, so an administrator cannot probe whether an ID exists elsewhere.
  * Timing still differs: each check that passes costs another query.
  */

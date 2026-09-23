@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Activity, BraivoError, type BraivoClient, type Grade } from "@braivo/server/client";
+import {
+  type Activity,
+  BraivoError,
+  type BraivoClient,
+  type Grade,
+  type KnowledgeReport,
+} from "@braivo/server/client";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
@@ -44,6 +50,8 @@ const anotherActivity: Activity = {
   },
 };
 
+const noProgress: KnowledgeReport = { modelVersion: "v1", objectives: [] };
+
 /**
  * The app as a learner reaches it, at `path`, with Braivo and the session
  * stubbed: the route tree is the real one, so gating and loading are too.
@@ -53,6 +61,7 @@ function renderAt(
   options: {
     signedIn: boolean;
     learnerCourses?: BraivoClient["learnerCourses"];
+    learnerProgress?: BraivoClient["learnerProgress"];
     nextActivity?: BraivoClient["nextActivity"];
     submitAttempt?: BraivoClient["submitAttempt"];
     /** The organization whose domain serves the app; none unless given. */
@@ -61,19 +70,21 @@ function renderAt(
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
+  const learnerProgress = vi.fn(options.learnerProgress ?? (async () => noProgress));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
     options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
   const auth = {
     getSession: async () => ({
-      data: options.signedIn ? { user: { name: "Ada Learner" } } : null,
+      data: options.signedIn ? { user: { id: "ada", name: "Ada Learner" } } : null,
       error: null,
     }),
   } as unknown as AppContext["auth"];
   const braivo = {
     hostOrganization,
     learnerCourses,
+    learnerProgress,
     nextActivity,
     submitAttempt,
   } as unknown as AppContext["braivo"];
@@ -85,7 +96,7 @@ function renderAt(
   });
   render(<RouterProvider router={router} />);
 
-  return { learnerCourses, nextActivity, submitAttempt, router };
+  return { learnerCourses, learnerProgress, nextActivity, submitAttempt, router };
 }
 
 describe("the learn app", () => {
@@ -298,6 +309,7 @@ describe("the learn app", () => {
     } as unknown as AppContext["auth"];
     const braivo = {
       hostOrganization: async () => undefined,
+      learnerProgress: async () => noProgress,
       nextActivity: async () => activity,
       submitAttempt: async () => {
         signedIn = false;
@@ -376,6 +388,58 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
     expect(await screen.findByText("Take a short break")).toBeTruthy();
+  });
+
+  test("shows the learner where they stand in the course, read as themselves", async () => {
+    const at = "2026-06-01T00:00:00.000Z";
+    const { learnerProgress } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          {
+            objectiveId: "a",
+            phase: "retaining",
+            lastEvidenceAt: at,
+            stability: 3,
+            retrievability: 0.95,
+            due: false,
+          },
+          {
+            objectiveId: "b",
+            phase: "retaining",
+            lastEvidenceAt: at,
+            stability: 1,
+            retrievability: 0.5,
+            due: true,
+          },
+          { objectiveId: "c", phase: "acquiring", lastEvidenceAt: at },
+          { objectiveId: "d", phase: "unseen" },
+          { objectiveId: "e", phase: "unseen" },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByText("1 retained · 1 due for review · 1 learning · 2 not started"),
+    ).toBeTruthy();
+    expect(learnerProgress).toHaveBeenCalledWith(
+      { courseId: "c1", learnerId: "ada" },
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  test("still asks the question when where they stand cannot be read", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      learnerProgress: async () => {
+        throw new BraivoError(500, "unavailable");
+      },
+    });
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
   });
 
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
