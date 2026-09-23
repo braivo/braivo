@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type * as content from "../content/index.ts";
 import type * as learning from "../learning/index.ts";
 
 // The shapes the HTTP API sends and accepts, as `api/index.ts` documents them.
@@ -44,6 +45,18 @@ export type KnowledgeReport = Json<learning.KnowledgeReport>;
  * something callers are told to send.
  */
 export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" | "outcome" | "at">>;
+
+/** What a learner is to do next, as `GET /api/courses/:courseId/activity` answers it. */
+export type Activity = {
+  decision: LearningDecision;
+  task: { id: string } & content.PresentedTask;
+};
+
+/** A learner's answer to a task, as posted in an attempt. */
+export type TaskResponse = content.TaskResponse;
+
+/** How an attempt was graded, as `POST /api/courses/:courseId/attempts` answers it. */
+export type Grade = content.Grade;
 
 /** A course as its organization's content owners see it listed. */
 export type Course = { id: string; title: string };

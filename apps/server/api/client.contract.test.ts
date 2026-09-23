@@ -41,9 +41,11 @@ let learnerCookie!: string;
 let learnerId!: string;
 let teacherCookie!: string;
 let courseId!: string;
-/** The learner's organization's, and teaching nothing yet: always caught up. */
+/** The learner's organization's, and teaching nothing yet: never anything to practise. */
 let emptyCourseId!: string;
 let pastTense!: string;
+/** The past tense's one task, a choice correct at index 0. */
+let pastTenseTask!: string;
 let fractions!: string;
 let decimals!: string;
 /** Three objectives, so a progress report can show every phase at once. */
@@ -88,6 +90,12 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       title: "Spanish",
       objectiveIds: [pastTense],
     });
+    pastTenseTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: pastTense,
+      body: { kind: "choice", prompt: "Past tense?", options: ["hablé", "hablo"], answer: 0 },
+      createdAt: at,
+    });
     emptyCourseId = await createCourse(database, {
       organizationId,
       title: "Not started",
@@ -108,16 +116,31 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await testing.clearLearnerHistory(database, [learnerId]);
   });
 
-  test("parses a decision into the shape it declares", async () => {
-    const decision = await client.nextObjective(courseId, { headers: { cookie: learnerCookie } });
+  test("parses an activity into the shape it declares", async () => {
+    const activity = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
 
     // Every field the client's type promises, from the server that really sent
     // it: a rename on either side stops matching here.
-    expect(decision).toEqual({
-      objectiveId: pastTense,
-      modelVersion: "v1",
-      intent: "introduce",
+    expect(activity).toEqual({
+      decision: { objectiveId: pastTense, modelVersion: "v1", intent: "introduce" },
+      task: {
+        id: pastTenseTask,
+        kind: "choice",
+        prompt: "Past tense?",
+        options: ["hablé", "hablo"],
+      },
     });
+  });
+
+  test("submits an attempt the server grades, and sees the next activity follow", async () => {
+    const grade = await client.submitAttempt(
+      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } },
+      { headers: { cookie: learnerCookie } },
+    );
+    expect(grade).toEqual({ outcome: "failure", answer: 0 });
+
+    const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
+    expect(next?.decision).toMatchObject({ objectiveId: pastTense, intent: "reteach" });
   });
 
   test("lists courses in the shape it declares, and refuses a learner", async () => {
@@ -156,19 +179,19 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
-  test("reads a caught-up learner as undefined rather than as an error", async () => {
-    const decision = await client.nextObjective(emptyCourseId, {
+  test("reads nothing to practise as undefined rather than as an error", async () => {
+    const activity = await client.nextActivity(emptyCourseId, {
       headers: { cookie: learnerCookie },
     });
 
-    expect(decision).toBeUndefined();
+    expect(activity).toBeUndefined();
   });
 
-  test("reads a course the learner cannot see as a 404, not as caught up", async () => {
+  test("reads a course the learner cannot see as a 404, not as nothing to practise", async () => {
     // The two used to be one answer, and a client holding a stale course ID
     // would have told its learner, indefinitely, that there was nothing to do.
     const rejected = await client
-      .nextObjective("no-such-course", { headers: { cookie: learnerCookie } })
+      .nextActivity("no-such-course", { headers: { cookie: learnerCookie } })
       .catch((thrown: unknown) => thrown);
 
     expect(rejected).toBeInstanceOf(BraivoError);
@@ -189,9 +212,9 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       { headers: { cookie: teacherCookie } },
     );
 
-    const decision = await client.nextObjective(courseId, { headers: { cookie: learnerCookie } });
+    const activity = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
 
-    expect(decision).toEqual({
+    expect(activity?.decision).toEqual({
       objectiveId: pastTense,
       modelVersion: "v1",
       intent: "reteach",

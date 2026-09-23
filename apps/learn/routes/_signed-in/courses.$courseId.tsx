@@ -1,18 +1,23 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type LearningDecision } from "@braivo/server/client";
-import { Heading, MutedText } from "@braivo/ui";
+import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
+import { ChoiceQuestion, MutedText } from "@braivo/ui";
+import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
+import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   loader: async ({ context, params, abortController }) => {
     try {
-      const decision = await context.braivo.nextObjective(params.courseId, {
+      const activity = await context.braivo.nextActivity(params.courseId, {
         signal: abortController.signal,
       });
-      return { decision };
+      // One attempt per activity shown, named here so that a resubmission of
+      // it — after a lost answer — is recognised by Braivo as the same one.
+      return { activity, attemptId: crypto.randomUUID() };
     } catch (error) {
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
@@ -23,49 +28,116 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   notFoundComponent: () => <p>This course does not exist, or is not one of yours.</p>,
 });
 
+/**
+ * Focuses what it is attached to when that mounts. Whatever follows Continue
+ * takes the focus Continue had, or it would fall to the page and leave a
+ * keyboard or screen-reader learner nowhere. Explicit, since React applies
+ * `autoFocus` only to form controls.
+ */
+function useFocusOnMount<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => ref.current?.focus(), []);
+  return ref;
+}
+
 function NextStep() {
-  const { decision } = Route.useLoaderData();
-  return <Decision decision={decision} />;
+  const { activity, attemptId } = Route.useLoaderData();
+
+  if (!activity) return <CaughtUp />;
+  // Keyed, so the next activity starts unanswered.
+  return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
 }
 
-function Decision({ decision }: { decision: LearningDecision | undefined }) {
-  if (!decision) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>You are all caught up</EmptyTitle>
-          <EmptyDescription>Nothing needs attention right now. Come back later.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  }
-
-  switch (decision.intent) {
-    case "introduce":
-      return <Step title="Learn something new" objectiveId={decision.objectiveId} />;
-    case "reteach":
-      return (
-        <Step title="Try this again" objectiveId={decision.objectiveId}>
-          Last attempted {new Date(decision.lastEvidenceAt).toLocaleString()}.
-        </Step>
-      );
-    case "review":
-      return (
-        <Step title="Time to review" objectiveId={decision.objectiveId}>
-          Likely to recall: {Math.round(decision.retrievability * 100)}%.
-        </Step>
-      );
-    default:
-      return decision satisfies never;
-  }
-}
-
-function Step(props: { title: string; objectiveId: string; children?: React.ReactNode }) {
+function CaughtUp() {
+  const focused = useFocusOnMount<HTMLDivElement>();
   return (
-    <section>
-      <Heading className="mb-0">{props.title}</Heading>
-      <MutedText>Objective {props.objectiveId}</MutedText>
-      {props.children && <p className="mt-2">{props.children}</p>}
+    <Empty ref={focused} tabIndex={-1} className="outline-none">
+      <EmptyHeader>
+        {/* Not "caught up": an objective with no task to practise it can still be
+            due (glossary: No activity). */}
+        <EmptyTitle>Nothing to practise right now</EmptyTitle>
+        <EmptyDescription>Come back later.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+const INTENT_LABELS: Record<Activity["decision"]["intent"], string> = {
+  introduce: "New",
+  reteach: "Try again",
+  review: "Review",
+};
+
+function Practice({ activity, attemptId }: { activity: Activity; attemptId: string }) {
+  const { braivo } = Route.useRouteContext();
+  const { courseId } = Route.useParams();
+  const router = useRouter();
+  const [chosen, setChosen] = useState<number>();
+  const [grade, setGrade] = useState<Grade>();
+  const [failed, setFailed] = useState(false);
+  const focused = useFocusOnMount<HTMLElement>();
+  const { decision, task } = activity;
+
+  // Aborted when this practice goes away, so an answer still in flight cannot
+  // act on whatever page the learner has moved on to. Created in the effect,
+  // not in state, since StrictMode runs the cleanup once before remounting.
+  const lifetime = useRef<AbortController>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
+
+  async function choose(choice: number) {
+    const signal = lifetime.current?.signal;
+    setChosen(choice);
+    setFailed(false);
+    try {
+      const answered = await braivo.submitAttempt(
+        { courseId, id: attemptId, taskId: task.id, response: { choice } },
+        { signal },
+      );
+      setGrade(answered);
+    } catch (error) {
+      if (signal?.aborted) return;
+      // 401: the session ended, and reloading runs the guard that sends the
+      // learner to sign in. 409: this attempt was answered already, its grade
+      // lost on the way back; that answer stands, so move on to the next.
+      if (error instanceof BraivoError && (error.status === 401 || error.status === 409)) {
+        await router.invalidate();
+        return;
+      }
+      setChosen(undefined);
+      setFailed(true);
+    }
+  }
+
+  return (
+    <section ref={focused} tabIndex={-1} className="flex flex-col gap-6 outline-none">
+      <MutedText>{INTENT_LABELS[decision.intent]}</MutedText>
+      <ChoiceQuestion
+        prompt={task.prompt}
+        options={task.options}
+        chosen={chosen}
+        answer={grade?.answer}
+        onChoose={choose}
+      />
+      {failed && (
+        <Alert variant="destructive">
+          <AlertDescription>Your answer could not be sent. Choose again.</AlertDescription>
+        </Alert>
+      )}
+      {grade && (
+        <>
+          <Alert>
+            <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
+            {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
+          </Alert>
+          <Button autoFocus onClick={() => router.invalidate()}>
+            Continue
+          </Button>
+        </>
+      )}
     </section>
   );
 }

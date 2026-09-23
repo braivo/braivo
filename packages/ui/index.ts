@@ -8,6 +8,7 @@
 // from `@braivo/ui/globals.css`.
 // See docs/adr/0013-ui-package-and-storybook.md.
 
+export { ChoiceQuestion } from "./compositions/choice-question.tsx";
 export { Heading } from "./compositions/heading.tsx";
 export { MutedText } from "./compositions/muted-text.tsx";
 export { SignInForm, type SignInValues } from "./compositions/sign-in-form.tsx";
