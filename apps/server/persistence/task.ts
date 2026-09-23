@@ -24,6 +24,29 @@ export class ConflictingAttempt extends Error {
   }
 }
 
+/**
+ * Stores tasks and returns their generated IDs, positionally matching the tasks
+ * given. Bodies must already be valid — `content` validates them — since a
+ * stored task is never corrected, only replaced.
+ */
+export async function createTasks(
+  database: Database,
+  organizationId: string,
+  tasks: readonly { objectiveId: string; body: TaskBody }[],
+  createdAt: Date,
+): Promise<string[]> {
+  if (tasks.length === 0) return [];
+
+  const rows = tasks.map((item) => ({
+    id: crypto.randomUUID(),
+    organizationId,
+    createdAt,
+    ...item,
+  }));
+  await database.insert(task).values(rows);
+  return rows.map((row) => row.id);
+}
+
 /** Which of these objectives have at least one task, and so something to practise. */
 export async function readObjectivesWithTasks(
   database: Database,

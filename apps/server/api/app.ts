@@ -11,7 +11,9 @@ import {
   ConflictingEvidence,
   defineCourse,
   defineObjectives,
+  defineTasks,
   InvalidEvidence,
+  InvalidTask,
   listCourses,
   listObjectives,
   NotPermitted,
@@ -164,6 +166,29 @@ function parseAttempt(
   if (typeof taskId !== "string" || taskId === "") return undefined;
 
   return { id, taskId, response };
+}
+
+/**
+ * Reads tasks out of a request body: each an `objectiveId` beside the fields of
+ * its kind. Only the envelope is read here; the body is `content`'s to judge.
+ */
+function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const tasks = (body as { tasks?: unknown }).tasks;
+  if (!Array.isArray(tasks)) return undefined;
+  if (tasks.length > MAX_ITEMS_PER_REQUEST) return undefined;
+
+  const parsed: { objectiveId: string; body: unknown }[] = [];
+  for (const task of tasks) {
+    if (typeof task !== "object" || task === null) return undefined;
+
+    const { objectiveId, ...rest } = task as Record<string, unknown>;
+    if (typeof objectiveId !== "string" || objectiveId === "") return undefined;
+
+    parsed.push({ objectiveId, body: rest });
+  }
+  return parsed;
 }
 
 /** Enough for that many records, and far less than a body worth buffering. */
@@ -453,6 +478,40 @@ export function createApi(options: ApiOptions) {
 
         return context.json({ objectiveIds }, 201);
       } catch (error) {
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * Adds tasks to the organization's objectives: what a learner answers, and
+   * what the activity route offers them.
+   */
+  api.post(
+    "/api/organizations/:organizationId/tasks",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const tasks = parseTasks(await context.req.json().catch(() => undefined));
+      if (tasks === undefined) return context.body(null, 400);
+
+      try {
+        const taskIds = await defineTasks({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          tasks,
+          now: new Date(),
+        });
+
+        return context.json({ taskIds }, 201);
+      } catch (error) {
+        if (error instanceof InvalidTask) return context.body(null, 400);
         if (error instanceof NotPermitted) return context.body(null, 403);
         throw error;
       }

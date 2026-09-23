@@ -597,6 +597,28 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
   });
 
+  test("lets an admin add tasks, refusing an invalid one and a learner", async () => {
+    const post = (body: unknown, cookie: string) =>
+      api.request(`/api/organizations/${organizationId}/tasks`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify(body),
+      });
+    // An objective of its own, so the tasks added here reach no other test.
+    const [objectiveId] = await createObjectives(database, organizationId, ["Authored"]);
+    const task = { objectiveId, kind: "choice", prompt: "Which?", options: ["a", "b"] };
+
+    const added = await post({ tasks: [{ ...task, answer: 1 }] }, teacher.cookie);
+    expect(added.status).toBe(201);
+    expect(await added.json()).toEqual({ taskIds: [expect.any(String)] });
+
+    expect((await post({ tasks: [{ ...task, answer: 2 }] }, teacher.cookie)).status).toBe(400);
+    expect((await post({ tasks: [{ ...task, objectiveId: "" }] }, teacher.cookie)).status).toBe(
+      400,
+    );
+    expect((await post({ tasks: [{ ...task, answer: 1 }] }, learner.cookie)).status).toBe(403);
+  });
+
   test("lets an admin define objectives and read them back", async () => {
     const created = await api.request(`/api/organizations/${organizationId}/objectives`, {
       method: "POST",
