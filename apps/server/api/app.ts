@@ -15,6 +15,7 @@ import {
   InvalidEvidence,
   InvalidTask,
   listCourses,
+  listLearnerCourses,
   listObjectives,
   NotPermitted,
   readLearnerProgress,
@@ -291,6 +292,17 @@ export function createApi(options: ApiOptions) {
       default:
         throw new Error(`Unhandled answer: ${JSON.stringify(next satisfies never)}`);
     }
+  });
+
+  /** The courses the signed-in learner may study, from the session alone. */
+  api.get("/api/courses", async (context) => {
+    context.header("cache-control", "private, no-store");
+
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    const courses = await listLearnerCourses({ database, learnerId: session.user.id });
+    return context.json({ courses });
   });
 
   /**

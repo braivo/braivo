@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { course, courseObjective } from "@braivo/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { course, courseObjective, member } from "@braivo/db/schema";
+import { asc, eq, inArray } from "drizzle-orm";
 
 export type Course = { id: string; title: string };
 
@@ -69,6 +69,24 @@ export async function readCourses(database: Database, organizationId: string): P
     .select({ id: course.id, title: course.title })
     .from(course)
     .where(eq(course.organizationId, organizationId))
+    .orderBy(asc(course.title), asc(course.id));
+}
+
+/**
+ * Every course in every organization this user belongs to, by title: what a
+ * learner may study, while membership is the only entitlement there is. A
+ * semi-join, since the schema does not stop a user being a member twice.
+ */
+export async function readLearnerCourses(database: Database, learnerId: string): Promise<Course[]> {
+  const organizations = database
+    .select({ id: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, learnerId));
+
+  return database
+    .select({ id: course.id, title: course.title })
+    .from(course)
+    .where(inArray(course.organizationId, organizations))
     .orderBy(asc(course.title), asc(course.id));
 }
 

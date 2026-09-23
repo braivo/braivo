@@ -869,6 +869,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   });
 
+  test("lists the courses of the learner's organizations, and nobody else's", async () => {
+    const response = await api.request("/api/courses", { headers: { cookie: learner.cookie } });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const { courses } = (await response.json()) as { courses: { id: string }[] };
+    const ids = courses.map((course) => course.id);
+    expect(ids).toContain(courseId);
+    expect(ids).toContain(emptyCourseId);
+    expect(ids).not.toContain(foreignCourseId);
+
+    expect((await api.request("/api/courses")).status).toBe(401);
+  });
+
   test("serves the learner a task in the documented shape, never its answer", async () => {
     const response = await activity(courseId, learner.cookie);
 

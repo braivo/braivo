@@ -143,6 +143,16 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(next?.decision).toMatchObject({ objectiveId: pastTense, intent: "reteach" });
   });
 
+  test("lists a learner's courses in the shape it declares", async () => {
+    const courses = await client.learnerCourses({ headers: { cookie: learnerCookie } });
+
+    expect(courses).toEqual([
+      { id: progressCourseId, title: "Every phase" },
+      { id: emptyCourseId, title: "Not started" },
+      { id: courseId, title: "Spanish" },
+    ]);
+  });
+
   test("lists courses in the shape it declares, and refuses a learner", async () => {
     const courses = await client.listCourses(organizationId, {
       headers: { cookie: teacherCookie },

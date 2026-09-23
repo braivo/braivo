@@ -29,10 +29,12 @@ function renderAt(
   path: string,
   options: {
     signedIn: boolean;
+    learnerCourses?: BraivoClient["learnerCourses"];
     nextActivity?: BraivoClient["nextActivity"];
     submitAttempt?: BraivoClient["submitAttempt"];
   },
 ) {
+  const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
     options.submitAttempt ?? (async () => ({ outcome: "success" as const, answer: 0 })),
@@ -43,7 +45,7 @@ function renderAt(
       error: null,
     }),
   } as unknown as AppContext["auth"];
-  const braivo = { nextActivity, submitAttempt } as unknown as AppContext["braivo"];
+  const braivo = { learnerCourses, nextActivity, submitAttempt } as unknown as AppContext["braivo"];
 
   const router = createRouter({
     routeTree,
@@ -52,7 +54,7 @@ function renderAt(
   });
   render(<RouterProvider router={router} />);
 
-  return { nextActivity, submitAttempt, router };
+  return { learnerCourses, nextActivity, submitAttempt, router };
 }
 
 describe("the learn app", () => {
@@ -63,6 +65,27 @@ describe("the learn app", () => {
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
+  });
+
+  test("lists the learner's courses, each a way into it", async () => {
+    const { router } = renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      nextActivity: async () => activity,
+    });
+
+    const link = await screen.findByRole("link", { name: "Spanish" });
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/courses/c1");
+  });
+
+  test("tells a learner with no courses so", async () => {
+    renderAt("/", { signedIn: true });
+
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
   });
 
   test("asks the task, grades the answer, and moves on", async () => {

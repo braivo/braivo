@@ -104,6 +104,12 @@ export type BraivoClient = {
   ): Promise<KnowledgeReport>;
 
   /**
+   * The courses the signed-in learner may study, by title: every course of
+   * every organization they belong to.
+   */
+  learnerCourses(options?: RequestOptions): Promise<Course[]>;
+
+  /**
    * Every course an organization has, by title.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
@@ -254,6 +260,16 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw unexpected(response, doing);
 
       return parsed<KnowledgeReport>(response, doing);
+    },
+
+    async learnerCourses(requestOptions) {
+      const response = await get("/api/courses", requestOptions);
+
+      const doing = "listing the learner's courses";
+      if (response.status !== 200) throw unexpected(response, doing);
+
+      const { courses } = await parsed<{ courses: Course[] }>(response, doing);
+      return courses;
     },
 
     async listCourses(organizationId, requestOptions) {
