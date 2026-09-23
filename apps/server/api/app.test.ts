@@ -692,6 +692,27 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
   });
 
+  test("lets an admin retire tasks, and nobody else", async () => {
+    const [objectiveId] = await createObjectives(database, organizationId, ["Retired"]);
+    const taskId = await testing.createTask(database, {
+      organizationId,
+      objectiveId: objectiveId!,
+      body: { kind: "choice", prompt: "?", options: ["a", "b"], answer: 0 },
+      createdAt: at,
+    });
+    const retire = (body: unknown, cookie: string) =>
+      api.request(`/api/organizations/${organizationId}/tasks/retire`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify(body),
+      });
+
+    expect((await retire({ taskIds: [taskId] }, learner.cookie)).status).toBe(403);
+    expect((await retire({ taskIds: [""] }, teacher.cookie)).status).toBe(400);
+    expect((await retire({ taskIds: [taskId] }, teacher.cookie)).status).toBe(204);
+    expect((await retire({ taskIds: [taskId] }, teacher.cookie)).status).toBe(204);
+  });
+
   test("lets an admin add tasks, refusing an invalid batch, a learner, and no session", async () => {
     const post = (body: unknown, cookie?: string) =>
       api.request(`/api/organizations/${organizationId}/tasks`, {

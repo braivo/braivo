@@ -20,7 +20,7 @@ Closing that loop needs content a learner answers, a record of the answer, a gra
 ## Consequences
 
 - One objective per task. A task that exercises several needs a grader answering per objective — one wrong step in a multi-step problem is not a failure on every objective it touches — and that is when a `task_objective` join table replaces the column.
-- Tasks cannot yet be retired. Once authoring exists, a replaced task must stop being offered while its attempts keep pointing at it: a retirement flag, not a deletion.
+- A replaced task must stop being offered while its attempts keep pointing at it, so it is retired rather than deleted: `task.retired_at`, set through `POST …/tasks/retire`. Evidence it already graded stands; correcting that is a separate decision, not taken.
 - AI-graded kinds break the "recompute the grade" rule, since a model's verdict is not reproducible. They will store the grade and its provenance (model, prompt version) on the attempt when they arrive, and must grade once per attempt: today every retry grades before the insert decides which one wins, which is free for `choice` but not for a model call.
 - A task serves every course its objective is in, since courses order objectives rather than own them ([ADR 0008](0008-courses-order-objectives.md)). Whether a task derived from one source applies wherever its objective does belongs to the source-linking and authoring design, not here.
 - A course whose objectives have no tasks answers the activity route with 204 (`no-activity`), as for a caught-up learner: nothing to practise now.

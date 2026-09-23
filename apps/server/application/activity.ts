@@ -80,10 +80,10 @@ export async function chooseNextActivity(input: {
   });
   if (decision === undefined) return { kind: "no-activity" };
 
-  // The decision's objective had a task a moment ago, and nothing removes one.
-  // Once retirement can, both reads must apply it, or this throws.
+  // The objective had a task a moment ago; its last one being retired since is
+  // the only way to have none now, and it passes by the next asking.
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
-  if (task === undefined) throw new Error(`Objective "${decision.objectiveId}" has no task.`);
+  if (task === undefined) return { kind: "no-activity" };
 
   // Waiting rather than selecting again without this objective, which can
   // introduce unseen material ahead of it unless a second selection rule

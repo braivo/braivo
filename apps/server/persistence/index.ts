@@ -32,4 +32,5 @@ export {
   readObjectivesWithTasks,
   recordAttempt,
   RestingTask,
+  retireTasks,
 } from "./task.ts";

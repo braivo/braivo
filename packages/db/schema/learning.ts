@@ -225,6 +225,12 @@ export const task = pgTable(
     objectiveId: text("objective_id").notNull(),
     body: jsonb("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    /**
+     * When a content owner withdrew it — a wrong answer key, say. A retired task
+     * is never offered or answered again, but stays, since attempts point at it
+     * and immutability is what keeps them interpretable.
+     */
+    retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     // Matching the organization, as `course_objective` does, so a task cannot

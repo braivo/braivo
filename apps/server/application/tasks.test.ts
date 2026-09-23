@@ -5,11 +5,16 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { createCourse, createObjectives, readObjectivesWithTasks } from "../persistence/index.ts";
-import { chooseNextActivity } from "./activity.ts";
+import {
+  createCourse,
+  createObjectives,
+  createTasks,
+  readObjectivesWithTasks,
+} from "../persistence/index.ts";
+import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import type { RequestHost } from "./host.ts";
 import { NotPermitted } from "./permission.ts";
-import { defineTasks, InvalidTask } from "./tasks.ts";
+import { defineTasks, InvalidTask, retireTasks } from "./tasks.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -136,6 +141,66 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     await expect(
       define([{ objectiveId: foreignObjective, body: { ...choice, answer: 5 } }], learner),
     ).rejects.toBeInstanceOf(InvalidTask);
+  });
+
+  test("retires a task: never offered or answered again, and retiring twice is harmless", async () => {
+    const [wrong, right] = (await define([
+      { objectiveId: objective, body: choice },
+      { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
+    ])) as [string, string];
+    const retire = (taskIds: string[], actingAs = author) =>
+      retireTasks({ database, organizationId, actingAs, taskIds, now });
+
+    await retire([wrong]);
+    await retire([wrong]);
+
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toMatchObject({
+      task: { id: right },
+    });
+    const answered = await submitAttempt({
+      database,
+      learnerId: learner,
+      courseId,
+      host: installation,
+      attemptId: "on-retired",
+      taskId: wrong,
+      response: { choice: 0 },
+      now,
+    });
+    expect(answered).toEqual({ kind: "unavailable" });
+
+    // With its last task retired, the objective has nothing left to practise.
+    await retire([right]);
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toEqual({
+      kind: "no-activity",
+    });
+  });
+
+  test("refuses to retire for a learner, or a task another organization owns", async () => {
+    const [ours] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+    // Stored directly: nobody here may author for the other organization.
+    const [theirs] = (await createTasks(
+      database,
+      otherOrganizationId,
+      [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
+      now,
+    )) as [string];
+    const retire = (taskIds: string[], actingAs = author) =>
+      retireTasks({ database, organizationId, actingAs, taskIds, now });
+
+    await expect(retire([ours], learner)).rejects.toBeInstanceOf(NotPermitted);
+    await expect(retire([ours, theirs])).rejects.toBeInstanceOf(NotPermitted);
+    await expect(retire(["no-such-task"])).rejects.toBeInstanceOf(NotPermitted);
+    // Refused whole: the task that was the organization's is still offered.
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toMatchObject({
+      task: { id: ours },
+    });
   });
 
   test("defines nothing, and does not fail, for an empty batch", async () => {

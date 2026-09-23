@@ -81,7 +81,8 @@
 //   400  the body is not an attempt, `id` is empty or too long, or the response
 //        cannot answer the task
 //   403  the request could have been forged, as for evidence
-//   404  the course does not exist, is not the learner's, or has no such task
+//   404  the course does not exist, is not the learner's, or has no such task,
+//        or the task was retired
 //   409  `id` was already used for a different task or response, or the
 //        learner answered this task in another attempt less than ten minutes
 //        ago. Either way, ask for the activity again rather than resending.
@@ -183,10 +184,18 @@
 // index of the correct one, `explanation` optional and shown after grading, and
 // `keepOrder: true` to present the options as written rather than shuffled —
 // for a scale, or "all of the above".
-// Tasks are immutable, and nothing retires one yet. Answers 201 with
+// Tasks are immutable: correcting one means adding another and retiring the
+// wrong one. Answers 201 with
 // `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
 // valid one of its kind, and 403 when an objective is not this organization's.
 // Either refusal stores nothing in the batch.
+//
+// `POST /api/organizations/:organizationId/tasks/retire` — withdraws tasks from
+// practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never offered
+// or answered again, which is how a task with a wrong answer key is taken back.
+// It is not deleted, and the evidence already graded from it stands. Answers
+// 204, also for a task already retired; 403 when any task is not this
+// organization's or does not exist, retiring none.
 //
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,

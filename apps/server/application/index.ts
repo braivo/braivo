@@ -17,7 +17,7 @@ export { defineObjectives, listObjectives } from "./objectives.ts";
 export { listManagedOrganizations } from "./organizations.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
-export { defineTasks, InvalidTask } from "./tasks.ts";
+export { defineTasks, InvalidTask, retireTasks } from "./tasks.ts";
 /**
  * Raised by persistence while recording, since only the insert can tell a retry
  * from a disagreement. Named here so callers of `application` need not

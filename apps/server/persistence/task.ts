@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Database } from "@braivo/db";
 import { attempt, courseObjective, learnerEvidence, task } from "@braivo/db/schema";
-import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
@@ -62,7 +62,39 @@ export async function createTasks(
   return rows.map((row) => row.id);
 }
 
-/** Which of these objectives have at least one task, and so something to practise. */
+/**
+ * Retires the organization's tasks, so they are never offered or answered
+ * again, and returns the IDs among these that are not the organization's —
+ * which are left alone, as is the whole batch when there are any. Retiring a
+ * retired task keeps its first date.
+ */
+export async function retireTasks(
+  database: Database,
+  organizationId: string,
+  taskIds: readonly string[],
+  at: Date,
+): Promise<string[]> {
+  const wanted = [...new Set(taskIds)];
+  if (wanted.length === 0) return [];
+
+  return database.transaction(async (transaction) => {
+    const owned = await transaction
+      .select({ id: task.id })
+      .from(task)
+      .where(and(eq(task.organizationId, organizationId), inArray(task.id, wanted)));
+    const inside = new Set(owned.map((row) => row.id));
+    const outside = wanted.filter((id) => !inside.has(id));
+    if (outside.length > 0) return outside;
+
+    await transaction
+      .update(task)
+      .set({ retiredAt: at })
+      .where(and(inArray(task.id, wanted), isNull(task.retiredAt)));
+    return [];
+  });
+}
+
+/** Which of these objectives have at least one task still offered, and so something to practise. */
 export async function readObjectivesWithTasks(
   database: Database,
   objectiveIds: readonly string[],
@@ -72,13 +104,13 @@ export async function readObjectivesWithTasks(
   const rows = await database
     .selectDistinct({ objectiveId: task.objectiveId })
     .from(task)
-    .where(inArray(task.objectiveId, [...objectiveIds]));
+    .where(and(inArray(task.objectiveId, [...objectiveIds]), isNull(task.retiredAt)));
   return new Set(rows.map((row) => row.objectiveId));
 }
 
 /**
- * The objective's task this learner attempted least recently, never-attempted
- * first, then oldest: rotating through an objective's tasks keeps a learner from
+ * The objective's unretired task this learner attempted least recently,
+ * never-attempted first, then oldest: rotating through an objective's tasks keeps a learner from
  * answering the one they just saw. `undefined` when the objective has none.
  *
  * `lastAttemptAt` is when this learner last answered it, if ever. It is the
@@ -94,7 +126,7 @@ export async function readNextTask(
     .select({ id: task.id, objectiveId: task.objectiveId, body: task.body, lastAttemptAt })
     .from(task)
     .leftJoin(attempt, and(eq(attempt.taskId, task.id), eq(attempt.learnerId, input.learnerId)))
-    .where(eq(task.objectiveId, input.objectiveId))
+    .where(and(eq(task.objectiveId, input.objectiveId), isNull(task.retiredAt)))
     .groupBy(task.id)
     .orderBy(sql`${lastAttemptAt} asc nulls first`, asc(task.createdAt), asc(task.id))
     .limit(1);
@@ -104,8 +136,10 @@ export async function readNextTask(
 }
 
 /**
- * A task, provided it assesses one of this course's objectives. Answering is
- * authorized through the course, so a task outside it is as good as missing.
+ * A task, provided it assesses one of this course's objectives and is not
+ * retired. Answering is authorized through the course, so a task outside it is
+ * as good as missing; a retired one is withdrawn, most likely for grading
+ * wrongly, so answering it would record wrong evidence.
  */
 export async function readCourseTask(
   database: Database,
@@ -121,7 +155,7 @@ export async function readCourseTask(
         eq(courseObjective.objectiveId, task.objectiveId),
       ),
     )
-    .where(eq(task.id, input.taskId));
+    .where(and(eq(task.id, input.taskId), isNull(task.retiredAt)));
   return row && { ...row, body: row.body as TaskBody };
 }
 

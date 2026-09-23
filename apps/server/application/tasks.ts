@@ -4,7 +4,11 @@
 import type { Database } from "@braivo/db";
 
 import { parseTaskBody, type TaskBody } from "../content/index.ts";
-import { createTasks, findObjectivesOutsideOrganization } from "../persistence/index.ts";
+import {
+  createTasks,
+  findObjectivesOutsideOrganization,
+  retireTasks as retireOrganizationTasks,
+} from "../persistence/index.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /** A task that is not a valid one of its kind, whoever sent it. */
@@ -55,4 +59,30 @@ export async function defineTasks(input: {
   }
 
   return createTasks(database, organizationId, parsed, now);
+}
+
+/**
+ * Withdraws tasks from practice — the way to take back a task, since tasks are
+ * immutable (docs/adr/0015-tasks.md). A retired task is never offered or
+ * answered again; its attempts and the evidence graded from them stay, because
+ * evidence is not rewritten after the fact. Refuses the whole batch when the
+ * caller may not author or a task is not the organization's.
+ */
+export async function retireTasks(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  taskIds: readonly string[];
+  now: Date;
+}): Promise<void> {
+  const { database, organizationId, actingAs, taskIds, now } = input;
+
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  const outside = await retireOrganizationTasks(database, organizationId, taskIds, now);
+  if (outside.length > 0) {
+    throw new NotPermitted(
+      `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
+    );
+  }
 }
