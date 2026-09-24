@@ -114,7 +114,9 @@ describe("the learn app", () => {
     // button, so this pins the cause.)
     expect(option.getAttribute("aria-disabled")).toBe("true");
     expect(option.matches(":disabled")).toBe(false);
-    expect(await screen.findByText("Your answer could not be sent. Choose again.")).toBeTruthy();
+    expect(
+      await screen.findByText("Your answer could not be confirmed. Choose again."),
+    ).toBeTruthy();
 
     fireEvent.click(option);
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
@@ -168,21 +170,24 @@ describe("the learn app", () => {
     expect(second![0].id).toBe(first![0].id);
   });
 
-  test("gives up on an answer Braivo refuses, rather than inviting another choice", async () => {
-    renderAt("/courses/c1", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      submitAttempt: async () => {
-        throw new BraivoError(403, "forbidden");
-      },
-    });
+  test.each([400, 403, 413])(
+    "gives up on an answer Braivo refuses with %i, rather than inviting another choice",
+    async (status) => {
+      renderAt("/courses/c1", {
+        signedIn: true,
+        nextActivity: async () => activity,
+        submitAttempt: async () => {
+          throw new BraivoError(status, "refused");
+        },
+      });
 
-    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+      fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    const notice = await screen.findByRole("region", { name: "Something went wrong." });
-    expect(document.activeElement).toBe(notice);
-    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
-  });
+      const notice = await screen.findByRole("region", { name: "Something went wrong." });
+      expect(document.activeElement).toBe(notice);
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    },
+  );
 
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {
     let signedIn = true;
@@ -244,6 +249,43 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+  });
+
+  test("never shows an activity again after the learner leaves the course", async () => {
+    let loaded!: (next: Activity | undefined) => void;
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockReturnValueOnce(new Promise((resolve) => (loaded = resolve)));
+    const { router } = renderAt("/courses/c1", { signedIn: true, nextActivity });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    await screen.findByRole("button", { name: "Continue" });
+    await router.navigate({ to: "/" });
+    void router.navigate({ to: "/courses/$courseId", params: { courseId: "c1" } });
+
+    // What comes next depends on that answer, so the old question, which would
+    // mount unanswered, must not be shown while the next one loads.
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Past tense of 'hablar'?")).toBeNull();
+
+    loaded(undefined);
+    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+  });
+
+  test("offers to load again when loading the next activity failed", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(undefined);
+    renderAt("/courses/c1", { signedIn: true, nextActivity });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
   });
 
   test("reads a course Braivo will not show as not found, not as nothing to practise", async () => {

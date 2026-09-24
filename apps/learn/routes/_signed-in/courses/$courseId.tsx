@@ -10,6 +10,9 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
+  // Dropped on leaving: what comes next depends on every answer since, and a
+  // kept activity would show again, unanswered, while the next one loads.
+  gcTime: 0,
   loader: async ({ context, params, abortController }) => {
     try {
       const activity = await context.braivo.nextActivity(params.courseId, {
@@ -26,7 +29,7 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   },
   component: NextStep,
   notFoundComponent: () => <Notice title="This course does not exist, or is not one of yours." />,
-  errorComponent: LoadFailed,
+  errorComponent: CourseError,
 });
 
 /**
@@ -65,8 +68,11 @@ function Notice({ title, children }: { title: string; children?: ReactNode }) {
   );
 }
 
-/** Loading the activity failed, perhaps only for now: loading it again may not. */
-function LoadFailed() {
+/**
+ * Anything that failed the route, such as a load that may only have failed for
+ * now. Trying again reloads the course and resets this boundary.
+ */
+function CourseError() {
   const router = useRouter();
   return (
     <Notice title="Something went wrong.">
@@ -161,7 +167,7 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
       />
       {failed && (
         <Alert variant="destructive">
-          <AlertDescription>Your answer could not be sent. Choose again.</AlertDescription>
+          <AlertDescription>Your answer could not be confirmed. Choose again.</AlertDescription>
         </Alert>
       )}
       {grade && (
