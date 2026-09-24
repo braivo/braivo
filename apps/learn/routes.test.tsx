@@ -114,6 +114,26 @@ describe("the learn app", () => {
     expect(second![0].id).toBe(first![0].id);
   });
 
+  test("moves on when the attempt was answered already, its grade lost on the way back", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValueOnce(undefined);
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(409, "conflict");
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+
+    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    expect(nextActivity).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Your answer could not be sent. Choose again.")).toBeNull();
+  });
+
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {
     let signedIn = true;
     const auth = {

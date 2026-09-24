@@ -68,9 +68,9 @@ export type BraivoClient = {
   /**
    * What the signed-in learner should do next in a course — the decision and a
    * task to practise it — or `undefined` when there is nothing to practise now
-   * (glossary: No activity), which is not necessarily caught up. A course that does not exist
-   * and one this learner may not see are both a {@link BraivoError} with status
-   * 404, deliberately indistinguishable.
+   * (glossary: No activity), which is not necessarily caught up. A course that
+   * does not exist and one this learner may not see are both a
+   * {@link BraivoError} with status 404, deliberately indistinguishable.
    */
   nextActivity(courseId: string, options?: RequestOptions): Promise<Activity | undefined>;
 
@@ -219,8 +219,9 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
         requestOptions,
       );
 
-      // Caught up. A course that is missing or not this learner's is a 404, and
-      // falls to the error below rather than reading as nothing to do.
+      // Nothing to practise now. A course that is missing or not this learner's
+      // is a 404, and falls to the error below rather than reading as nothing
+      // to do.
       const doing = `asking what is next in course "${courseId}"`;
       if (response.status === 204) return undefined;
       if (response.status !== 200) throw unexpected(response, doing);

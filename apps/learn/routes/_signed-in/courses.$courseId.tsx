@@ -43,12 +43,12 @@ function useFocusOnMount<T extends HTMLElement>() {
 function NextStep() {
   const { activity, attemptId } = Route.useLoaderData();
 
-  if (!activity) return <CaughtUp />;
+  if (!activity) return <NoActivity />;
   // Keyed, so the next activity starts unanswered.
   return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
 }
 
-function CaughtUp() {
+function NoActivity() {
   const focused = useFocusOnMount<HTMLDivElement>();
   return (
     <Empty ref={focused} tabIndex={-1} className="outline-none">
