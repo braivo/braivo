@@ -5,7 +5,7 @@ import { Heading } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { readCourseInOrganization, readMembers } from "../../lib/refusals.ts";
+import { readCourseInOrganization, readMembers } from "#lib/refusals";
 
 export const Route = createFileRoute(
   "/_signed-in/organizations/$organizationId/courses/$courseId/",

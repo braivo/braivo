@@ -27,3 +27,4 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0011: A design system package, and sign-in in its own package](0011-design-system-and-auth-packages.md)
 - [0012: shadcn/ui from a preset, updated with shadcn's own CLI](0012-shadcn-preset.md)
 - [0013: `packages/ui`, and Storybook as an app](0013-ui-package-and-storybook.md)
+- [0016: Route files mirror the URL, and a guard lives in its folder](0016-route-files.md)

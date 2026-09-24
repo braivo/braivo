@@ -13,7 +13,7 @@ import {
 } from "@braivo/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { orNotFound, readCourseInOrganization, readMembers } from "../../lib/refusals.ts";
+import { orNotFound, readCourseInOrganization, readMembers } from "#lib/refusals";
 
 export const Route = createFileRoute(
   "/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId",
