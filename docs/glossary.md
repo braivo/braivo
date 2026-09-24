@@ -36,6 +36,7 @@ Canonical terms for Braivo's docs, code, API, and UI. Use each term as written h
 - **Knowledge estimate** (`KnowledgeEstimate`): what Braivo currently believes a learner knows, struggles with, or may be forgetting. Derived from learner evidence and recomputable from it. Not "mastery" or "score".
 - **Learner progress** (`LearnerProgress`; the `…/progress` endpoint, which answers a `KnowledgeReport`): where one learner stands in one course, for the content owners of its organization.
 - **Caught up** (`{ kind: "caught-up" }`; HTTP 204 from the next-objective endpoint): a learner with nothing to do in a course right now — no objective to introduce, re-teach, or review. A statement about this moment, not about mastery: objectives come due again as recall decays, and a course that teaches nothing yet leaves its learners caught up too.
+- **No activity** (`{ kind: "no-activity" }`; HTTP 204 from the activity endpoint): Braivo has no task to present in a course right now. The learner may be caught up, or an objective may need attention but have no task yet; a client must not present it as caught up.
 - **Mastery:** an estimate of how well a learner has learned particular material. Its representation and computation are not yet decided. Not a synonym for knowledge estimate or caught up.
 - **Learning constraints:** rules limiting which activities can come next, such as prerequisites or content-owner settings.
 

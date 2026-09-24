@@ -10,7 +10,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { TaskBody, TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
 
-export type Task = { id: string; objectiveId: string; body: TaskBody };
+type Task = { id: string; objectiveId: string; body: TaskBody };
 
 /**
  * An attempt ID this learner already used for a different task or response.

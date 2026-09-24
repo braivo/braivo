@@ -4,7 +4,7 @@
 import { runMigrations } from "@braivo/db";
 import { objective } from "@braivo/db/schema";
 import {
-  clearEvidence,
+  clearLearnerHistory,
   clearLearningData,
   seedOrganization,
   sharedDatabase,
@@ -52,7 +52,7 @@ describe.skipIf(!connectionString)("learner evidence", () => {
   });
 
   beforeEach(async () => {
-    await clearEvidence(database, learnerIds);
+    await clearLearnerHistory(database, learnerIds);
   });
 
   test("keeps a learner's evidence when another organization's is cleared", async () => {
@@ -186,7 +186,7 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     // the insert quietly drops whichever lost — measured failing 599 races in
     // 600. Ten races make that all but impossible to miss.
     for (let race = 0; race < 10; race++) {
-      await clearEvidence(database, learnerIds);
+      await clearLearnerHistory(database, learnerIds);
       const [succeeded, failed] = await Promise.allSettled([
         recordEvidence(database, learner, [evidence({ id: "raced", outcome: "success" })]),
         recordEvidence(database, learner, [evidence({ id: "raced", outcome: "failure" })]),
@@ -216,7 +216,7 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     );
 
     for (let race = 0; race < 10; race++) {
-      await clearEvidence(database, learnerIds);
+      await clearLearnerHistory(database, learnerIds);
       await Promise.all([
         recordEvidence(database, learner, batch),
         recordEvidence(database, learner, batch.toReversed()),

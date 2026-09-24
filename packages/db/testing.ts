@@ -19,7 +19,7 @@ import {
 // of the package's behaviour.
 //
 // Every helper is scoped to what a suite owns, so it only ever removes rows it
-// created: `clearLearningData` to one organization, `clearEvidence` to the
+// created: `clearLearningData` to one organization, `clearLearnerHistory` to the
 // learners listed. Truncating the shared tables instead would make each suite
 // depend on the order the runner happens to choose.
 //
@@ -159,8 +159,8 @@ export async function clearLearningData(database: Database, organizationId: stri
   await database.delete(objective).where(eq(objective.organizationId, organizationId));
 }
 
-/** Removes just the learners' history, evidence and attempts, which most suites reset between tests. */
-export async function clearEvidence(
+/** Removes just these learners' attempts and evidence, which most suites reset between tests. */
+export async function clearLearnerHistory(
   database: Database,
   learnerIds: readonly string[],
 ): Promise<void> {

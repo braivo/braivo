@@ -214,7 +214,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner.id, classmate.id]);
+    await testing.clearLearnerHistory(database, [learner.id, classmate.id]);
   });
 
   test("serves Better Auth under its own path", async () => {
@@ -321,7 +321,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       lastEvidenceAt: recordedAt.toISOString(),
     });
 
-    await testing.clearEvidence(database, [learner.id]);
+    await testing.clearLearnerHistory(database, [learner.id]);
     await recordEvidence(database, learner.id, [
       { id: "contract-success", objectiveId: pastTense, outcome: "success", at: recordedAt },
     ]);

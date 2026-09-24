@@ -130,9 +130,8 @@ export async function submitAttempt(input: {
       taskId,
       response,
       at: now,
-      // Built from the attempt so that every attempt is its own evidence, and
-      // naming the objective so a task assessing several could add one per
-      // objective (glossary: Evidence ID).
+      // Built from the attempt so that every attempt is its own evidence
+      // (glossary: Evidence ID).
       evidence: {
         id: `${ATTEMPT_EVIDENCE_PREFIX}${attemptId}:${task.objectiveId}`,
         objectiveId: task.objectiveId,

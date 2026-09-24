@@ -41,7 +41,8 @@
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
 // client's, unique per learner and at most 128 characters (a UUID will do), so resending after a lost
-// answer records nothing twice and answers the same grade.
+// answer records nothing twice and answers the same grade. Mint one ID per
+// answer the learner gives, never per request: a fresh ID on a retry records it twice.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response

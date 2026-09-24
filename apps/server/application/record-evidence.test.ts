@@ -102,7 +102,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner, grader, outsider]);
+    await testing.clearLearnerHistory(database, [learner, grader, outsider]);
   });
 
   test("records evidence a learner's own organization graded", async () => {

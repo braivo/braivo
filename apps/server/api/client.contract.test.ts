@@ -105,7 +105,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learnerId]);
+    await testing.clearLearnerHistory(database, [learnerId]);
   });
 
   test("parses a decision into the shape it declares", async () => {

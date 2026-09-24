@@ -89,7 +89,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner]);
+    await testing.clearLearnerHistory(database, [learner]);
     statements.length = 0;
   });
 

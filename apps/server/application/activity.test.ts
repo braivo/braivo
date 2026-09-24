@@ -124,7 +124,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner, outsider]);
+    await testing.clearLearnerHistory(database, [learner, outsider]);
   });
 
   test("objective, task, answer, grade, evidence, next objective", async () => {
@@ -215,7 +215,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     // The comparison must read what is stored after inserting, as for evidence
     // (persistence/evidence.test.ts): checked first, both would pass.
     for (let race = 0; race < 10; race++) {
-      await testing.clearEvidence(database, [learner]);
+      await testing.clearLearnerHistory(database, [learner]);
       const submitted = await Promise.all([
         answer("raced", pastTenseTask, 0, later(1)),
         answer("raced", pastTenseTask, 1, later(1)),
@@ -232,7 +232,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
   test("records a submission that races its own retry once", async () => {
     for (let race = 0; race < 10; race++) {
-      await testing.clearEvidence(database, [learner]);
+      await testing.clearLearnerHistory(database, [learner]);
       const submitted = await Promise.all([
         answer("retried", pastTenseTask, 0, later(1)),
         answer("retried", pastTenseTask, 0, later(1)),
@@ -241,6 +241,12 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       expect(submitted.map((result) => result.kind)).toEqual(["graded", "graded"]);
       expect(await stored()).toHaveLength(1);
     }
+  });
+
+  test("accepts an attempt ID of up to 128 characters", async () => {
+    expect(await answer("", pastTenseTask, 0, start)).toEqual({ kind: "invalid" });
+    expect(await answer("x".repeat(129), pastTenseTask, 0, start)).toEqual({ kind: "invalid" });
+    expect((await answer("x".repeat(128), pastTenseTask, 0, start)).kind).toBe("graded");
   });
 
   test("refuses a response that cannot answer the task, recording nothing", async () => {

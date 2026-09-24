@@ -97,7 +97,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner]);
+    await testing.clearLearnerHistory(database, [learner]);
   });
 
   test("reports each objective in the course, in content order", async () => {
