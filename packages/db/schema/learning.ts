@@ -212,17 +212,10 @@ export const learnerEvidence = pgTable(
 );
 
 /**
- * One assessable thing a learner does for an objective: a question, say. Its
- * `body` is what it asks and how it is graded, one JSON variant per kind; the
- * server's `content` module owns that shape and validates it before it is stored.
- *
- * Immutable: correcting a task means creating another. Attempts reference a task
- * rather than copying it, which is sound only because the task they point at
- * still says what the learner saw. See docs/adr/0015-tasks.md.
- *
- * One objective per task for now, because the one kind there is grades one
- * thing. A task exercising several needs a grader that answers per objective,
- * and that is when a join table replaces this column.
+ * One assessable thing a learner does for an objective, such as a question.
+ * `body` is one JSON variant per kind, shaped and validated by the server's
+ * `content` module. Immutable, which is what lets attempts reference a task
+ * rather than copy it. One objective per task for now. See docs/adr/0015-tasks.md.
  */
 export const task = pgTable(
   "task",
@@ -254,9 +247,8 @@ export const attempt = pgTable(
   "attempt",
   {
     /**
-     * Chosen by the client, so resubmitting after a lost response is recognised
-     * as the same attempt rather than recorded as a second one. Scoped per
-     * learner, like evidence IDs, for the same reason.
+     * Chosen by the client, so a resubmission is recognised rather than recorded
+     * twice. Scoped per learner, like evidence IDs, so learners cannot collide.
      */
     id: text("id").notNull(),
     /** Cascading: deleting an account erases its learning history, as evidence does. */

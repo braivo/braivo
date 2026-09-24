@@ -30,21 +30,19 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
 export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
 
 /**
- * Room for a UUID or any reasonable client key. The ID is a primary-key column
- * and part of an evidence ID, and an index entry has a size limit that an
- * unbounded ID would hit as a database error rather than a refusal.
+ * Room for a UUID or any reasonable client key. Unbounded, a long ID would
+ * overflow PostgreSQL's index entry limit as an error rather than a refusal.
  */
 const MAX_ATTEMPT_ID_LENGTH = 128;
 
 /**
- * The learner loop's first half: the next objective, and a task to practise it
- * with. `chooseNextObjective` answers the decision alone, for integrators who
- * bring their own tasks; this is for learners Braivo serves itself.
+ * The learner loop's first half: the next objective and a task to practise it.
+ * `chooseNextObjective` is the decision alone, for integrators with their own
+ * tasks.
  *
- * Only objectives with a task are candidates. Content availability is
- * eligibility, resolved before `learning` is called (docs/specs/learning-model.md):
- * selecting first and finding no task would strand a learner on an objective
- * they cannot practise, where filtering lets selection move on to one they can.
+ * Only objectives with a task are candidates, filtered before `learning` is
+ * called (docs/specs/learning-model.md): selecting first would strand a learner
+ * on an objective they cannot practise.
  */
 export async function chooseNextActivity(input: {
   database: Database;
@@ -80,9 +78,8 @@ export async function chooseNextActivity(input: {
 }
 
 /**
- * As `NextObjective`, with the task the learner is to answer. `no-activity`
- * rather than `caught-up`: an objective may be due yet have no task, so
- * nothing to practise now is not the glossary's caught up.
+ * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
+ * a due objective may have no task (glossary: No activity).
  */
 export type NextActivity =
   | { kind: "unavailable" }
@@ -90,14 +87,11 @@ export type NextActivity =
   | { kind: "decided"; decision: LearningDecision; task: { id: string } & PresentedTask };
 
 /**
- * The loop's second half: grades a learner's answer, and records the attempt and
- * the evidence graded from it, so the next `chooseNextActivity` reflects it.
- *
- * The learner submits for themselves. That is safe where posting evidence is
- * not, because Braivo grades: the learner chooses the answer, never the outcome.
- *
- * `attemptId` is the client's, so a retry after a lost response stores nothing
- * twice and answers the same grade (`recordAttempt`).
+ * The loop's second half: grades a learner's answer and records the attempt
+ * with its evidence. The learner submits for themselves, which posting evidence
+ * does not allow, because Braivo grades: they choose the answer, never the
+ * outcome. A retry under the same `attemptId` stores nothing twice and answers
+ * the same grade (`recordAttempt`).
  */
 export async function submitAttempt(input: {
   database: Database;
