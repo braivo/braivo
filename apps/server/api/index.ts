@@ -114,11 +114,13 @@
 //   204  recorded. Redelivering the same result is a no-op, so a retry answers
 //        the same way and writes no second row.
 //
-// The four organization routes below share their refusals: 401 without a
-// session, and 403 unless the session holds `owner` or `admin` there —
-// authoring is a content-owner act for the same reason grading is. Each write
-// adds 400 for a body it cannot read and 413 for one over 1 MB. Below is what
-// each answers beyond that.
+// The organization routes below share their refusals: 401 without a session,
+// and 403 unless the session holds `owner` or `admin` there — authoring is a
+// content-owner act for the same reason grading is. Each write adds 403 for a
+// request that could have been forged, 413 for a body over 1 MB, and 400 for
+// an invalid one, which it answers before checking the role since that reveals
+// nothing about the organization. Below is what each answers beyond
+// that.
 //
 // `POST /api/organizations/:organizationId/objectives` — registers learning
 // targets. Body `{ "titles": ["Past tense", …] }`, at most 1000, each non-blank
@@ -129,6 +131,19 @@
 // `{ "objectives": [{ "id": "…", "title": "…" }] }`, by title. That is a listing
 // order and not content order: the sequence a learner meets objectives in
 // belongs to a course.
+//
+// `POST /api/organizations/:organizationId/tasks` — adds tasks to objectives
+// that already exist, at most 1000:
+//
+//   { "tasks": [{ "objectiveId": "…", "kind": "choice", "prompt": "…",
+//                 "options": ["…", "…"], "answer": 0, "explanation": "…" }] }
+//
+// `choice` is the only kind: 2 to 26 distinct non-blank options, `answer` the
+// index of the correct one, `explanation` optional and shown after grading.
+// Tasks are immutable, and nothing retires one yet. Answers 201 with
+// `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
+// valid one of its kind, and 403 when an objective is not this organization's.
+// Either refusal stores nothing in the batch.
 //
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,

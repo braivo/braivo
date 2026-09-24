@@ -24,6 +24,36 @@ export class ConflictingAttempt extends Error {
   }
 }
 
+/**
+ * Stores tasks and returns their generated IDs, positionally matching the tasks
+ * given. Bodies must already be valid — `content` validates them — since a
+ * stored task is never corrected.
+ *
+ * Each is stamped a millisecond after the one before it, so tasks created
+ * together are offered in the order given rather than in the order of their
+ * random IDs (`readNextTask` breaks ties oldest first). A batch sent sooner
+ * after a large one than its size in milliseconds may interleave with it; an
+ * ordering column would fix that, once authoring needs one.
+ */
+export async function createTasks(
+  database: Database,
+  organizationId: string,
+  tasks: readonly { objectiveId: string; body: TaskBody }[],
+  createdAt: Date,
+): Promise<string[]> {
+  if (tasks.length === 0) return [];
+
+  const rows = tasks.map(({ objectiveId, body }, index) => ({
+    id: crypto.randomUUID(),
+    organizationId,
+    objectiveId,
+    body,
+    createdAt: new Date(createdAt.getTime() + index),
+  }));
+  await database.insert(task).values(rows);
+  return rows.map((row) => row.id);
+}
+
 /** Which of these objectives have at least one task, and so something to practise. */
 export async function readObjectivesWithTasks(
   database: Database,

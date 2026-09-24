@@ -14,9 +14,9 @@ Braivo is an open-source platform for educators, schools, training providers, an
 
 Early development, before any release. The HTTP API, the database schema, and both apps change without deprecation or a compatibility layer.
 
-Working end to end, over the API and in both apps: accounts and organizations, objectives arranged into courses, recorded evidence, the next-objective decision, and a learner's progress report.
+Working end to end: accounts and organizations, objectives arranged into courses, multiple-choice tasks, and the learner loop — the learn app asks the next question, Braivo grades the answer, records it as evidence, and chooses what comes next from it. Also a learner's progress report, and recording evidence graded elsewhere.
 
-Not built yet: the content itself, since an objective is currently a title and nothing else; AI-generated practice and feedback; enrolling learners in a course, which organization membership stands in for; and any deployment packaging ([below](#deployment)).
+Not built yet: content derived from source material, since tasks are written by hand; AI-generated practice and feedback, and task kinds beyond multiple choice; authoring in the console; enrolling learners in a course, which organization membership stands in for; and any deployment packaging ([below](#deployment)).
 
 ## How it works
 
@@ -24,10 +24,10 @@ Not built yet: the content itself, since an objective is currently a title and n
 browser apps ──▶ same-origin /api ──▶ Bun server ──▶ PostgreSQL
 ```
 
-1. A content owner names **objectives** and arranges them into a **course**. Position in the course is the order learners meet them in.
-2. Braivo records **evidence**: which objective a learner attempted, when, and how it went.
+1. A content owner names **objectives**, arranges them into a **course**, and gives each objective **tasks** to practise it with. Position in the course is the order learners meet them in.
+2. A learner answers a task, and Braivo grades the answer into **evidence**: which objective, when, and whether it went right. An application that grades elsewhere can record evidence directly.
 3. The **learning model** replays that evidence into a knowledge estimate per objective. It is a pure function of the history, so the same evidence always yields the same estimate and a replaced model recomputes rather than migrates.
-4. A request for what comes next picks one objective and an intent — introduce, reteach, or review — from those estimates and the course's order.
+4. A request for what comes next picks one objective and an intent — introduce, reteach, or review — from those estimates and the course's order, and one of that objective's tasks for the learner to answer.
 
 AI generates and interprets learning material; it does not decide learning state. That decision is deterministic and [specified](docs/specs/learning-model.md) rather than prompted, which is what makes it testable and explainable to the content owner.
 
@@ -85,34 +85,52 @@ OBJECTIVES=$(curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/objectives 
   -H 'content-type: application/json' -d '{"titles":["Greetings","Numbers"]}' \
   | field 'JSON.stringify(r.objectiveIds)')
 FIRST=$(echo "$OBJECTIVES" | field 'r[0]')
+SECOND=$(echo "$OBJECTIVES" | field 'r[1]')
 
 COURSE=$(curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/courses \
   -H 'content-type: application/json' \
   -d "{\"title\":\"Beginners\",\"objectiveIds\":$OBJECTIVES}" | field 'r.courseId')
 
-# Ask what to do next, record how it went, ask again.
-curl -sb jar.txt $BRAIVO/api/courses/$COURSE/next
-# {"objectiveId":"…","modelVersion":"v1","intent":"introduce"}
+# Give each objective something to practise: a question with one right answer.
+curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
+  -H 'content-type: application/json' -d "{\"tasks\":[
+    {\"objectiveId\":\"$FIRST\",\"kind\":\"choice\",\"prompt\":\"Hello, in Spanish?\",
+     \"options\":[\"Hola\",\"Adiós\"],\"answer\":0,\"explanation\":\"Adiós is goodbye.\"},
+    {\"objectiveId\":\"$SECOND\",\"kind\":\"choice\",\"prompt\":\"Three, in Spanish?\",
+     \"options\":[\"Dos\",\"Tres\"],\"answer\":1}]}" >/dev/null
 
-curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/learners/$LEARNER/evidence \
+# Ask what to do next: an objective, and a task to practise it.
+ACTIVITY=$(curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity)
+echo "$ACTIVITY"
+# {"decision":{"objectiveId":"…","modelVersion":"v1","intent":"introduce"},
+#  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?","options":["Hola","Adiós"]}}
+
+# Answer it, wrongly. Braivo grades the answer and records it as evidence.
+TASK=$(echo "$ACTIVITY" | field 'r.task.id')
+curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
   -H 'content-type: application/json' \
-  -d "{\"evidence\":[{\"id\":\"attempt-1\",\"objectiveId\":\"$FIRST\",\"outcome\":\"failure\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"}]}"
+  -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1}}"
+# {"outcome":"failure","answer":0,"explanation":"Adiós is goodbye."}
 
-curl -sb jar.txt $BRAIVO/api/courses/$COURSE/next
-# {"objectiveId":"…","intent":"reteach","lastEvidenceAt":"…"}
+# What comes next follows from that answer.
+curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
+# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"task":{…}}
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
 # {"modelVersion":"v1","objectives":[{…,"phase":"acquiring",…},{…,"phase":"unseen"}]}
 ```
 
+The same loop runs in the learn app: with `bun run dev`, sign in at `http://localhost:5173` as `owner@example.com` and open `/courses/<course-id>`.
+
 A few things that shape how this behaves:
 
-- **The learner is whoever the session belongs to.** `next` takes no learner, so there is no second identity to authorize — the course still is: one in an organization the signed-in user is not in answers 404. The evidence route names a learner because it writes about someone else.
-- **Grading is a content owner's act.** Recording evidence needs `owner` or `admin` in the organization, so someone who is only a `member` cannot grade themselves. One account plays both parts above — it created the organization, so it is the owner — which is why it can record evidence about itself. Invite a second account as a member and it will get decisions but be refused the write.
+- **The learner is whoever the session belongs to.** `activity` and `attempts` take no learner, so there is no second identity to authorize — the course still is: one in an organization the signed-in user is not in answers 404. One account plays every part above: it created the organization, so it is the owner, and owners may practise too.
+- **Braivo grades, so a learner may answer for themselves.** They choose the answer, never the outcome. Each attempt carries an ID of the client's choosing, unique per learner, so resending one after a lost answer records it once.
+- **Evidence graded elsewhere is a content owner's to record.** An application with its own tasks uses `GET /api/courses/<id>/next` for the bare decision, and `POST /api/organizations/<id>/learners/<id>/evidence` to record outcomes, which needs `owner` or `admin`: a `member` could otherwise grade themselves.
 - **Progress is for the people who run the organization.** Reading a learner's standing needs `owner` or `admin`, and the learner has to belong to the organization. Above, the owner reads their own; a `member` asking about anyone, themselves included, gets a 404 — the same answer as a course that does not exist.
 - **`at` must be exactly what `Date#toISOString` produces.** Braivo refuses looser formats, because a timestamp is what it orders replay by.
-- **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced — so a learner who keeps failing stays within what they have already met instead of being handed more. Above, with one objective started, that means the same one comes back until it is passed; where several are in progress, re-teaching moves between them, oldest first. That is how content order sequences a course, and it is [specified and tested](docs/specs/learning-model.md#selection-rule) rather than incidental.
+- **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced — so a learner who keeps failing stays within what they have already met instead of being handed more. Above, with one objective started, that means greetings come back until they are passed, and numbers wait; where several are in progress, re-teaching moves between them, oldest first. That is how content order sequences a course, and it is [specified and tested](docs/specs/learning-model.md#selection-rule) rather than incidental.
 
 ## Deployment
 

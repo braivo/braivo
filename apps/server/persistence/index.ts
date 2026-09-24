@@ -23,6 +23,7 @@ export {
 export { organizationOwnsLearningContent } from "./organization.ts";
 export {
   ConflictingAttempt,
+  createTasks,
   readCourseTask,
   readNextTask,
   readObjectivesWithTasks,

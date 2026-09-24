@@ -125,6 +125,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
     // The README prints these answers as comments. A walkthrough that ran but no
     // longer taught anything would pass on the exit code alone.
     expect(output).toContain('"intent":"introduce"');
+    expect(output).toContain('"outcome":"failure"');
     expect(output).toContain('"intent":"reteach"');
     expect(output).toContain('"phase":"acquiring"');
     expect(output).toContain('"phase":"unseen"');
