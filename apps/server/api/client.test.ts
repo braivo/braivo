@@ -70,10 +70,9 @@ describe("the Braivo client", () => {
   });
 
   test("refuses a success Braivo does not send, even one that parses", async () => {
-    // Braivo answers with 200 and an activity, or 204 for nothing to practise. A 202 from
-    // something in between used to be taken as an answer. The body here is
-    // valid JSON on purpose: an empty one would be refused anyway, for failing
-    // to parse, and would pass without the status ever being checked.
+    // Braivo answers 200 or 204; a 202 from something in between is not an
+    // answer. Valid JSON on purpose: an empty body would be refused for failing
+    // to parse, passing without the status ever being checked.
     const { client } = clientFor(Response.json({ accepted: true }, { status: 202 }));
 
     const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);

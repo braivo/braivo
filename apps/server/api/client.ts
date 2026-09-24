@@ -79,12 +79,9 @@ export type BraivoClient = {
    * `id` names the attempt and is the caller's to generate, once per attempt:
    * resending the same attempt after a lost answer records nothing twice and
    * resolves to the same grade, while reusing `id` for another answer is a
-   * {@link BraivoError} with status 409.
-   *
-   * Other refusals, each a {@link BraivoError} with its status: 401 without a
-   * session; 404 for a course that is missing or not this learner's, or a task
-   * it does not have; 400 for a response that cannot answer the task; 403 for a
-   * request that could have been forged; 413 for a body over 1 MB.
+   * {@link BraivoError} with status 409. Other refusals, by status: 401 no
+   * session; 404 course or task missing or not this learner's; 400 a response
+   * that cannot answer the task; 403 possibly forged; 413 body over 1 MB.
    */
   submitAttempt(
     input: { courseId: string; id: string; taskId: string; response: TaskResponse },
@@ -166,10 +163,9 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
   /** Every write: JSON, carrying the session. */
   function post(path: string, body: unknown, requestOptions: RequestOptions | undefined) {
-    // Built rather than spread: the caller's headers may be a `Headers` or an
-    // array, which spreading drops. The content type is set last because it
-    // is not the caller's to override — Braivo requires it precisely because
-    // a browser cannot set it cross-origin without a preflight.
+    // Built, not spread: spreading drops a `Headers` or an array. The content
+    // type is set last, not the caller's to override: Braivo requires it
+    // because a browser cannot send it cross-origin without a preflight.
     const headers = new Headers(requestOptions?.headers);
     headers.set("content-type", "application/json");
 
@@ -224,9 +220,8 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
         requestOptions,
       );
 
-      // Nothing to practise now. A course that is missing or not this learner's
-      // is a 404, and falls to the error below rather than reading as nothing
-      // to do.
+      // Nothing to practise now. A missing course, or one not this learner's,
+      // is a 404 and throws below.
       const doing = `asking what is next in course "${courseId}"`;
       if (response.status === 204) return undefined;
       if (response.status !== 200) throw unexpected(response, doing);

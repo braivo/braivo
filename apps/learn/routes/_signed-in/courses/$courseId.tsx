@@ -18,8 +18,8 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       const activity = await context.braivo.nextActivity(params.courseId, {
         signal: abortController.signal,
       });
-      // One attempt per activity shown, named here so that a resubmission of
-      // it — after a lost answer — is recognised by Braivo as the same one.
+      // One attempt per activity shown, so a resend after a lost answer is
+      // recorded once.
       return { activity, attemptId: crypto.randomUUID() };
     } catch (error) {
       // Braivo answers a missing course and someone else's alike.
@@ -33,9 +33,8 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
 });
 
 /**
- * Focuses what it is attached to when that mounts. Whatever follows Continue
- * takes the focus Continue had, or it would fall to the page and leave a
- * keyboard or screen-reader learner nowhere. Explicit, since React applies
+ * Focuses its element on mount, so focus follows the learner to whatever
+ * replaced Continue instead of falling to the page. Explicit: React applies
  * `autoFocus` only to form controls.
  */
 function useFocusOnMount<T extends HTMLElement>() {
@@ -122,10 +121,9 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
     } catch (error) {
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
-        // Refusals the loader explains once reloaded. 401: the session ended,
-        // and the guard sends the learner to sign in. 404: the course or task
-        // is gone. 409: this attempt was answered already, its grade lost on
-        // the way back; that answer stands, so move on to the next.
+        // Reloading explains these. 401: the guard sends the learner to sign
+        // in. 404: the course or task is gone. 409: this attempt was answered
+        // already, its grade lost on the way back; that answer stands.
         if ([401, 404, 409].includes(error.status)) {
           await router.invalidate();
           return;
@@ -136,9 +134,8 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
           return;
         }
       }
-      // Anything else — lost, a server failure, an answer that is not Braivo's —
-      // leaves unknown whether Braivo recorded it, and resending the same
-      // attempt is safe either way.
+      // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
+      // recorded; resending the same attempt is safe either way.
       setChosen(undefined);
       setFailed(true);
     }
