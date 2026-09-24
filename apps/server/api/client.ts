@@ -80,6 +80,11 @@ export type BraivoClient = {
    * resending the same attempt after a lost answer records nothing twice and
    * resolves to the same grade, while reusing `id` for another answer is a
    * {@link BraivoError} with status 409.
+   *
+   * Other refusals, each a {@link BraivoError} with its status: 401 without a
+   * session; 404 for a course that is missing or not this learner's, or a task
+   * it does not have; 400 for a response that cannot answer the task; 403 for a
+   * request that could have been forged; 413 for a body over 1 MB.
    */
   submitAttempt(
     input: { courseId: string; id: string; taskId: string; response: TaskResponse },

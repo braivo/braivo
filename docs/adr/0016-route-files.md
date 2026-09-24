@@ -9,7 +9,7 @@ The learn and console apps use TanStack Router's file routes. Each signed-in are
 ## Decision
 
 - **A layout is its folder's `route.tsx`.** The guard is `routes/_signed-in/route.tsx`, so everything under `_signed-in/` is signed in and nothing outside that folder is.
-- **Folders mirror the URL**, one segment per folder: `_signed-in/organizations/$organizationId/courses/$courseId/index.tsx`. A page with no children of its own is named after its last segment (`courses/$courseId.tsx`), not `index.tsx`.
+- **Paths mirror the URL**, one folder per segment: `_signed-in/organizations/$organizationId/courses/$courseId/index.tsx`. A page with no children of its own is a file named after its last segment (`courses/$courseId.tsx`), not `index.tsx`.
 - **Route files import app modules as `#lib/<name>`**, through each app's `package.json` `imports`, as `packages/ui` does. That way a file's depth never shows up in its imports.
 
 `$` in these paths is TanStack's parameter marker. In a shell, single-quote any path that contains it.

@@ -96,22 +96,54 @@ describe("the learn app", () => {
     expect(document.activeElement?.textContent).toContain("Past tense of 'hablar'?");
   });
 
-  test("lets a learner answer again when the answer could not be sent", async () => {
+  test.each([
+    ["was lost", new TypeError("Failed to fetch")],
+    ["failed on the server", new BraivoError(500, "server error")],
+  ])("lets a learner answer again when the answer %s", async (_, failure) => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
-      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(failure)
       .mockResolvedValueOnce({ outcome: "success", answer: 0 });
     renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
-    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const option = await screen.findByRole("button", { name: "hablé" });
+    fireEvent.click(option);
+    // Locked while sending, but never disabled, which would drop the focus a
+    // keyboard learner needs to choose again. (jsdom keeps focus on a disabled
+    // button, so this pins the cause.)
+    expect(option.getAttribute("aria-disabled")).toBe("true");
+    expect(option.matches(":disabled")).toBe(false);
     expect(await screen.findByText("Your answer could not be sent. Choose again.")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "hablé" }));
+    fireEvent.click(option);
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
 
     // A resubmission is the same attempt, so Braivo records it once.
     const [first, second] = submitAttempt.mock.calls;
     expect(second![0].id).toBe(first![0].id);
+  });
+
+  test("holds Continue while the next activity loads, so a second press does not restart it", async () => {
+    let loaded!: (next: Activity | undefined) => void;
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockReturnValueOnce(new Promise((resolve) => (loaded = resolve)));
+    renderAt("/courses/c1", { signedIn: true, nextActivity });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+    fireEvent.click(next);
+    fireEvent.click(next);
+
+    expect(next.textContent).toBe("Loading…");
+    expect(next.getAttribute("aria-disabled")).toBe("true");
+    expect(next.matches(":disabled")).toBe(false);
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
+
+    loaded(undefined);
+    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    expect(nextActivity).toHaveBeenCalledTimes(2);
   });
 
   test("moves on when a lost answer was recorded and the learner chose another", async () => {
@@ -146,7 +178,8 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByText("Something went wrong. Try again.")).toBeTruthy();
+    expect(await screen.findByText("Something went wrong.")).toBeTruthy();
+    expect(document.activeElement?.getAttribute("data-slot")).toBe("empty");
   });
 
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {

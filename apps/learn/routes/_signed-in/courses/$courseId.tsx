@@ -5,7 +5,7 @@ import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { Empty, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -25,7 +25,9 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
     }
   },
   component: NextStep,
-  notFoundComponent: () => <p>This course does not exist, or is not one of yours.</p>,
+  notFoundComponent: () => <Notice title="This course does not exist, or is not one of yours." />,
+  // Neutral: a refused answer lands here too, and trying it again cannot help.
+  errorComponent: () => <Notice title="Something went wrong." />,
 });
 
 /**
@@ -43,21 +45,21 @@ function useFocusOnMount<T extends HTMLElement>() {
 function NextStep() {
   const { activity, attemptId } = Route.useLoaderData();
 
-  if (!activity) return <NoActivity />;
+  // Not "caught up": an objective with no task to practise it can still be due
+  // (glossary: No activity), so waiting may not help either.
+  if (!activity) return <Notice title="Nothing to practise right now" />;
   // Keyed, so the next activity starts unanswered.
   return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
 }
 
-function NoActivity() {
+/** What the page says instead of a question, focused as a question would be. */
+function Notice({ title }: { title: string }) {
   const focused = useFocusOnMount<HTMLDivElement>();
   const titleId = useId();
   return (
     <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
       <EmptyHeader>
-        {/* Not "caught up": an objective with no task to practise it can still be
-            due (glossary: No activity). */}
-        <EmptyTitle id={titleId}>Nothing to practise right now</EmptyTitle>
-        <EmptyDescription>Come back later.</EmptyDescription>
+        <EmptyTitle id={titleId}>{title}</EmptyTitle>
       </EmptyHeader>
     </Empty>
   );
@@ -103,7 +105,7 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
       setGrade(answered);
     } catch (error) {
       if (signal?.aborted) return;
-      if (error instanceof BraivoError && error.status < 500) {
+      if (error instanceof BraivoError) {
         // Refusals the loader explains once reloaded. 401: the session ended,
         // and the guard sends the learner to sign in. 404: the course or task
         // is gone. 409: this attempt was answered already, its grade lost on
@@ -112,12 +114,15 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
           await router.invalidate();
           return;
         }
-        // Any other refusal would only repeat: choosing again cannot fix it.
-        setRefusal(error);
-        return;
+        // Refusals that would only repeat: choosing again cannot fix them.
+        if ([400, 403, 413].includes(error.status)) {
+          setRefusal(error);
+          return;
+        }
       }
-      // Lost, or a server failure: whether Braivo recorded it is unknown, and
-      // resending the same attempt is safe either way.
+      // Anything else — lost, a server failure, an answer that is not Braivo's —
+      // leaves unknown whether Braivo recorded it, and resending the same
+      // attempt is safe either way.
       setChosen(undefined);
       setFailed(true);
     }
@@ -126,11 +131,12 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
   function next() {
     // Held until the next activity replaces this one: the reload keeps this one
     // on screen while it runs, and a second press would restart it.
+    if (continuing) return;
     setContinuing(true);
     void router.invalidate();
   }
 
-  // To the route's error boundary, as a failed load would go.
+  // To the route's error component, as a failed load would go.
   if (refusal) throw refusal;
 
   return (
@@ -154,8 +160,9 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
             <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
             {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
           </Alert>
-          <Button autoFocus disabled={continuing} onClick={next}>
-            Continue
+          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+          <Button autoFocus aria-disabled={continuing} onClick={next}>
+            {continuing ? "Loading…" : "Continue"}
           </Button>
         </>
       )}
