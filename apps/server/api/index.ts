@@ -40,11 +40,12 @@
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
-// client's, unique per learner (a UUID will do), so resending after a lost
+// client's, unique per learner and at most 128 characters (a UUID will do), so resending after a lost
 // answer records nothing twice and answers the same grade.
 //
 //   401  no session
-//   400  the body is not an attempt, or the response cannot answer the task
+//   400  the body is not an attempt, `id` is empty or too long, or the response
+//        cannot answer the task
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task
 //   409  `id` was already used for a different task or response

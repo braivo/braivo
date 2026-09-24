@@ -21,11 +21,10 @@ export {
   readObjectives,
 } from "./objective.ts";
 export { organizationOwnsLearningContent } from "./organization.ts";
-export type { Task } from "./task.ts";
 export {
   ConflictingAttempt,
   readCourseTask,
   readNextTask,
-  readTaskedObjectives,
+  readObjectivesWithTasks,
   recordAttempt,
 } from "./task.ts";

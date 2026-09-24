@@ -420,7 +420,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   /**
    * Every Braivo write installs `bodyLimit` and calls `isTrustedWrite` for
-   * itself. Three explicit calls are simpler than a middleware that would have
+   * itself. Four explicit calls are simpler than a middleware that would have
    * to exempt the Better Auth mount, which does its own origin check — but
    * duplicated protection needs duplicated coverage, or deleting one of them
    * leaves the suite green.
@@ -428,7 +428,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
    * Resolved inside each test rather than in the table, since the learner and
    * the organization only exist once `beforeAll` has run.
    */
-  function write(route: "evidence" | "objectives" | "courses") {
+  function write(route: "evidence" | "objectives" | "courses" | "attempts") {
     switch (route) {
       case "evidence":
         return {
@@ -448,10 +448,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           body: { title: `Guarded ${crypto.randomUUID()}`, objectiveIds: [] } as unknown,
           accepted: 201,
         };
+      case "attempts":
+        return {
+          path: `/api/courses/${courseId}/attempts`,
+          body: {
+            id: crypto.randomUUID(),
+            taskId: pastTenseTask,
+            response: { choice: 0 },
+          } as unknown,
+          accepted: 200,
+        };
     }
   }
 
-  const routes = ["evidence", "objectives", "courses"] as const;
+  const routes = ["evidence", "objectives", "courses", "attempts"] as const;
 
   test.each(routes)("refuses a forgeable write to %s", async (route) => {
     const { path, body, accepted } = write(route);

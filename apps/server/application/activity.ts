@@ -8,7 +8,7 @@ import {
   gradeResponse,
   parseTaskResponse,
   presentTask,
-  type TaskPrompt,
+  type PresentedTask,
 } from "../content/index.ts";
 import { activeModel, type LearningDecision, selectNext } from "../learning/index.ts";
 import {
@@ -17,7 +17,7 @@ import {
   readCourseTask,
   readNextTask,
   readOrganizationRoles,
-  readTaskedObjectives,
+  readObjectivesWithTasks,
   recordAttempt,
 } from "../persistence/index.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
@@ -28,6 +28,13 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
  * with one an attempt will need.
  */
 export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
+
+/**
+ * Room for a UUID or any reasonable client key. The ID is a primary-key column
+ * and part of an evidence ID, and an index entry has a size limit that an
+ * unbounded ID would hit as a database error rather than a refusal.
+ */
+const MAX_ATTEMPT_ID_LENGTH = 128;
 
 /**
  * The learner loop's first half: the next objective, and a task to practise it
@@ -55,14 +62,14 @@ export async function chooseNextActivity(input: {
   });
   if (learner === undefined) return { kind: "unavailable" };
 
-  const tasked = await readTaskedObjectives(database, learner.objectiveIds);
+  const withTasks = await readObjectivesWithTasks(database, learner.objectiveIds);
   const decision = selectNext({
     now,
-    candidates: learner.objectiveIds.filter((id) => tasked.has(id)),
+    candidates: learner.objectiveIds.filter((id) => withTasks.has(id)),
     estimates: learner.estimates,
     model: activeModel,
   });
-  if (decision === undefined) return { kind: "caught-up" };
+  if (decision === undefined) return { kind: "no-activity" };
 
   // The decision's objective had a task a moment ago, and nothing removes one.
   // Once retirement can, both reads must apply it, or this throws.
@@ -73,13 +80,14 @@ export async function chooseNextActivity(input: {
 }
 
 /**
- * As `NextObjective`, with the task the learner is to answer. `caught-up` also
- * covers a course whose objectives have no tasks yet: nothing to practise now.
+ * As `NextObjective`, with the task the learner is to answer. `no-activity`
+ * rather than `caught-up`: an objective may be due yet have no task, so
+ * nothing to practise now is not the glossary's caught up.
  */
 export type NextActivity =
   | { kind: "unavailable" }
-  | { kind: "caught-up" }
-  | { kind: "decided"; decision: LearningDecision; task: { id: string } & TaskPrompt };
+  | { kind: "no-activity" }
+  | { kind: "decided"; decision: LearningDecision; task: { id: string } & PresentedTask };
 
 /**
  * The loop's second half: grades a learner's answer, and records the attempt and
@@ -101,6 +109,7 @@ export async function submitAttempt(input: {
   now: Date;
 }): Promise<SubmittedAttempt> {
   const { database, learnerId, courseId, attemptId, taskId, now } = input;
+  if (attemptId === "" || attemptId.length > MAX_ATTEMPT_ID_LENGTH) return { kind: "invalid" };
 
   const organizationId = await readCourseOrganization(database, courseId);
   if (organizationId === undefined) return { kind: "unavailable" };
@@ -121,16 +130,14 @@ export async function submitAttempt(input: {
       taskId,
       response,
       at: now,
-      // One record per objective the attempt assessed, each ID built from the
-      // attempt so that every attempt is its own evidence (glossary: Evidence ID).
-      evidence: [
-        {
-          id: `${ATTEMPT_EVIDENCE_PREFIX}${attemptId}:${task.objectiveId}`,
-          objectiveId: task.objectiveId,
-          outcome: grade.outcome,
-          at: now,
-        },
-      ],
+      // Built from the attempt so that every attempt is its own evidence, and
+      // naming the objective so a task assessing several could add one per
+      // objective (glossary: Evidence ID).
+      evidence: {
+        id: `${ATTEMPT_EVIDENCE_PREFIX}${attemptId}:${task.objectiveId}`,
+        objectiveId: task.objectiveId,
+        outcome: grade.outcome,
+      },
     });
   } catch (error) {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
@@ -142,8 +149,9 @@ export async function submitAttempt(input: {
 
 /**
  * `unavailable` is a missing course, one the learner is not in, and a task
- * outside it, alike, as for `NextObjective`. `invalid` is a response that
- * cannot answer this task; `conflict`, an attempt ID already used otherwise.
+ * outside it, alike, as for `NextObjective`. `invalid` is an attempt ID out of
+ * bounds or a response that cannot answer this task; `conflict`, an attempt ID
+ * already used otherwise.
  */
 export type SubmittedAttempt =
   | { kind: "unavailable" }

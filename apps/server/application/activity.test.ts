@@ -170,8 +170,8 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     ]);
   });
 
-  test("is caught up in a course with nothing to practise", async () => {
-    expect(await activity(start, learner, untaughtCourseId)).toEqual({ kind: "caught-up" });
+  test("has no activity in a course with nothing to practise", async () => {
+    expect(await activity(start, learner, untaughtCourseId)).toEqual({ kind: "no-activity" });
   });
 
   test("rotates through an objective's tasks, least recently attempted first", async () => {
@@ -250,6 +250,10 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
   test("refuses a task outside the course, and a learner outside its organization", async () => {
     expect(await answer("x1", foreignTask, 0, start)).toEqual({ kind: "unavailable" });
+    // The learner's organization, but a course without the task's objective.
+    expect(await answer("x4", pastTenseTask, 0, start, { course: untaughtCourseId })).toEqual({
+      kind: "unavailable",
+    });
     expect(await answer("x2", pastTenseTask, 0, start, { learnerId: outsider })).toEqual({
       kind: "unavailable",
     });

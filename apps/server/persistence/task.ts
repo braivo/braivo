@@ -25,7 +25,7 @@ export class ConflictingAttempt extends Error {
 }
 
 /** Which of these objectives have at least one task, and so something to practise. */
-export async function readTaskedObjectives(
+export async function readObjectivesWithTasks(
   database: Database,
   objectiveIds: readonly string[],
 ): Promise<Set<string>> {
@@ -97,7 +97,8 @@ export async function recordAttempt(
     taskId: string;
     response: TaskResponse;
     at: Date;
-    evidence: readonly Evidence[];
+    /** Dated by the attempt. */
+    evidence: Omit<Evidence, "at">;
   },
 ): Promise<void> {
   const { learnerId, attemptId, taskId, response, at, evidence } = input;
@@ -118,10 +119,6 @@ export async function recordAttempt(
       throw new ConflictingAttempt(attemptId);
     }
 
-    if (evidence.length > 0) {
-      await transaction
-        .insert(learnerEvidence)
-        .values(evidence.map((record) => ({ ...record, learnerId })));
-    }
+    await transaction.insert(learnerEvidence).values({ ...evidence, learnerId, at });
   });
 }

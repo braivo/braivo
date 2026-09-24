@@ -20,7 +20,7 @@ export type TaskBody = {
 };
 
 /** A task as a learner may see it before answering: no answer, no explanation. */
-export type TaskPrompt = { kind: "choice"; prompt: string; options: string[] };
+export type PresentedTask = { kind: "choice"; prompt: string; options: string[] };
 
 /** A learner's answer to a task, shaped by its kind. */
 export type TaskResponse = { choice: number };
@@ -70,7 +70,7 @@ export function parseTaskBody(value: unknown): TaskBody | undefined {
 }
 
 /** What a learner sees before answering. Built by listing fields, never by removing them. */
-export function presentTask(body: TaskBody): TaskPrompt {
+export function presentTask(body: TaskBody): PresentedTask {
   return { kind: body.kind, prompt: body.prompt, options: body.options };
 }
 

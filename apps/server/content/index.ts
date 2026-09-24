@@ -5,5 +5,5 @@
 // how an answer to it is graded. Pure, like `learning`; storing and choosing
 // tasks belong to `persistence` and `application`. See docs/adr/0015-tasks.md.
 
-export type { Grade, TaskBody, TaskPrompt, TaskResponse } from "./task.ts";
+export type { Grade, TaskBody, PresentedTask, TaskResponse } from "./task.ts";
 export { gradeResponse, parseTaskBody, parseTaskResponse, presentTask } from "./task.ts";
