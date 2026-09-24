@@ -212,6 +212,15 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     ]);
   });
 
+  test("refuses an ID in the namespace attempts grade into", async () => {
+    // Otherwise the attempt that later needs this ID could never be recorded.
+    await expect(record([evidence({ id: "attempt:a1:x" })])).rejects.toBeInstanceOf(
+      InvalidEvidence,
+    );
+
+    expect(await stored()).toEqual([]);
+  });
+
   test("refuses evidence dated after it was received", async () => {
     // An hour ahead is the shape of a time-zone mistake: local time written out
     // as UTC by a grader east of Greenwich.

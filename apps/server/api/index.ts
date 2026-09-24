@@ -28,6 +28,30 @@
 //        `LearningDecision`, so a rename inside `learning` reshapes the
 //        response; `app.test.ts` pins it so that cannot happen quietly.
 //
+// `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
+// serves: the next objective and a task to practise it. Statuses as for `next`,
+// except that only objectives with a task are considered, so 204 also means the
+// course has nothing to practise yet. 200 answers the decision with a task,
+// never its answer:
+//
+//   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
+//     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
+//
+// `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
+// and Braivo grades it and records the evidence. Body
+// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
+// client's, unique per learner (a UUID will do), so resending after a lost
+// answer records nothing twice and answers the same grade.
+//
+//   401  no session
+//   400  the body is not an attempt, or the response cannot answer the task
+//   403  the request could have been forged, as for evidence
+//   404  the course does not exist, is not the learner's, or has no such task
+//   409  `id` was already used for a different task or response
+//   413  the body is larger than 1 MB
+//   200  the grade: `{ "outcome": "failure", "answer": 0, "explanation": "…" }`,
+//        `explanation` present only when the task has one.
+//
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner. The reader is the
 // session's user and must hold `owner` or `admin` in the course's organization;
@@ -72,8 +96,9 @@
 // it stays invisible until its date and resending it is a conflict.
 //
 //   401  no session
-//   400  the body is not evidence, carries more than 1000 records, or dates a
-//        record more than five minutes ahead
+//   400  the body is not evidence, carries more than 1000 records, dates a
+//        record more than five minutes ahead, or uses an `id` starting with
+//        `attempt:`, which is reserved for evidence graded from attempts
 //   403  the request could have been forged (it must be `application/json`, and
 //        any `Origin` it sends must be this installation's), or the grader may
 //        not grade here, or the learner or an objective is not this
