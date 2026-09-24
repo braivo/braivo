@@ -35,7 +35,7 @@ export type Grade = {
   explanation?: string;
 };
 
-/** More options than anyone reads through; a bound so a body cannot be huge. */
+/** More options than anyone reads through. Bounds their number, not their length. */
 const MAX_OPTIONS = 26;
 
 /**

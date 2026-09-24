@@ -879,11 +879,12 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       await postAttempt(courseId, attempt),
       await postAttempt(courseId, attempt, learner.cookie, { origin: "https://evil.example.com" }),
       await postAttempt(courseId, { ...attempt, id: "" }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, id: "x".repeat(129) }, learner.cookie),
       await postAttempt(courseId, { ...attempt, response: { choice: 5 } }, learner.cookie),
       await postAttempt(foreignCourseId, attempt, learner.cookie),
     ];
 
-    expect(refusals.map((response) => response.status)).toEqual([401, 403, 400, 400, 404]);
+    expect(refusals.map((response) => response.status)).toEqual([401, 403, 400, 400, 400, 404]);
     expect(await stored(learner.id)).toEqual([]);
   });
 });

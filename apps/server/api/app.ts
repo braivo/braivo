@@ -150,6 +150,13 @@ function parseCourse(body: unknown): { title: string; objectiveIds: string[] } |
 }
 
 /**
+ * Room for a UUID or any reasonable client key. The ID is a primary-key column
+ * and part of an evidence ID, and an index entry has a size limit that an
+ * unbounded ID would hit as a 500 rather than a 400.
+ */
+const MAX_ATTEMPT_ID_LENGTH = 128;
+
+/**
  * Reads an attempt's envelope out of a request body. The response inside it is
  * the task's to judge, so it passes through unread: only the use case knows
  * which task it answers.
@@ -160,7 +167,7 @@ function parseAttempt(
   if (typeof body !== "object" || body === null) return undefined;
 
   const { id, taskId, response } = body as Record<string, unknown>;
-  if (typeof id !== "string" || id === "") return undefined;
+  if (typeof id !== "string" || id === "" || id.length > MAX_ATTEMPT_ID_LENGTH) return undefined;
   if (typeof taskId !== "string" || taskId === "") return undefined;
 
   return { id, taskId, response };

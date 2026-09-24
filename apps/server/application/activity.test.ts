@@ -211,6 +211,38 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect(await stored()).toMatchObject([{ id: `attempt:reused:${fractions}`, at: later(1) }]);
   });
 
+  test("records one of two disagreeing submissions that arrive at once", async () => {
+    // The comparison must read what is stored after inserting, as for evidence
+    // (persistence/evidence.test.ts): checked first, both would pass.
+    for (let race = 0; race < 10; race++) {
+      await testing.clearEvidence(database, [learner]);
+      const submitted = await Promise.all([
+        answer("raced", pastTenseTask, 0, later(1)),
+        answer("raced", pastTenseTask, 1, later(1)),
+      ]);
+
+      const kinds = submitted.map((result) => result.kind);
+      expect(kinds.toSorted()).toEqual(["conflict", "graded"]);
+      const winner = submitted.find((result) => result.kind === "graded");
+      expect((await stored()).map((record) => record.outcome)).toEqual([
+        winner?.kind === "graded" && winner.grade.outcome,
+      ]);
+    }
+  });
+
+  test("records a submission that races its own retry once", async () => {
+    for (let race = 0; race < 10; race++) {
+      await testing.clearEvidence(database, [learner]);
+      const submitted = await Promise.all([
+        answer("retried", pastTenseTask, 0, later(1)),
+        answer("retried", pastTenseTask, 0, later(1)),
+      ]);
+
+      expect(submitted.map((result) => result.kind)).toEqual(["graded", "graded"]);
+      expect(await stored()).toHaveLength(1);
+    }
+  });
+
   test("refuses a response that cannot answer the task, recording nothing", async () => {
     expect(await answer("bad", pastTenseTask, 7, start)).toEqual({ kind: "invalid" });
     expect(await stored()).toEqual([]);

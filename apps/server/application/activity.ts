@@ -64,8 +64,8 @@ export async function chooseNextActivity(input: {
   });
   if (decision === undefined) return { kind: "caught-up" };
 
-  // Tasks are never deleted while anything references them, and the decision's
-  // objective had one a moment ago; a missing one is a broken invariant.
+  // The decision's objective had a task a moment ago, and nothing removes one.
+  // Once retirement can, both reads must apply it, or this throws.
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
   if (task === undefined) throw new Error(`Objective "${decision.objectiveId}" has no task.`);
 
