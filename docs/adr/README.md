@@ -20,6 +20,7 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0008: Courses order objectives, and position stops at the module boundary](0008-courses-order-objectives.md)
 - [0009: Evidence is read whole, not narrowed to the decision](0009-evidence-is-read-whole.md)
 - [0010: Hono for the HTTP layer, and what a route is allowed to do](0010-hono-http-layer.md)
+- [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
 
 ## Web
 

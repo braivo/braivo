@@ -102,7 +102,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner, grader, outsider]);
+    await testing.clearLearnerHistory(database, [learner, grader, outsider]);
   });
 
   test("records evidence a learner's own organization graded", async () => {
@@ -210,6 +210,15 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     expect(await stored(learner)).toEqual([
       { id: "reused", objectiveId: pastTense, outcome: "success", at: daysAgo(1) },
     ]);
+  });
+
+  test("refuses an ID in the namespace attempts grade into", async () => {
+    // Otherwise the attempt that later needs this ID could never be recorded.
+    await expect(record([evidence({ id: "attempt:a1:x" })])).rejects.toBeInstanceOf(
+      InvalidEvidence,
+    );
+
+    expect(await stored()).toEqual([]);
   });
 
   test("refuses evidence dated after it was received", async () => {

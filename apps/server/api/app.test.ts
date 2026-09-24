@@ -49,6 +49,8 @@ let courseId!: string;
 let emptyCourseId!: string;
 let foreignCourseId!: string;
 let pastTense!: string;
+/** A choice task on the past tense, correct at index 0. */
+let pastTenseTask!: string;
 
 type Signed = { cookie: string; id: string };
 
@@ -92,6 +94,26 @@ function postEvidence(
   return api.request(`/api/organizations/${organization}/learners/${learnerId}/evidence`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
+  });
+}
+
+function activity(courseId: string, cookie?: string) {
+  return api.request(
+    `/api/courses/${courseId}/activity`,
+    cookie ? { headers: { cookie } } : undefined,
+  );
+}
+
+function postAttempt(
+  courseId: string,
+  body: unknown,
+  cookie?: string,
+  headers: Record<string, string> = {},
+) {
+  return api.request(`/api/courses/${courseId}/attempts`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
     body: JSON.stringify(body),
   });
 }
@@ -176,10 +198,23 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       title: "Somebody else's",
       objectiveIds: [theirs[0]!],
     });
+
+    pastTenseTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: pastTense,
+      body: {
+        kind: "choice",
+        prompt: "Past tense of 'hablar'?",
+        options: ["hablé", "hablo"],
+        answer: 0,
+        explanation: "Preterite.",
+      },
+      createdAt: at,
+    });
   });
 
   beforeEach(async () => {
-    await testing.clearEvidence(database, [learner.id, classmate.id]);
+    await testing.clearLearnerHistory(database, [learner.id, classmate.id]);
   });
 
   test("serves Better Auth under its own path", async () => {
@@ -286,7 +321,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       lastEvidenceAt: recordedAt.toISOString(),
     });
 
-    await testing.clearEvidence(database, [learner.id]);
+    await testing.clearLearnerHistory(database, [learner.id]);
     await recordEvidence(database, learner.id, [
       { id: "contract-success", objectiveId: pastTense, outcome: "success", at: recordedAt },
     ]);
@@ -385,7 +420,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   /**
    * Every Braivo write installs `bodyLimit` and calls `isTrustedWrite` for
-   * itself. Three explicit calls are simpler than a middleware that would have
+   * itself. Four explicit calls are simpler than a middleware that would have
    * to exempt the Better Auth mount, which does its own origin check — but
    * duplicated protection needs duplicated coverage, or deleting one of them
    * leaves the suite green.
@@ -393,7 +428,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
    * Resolved inside each test rather than in the table, since the learner and
    * the organization only exist once `beforeAll` has run.
    */
-  function write(route: "evidence" | "objectives" | "courses") {
+  function write(route: "evidence" | "objectives" | "courses" | "attempts") {
     switch (route) {
       case "evidence":
         return {
@@ -413,10 +448,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           body: { title: `Guarded ${crypto.randomUUID()}`, objectiveIds: [] } as unknown,
           accepted: 201,
         };
+      case "attempts":
+        return {
+          path: `/api/courses/${courseId}/attempts`,
+          body: {
+            id: crypto.randomUUID(),
+            taskId: pastTenseTask,
+            response: { choice: 0 },
+          } as unknown,
+          accepted: 200,
+        };
     }
   }
 
-  const routes = ["evidence", "objectives", "courses"] as const;
+  const routes = ["evidence", "objectives", "courses", "attempts"] as const;
 
   test.each(routes)("refuses a forgeable write to %s", async (route) => {
     const { path, body, accepted } = write(route);
@@ -789,5 +834,67 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     for (const response of [answered, refused, anonymous]) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
+  });
+
+  test("serves the learner a task in the documented shape, never its answer", async () => {
+    const response = await activity(courseId, learner.cookie);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({
+      decision: { objectiveId: pastTense, modelVersion: activeModel.version, intent: "introduce" },
+      task: {
+        id: pastTenseTask,
+        kind: "choice",
+        prompt: "Past tense of 'hablar'?",
+        options: ["hablé", "hablo"],
+      },
+    });
+  });
+
+  test("answers activity as it answers the decision when there is none to give", async () => {
+    expect((await activity(courseId)).status).toBe(401);
+    expect((await activity(foreignCourseId, learner.cookie)).status).toBe(404);
+    expect((await activity(emptyCourseId, learner.cookie)).status).toBe(204);
+  });
+
+  test("grades a learner's answer, and the next activity follows from it", async () => {
+    const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } };
+
+    const response = await postAttempt(courseId, attempt, learner.cookie);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      outcome: "failure",
+      answer: 0,
+      explanation: "Preterite.",
+    });
+
+    const next = (await (await activity(courseId, learner.cookie)).json()) as {
+      decision: { intent: string };
+    };
+    expect(next.decision.intent).toBe("reteach");
+
+    // Resent after a lost answer: the same grade, and no second record.
+    expect((await postAttempt(courseId, attempt, learner.cookie)).status).toBe(200);
+    expect(await stored(learner.id)).toHaveLength(1);
+
+    const changed = { ...attempt, response: { choice: 0 } };
+    expect((await postAttempt(courseId, changed, learner.cookie)).status).toBe(409);
+  });
+
+  test("refuses attempts it cannot or must not record, recording none", async () => {
+    const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } };
+
+    const refusals = [
+      await postAttempt(courseId, attempt),
+      await postAttempt(courseId, attempt, learner.cookie, { origin: "https://evil.example.com" }),
+      await postAttempt(courseId, { ...attempt, id: "" }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, id: "x".repeat(129) }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, response: { choice: 5 } }, learner.cookie),
+      await postAttempt(foreignCourseId, attempt, learner.cookie),
+    ];
+
+    expect(refusals.map((response) => response.status)).toEqual([401, 403, 400, 400, 400, 404]);
+    expect(await stored(learner.id)).toEqual([]);
   });
 });

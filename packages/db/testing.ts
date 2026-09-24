@@ -4,13 +4,22 @@
 import { eq, inArray } from "drizzle-orm";
 
 import { createDatabase, type Database } from "./database.ts";
-import { course, learnerEvidence, member, objective, organization, user } from "./schema/index.ts";
+import {
+  attempt,
+  course,
+  learnerEvidence,
+  member,
+  objective,
+  organization,
+  task,
+  user,
+} from "./schema/index.ts";
 
 // Test support for the suites that need a real database. Nothing here is part
 // of the package's behaviour.
 //
 // Every helper is scoped to what a suite owns, so it only ever removes rows it
-// created: `clearLearningData` to one organization, `clearEvidence` to the
+// created: `clearLearningData` to one organization, `clearLearnerHistory` to the
 // learners listed. Truncating the shared tables instead would make each suite
 // depend on the order the runner happens to choose.
 //
@@ -109,11 +118,31 @@ export async function seedOrganization(
 }
 
 /**
- * Removes an organization's objectives, its courses, and all evidence recorded
- * against those objectives, whoever recorded it: the restricted foreign keys
- * refuse to delete an objective while any evidence or course still points at it.
+ * Stores a task and returns its generated ID. The body is stored as given: a
+ * suite passes one the server's `content` module would accept.
+ */
+export async function createTask(
+  database: Database,
+  input: { organizationId: string; objectiveId: string; body: unknown; createdAt: Date },
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await database.insert(task).values({ id, ...input });
+  return id;
+}
+
+/**
+ * Removes an organization's objectives, courses, and tasks, with all evidence
+ * and attempts recorded against them, whoever recorded them: the restricted
+ * foreign keys refuse to delete what anything still points at.
  */
 export async function clearLearningData(database: Database, organizationId: string): Promise<void> {
+  const tasks = database
+    .select({ id: task.id })
+    .from(task)
+    .where(eq(task.organizationId, organizationId));
+  await database.delete(attempt).where(inArray(attempt.taskId, tasks));
+  await database.delete(task).where(eq(task.organizationId, organizationId));
+
   await database
     .delete(learnerEvidence)
     .where(
@@ -130,13 +159,14 @@ export async function clearLearningData(database: Database, organizationId: stri
   await database.delete(objective).where(eq(objective.organizationId, organizationId));
 }
 
-/** Removes just the recorded evidence, which most suites reset between tests. */
-export async function clearEvidence(
+/** Removes just these learners' attempts and evidence, which most suites reset between tests. */
+export async function clearLearnerHistory(
   database: Database,
   learnerIds: readonly string[],
 ): Promise<void> {
   if (learnerIds.length === 0) return;
 
+  await database.delete(attempt).where(inArray(attempt.learnerId, learnerIds));
   await database.delete(learnerEvidence).where(inArray(learnerEvidence.learnerId, learnerIds));
 }
 

@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -207,5 +208,62 @@ export const learnerEvidence = pgTable(
     // Replay reads one learner's whole history in `(at, id)` order; this serves
     // that read as an index scan, and it is the only query shape the table has.
     index("learner_evidence_replay_idx").on(table.learnerId, table.at, table.id),
+  ],
+);
+
+/**
+ * One assessable thing a learner does for an objective, such as a question.
+ * `body` is one JSON variant per kind, shaped and validated by the server's
+ * `content` module. Immutable, which is what lets attempts reference a task
+ * rather than copy it. One objective per task for now. See docs/adr/0015-tasks.md.
+ */
+export const task = pgTable(
+  "task",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    objectiveId: text("objective_id").notNull(),
+    body: jsonb("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    // Matching the organization, as `course_objective` does, so a task cannot
+    // assess another organization's objective.
+    foreignKey({
+      name: "task_objective_fk",
+      columns: [table.organizationId, table.objectiveId],
+      foreignColumns: [objective.organizationId, objective.id],
+    }).onDelete("restrict"),
+    index("task_objective_idx").on(table.objectiveId, table.createdAt, table.id),
+  ],
+);
+
+/**
+ * A learner's answer to a task: what the evidence it produced was graded from.
+ * The grade is not stored. Grading `choice` is deterministic over an immutable
+ * task, so it is recomputed, and the outcome is in `learner_evidence`.
+ */
+export const attempt = pgTable(
+  "attempt",
+  {
+    /**
+     * Chosen by the client, so a resubmission is recognised rather than recorded
+     * twice. Scoped per learner, like evidence IDs, so learners cannot collide.
+     */
+    id: text("id").notNull(),
+    /** Cascading: deleting an account erases its learning history, as evidence does. */
+    learnerId: text("learner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => task.id, { onDelete: "restrict" }),
+    response: jsonb("response").notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.learnerId, table.id] }),
+    // Serves "which of an objective's tasks this learner saw least recently".
+    index("attempt_learner_task_idx").on(table.learnerId, table.taskId, table.at),
   ],
 );

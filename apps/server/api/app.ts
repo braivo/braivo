@@ -6,6 +6,7 @@ import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
 import {
+  chooseNextActivity,
   chooseNextObjective,
   ConflictingEvidence,
   defineCourse,
@@ -16,6 +17,7 @@ import {
   NotPermitted,
   readLearnerProgress,
   recordGradedEvidence,
+  submitAttempt,
 } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
@@ -147,6 +149,23 @@ function parseCourse(body: unknown): { title: string; objectiveIds: string[] } |
   return { title: trimmed, objectiveIds: ids };
 }
 
+/**
+ * Reads an attempt's envelope out of a request body. The response inside it is
+ * the task's to judge, so it passes through unread: only the use case knows
+ * which task it answers.
+ */
+function parseAttempt(
+  body: unknown,
+): { id: string; taskId: string; response: unknown } | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const { id, taskId, response } = body as Record<string, unknown>;
+  if (typeof id !== "string") return undefined;
+  if (typeof taskId !== "string" || taskId === "") return undefined;
+
+  return { id, taskId, response };
+}
+
 /** Enough for that many records, and far less than a body worth buffering. */
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -249,6 +268,76 @@ export function createApi(options: ApiOptions) {
         throw new Error(`Unhandled answer: ${JSON.stringify(next satisfies never)}`);
     }
   });
+
+  /**
+   * The next objective and a task to practise it with, for the signed-in
+   * learner. Answered like the decision route, whose statuses it shares.
+   */
+  api.get("/api/courses/:courseId/activity", async (context) => {
+    context.header("cache-control", "private, no-store");
+
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    const next = await chooseNextActivity({
+      database,
+      learnerId: session.user.id,
+      courseId: context.req.param("courseId"),
+      now: new Date(),
+    });
+
+    switch (next.kind) {
+      case "unavailable":
+        return context.body(null, 404);
+      case "no-activity":
+        return context.body(null, 204);
+      case "decided":
+        return context.json({ decision: next.decision, task: next.task });
+      default:
+        throw new Error(`Unhandled answer: ${JSON.stringify(next satisfies never)}`);
+    }
+  });
+
+  /**
+   * The signed-in learner answers a task; Braivo grades it and records the
+   * evidence. The learner is the session's user, as on the activity route.
+   */
+  api.post(
+    "/api/courses/:courseId/attempts",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const attempt = parseAttempt(await context.req.json().catch(() => undefined));
+      if (attempt === undefined) return context.body(null, 400);
+
+      const submitted = await submitAttempt({
+        database,
+        learnerId: session.user.id,
+        courseId: context.req.param("courseId"),
+        attemptId: attempt.id,
+        taskId: attempt.taskId,
+        response: attempt.response,
+        now: new Date(),
+      });
+
+      switch (submitted.kind) {
+        case "unavailable":
+          return context.body(null, 404);
+        case "invalid":
+          return context.body(null, 400);
+        case "conflict":
+          return context.body(null, 409);
+        case "graded":
+          return context.json(submitted.grade);
+        default:
+          throw new Error(`Unhandled answer: ${JSON.stringify(submitted satisfies never)}`);
+      }
+    },
+  );
 
   /**
    * Where a learner stands on each objective in a course, for a content owner.

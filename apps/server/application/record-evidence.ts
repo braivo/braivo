@@ -9,6 +9,7 @@ import {
   readOrganizationRoles,
   recordEvidence,
 } from "../persistence/index.ts";
+import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
@@ -42,7 +43,8 @@ const MAX_CLOCK_SKEW_MS = 5 * 60_000;
  *
  * Checks run in this order, and any failure refuses the whole batch:
  *
- * 1. Every date is valid and not ahead of `now`. This reads only the payload, so
+ * 1. Every date is valid and not ahead of `now`, and no ID is in the namespace
+ *    attempts are graded into. This reads only the payload, so
  *    a caller who may not grade learns nothing about the organization.
  * 2. `gradedBy` administers the organization. Without this, a learner could
  *    award themselves successes.
@@ -82,6 +84,13 @@ export async function recordGradedEvidence(input: {
   if (undated.length > 0) {
     throw new InvalidEvidence(
       `Evidence ${undated.map((record) => `"${record.id}"`).join(", ")} has no valid date.`,
+    );
+  }
+
+  const reserved = evidence.filter((record) => record.id.startsWith(ATTEMPT_EVIDENCE_PREFIX));
+  if (reserved.length > 0) {
+    throw new InvalidEvidence(
+      `Evidence ${reserved.map((record) => `"${record.id}"`).join(", ")} uses the reserved prefix "${ATTEMPT_EVIDENCE_PREFIX}".`,
     );
   }
 

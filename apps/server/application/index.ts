@@ -4,6 +4,8 @@
 // Use cases that coordinate `content`, `learning`, `ai`, and `persistence`.
 // Workflows spanning modules live here so those modules never call each other.
 
+export type { NextActivity, SubmittedAttempt } from "./activity.ts";
+export { chooseNextActivity, submitAttempt } from "./activity.ts";
 export { defineCourse, listCourses } from "./courses.ts";
 export type { LearnerProgress } from "./learner-progress.ts";
 export { readLearnerProgress } from "./learner-progress.ts";

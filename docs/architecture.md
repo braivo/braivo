@@ -19,7 +19,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 
 ## Modules
 
-- **content:** structured learning content and its link to source material.
+- **content:** structured learning content and its link to source material. Today, task kinds: what a task asks, what a learner sees of it, and how an answer is graded — pure, like `learning` ([ADR 0015](adr/0015-tasks.md)).
 - **learning:** turns learner evidence into knowledge estimates, and estimates into the next objective and learning intent, or into a report of where a learner stands ([spec](specs/learning-model.md)). It does not choose activities: naming one requires subject knowledge it deliberately lacks. One active model, replaced and recomputed rather than selected at runtime ([ADR 0007](adr/0007-one-learning-model.md)).
 - **ai:** model calls, prompts, and validation of model output.
 - **auth:** identity, sessions, and organization membership, via Better Auth ([ADR 0006](adr/0006-better-auth.md)). Its handler is a standard `Request` → `Response` function, so mounting it does not commit us to a web framework.
