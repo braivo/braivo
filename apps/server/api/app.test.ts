@@ -907,13 +907,13 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("shows a content owner where a learner stands, in the documented shape", async () => {
-    // Pinned field by field, as the decision is: the body is a serialization of
-    // `KnowledgeReport`, and a rename inside `learning` would reshape it.
+    // Pinned field by field, as the decision is: the body serializes
+    // `LearnerProgressReport`, and a rename inside `learning` would reshape it.
     const unseen = await progress(courseId, learner.id, teacher.cookie);
     expect(unseen.status).toBe(200);
     expect(await unseen.json()).toEqual({
       modelVersion: activeModel.version,
-      objectives: [{ objectiveId: pastTense, phase: "unseen" }],
+      objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen" }],
     });
 
     await recordEvidence(database, learner.id, [
@@ -922,7 +922,12 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
       modelVersion: activeModel.version,
       objectives: [
-        { objectiveId: pastTense, phase: "acquiring", lastEvidenceAt: recordedAt.toISOString() },
+        {
+          objectiveId: pastTense,
+          title: "Past tense",
+          phase: "acquiring",
+          lastEvidenceAt: recordedAt.toISOString(),
+        },
       ],
     });
 
@@ -937,6 +942,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       objectives: [
         {
           objectiveId: pastTense,
+          title: "Past tense",
           phase: "retaining",
           lastEvidenceAt: later.toISOString(),
           stability: 1,

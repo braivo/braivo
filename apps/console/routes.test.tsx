@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type KnowledgeReport } from "@braivo/server/client";
+import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
@@ -226,7 +226,6 @@ describe("the console", () => {
 
   test("asks nothing scoped to a course before that course is the organization's", async () => {
     const learnerProgress = vi.fn();
-    const listObjectives = vi.fn();
     const listMembers = vi.fn(async () => ({
       data: { members, total: members.length },
       error: null,
@@ -235,7 +234,6 @@ describe("the console", () => {
       braivo: {
         listCourses: async () => [{ id: "course-1", title: "Beginners" }],
         learnerProgress,
-        listObjectives,
       },
       listMembers,
     });
@@ -244,12 +242,11 @@ describe("the console", () => {
       await screen.findByText("This learner's progress is not yours to see, or does not exist."),
     ).toBeTruthy();
     // An owner of both organizations could read this report; what they may not
-    // do is pair it with another organization's objectives and roster.
+    // do is pair it with another organization's roster.
     expect({
       learnerProgress: learnerProgress.mock.calls,
-      listObjectives: listObjectives.mock.calls,
       listMembers: listMembers.mock.calls,
-    }).toEqual({ learnerProgress: [], listObjectives: [], listMembers: [] });
+    }).toEqual({ learnerProgress: [], listMembers: [] });
   });
 
   test("asks nothing about the organization's roster until the course is its own", async () => {
@@ -293,32 +290,29 @@ describe("the console", () => {
   });
 
   test("shows where a learner stands on each objective, by title", async () => {
-    const report: KnowledgeReport = {
+    const report: LearnerProgressReport = {
       modelVersion: "v1",
       objectives: [
         {
           objectiveId: "o1",
+          title: "Greetings",
           phase: "retaining",
           lastEvidenceAt: "2026-06-01T00:00:00.000Z",
           stability: 1,
           retrievability: 0.42,
           due: true,
         },
-        { objectiveId: "o2", phase: "unseen" },
+        { objectiveId: "o2", title: "Numbers", phase: "unseen" },
       ],
     };
     const learnerProgress = vi.fn(async () => report);
     const listCourses = vi.fn(async () => [{ id: "course-1", title: "Beginners" }]);
-    const listObjectives = vi.fn(async () => [
-      { id: "o1", title: "Greetings" },
-      { id: "o2", title: "Numbers" },
-    ]);
     const listMembers = vi.fn(async () => ({
       data: { members, total: members.length },
       error: null,
     }));
     renderAt("/example/courses/course-1/learners/u2", {
-      braivo: { learnerProgress, listCourses, listObjectives },
+      braivo: { learnerProgress, listCourses },
       listMembers,
     });
 
@@ -335,7 +329,6 @@ describe("the console", () => {
       options,
     );
     expect(listCourses).toHaveBeenCalledWith("org-1", options);
-    expect(listObjectives).toHaveBeenCalledWith("org-1", options);
     expect(listMembers).toHaveBeenCalledWith({ query: { organizationId: "org-1" } });
   });
 
@@ -346,7 +339,6 @@ describe("the console", () => {
           throw new BraivoError(404, "not found");
         },
         listCourses: async () => [{ id: "course-1", title: "Beginners" }],
-        listObjectives: async () => [],
       },
     });
 

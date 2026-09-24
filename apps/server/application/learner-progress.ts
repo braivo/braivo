@@ -3,7 +3,13 @@
 
 import type { Database } from "@braivo/db";
 
-import { activeModel, assessKnowledge, type KnowledgeReport } from "../learning/index.ts";
+import {
+  activeModel,
+  assessKnowledge,
+  type KnowledgeReport,
+  type ObjectiveStanding,
+} from "../learning/index.ts";
+import { readObjectiveTitles } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
@@ -44,16 +50,34 @@ export async function readLearnerProgress(input: {
   });
   if (learner === undefined) return { kind: "unavailable" };
 
+  const report = assessKnowledge({
+    now,
+    objectiveIds: learner.objectiveIds,
+    estimates: learner.estimates,
+    model: activeModel,
+  });
+  // Named here rather than in `learning`, which knows objectives only as IDs.
+  const titles = await readObjectiveTitles(database, learner.objectiveIds);
+
   return {
     kind: "assessed",
-    report: assessKnowledge({
-      now,
-      objectiveIds: learner.objectiveIds,
-      estimates: learner.estimates,
-      model: activeModel,
-    }),
+    report: {
+      ...report,
+      objectives: report.objectives.map((standing) => {
+        const title = titles.get(standing.objectiveId);
+        // Never missing: the course references it, with deletes restricted.
+        if (title === undefined)
+          throw new Error(`Objective ${standing.objectiveId} of course ${courseId} is missing`);
+        return { ...standing, title };
+      }),
+    },
   };
 }
+
+/** A knowledge report whose standings name their objectives, for people to read. */
+export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
+  objectives: (ObjectiveStanding & { title: string })[];
+};
 
 /**
  * `unavailable` covers four cases on purpose. A missing course and one the reader
@@ -64,4 +88,4 @@ export async function readLearnerProgress(input: {
  */
 export type LearnerProgress =
   | { kind: "unavailable" }
-  | { kind: "assessed"; report: KnowledgeReport };
+  | { kind: "assessed"; report: LearnerProgressReport };

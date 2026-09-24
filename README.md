@@ -129,7 +129,8 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
-# {"modelVersion":"v1","objectives":[{…,"phase":"acquiring",…},{…,"phase":"unseen"}]}
+# {"modelVersion":"v1","objectives":[{…,"title":"Greetings","phase":"acquiring",…},
+#  {…,"title":"Numbers","phase":"unseen"}]}
 ```
 
 The same loop runs in the learn app: with `bun run dev`, sign in at `http://localhost:5173` as `owner@example.com` and choose the course.

@@ -27,7 +27,7 @@ Two audiences need a UI now, and they want different things. A learner needs one
 
 **The server is an app too.** It is deployed rather than depended on, so it sits beside the other two, flat like them, and publishes nothing ([ADR 0002](0002-agpl-only.md)).
 
-**Apps reach Braivo through `@braivo/server/client` only.** It is the server's one export: an HTTP client whose types are derived from the domain, and which may import nothing from the server but types. The apps needed `listCourses` and `listObjectives`, both over routes that already existed, and a contract test pins each against the real server. Identity goes through Better Auth's own client.
+**Apps reach Braivo through `@braivo/server/client` only.** It is the server's one export: an HTTP client whose types are derived from the server's own types rather than restated, and which may import nothing from the server but types. It has a method only for what the apps call, and a contract test pins each against the real server. Identity goes through Better Auth's own client.
 
 **Apps share an origin with the API.** Both Braivo and Better Auth refuse a write whose `Origin` is not `BRAIVO_URL`'s, and the client already documented same-origin as the supported arrangement. So the learn app is served at `/`, the console under `/console/`, and the API at `/api/`, on one origin. In development each Vite server stands in for that site: it proxies `/api` to the server, and rewrites the `Origin` of a request that is same-origin _to itself_ into the API's (`tooling/dev-proxy.ts`). A page on any other site still sends its own `Origin` and is still refused. The server keeps one trusted origin rather than a list that would have to be configured, validated, and kept in step with Better Auth's.
 

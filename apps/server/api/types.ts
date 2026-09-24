@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type * as application from "../application/index.ts";
 import type * as content from "../content/index.ts";
 import type * as learning from "../learning/index.ts";
 
 // The shapes the HTTP API sends and accepts, as `api/index.ts` documents them.
-// Derived from the domain types rather than restated, so the client in
+// Derived from the domain and use-case types rather than restated, so the client in
 // `client.ts` cannot drift from what the routes serialize; `app.test.ts` pins
 // the JSON itself.
 //
@@ -24,11 +25,11 @@ type Json<T> = T extends Date
 /** What a learner should do next, as `GET /api/courses/:courseId/next` answers it. */
 export type LearningDecision = Json<learning.LearningDecision>;
 
-/** Where a learner stands on one objective. */
-export type ObjectiveStanding = Json<learning.ObjectiveStanding>;
-
 /** A learner's standing on each objective in a course, in content order. */
-export type KnowledgeReport = Json<learning.KnowledgeReport>;
+export type LearnerProgressReport = Json<application.LearnerProgressReport>;
+
+/** Where a learner stands on one objective, by its ID and title. */
+export type LearnerProgressStanding = LearnerProgressReport["objectives"][number];
 
 /**
  * One graded outcome, as it is posted.

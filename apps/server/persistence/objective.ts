@@ -85,3 +85,17 @@ export async function readObjective(
     .where(eq(objective.id, objectiveId));
   return row;
 }
+
+/** Titles by objective ID, for objectives already known to be readable. */
+export async function readObjectiveTitles(
+  database: Database,
+  objectiveIds: readonly string[],
+): Promise<Map<string, string>> {
+  if (objectiveIds.length === 0) return new Map();
+
+  const rows = await database
+    .select({ id: objective.id, title: objective.title })
+    .from(objective)
+    .where(inArray(objective.id, [...objectiveIds]));
+  return new Map(rows.map((row) => [row.id, row.title]));
+}
