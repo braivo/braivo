@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   loader: async ({ context, params, abortController }) => {
@@ -50,12 +50,13 @@ function NextStep() {
 
 function NoActivity() {
   const focused = useFocusOnMount<HTMLDivElement>();
+  const titleId = useId();
   return (
-    <Empty ref={focused} tabIndex={-1} className="outline-none">
+    <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
       <EmptyHeader>
         {/* Not "caught up": an objective with no task to practise it can still be
             due (glossary: No activity). */}
-        <EmptyTitle>Nothing to practise right now</EmptyTitle>
+        <EmptyTitle id={titleId}>Nothing to practise right now</EmptyTitle>
         <EmptyDescription>Come back later.</EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -75,6 +76,8 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
   const [failed, setFailed] = useState(false);
+  const [refusal, setRefusal] = useState<BraivoError>();
+  const [continuing, setContinuing] = useState(false);
   const focused = useFocusOnMount<HTMLElement>();
   const { decision, task } = activity;
 
@@ -100,20 +103,38 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
       setGrade(answered);
     } catch (error) {
       if (signal?.aborted) return;
-      // 401: the session ended, and reloading runs the guard that sends the
-      // learner to sign in. 409: this attempt was answered already, its grade
-      // lost on the way back; that answer stands, so move on to the next.
-      if (error instanceof BraivoError && (error.status === 401 || error.status === 409)) {
-        await router.invalidate();
+      if (error instanceof BraivoError && error.status < 500) {
+        // Refusals the loader explains once reloaded. 401: the session ended,
+        // and the guard sends the learner to sign in. 404: the course or task
+        // is gone. 409: this attempt was answered already, its grade lost on
+        // the way back; that answer stands, so move on to the next.
+        if ([401, 404, 409].includes(error.status)) {
+          await router.invalidate();
+          return;
+        }
+        // Any other refusal would only repeat: choosing again cannot fix it.
+        setRefusal(error);
         return;
       }
+      // Lost, or a server failure: whether Braivo recorded it is unknown, and
+      // resending the same attempt is safe either way.
       setChosen(undefined);
       setFailed(true);
     }
   }
 
+  function next() {
+    // Held until the next activity replaces this one: the reload keeps this one
+    // on screen while it runs, and a second press would restart it.
+    setContinuing(true);
+    void router.invalidate();
+  }
+
+  // To the route's error boundary, as a failed load would go.
+  if (refusal) throw refusal;
+
   return (
-    <section ref={focused} tabIndex={-1} className="flex flex-col gap-6 outline-none">
+    <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
       <MutedText>{INTENT_LABELS[decision.intent]}</MutedText>
       <ChoiceQuestion
         prompt={task.prompt}
@@ -133,7 +154,7 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
             <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
             {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
           </Alert>
-          <Button autoFocus onClick={() => router.invalidate()}>
+          <Button autoFocus disabled={continuing} onClick={next}>
             Continue
           </Button>
         </>

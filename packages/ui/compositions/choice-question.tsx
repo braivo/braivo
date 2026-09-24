@@ -12,8 +12,12 @@ import { cn } from "#lib/utils";
  * no separate submit. Presentation only — what a choice does is the caller's,
  * and so are `chosen` and `answer`, which describe the caller's attempt.
  *
- * Once `chosen` is set the options lock. Once `answer` is set too, the correct
- * option and a wrong choice are marked in words as well as colour.
+ * Once `chosen` or `answer` is set the options lock. Once `answer` is set, the
+ * correct option and a wrong choice are marked in words as well as colour.
+ *
+ * Locked with `aria-disabled` rather than `disabled`: a disabled button drops
+ * focus, which would leave a keyboard learner nowhere if the answer fails to
+ * send and the options unlock again.
  */
 export function ChoiceQuestion(props: {
   prompt: string;
@@ -27,6 +31,7 @@ export function ChoiceQuestion(props: {
   const { prompt, options, chosen, answer, onChoose } = props;
   const promptId = useId();
   const graded = answer !== undefined;
+  const locked = graded || chosen !== undefined;
 
   return (
     <div role="group" aria-labelledby={promptId} className="flex flex-col gap-4">
@@ -41,11 +46,10 @@ export function ChoiceQuestion(props: {
             <Button
               key={option}
               variant="outline"
-              disabled={chosen !== undefined}
-              aria-pressed={index === chosen}
-              onClick={() => onChoose(index)}
+              aria-disabled={locked}
+              onClick={() => !locked && onChoose(index)}
               className={cn(
-                "h-auto justify-between py-3 text-left whitespace-normal disabled:opacity-100",
+                "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:pointer-events-none",
                 correct && "border-primary bg-primary/10",
                 wrong && "border-destructive bg-destructive/10",
               )}

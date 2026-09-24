@@ -114,24 +114,39 @@ describe("the learn app", () => {
     expect(second![0].id).toBe(first![0].id);
   });
 
-  test("moves on when the attempt was answered already, its grade lost on the way back", async () => {
+  test("moves on when a lost answer was recorded and the learner chose another", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockResolvedValueOnce(undefined);
+    // The first answer reached Braivo but its grade did not come back, so the
+    // second, under the same attempt, conflicts with it.
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new BraivoError(409, "conflict"));
+    renderAt("/courses/c1", { signedIn: true, nextActivity, submitAttempt });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+
+    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    const [first, second] = submitAttempt.mock.calls;
+    expect(second![0].id).toBe(first![0].id);
+  });
+
+  test("gives up on an answer Braivo refuses, rather than inviting another choice", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
-      nextActivity,
+      nextActivity: async () => activity,
       submitAttempt: async () => {
-        throw new BraivoError(409, "conflict");
+        throw new BraivoError(403, "forbidden");
       },
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
-    expect(nextActivity).toHaveBeenCalledTimes(2);
-    expect(screen.queryByText("Your answer could not be sent. Choose again.")).toBeNull();
+    expect(await screen.findByText("Something went wrong. Try again.")).toBeTruthy();
   });
 
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {
