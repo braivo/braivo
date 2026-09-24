@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Activity, BraivoError, type BraivoClient } from "@braivo/server/client";
+import { type Activity, BraivoError, type BraivoClient, type Grade } from "@braivo/server/client";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
@@ -92,8 +92,9 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole("button", { name: "hablo" })).toBeTruthy();
     expect(screen.queryByText("Not quite")).toBeNull();
-    expect(document.activeElement?.tagName).toBe("SECTION");
-    expect(document.activeElement?.textContent).toContain("Past tense of 'hablar'?");
+    expect(document.activeElement).toBe(
+      screen.getByRole("region", { name: "Past tense of 'hablar'?" }),
+    );
   });
 
   test.each([
@@ -178,8 +179,9 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByText("Something went wrong.")).toBeTruthy();
-    expect(document.activeElement?.getAttribute("data-slot")).toBe("empty");
+    const notice = await screen.findByRole("region", { name: "Something went wrong." });
+    expect(document.activeElement).toBe(notice);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
   });
 
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {
@@ -213,8 +215,35 @@ describe("the learn app", () => {
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
     renderAt("/courses/c1", { signedIn: true });
 
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
-    expect(document.activeElement?.getAttribute("data-slot")).toBe("empty");
+    const notice = await screen.findByRole("region", { name: "Nothing to practise right now" });
+    expect(document.activeElement).toBe(notice);
+  });
+
+  test("sends one answer, however many options are tapped while it is on its way", async () => {
+    let graded!: (grade: Grade) => void;
+    const submitAttempt = vi.fn<BraivoClient["submitAttempt"]>(
+      () => new Promise((resolve) => (graded = resolve)),
+    );
+    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
+    graded({ outcome: "success", answer: 0 });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Correct");
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  test("offers to load the course again when loading it failed", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(activity);
+    renderAt("/courses/c1", { signedIn: true, nextActivity });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
   });
 
   test("reads a course Braivo will not show as not found, not as nothing to practise", async () => {

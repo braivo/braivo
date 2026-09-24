@@ -5,9 +5,9 @@ import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import { Empty, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   loader: async ({ context, params, abortController }) => {
@@ -26,8 +26,7 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   },
   component: NextStep,
   notFoundComponent: () => <Notice title="This course does not exist, or is not one of yours." />,
-  // Neutral: a refused answer lands here too, and trying it again cannot help.
-  errorComponent: () => <Notice title="Something went wrong." />,
+  errorComponent: LoadFailed,
 });
 
 /**
@@ -53,7 +52,7 @@ function NextStep() {
 }
 
 /** What the page says instead of a question, focused as a question would be. */
-function Notice({ title }: { title: string }) {
+function Notice({ title, children }: { title: string; children?: ReactNode }) {
   const focused = useFocusOnMount<HTMLDivElement>();
   const titleId = useId();
   return (
@@ -61,7 +60,18 @@ function Notice({ title }: { title: string }) {
       <EmptyHeader>
         <EmptyTitle id={titleId}>{title}</EmptyTitle>
       </EmptyHeader>
+      {children && <EmptyContent>{children}</EmptyContent>}
     </Empty>
+  );
+}
+
+/** Loading the activity failed, perhaps only for now: loading it again may not. */
+function LoadFailed() {
+  const router = useRouter();
+  return (
+    <Notice title="Something went wrong.">
+      <Button onClick={() => router.invalidate()}>Try again</Button>
+    </Notice>
   );
 }
 
@@ -78,7 +88,7 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
   const [failed, setFailed] = useState(false);
-  const [refusal, setRefusal] = useState<BraivoError>();
+  const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const focused = useFocusOnMount<HTMLElement>();
   const { decision, task } = activity;
@@ -116,7 +126,7 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
         }
         // Refusals that would only repeat: choosing again cannot fix them.
         if ([400, 403, 413].includes(error.status)) {
-          setRefusal(error);
+          setRefused(true);
           return;
         }
       }
@@ -136,8 +146,8 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
     void router.invalidate();
   }
 
-  // To the route's error component, as a failed load would go.
-  if (refusal) throw refusal;
+  // No retry, unlike a failed load: this answer would be refused again.
+  if (refused) return <Notice title="Something went wrong." />;
 
   return (
     <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
