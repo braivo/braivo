@@ -32,6 +32,7 @@ One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`
 - `bunx vp check --fix` formats, lints, and type-checks everything. Run it before finishing a change.
 - `bun run test` runs every test. Not `vp test`: the server needs Bun, and `vp test` starts Node.
 - Lint, format, and test settings live only in the root `vite.config.ts`.
+- App routes mirror the URL in folders, and signed-in pages go under `routes/_signed-in/`, whose `route.tsx` is the guard (`docs/adr/0016-route-files.md`).
 - `packages/ui` is a shadcn/ui project (`docs/adr/0012-shadcn-preset.md`, layout in `docs/adr/0013-ui-package-and-storybook.md`). For UI work, load the shadcn skill (`npx skills use https://github.com/shadcn-ui/ui --skill shadcn`) and follow its rules, with these differences for this repository:
   - Run the CLI as `bunx shadcn` from `packages/ui`, where `components.json` is. That is the locked version; `@latest` only when deliberately upgrading.
   - `components/` holds shadcn-derived primitives and components; `compositions/` holds reusable components Braivo writes from them, exported from `index.ts` (never re-export shadcn's there). Apps import `@braivo/ui/components/<name>`, `@braivo/ui/lib/utils`, and Braivo's own from `@braivo/ui`.

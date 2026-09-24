@@ -3,7 +3,7 @@
 
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 
-import type { AppContext } from "../lib/context.ts";
+import type { AppContext } from "#lib/context";
 
 export const Route = createRootRouteWithContext<AppContext>()({
   component: () => (

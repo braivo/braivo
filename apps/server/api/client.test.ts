@@ -5,18 +5,16 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import {
-  BraivoError,
-  createClient,
-  type KnowledgeReport,
-  type LearningDecision,
-} from "./client.ts";
+import { type Activity, BraivoError, createClient, type KnowledgeReport } from "./client.ts";
 
-const decision: LearningDecision = {
-  objectiveId: "objective-1",
-  modelVersion: "v1",
-  intent: "reteach",
-  lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+const activity: Activity = {
+  decision: {
+    objectiveId: "objective-1",
+    modelVersion: "v1",
+    intent: "reteach",
+    lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+  },
+  task: { id: "task-1", kind: "choice", prompt: "Which?", options: ["a", "b"] },
 };
 
 /** Records what the client asked for, and answers with one prepared response. */
@@ -38,25 +36,25 @@ function clientFor(response: Response) {
 }
 
 describe("the Braivo client", () => {
-  test("returns the decision Braivo answered with", async () => {
-    const { client } = clientFor(Response.json(decision));
+  test("returns the activity Braivo answered with", async () => {
+    const { client } = clientFor(Response.json(activity));
 
-    expect(await client.nextObjective("course-1")).toEqual(decision);
+    expect(await client.nextActivity("course-1")).toEqual(activity);
   });
 
-  test("reports a caught-up learner as undefined rather than an error", async () => {
+  test("reports nothing to practise as undefined rather than an error", async () => {
     const { client } = clientFor(new Response(null, { status: 204 }));
 
-    expect(await client.nextObjective("course-1")).toBeUndefined();
+    expect(await client.nextActivity("course-1")).toBeUndefined();
   });
 
-  test("throws for a course the learner cannot see, rather than reading it as caught up", async () => {
+  test("throws for a course the learner cannot see, rather than reading it as nothing to practise", async () => {
     // 404 is how Braivo answers both a missing course and somebody else's, and
     // neither is "nothing to do": a client that read it that way would tell a
     // learner holding a stale course ID to come back later, forever.
     const { client } = clientFor(new Response(null, { status: 404 }));
 
-    const error = await client.nextObjective("course-1").catch((thrown: unknown) => thrown);
+    const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(BraivoError);
     expect((error as BraivoError).status).toBe(404);
@@ -65,20 +63,19 @@ describe("the Braivo client", () => {
   test("throws with the status when Braivo refuses", async () => {
     const { client } = clientFor(new Response(null, { status: 401 }));
 
-    const error = await client.nextObjective("course-1").catch((thrown: unknown) => thrown);
+    const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(BraivoError);
     expect((error as BraivoError).status).toBe(401);
   });
 
   test("refuses a success Braivo does not send, even one that parses", async () => {
-    // Braivo answers with 200 and a decision, or 204 for caught up. A 202 from
-    // something in between used to be taken as a decision. The body here is
-    // valid JSON on purpose: an empty one would be refused anyway, for failing
-    // to parse, and would pass without the status ever being checked.
+    // Braivo answers 200 or 204; a 202 from something in between is not an
+    // answer. Valid JSON on purpose: an empty body would be refused for failing
+    // to parse, passing without the status ever being checked.
     const { client } = clientFor(Response.json({ accepted: true }, { status: 202 }));
 
-    const error = await client.nextObjective("course-1").catch((thrown: unknown) => thrown);
+    const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(BraivoError);
     expect((error as BraivoError).status).toBe(202);
@@ -92,7 +89,7 @@ describe("the Braivo client", () => {
     for (const body of [null, "<html>maintenance</html>"]) {
       const { client } = clientFor(new Response(body, { status: 200 }));
 
-      const error = await client.nextObjective("course-1").catch((thrown: unknown) => thrown);
+      const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);
 
       expect(error).toBeInstanceOf(BraivoError);
       expect((error as BraivoError).status).toBe(200);
@@ -127,7 +124,7 @@ describe("the Braivo client", () => {
     );
     const { client } = clientFor(aborted);
 
-    const error = await client.nextObjective("course-1").catch((thrown: unknown) => thrown);
+    const error = await client.nextActivity("course-1").catch((thrown: unknown) => thrown);
 
     expect(error).not.toBeInstanceOf(BraivoError);
     expect((error as DOMException).name).toBe("AbortError");
@@ -138,9 +135,43 @@ describe("the Braivo client", () => {
     // unencoded, one containing a slash would address a different path.
     const { calls, client } = clientFor(new Response(null, { status: 204 }));
 
-    await client.nextObjective("odd/course id");
+    await client.nextActivity("odd/course id");
 
-    expect(calls[0]!.url).toBe("/api/courses/odd%2Fcourse%20id/next");
+    expect(calls[0]!.url).toBe("/api/courses/odd%2Fcourse%20id/activity");
+  });
+
+  test("submits an attempt and returns Braivo's grade", async () => {
+    const grade = { outcome: "failure", answer: 0 };
+    const { calls, client } = clientFor(Response.json(grade));
+
+    const answered = await client.submitAttempt({
+      courseId: "course/1",
+      id: "attempt-1",
+      taskId: "task-1",
+      response: { choice: 1 },
+    });
+
+    expect(answered).toEqual(grade);
+    expect(calls[0]!.url).toBe("/api/courses/course%2F1/attempts");
+    expect(calls[0]!.init?.method).toBe("POST");
+    expect(new Headers(calls[0]!.init?.headers).get("content-type")).toBe("application/json");
+    // The course is in the path, never repeated in the body.
+    expect(JSON.parse(calls[0]!.init?.body as string)).toEqual({
+      id: "attempt-1",
+      taskId: "task-1",
+      response: { choice: 1 },
+    });
+  });
+
+  test("throws with the status when Braivo refuses the attempt", async () => {
+    const { client } = clientFor(new Response(null, { status: 409 }));
+
+    const error = await client
+      .submitAttempt({ courseId: "c", id: "a", taskId: "t", response: { choice: 0 } })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(BraivoError);
+    expect((error as BraivoError).status).toBe(409);
   });
 
   test("records evidence and resolves when Braivo accepts it", async () => {
@@ -206,7 +237,7 @@ describe("the Braivo client", () => {
   test("sends credentials and whatever headers it was given", async () => {
     const { calls, client } = clientFor(new Response(null, { status: 204 }));
 
-    await client.nextObjective("course-1", { headers: { cookie: "session=abc" } });
+    await client.nextActivity("course-1", { headers: { cookie: "session=abc" } });
 
     expect(calls[0]!.init).toMatchObject({
       method: "GET",

@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type {
+  Activity,
   Course,
+  Grade,
   GradedEvidence,
   KnowledgeReport,
-  LearningDecision,
   Objective,
+  TaskResponse,
 } from "./types.ts";
 
 // The browser client for Braivo's HTTP API, which the learn and console apps
@@ -18,12 +20,15 @@ import type {
 // courses yet. Add one in the commit whose UI needs it.
 
 export type {
+  Activity,
   Course,
+  Grade,
   GradedEvidence,
   KnowledgeReport,
   LearningDecision,
   Objective,
   ObjectiveStanding,
+  TaskResponse,
 } from "./types.ts";
 
 /**
@@ -61,12 +66,27 @@ export type RequestOptions = {
 
 export type BraivoClient = {
   /**
-   * What the signed-in learner should do next in a course, or `undefined` when
-   * they are caught up — the course is theirs and nothing in it needs attention
-   * now. A course that does not exist and one this learner may not see are both
-   * a {@link BraivoError} with status 404, deliberately indistinguishable.
+   * What the signed-in learner should do next in a course — the decision and a
+   * task to practise it — or `undefined` when there is nothing to practise now
+   * (glossary: No activity), which is not necessarily caught up. A course that
+   * does not exist and one this learner may not see are both a
+   * {@link BraivoError} with status 404, deliberately indistinguishable.
    */
-  nextObjective(courseId: string, options?: RequestOptions): Promise<LearningDecision | undefined>;
+  nextActivity(courseId: string, options?: RequestOptions): Promise<Activity | undefined>;
+
+  /**
+   * Answers a task as the signed-in learner, and resolves to Braivo's grade.
+   * `id` names the attempt and is the caller's to generate, once per attempt:
+   * resending the same attempt after a lost answer records nothing twice and
+   * resolves to the same grade, while reusing `id` for another answer is a
+   * {@link BraivoError} with status 409. Other refusals, by status: 401 no
+   * session; 404 course or task missing or not this learner's; 400 a response
+   * that cannot answer the task; 403 possibly forged; 413 body over 1 MB.
+   */
+  submitAttempt(
+    input: { courseId: string; id: string; taskId: string; response: TaskResponse },
+    options?: RequestOptions,
+  ): Promise<Grade>;
 
   /**
    * Where a learner stands on each objective in a course, for a content owner.
@@ -141,6 +161,23 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
     });
   }
 
+  /** Every write: JSON, carrying the session. */
+  function post(path: string, body: unknown, requestOptions: RequestOptions | undefined) {
+    // Built, not spread: spreading drops a `Headers` or an array. The content
+    // type is set last, not the caller's to override: Braivo requires it
+    // because a browser cannot send it cross-origin without a preflight.
+    const headers = new Headers(requestOptions?.headers);
+    headers.set("content-type", "application/json");
+
+    return request(path, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(body),
+      signal: requestOptions?.signal,
+    });
+  }
+
   /**
    * The error for a status a method was not written for. Each accepts exactly
    * what its endpoint answers with, never "any 2xx": a 202 from something in
@@ -177,19 +214,33 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
   }
 
   return {
-    async nextObjective(courseId, requestOptions) {
+    async nextActivity(courseId, requestOptions) {
       const response = await get(
-        `/api/courses/${encodeURIComponent(courseId)}/next`,
+        `/api/courses/${encodeURIComponent(courseId)}/activity`,
         requestOptions,
       );
 
-      // Caught up. A course that is missing or not this learner's is a 404, and
-      // falls to the error below rather than reading as nothing to do.
+      // Nothing to practise now. A missing course, or one not this learner's,
+      // is a 404 and throws below.
       const doing = `asking what is next in course "${courseId}"`;
       if (response.status === 204) return undefined;
       if (response.status !== 200) throw unexpected(response, doing);
 
-      return parsed<LearningDecision>(response, doing);
+      return parsed<Activity>(response, doing);
+    },
+
+    async submitAttempt(input, requestOptions) {
+      const { courseId, ...attempt } = input;
+      const response = await post(
+        `/api/courses/${encodeURIComponent(courseId)}/attempts`,
+        attempt,
+        requestOptions,
+      );
+
+      const doing = `answering task "${input.taskId}" in course "${courseId}"`;
+      if (response.status !== 200) throw unexpected(response, doing);
+
+      return parsed<Grade>(response, doing);
     },
 
     async learnerProgress(input, requestOptions) {
@@ -232,23 +283,11 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
     },
 
     async recordEvidence(input, requestOptions) {
-      // Built rather than spread: the caller's headers may be a `Headers` or an
-      // array, which spreading drops. The content type is set last because it
-      // is not the caller's to override — Braivo requires it precisely because
-      // a browser cannot set it cross-origin without a preflight.
-      const headers = new Headers(requestOptions?.headers);
-      headers.set("content-type", "application/json");
-
-      const response = await request(
+      const response = await post(
         `/api/organizations/${encodeURIComponent(input.organizationId)}` +
           `/learners/${encodeURIComponent(input.learnerId)}/evidence`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers,
-          body: JSON.stringify({ evidence: input.evidence }),
-          signal: requestOptions?.signal,
-        },
+        { evidence: input.evidence },
+        requestOptions,
       );
 
       if (response.status === 204) return;

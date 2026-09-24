@@ -5,7 +5,7 @@ import { Heading } from "@braivo/ui";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { orNotFound } from "../../lib/refusals.ts";
+import { orNotFound } from "#lib/refusals";
 
 export const Route = createFileRoute("/_signed-in/organizations/$organizationId/")({
   loader: async ({ context, params, abortController }) => ({
