@@ -420,7 +420,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   /**
    * Every Braivo write installs `bodyLimit` and calls `isTrustedWrite` for
-   * itself. Four explicit calls are simpler than a middleware that would have
+   * itself. Explicit calls are simpler than a middleware that would have
    * to exempt the Better Auth mount, which does its own origin check — but
    * duplicated protection needs duplicated coverage, or deleting one of them
    * leaves the suite green.
@@ -428,7 +428,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
    * Resolved inside each test rather than in the table, since the learner and
    * the organization only exist once `beforeAll` has run.
    */
-  function write(route: "evidence" | "objectives" | "courses" | "attempts") {
+  function write(route: "evidence" | "objectives" | "tasks" | "courses" | "attempts") {
     switch (route) {
       case "evidence":
         return {
@@ -440,6 +440,13 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         return {
           path: `/api/organizations/${organizationId}/objectives`,
           body: { titles: ["Guarded"] } as unknown,
+          accepted: 201,
+        };
+      case "tasks":
+        // Empty, so the accepted write adds nothing another test would be offered.
+        return {
+          path: `/api/organizations/${organizationId}/tasks`,
+          body: { tasks: [] } as unknown,
           accepted: 201,
         };
       case "courses":
@@ -461,7 +468,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   }
 
-  const routes = ["evidence", "objectives", "courses", "attempts"] as const;
+  const routes = ["evidence", "objectives", "tasks", "courses", "attempts"] as const;
 
   test.each(routes)("refuses a forgeable write to %s", async (route) => {
     const { path, body, accepted } = write(route);
@@ -597,11 +604,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
   });
 
-  test("lets an admin add tasks, refusing an invalid one and a learner", async () => {
-    const post = (body: unknown, cookie: string) =>
+  test("lets an admin add tasks, refusing an invalid batch, a learner, and no session", async () => {
+    const post = (body: unknown, cookie?: string) =>
       api.request(`/api/organizations/${organizationId}/tasks`, {
         method: "POST",
-        headers: { "content-type": "application/json", cookie },
+        headers: { "content-type": "application/json", ...(cookie && { cookie }) },
         body: JSON.stringify(body),
       });
     // An objective of its own, so the tasks added here reach no other test.
@@ -616,7 +623,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await post({ tasks: [{ ...task, objectiveId: "" }] }, teacher.cookie)).status).toBe(
       400,
     );
+    // Well under 1 MB, so refused on its count rather than its size.
+    const tooMany = Array.from({ length: 1001 }, () => ({ ...task, answer: 1 }));
+    expect((await post({ tasks: tooMany }, teacher.cookie)).status).toBe(400);
     expect((await post({ tasks: [{ ...task, answer: 1 }] }, learner.cookie)).status).toBe(403);
+    expect((await post({ tasks: [{ ...task, answer: 1 }] })).status).toBe(401);
   });
 
   test("lets an admin define objectives and read them back", async () => {

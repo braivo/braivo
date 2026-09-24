@@ -27,7 +27,7 @@ export class ConflictingAttempt extends Error {
 /**
  * Stores tasks and returns their generated IDs, positionally matching the tasks
  * given. Bodies must already be valid — `content` validates them — since a
- * stored task is never corrected, only replaced.
+ * stored task is never corrected.
  *
  * Each is stamped a millisecond after the one before it, so tasks created
  * together are offered in the order given rather than in the order of their
@@ -43,11 +43,12 @@ export async function createTasks(
 ): Promise<string[]> {
   if (tasks.length === 0) return [];
 
-  const rows = tasks.map((item, index) => ({
+  const rows = tasks.map(({ objectiveId, body }, index) => ({
     id: crypto.randomUUID(),
     organizationId,
+    objectiveId,
+    body,
     createdAt: new Date(createdAt.getTime() + index),
-    ...item,
   }));
   await database.insert(task).values(rows);
   return rows.map((row) => row.id);

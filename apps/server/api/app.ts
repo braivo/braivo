@@ -114,10 +114,9 @@ function parseTitles(body: unknown): string[] | undefined {
 }
 
 /**
- * How many things one write may carry, whatever they are: evidence records,
- * objective titles, a course's objectives. One number until a caller needs two —
- * each turns into one row, and this is comfortably under PostgreSQL's parameter
- * ceiling for the widest of those inserts.
+ * How many things one write may carry, whatever they are. One number until a
+ * caller needs two — each turns into one row, and this is comfortably under
+ * PostgreSQL's parameter ceiling for the widest of those inserts.
  */
 const MAX_ITEMS_PER_REQUEST = 1000;
 

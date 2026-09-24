@@ -10,7 +10,7 @@ import { assertMayAdminister, NotPermitted } from "./permission.ts";
 /** A task that is not a valid one of its kind, whoever sent it. */
 export class InvalidTask extends Error {
   constructor(readonly index: number) {
-    super(`Task ${index} is not a valid task.`);
+    super(`The task at index ${index} is not a valid task.`);
     this.name = "InvalidTask";
   }
 }
