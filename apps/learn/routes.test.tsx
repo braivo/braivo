@@ -251,7 +251,7 @@ describe("the learn app", () => {
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
   });
 
-  test("never shows an activity again after the learner leaves the course", async () => {
+  test("waits for a fresh activity when the learner returns to a course", async () => {
     let loaded!: (next: Activity | undefined) => void;
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
