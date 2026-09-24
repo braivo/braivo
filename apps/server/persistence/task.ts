@@ -28,6 +28,12 @@ export class ConflictingAttempt extends Error {
  * Stores tasks and returns their generated IDs, positionally matching the tasks
  * given. Bodies must already be valid — `content` validates them — since a
  * stored task is never corrected, only replaced.
+ *
+ * Each is stamped a millisecond after the one before it, so tasks created
+ * together are offered in the order given rather than in the order of their
+ * random IDs (`readNextTask` breaks ties oldest first). A batch sent sooner
+ * after a large one than its size in milliseconds may interleave with it; an
+ * ordering column would fix that, once authoring needs one.
  */
 export async function createTasks(
   database: Database,
@@ -37,10 +43,10 @@ export async function createTasks(
 ): Promise<string[]> {
   if (tasks.length === 0) return [];
 
-  const rows = tasks.map((item) => ({
+  const rows = tasks.map((item, index) => ({
     id: crypto.randomUUID(),
     organizationId,
-    createdAt,
+    createdAt: new Date(createdAt.getTime() + index),
     ...item,
   }));
   await database.insert(task).values(rows);

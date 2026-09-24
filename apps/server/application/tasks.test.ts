@@ -69,6 +69,20 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     );
   });
 
+  test("offers tasks defined together in the order given", async () => {
+    // Several, so random IDs would rarely put the first one first by chance.
+    const [first] = await define(
+      Array.from({ length: 8 }, (_, index) => ({
+        objectiveId: objective,
+        body: { ...choice, prompt: `Which, #${index}?` },
+      })),
+    );
+
+    expect(await chooseNextActivity({ database, learnerId: learner, courseId, now })).toMatchObject(
+      { task: { id: first } },
+    );
+  });
+
   test("refuses the whole batch over one invalid task, naming it", async () => {
     const refused = await define([
       { objectiveId: objective, body: choice },
