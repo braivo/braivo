@@ -243,7 +243,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     }
   });
 
-  test("accepts an attempt ID of up to 128 characters", async () => {
+  test("bounds attempt IDs to 1–128 characters", async () => {
     expect(await answer("", pastTenseTask, 0, start)).toEqual({ kind: "invalid" });
     expect(await answer("x".repeat(129), pastTenseTask, 0, start)).toEqual({ kind: "invalid" });
     expect((await answer("x".repeat(128), pastTenseTask, 0, start)).kind).toBe("graded");
