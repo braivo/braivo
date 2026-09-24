@@ -218,7 +218,9 @@ function Practice({
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
-  const focused = useFocusOnMount<HTMLElement>();
+  // The question itself, so its number keys work at once and a screen reader
+  // announces the prompt that labels it.
+  const focused = useFocusOnMount<HTMLDivElement>();
   const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
@@ -281,7 +283,7 @@ function Practice({
   if (refused) return <Notice title="Something went wrong." />;
 
   return (
-    <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
+    <section className="flex flex-col gap-6">
       <div>
         <MutedText>
           {INTENT_LABELS[decision.intent]} · {objective.title}
@@ -295,6 +297,7 @@ function Practice({
         correctChoice={grade?.correctChoice}
         pending={sending}
         onChoose={submit}
+        ref={focused}
       />
       {failed && chosen !== undefined && (
         <>

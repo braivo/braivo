@@ -211,7 +211,7 @@ describe("the learn app", () => {
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
     expect(screen.queryByText("Not quite")).toBeNull();
     expect(document.activeElement).toBe(
-      screen.getByRole("region", { name: "Past tense of 'comer'?" }),
+      screen.getByRole("group", { name: "Past tense of 'comer'?" }),
     );
   });
 
@@ -371,7 +371,7 @@ describe("the learn app", () => {
     // Unanswered, though it is the same task: nothing carries over.
     await screen.findByRole("region", { name: "Take a short break" });
     const [first, second] = await screen.findAllByRole("button", { name: /^habl/ });
-    expect(first!.textContent).toBe("hablé");
+    expect(first).toBe(screen.getByRole("button", { name: "hablé" }));
     expect(second!.getAttribute("aria-disabled")).toBe("false");
     fireEvent.click(first!);
 
@@ -464,6 +464,34 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+  });
+
+  test("answers from the keyboard, by the place an option is shown in", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+    });
+    await screen.findByText("Past tense of 'hablar'?");
+
+    // Not from outside the question, nor with a modifier: only a plain digit
+    // while the question has focus, which it takes when shown.
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.activeElement!, { key: "2", shiftKey: true });
+    expect(submitAttempt).not.toHaveBeenCalled();
+
+    // "hablé" is shown second but is choice 0: the key picks by place.
+    fireEvent.keyDown(document.activeElement!, { key: "2" });
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+    expect(submitAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ response: { choice: 0 } }),
+      expect.anything(),
+    );
+
+    // Answered, so the keys choose nothing more.
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
   });
 
   test("says why a question comes now", async () => {
