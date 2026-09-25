@@ -193,8 +193,7 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
 
 /**
  * Whole seconds until `when`, rounded up so a client waiting that long is never
- * early. A duration rather than a date, which would be read against the
- * client's clock, and that need not agree with this one.
+ * early. A duration, not a date: the client's clock may disagree with this one.
  */
 function secondsUntil(when: Date, now: Date): number {
   return Math.ceil((when.getTime() - now.getTime()) / 1000);
@@ -377,9 +376,8 @@ export function createApi(options: ApiOptions) {
           return context.body(null, 404);
         case "invalid":
           return context.body(null, 400);
-        // Both mean "reload the activity", never "send this again": a 429 for a
-        // resting task would invite resending the refused attempt once the rest
-        // is over, recording an answer chosen with the feedback on screen.
+        // Both mean "reload the activity". A 429 would invite resending the
+        // refused answer after the rest, though it was chosen with the feedback on screen.
         case "conflict":
         case "resting":
           return context.body(null, 409);

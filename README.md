@@ -92,7 +92,7 @@ COURSE=$(curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/courses \
   -d "{\"title\":\"Beginners\",\"objectiveIds\":$OBJECTIVES}" | field 'r.courseId')
 
 # Give each objective questions with one right answer. Greetings gets two: a
-# task rests for ten minutes once answered, since grading shows the answer, so
+# task rests for ten minutes once answered, because the grade reveals the answer, so
 # a learner who misses one is asked the other in the meantime.
 curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
   -H 'content-type: application/json' -d "{\"tasks\":[

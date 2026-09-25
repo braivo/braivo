@@ -153,13 +153,16 @@ describe("the learn app", () => {
     expect(option.getAttribute("aria-disabled")).toBe("true");
     expect(option.matches(":disabled")).toBe(false);
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
+    // Marked as the learner's answer, with no spinner, since nothing is on its way.
+    expect(option.textContent).toBe("habléYour answer");
+    expect(screen.queryByRole("status")).toBeNull();
 
     // The options stay locked on the answer given: another would conflict
     // with it if it was recorded.
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
     expect(submitAttempt).toHaveBeenCalledTimes(1);
 
-    const retry = screen.getByRole("button", { name: "Try again" });
+    const retry = screen.getByRole("button", { name: "Send again" });
     expect(document.activeElement).toBe(retry);
     fireEvent.click(retry);
     fireEvent.click(retry);
@@ -167,6 +170,7 @@ describe("the learn app", () => {
     expect(retry.textContent).toBe("Sending…");
     expect(retry.getAttribute("aria-disabled")).toBe("true");
     expect(retry.matches(":disabled")).toBe(false);
+    expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(2);
 
     graded({ outcome: "success", answer: 0 });

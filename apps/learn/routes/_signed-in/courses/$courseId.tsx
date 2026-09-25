@@ -110,15 +110,11 @@ function CourseError() {
   );
 }
 
-/**
- * Every task for what comes next was just answered. Reloads by itself when one
- * may be asked again, so a learner who waits on the page is not left waiting.
- */
+/** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
 function Resting({ retryAfter }: { retryAfter: number }) {
   const router = useRouter();
   const delay = retryAfter * 1000;
-  // For display only. The timer waits out the duration itself, so neither the
-  // device's clock disagreeing with Braivo's nor changing meanwhile moves it.
+  // Display only: the timer waits out the duration, so the device's clock cannot move it.
   const [retryAt] = useState(() => Date.now() + delay);
 
   useEffect(() => {
@@ -198,9 +194,8 @@ function Practice({
         }
       }
       // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
-      // recorded. Only the same answer is offered again: resent under the same
-      // attempt, it is recorded once and fetches the grade if it was, where
-      // another choice would conflict with it.
+      // recorded. Only the same answer may be resent: under the same attempt it
+      // is recorded once, or fetches its grade; another choice would conflict.
       setFailed(true);
     } finally {
       setSending(false);
@@ -226,6 +221,7 @@ function Practice({
         options={task.options}
         chosen={chosen}
         answer={grade?.answer}
+        pending={sending}
         onChoose={submit}
       />
       {failed && chosen !== undefined && (
@@ -235,7 +231,7 @@ function Practice({
           </Alert>
           {/* aria-disabled while resending, so that it keeps the focus. */}
           <Button autoFocus aria-disabled={sending} onClick={() => !sending && submit(chosen)}>
-            {sending ? "Sending…" : "Try again"}
+            {sending ? "Sending…" : "Send again"}
           </Button>
         </>
       )}

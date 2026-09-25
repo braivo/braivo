@@ -37,9 +37,8 @@ export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
 const MAX_ATTEMPT_ID_LENGTH = 128;
 
 /**
- * How long a task rests after Braivo accepts a learner's answer to it before
- * it is theirs to answer again, because the grade reveals the answer.
- * Provisional; why and why ten minutes: docs/adr/0017-task-rest.md.
+ * How long a task rests after Braivo accepts a learner's answer to it, because
+ * the grade reveals the answer. Provisional (docs/adr/0017-task-rest.md).
  */
 const TASK_REST_MS = 10 * 60_000;
 
@@ -101,9 +100,8 @@ function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefi
 /**
  * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
  * a due objective may have no task (glossary: No activity). `resting`: every
- * task of the decided objective was answered too recently to ask again, until
- * `retryAt`. It leaves the decision out, since nothing can act on it until
- * then, when it may no longer hold.
+ * task of the decided objective rests until `retryAt`; the decision is left
+ * out, as it may no longer hold by then.
  */
 export type NextActivity =
   | { kind: "unavailable" }
