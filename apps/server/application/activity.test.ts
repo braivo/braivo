@@ -5,7 +5,7 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import type { TaskBody } from "../content/index.ts";
+import { presentTask, type TaskBody } from "../content/index.ts";
 import { createCourse, createObjectives, readLearnerEvidence } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 
@@ -41,6 +41,15 @@ let fractionsTasks!: [string, string];
 let courseId!: string;
 let untaughtCourseId!: string;
 let foreignTask!: string;
+/** A course of one task with six options: enough that orders rarely coincide. */
+let shuffleCourseId!: string;
+let shuffleTask!: string;
+const sixOptions: TaskBody = {
+  kind: "choice",
+  prompt: "Which letter?",
+  options: ["a", "b", "c", "d", "e", "f"],
+  answer: 0,
+};
 
 function activity(now: Date, learnerId = learner, course = courseId) {
   return chooseNextActivity({ database, learnerId, courseId: course, now });
@@ -116,6 +125,19 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       await task(fractions, "Second fraction?", later(1)),
     ];
 
+    const [letters] = await createObjectives(database, organizationId, ["Letters"]);
+    shuffleCourseId = await createCourse(database, {
+      organizationId,
+      title: "Shuffle",
+      objectiveIds: [letters!],
+    });
+    shuffleTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: letters!,
+      body: sixOptions,
+      createdAt: start,
+    });
+
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignTask = await testing.createTask(database, {
       organizationId: otherOrganizationId,
@@ -176,6 +198,31 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         at: later(12),
       },
     ]);
+  });
+
+  test("keeps a task's options in order across reloads, and reshuffles them once answered", async () => {
+    const shown = async (now: Date, learnerId = learner) => {
+      const next = await activity(now, learnerId, shuffleCourseId);
+      if (next.kind !== "decided") throw new Error(`Expected an activity, got "${next.kind}".`);
+      return next.task.options;
+    };
+    // The documented seed: who, which task, and when they last answered it.
+    const order = (lastAttemptAt: Date | null, learnerId = learner) =>
+      presentTask(
+        sixOptions,
+        JSON.stringify([learnerId, shuffleTask, lastAttemptAt?.getTime() ?? null]),
+      ).options;
+
+    expect(await shown(start)).toEqual(order(null));
+    expect(await shown(later(5))).toEqual(order(null));
+    expect(await shown(start, classmate)).toEqual(order(null, classmate));
+
+    // Wrongly, so the task is asked again.
+    await answer("s1", shuffleTask, 1, later(5), { course: shuffleCourseId });
+    expect(await shown(later(15))).toEqual(order(later(5)));
+    // A resend records nothing, so it is not a new asking either.
+    await answer("s1", shuffleTask, 1, later(16), { course: shuffleCourseId });
+    expect(await shown(later(17))).toEqual(order(later(5)));
   });
 
   test("has no activity in a course with nothing to practise", async () => {
