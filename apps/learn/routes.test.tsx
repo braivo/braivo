@@ -242,18 +242,35 @@ describe("the learn app", () => {
   });
 
   test("says when a just-answered task comes back, and asks again then", async () => {
-    let resting = true;
-    const { nextActivity } = renderAt("/courses/c1", {
-      signedIn: true,
-      nextActivity: async () =>
-        resting ? { decision: activity.decision, retryAfter: 0.05 } : activity,
-    });
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce({ decision: activity.decision, retryAfter: 0.05 })
+      .mockResolvedValueOnce(activity);
+    renderAt("/courses/c1", { signedIn: true, nextActivity });
 
-    expect(await screen.findByText("Take a short break")).toBeTruthy();
+    const notice = await screen.findByRole("region", { name: "Take a short break" });
+    expect(document.activeElement).toBe(notice);
 
-    resting = false;
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
+  });
+
+  test("rests a task answered moments ago elsewhere, rather than asking again", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValueOnce({ decision: activity.decision, retryAfter: 600 });
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(429, "resting");
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+
+    expect(await screen.findByText("Take a short break")).toBeTruthy();
   });
 
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
