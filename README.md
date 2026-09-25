@@ -121,7 +121,7 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
 # {"modelVersion":"v1","objectives":[{…,"phase":"acquiring",…},{…,"phase":"unseen"}]}
 ```
 
-The same loop runs in the learn app: with `bun run dev`, sign in at `http://localhost:5173` as `owner@example.com` and open `/courses/<course-id>`.
+The same loop runs in the learn app: with `bun run dev`, sign in at `http://localhost:5173` as `owner@example.com` and choose the course.
 
 A few things that shape how this behaves:
 

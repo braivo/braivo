@@ -313,6 +313,23 @@ describe("the Braivo client", () => {
     expect((error as BraivoError).status).toBe(202);
   });
 
+  test("returns the learner's courses", async () => {
+    const courses = [{ id: "course-1", title: "Beginners" }];
+    const { calls, client } = clientFor(Response.json({ courses }));
+
+    expect(await client.learnerCourses()).toEqual(courses);
+    expect(calls[0]!.url).toBe("/api/courses");
+  });
+
+  test("refuses a learner's courses with a status Braivo does not send", async () => {
+    const { client } = clientFor(Response.json({ courses: [] }, { status: 202 }));
+
+    const error = await client.learnerCourses().catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(BraivoError);
+    expect((error as BraivoError).status).toBe(202);
+  });
+
   test("returns the courses Braivo listed", async () => {
     const courses = [{ id: "course-1", title: "Beginners" }];
     const { calls, client } = clientFor(Response.json({ courses }));

@@ -28,6 +28,11 @@
 //        `LearningDecision`, so a rename inside `learning` reshapes the
 //        response; `app.test.ts` pins it so that cannot happen quietly.
 //
+// `GET /api/courses` — the courses the signed-in learner may study: every course
+// of every organization they belong to, by title.
+// 401 without a session; otherwise 200 with
+// `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
+//
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective and a task to practise it. Statuses as for `next`,
 // except that only objectives with a task are considered, so 204 also means the

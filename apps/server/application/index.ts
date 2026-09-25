@@ -6,7 +6,7 @@
 
 export type { NextActivity, SubmittedAttempt } from "./activity.ts";
 export { chooseNextActivity, submitAttempt } from "./activity.ts";
-export { defineCourse, listCourses } from "./courses.ts";
+export { defineCourse, listCourses, listLearnerCourses } from "./courses.ts";
 export type { LearnerProgress } from "./learner-progress.ts";
 export { readLearnerProgress } from "./learner-progress.ts";
 export type { NextObjective } from "./next-objective.ts";

@@ -11,6 +11,7 @@ export {
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
+  readLearnerCourses,
 } from "./course.ts";
 export { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evidence.ts";
 export { readOrganizationRoles } from "./membership.ts";

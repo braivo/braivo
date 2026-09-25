@@ -869,6 +869,40 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   });
 
+  test("lists the courses of every organization the learner is in, and nobody else's", async () => {
+    const secondOrganizationId = "api-test-second-org";
+    await testing.seedOrganization(database, {
+      organizationId: secondOrganizationId,
+      learnerIds: [learner.id],
+      at,
+    });
+    const secondCourseId = await createCourse(database, {
+      organizationId: secondOrganizationId,
+      title: "Portuguese",
+      objectiveIds: [],
+    });
+
+    const response = await api.request("/api/courses", { headers: { cookie: learner.cookie } });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const { courses } = (await response.json()) as { courses: { id: string }[] };
+    const ids = courses.map((course) => course.id);
+    // By title across organizations, the second's between the first's two:
+    // Not started, Portuguese, Spanish.
+    const ours = [courseId, emptyCourseId, secondCourseId];
+    expect(ids.filter((id) => ours.includes(id))).toEqual([
+      emptyCourseId,
+      secondCourseId,
+      courseId,
+    ]);
+    expect(ids).not.toContain(foreignCourseId);
+
+    const anonymous = await api.request("/api/courses");
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
+  });
+
   test("serves the learner a task in the documented shape, never its answer", async () => {
     const response = await activity(courseId, learner.cookie);
 

@@ -8,6 +8,7 @@ import {
   createCourse,
   findObjectivesOutsideOrganization,
   readCourses,
+  readLearnerCourses,
 } from "../persistence/index.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
@@ -59,4 +60,16 @@ export async function listCourses(input: {
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
   return readCourses(database, organizationId);
+}
+
+/**
+ * The courses a learner may study: every course of every organization they
+ * belong to. Membership stands in for enrollment; this is the one place to
+ * change once enrollment is defined.
+ */
+export async function listLearnerCourses(input: {
+  database: Database;
+  learnerId: string;
+}): Promise<Course[]> {
+  return readLearnerCourses(input.database, input.learnerId);
 }
