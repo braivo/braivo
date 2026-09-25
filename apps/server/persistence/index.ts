@@ -27,10 +27,11 @@ export { organizationOwnsLearningContent, readOrganizationSlug } from "./organiz
 export {
   ConflictingAttempt,
   createTasks,
+  findTasksOutsideOrganization,
+  markTasksRetired,
   readCourseTask,
   readNextTask,
   readObjectivesWithTasks,
   recordAttempt,
   RestingTask,
-  retireTasks,
 } from "./task.ts";

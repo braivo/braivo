@@ -62,36 +62,39 @@ export async function createTasks(
   return rows.map((row) => row.id);
 }
 
-/**
- * Retires the organization's tasks, so they are never offered or answered
- * again, and returns the IDs among these that are not the organization's —
- * which are left alone, as is the whole batch when there are any. Retiring a
- * retired task keeps its first date.
- */
-export async function retireTasks(
+/** The IDs among these that are not the organization's tasks, missing ones included. */
+export async function findTasksOutsideOrganization(
   database: Database,
   organizationId: string,
   taskIds: readonly string[],
-  at: Date,
 ): Promise<string[]> {
   const wanted = [...new Set(taskIds)];
   if (wanted.length === 0) return [];
 
-  return database.transaction(async (transaction) => {
-    const owned = await transaction
-      .select({ id: task.id })
-      .from(task)
-      .where(and(eq(task.organizationId, organizationId), inArray(task.id, wanted)));
-    const inside = new Set(owned.map((row) => row.id));
-    const outside = wanted.filter((id) => !inside.has(id));
-    if (outside.length > 0) return outside;
+  const owned = await database
+    .select({ id: task.id })
+    .from(task)
+    .where(and(eq(task.organizationId, organizationId), inArray(task.id, wanted)));
 
-    await transaction
-      .update(task)
-      .set({ retiredAt: at })
-      .where(and(inArray(task.id, wanted), isNull(task.retiredAt)));
-    return [];
-  });
+  const inside = new Set(owned.map((row) => row.id));
+  return wanted.filter((id) => !inside.has(id));
+}
+
+/**
+ * Stamps tasks retired, so they are never offered or answered again. A task
+ * already retired keeps its first date.
+ */
+export async function markTasksRetired(
+  database: Database,
+  taskIds: readonly string[],
+  at: Date,
+): Promise<void> {
+  if (taskIds.length === 0) return;
+
+  await database
+    .update(task)
+    .set({ retiredAt: at })
+    .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
 }
 
 /** Which of these objectives have at least one task still offered, and so something to practise. */

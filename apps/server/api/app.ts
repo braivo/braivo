@@ -202,11 +202,11 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
   return parsed;
 }
 
-/** Reads a list of non-empty IDs out of a request body's `field`. */
-function parseIds(body: unknown, field: string): string[] | undefined {
+/** Reads `taskIds`, each non-empty, out of a request body. */
+function parseTaskIds(body: unknown): string[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const ids = (body as Record<string, unknown>)[field];
+  const ids = (body as { taskIds?: unknown }).taskIds;
   if (!Array.isArray(ids) || ids.length > MAX_ITEMS_PER_REQUEST) return undefined;
   if (!ids.every((id) => typeof id === "string" && id !== "")) return undefined;
   return ids as string[];
@@ -615,7 +615,7 @@ export function createApi(options: ApiOptions) {
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
 
-      const taskIds = parseIds(await context.req.json().catch(() => undefined), "taskIds");
+      const taskIds = parseTaskIds(await context.req.json().catch(() => undefined));
       if (taskIds === undefined) return context.body(null, 400);
 
       try {

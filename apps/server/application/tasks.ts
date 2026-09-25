@@ -7,7 +7,8 @@ import { parseTaskBody, type TaskBody } from "../content/index.ts";
 import {
   createTasks,
   findObjectivesOutsideOrganization,
-  retireTasks as retireOrganizationTasks,
+  findTasksOutsideOrganization,
+  markTasksRetired,
 } from "../persistence/index.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
@@ -79,10 +80,13 @@ export async function retireTasks(input: {
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
-  const outside = await retireOrganizationTasks(database, organizationId, taskIds, now);
+  // Checked apart from the write: a task never changes organization.
+  const outside = await findTasksOutsideOrganization(database, organizationId, taskIds);
   if (outside.length > 0) {
     throw new NotPermitted(
       `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
     );
   }
+
+  await markTasksRetired(database, taskIds, now);
 }
