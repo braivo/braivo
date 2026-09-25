@@ -10,7 +10,7 @@ import { cn } from "#lib/utils";
 /**
  * A question with one correct option. Choosing an option answers it: one tap,
  * no separate submit. Presentation only — what a choice does is the caller's,
- * and so are `chosen` and `correctChoice`, which describe the caller's attempt.
+ * and so are `chosen` and `correctChoice`, which describe its state.
  *
  * Options are shown in the order given and identified by `choice`, never by
  * position, so a shuffled order cannot be mistaken for the answer key's.

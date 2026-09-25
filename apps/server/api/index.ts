@@ -73,7 +73,8 @@
 //        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
 //   200  the grade: `{ "outcome": "failure", "correctChoice": 0, "explanation": "…" }`,
-//        `explanation` present only when the task has one.
+//        `correctChoice` the correct option's `choice`, and `explanation`
+//        present only when the task has one.
 //
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner. The reader is the
