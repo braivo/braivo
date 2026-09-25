@@ -7,7 +7,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody } from "../content/index.ts";
 import { createCourse, createObjectives, readLearnerEvidence } from "../persistence/index.ts";
-import { chooseNextActivity, submitAttempt, TASK_REST_MS } from "./activity.ts";
+import { chooseNextActivity, submitAttempt } from "./activity.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -143,11 +143,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       grade: { outcome: "failure", answer: 0 },
     });
     // Its one task rests, since the learner has just been shown the answer.
-    expect(await activity(later(2))).toMatchObject({
-      kind: "resting",
-      decision: { objectiveId: pastTense, intent: "reteach" },
-      retryAt: later(11),
-    });
+    expect(await activity(later(2))).toEqual({ kind: "resting", retryAt: later(11) });
     expect((await decided(later(11))).decision).toMatchObject({
       objectiveId: pastTense,
       intent: "reteach",
@@ -199,10 +195,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     await answer("first", pastTenseTask, 1, start);
 
     // Straight after seeing the answer: refused, recording nothing.
-    expect(await answer("second", pastTenseTask, 0, later(1))).toEqual({
-      kind: "resting",
-      retryAt: new Date(start.getTime() + TASK_REST_MS),
-    });
+    expect(await answer("second", pastTenseTask, 0, later(1))).toEqual({ kind: "resting" });
     // The first attempt, resent, is the same answer rather than another one.
     expect(await answer("first", pastTenseTask, 1, later(1))).toMatchObject({ kind: "graded" });
     expect(await stored()).toMatchObject([{ id: `attempt:first:${pastTense}` }]);

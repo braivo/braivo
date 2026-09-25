@@ -132,7 +132,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
-  test("submits an attempt the server grades, and sees the next activity follow", async () => {
+  test("submits an attempt the server grades, and sees its only task rest", async () => {
     const grade = await client.submitAttempt(
       { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } },
       { headers: { cookie: learnerCookie } },
@@ -140,7 +140,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(grade).toEqual({ outcome: "failure", answer: 0 });
 
     const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
-    expect(next?.decision).toMatchObject({ objectiveId: pastTense, intent: "reteach" });
+    expect(next).toEqual({ retryAfter: expect.any(Number) });
   });
 
   test("lists a learner's courses in the shape it declares", async () => {
@@ -224,7 +224,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     const activity = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
 
-    expect(activity?.decision).toEqual({
+    expect(activity && "task" in activity && activity.decision).toEqual({
       objectiveId: pastTense,
       modelVersion: "v1",
       intent: "reteach",

@@ -244,7 +244,7 @@ describe("the learn app", () => {
   test("says when a just-answered task comes back, and asks again then", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
-      .mockResolvedValueOnce({ decision: activity.decision, retryAfter: 0.05 })
+      .mockResolvedValueOnce({ retryAfter: 0.05 })
       .mockResolvedValueOnce(activity);
     renderAt("/courses/c1", { signedIn: true, nextActivity });
 
@@ -259,12 +259,12 @@ describe("the learn app", () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce({ decision: activity.decision, retryAfter: 600 });
+      .mockResolvedValueOnce({ retryAfter: 600 });
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity,
       submitAttempt: async () => {
-        throw new BraivoError(429, "resting");
+        throw new BraivoError(409, "resting");
       },
     });
 

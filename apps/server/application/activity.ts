@@ -38,11 +38,8 @@ const MAX_ATTEMPT_ID_LENGTH = 128;
 
 /**
  * How long a task rests after a learner answers it before it is theirs to
- * answer again (docs/adr/0017-task-rest.md). Grading shows the answer, so an
- * immediate second try measures short-term memory of the feedback, and a
- * success there would move an objective to `retaining` on no evidence of
- * learning. Ten minutes, like Anki's second learning step: provisional until
- * recorded attempts can show what interval separates recall from echo.
+ * answer again, since grading showed them the answer. Provisional; why and
+ * why ten minutes: docs/adr/0017-task-rest.md.
  */
 export const TASK_REST_MS = 10 * 60_000;
 
@@ -88,7 +85,7 @@ export async function chooseNextActivity(input: {
   // Waiting rather than moving on to another objective: that would introduce
   // new material on every failure, undoing the sequencing selection guarantees.
   const restsUntil = restingUntil(task.lastAttemptAt, now);
-  if (restsUntil !== undefined) return { kind: "resting", decision, retryAt: restsUntil };
+  if (restsUntil !== undefined) return { kind: "resting", retryAt: restsUntil };
 
   return { kind: "decided", decision, task: { id: task.id, ...presentTask(task.body) } };
 }
@@ -102,14 +99,15 @@ function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefi
 
 /**
  * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
- * a due objective may have no task (glossary: No activity). `resting` is a
- * decision whose every task was answered too recently to ask again, until
- * `retryAt`.
+ * a due objective may have no task (glossary: No activity). `resting`: every
+ * task of the decided objective was answered too recently to ask again, until
+ * `retryAt`. It leaves the decision out, since nothing can act on it until
+ * then, when it may no longer hold.
  */
 export type NextActivity =
   | { kind: "unavailable" }
   | { kind: "no-activity" }
-  | { kind: "resting"; decision: LearningDecision; retryAt: Date }
+  | { kind: "resting"; retryAt: Date }
   | { kind: "decided"; decision: LearningDecision; task: { id: string } & PresentedTask };
 
 /**
@@ -152,7 +150,7 @@ export async function submitAttempt(input: {
       at: now,
       // Enforced here too, not only by never offering a resting task: otherwise
       // a client could answer again straight after seeing the answer.
-      restedSince: new Date(now.getTime() - TASK_REST_MS),
+      restWindowStart: new Date(now.getTime() - TASK_REST_MS),
       // Built from the attempt so that every attempt is its own evidence
       // (glossary: Evidence ID).
       evidence: {
@@ -163,9 +161,7 @@ export async function submitAttempt(input: {
     });
   } catch (error) {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
-    if (error instanceof RestingTask) {
-      return { kind: "resting", retryAt: new Date(error.lastAttemptAt.getTime() + TASK_REST_MS) };
-    }
+    if (error instanceof RestingTask) return { kind: "resting" };
     throw error;
   }
 
@@ -183,5 +179,5 @@ export type SubmittedAttempt =
   | { kind: "unavailable" }
   | { kind: "invalid" }
   | { kind: "conflict" }
-  | { kind: "resting"; retryAt: Date }
+  | { kind: "resting" }
   | { kind: "graded"; grade: Grade };

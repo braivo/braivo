@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
+import {
+  type Activity,
+  BraivoError,
+  type Grade,
+  type LearningDecision,
+} from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
@@ -74,11 +79,18 @@ function Notice({
 }) {
   const focused = useFocusOnMount<HTMLDivElement>();
   const titleId = useId();
+  const descriptionId = useId();
   return (
-    <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
+    <Empty
+      ref={focused}
+      tabIndex={-1}
+      role="region"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
+    >
       <EmptyHeader>
         <EmptyTitle id={titleId}>{title}</EmptyTitle>
-        {description && <EmptyDescription>{description}</EmptyDescription>}
+        {description && <EmptyDescription id={descriptionId}>{description}</EmptyDescription>}
       </EmptyHeader>
       {children && <EmptyContent>{children}</EmptyContent>}
     </Empty>
@@ -104,24 +116,25 @@ function CourseError() {
  */
 function Resting({ retryAfter }: { retryAfter: number }) {
   const router = useRouter();
-  // Fixed when this mounts, which is when Braivo answered: a duration from its
-  // answer, so the device's clock is only ever read to add to itself.
-  const [retryAt] = useState(() => Date.now() + retryAfter * 1000);
+  const delay = retryAfter * 1000;
+  // For display only. The timer waits out the duration itself, so neither the
+  // device's clock disagreeing with Braivo's nor changing meanwhile moves it.
+  const [retryAt] = useState(() => Date.now() + delay);
 
   useEffect(() => {
-    const timer = setTimeout(() => void router.invalidate(), retryAt - Date.now());
+    const timer = setTimeout(() => void router.invalidate(), delay);
     return () => clearTimeout(timer);
-  }, [retryAt, router]);
+  }, [delay, router]);
 
   return (
     <Notice
       title="Take a short break"
-      description={`You just saw this answer, so it comes back at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, when answering it shows what you remember.`}
+      description={`You just saw the answer, so practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, when answering shows what you remember.`}
     />
   );
 }
 
-const INTENT_LABELS: Record<Activity["decision"]["intent"], string> = {
+const INTENT_LABELS: Record<LearningDecision["intent"], string> = {
   introduce: "New",
   reteach: "Try again",
   review: "Review",
@@ -170,10 +183,10 @@ function Practice({
       if (error instanceof BraivoError) {
         // Reloading explains these. 401: the guard sends the learner to sign
         // in. 404: the course or task is gone. 409: this attempt was answered
-        // already, its grade lost on the way back; that answer stands. 429:
+        // already, its grade lost on the way back, and that answer stands; or
         // the task was answered moments ago elsewhere, another tab say, and
         // the reload says when it may be answered again.
-        if ([401, 404, 409, 429].includes(error.status)) {
+        if ([401, 404, 409].includes(error.status)) {
           await router.invalidate();
           return;
         }

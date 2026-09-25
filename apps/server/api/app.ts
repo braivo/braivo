@@ -339,10 +339,7 @@ export function createApi(options: ApiOptions) {
       case "no-activity":
         return context.body(null, 204);
       case "resting":
-        return context.json({
-          decision: next.decision,
-          retryAfter: secondsUntil(next.retryAt, now),
-        });
+        return context.json({ retryAfter: secondsUntil(next.retryAt, now) });
       case "decided":
         return context.json({ decision: next.decision, task: next.task });
       default:
@@ -366,7 +363,6 @@ export function createApi(options: ApiOptions) {
       const attempt = parseAttempt(await context.req.json().catch(() => undefined));
       if (attempt === undefined) return context.body(null, 400);
 
-      const now = new Date();
       const submitted = await submitAttempt({
         database,
         learnerId: session.user.id,
@@ -374,7 +370,7 @@ export function createApi(options: ApiOptions) {
         attemptId: attempt.id,
         taskId: attempt.taskId,
         response: attempt.response,
-        now,
+        now: new Date(),
       });
 
       switch (submitted.kind) {
@@ -382,12 +378,12 @@ export function createApi(options: ApiOptions) {
           return context.body(null, 404);
         case "invalid":
           return context.body(null, 400);
+        // Both mean "reload the activity", never "send this again": a 429 for a
+        // resting task would invite resending the refused attempt once the rest
+        // is over, recording an answer chosen with the feedback on screen.
         case "conflict":
+        case "resting":
           return context.body(null, 409);
-        case "resting": {
-          context.header("retry-after", String(secondsUntil(submitted.retryAt, now)));
-          return context.body(null, 429);
-        }
         case "graded":
           return context.json(submitted.grade);
         default:

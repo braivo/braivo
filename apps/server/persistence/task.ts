@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Database } from "@braivo/db";
 import { attempt, courseObjective, learnerEvidence, task } from "@braivo/db/schema";
-import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
@@ -24,10 +24,10 @@ export class ConflictingAttempt extends Error {
   }
 }
 
-/** A new attempt on a task this learner answered, in another attempt, at `lastAttemptAt`. */
+/** A new attempt on a task this learner answered too recently in another. */
 export class RestingTask extends Error {
-  constructor(readonly lastAttemptAt: Date) {
-    super(`The task was answered at ${lastAttemptAt.toISOString()}, too recently to answer again.`);
+  constructor() {
+    super("The task was answered too recently to answer again.");
     this.name = "RestingTask";
   }
 }
@@ -135,7 +135,7 @@ export async function readCourseTask(
  * see whichever one won (see `recordEvidence`).
  *
  * A new attempt is `RestingTask` when the learner answered the same task in
- * another attempt after `restedSince` (docs/adr/0017-task-rest.md). Checked only
+ * another attempt after `restWindowStart` (docs/adr/0017-task-rest.md). Checked only
  * once the insert shows the attempt is new, so a resend is never mistaken for
  * another answer, whatever was answered since.
  */
@@ -147,12 +147,12 @@ export async function recordAttempt(
     taskId: string;
     response: TaskResponse;
     at: Date;
-    restedSince: Date;
+    restWindowStart: Date;
     /** Dated by the attempt. */
     evidence: Omit<Evidence, "at">;
   },
 ): Promise<void> {
-  const { learnerId, attemptId, taskId, response, at, restedSince, evidence } = input;
+  const { learnerId, attemptId, taskId, response, at, restWindowStart, evidence } = input;
 
   await database.transaction(async (transaction) => {
     const inserted = await transaction
@@ -171,20 +171,19 @@ export async function recordAttempt(
     }
 
     const [previous] = await transaction
-      .select({ at: attempt.at })
+      .select({ id: attempt.id })
       .from(attempt)
       .where(
         and(
           eq(attempt.learnerId, learnerId),
           eq(attempt.taskId, taskId),
           ne(attempt.id, attemptId),
-          gt(attempt.at, restedSince),
+          gt(attempt.at, restWindowStart),
         ),
       )
-      .orderBy(desc(attempt.at))
       .limit(1);
     // Thrown inside the transaction, so the attempt just inserted goes with it.
-    if (previous) throw new RestingTask(previous.at);
+    if (previous) throw new RestingTask();
 
     await transaction.insert(learnerEvidence).values({ ...evidence, learnerId, at });
   });

@@ -937,14 +937,18 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
 
     // Its only task rests, since the learner was just shown the answer.
-    expect(await (await activity(courseId, learner.cookie)).json()).toEqual({
-      decision: expect.objectContaining({ intent: "reteach" }),
-      retryAfter: 600,
-    });
+    // Whole seconds; the exact boundary is the application tests'.
+    const { retryAfter } = (await (await activity(courseId, learner.cookie)).json()) as {
+      retryAfter: number;
+    };
+    expect(retryAfter).toBeGreaterThan(590);
+    expect(retryAfter).toBeLessThanOrEqual(600);
+    // Refused as a conflict, not a 429, whose `Retry-After` would invite
+    // resending this very answer once the rest is over.
     const again = { ...attempt, id: crypto.randomUUID(), response: { choice: 0 } };
     const early = await postAttempt(courseId, again, learner.cookie);
-    expect(early.status).toBe(429);
-    expect(Number(early.headers.get("retry-after"))).toBeGreaterThan(590);
+    expect(early.status).toBe(409);
+    expect(early.headers.get("retry-after")).toBeNull();
 
     // Resent after a lost answer: the same grade, and no second record.
     expect((await postAttempt(courseId, attempt, learner.cookie)).status).toBe(200);
