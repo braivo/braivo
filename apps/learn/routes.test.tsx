@@ -68,7 +68,7 @@ describe("the learn app", () => {
   });
 
   test("lists the learner's courses, each a way into it", async () => {
-    const { router } = renderAt("/", {
+    const { learnerCourses, router } = renderAt("/", {
       signedIn: true,
       learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
       nextActivity: async () => activity,
@@ -76,6 +76,7 @@ describe("the learn app", () => {
 
     const link = await screen.findByRole("link", { name: "Spanish" });
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(learnerCourses).toHaveBeenCalledWith({ signal: expect.any(AbortSignal) });
     fireEvent.click(link);
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();

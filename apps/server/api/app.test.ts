@@ -888,7 +888,13 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     const { courses } = (await response.json()) as { courses: { id: string }[] };
     const ids = courses.map((course) => course.id);
-    expect(ids).toEqual(expect.arrayContaining([courseId, emptyCourseId, secondCourseId]));
+    // By title across organizations: Italian, Not started, Spanish.
+    const ours = [courseId, emptyCourseId, secondCourseId];
+    expect(ids.filter((id) => ours.includes(id))).toEqual([
+      secondCourseId,
+      emptyCourseId,
+      courseId,
+    ]);
     expect(ids).not.toContain(foreignCourseId);
 
     const anonymous = await api.request("/api/courses");

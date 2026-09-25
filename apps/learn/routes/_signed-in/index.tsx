@@ -22,7 +22,7 @@ function Courses() {
         <EmptyHeader>
           <EmptyTitle>No courses yet</EmptyTitle>
           <EmptyDescription>
-            Courses appear here once an organization you belong to has one.
+            Courses will appear here when they're available to you.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

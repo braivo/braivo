@@ -29,7 +29,7 @@
 //        response; `app.test.ts` pins it so that cannot happen quietly.
 //
 // `GET /api/courses` — the courses the signed-in learner may study: every course
-// of every organization they belong to, by title, until enrollment is defined.
+// of every organization they belong to, by title.
 // 401 without a session; otherwise 200 with
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
 //

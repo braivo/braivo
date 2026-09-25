@@ -73,9 +73,9 @@ export async function readCourses(database: Database, organizationId: string): P
 }
 
 /**
- * Every course of every organization this user belongs to, by title. One row
- * per course: `member_organization_user_uidx` (migration 0001) makes a user a
- * member of an organization at most once.
+ * Every course of every organization this user belongs to, by title. A user is
+ * a member of an organization at most once, so the join cannot repeat a course;
+ * the index enforcing it is hand-written in migrations, not in `schema/auth.ts`.
  */
 export async function readLearnerCourses(database: Database, learnerId: string): Promise<Course[]> {
   return database
