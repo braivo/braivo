@@ -153,6 +153,7 @@ function Practice({
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
   const [failed, setFailed] = useState(false);
+  const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const focused = useFocusOnMount<HTMLElement>();
@@ -168,24 +169,24 @@ function Practice({
     return () => controller.abort();
   }, []);
 
-  async function choose(choice: number) {
+  async function submit(choice: number) {
     const signal = lifetime.current?.signal;
     setChosen(choice);
-    setFailed(false);
+    setSending(true);
     try {
       const answered = await braivo.submitAttempt(
         { courseId, id: attemptId, taskId: task.id, response: { choice } },
         { signal },
       );
       setGrade(answered);
+      setFailed(false);
     } catch (error) {
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
         // Reloading explains these. 401: the guard sends the learner to sign
-        // in. 404: the course or task is gone. 409: this attempt was answered
-        // already, its grade lost on the way back, and that answer stands; or
-        // the task was answered moments ago elsewhere, another tab say, and
-        // the reload says when it may be answered again.
+        // in. 404: the course or task is gone. 409: the task was answered
+        // moments ago elsewhere, another tab say, and the reload says when it
+        // may be answered again.
         if ([401, 404, 409].includes(error.status)) {
           await router.invalidate();
           return;
@@ -197,9 +198,12 @@ function Practice({
         }
       }
       // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
-      // recorded; resending the same attempt is safe either way.
-      setChosen(undefined);
+      // recorded. Only the same answer is offered again: resent under the same
+      // attempt, it is recorded once and fetches the grade if it was, where
+      // another choice would conflict with it.
       setFailed(true);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -222,12 +226,18 @@ function Practice({
         options={task.options}
         chosen={chosen}
         answer={grade?.answer}
-        onChoose={choose}
+        onChoose={submit}
       />
-      {failed && (
-        <Alert variant="destructive">
-          <AlertDescription>Your answer could not be confirmed. Choose again.</AlertDescription>
-        </Alert>
+      {failed && chosen !== undefined && (
+        <>
+          <Alert variant="destructive">
+            <AlertDescription>Your answer could not be confirmed.</AlertDescription>
+          </Alert>
+          {/* aria-disabled while resending, so that it keeps the focus. */}
+          <Button autoFocus aria-disabled={sending} onClick={() => !sending && submit(chosen)}>
+            {sending ? "Sending…" : "Try again"}
+          </Button>
+        </>
       )}
       {grade && (
         <>

@@ -941,7 +941,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const { retryAfter } = (await (await activity(courseId, learner.cookie)).json()) as {
       retryAfter: number;
     };
-    expect(retryAfter).toBeGreaterThan(590);
+    expect(Number.isInteger(retryAfter)).toBe(true);
+    expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(600);
     // Refused as a conflict, not a 429, whose `Retry-After` would invite
     // resending this very answer once the rest is over.

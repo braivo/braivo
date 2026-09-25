@@ -21,6 +21,16 @@ const activity: Activity = {
   },
 };
 
+const anotherActivity: Activity = {
+  decision: {
+    objectiveId: "o1",
+    modelVersion: "v1",
+    intent: "reteach",
+    lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+  },
+  task: { id: "t2", kind: "choice", prompt: "Past tense of 'comer'?", options: ["comí", "como"] },
+};
+
 /**
  * The app as a learner reaches it, at `path`, with Braivo and the session
  * stubbed: the route tree is the real one, so gating and loading are too.
@@ -92,7 +102,10 @@ describe("the learn app", () => {
   test("asks the task, grades the answer, and moves on", async () => {
     const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
       signedIn: true,
-      nextActivity: async () => activity,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockResolvedValueOnce(anotherActivity),
       submitAttempt: async () => ({ outcome: "failure", answer: 0, explanation: "Preterite." }),
     });
 
@@ -114,40 +127,56 @@ describe("the learn app", () => {
     // The next activity is loaded, starts unanswered, and has the focus
     // Continue had, so a keyboard or screen-reader learner lands on it.
     await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole("button", { name: "hablo" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
     expect(screen.queryByText("Not quite")).toBeNull();
     expect(document.activeElement).toBe(
-      screen.getByRole("region", { name: "Past tense of 'hablar'?" }),
+      screen.getByRole("region", { name: "Past tense of 'comer'?" }),
     );
   });
 
   test.each([
     ["was lost", new TypeError("Failed to fetch")],
     ["failed on the server", new BraivoError(500, "server error")],
-  ])("lets a learner answer again when the answer %s", async (_, failure) => {
+  ])("resends the same answer when it %s", async (_, failure) => {
+    let graded!: (grade: Grade) => void;
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(failure)
-      .mockResolvedValueOnce({ outcome: "success", answer: 0 });
+      .mockReturnValueOnce(new Promise((resolve) => (graded = resolve)));
     renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     const option = await screen.findByRole("button", { name: "hablé" });
     fireEvent.click(option);
     // Locked while sending, but never disabled, which would drop the focus a
-    // keyboard learner needs to choose again. (jsdom keeps focus on a disabled
-    // button, so this pins the cause.)
+    // keyboard learner needs. (jsdom keeps focus on a disabled button, so this
+    // pins the cause.)
     expect(option.getAttribute("aria-disabled")).toBe("true");
     expect(option.matches(":disabled")).toBe(false);
-    expect(
-      await screen.findByText("Your answer could not be confirmed. Choose again."),
-    ).toBeTruthy();
+    expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
 
-    fireEvent.click(option);
-    expect((await screen.findByRole("alert")).textContent).toBe("Correct");
+    // The options stay locked on the answer given: another would conflict
+    // with it if it was recorded.
+    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
 
-    // A resubmission is the same attempt, so Braivo records it once.
+    const retry = screen.getByRole("button", { name: "Try again" });
+    expect(document.activeElement).toBe(retry);
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    // Held while the resend is on its way, and focused still.
+    expect(retry.textContent).toBe("Sending…");
+    expect(retry.getAttribute("aria-disabled")).toBe("true");
+    expect(retry.matches(":disabled")).toBe(false);
+    expect(submitAttempt).toHaveBeenCalledTimes(2);
+
+    graded({ outcome: "success", answer: 0 });
+    expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("Correct");
+
+    // The same attempt and answer, so Braivo records it once and answers its
+    // grade if the first one arrived.
     const [first, second] = submitAttempt.mock.calls;
-    expect(second![0].id).toBe(first![0].id);
+    expect(second![0]).toEqual(first![0]);
   });
 
   test("holds Continue while the next activity loads, so a second press does not restart it", async () => {
@@ -171,27 +200,6 @@ describe("the learn app", () => {
     loaded(undefined);
     expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
-  });
-
-  test("moves on when a lost answer was recorded and the learner chose another", async () => {
-    const nextActivity = vi
-      .fn<BraivoClient["nextActivity"]>()
-      .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce(undefined);
-    // The first answer reached Braivo but its grade did not come back, so the
-    // second, under the same attempt, conflicts with it.
-    const submitAttempt = vi
-      .fn<BraivoClient["submitAttempt"]>()
-      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockRejectedValueOnce(new BraivoError(409, "conflict"));
-    renderAt("/courses/c1", { signedIn: true, nextActivity, submitAttempt });
-
-    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
-    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
-
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
-    const [first, second] = submitAttempt.mock.calls;
-    expect(second![0].id).toBe(first![0].id);
   });
 
   test.each([400, 403, 413])(

@@ -37,11 +37,11 @@ export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
 const MAX_ATTEMPT_ID_LENGTH = 128;
 
 /**
- * How long a task rests after a learner answers it before it is theirs to
- * answer again, since grading showed them the answer. Provisional; why and
- * why ten minutes: docs/adr/0017-task-rest.md.
+ * How long a task rests after Braivo accepts a learner's answer to it before
+ * it is theirs to answer again, because the grade reveals the answer.
+ * Provisional; why and why ten minutes: docs/adr/0017-task-rest.md.
  */
-export const TASK_REST_MS = 10 * 60_000;
+const TASK_REST_MS = 10 * 60_000;
 
 /**
  * The learner loop's first half: the next objective and a task to practise it.

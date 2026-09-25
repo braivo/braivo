@@ -16,8 +16,8 @@ import { cn } from "#lib/utils";
  * correct option and a wrong choice are marked in words as well as colour.
  *
  * Locked with `aria-disabled` rather than `disabled`: a disabled button drops
- * focus, which would leave a keyboard learner nowhere if the answer cannot be
- * confirmed and the options unlock again.
+ * focus, which would leave a keyboard learner nowhere while the answer is on
+ * its way.
  */
 export function ChoiceQuestion(props: {
   prompt: string;

@@ -13,7 +13,7 @@ Two ways to avoid the immediate repeat were rejected:
 
 ## Decision
 
-A task a learner answered rests for `TASK_REST_MS`, ten minutes, before that learner is asked it again. It is an application rule over attempts, outside `learning`, which stays unaware of tasks.
+A task a learner answered rests for `TASK_REST_MS`, ten minutes, before that learner is asked it again. The rest runs from when Braivo accepted the attempt, which stands in for when the learner saw the grade: Braivo cannot know that. It is an application rule over attempts, outside `learning`, which stays unaware of tasks.
 
 - Rotation prefers the least recently answered task, so an objective with several tasks offers another one at once. Only when every task of the decided objective is resting does the activity route answer `retryAfter`, in seconds, instead of the decision and a task — a duration rather than a date, so a client's clock need not agree with the server's.
 - A new attempt on a resting task is refused, so a client cannot answer straight after seeing the answer. The refusal is a 409, like an attempt ID conflict: both tell the client to ask for the activity again. A 429 with `Retry-After` would invite resending the refused attempt once the rest is over, recording an answer chosen with the feedback on screen. A resend of an attempt already recorded is not a new answer and is accepted.
@@ -22,4 +22,5 @@ A task a learner answered rests for `TASK_REST_MS`, ten minutes, before that lea
 
 - A learner with one task on an objective they failed waits up to ten minutes, and the learn app says so and asks again by itself. Giving an objective several tasks makes the wait rarer.
 - Ten minutes is provisional. Since attempts within the rest are refused, recorded attempts alone cannot show whether a shorter interval would do; shortening it needs an experiment.
+- A grade lost on the way back and fetched by a resend minutes later leaves less of the rest after the learner sees it. Tracking delivery would cost more than that edge is worth; revisit if experiments show it matters.
 - Two new attempts submitted at the same moment can both pass the check and both be recorded as evidence. The window is a race between one learner's own requests, and is accepted for now.

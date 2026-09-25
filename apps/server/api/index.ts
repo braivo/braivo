@@ -36,16 +36,16 @@
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective and a task to practise it. Statuses as for `next`,
 // except that only objectives with a task are considered, so 204 also means the
-// course has nothing to practise yet. 200 answers the decision with a task,
-// never its answer:
+// course has nothing to practise yet. When a task is available, 200 answers the
+// decision with the task, never its answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
 //
-// A task rests for ten minutes after the learner answers it, since grading
-// showed them the answer. When every task for the decision is resting, 200
-// answers only in how many seconds to ask again: whole seconds, rounded up, and
-// a duration rather than a date, so the client's clock does not matter:
+// A task rests for ten minutes after Braivo accepts an answer to it, because
+// the grade reveals the answer. When every task for the decision is resting,
+// 200 answers only in how many seconds to ask again: whole seconds, rounded up,
+// and a duration rather than a date, so the client's clock does not matter:
 //
 //   { "retryAfter": 540 }
 //
