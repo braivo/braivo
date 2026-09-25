@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { course, courseObjective, member } from "@braivo/db/schema";
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 export type Course = { id: string; title: string };
 
@@ -73,19 +73,16 @@ export async function readCourses(database: Database, organizationId: string): P
 }
 
 /**
- * Every course of every organization this user belongs to, by title. A
- * semi-join, since the schema does not stop a user being a member twice.
+ * Every course of every organization this user belongs to, by title. One row
+ * per course: `member_organization_user_uidx` (migration 0001) makes a user a
+ * member of an organization at most once.
  */
 export async function readLearnerCourses(database: Database, learnerId: string): Promise<Course[]> {
-  const organizations = database
-    .select({ id: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, learnerId));
-
   return database
     .select({ id: course.id, title: course.title })
     .from(course)
-    .where(inArray(course.organizationId, organizations))
+    .innerJoin(member, eq(member.organizationId, course.organizationId))
+    .where(eq(member.userId, learnerId))
     .orderBy(asc(course.title), asc(course.id));
 }
 

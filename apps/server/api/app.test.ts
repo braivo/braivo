@@ -869,18 +869,31 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   });
 
-  test("lists the courses of the learner's organizations, and nobody else's", async () => {
+  test("lists the courses of every organization the learner is in, and nobody else's", async () => {
+    const secondOrganizationId = "api-test-second-org";
+    await testing.seedOrganization(database, {
+      organizationId: secondOrganizationId,
+      learnerIds: [learner.id],
+      at,
+    });
+    const secondCourseId = await createCourse(database, {
+      organizationId: secondOrganizationId,
+      title: "Italian",
+      objectiveIds: [],
+    });
+
     const response = await api.request("/api/courses", { headers: { cookie: learner.cookie } });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     const { courses } = (await response.json()) as { courses: { id: string }[] };
     const ids = courses.map((course) => course.id);
-    expect(ids).toContain(courseId);
-    expect(ids).toContain(emptyCourseId);
+    expect(ids).toEqual(expect.arrayContaining([courseId, emptyCourseId, secondCourseId]));
     expect(ids).not.toContain(foreignCourseId);
 
-    expect((await api.request("/api/courses")).status).toBe(401);
+    const anonymous = await api.request("/api/courses");
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
   });
 
   test("serves the learner a task in the documented shape, never its answer", async () => {
