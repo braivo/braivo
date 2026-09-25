@@ -191,6 +191,14 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
   return parsed;
 }
 
+/**
+ * Whole seconds until `when`, rounded up so a client waiting that long is never
+ * early. A duration, not a date: the client's clock may disagree with this one.
+ */
+function secondsUntil(when: Date, now: Date): number {
+  return Math.ceil((when.getTime() - now.getTime()) / 1000);
+}
+
 /** Enough for that many records, and far less than a body worth buffering. */
 const MAX_BODY_BYTES = 1_000_000;
 
@@ -315,11 +323,12 @@ export function createApi(options: ApiOptions) {
     const session = await sessionFor(context);
     if (!session) return context.body(null, 401);
 
+    const now = new Date();
     const next = await chooseNextActivity({
       database,
       learnerId: session.user.id,
       courseId: context.req.param("courseId"),
-      now: new Date(),
+      now,
     });
 
     switch (next.kind) {
@@ -327,6 +336,8 @@ export function createApi(options: ApiOptions) {
         return context.body(null, 404);
       case "no-activity":
         return context.body(null, 204);
+      case "resting":
+        return context.json({ retryAfter: secondsUntil(next.retryAt, now) });
       case "decided":
         return context.json({ decision: next.decision, task: next.task });
       default:
@@ -365,7 +376,10 @@ export function createApi(options: ApiOptions) {
           return context.body(null, 404);
         case "invalid":
           return context.body(null, 400);
+        // Both mean "reload the activity". A 429 would invite resending the
+        // refused answer after the rest, though it was chosen with the feedback on screen.
         case "conflict":
+        case "resting":
           return context.body(null, 409);
         case "graded":
           return context.json(submitted.grade);

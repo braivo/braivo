@@ -27,7 +27,10 @@ type Story = StoryObj<typeof meta>;
 export const Unanswered: Story = {};
 
 /** Chosen and waiting for the grade. */
-export const Pending: Story = { args: { chosen: 1 } };
+export const Pending: Story = { args: { chosen: 1, pending: true } };
+
+/** Chosen, but the grade never came back. */
+export const Unconfirmed: Story = { args: { chosen: 1 } };
 
 export const Right: Story = { args: { chosen: 1, answer: 1 } };
 

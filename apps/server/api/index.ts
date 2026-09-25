@@ -36,25 +36,35 @@
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective and a task to practise it. Statuses as for `next`,
 // except that only objectives with a task are considered, so 204 also means the
-// course has nothing to practise yet. 200 answers the decision with a task,
-// never its answer:
+// course has nothing to practise yet. When a task is available, 200 answers the
+// decision with the task, never its answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
+//
+// A task rests for ten minutes after Braivo accepts an answer to it, because
+// the grade reveals the answer. When every task for the decision is resting,
+// 200 answers only in how many seconds to ask again: whole seconds, rounded up,
+// and a duration rather than a date, so the client's clock does not matter:
+//
+//   { "retryAfter": 540 }
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
 // client's, unique per learner, at most 128 characters (a UUID will do). Mint it
-// once per answer and reuse it on every retry: a retry then records nothing
-// twice and answers the same grade, where a fresh ID would record it again.
+// once per answer, and when delivery is uncertain (a network error, a 5xx)
+// resend that same ID: the resend records nothing twice and answers the same
+// grade, where a fresh ID would record it again. A 409 is not such a case.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response
 //        cannot answer the task
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task
-//   409  `id` was already used for a different task or response
+//   409  `id` was already used for a different task or response, or the
+//        learner answered this task in another attempt less than ten minutes
+//        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
 //   200  the grade: `{ "outcome": "failure", "answer": 0, "explanation": "…" }`,
 //        `explanation` present only when the task has one.

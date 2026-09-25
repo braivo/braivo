@@ -12,12 +12,14 @@ import { cn } from "#lib/utils";
  * no separate submit. Presentation only — what a choice does is the caller's,
  * and so are `chosen` and `answer`, which describe the caller's attempt.
  *
- * Once `chosen` or `answer` is set the options lock. Once `answer` is set, the
- * correct option and a wrong choice are marked in words as well as colour.
+ * Once `chosen` or `answer` is set the options lock. The chosen option shows a
+ * spinner while `pending`, and is marked as the learner's answer otherwise, such
+ * as when it could not be confirmed. Once `answer` is set, the correct option
+ * and a wrong choice are marked in words as well as colour.
  *
  * Locked with `aria-disabled` rather than `disabled`: a disabled button drops
- * focus, which would leave a keyboard learner nowhere if the answer cannot be
- * confirmed and the options unlock again.
+ * focus, which would leave a keyboard learner nowhere while the answer is on
+ * its way.
  */
 export function ChoiceQuestion(props: {
   prompt: string;
@@ -26,9 +28,11 @@ export function ChoiceQuestion(props: {
   chosen?: number;
   /** The correct option, once graded. */
   answer?: number;
+  /** Whether the chosen option is on its way. */
+  pending?: boolean;
   onChoose: (index: number) => void;
 }) {
-  const { prompt, options, chosen, answer, onChoose } = props;
+  const { prompt, options, chosen, answer, pending, onChoose } = props;
   const promptId = useId();
   const graded = answer !== undefined;
   const locked = graded || chosen !== undefined;
@@ -42,6 +46,7 @@ export function ChoiceQuestion(props: {
         {options.map((option, index) => {
           const correct = graded && index === answer;
           const wrong = graded && index === chosen && index !== answer;
+          const ungraded = !graded && index === chosen;
           return (
             <Button
               key={option}
@@ -57,7 +62,12 @@ export function ChoiceQuestion(props: {
               <span>{option}</span>
               {correct && <span className="text-xs font-semibold text-primary">Correct</span>}
               {wrong && <span className="text-xs font-semibold text-destructive">Your answer</span>}
-              {!graded && index === chosen && <Spinner />}
+              {ungraded &&
+                (pending ? (
+                  <Spinner />
+                ) : (
+                  <span className="text-xs font-semibold">Your answer</span>
+                ))}
             </Button>
           );
         })}

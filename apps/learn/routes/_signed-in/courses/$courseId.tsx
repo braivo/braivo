@@ -1,11 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Activity, BraivoError, type Grade } from "@braivo/server/client";
+import {
+  type Activity,
+  BraivoError,
+  type Grade,
+  type LearningDecision,
+} from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
@@ -49,18 +60,37 @@ function NextStep() {
   // Not "caught up": an objective with no task to practise it can still be due
   // (glossary: No activity), so waiting may not help either.
   if (!activity) return <Notice title="Nothing to practise right now" />;
+  if ("retryAfter" in activity) {
+    return <Resting key={attemptId} retryAfter={activity.retryAfter} />;
+  }
   // Keyed, so the next activity starts unanswered.
   return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
 }
 
 /** What the page says instead of a question, focused as a question would be. */
-function Notice({ title, children }: { title: string; children?: ReactNode }) {
+function Notice({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
   const focused = useFocusOnMount<HTMLDivElement>();
   const titleId = useId();
+  const descriptionId = useId();
   return (
-    <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
+    <Empty
+      ref={focused}
+      tabIndex={-1}
+      role="region"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
+    >
       <EmptyHeader>
         <EmptyTitle id={titleId}>{title}</EmptyTitle>
+        {description && <EmptyDescription id={descriptionId}>{description}</EmptyDescription>}
       </EmptyHeader>
       {children && <EmptyContent>{children}</EmptyContent>}
     </Empty>
@@ -80,19 +110,46 @@ function CourseError() {
   );
 }
 
-const INTENT_LABELS: Record<Activity["decision"]["intent"], string> = {
+/** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
+function Resting({ retryAfter }: { retryAfter: number }) {
+  const router = useRouter();
+  const delay = retryAfter * 1000;
+  // Display only: the timer waits out the duration, so the device's clock cannot move it.
+  const [retryAt] = useState(() => Date.now() + delay);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void router.invalidate(), delay);
+    return () => clearTimeout(timer);
+  }, [delay, router]);
+
+  return (
+    <Notice
+      title="Take a short break"
+      description={`You answered this question recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+    />
+  );
+}
+
+const INTENT_LABELS: Record<LearningDecision["intent"], string> = {
   introduce: "New",
   reteach: "Try again",
   review: "Review",
 };
 
-function Practice({ activity, attemptId }: { activity: Activity; attemptId: string }) {
+function Practice({
+  activity,
+  attemptId,
+}: {
+  activity: Extract<Activity, { task: unknown }>;
+  attemptId: string;
+}) {
   const { braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
   const router = useRouter();
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
   const [failed, setFailed] = useState(false);
+  const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const focused = useFocusOnMount<HTMLElement>();
@@ -108,22 +165,24 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
     return () => controller.abort();
   }, []);
 
-  async function choose(choice: number) {
+  async function submit(choice: number) {
     const signal = lifetime.current?.signal;
     setChosen(choice);
-    setFailed(false);
+    setSending(true);
     try {
       const answered = await braivo.submitAttempt(
         { courseId, id: attemptId, taskId: task.id, response: { choice } },
         { signal },
       );
       setGrade(answered);
+      setFailed(false);
     } catch (error) {
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
         // Reloading explains these. 401: the guard sends the learner to sign
-        // in. 404: the course or task is gone. 409: this attempt was answered
-        // already, its grade lost on the way back; that answer stands.
+        // in. 404: the course or task is gone. 409: the task was answered
+        // moments ago elsewhere, another tab say, and the reload says when it
+        // may be answered again.
         if ([401, 404, 409].includes(error.status)) {
           await router.invalidate();
           return;
@@ -135,9 +194,11 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
         }
       }
       // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
-      // recorded; resending the same attempt is safe either way.
-      setChosen(undefined);
+      // recorded. Only the same answer may be resent: under the same attempt it
+      // is recorded once, or fetches its grade; another choice would conflict.
       setFailed(true);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -160,12 +221,19 @@ function Practice({ activity, attemptId }: { activity: Activity; attemptId: stri
         options={task.options}
         chosen={chosen}
         answer={grade?.answer}
-        onChoose={choose}
+        pending={sending}
+        onChoose={submit}
       />
-      {failed && (
-        <Alert variant="destructive">
-          <AlertDescription>Your answer could not be confirmed. Choose again.</AlertDescription>
-        </Alert>
+      {failed && chosen !== undefined && (
+        <>
+          <Alert variant="destructive">
+            <AlertDescription>Your answer could not be confirmed.</AlertDescription>
+          </Alert>
+          {/* aria-disabled while resending, so that it keeps the focus. */}
+          <Button autoFocus aria-disabled={sending} onClick={() => !sending && submit(chosen)}>
+            {sending ? "Sending…" : "Send again"}
+          </Button>
+        </>
       )}
       {grade && (
         <>

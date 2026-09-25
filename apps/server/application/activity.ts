@@ -19,6 +19,7 @@ import {
   readOrganizationRoles,
   readObjectivesWithTasks,
   recordAttempt,
+  RestingTask,
 } from "../persistence/index.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 
@@ -34,6 +35,12 @@ export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
  * overflow PostgreSQL's index entry limit as an error rather than a refusal.
  */
 const MAX_ATTEMPT_ID_LENGTH = 128;
+
+/**
+ * How long a task rests after Braivo accepts a learner's answer to it, because
+ * the grade reveals the answer. Provisional (docs/adr/0017-task-rest.md).
+ */
+const TASK_REST_MS = 10 * 60_000;
 
 /**
  * The learner loop's first half: the next objective and a task to practise it.
@@ -74,16 +81,32 @@ export async function chooseNextActivity(input: {
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
   if (task === undefined) throw new Error(`Objective "${decision.objectiveId}" has no task.`);
 
+  // Waiting rather than selecting again without this objective, which can
+  // introduce unseen material ahead of it unless a second selection rule
+  // prevents that (docs/adr/0017-task-rest.md).
+  const restsUntil = restingUntil(task.lastAttemptAt, now);
+  if (restsUntil !== undefined) return { kind: "resting", retryAt: restsUntil };
+
   return { kind: "decided", decision, task: { id: task.id, ...presentTask(task.body) } };
+}
+
+/** When a task answered at `lastAttemptAt` may be answered again, or nothing if it already may. */
+function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefined {
+  if (lastAttemptAt === undefined) return undefined;
+  const until = new Date(lastAttemptAt.getTime() + TASK_REST_MS);
+  return until > now ? until : undefined;
 }
 
 /**
  * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
- * a due objective may have no task (glossary: No activity).
+ * a due objective may have no task (glossary: No activity). `resting`: every
+ * task of the decided objective rests until `retryAt`; the decision is left
+ * out, as it may no longer hold by then.
  */
 export type NextActivity =
   | { kind: "unavailable" }
   | { kind: "no-activity" }
+  | { kind: "resting"; retryAt: Date }
   | { kind: "decided"; decision: LearningDecision; task: { id: string } & PresentedTask };
 
 /**
@@ -124,6 +147,9 @@ export async function submitAttempt(input: {
       taskId,
       response,
       at: now,
+      // Enforced here too, not only by never offering a resting task: otherwise
+      // a client could answer again straight after seeing the answer.
+      restWindowStart: new Date(now.getTime() - TASK_REST_MS),
       // Built from the attempt so that every attempt is its own evidence
       // (glossary: Evidence ID).
       evidence: {
@@ -134,6 +160,7 @@ export async function submitAttempt(input: {
     });
   } catch (error) {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
+    if (error instanceof RestingTask) return { kind: "resting" };
     throw error;
   }
 
@@ -144,10 +171,12 @@ export async function submitAttempt(input: {
  * `unavailable` is a missing course, one the learner is not in, and a task
  * outside it, alike, as for `NextObjective`. `invalid` is an attempt ID out of
  * bounds or a response that cannot answer this task; `conflict`, an attempt ID
- * already used otherwise.
+ * already used otherwise; `resting`, a task this learner answered too recently
+ * to answer again yet.
  */
 export type SubmittedAttempt =
   | { kind: "unavailable" }
   | { kind: "invalid" }
   | { kind: "conflict" }
+  | { kind: "resting" }
   | { kind: "graded"; grade: Grade };
