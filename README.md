@@ -107,14 +107,16 @@ curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
 ACTIVITY=$(curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity)
 echo "$ACTIVITY"
 # {"decision":{"objectiveId":"…","modelVersion":"v1","intent":"introduce"},
-#  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?","options":["Hola","Adiós"]}}
+#  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?",
+#          "options":[{"choice":1,"text":"Adiós"},{"choice":0,"text":"Hola"}]}}
+# Options come shuffled; each carries the `choice` that answers with it.
 
 # Answer it, wrongly. Braivo grades the answer and records it as evidence.
 TASK=$(echo "$ACTIVITY" | field 'r.task.id')
 curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
   -H 'content-type: application/json' \
   -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1}}"
-# {"outcome":"failure","answer":0,"explanation":"Adiós is goodbye."}
+# {"outcome":"failure","correctChoice":0,"explanation":"Adiós is goodbye."}
 
 # What comes next follows from that answer: greetings again, with the other task.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity

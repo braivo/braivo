@@ -14,7 +14,15 @@ const activity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
-  task: { id: "task-1", kind: "choice", prompt: "Which?", options: ["a", "b"] },
+  task: {
+    id: "task-1",
+    kind: "choice",
+    prompt: "Which?",
+    options: [
+      { choice: 1, text: "b" },
+      { choice: 0, text: "a" },
+    ],
+  },
 };
 
 /** Records what the client asked for, and answers with one prepared response. */
@@ -141,7 +149,7 @@ describe("the Braivo client", () => {
   });
 
   test("submits an attempt and returns Braivo's grade", async () => {
-    const grade = { outcome: "failure", answer: 0 };
+    const grade = { outcome: "failure", correctChoice: 0 };
     const { calls, client } = clientFor(Response.json(grade));
 
     const answered = await client.submitAttempt({

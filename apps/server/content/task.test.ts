@@ -24,6 +24,12 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual(choice);
   });
 
+  test("keeps keepOrder only when true", () => {
+    expect(parseTaskBody({ ...choice, keepOrder: true })).toEqual({ ...choice, keepOrder: true });
+    expect(parseTaskBody({ ...choice, keepOrder: false })).toEqual(choice);
+    expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toBeUndefined();
+  });
+
   test("accepts one without an explanation", () => {
     const { explanation: _, ...bare } = choice;
     expect(parseTaskBody(bare)).toEqual(bare);
@@ -44,16 +50,43 @@ describe("parseTaskBody", () => {
   });
 });
 
-test("presents a task without its answer or explanation", () => {
-  expect(presentTask(choice)).toEqual({
-    kind: "choice",
-    prompt: choice.prompt,
-    options: choice.options,
+describe("presentTask", () => {
+  const many: TaskBody = { ...choice, options: ["a", "b", "c", "d", "e", "f"], answer: 0 };
+
+  test("presents only what a learner may see", () => {
+    expect(presentTask({ ...choice, keepOrder: true }, "seed")).toEqual({
+      kind: "choice",
+      prompt: choice.prompt,
+      options: expect.any(Array),
+    });
+  });
+
+  test("shows every option once, each with its own choice wherever it lands", () => {
+    const { options } = presentTask(many, "seed");
+
+    expect(options.toSorted((a, b) => a.choice - b.choice)).toEqual(
+      many.options.map((text, choice) => ({ choice, text })),
+    );
+  });
+
+  test("orders by the seed alone, and the seed decides the order", () => {
+    const order = (seed: string) => presentTask(many, seed).options.map(({ choice }) => choice);
+
+    expect(order("same")).toEqual(order("same"));
+    // Not every seed changes a given order, but among several some must.
+    const orders = new Set(["a", "b", "c", "d", "e"].map((seed) => order(seed).join()));
+    expect(orders.size).toBeGreaterThan(1);
+  });
+
+  test("keeps the author's order when asked to", () => {
+    const kept = presentTask({ ...many, keepOrder: true }, "seed").options;
+
+    expect(kept.map(({ choice }) => choice)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });
 
 describe("parseTaskResponse", () => {
-  test("accepts an option's index, and nothing else from the body", () => {
+  test("accepts an option's choice, and nothing else from the body", () => {
     expect(parseTaskResponse(choice, { choice: 1, outcome: "success" })).toEqual({ choice: 1 });
   });
 
@@ -73,12 +106,15 @@ describe("gradeResponse", () => {
   test("succeeds on the answer, with the feedback", () => {
     expect(gradeResponse(choice, { choice: 0 })).toEqual({
       outcome: "success",
-      answer: 0,
+      correctChoice: 0,
       explanation: choice.explanation,
     });
   });
 
   test("fails on anything else, naming the answer", () => {
-    expect(gradeResponse(choice, { choice: 1 })).toMatchObject({ outcome: "failure", answer: 0 });
+    expect(gradeResponse(choice, { choice: 1 })).toMatchObject({
+      outcome: "failure",
+      correctChoice: 0,
+    });
   });
 });

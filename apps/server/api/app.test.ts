@@ -208,6 +208,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         options: ["hablé", "hablo"],
         answer: 0,
         explanation: "Preterite.",
+        // So the documented shape can be pinned exactly; shuffling is `content`'s to test.
+        keepOrder: true,
       },
       createdAt: at,
     });
@@ -914,7 +916,10 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         id: pastTenseTask,
         kind: "choice",
         prompt: "Past tense of 'hablar'?",
-        options: ["hablé", "hablo"],
+        options: [
+          { choice: 0, text: "hablé" },
+          { choice: 1, text: "hablo" },
+        ],
       },
     });
   });
@@ -932,7 +937,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       outcome: "failure",
-      answer: 0,
+      correctChoice: 0,
       explanation: "Preterite.",
     });
 

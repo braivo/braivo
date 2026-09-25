@@ -17,7 +17,12 @@ const activity: Activity = {
     id: "t1",
     kind: "choice",
     prompt: "Past tense of 'hablar'?",
-    options: ["hablé", "hablo"],
+    // Shown in another order than the author's, where "hablé" is choice 0: what
+    // the learn app sends and marks must be the choice, never the position.
+    options: [
+      { choice: 1, text: "hablo" },
+      { choice: 0, text: "hablé" },
+    ],
   },
 };
 
@@ -28,7 +33,15 @@ const anotherActivity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
-  task: { id: "t2", kind: "choice", prompt: "Past tense of 'comer'?", options: ["comí", "como"] },
+  task: {
+    id: "t2",
+    kind: "choice",
+    prompt: "Past tense of 'comer'?",
+    options: [
+      { choice: 0, text: "comí" },
+      { choice: 1, text: "como" },
+    ],
+  },
 };
 
 /**
@@ -47,7 +60,7 @@ function renderAt(
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
-    options.submitAttempt ?? (async () => ({ outcome: "success" as const, answer: 0 })),
+    options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
   const auth = {
     getSession: async () => ({
@@ -106,7 +119,11 @@ describe("the learn app", () => {
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
         .mockResolvedValueOnce(anotherActivity),
-      submitAttempt: async () => ({ outcome: "failure", answer: 0, explanation: "Preterite." }),
+      submitAttempt: async () => ({
+        outcome: "failure",
+        correctChoice: 0,
+        explanation: "Preterite.",
+      }),
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
@@ -173,7 +190,7 @@ describe("the learn app", () => {
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(2);
 
-    graded({ outcome: "success", answer: 0 });
+    graded({ outcome: "success", correctChoice: 0 });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Correct");
 
@@ -267,6 +284,35 @@ describe("the learn app", () => {
     expect(nextActivity).toHaveBeenCalledTimes(2);
   });
 
+  test("asks a returning task afresh, in the order it comes back in", async () => {
+    const reshuffled: Activity = {
+      ...activity,
+      task: { ...activity.task, options: activity.task.options.toReversed() },
+    };
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockResolvedValueOnce({ retryAfter: 0.05 })
+        .mockResolvedValueOnce(reshuffled),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // Unanswered, though it is the same task: nothing carries over.
+    await screen.findByRole("region", { name: "Take a short break" });
+    const [first, second] = await screen.findAllByRole("button", { name: /^habl/ });
+    expect(first!.textContent).toBe("hablé");
+    expect(second!.getAttribute("aria-disabled")).toBe("false");
+    fireEvent.click(first!);
+
+    const [before, after] = submitAttempt.mock.calls.map(([input]) => input!);
+    expect(after).toMatchObject({ taskId: "t1", response: { choice: 0 } });
+    expect(after!.id).not.toBe(before!.id);
+  });
+
   test("rests a task answered moments ago elsewhere, rather than asking again", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
@@ -301,7 +347,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    graded({ outcome: "success", answer: 0 });
+    graded({ outcome: "success", correctChoice: 0 });
 
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
     expect(submitAttempt).toHaveBeenCalledTimes(1);

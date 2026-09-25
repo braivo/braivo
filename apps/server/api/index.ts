@@ -40,7 +40,12 @@
 // decision with the task, never its answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
-//     "task": { "id": "…", "kind": "choice", "prompt": "…", "options": ["…", "…"] } }
+//     "task": { "id": "…", "kind": "choice", "prompt": "…",
+//               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
+//
+// Options come shuffled unless the author kept their order, so a learner cannot
+// rely on where the answer was last time. Show them as given and answer with
+// the option's `choice`. A reload keeps the order; each accepted answer reseeds it.
 //
 // A task rests for ten minutes after Braivo accepts an answer to it, because
 // the grade reveals the answer. When every task for the decision is resting,
@@ -51,11 +56,12 @@
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
-// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
-// client's, unique per learner, at most 128 characters (a UUID will do). Mint it
-// once per answer, and when delivery is uncertain (a network error, a 5xx)
-// resend that same ID: the resend records nothing twice and answers the same
-// grade, where a fresh ID would record it again. A 409 is not such a case.
+// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
+// the option's, as the activity gave it. `id` is the client's, unique per
+// learner, at most 128 characters (a UUID will do). Mint it once per answer,
+// and when delivery is uncertain (a network error, a 5xx) resend that same ID:
+// the resend records nothing twice and answers the same grade, where a fresh ID
+// would record it again. A 409 is not such a case.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response
@@ -66,8 +72,9 @@
 //        learner answered this task in another attempt less than ten minutes
 //        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
-//   200  the grade: `{ "outcome": "failure", "answer": 0, "explanation": "…" }`,
-//        `explanation` present only when the task has one.
+//   200  the grade: `{ "outcome": "failure", "correctChoice": 0, "explanation": "…" }`,
+//        `correctChoice` the correct option's `choice`, and `explanation`
+//        present only when the task has one.
 //
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner. The reader is the
@@ -154,7 +161,9 @@
 //                 "options": ["…", "…"], "answer": 0, "explanation": "…" }] }
 //
 // `choice` is the only kind: 2 to 26 distinct non-blank options, `answer` the
-// index of the correct one, `explanation` optional and shown after grading.
+// index of the correct one, `explanation` optional and shown after grading, and
+// `keepOrder: true` to present the options as written rather than shuffled —
+// for a scale, or "all of the above".
 // Tasks are immutable, and nothing retires one yet. Answers 201 with
 // `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
 // valid one of its kind, and 403 when an objective is not this organization's.
