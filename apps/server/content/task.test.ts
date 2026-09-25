@@ -54,10 +54,11 @@ describe("presentTask", () => {
   const many: TaskBody = { ...choice, options: ["a", "b", "c", "d", "e", "f"], answer: 0 };
 
   test("presents a task without its answer or explanation", () => {
-    const presented = presentTask(choice, "seed");
-
-    expect(Object.keys(presented)).toEqual(["kind", "prompt", "options"]);
-    expect(presented.prompt).toBe(choice.prompt);
+    expect(presentTask(choice, "seed")).toEqual({
+      kind: "choice",
+      prompt: choice.prompt,
+      options: expect.any(Array),
+    });
   });
 
   test("shows every option once, each with its own choice wherever it lands", () => {
@@ -68,7 +69,7 @@ describe("presentTask", () => {
     );
   });
 
-  test("orders by the seed alone, and reorders for other seeds", () => {
+  test("orders by the seed alone, and the seed decides the order", () => {
     const order = (seed: string) => presentTask(many, seed).options.map(({ choice }) => choice);
 
     expect(order("same")).toEqual(order("same"));
@@ -85,7 +86,7 @@ describe("presentTask", () => {
 });
 
 describe("parseTaskResponse", () => {
-  test("accepts an option's index, and nothing else from the body", () => {
+  test("accepts an option's choice, and nothing else from the body", () => {
     expect(parseTaskResponse(choice, { choice: 1, outcome: "success" })).toEqual({ choice: 1 });
   });
 

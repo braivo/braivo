@@ -73,6 +73,7 @@
 //        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
 //   200  the grade: `{ "outcome": "failure", "answer": 0, "explanation": "…" }`,
+//        `answer` the correct option's `choice`, not its position, and
 //        `explanation` present only when the task has one.
 //
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
@@ -162,7 +163,7 @@
 // `choice` is the only kind: 2 to 26 distinct non-blank options, `answer` the
 // index of the correct one, `explanation` optional and shown after grading, and
 // `keepOrder: true` to present the options as written rather than shuffled —
-// for "all of the above", or a scale.
+// for a scale, or "all of the above".
 // Tasks are immutable, and nothing retires one yet. Answers 201 with
 // `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
 // valid one of its kind, and 403 when an objective is not this organization's.

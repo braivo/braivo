@@ -19,7 +19,7 @@ export type TaskBody = {
   explanation?: string;
   /**
    * Present the options in the order written, for options whose order means
-   * something: "all of the above", a scale. Otherwise they are shuffled.
+   * something: a scale, "all of the above". Otherwise they are shuffled.
    */
   keepOrder?: true;
 };
@@ -44,6 +44,7 @@ export type TaskResponse = { choice: number };
  */
 export type Grade = {
   outcome: "success" | "failure";
+  /** The correct option's `choice`, not its position as presented. */
   answer: number;
   explanation?: string;
 };

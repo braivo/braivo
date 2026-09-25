@@ -200,7 +200,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     ]);
   });
 
-  test("keeps a task's options in order across reloads, and reshuffles them once answered", async () => {
+  test("keeps a task's option order across reloads, and reseeds it once answered", async () => {
     const shown = async (now: Date, learnerId = learner) => {
       const next = await activity(now, learnerId, shuffleCourseId);
       if (next.kind !== "decided") throw new Error(`Expected an activity, got "${next.kind}".`);

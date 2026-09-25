@@ -280,7 +280,7 @@ describe("the learn app", () => {
     expect(nextActivity).toHaveBeenCalledTimes(2);
   });
 
-  test("asks a returning task afresh, in its new order", async () => {
+  test("asks a returning task afresh, in the order it comes back in", async () => {
     const reshuffled: Activity = {
       ...activity,
       task: { ...activity.task, options: activity.task.options.toReversed() },
