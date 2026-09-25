@@ -73,8 +73,7 @@ export async function readCourses(database: Database, organizationId: string): P
 }
 
 /**
- * Every course in every organization this user belongs to, by title: what a
- * learner may study, while membership is the only entitlement there is. A
+ * Every course of every organization this user belongs to, by title. A
  * semi-join, since the schema does not stop a user being a member twice.
  */
 export async function readLearnerCourses(database: Database, learnerId: string): Promise<Course[]> {

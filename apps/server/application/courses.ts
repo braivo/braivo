@@ -63,9 +63,9 @@ export async function listCourses(input: {
 }
 
 /**
- * The courses a learner may study, across every organization they belong to.
- * Membership stands in for enrollment until enrollment is defined; this is the
- * one place that answer changes when it is.
+ * The courses a learner may study: every course of every organization they
+ * belong to. Membership stands in for enrollment; this is the one place to
+ * change once enrollment is defined.
  */
 export async function listLearnerCourses(input: {
   database: Database;
