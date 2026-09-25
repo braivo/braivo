@@ -24,6 +24,14 @@ export class ConflictingAttempt extends Error {
   }
 }
 
+/** A new attempt on a task retired since it was read. */
+export class RetiredTask extends Error {
+  constructor() {
+    super("The task was retired.");
+    this.name = "RetiredTask";
+  }
+}
+
 /** A new attempt on a task this learner answered too recently in another. */
 export class RestingTask extends Error {
   constructor() {
@@ -171,6 +179,10 @@ export async function readCourseTask(
  * Compared after the insert, inside the transaction, so two racing submissions
  * see whichever one won (see `recordEvidence`).
  *
+ * A new attempt is `RetiredTask` when the task is retired, checked under a
+ * row lock: the attempt's foreign key alone would not wait for a retirement in
+ * progress, so an attempt read before one could still be recorded after it.
+ *
  * A new attempt is `RestingTask` when the learner answered the same task in
  * another attempt after `restWindowStart` (docs/adr/0017-task-rest.md). Checked only
  * once the insert shows the attempt is new, so a resend is never mistaken for
@@ -206,6 +218,14 @@ export async function recordAttempt(
       if (stored?.taskId === taskId && isDeepStrictEqual(stored.response, response)) return;
       throw new ConflictingAttempt(attemptId);
     }
+
+    // FOR SHARE conflicts with the update that retires, so one waits for the other.
+    const [current] = await transaction
+      .select({ retiredAt: task.retiredAt })
+      .from(task)
+      .where(eq(task.id, taskId))
+      .for("share");
+    if (current?.retiredAt) throw new RetiredTask();
 
     const [previous] = await transaction
       .select({ id: attempt.id })
