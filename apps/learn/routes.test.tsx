@@ -280,6 +280,35 @@ describe("the learn app", () => {
     expect(nextActivity).toHaveBeenCalledTimes(2);
   });
 
+  test("asks a returning task afresh, in its new order", async () => {
+    const reshuffled: Activity = {
+      ...activity,
+      task: { ...activity.task, options: activity.task.options.toReversed() },
+    };
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockResolvedValueOnce({ retryAfter: 0.05 })
+        .mockResolvedValueOnce(reshuffled),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // Unanswered, though it is the same task: nothing carries over.
+    await screen.findByRole("region", { name: "Take a short break" });
+    const [first, second] = await screen.findAllByRole("button", { name: /^habl/ });
+    expect(first!.textContent).toBe("hablé");
+    expect(second!.getAttribute("aria-disabled")).toBe("false");
+    fireEvent.click(first!);
+
+    const [before, after] = submitAttempt.mock.calls.map(([input]) => input!);
+    expect(after).toMatchObject({ taskId: "t1", response: { choice: 0 } });
+    expect(after!.id).not.toBe(before!.id);
+  });
+
   test("rests a task answered moments ago elsewhere, rather than asking again", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()

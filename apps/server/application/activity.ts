@@ -87,8 +87,8 @@ export async function chooseNextActivity(input: {
   const restsUntil = restingUntil(task.lastAttemptAt, now);
   if (restsUntil !== undefined) return { kind: "resting", retryAt: restsUntil };
 
-  // Unambiguous, and new after every answer, so the options reshuffle each time
-  // the task is asked again and never between reloads of one asking.
+  // JSON keeps the parts apart. `lastAttemptAt` reseeds the order after each
+  // accepted answer and holds it across reloads.
   const seed = JSON.stringify([learnerId, task.id, task.lastAttemptAt?.getTime() ?? null]);
   return { kind: "decided", decision, task: { id: task.id, ...presentTask(task.body, seed) } };
 }

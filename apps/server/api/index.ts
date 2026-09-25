@@ -43,10 +43,9 @@
 //     "task": { "id": "…", "kind": "choice", "prompt": "…",
 //               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
 //
-// Options come shuffled, unless the author kept their order, so a learner asked
-// again cannot answer by position. Show them in the order given, and answer with
-// the chosen option's `choice`, never its position. The order holds until the
-// learner answers the task again, so a reload does not reshuffle it.
+// Options come shuffled unless the author kept their order, so a learner cannot
+// rely on where the answer was last time. Show them as given and answer with
+// the option's `choice`. A reload keeps the order; each accepted answer reseeds it.
 //
 // A task rests for ten minutes after Braivo accepts an answer to it, because
 // the grade reveals the answer. When every task for the decision is resting,
@@ -58,11 +57,11 @@
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
-// the chosen option's, as the activity gave it. `id` is the
-// client's, unique per learner, at most 128 characters (a UUID will do). Mint it
-// once per answer, and when delivery is uncertain (a network error, a 5xx)
-// resend that same ID: the resend records nothing twice and answers the same
-// grade, where a fresh ID would record it again. A 409 is not such a case.
+// the option's, as the activity gave it. `id` is the client's, unique per
+// learner, at most 128 characters (a UUID will do). Mint it once per answer,
+// and when delivery is uncertain (a network error, a 5xx) resend that same ID:
+// the resend records nothing twice and answers the same grade, where a fresh ID
+// would record it again. A 409 is not such a case.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response

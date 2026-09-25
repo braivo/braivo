@@ -59,7 +59,10 @@ describe.skipIf(!connectionString)("defining tasks", () => {
   });
 
   test("stores tasks a learner is then offered, without their answer", async () => {
-    const [taskId] = await define([{ objectiveId: objective, body: choice }]);
+    // Kept in order, which also shows `keepOrder` survives authoring.
+    const [taskId] = await define([
+      { objectiveId: objective, body: { ...choice, keepOrder: true } },
+    ]);
 
     const next = await chooseNextActivity({ database, learnerId: learner, courseId, now });
     expect(next).toMatchObject({
@@ -68,10 +71,10 @@ describe.skipIf(!connectionString)("defining tasks", () => {
         id: taskId,
         kind: "choice",
         prompt: "Which?",
-        options: expect.arrayContaining([
+        options: [
           { choice: 0, text: "this" },
           { choice: 1, text: "that" },
-        ]),
+        ],
       },
     });
     expect(next).not.toHaveProperty("task.answer");

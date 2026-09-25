@@ -12,9 +12,9 @@ import { cn } from "#lib/utils";
  * no separate submit. Presentation only — what a choice does is the caller's,
  * and so are `chosen` and `answer`, which describe the caller's attempt.
  *
- * Options are shown in the order given, each identified by its own `choice`
- * rather than its position, so an order shuffled for display cannot be
- * mistaken for the answer key's. `chosen` and `answer` are such choices.
+ * Options are shown in the order given and identified by `choice`, never by
+ * position, so a shuffled order cannot be mistaken for the answer key's.
+ * `chosen` and `answer` are choices too.
  *
  * Once `chosen` or `answer` is set the options lock. The chosen option shows a
  * spinner while `pending`, and is marked as the learner's answer otherwise, such

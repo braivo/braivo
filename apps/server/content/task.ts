@@ -26,8 +26,8 @@ export type TaskBody = {
 
 /**
  * A task as a learner may see it before answering: no answer, no explanation.
- * Each option carries the `choice` that answers with it, so a client never
- * translates between where an option is shown and which one it is.
+ * Each option carries its `choice`, so a client never maps a display position
+ * to an answer.
  */
 export type PresentedTask = {
   kind: "choice";
@@ -91,11 +91,9 @@ export function parseTaskBody(value: unknown): TaskBody | undefined {
  * What a learner sees before answering. Built by listing fields, never by
  * removing them.
  *
- * Options are shuffled, unless the author kept their order, so a learner asked
- * again cannot answer by where the right one was. The order follows from
- * `seed` alone: the same seed shows the same order, so a reload does not
- * reshuffle, and a new seed re-randomizes it — which for two options means the
- * same order half the time.
+ * Options are shuffled by `seed` unless the author kept their order. One seed,
+ * one order: the caller picks a seed that changes exactly when the order
+ * should. A new seed may still give the same order (half the time with two).
  */
 export function presentTask(body: TaskBody, seed: string): PresentedTask {
   const options = body.options.map((text, choice) => ({ choice, text }));

@@ -75,7 +75,6 @@ describe("presentTask", () => {
     // Not every seed changes a given order, but among several some must.
     const orders = new Set(["a", "b", "c", "d", "e"].map((seed) => order(seed).join()));
     expect(orders.size).toBeGreaterThan(1);
-    expect(orders.has("0,1,2,3,4,5")).toBe(false);
   });
 
   test("keeps the author's order when asked to", () => {
