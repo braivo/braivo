@@ -44,8 +44,8 @@
 //
 // A task rests for ten minutes after the learner answers it, since grading
 // showed them the answer. When every task for the decision is resting, 200
-// answers only in how many seconds to ask again — a duration, like
-// `Retry-After`, so the client's clock does not matter:
+// answers only in how many seconds to ask again: whole seconds, rounded up, and
+// a duration rather than a date, so the client's clock does not matter:
 //
 //   { "retryAfter": 540 }
 //
@@ -53,8 +53,9 @@
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`. `id` is the
 // client's, unique per learner, at most 128 characters (a UUID will do). Mint it
-// once per answer and reuse it on every retry: a retry then records nothing
-// twice and answers the same grade, where a fresh ID would record it again.
+// once per answer, and when delivery is uncertain (a network error, a 5xx)
+// resend that same ID: the resend records nothing twice and answers the same
+// grade, where a fresh ID would record it again. A 409 is not such a case.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response

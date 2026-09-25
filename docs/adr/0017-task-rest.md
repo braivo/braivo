@@ -8,7 +8,7 @@ Grading shows the learner the answer ([ADR 0015](0015-tasks.md)). An objective w
 
 Two ways to avoid the immediate repeat were rejected:
 
-- **Offer another objective meanwhile.** Filtering a resting objective out of the candidates would make selection introduce the next unseen one, so every failure would unlock new material and the course's sequencing ([spec](../specs/learning-model.md#selection-rule)) would stop holding.
+- **Offer another objective meanwhile.** Filtering a resting objective out of the candidates lets selection pick another objective already started, but once there is none it introduces the next unseen one, and the course's sequencing ([spec](../specs/learning-model.md#selection-rule)) stops holding. Preventing that would take a second selection rule for objectives seen but available now; waiting keeps sequencing in one.
 - **Discount the evidence.** Recording a quick success as weaker would need a graded outcome or a new evidence field, which the model deliberately does not have.
 
 ## Decision
@@ -21,5 +21,5 @@ A task a learner answered rests for `TASK_REST_MS`, ten minutes, before that lea
 ## Consequences
 
 - A learner with one task on an objective they failed waits up to ten minutes, and the learn app says so and asks again by itself. Giving an objective several tasks makes the wait rarer.
-- Ten minutes, like Anki's second learning step, is provisional, like the learning model's constants. Recorded attempts cannot tune it alone, since none come sooner: shortening it needs an experiment.
+- Ten minutes is provisional. Since attempts within the rest are refused, recorded attempts alone cannot show whether a shorter interval would do; shortening it needs an experiment.
 - Two new attempts submitted at the same moment can both pass the check and both be recorded as evidence. The window is a race between one learner's own requests, and is accepted for now.

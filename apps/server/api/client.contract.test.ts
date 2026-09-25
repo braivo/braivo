@@ -141,6 +141,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
     expect(next).toEqual({ retryAfter: expect.any(Number) });
+
+    const early = client.submitAttempt(
+      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } },
+      { headers: { cookie: learnerCookie } },
+    );
+    await expect(early).rejects.toBeInstanceOf(BraivoError);
+    await expect(early).rejects.toMatchObject({ status: 409 });
   });
 
   test("lists a learner's courses in the shape it declares", async () => {

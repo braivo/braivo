@@ -129,7 +129,7 @@ function Resting({ retryAfter }: { retryAfter: number }) {
   return (
     <Notice
       title="Take a short break"
-      description={`You just saw the answer, so practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, when answering shows what you remember.`}
+      description={`You answered this question recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
     />
   );
 }

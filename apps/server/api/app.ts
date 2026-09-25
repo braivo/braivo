@@ -192,10 +192,9 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
 }
 
 /**
- * How long until `when`, in whole seconds rounded up, so a client honouring it
- * is never early. A duration rather than a date, as `Retry-After` gives it,
- * because a date would be read against the client's clock, which need not
- * agree with this one.
+ * Whole seconds until `when`, rounded up so a client waiting that long is never
+ * early. A duration rather than a date, which would be read against the
+ * client's clock, and that need not agree with this one.
  */
 function secondsUntil(when: Date, now: Date): number {
   return Math.ceil((when.getTime() - now.getTime()) / 1000);

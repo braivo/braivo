@@ -82,8 +82,9 @@ export async function chooseNextActivity(input: {
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
   if (task === undefined) throw new Error(`Objective "${decision.objectiveId}" has no task.`);
 
-  // Waiting rather than moving on to another objective: that would introduce
-  // new material on every failure, undoing the sequencing selection guarantees.
+  // Waiting rather than selecting again without this objective, which can
+  // introduce unseen material ahead of it unless a second selection rule
+  // prevents that (docs/adr/0017-task-rest.md).
   const restsUntil = restingUntil(task.lastAttemptAt, now);
   if (restsUntil !== undefined) return { kind: "resting", retryAt: restsUntil };
 
