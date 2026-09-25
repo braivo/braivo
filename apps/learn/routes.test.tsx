@@ -60,7 +60,7 @@ function renderAt(
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
-    options.submitAttempt ?? (async () => ({ outcome: "success" as const, answer: 0 })),
+    options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
   const auth = {
     getSession: async () => ({
@@ -119,7 +119,11 @@ describe("the learn app", () => {
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
         .mockResolvedValueOnce(anotherActivity),
-      submitAttempt: async () => ({ outcome: "failure", answer: 0, explanation: "Preterite." }),
+      submitAttempt: async () => ({
+        outcome: "failure",
+        correctChoice: 0,
+        explanation: "Preterite.",
+      }),
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
@@ -186,7 +190,7 @@ describe("the learn app", () => {
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(2);
 
-    graded({ outcome: "success", answer: 0 });
+    graded({ outcome: "success", correctChoice: 0 });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Correct");
 
@@ -343,7 +347,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    graded({ outcome: "success", answer: 0 });
+    graded({ outcome: "success", correctChoice: 0 });
 
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
     expect(submitAttempt).toHaveBeenCalledTimes(1);

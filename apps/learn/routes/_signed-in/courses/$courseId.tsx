@@ -220,7 +220,7 @@ function Practice({
         prompt={task.prompt}
         options={task.options}
         chosen={chosen}
-        answer={grade?.answer}
+        correctChoice={grade?.correctChoice}
         pending={sending}
         onChoose={submit}
       />

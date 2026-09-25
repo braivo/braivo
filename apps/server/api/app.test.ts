@@ -937,7 +937,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       outcome: "failure",
-      answer: 0,
+      correctChoice: 0,
       explanation: "Preterite.",
     });
 

@@ -53,8 +53,8 @@ describe("parseTaskBody", () => {
 describe("presentTask", () => {
   const many: TaskBody = { ...choice, options: ["a", "b", "c", "d", "e", "f"], answer: 0 };
 
-  test("presents a task without its answer or explanation", () => {
-    expect(presentTask(choice, "seed")).toEqual({
+  test("presents only what a learner may see", () => {
+    expect(presentTask({ ...choice, keepOrder: true }, "seed")).toEqual({
       kind: "choice",
       prompt: choice.prompt,
       options: expect.any(Array),
@@ -106,12 +106,15 @@ describe("gradeResponse", () => {
   test("succeeds on the answer, with the feedback", () => {
     expect(gradeResponse(choice, { choice: 0 })).toEqual({
       outcome: "success",
-      answer: 0,
+      correctChoice: 0,
       explanation: choice.explanation,
     });
   });
 
   test("fails on anything else, naming the answer", () => {
-    expect(gradeResponse(choice, { choice: 1 })).toMatchObject({ outcome: "failure", answer: 0 });
+    expect(gradeResponse(choice, { choice: 1 })).toMatchObject({
+      outcome: "failure",
+      correctChoice: 0,
+    });
   });
 });

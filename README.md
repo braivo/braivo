@@ -116,7 +116,7 @@ TASK=$(echo "$ACTIVITY" | field 'r.task.id')
 curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
   -H 'content-type: application/json' \
   -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1}}"
-# {"outcome":"failure","answer":0,"explanation":"Adiós is goodbye."}
+# {"outcome":"failure","correctChoice":0,"explanation":"Adiós is goodbye."}
 
 # What comes next follows from that answer: greetings again, with the other task.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity

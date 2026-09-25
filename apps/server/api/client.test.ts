@@ -149,7 +149,7 @@ describe("the Braivo client", () => {
   });
 
   test("submits an attempt and returns Braivo's grade", async () => {
-    const grade = { outcome: "failure", answer: 0 };
+    const grade = { outcome: "failure", correctChoice: 0 };
     const { calls, client } = clientFor(Response.json(grade));
 
     const answered = await client.submitAttempt({

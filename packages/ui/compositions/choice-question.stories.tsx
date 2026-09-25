@@ -38,6 +38,6 @@ export const Pending: Story = { args: { chosen: 1, pending: true } };
 /** Chosen, but the grade never came back. */
 export const Unconfirmed: Story = { args: { chosen: 1 } };
 
-export const Right: Story = { args: { chosen: 1, answer: 1 } };
+export const Right: Story = { args: { chosen: 1, correctChoice: 1 } };
 
-export const Wrong: Story = { args: { chosen: 2, answer: 1 } };
+export const Wrong: Story = { args: { chosen: 2, correctChoice: 1 } };

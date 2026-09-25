@@ -44,8 +44,8 @@ export type TaskResponse = { choice: number };
  */
 export type Grade = {
   outcome: "success" | "failure";
-  /** The correct option's `choice`, not its position as presented. */
-  answer: number;
+  /** The correct option's `choice`. Not `answer`, which invites indexing the presented options. */
+  correctChoice: number;
   explanation?: string;
 };
 
@@ -93,8 +93,8 @@ export function parseTaskBody(value: unknown): TaskBody | undefined {
  * removing them.
  *
  * Options are shuffled by `seed` unless the author kept their order. One seed,
- * one order: the caller picks a seed that changes exactly when the order
- * should. A new seed may still give the same order (half the time with two).
+ * one order: the caller reseeds when a new asking begins, and a new seed may
+ * still give the same order (half the time with two).
  */
 export function presentTask(body: TaskBody, seed: string): PresentedTask {
   const options = body.options.map((text, choice) => ({ choice, text }));
@@ -122,7 +122,7 @@ export function parseTaskResponse(body: TaskBody, value: unknown): TaskResponse 
 export function gradeResponse(body: TaskBody, response: TaskResponse): Grade {
   return {
     outcome: response.choice === body.answer ? "success" : "failure",
-    answer: body.answer,
+    correctChoice: body.answer,
     ...(body.explanation === undefined ? {} : { explanation: body.explanation }),
   };
 }
