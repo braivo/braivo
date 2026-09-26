@@ -18,9 +18,7 @@ import { mayAdminister } from "./permission.ts";
  *
  * `viewedBy` is the reader, not the learner, so it is authorized
  * (docs/adr/0010-hono-http-layer.md): it must be the learner, or administer the
- * course's organization; either way, the learner must belong to it. Seeing what
- * they know, are still learning, and are due to review is part of learning,
- * not only of teaching; another member's standing stays the administrators'.
+ * course's organization; either way, the learner must belong to it.
  */
 export async function readLearnerProgress(input: {
   database: Database;

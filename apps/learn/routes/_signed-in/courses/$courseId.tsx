@@ -31,8 +31,8 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       const [activity, progress] = await Promise.all([
         context.braivo.nextActivity(params.courseId, { signal }),
         // Optional: a failure leaves the summary out rather than failing the
-        // page. Awaited with the activity, which does the same reads and more,
-        // so the line never arrives late and shifts the question down.
+        // page. Awaited with the activity so it cannot arrive later and shift
+        // the question down.
         context.braivo
           .learnerProgress({ courseId: params.courseId, learnerId: context.user.id }, { signal })
           .catch(() => undefined),

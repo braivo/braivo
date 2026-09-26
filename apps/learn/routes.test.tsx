@@ -433,6 +433,22 @@ describe("the learn app", () => {
     );
   });
 
+  test("leaves out states with nothing in them", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          { objectiveId: "a", phase: "unseen" },
+          { objectiveId: "b", phase: "unseen" },
+        ],
+      }),
+    });
+
+    expect(await screen.findByText("2 not started")).toBeTruthy();
+  });
+
   test("still asks the question when where they stand cannot be read", async () => {
     renderAt("/courses/c1", {
       signedIn: true,

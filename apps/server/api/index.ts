@@ -95,8 +95,7 @@
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner or the learner. The
 // reader is the session's user and must be the learner, or hold `owner` or
-// `admin` in the course's organization; the learner must belong to it. Another
-// member's progress answers 404, like a course that does not exist.
+// `admin` in the course's organization; the learner must belong to it.
 //
 //   401  no session
 //   404  the course does not exist; the reader is neither the learner nor
