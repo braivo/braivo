@@ -100,10 +100,9 @@ export type BraivoClient = {
   ): Promise<Grade>;
 
   /**
-   * Where a learner stands on each objective in a course, for a content owner.
-   * The session must hold `owner` or `admin` in the course's organization and
-   * the learner must belong to it — so a learner cannot read their own, a
-   * `member` not being an administrator.
+   * Where a learner stands on each objective in a course, for a content owner
+   * or the learner. The session must be the learner's, or hold `owner` or
+   * `admin` in the course's organization, and the learner must belong to it.
    *
    * A missing course, a session that may not read it, and a learner outside the
    * organization are one {@link BraivoError} with status 404, which of the

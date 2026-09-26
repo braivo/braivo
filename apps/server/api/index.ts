@@ -93,16 +93,15 @@
 //        present only when the task has one.
 //
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
-// stands on each objective in a course, for a content owner. The reader is the
-// session's user and must hold `owner` or `admin` in the course's organization;
-// the learner must belong to it. A learner reading their own progress is not
-// covered, since a `member` does not administer.
+// stands on each objective in a course, for a content owner or the learner. The
+// reader is the session's user and must be the learner, or hold `owner` or
+// `admin` in the course's organization; the learner must belong to it.
 //
 //   401  no session
-//   404  the course does not exist; the reader does not administer its
-//        organization; or the learner is not in it, or does not exist. One
-//        status for all of them, so it confirms neither a course nor a person
-//        to someone with no business knowing.
+//   404  the course does not exist; the reader is neither the learner nor
+//        administers its organization; or the learner is not in it, or does
+//        not exist. One status for all of them, so it confirms neither a
+//        course nor a person to someone with no business knowing.
 //   200  a knowledge report, objectives in content order, each carrying the
 //        values that describe its phase:
 //
@@ -116,7 +115,7 @@
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
-//        offer for review — so the two answers cannot disagree about a learner.
+//        offer for review — so given the same evidence and time, the two agree.
 //        The shape is `KnowledgeReport` serialized, pinned like the decision's.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —

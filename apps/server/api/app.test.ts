@@ -947,11 +947,9 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
   });
 
-  test("shows a learner's progress to their organization's administrators only", async () => {
-    // The learner reading their own is refused too: a member does not
-    // administer, and self-service is not what this route is for.
+  test("shows a learner's progress to them and their organization's administrators only", async () => {
     expect((await progress(courseId, learner.id)).status).toBe(401);
-    expect((await progress(courseId, learner.id, learner.cookie)).status).toBe(404);
+    expect((await progress(courseId, learner.id, learner.cookie)).status).toBe(200);
     expect((await progress(courseId, learner.id, classmate.cookie)).status).toBe(404);
     expect((await progress(courseId, learner.id, teacher.cookie)).status).toBe(200);
   });
@@ -978,7 +976,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   test("marks every progress answer uncacheable, whatever it answers", async () => {
     const answered = await progress(courseId, learner.id, teacher.cookie);
-    const refused = await progress(courseId, learner.id, learner.cookie);
+    const refused = await progress(courseId, learner.id, classmate.cookie);
     const anonymous = await progress(courseId, learner.id);
 
     expect([answered.status, refused.status, anonymous.status]).toEqual([200, 404, 401]);

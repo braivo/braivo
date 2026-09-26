@@ -325,10 +325,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   });
 
   test("reads progress the session may not see as a 404", async () => {
-    // The learner's own session: a member does not administer.
+    // A learner asking about someone else: only their own is theirs to read.
     const rejected = await client
       .learnerProgress(
-        { courseId: progressCourseId, learnerId },
+        { courseId: progressCourseId, learnerId: "someone-else" },
         { headers: { cookie: learnerCookie } },
       )
       .catch((thrown: unknown) => thrown);

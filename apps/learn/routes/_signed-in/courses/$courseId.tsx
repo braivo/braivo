@@ -5,6 +5,7 @@ import {
   type Activity,
   BraivoError,
   type Grade,
+  type KnowledgeReport,
   type LearningDecision,
 } from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
@@ -26,12 +27,19 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   gcTime: 0,
   loader: async ({ context, params, abortController }) => {
     try {
-      const activity = await context.braivo.nextActivity(params.courseId, {
-        signal: abortController.signal,
-      });
+      const signal = abortController.signal;
+      const [activity, progress] = await Promise.all([
+        context.braivo.nextActivity(params.courseId, { signal }),
+        // Optional: a failure leaves the summary out rather than failing the
+        // page. Awaited with the activity so it cannot arrive later and shift
+        // the question down.
+        context.braivo
+          .learnerProgress({ courseId: params.courseId, learnerId: context.user.id }, { signal })
+          .catch(() => undefined),
+      ]);
       // One attempt per activity shown, so a resend after a lost answer is
       // recorded once.
-      return { activity, attemptId: crypto.randomUUID() };
+      return { activity, progress, attemptId: crypto.randomUUID() };
     } catch (error) {
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
@@ -55,16 +63,48 @@ function useFocusOnMount<T extends HTMLElement>() {
 }
 
 function NextStep() {
-  const { activity, attemptId } = Route.useLoaderData();
+  const { activity, progress, attemptId } = Route.useLoaderData();
 
-  // Not "caught up": an objective with no task to practise it can still be due
-  // (glossary: No activity), so waiting may not help either.
-  if (!activity) return <Notice title="Nothing to practise right now" />;
-  if ("retryAfter" in activity) {
-    return <Resting key={attemptId} retryAfter={activity.retryAfter} />;
+  return (
+    <>
+      {progress && <ProgressSummary report={progress} />}
+      {!activity ? (
+        // Not "caught up": an objective with no task to practise it can still
+        // be due (glossary: No activity), and the summary above says so.
+        <Notice title="Nothing to practise right now" />
+      ) : "retryAfter" in activity ? (
+        <Resting key={attemptId} retryAfter={activity.retryAfter} />
+      ) : (
+        // Keyed, so the next activity starts unanswered.
+        <Practice key={attemptId} activity={activity} attemptId={attemptId} />
+      )}
+    </>
+  );
+}
+
+/**
+ * Where the learner stands in the course, in one line: counts by the model's
+ * own states, so it claims no more than they do — "retained" rather than
+ * "mastered", which Braivo does not define.
+ */
+function ProgressSummary({ report }: { report: KnowledgeReport }) {
+  const counts = { retained: 0, due: 0, learning: 0, unseen: 0 };
+  for (const standing of report.objectives) {
+    if (standing.phase === "unseen") counts.unseen++;
+    else if (standing.phase === "acquiring") counts.learning++;
+    else if (standing.due) counts.due++;
+    else counts.retained++;
   }
-  // Keyed, so the next activity starts unanswered.
-  return <Practice key={attemptId} activity={activity} attemptId={attemptId} />;
+
+  const parts = [
+    counts.retained && `${counts.retained} retained`,
+    counts.due && `${counts.due} due for review`,
+    counts.learning && `${counts.learning} learning`,
+    counts.unseen && `${counts.unseen} not started`,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+
+  return <MutedText className="mb-6">{parts.join(" · ")}</MutedText>;
 }
 
 /** What the page says instead of a question, focused as a question would be. */
