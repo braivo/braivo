@@ -11,7 +11,7 @@ afterEach(cleanup);
 function renderWith(signIn: EmailAuth["signIn"]["email"]) {
   const onSignedIn = vi.fn();
   const auth = { signIn: { email: signIn }, signUp: { email: vi.fn() } };
-  render(<EmailSignIn auth={auth} onSignedIn={onSignedIn} />);
+  render(<EmailSignIn auth={auth} mode="sign-in" onSignedIn={onSignedIn} />);
 
   fireEvent.change(screen.getByLabelText("Email"), {
     target: { value: "learner@example.com" },
@@ -47,7 +47,7 @@ describe("EmailSignIn", () => {
     });
 
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Could not reach Braivo. Check your connection and try again.",
+      "Could not connect. Check your connection and try again.",
     );
     expect(screen.getByRole("button", { name: "Sign in" }).hasAttribute("disabled")).toBe(false);
     expect(onSignedIn).not.toHaveBeenCalled();
@@ -57,9 +57,8 @@ describe("EmailSignIn", () => {
     const signUp = vi.fn(async () => ({ error: null }));
     const onSignedIn = vi.fn();
     const auth = { signIn: { email: vi.fn() }, signUp: { email: signUp } };
-    render(<EmailSignIn auth={auth} onSignedIn={onSignedIn} />);
+    render(<EmailSignIn auth={auth} mode="sign-up" onSignedIn={onSignedIn} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "New here? Create an account" }));
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Ada" } });
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "ada@example.com" },

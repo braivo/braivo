@@ -2,16 +2,20 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { parseArgs } from "node:util";
+
 import { createDatabase, runMigrations } from "@braivo/db";
 
 import { createApi } from "../api/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { readDatabaseUrl, readServeConfig } from "./config.ts";
+import { createAuth, createOrganization } from "../auth/index.ts";
+import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
 
 const USAGE = `Usage: braivo <command>
 
 Commands:
   db migrate    Apply committed database migrations.
+  organization create --name <name> --slug <slug> --owner <email>
+                Create an organization owned by an existing account.
   serve         Serve the HTTP API.
 `;
 
@@ -21,12 +25,36 @@ Commands:
  * those values are allowed to be lives in `config.ts`, which is testable too.
  */
 async function main(argv: readonly string[]): Promise<number> {
-  // Matched whole rather than by prefix. With two commands and no flags, a
-  // trailing word is a typo or an option this does not have, and serving anyway
-  // would answer `serve --port 4000` by listening on a different port.
+  // Matched whole rather than by prefix: a trailing word is a typo or an option
+  // a command does not have, and serving anyway would answer `serve --port
+  // 4000` by listening on a different port.
   if (argv.length === 2 && argv[0] === "db" && argv[1] === "migrate") {
     await runMigrations(readDatabaseUrl(process.env));
     console.log("Migrations applied.");
+    return 0;
+  }
+
+  if (argv[0] === "organization" && argv[1] === "create") {
+    // Strict: an unknown option or a stray word throws, and is reported below.
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: { name: { type: "string" }, slug: { type: "string" }, owner: { type: "string" } },
+    });
+    const { name, slug, owner } = values;
+    if (!name || !slug || !owner) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const config = readAuthConfig(process.env);
+    const database = createDatabase(config.databaseUrl);
+    try {
+      const auth = createAuth({ database, secret: config.secret, baseURL: config.baseUrl });
+      const created = await createOrganization(auth, { name, slug, ownerEmail: owner });
+      console.log(`Created ${created.name}, owned by ${owner}: ${config.baseUrl}/${created.slug}`);
+    } finally {
+      await database.$client.end();
+    }
     return 0;
   }
 

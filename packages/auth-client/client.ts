@@ -9,8 +9,8 @@ import { createAuthClient } from "better-auth/react";
  *
  * `baseURL` is required rather than left for Better Auth to find: it would
  * otherwise guess from its environment, Vite's `BASE_URL` among the things it
- * tries, which under the console's `/console/` sends every call to the wrong
- * path.
+ * tries, which under an app served below the root sends every call to the
+ * wrong path.
  */
 export function createBrowserAuth<
   const Options extends { baseURL: string; plugins?: BetterAuthClientPlugin[] },

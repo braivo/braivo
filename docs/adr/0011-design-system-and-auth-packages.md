@@ -1,6 +1,6 @@
 # 0011: A design system package, and sign-in in its own package
 
-Status: accepted (2026-09-16). Replaces `packages/ui` from [ADR 0003](0003-workspace-layout.md). Its component choices are superseded by [ADR 0012](0012-shadcn-preset.md): the components are now generated from a shadcn preset. The package is `packages/ui` since [ADR 0013](0013-ui-package-and-storybook.md), and its stylesheet `@braivo/ui/globals.css`.
+Status: accepted (2026-09-16). Replaces `packages/ui` from [ADR 0003](0003-workspace-layout.md). Its component choices are superseded by [ADR 0012](0012-shadcn-preset.md): the components are now generated from a shadcn preset. The package is `packages/ui` since [ADR 0013](0013-ui-package-and-storybook.md), and its stylesheet `@braivo/ui/globals.css`. Sign-in routes and methods are [ADR 0018](0018-sign-in-and-invitations.md)'s.
 
 ## Context
 
@@ -12,7 +12,7 @@ The visual layer is also meant to be kept in sync with a claude.ai design-system
 
 - **`packages/design-system`** (`@braivo/design-system`) is presentation only: `styles.css` with Tailwind and the design tokens, and brand-neutral components built on them (`Button`, `Input`, `Alert`, `Heading`, `MutedText`, and a presentational `SignInForm`). One component per file, which is the unit /design-sync works in. Components use only semantic tokens (`bg-primary`, `text-danger`), so a brand restyles Braivo by overriding CSS variables on `:root`. Nothing in it knows about sessions, routing, or Braivo's API.
 - **`packages/auth-client`** (`@braivo/auth-client`) is signing in, for the browser — named after Better Auth's client, which it wraps: `createBrowserAuth`, which requires an explicit `baseURL`; `EmailSignIn`, which wires the design system's form to Better Auth; `requireSession`, which a signed-in layout calls in `beforeLoad`; and `safeRedirect`. It is browser-side only; the server's Better Auth configuration stays in `apps/server/auth`, because it needs the database.
-- Each app keeps its own `/sign-in` route and its own heading, so learners and content owners can come to sign in differently later.
+- Sign-in UI stays out of the design system. Where sign-in is served and which methods it offers is [ADR 0018](0018-sign-in-and-invitations.md)'s.
 - Headless primitives such as Radix or Base UI are added when a component needs behaviour that plain elements lack — a dialog, a menu — and not before.
 
 ## Alternatives rejected

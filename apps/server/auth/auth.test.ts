@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { organizationDomain } from "@braivo/db/schema";
 import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
@@ -9,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createObjectives } from "../persistence/index.ts";
 import { createAuth } from "./auth.ts";
+import { createOrganization } from "./organization.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 
@@ -27,6 +29,14 @@ const slugs = {
   ownsContent: "auth-test-owns-content",
   halfDeleted: "auth-test-half-deleted",
   ownsNothing: "auth-test-owns-nothing",
+  renamed: "auth-test-renamed",
+  renamedAgain: "auth-test-renamed-again",
+  hasDomain: "auth-test-has-domain",
+  noOwner: "auth-test-no-owner",
+  selfServe: "auth-test-self-serve",
+  taken: "auth-test-taken",
+  // Listed so a regression that lets it through is cleaned up after itself.
+  reserved: "login",
 };
 
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -63,9 +73,8 @@ async function signIn(): Promise<string> {
     .join("; ");
 }
 
-async function createOrganization(slug: string, cookie: string): Promise<string> {
-  const created = await post("/organization/create", { name: slug, slug }, { cookie });
-  return ((await created.json()) as { id: string }).id;
+async function createOwned(slug: string): Promise<string> {
+  return (await createOrganization(auth, { name: slug, slug, ownerEmail: owner.email })).id;
 }
 
 const membersOf = (id: string) =>
@@ -114,37 +123,138 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(await session.json()).toMatchObject({ user: { email: owner.email } });
   });
 
-  test("a signed-in user can own an organization", async () => {
-    const cookie = await signIn();
+  test("the operator creates an organization owned by an existing account", async () => {
+    // Emails are stored lowercased, and an operator may type one otherwise.
+    const created = await createOrganization(auth, {
+      name: "Example School",
+      slug: slugs.school,
+      ownerEmail: owner.email.toUpperCase(),
+    });
 
+    expect(created).toMatchObject({ name: "Example School", slug: slugs.school });
+    expect(await membersOf(created.id)).toMatchObject([{ role: "owner" }]);
+  });
+
+  test("says which slug is taken", async () => {
+    await createOwned(slugs.taken);
+
+    const again = createOrganization(auth, {
+      name: "Another School",
+      slug: slugs.taken,
+      ownerEmail: owner.email,
+    });
+
+    await expect(again).rejects.toThrow(`An organization already has the slug "${slugs.taken}".`);
+  });
+
+  test("refuses an organization for an email no account uses", async () => {
+    const created = createOrganization(auth, {
+      name: "Nobody's",
+      slug: slugs.noOwner,
+      ownerEmail: "auth-test-nobody@example.com",
+    });
+
+    await expect(created).rejects.toThrow("No account uses auth-test-nobody@example.com");
+  });
+
+  test("refuses creating an organization from a browser session", async () => {
     const created = await post(
       "/organization/create",
-      { name: "Example School", slug: slugs.school },
-      { cookie },
+      { name: "Self-Serve", slug: slugs.selfServe },
+      { cookie: await signIn() },
     );
 
-    expect(created.status).toBe(200);
-    expect(await created.json()).toMatchObject({ slug: slugs.school });
+    expect(created.status).toBe(403);
+    expect(await created.json()).toMatchObject({
+      code: "YOU_ARE_NOT_ALLOWED_TO_CREATE_A_NEW_ORGANIZATION",
+    });
+  });
+
+  test("refuses an HTTP request that names an owner instead of signing in", async () => {
+    // The operator's call is trusted because it has no request; pins that
+    // Better Auth still refuses one that does (ADR 0006's pinned version).
+    const [stored] = await database
+      .select({ id: authTables.user.id })
+      .from(authTables.user)
+      .where(eq(authTables.user.email, owner.email));
+
+    const created = await post("/organization/create", {
+      name: "Impostor",
+      slug: slugs.selfServe,
+      userId: stored?.id,
+    });
+
+    expect(created.status).toBe(401);
+  });
+
+  test("refuses a reserved slug", async () => {
+    const created = createOrganization(auth, {
+      name: "Login",
+      slug: slugs.reserved,
+      ownerEmail: owner.email,
+    });
+
+    await expect(created).rejects.toMatchObject({
+      body: { code: "ORGANIZATION_SLUG_NOT_ALLOWED" },
+    });
+  });
+
+  test("refuses changing a slug, but not resending it with other changes", async () => {
+    const cookie = await signIn();
+    const id = await createOwned(slugs.renamed);
+    const update = (data: Record<string, string>) =>
+      post("/organization/update", { organizationId: id, data }, { cookie });
+
+    const changed = await update({ slug: slugs.renamedAgain });
+    const resent = await update({ name: "Renamed School", slug: slugs.renamed });
+
+    expect(changed.status).toBe(400);
+    expect(await changed.json()).toMatchObject({ code: "ORGANIZATION_SLUG_IMMUTABLE" });
+    expect(resent.status).toBe(200);
+    const { organization } = authTables;
+    const [stored] = await database.select().from(organization).where(eq(organization.id, id));
+    expect(stored).toMatchObject({ name: "Renamed School", slug: slugs.renamed });
+  });
+
+  test("trusts sign-in from an organization's own domain as origin, not a foreign one", async () => {
+    const id = await createOwned(slugs.hasDomain);
+    await database
+      .insert(organizationDomain)
+      .values({ hostname: "auth-test.example.com", organizationId: id });
+
+    const signedIn = await post(
+      "/sign-in/email",
+      { email: owner.email, password: owner.password },
+      { origin: "https://auth-test.example.com" },
+    );
+
+    expect(signedIn.status).toBe(200);
+    const foreign = await post(
+      "/sign-in/email",
+      { email: owner.email, password: owner.password },
+      { origin: "https://evil.example" },
+    );
+    expect(foreign.status).toBe(403);
   });
 
   test("refuses an organization write from a foreign origin", async () => {
     // Pins `disableOriginCheck: false`: without it, Better Auth skips this check
     // whenever `NODE_ENV` is `test`, and this would pass.
-    const cookie = await signIn();
+    const id = await createOwned(slugs.foreignOrigin);
 
-    const created = await post(
-      "/organization/create",
-      { name: "Foreign Origin", slug: slugs.foreignOrigin },
-      { cookie, origin: "https://evil.example" },
+    const updated = await post(
+      "/organization/update",
+      { organizationId: id, data: { name: "Foreign Origin" } },
+      { cookie: await signIn(), origin: "https://evil.example" },
     );
 
-    expect(created.status).toBe(403);
+    expect(updated.status).toBe(403);
   });
 
   test("refuses to delete an organization that still owns learning content", async () => {
     // The 409 distinguishes the hook from the underlying foreign key's refusal.
     const cookie = await signIn();
-    const id = await createOrganization(slugs.ownsContent, cookie);
+    const id = await createOwned(slugs.ownsContent);
     await createObjectives(database, id, ["Blocks deletion"]);
     const before = await membersOf(id);
 
@@ -160,8 +270,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // Better Auth's organization delete runs its steps in this transaction, so
     // a foreign key refusing the last one leaves the members in place. That the
     // endpoint still uses it is a pinned-version assumption (ADR 0006).
-    const cookie = await signIn();
-    const id = await createOrganization(slugs.halfDeleted, cookie);
+    const id = await createOwned(slugs.halfDeleted);
     await createObjectives(database, id, ["Refuses the last step"]);
     const before = await membersOf(id);
 
@@ -185,7 +294,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // Without this, a guard that refused every deletion would pass the tests
     // above.
     const cookie = await signIn();
-    const id = await createOrganization(slugs.ownsNothing, cookie);
+    const id = await createOwned(slugs.ownsNothing);
 
     const deleted = await post("/organization/delete", { organizationId: id }, { cookie });
 

@@ -33,8 +33,23 @@ export async function mayAdminister(
   database: Database,
   input: { organizationId: string; userId: string },
 ): Promise<boolean> {
-  const roles = await readOrganizationRoles(database, input);
+  return administers(await readOrganizationRoles(database, input));
+}
+
+/** Whether these roles, one member's in one organization, administer it. */
+export function administers(roles: readonly string[]): boolean {
   return roles.some((role) => ADMINISTERING_ROLES.has(role));
+}
+
+/**
+ * Whether this user belongs to this organization, in any role. For a learner
+ * that is enrollment in every course the organization has (ADR 0018).
+ */
+export async function isMember(
+  database: Database,
+  input: { organizationId: string; userId: string },
+): Promise<boolean> {
+  return (await readOrganizationRoles(database, input)).length > 0;
 }
 
 /**

@@ -7,7 +7,7 @@ Braivo is an open-source platform for educators, schools, training providers, an
 - **Your content, not a generated course.** Braivo sequences and schedules what a content owner already teaches, and keeps the source material authoritative.
 - **Decisions that can be explained.** What comes next follows from recorded evidence and a [specified selection rule](docs/specs/learning-model.md), not from an opaque prompt.
 - **Self-hostable.** This repository is the whole platform: API, learning model, database schema, learner app, and console. Braivo Cloud adds managed-service concerns and nothing here depends on it.
-- **White-label.** An organization runs the learner experience under its own brand and domain, with no Braivo branding.
+- **White-label.** An organization runs the learner experience under its own brand and at its own address, with no Braivo branding. For now that is a hostname the operator controls, such as `school.braivo.app`; a domain the organization owns waits on sign-in scoped to that organization ([ADR 0004](docs/adr/0004-one-application-origin.md)).
 - **An HTTP API.** Anything the apps do, another application can do.
 
 ## Status
@@ -46,7 +46,11 @@ BETTER_AUTH_SECRET=$(openssl rand -base64 32)
 BRAIVO_URL=http://localhost:3000
 ENV
 bun run db:migrate
-bun run dev        # API on :3000, learn app on :5173, console on :5174/console/
+bun run dev        # API on :3000, learn app on :5173, console on :5174
+
+# Sign up in the console, then give that account an organization to manage.
+bun apps/server/cli/index.ts organization create \
+  --name "My School" --slug my-school --owner you@example.com
 ```
 
 `.env` is gitignored. Tests that need a database skip themselves when `TEST_DATABASE_URL` is unset; point it at a database of its own, since tests create, modify, and delete fixture data.
@@ -67,17 +71,16 @@ The whole loop, against a running server. Each step answers with an ID the next 
 BRAIVO=http://localhost:3000
 field() { bun -e "const r = JSON.parse(await Bun.stdin.text()); console.log($1)"; }
 
-# Sign up, then create an organization to own the content. Better Auth checks
-# the request origin on its own endpoints, so that one needs the header;
-# Braivo's routes below do not.
+# Sign up, then have the operator create an organization for that account to
+# own the content (ADR 0018): browsers cannot create one.
 curl -sc jar.txt -X POST $BRAIVO/api/auth/sign-up/email -H 'content-type: application/json' \
   -d '{"email":"owner@example.com","password":"correct horse battery","name":"Owner"}' >/dev/null
 
 LEARNER=$(curl -sb jar.txt $BRAIVO/api/auth/get-session | field 'r.user.id')
 
-ORG=$(curl -sb jar.txt -c jar.txt -X POST $BRAIVO/api/auth/organization/create \
-  -H 'content-type: application/json' -H "origin: $BRAIVO" \
-  -d '{"name":"Example School","slug":"example-school"}' | field 'r.id')
+bun apps/server/cli/index.ts organization create \
+  --name "Example School" --slug example-school --owner owner@example.com
+ORG=$(curl -sb jar.txt $BRAIVO/api/organizations | field 'r.organizations[0].id')
 
 # Name what is taught, then arrange it into a course. Position in objectiveIds
 # is the order learners meet them in.
@@ -131,12 +134,25 @@ The same loop runs in the learn app: with `bun run dev`, sign in at `http://loca
 
 A few things that shape how this behaves:
 
-- **The learner is whoever the session belongs to.** `activity` and `attempts` take no learner, so there is no second identity to authorize — the course still is: one in an organization the signed-in user is not in answers 404. One account plays every part above: it created the organization, so it is the owner, and owners may practise too.
+- **The learner is whoever the session belongs to.** `activity` and `attempts` take no learner, so there is no second identity to authorize — the course still is: one in an organization the signed-in user is not in answers 404. One account plays every part above: the organization was created for it, so it is the owner, and owners may practise too.
 - **Braivo grades, so a learner may answer for themselves.** They choose the answer, never the outcome. Each attempt carries an ID of the client's choosing, unique per learner, so resending one after a lost answer records it once.
 - **Evidence graded elsewhere is a content owner's to record.** An application with its own tasks uses `GET /api/courses/<id>/next` for the bare decision, and `POST /api/organizations/<id>/learners/<id>/evidence` to record outcomes, which needs `owner` or `admin`: a `member` could otherwise grade themselves.
 - **Progress is for the people who run the organization.** Reading a learner's standing needs `owner` or `admin`, and the learner has to belong to the organization. Above, the owner reads their own; a `member` asking about anyone, themselves included, gets a 404 — the same answer as a course that does not exist.
 - **`at` must be exactly what `Date#toISOString` produces.** Braivo refuses looser formats, because a timestamp is what it orders replay by.
 - **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced — so a learner who keeps failing stays within what they have already met instead of being handed more. Above, with one objective started, that means greetings come back until they are passed, and numbers wait; where several are in progress, re-teaching moves between them, oldest first. That is how content order sequences a course, and it is [specified and tested](docs/specs/learning-model.md#selection-rule) rather than incidental.
+
+## An organization's domain
+
+The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization; Braivo trusts that origin only while the row exists ([ADR 0004](docs/adr/0004-one-application-origin.md)). There is no API for it yet. Register only a hostname you control, in DNS and in what it serves: learners sign in there with their installation-wide account. Locally, a `*.localhost` name stands in for the domain (it resolves to this machine, and the dev server passes `Host` through); plain `localhost` stays the installation's own. Continuing the walkthrough above, with `DATABASE_URL` from `.env`:
+
+```bash
+psql "$DATABASE_URL" -c "insert into organization_domain (hostname, organization_id) values ('example.localhost', '$ORG')"
+
+curl -s http://example.localhost:3000/api/organization
+# {"name":"Example School"}
+```
+
+The learn app at `http://example.localhost:5173` now wears that name. There the API serves that organization's courses only, answering 404 for others; a hostname that is neither an organization's nor the installation's gets none. In production the hostname is trusted only over HTTPS.
 
 ## Deployment
 
@@ -144,7 +160,9 @@ A few things that shape how this behaves:
 bun run serve
 ```
 
-That serves the API and nothing else. **There is no deployment packaging yet** — no image, no static serving, no supported proxy configuration. Self-hosting is what Braivo is for and this repository holds everything an installation runs, but building the apps and putting them in front of the API is currently yours to arrange: they have to reach it from their own origin — `apps/learn` at `/`, `apps/console` at `/console/` — since Braivo and Better Auth refuse a write from any other. [ADR 0004](docs/adr/0004-one-application-origin.md) replaces that addressing and is not implemented, so a procedure written today would describe a layout about to change.
+That serves the API and nothing else. **There is no deployment packaging yet** — no image, no static serving, no supported proxy configuration. Self-hosting is what Braivo is for and this repository holds everything an installation runs, but building the apps and putting them in front of the API is currently yours to arrange: each is served at the root of an origin that also serves `/api` from this server ([ADR 0004](docs/adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization, which Braivo trusts only while an `organization_domain` row maps that hostname to the organization, and a proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
+
+Organizations are created by the operator, for an account that has signed in once, with `bun apps/server/cli/index.ts organization create` and the same environment as `serve`; the console creates none ([ADR 0018](docs/adr/0018-sign-in-and-invitations.md)).
 
 `BRAIVO_URL` is the public origin this installation is served from; Better Auth builds callback URLs from it, so it must match how the server is actually reached. `PORT` defaults to 3000.
 

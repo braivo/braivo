@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { course, courseObjective, member } from "@braivo/db/schema";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 export type Course = { id: string; title: string };
 
@@ -73,16 +73,26 @@ export async function readCourses(database: Database, organizationId: string): P
 }
 
 /**
- * Every course of every organization this user belongs to, by title. A user is
- * a member of an organization at most once, so the join cannot repeat a course;
- * the index enforcing it is hand-written in migrations, not in `schema/auth.ts`.
+ * Every course of every organization this user belongs to, or of just
+ * `organizationId` when given, by title. A user is a member of an organization
+ * at most once, so the join cannot repeat a course; the index enforcing it is
+ * hand-written in migrations, not in `schema/auth.ts`.
  */
-export async function readLearnerCourses(database: Database, learnerId: string): Promise<Course[]> {
+export async function readLearnerCourses(
+  database: Database,
+  learnerId: string,
+  organizationId?: string,
+): Promise<Course[]> {
   return database
     .select({ id: course.id, title: course.title })
     .from(course)
     .innerJoin(member, eq(member.organizationId, course.organizationId))
-    .where(eq(member.userId, learnerId))
+    .where(
+      and(
+        eq(member.userId, learnerId),
+        organizationId === undefined ? undefined : eq(course.organizationId, organizationId),
+      ),
+    )
     .orderBy(asc(course.title), asc(course.id));
 }
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId } from "react";
 
 import { Alert, AlertDescription } from "#components/alert";
 import { Button } from "#components/button";
@@ -16,14 +16,18 @@ export type SignInValues =
 /**
  * Email and password, for signing in or creating an account. Presentation
  * only: what a submission does is the caller's, and so are `pending` and
- * `error`, which describe the caller's request.
+ * `error`, which describe the caller's request, and `mode`, which an app keeps
+ * in its URL. `switchMode` is the caller's way to the other mode, usually a
+ * link, since only the app knows its routes.
  */
 export function SignInForm(props: {
+  mode: SignInValues["mode"];
+  switchMode?: ReactNode;
   pending?: boolean;
   error?: string;
   onSubmit: (values: SignInValues) => void;
 }) {
-  const [mode, setMode] = useState<SignInValues["mode"]>("sign-in");
+  const { mode } = props;
   const id = useId();
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -72,13 +76,7 @@ export function SignInForm(props: {
             {props.pending && <Spinner data-icon="inline-start" />}
             {mode === "sign-in" ? "Sign in" : "Create account"}
           </Button>
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
-          >
-            {mode === "sign-in" ? "New here? Create an account" : "Have an account? Sign in"}
-          </Button>
+          {props.switchMode}
         </Field>
       </FieldGroup>
     </form>

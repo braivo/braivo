@@ -10,19 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignedInRouteRouteImport } from './routes/_signed-in/route'
-import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
-import { Route as SignedInOrganizationsOrganizationIdIndexRouteImport } from './routes/_signed-in/organizations/$organizationId/index'
-import { Route as SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRouteImport } from './routes/_signed-in/organizations/$organizationId/courses/$courseId/index'
-import { Route as SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRouteImport } from './routes/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId'
+import { Route as SignedInOrganizationSlugRouteRouteImport } from './routes/_signed-in/$organizationSlug/route'
+import { Route as SignedInOrganizationsRouteImport } from './routes/_signed-in/organizations'
+import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
+import { Route as SignedInOrganizationSlugCoursesCourseIdIndexRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/index'
+import { Route as SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
 
 const SignedInRouteRoute = SignedInRouteRouteImport.update({
   id: '/_signed-in',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignedInIndexRoute = SignedInIndexRouteImport.update({
@@ -30,78 +38,104 @@ const SignedInIndexRoute = SignedInIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SignedInRouteRoute,
 } as any)
-const SignedInOrganizationsOrganizationIdIndexRoute =
-  SignedInOrganizationsOrganizationIdIndexRouteImport.update({
-    id: '/organizations/$organizationId/',
-    path: '/organizations/$organizationId/',
+const SignedInOrganizationSlugRouteRoute =
+  SignedInOrganizationSlugRouteRouteImport.update({
+    id: '/$organizationSlug',
+    path: '/$organizationSlug',
     getParentRoute: () => SignedInRouteRoute,
   } as any)
-const SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute =
-  SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRouteImport.update({
-    id: '/organizations/$organizationId/courses/$courseId/',
-    path: '/organizations/$organizationId/courses/$courseId/',
-    getParentRoute: () => SignedInRouteRoute,
+const SignedInOrganizationsRoute = SignedInOrganizationsRouteImport.update({
+  id: '/organizations',
+  path: '/organizations',
+  getParentRoute: () => SignedInRouteRoute,
+} as any)
+const SignedInOrganizationSlugIndexRoute =
+  SignedInOrganizationSlugIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
   } as any)
-const SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute =
-  SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRouteImport.update(
-    {
-      id: '/organizations/$organizationId/courses/$courseId/learners/$learnerId',
-      path: '/organizations/$organizationId/courses/$courseId/learners/$learnerId',
-      getParentRoute: () => SignedInRouteRoute,
-    } as any,
-  )
+const SignedInOrganizationSlugCoursesCourseIdIndexRoute =
+  SignedInOrganizationSlugCoursesCourseIdIndexRouteImport.update({
+    id: '/courses/$courseId/',
+    path: '/courses/$courseId/',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute =
+  SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport.update({
+    id: '/courses/$courseId/learners/$learnerId',
+    path: '/courses/$courseId/learners/$learnerId',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
-  '/sign-in': typeof SignInRoute
-  '/organizations/$organizationId/': typeof SignedInOrganizationsOrganizationIdIndexRoute
-  '/organizations/$organizationId/courses/$courseId/': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute
-  '/organizations/$organizationId/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/organizations': typeof SignedInOrganizationsRoute
+  '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRoutesByTo {
-  '/sign-in': typeof SignInRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/organizations': typeof SignedInOrganizationsRoute
   '/': typeof SignedInIndexRoute
-  '/organizations/$organizationId': typeof SignedInOrganizationsOrganizationIdIndexRoute
-  '/organizations/$organizationId/courses/$courseId': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute
-  '/organizations/$organizationId/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute
+  '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/courses/$courseId': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_signed-in': typeof SignedInRouteRouteWithChildren
-  '/sign-in': typeof SignInRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/_signed-in/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/_signed-in/organizations': typeof SignedInOrganizationsRoute
   '/_signed-in/': typeof SignedInIndexRoute
-  '/_signed-in/organizations/$organizationId/': typeof SignedInOrganizationsOrganizationIdIndexRoute
-  '/_signed-in/organizations/$organizationId/courses/$courseId/': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute
-  '/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute
+  '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/_signed-in/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/sign-in'
-    | '/organizations/$organizationId/'
-    | '/organizations/$organizationId/courses/$courseId/'
-    | '/organizations/$organizationId/courses/$courseId/learners/$learnerId'
+    | '/login'
+    | '/signup'
+    | '/$organizationSlug'
+    | '/organizations'
+    | '/$organizationSlug/'
+    | '/$organizationSlug/courses/$courseId/'
+    | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/sign-in'
+    | '/login'
+    | '/signup'
+    | '/organizations'
     | '/'
-    | '/organizations/$organizationId'
-    | '/organizations/$organizationId/courses/$courseId'
-    | '/organizations/$organizationId/courses/$courseId/learners/$learnerId'
+    | '/$organizationSlug'
+    | '/$organizationSlug/courses/$courseId'
+    | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   id:
     | '__root__'
     | '/_signed-in'
-    | '/sign-in'
+    | '/login'
+    | '/signup'
+    | '/_signed-in/$organizationSlug'
+    | '/_signed-in/organizations'
     | '/_signed-in/'
-    | '/_signed-in/organizations/$organizationId/'
-    | '/_signed-in/organizations/$organizationId/courses/$courseId/'
-    | '/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId'
+    | '/_signed-in/$organizationSlug/'
+    | '/_signed-in/$organizationSlug/courses/$courseId/'
+    | '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   SignedInRouteRoute: typeof SignedInRouteRouteWithChildren
-  SignInRoute: typeof SignInRoute
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -113,11 +147,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_signed-in/': {
@@ -127,45 +168,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInIndexRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
-    '/_signed-in/organizations/$organizationId/': {
-      id: '/_signed-in/organizations/$organizationId/'
-      path: '/organizations/$organizationId'
-      fullPath: '/organizations/$organizationId/'
-      preLoaderRoute: typeof SignedInOrganizationsOrganizationIdIndexRouteImport
+    '/_signed-in/$organizationSlug': {
+      id: '/_signed-in/$organizationSlug'
+      path: '/$organizationSlug'
+      fullPath: '/$organizationSlug'
+      preLoaderRoute: typeof SignedInOrganizationSlugRouteRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
-    '/_signed-in/organizations/$organizationId/courses/$courseId/': {
-      id: '/_signed-in/organizations/$organizationId/courses/$courseId/'
-      path: '/organizations/$organizationId/courses/$courseId'
-      fullPath: '/organizations/$organizationId/courses/$courseId/'
-      preLoaderRoute: typeof SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRouteImport
+    '/_signed-in/organizations': {
+      id: '/_signed-in/organizations'
+      path: '/organizations'
+      fullPath: '/organizations'
+      preLoaderRoute: typeof SignedInOrganizationsRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
-    '/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId': {
-      id: '/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId'
-      path: '/organizations/$organizationId/courses/$courseId/learners/$learnerId'
-      fullPath: '/organizations/$organizationId/courses/$courseId/learners/$learnerId'
-      preLoaderRoute: typeof SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRouteImport
-      parentRoute: typeof SignedInRouteRoute
+    '/_signed-in/$organizationSlug/': {
+      id: '/_signed-in/$organizationSlug/'
+      path: '/'
+      fullPath: '/$organizationSlug/'
+      preLoaderRoute: typeof SignedInOrganizationSlugIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/courses/$courseId/': {
+      id: '/_signed-in/$organizationSlug/courses/$courseId/'
+      path: '/courses/$courseId'
+      fullPath: '/$organizationSlug/courses/$courseId/'
+      preLoaderRoute: typeof SignedInOrganizationSlugCoursesCourseIdIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId': {
+      id: '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
+      path: '/courses/$courseId/learners/$learnerId'
+      fullPath: '/$organizationSlug/courses/$courseId/learners/$learnerId'
+      preLoaderRoute: typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
     }
   }
 }
 
+interface SignedInOrganizationSlugRouteRouteChildren {
+  SignedInOrganizationSlugIndexRoute: typeof SignedInOrganizationSlugIndexRoute
+  SignedInOrganizationSlugCoursesCourseIdIndexRoute: typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute: typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
+}
+
+const SignedInOrganizationSlugRouteRouteChildren: SignedInOrganizationSlugRouteRouteChildren =
+  {
+    SignedInOrganizationSlugIndexRoute: SignedInOrganizationSlugIndexRoute,
+    SignedInOrganizationSlugCoursesCourseIdIndexRoute:
+      SignedInOrganizationSlugCoursesCourseIdIndexRoute,
+    SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute:
+      SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute,
+  }
+
+const SignedInOrganizationSlugRouteRouteWithChildren =
+  SignedInOrganizationSlugRouteRoute._addFileChildren(
+    SignedInOrganizationSlugRouteRouteChildren,
+  )
+
 interface SignedInRouteRouteChildren {
+  SignedInOrganizationSlugRouteRoute: typeof SignedInOrganizationSlugRouteRouteWithChildren
+  SignedInOrganizationsRoute: typeof SignedInOrganizationsRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
-  SignedInOrganizationsOrganizationIdIndexRoute: typeof SignedInOrganizationsOrganizationIdIndexRoute
-  SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute: typeof SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute
-  SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute: typeof SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute
 }
 
 const SignedInRouteRouteChildren: SignedInRouteRouteChildren = {
+  SignedInOrganizationSlugRouteRoute:
+    SignedInOrganizationSlugRouteRouteWithChildren,
+  SignedInOrganizationsRoute: SignedInOrganizationsRoute,
   SignedInIndexRoute: SignedInIndexRoute,
-  SignedInOrganizationsOrganizationIdIndexRoute:
-    SignedInOrganizationsOrganizationIdIndexRoute,
-  SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute:
-    SignedInOrganizationsOrganizationIdCoursesCourseIdIndexRoute,
-  SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute:
-    SignedInOrganizationsOrganizationIdCoursesCourseIdLearnersLearnerIdRoute,
 }
 
 const SignedInRouteRouteWithChildren = SignedInRouteRoute._addFileChildren(
@@ -174,7 +245,8 @@ const SignedInRouteRouteWithChildren = SignedInRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   SignedInRouteRoute: SignedInRouteRouteWithChildren,
-  SignInRoute: SignInRoute,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

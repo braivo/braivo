@@ -299,6 +299,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
       database,
       learnerId: learner,
       courseId: course,
+      host: { hostname: "localhost", installation: true },
       now,
     });
 
@@ -307,6 +308,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
       database,
       learnerId: learner,
       courseId: course,
+      host: { hostname: "localhost", installation: true },
       now,
     });
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { SignInForm, type SignInValues } from "@braivo/ui";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 /**
  * The part of a Better Auth client signing in uses. Structural, so either app's
@@ -23,7 +23,13 @@ type AuthResult = { error: { message?: string } | null };
  * Signing in, or creating an account, with an email and password. Reports
  * success through `onSignedIn` and leaves where to go next to the caller.
  */
-export function EmailSignIn(props: { auth: EmailAuth; onSignedIn: () => void }) {
+export function EmailSignIn(props: {
+  auth: EmailAuth;
+  mode: SignInValues["mode"];
+  /** The way to the other mode, usually a link to the app's other route. */
+  switchMode?: ReactNode;
+  onSignedIn: () => void;
+}) {
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
@@ -44,12 +50,21 @@ export function EmailSignIn(props: { auth: EmailAuth; onSignedIn: () => void }) 
       else props.onSignedIn();
     } catch {
       // Refused answers arrive as `error` above; this is a request that got no
-      // answer at all, which is worth another try.
-      setError("Could not reach Braivo. Check your connection and try again.");
+      // answer at all, which is worth another try. No product name: the learn
+      // app runs under the organization's brand, not Braivo's (ADR 0004).
+      setError("Could not connect. Check your connection and try again.");
     } finally {
       setPending(false);
     }
   }
 
-  return <SignInForm pending={pending} error={error} onSubmit={submit} />;
+  return (
+    <SignInForm
+      mode={props.mode}
+      switchMode={props.switchMode}
+      pending={pending}
+      error={error}
+      onSubmit={submit}
+    />
+  );
 }

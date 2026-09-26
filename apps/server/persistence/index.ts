@@ -13,15 +13,17 @@ export {
   readCourses,
   readLearnerCourses,
 } from "./course.ts";
+export { readDomainOrganization } from "./domain.ts";
 export { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evidence.ts";
-export { readOrganizationRoles } from "./membership.ts";
+export type { Organization } from "./membership.ts";
+export { readMemberships, readOrganizationRoles } from "./membership.ts";
 export type { Objective } from "./objective.ts";
 export {
   createObjectives,
   findObjectivesOutsideOrganization,
   readObjectives,
 } from "./objective.ts";
-export { organizationOwnsLearningContent } from "./organization.ts";
+export { organizationOwnsLearningContent, readOrganizationSlug } from "./organization.ts";
 export {
   ConflictingAttempt,
   createTasks,

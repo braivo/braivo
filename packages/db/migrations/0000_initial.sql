@@ -77,6 +77,21 @@ CREATE TABLE "verification" (
 	"updated_at" timestamp NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "organization_domain" (
+	"hostname" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	CONSTRAINT "organization_domain_hostname_lowercase" CHECK ("organization_domain"."hostname" = lower("organization_domain"."hostname"))
+);
+--> statement-breakpoint
+CREATE TABLE "attempt" (
+	"id" text NOT NULL,
+	"learner_id" text NOT NULL,
+	"task_id" text NOT NULL,
+	"response" jsonb NOT NULL,
+	"at" timestamp with time zone NOT NULL,
+	CONSTRAINT "attempt_learner_id_id_pk" PRIMARY KEY("learner_id","id")
+);
+--> statement-breakpoint
 CREATE TABLE "course" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -108,18 +123,30 @@ CREATE TABLE "objective" (
 	CONSTRAINT "objective_organization_id_key" UNIQUE("organization_id","id")
 );
 --> statement-breakpoint
+CREATE TABLE "task" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"objective_id" text NOT NULL,
+	"body" jsonb NOT NULL,
+	"created_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation" ADD CONSTRAINT "invitation_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "invitation" ADD CONSTRAINT "invitation_inviter_id_user_id_fk" FOREIGN KEY ("inviter_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member" ADD CONSTRAINT "member_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member" ADD CONSTRAINT "member_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "organization_domain" ADD CONSTRAINT "organization_domain_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attempt" ADD CONSTRAINT "attempt_learner_id_user_id_fk" FOREIGN KEY ("learner_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "attempt" ADD CONSTRAINT "attempt_task_id_task_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."task"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "course" ADD CONSTRAINT "course_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "course_objective" ADD CONSTRAINT "course_objective_course_fk" FOREIGN KEY ("organization_id","course_id") REFERENCES "public"."course"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "course_objective" ADD CONSTRAINT "course_objective_objective_fk" FOREIGN KEY ("organization_id","objective_id") REFERENCES "public"."objective"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "learner_evidence" ADD CONSTRAINT "learner_evidence_learner_id_user_id_fk" FOREIGN KEY ("learner_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "learner_evidence" ADD CONSTRAINT "learner_evidence_objective_id_objective_id_fk" FOREIGN KEY ("objective_id") REFERENCES "public"."objective"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "objective" ADD CONSTRAINT "objective_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "task" ADD CONSTRAINT "task_objective_fk" FOREIGN KEY ("organization_id","objective_id") REFERENCES "public"."objective"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "invitation_organizationId_idx" ON "invitation" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_email_idx" ON "invitation" USING btree ("email");--> statement-breakpoint
@@ -127,7 +154,10 @@ CREATE INDEX "member_organizationId_idx" ON "member" USING btree ("organization_
 CREATE INDEX "member_userId_idx" ON "member" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "session_userId_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("identifier");--> statement-breakpoint
+CREATE UNIQUE INDEX "organization_domain_organization_idx" ON "organization_domain" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "attempt_learner_task_idx" ON "attempt" USING btree ("learner_id","task_id","at");--> statement-breakpoint
 CREATE INDEX "course_organization_idx" ON "course" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "course_objective_position_uidx" ON "course_objective" USING btree ("course_id","position");--> statement-breakpoint
 CREATE INDEX "learner_evidence_replay_idx" ON "learner_evidence" USING btree ("learner_id","at","id");--> statement-breakpoint
-CREATE INDEX "objective_organization_idx" ON "objective" USING btree ("organization_id");
+CREATE INDEX "objective_organization_idx" ON "objective" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "task_objective_idx" ON "task" USING btree ("objective_id","created_at","id");

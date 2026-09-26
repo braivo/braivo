@@ -42,6 +42,7 @@ function progress(input: { courseId?: string; learnerId?: string; viewedBy?: str
     viewedBy: input.viewedBy ?? teacher,
     learnerId: input.learnerId ?? learner,
     courseId: input.courseId ?? course,
+    host: { hostname: "localhost", installation: true },
     now,
   });
 }
@@ -126,7 +127,13 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       evidence({ id: "failed", objectiveId: fractions, outcome: "failure", at: daysAgo(1) }),
     ]);
 
-    const next = await chooseNextObjective({ database, learnerId: learner, courseId: course, now });
+    const next = await chooseNextObjective({
+      database,
+      learnerId: learner,
+      courseId: course,
+      host: { hostname: "localhost", installation: true },
+      now,
+    });
     const read = await progress();
 
     expect(next).toMatchObject({ kind: "decided", decision: { objectiveId: fractions } });

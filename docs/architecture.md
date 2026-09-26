@@ -10,8 +10,8 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - Server code lives in `apps/server/`, one folder per module. Extract a module into its own package only when a consumer needs it independently.
 - `apps/server` exports only its browser client, `@braivo/server/client`, which may import nothing from the server but types. Add exports only when a real consumer requires them.
 - `packages/db` owns the database: schema, migrations, client, and test seeding. It stores learning data but holds no learning behaviour and imports nothing from the server; queries live in `persistence`.
-- `apps/console` is the content owners' application and `apps/learn` the learner app. Both are served from one origin together with `/api`, the console under `/console/`, and reach Braivo only through that client and Better Auth's. [ADR 0004](adr/0004-one-application-origin.md) replaces that addressing — the console at the root of Braivo's origin under `/<organization>/…`, the learn app on each organization's own domain and at `demo.braivo.app` — and is not yet implemented.
-- `packages/ui` holds the apps' tokens and components, `apps/storybook` shows those components, and `packages/auth-client` holds their sign-in ([ADR 0003](adr/0003-workspace-layout.md), [ADR 0011](adr/0011-design-system-and-auth-packages.md), [ADR 0013](adr/0013-ui-package-and-storybook.md)).
+- `apps/console` is the content owners' application and `apps/learn` the learner app. Each is served at the root of its own origin together with `/api` — the console on Braivo's origin, the learn app on a domain serving one organization — and reaches the server through that same-origin API ([ADR 0004](adr/0004-one-application-origin.md)). The console addresses an organization by its slug, `/<organization>/…`.
+- `packages/ui` holds the apps' tokens and components, `apps/storybook` shows those components, and `packages/auth-client` holds browser authentication helpers ([ADR 0003](adr/0003-workspace-layout.md), [ADR 0011](adr/0011-design-system-and-auth-packages.md), [ADR 0013](adr/0013-ui-package-and-storybook.md)).
 - One toolchain, Vite+, configured in the root `vite.config.ts`: `vp check` formats, lints, and type-checks; `bun run test` runs Vitest on Bun.
 - Developers integrate over the documented HTTP API. Braivo's own code is AGPL-3.0-only, with a commercial license available, and third-party code keeps its upstream license ([ADR 0002](adr/0002-agpl-only.md)).
 - No microservices, queues, or caches until a concrete workflow or measured problem requires them.
@@ -27,13 +27,13 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - **persistence:** the queries Braivo asks of its database, shaped for the modules that ask them. The client, tables, and migrations are `packages/db`'s: PostgreSQL with Drizzle ([ADR 0005](adr/0005-postgresql-drizzle.md)).
 - **api:** HTTP entry point to `application`, a Hono app over Web-standard `Request` and `Response` ([ADR 0010](adr/0010-hono-http-layer.md)). A route resolves identity from the session, calls one use case, and turns the result into a status; it runs no queries of its own. Only explicitly documented endpoints and types are public contracts.
 - **web:** learner and content-owner UI, as the `learn` and `console` apps.
-- **cli:** the process and operational entry point — composing the server, applying migrations. A command that does anything beyond that calls `application`, or HTTP where it addresses a remote installation. No business logic.
+- **cli:** the process and operational entry point — composing the server, applying migrations. A command that does anything beyond that calls the module that owns it — `application`, or `auth` for accounts and organizations — or HTTP where it addresses a remote installation. No business logic.
 
 ## Dependency rules
 
 - `learning` is plain, deterministic code: no I/O, network, database, clock, or implicit randomness. Callers pass in the state and values a decision needs.
 - `learning` never calls AI. AI may produce evidence, such as a scored answer, that `learning` consumes.
-- `api` mounts `auth`'s handler and resolves the session, then hands `application` plain user IDs; `application` never imports `auth`. `cli` imports it only to compose the process. `learning` never sees a learner's identity — evidence and estimates carry objective IDs, and the caller keys them by learner.
+- `api` mounts `auth`'s handler and resolves the session, then hands `application` plain user IDs; `application` never imports `auth`. `cli` imports it to compose the process and to create organizations. `learning` never sees a learner's identity — evidence and estimates carry objective IDs, and the caller keys them by learner.
 - Organization context from a request or session is not authorization. A workflow verifies the relevant user's membership or permission before acting on an organization ([ADR 0006](adr/0006-better-auth.md)); passing an `organizationId` explicitly only removes hidden state.
 - `content`, `learning`, and `ai` never import `application`, `persistence`, `api`, `web`, or `cli`. Workflows spanning modules belong in `application`.
 - `api`, `web`, and `cli` never query persistence directly. Browser code reaches Braivo only over HTTP. `packages/ui` is presentation only and imports no other Braivo package.
@@ -62,4 +62,4 @@ Add an abstraction only for a concrete need: another implementation, an integrat
 
 ## Not yet decided
 
-Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in courses, and how Braivo Cloud consumes Braivo. A machine credential for server-to-server callers is open too — evidence is recordable over HTTP today, but only by a session ([ADR 0010](adr/0010-hono-http-layer.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.
+Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership by invitation stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A machine credential for server-to-server callers is open too — evidence is recordable over HTTP today, but only by a session ([ADR 0010](adr/0010-hono-http-layer.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.

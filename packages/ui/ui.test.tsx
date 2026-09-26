@@ -37,7 +37,13 @@ describe("Braivo's components", () => {
 
   test("a sign-in form reports what was entered, and the name only when signing up", () => {
     const onSubmit = vi.fn();
-    render(<SignInForm onSubmit={onSubmit} />);
+    const { rerender } = render(
+      <SignInForm
+        mode="sign-in"
+        switchMode={<a href="/signup">Create one</a>}
+        onSubmit={onSubmit}
+      />,
+    );
     const fill = (label: string, value: string) =>
       fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
@@ -50,7 +56,10 @@ describe("Braivo's components", () => {
       password: "correct horse battery",
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "New here? Create an account" }));
+    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.getByRole("link", { name: "Create one" })).toBeTruthy();
+
+    rerender(<SignInForm mode="sign-up" onSubmit={onSubmit} />);
     fill("Name", "Ada");
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
     expect(onSubmit).toHaveBeenLastCalledWith({
@@ -62,7 +71,9 @@ describe("Braivo's components", () => {
   });
 
   test("a sign-in form announces the caller's error, and cannot be resubmitted while pending", () => {
-    render(<SignInForm pending error="Invalid email or password" onSubmit={() => {}} />);
+    render(
+      <SignInForm mode="sign-in" pending error="Invalid email or password" onSubmit={() => {}} />,
+    );
 
     expect(screen.getByRole("alert").textContent).toBe("Invalid email or password");
     const submit = screen.getByRole("button", { name: /Sign in/ });

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Every table, for queries and for Drizzle Kit. Better Auth's are generated into
-// `auth.ts` by its CLI and never hand-edited; Braivo's own are in `learning.ts`.
+// `auth.ts` by its CLI and never hand-edited; Braivo's own are in the others.
 export * from "./auth.ts";
+export * from "./domain.ts";
 export * from "./learning.ts";

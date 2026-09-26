@@ -5,7 +5,7 @@ import { EmailSignIn, safeRedirect } from "@braivo/auth-client";
 import { Heading } from "@braivo/ui";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/sign-in")({
+export const Route = createFileRoute("/login")({
   validateSearch: (search): { redirect?: string } => ({ redirect: safeRedirect(search.redirect) }),
   component: SignIn,
 });
@@ -17,10 +17,13 @@ function SignIn() {
 
   return (
     <>
-      <Heading>Braivo Console</Heading>
-      {/* `href`, like `redirect`, is relative to the router's base path; the
-          history's own `push` is not, and would leave the console for `/`. */}
-      <EmailSignIn auth={auth} onSignedIn={() => router.navigate({ href: redirect ?? "/" })} />
+      <Heading>Sign in</Heading>
+      <EmailSignIn
+        auth={auth}
+        // Learners join organizations by invitation (ADR 0018).
+        mode="sign-in"
+        onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
+      />
     </>
   );
 }

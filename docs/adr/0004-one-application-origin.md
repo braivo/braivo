@@ -1,67 +1,66 @@
-# 0004: One application origin, addressed by organization
+# 0004: Application origins and organization addressing
 
-Status: accepted (2026-09-16), not yet implemented. Supersedes the origin layout in [ADR 0003](0003-workspace-layout.md).
+Status: accepted (2026-09-16), partly implemented (2026-09-25; see Consequences). Supersedes the origin layout in [ADR 0003](0003-workspace-layout.md).
 
 ## Context
 
-[ADR 0003](0003-workspace-layout.md) served two apps from one origin: a learner app at `/` and a content-owner console at `/console/`. That put both on Braivo's own origin, which suits neither. The learner app is white-label: it runs for one organization under that organization's brand and domain — a vocabulary app at `springo.app`, say — and at `demo.braivo.app` as Braivo's own demonstration ([product.md](../product.md)). The console is Braivo's: the same organization's content owners manage it at `braivo.app/springo`. So braivo.app has one application to serve, the console.
+[ADR 0003](0003-workspace-layout.md) served a learner app at `/` and the console at `/console/` of one Braivo origin, which suits neither. The learn app is white-label: it runs for one organization under that organization's brand and domain — `springo.app`, say — and as Braivo's demonstration at `demo.braivo.app` ([product.md](../product.md)). The console is Braivo's: Springo's content owners manage it at `braivo.app/springo`.
 
-Content owners work in organizations, and one person may belong to several: a school and its test copy, or schools they consult for. The application needs a stable address for each, and the white-label promise needs the same application to work under a customer's own hostname.
+One person may belong to several organizations — a school and its test copy, schools they consult for — so each needs a stable, shareable address.
 
 ## Decision
 
-**The application owns the root of its origin**, and every organization's pages live under that organization's slug:
+**The console owns the root of Braivo's origin**, and organizations live there by slug, as on Linear and GitHub:
 
 ```text
-/                     no session: the home page (below); session: redirect to an organization (below)
-/login, /signup       signing in
-/<organization>       the organization's console
+/                                no session: /login (Cloud: www first, below); session: an organization
+/login                           signing in (ADR 0018)
+/invitations/<invitation>        accepting an invitation (ADR 0018)
+/organizations                   the organizations someone manages
+/<organization>                  the organization's console
 /<organization>/courses/<course>
-/<organization>/learners, /<organization>/settings
+/<organization>/learners, …/settings
 ```
 
-- **The URL names the organization; the session does not decide it.** An organization is always read from the request — the path here, the hostname on a custom domain — and access to it is checked as [ADR 0006](0006-better-auth.md) requires. The session only remembers which organization `/` sends someone to last.
-- **Signed in, `/` goes to the last organization while it is still theirs.** If it was deleted or they left it, `/` goes to the only organization they are in, or to a picker when there are several, or to creating one when there are none — which is where a new sign-up lands.
-- **"Organization" is the one name**, in code, docs, and UI, and the URL segment is its slug. ("Workspace" already means the Vite+ workspace here.)
-- **Slugs cannot shadow the application's own paths.** Organization slugs exclude a reserved list — at least `login`, `signup`, `home`, `pricing`, `about`, `api`, and `assets` — enforced where organizations are created. A new root-level path, marketing or otherwise, joins the list before it ships, and an organization already holding that slug has to be moved first.
-- **A custom domain drops the slug.** On an organization's own domain the hostname identifies the organization, so no slug appears: `springo.app/…` for its learners, or a console under a domain like `portal.acme.com`, where `/courses` is `/acme/courses` on braivo.app. Resolving the organization therefore goes through one function that reads the host first and the path second; routes never parse the slug themselves.
-- **Anonymous `/` is the product's front page.** On braivo.app that is the marketing site, and `/home` renders it for anyone, with `/` as its canonical URL, so links and search results point at the bare domain. A self-hosted installation has no marketing site, and its `/` sends an anonymous visitor to `/login`.
-- **The learn app runs on the organization's origin, not on braivo.app.** `apps/learn` serves each organization's learners under that organization's domain, and Braivo's demonstration at `demo.braivo.app`, with public example courses such as `/italian`. The rules below for sharing braivo.app with marketing do not reach it.
-- **Each origin that serves an app also serves `/api`**, so the apps keep calling a same-origin API and the origin checks of [ADR 0003](0003-workspace-layout.md) stand. A separate API hostname (`api.braivo.app`) is for server-to-server integrators, who send neither cookies nor an `Origin`.
-- **URLs do not dictate deployment.** Marketing, the console, and the learn app stay separate apps, and a router in front of the origin dispatches by host and path. On Braivo Cloud that router, the Braivo marketing site, and custom-domain provisioning belong to the managed service, outside this repository; resolving an organization from its host stays here ([product.md](../product.md)).
-
-### What sharing an origin with marketing requires
-
-Any script on a marketing page runs with the application's origin, so the whole origin is held to the application's standard:
-
-- sessions only in `HttpOnly` cookies — never a token in `localStorage` or `sessionStorage`;
-- a strict Content Security Policy for every page on the origin, marketing included;
-- third-party scripts only when reviewed, and none injected by a CMS or tag manager;
-- application code in bundles that marketing pages never load.
-
-If marketing ever needs scripts that cannot meet this, marketing moves to its own origin rather than the rules bending.
+- **The request names the organization, never the session**: the path here, the hostname on a learn domain, with access checked as [ADR 0006](0006-better-auth.md) requires. Better Auth's active organization is unused; opening an organization writes nothing.
+- **The host is a ceiling.** On an organization's domain the API answers another organization's course with 404, even to someone entitled to it, so no domain shows another's material under its brand; on a host that is neither an organization's nor the installation's, it answers every course so, and removing a domain's row revokes what it reaches.
+- **Signed in, `/` returns to the organization last opened in that browser** — remembered by ID, opened at its current slug, and only while they still manage it — else their only one, else `/organizations`. That page lists the organizations they manage; managing none, it says learners use the learning site their school provides. Organizations are created by the operator ([ADR 0018](0018-sign-in-and-invitations.md)). The last one opened is a browser preference, not session state: switching writes nothing, and a remembered ID grants nothing.
+- **The console's organizations are those someone manages**, as `owner` or `admin` (`GET /api/organizations`). A school someone only studies at, as a `member`, is not one of them.
+- **"Organization" is the one name** in code, docs, and UI. ("Workspace" means the Vite+ workspace here.)
+- **A slug has one spelling, and an `owner` or `admin` may change it.** Lowercase letters, digits, and single hyphens, at most 63 characters, checked wherever a slug is set. Before a change the console warns that existing links break and that the old slug is free for another organization to take. No redirects, aliases, or slug history until someone needs them. A slug change does not touch the learn domain.
+- **Root-level paths are reserved from slugs**, since `/<slug>` would shadow them. The list, in `apps/server/auth/slug.ts`, holds application routes only; a new route joins it before it ships (a test checks the console's), and if an organization already holds the word, the route takes another name or the organization moves.
+- **Marketing lives on `www.braivo.app`; `braivo.app` serves the application alone**, so marketing may use analytics and tag managers without their scripts running on the application's origin, and reserves no slugs. On Braivo Cloud the router in front sends a bare `braivo.app/` without a session cookie to `www`, so a visitor learns what Braivo is while someone signed in lands in their organization; marketing links to `/login`, which the app always serves. A self-hosted installation has no marketing site.
+- **An organization's domain serves its learn app, and nothing else; an organization has at most one.** The hostname identifies the organization, so no slug appears: `springo.app/…`. Anything needing the learn domain — an invitation, a session handoff — names the organization and looks it up. The console stays on Braivo's origin: the server resolves hosts, the console resolves slugs, and nothing resolves both.
+- **The learn app serves each organization's learners on its domain**; `demo.braivo.app` is Braivo's own deployment of it. Learners join by invitation and sign in on Braivo's origin ([ADR 0018](0018-sign-in-and-invitations.md)). Until then the learn app signs learners in but never up, and the API refuses sign-up on any host but the installation's.
+- **Every origin that serves an app also serves `/api`**, so apps call a same-origin API and [ADR 0003](0003-workspace-layout.md)'s origin checks stand. Whether integrators get an API hostname of their own is decided with their credential.
+- **URLs do not dictate deployment.** Marketing, console, and learn app stay separate apps behind a router that dispatches by host and path. On Braivo Cloud the router, the marketing site, and domain provisioning are the managed service's; resolving an organization from its host stays here ([product.md](../product.md)). `organization_domain` records which hostname serves which organization, written by whoever verifies the domain — Braivo Cloud or the operator — never by the organization's members.
+- **Until learn domains hold sessions scoped to their organization, only hostnames the operator controls may be registered.** Today Better Auth and Braivo's writes trust `https://<hostname>` for a registered hostname, so the account's session cookie lives there and learners enter credentials there. Whoever controls that hostname's DNS or content could take sessions that act in every organization the user is in. So on Braivo Cloud only hostnames under a domain Braivo holds qualify, and self-hosted only the operator's own. Once [ADR 0018](0018-sign-in-and-invitations.md)'s learner sessions exist, which reach one organization, a domain the organization owns may be registered too.
 
 ## Alternatives rejected
 
-- **`console.braivo.app`.** Origin isolation from marketing for free, but a subdomain for the only application Braivo has, and longer addresses for every page in it.
-- **`braivo.app/console/<organization>`.** A path segment that says nothing, on every URL, to separate an application from a site it does not need separating from.
-- **`/home` as the canonical marketing URL.** Backlinks and search results belong on the bare domain, which people expect to be the company's site.
-- **`learn.braivo.app` as the learn app's home.** Learners belong on their content owner's domain, under its brand; a Braivo subdomain would put Braivo's name where the customer's goes, and `demo.` says what the one Braivo hosts is for.
-- **The organization from the session alone.** URLs could not be shared between colleagues, and a second tab could not show a second organization.
+- **Marketing on the bare domain, beside the application**, as Linear and GitHub do (first version). Every marketing page would be held to the application's script policy — strict CSP, reviewed third-party scripts only, no tag manager — which Braivo's marketing needs to break, and every marketing page would be a reserved slug, tying this public repository to the private site.
+- **`console.braivo.app`.** A subdomain for Braivo's only application, lengthening every address.
+- **`braivo.app/console/<organization>`**, or **`braivo.app/organizations/<organization>`** (briefly adopted). A segment that says nothing on every shared address; the reserved list it avoids is a small price.
+- **`learn.braivo.app`.** Learners belong on their content owner's domain, under its brand.
+- **The last organization in the session**, as Better Auth's active organization: a server write on every switch, racing between tabs, for a browser preference.
+- **The organization from the session alone.** URLs could not be shared, and two tabs could not show two organizations.
+- **Trusting a verified customer domain with the account's session.** Verification proves who controls the hostname — exactly who could then take sessions valid everywhere.
+- **The console on an organization's domain** (first version). A resolver reading host then path, and the account that manages every organization on a hostname one of them controls.
 
 ## Consequences
 
-- Addresses are short and shareable (`braivo.app/acme/courses/italian-a1`), and several organizations can be open at once.
-- The origin's security rules above are a standing constraint on marketing, not a one-time review.
-- Organization creation gains slug validation against the reserved list, and a slug becomes something whose change breaks links; renaming needs redirects or is disallowed.
-- To implement, in this repository:
-  - `apps/console` is served from `/`, not `/console/`, with routes under `/$organization`, sign-in at `/login` and `/signup`, and `/` sending a signed-in owner to an organization as described above;
-  - `apps/learn` resolves its organization from the host it is served on;
-  - organization resolution, host then path, lives in one place;
-  - the reserved slug list is enforced where organizations are created;
-  - Better Auth stops taking one configured origin as the only trusted one. `BRAIVO_URL`
-    is its single base URL and so its only trusted origin, which would refuse every write
-    from a learn app on an organization's own domain. What replaces it keeps trusting the
-    configured application origin, trusts an organization's domain only while Braivo
-    resolves that domain to that organization, and fails closed otherwise — per request,
-    not a static list that trusts whatever is on it forever.
+- Addresses are shareable (`braivo.app/acme/courses/italian-a1`), and several organizations can be open at once.
+- `braivo.app`'s script policy is the application's alone.
+- Changing a slug breaks bookmarks and shared links, knowingly; redirects get built when an organization needs its old links kept.
+- Done in this repository:
+  - the console at `/`, with `/$organizationSlug` routes, `/login` and `/signup`, `/organizations`, and `/` as above;
+  - the learn app resolves its organization from its host (`GET /api/organization`) and presents itself under its name;
+  - `/organizations` listing only what someone manages, with an empty state saying where learners go; organizations created by the operator's command ([ADR 0018](0018-sign-in-and-invitations.md));
+  - slug format and reserved list, application routes only, enforced at creation;
+  - Better Auth and Braivo's writes trust `BRAIVO_URL`'s origin and `https://<hostname>` for a registered hostname, failing closed otherwise;
+  - the host ceiling on the learner's course routes;
+  - at most one domain per organization.
+- Still open:
+  - slug changes by an `owner` or `admin`, with the warning (today refused);
+  - on Braivo Cloud, marketing on `www` and the router's redirect, outside this repository;
+  - domains organizations own, once learner sessions exist.

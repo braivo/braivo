@@ -16,12 +16,13 @@ import {
   readCourseOrganization,
   readCourseTask,
   readNextTask,
-  readOrganizationRoles,
   readObjectivesWithTasks,
   recordAttempt,
   RestingTask,
 } from "../persistence/index.ts";
+import { hostAdmits, type RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
+import { isMember } from "./permission.ts";
 
 /**
  * Starts the ID of every evidence record graded from an attempt. Reserved:
@@ -55,13 +56,16 @@ export async function chooseNextActivity(input: {
   database: Database;
   learnerId: string;
   courseId: string;
+  /** The host the request came to, which limits the organizations reachable. */
+  host: RequestHost;
   now: Date;
 }): Promise<NextActivity> {
-  const { database, learnerId, courseId, now } = input;
+  const { database, learnerId, courseId, host, now } = input;
 
   const learner = await loadLearnerInCourse(database, {
     courseId,
     learnerId,
+    host,
     now,
     authorize: () => true,
   });
@@ -123,18 +127,22 @@ export async function submitAttempt(input: {
   database: Database;
   learnerId: string;
   courseId: string;
+  /** The host the request came to, which limits the organizations reachable. */
+  host: RequestHost;
   attemptId: string;
   taskId: string;
   response: unknown;
   now: Date;
 }): Promise<SubmittedAttempt> {
-  const { database, learnerId, courseId, attemptId, taskId, now } = input;
+  const { database, learnerId, courseId, host, attemptId, taskId, now } = input;
   if (attemptId === "" || attemptId.length > MAX_ATTEMPT_ID_LENGTH) return { kind: "invalid" };
 
   const organizationId = await readCourseOrganization(database, courseId);
   if (organizationId === undefined) return { kind: "unavailable" };
-  const roles = await readOrganizationRoles(database, { organizationId, userId: learnerId });
-  if (roles.length === 0) return { kind: "unavailable" };
+  if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
+  if (!(await isMember(database, { organizationId, userId: learnerId }))) {
+    return { kind: "unavailable" };
+  }
 
   const task = await readCourseTask(database, { courseId, taskId });
   if (task === undefined) return { kind: "unavailable" };

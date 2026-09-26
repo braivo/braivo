@@ -16,12 +16,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { orNotFound, readCourseInOrganization, readMembers } from "#lib/refusals";
 
 export const Route = createFileRoute(
-  "/_signed-in/organizations/$organizationId/courses/$courseId/learners/$learnerId",
+  "/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId",
 )({
   loader: async ({ context, params, abortController }) => {
     const signal = abortController.signal;
+    const organizationId = context.organization.id;
 
-    await readCourseInOrganization(context.braivo, { ...params, signal });
+    await readCourseInOrganization(context.braivo, {
+      organizationId,
+      courseId: params.courseId,
+      signal,
+    });
 
     const [report, objectives, members] = await Promise.all([
       orNotFound(
@@ -30,8 +35,8 @@ export const Route = createFileRoute(
           { signal },
         ),
       ),
-      orNotFound(context.braivo.listObjectives(params.organizationId, { signal })),
-      readMembers(context.auth, params.organizationId),
+      orNotFound(context.braivo.listObjectives(organizationId, { signal })),
+      readMembers(context.auth, organizationId),
     ]);
 
     const titles = new Map(objectives.map(({ id, title }) => [id, title]));

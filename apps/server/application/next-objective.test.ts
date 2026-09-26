@@ -34,7 +34,13 @@ function evidence(overrides: Partial<Evidence> = {}): Evidence {
 }
 
 function choose(courseId: string, learnerId = learner) {
-  return chooseNextObjective({ database, learnerId, courseId, now });
+  return chooseNextObjective({
+    database,
+    learnerId,
+    courseId,
+    host: { hostname: "localhost", installation: true },
+    now,
+  });
 }
 
 /** The decision, having first checked that there was one to return. */

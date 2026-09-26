@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { presentTask, type TaskBody } from "../content/index.ts";
 import { createCourse, createObjectives, readLearnerEvidence } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
+import type { RequestHost } from "./host.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -19,6 +21,9 @@ const learner = "activity-test-learner";
 const classmate = "activity-test-classmate";
 /** A member of another organization only. */
 const outsider = "activity-test-outsider";
+const installation: RequestHost = { hostname: "localhost", installation: true };
+/** `otherOrganizationId`'s domain. */
+const otherDomain: RequestHost = { hostname: "activity-test.example.com", installation: false };
 const start = new Date("2026-06-01T00:00:00.000Z");
 const later = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
 
@@ -51,8 +56,8 @@ const sixOptions: TaskBody = {
   answer: 0,
 };
 
-function activity(now: Date, learnerId = learner, course = courseId) {
-  return chooseNextActivity({ database, learnerId, courseId: course, now });
+function activity(now: Date, learnerId = learner, course = courseId, host = installation) {
+  return chooseNextActivity({ database, learnerId, courseId: course, host, now });
 }
 
 async function decided(now: Date) {
@@ -66,12 +71,13 @@ function answer(
   taskId: string,
   choice: unknown,
   now: Date,
-  options: { learnerId?: string; course?: string } = {},
+  options: { learnerId?: string; course?: string; host?: RequestHost } = {},
 ) {
   return submitAttempt({
     database,
     learnerId: options.learnerId ?? learner,
     courseId: options.course ?? courseId,
+    host: options.host ?? installation,
     attemptId,
     taskId,
     response: { choice },
@@ -95,6 +101,10 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       learnerIds: [outsider],
       at: start,
     });
+    await database
+      .insert(organizationDomain)
+      .values({ hostname: otherDomain.hostname, organizationId: otherOrganizationId })
+      .onConflictDoNothing();
 
     [pastTense, untaught, fractions] = (await createObjectives(database, organizationId, [
       "Past tense",
@@ -362,6 +372,16 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "unavailable",
     });
     expect(await activity(start, outsider)).toEqual({ kind: "unavailable" });
+    expect(await stored()).toEqual([]);
+  });
+
+  test("serves and grades nothing on another organization's domain", async () => {
+    expect(await activity(start, learner, courseId, otherDomain)).toEqual({
+      kind: "unavailable",
+    });
+    expect(await answer("x5", pastTenseTask, 0, start, { host: otherDomain })).toEqual({
+      kind: "unavailable",
+    });
     expect(await stored()).toEqual([]);
   });
 });

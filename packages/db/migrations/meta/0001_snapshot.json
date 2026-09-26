@@ -1,6 +1,6 @@
 {
-  "id": "f916644a-a8d3-43d6-9dec-d36e83f9e537",
-  "prevId": "37044705-ec13-4ccd-8421-ef40346210f3",
+  "id": "2d90e363-65a9-43e0-887c-9f56277bd7b6",
+  "prevId": "f09e412d-b93b-4cc2-ac31-c7a3ff848369",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -638,6 +638,172 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.organization_domain": {
+      "name": "organization_domain",
+      "schema": "",
+      "columns": {
+        "hostname": {
+          "name": "hostname",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "organization_domain_organization_idx": {
+          "name": "organization_domain_organization_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "organization_domain_organization_id_organization_id_fk": {
+          "name": "organization_domain_organization_id_organization_id_fk",
+          "tableFrom": "organization_domain",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "tableTo": "organization",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_domain_hostname_lowercase": {
+          "name": "organization_domain_hostname_lowercase",
+          "value": "\"organization_domain\".\"hostname\" = lower(\"organization_domain\".\"hostname\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.attempt": {
+      "name": "attempt",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "learner_id": {
+          "name": "learner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response": {
+          "name": "response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attempt_learner_task_idx": {
+          "name": "attempt_learner_task_idx",
+          "columns": [
+            {
+              "expression": "learner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "task_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "attempt_learner_id_user_id_fk": {
+          "name": "attempt_learner_id_user_id_fk",
+          "tableFrom": "attempt",
+          "columnsFrom": [
+            "learner_id"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "attempt_task_id_task_id_fk": {
+          "name": "attempt_task_id_task_id_fk",
+          "tableFrom": "attempt",
+          "columnsFrom": [
+            "task_id"
+          ],
+          "tableTo": "task",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "attempt_learner_id_id_pk": {
+          "name": "attempt_learner_id_id_pk",
+          "columns": [
+            "learner_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.course": {
       "name": "course",
       "schema": "",
@@ -979,6 +1145,93 @@
           "nullsNotDistinct": false
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.task": {
+      "name": "task",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "objective_id": {
+          "name": "objective_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "task_objective_idx": {
+          "name": "task_objective_idx",
+          "columns": [
+            {
+              "expression": "objective_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "task_objective_fk": {
+          "name": "task_objective_fk",
+          "tableFrom": "task",
+          "columnsFrom": [
+            "organization_id",
+            "objective_id"
+          ],
+          "tableTo": "objective",
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

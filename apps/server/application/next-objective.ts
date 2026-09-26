@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { activeModel, type LearningDecision, selectNext } from "../learning/index.ts";
+import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 
 /**
@@ -23,14 +24,17 @@ export async function chooseNextObjective(input: {
   database: Database;
   learnerId: string;
   courseId: string;
+  /** The host the request came to, which limits the organizations reachable. */
+  host: RequestHost;
   now: Date;
 }): Promise<NextObjective> {
-  const { database, learnerId, courseId, now } = input;
+  const { database, learnerId, courseId, host, now } = input;
 
   // The reader is the learner, and their membership is what is checked.
   const learner = await loadLearnerInCourse(database, {
     courseId,
     learnerId,
+    host,
     now,
     authorize: () => true,
   });

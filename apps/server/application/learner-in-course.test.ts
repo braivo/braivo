@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type Database, runMigrations } from "@braivo/db";
+import { organizationDomain } from "@braivo/db/schema";
 import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
 import { drizzle } from "drizzle-orm/bun-sql";
@@ -30,6 +31,8 @@ const organizationId = "learner-in-course-test-org";
 const otherOrganizationId = "learner-in-course-test-other-org";
 const learner = "learner-in-course-test-learner";
 const stranger = "learner-in-course-test-stranger";
+/** Registered as `otherOrganizationId`'s own domain. */
+const otherHostname = "learner-in-course-test.example.com";
 const now = new Date("2026-06-01T00:00:00.000Z");
 const daysAgo = (days: number) => new Date(now.getTime() - days * 86_400_000);
 
@@ -80,6 +83,11 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
       title: "Both",
       objectiveIds: [fractions, pastTense],
     });
+    await database
+      .insert(organizationDomain)
+      .values({ hostname: otherHostname, organizationId: otherOrganizationId })
+      .onConflictDoNothing();
+
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignCourse = await createCourse(database, {
       organizationId: otherOrganizationId,
@@ -103,6 +111,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: () => true,
     });
@@ -118,6 +127,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: () => true,
     });
@@ -131,6 +141,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     const loaded = await loadLearnerInCourse(database, {
       courseId: "no-such-course",
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async () => (asked = true),
     });
@@ -145,6 +156,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     await loadLearnerInCourse(database, {
       courseId: foreignCourse,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async (id) => (asked.push(id), false),
     });
@@ -152,10 +164,45 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     expect(asked).toEqual([otherOrganizationId]);
   });
 
+  test("loads nothing on another organization's domain, before asking anyone", async () => {
+    const asked: string[] = [];
+    const load = (courseId: string) =>
+      loadLearnerInCourse(database, {
+        courseId,
+        learnerId: learner,
+        host: { hostname: otherHostname, installation: false },
+        now,
+        authorize: (id) => (asked.push(id), true),
+      });
+
+    expect(await load(course)).toBeUndefined();
+    expect(asked).toEqual([]);
+    // The domain's own organization's course gets as far as authorizing.
+    await load(foreignCourse);
+    expect(asked).toEqual([otherOrganizationId]);
+  });
+
+  test("loads nothing on a host that serves no organization", async () => {
+    // Such as a domain whose row was removed: revoking it must narrow what it
+    // reaches, not widen it to everything.
+    const asked: string[] = [];
+    const loaded = await loadLearnerInCourse(database, {
+      courseId: course,
+      learnerId: learner,
+      host: { hostname: "learner-in-course-test-unknown.example.com", installation: false },
+      now,
+      authorize: (id) => (asked.push(id), true),
+    });
+
+    expect(loaded).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+
   test("loads nothing for a learner once the reader is refused", async () => {
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async () => false,
     });
@@ -167,6 +214,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,
       learnerId: stranger,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async () => true,
     });
@@ -182,6 +230,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     await loadLearnerInCourse(recording, {
       courseId: course,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async () => true,
     });
@@ -191,6 +240,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
     await loadLearnerInCourse(recording, {
       courseId: course,
       learnerId: learner,
+      host: { hostname: "localhost", installation: true },
       now,
       authorize: async () => false,
     });

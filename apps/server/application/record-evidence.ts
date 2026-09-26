@@ -4,13 +4,9 @@
 import type { Database } from "@braivo/db";
 
 import type { Evidence } from "../learning/index.ts";
-import {
-  findObjectivesOutsideOrganization,
-  readOrganizationRoles,
-  recordEvidence,
-} from "../persistence/index.ts";
+import { findObjectivesOutsideOrganization, recordEvidence } from "../persistence/index.ts";
 import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
-import { assertMayAdminister, NotPermitted } from "./permission.ts";
+import { assertMayAdminister, isMember, NotPermitted } from "./permission.ts";
 
 /**
  * Evidence that cannot be recorded as sent, whoever sent it: a date that is not
@@ -103,8 +99,7 @@ export async function recordGradedEvidence(input: {
 
   await assertMayAdminister(database, { organizationId, userId: gradedBy });
 
-  const learnerRoles = await readOrganizationRoles(database, { organizationId, userId: learnerId });
-  if (learnerRoles.length === 0) {
+  if (!(await isMember(database, { organizationId, userId: learnerId }))) {
     throw new NotPermitted(
       `Learner "${learnerId}" is not a member of organization "${organizationId}".`,
     );

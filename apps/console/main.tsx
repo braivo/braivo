@@ -11,12 +11,11 @@ import { routeTree } from "./routeTree.gen.ts";
 
 import "./styles.css";
 
-// Braivo's API is always served from this app's own origin; see ADR 0003.
+// Braivo's API is always served from this app's own origin; see ADR 0004.
 const origin = window.location.origin;
 
 const router = createRouter({
   routeTree,
-  basepath: import.meta.env.BASE_URL,
   context: {
     braivo: createClient(),
     auth: createConsoleAuth(origin),

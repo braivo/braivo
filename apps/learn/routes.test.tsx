@@ -55,8 +55,11 @@ function renderAt(
     learnerCourses?: BraivoClient["learnerCourses"];
     nextActivity?: BraivoClient["nextActivity"];
     submitAttempt?: BraivoClient["submitAttempt"];
+    /** The organization whose domain serves the app; none unless given. */
+    hostOrganization?: BraivoClient["hostOrganization"];
   },
 ) {
+  const hostOrganization = options.hostOrganization ?? (async () => undefined);
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
@@ -68,7 +71,12 @@ function renderAt(
       error: null,
     }),
   } as unknown as AppContext["auth"];
-  const braivo = { learnerCourses, nextActivity, submitAttempt } as unknown as AppContext["braivo"];
+  const braivo = {
+    hostOrganization,
+    learnerCourses,
+    nextActivity,
+    submitAttempt,
+  } as unknown as AppContext["braivo"];
 
   const router = createRouter({
     routeTree,
@@ -85,9 +93,47 @@ describe("the learn app", () => {
     const { nextActivity, router } = renderAt("/courses/c1", { signedIn: false });
 
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
+  });
+
+  test("wears the brand of the organization its domain serves, before sign-in", async () => {
+    renderAt("/courses/c1", {
+      signedIn: false,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    expect(await screen.findByText("Springo")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Springo"));
+  });
+
+  test("shows no brand on a domain that serves no organization", async () => {
+    document.title = "";
+    renderAt("/login", { signedIn: false });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByText("Springo")).toBeNull();
+    await vi.waitFor(() => expect(document.title).toBe("Learning"));
+  });
+
+  test("stays usable, unbranded, when the brand cannot be read", async () => {
+    renderAt("/login", {
+      signedIn: false,
+      hostOrganization: async () => {
+        throw new BraivoError(500, "down");
+      },
+    });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+  });
+
+  test("offers learners no way to sign up", async () => {
+    renderAt("/login", { signedIn: false });
+
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   test("lists the learner's courses, each a way into it", async () => {
@@ -251,6 +297,7 @@ describe("the learn app", () => {
       }),
     } as unknown as AppContext["auth"];
     const braivo = {
+      hostOrganization: async () => undefined,
       nextActivity: async () => activity,
       submitAttempt: async () => {
         signedIn = false;
@@ -267,7 +314,7 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/sign-in");
+    expect(router.state.location.pathname).toBe("/login");
   });
 
   test("says when a just-answered task comes back, and asks again then", async () => {

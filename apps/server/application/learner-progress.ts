@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { activeModel, assessKnowledge, type KnowledgeReport } from "../learning/index.ts";
+import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
 
@@ -27,15 +28,18 @@ export async function readLearnerProgress(input: {
   viewedBy: string;
   learnerId: string;
   courseId: string;
+  /** The host the request came to, which limits the organizations reachable. */
+  host: RequestHost;
   now: Date;
 }): Promise<LearnerProgress> {
-  const { database, viewedBy, learnerId, courseId, now } = input;
+  const { database, viewedBy, learnerId, courseId, host, now } = input;
 
   // The reader is checked before the learner is looked at, so a refused reader
   // never causes the query that would tell a member from a stranger.
   const learner = await loadLearnerInCourse(database, {
     courseId,
     learnerId,
+    host,
     now,
     authorize: (organizationId) => mayAdminister(database, { organizationId, userId: viewedBy }),
   });

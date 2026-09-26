@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignedInRouteRouteImport } from './routes/_signed-in/route'
-import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInCoursesCourseIdRouteImport } from './routes/_signed-in/courses/$courseId'
 
@@ -18,9 +18,9 @@ const SignedInRouteRoute = SignedInRouteRouteImport.update({
   id: '/_signed-in',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignedInIndexRoute = SignedInIndexRouteImport.update({
@@ -36,37 +36,37 @@ const SignedInCoursesCourseIdRoute = SignedInCoursesCourseIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
-  '/sign-in': typeof SignInRoute
+  '/login': typeof LoginRoute
   '/courses/$courseId': typeof SignedInCoursesCourseIdRoute
 }
 export interface FileRoutesByTo {
-  '/sign-in': typeof SignInRoute
+  '/login': typeof LoginRoute
   '/': typeof SignedInIndexRoute
   '/courses/$courseId': typeof SignedInCoursesCourseIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_signed-in': typeof SignedInRouteRouteWithChildren
-  '/sign-in': typeof SignInRoute
+  '/login': typeof LoginRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/courses/$courseId': typeof SignedInCoursesCourseIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in' | '/courses/$courseId'
+  fullPaths: '/' | '/login' | '/courses/$courseId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/sign-in' | '/' | '/courses/$courseId'
+  to: '/login' | '/' | '/courses/$courseId'
   id:
     | '__root__'
     | '/_signed-in'
-    | '/sign-in'
+    | '/login'
     | '/_signed-in/'
     | '/_signed-in/courses/$courseId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   SignedInRouteRoute: typeof SignedInRouteRouteWithChildren
-  SignInRoute: typeof SignInRoute
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -78,11 +78,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_signed-in/': {
@@ -118,7 +118,7 @@ const SignedInRouteRouteWithChildren = SignedInRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   SignedInRouteRoute: SignedInRouteRouteWithChildren,
-  SignInRoute: SignInRoute,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

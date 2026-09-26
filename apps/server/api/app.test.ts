@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
@@ -31,6 +32,10 @@ const api = createApi({ auth, database, baseUrl });
 
 const organizationId = "api-test-org";
 const otherOrganizationId = "api-test-other-org";
+/** Registered as `organizationId`'s own domain, which serves its learn app. */
+const organizationOrigin = "https://api-test.example.com";
+/** Registered as `otherOrganizationId`'s. */
+const otherOrganizationOrigin = "https://api-test-other.example.com";
 const at = new Date("2026-06-01T00:00:00.000Z");
 /**
  * Evidence is dated relative to the real clock, because the route reads it:
@@ -179,6 +184,17 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       at,
     });
 
+    await database
+      .insert(organizationDomain)
+      .values([
+        { hostname: new URL(organizationOrigin).hostname, organizationId },
+        {
+          hostname: new URL(otherOrganizationOrigin).hostname,
+          organizationId: otherOrganizationId,
+        },
+      ])
+      .onConflictDoNothing();
+
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;
     courseId = await createCourse(database, {
@@ -259,6 +275,22 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(oversized.status).toBe(413);
   });
 
+  test("signs nobody up on an organization's domain, or any host but the installation's", async () => {
+    const signUpOn = (origin: string) =>
+      api.request(`${origin}/api/auth/sign-up/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({
+          email: `api-test-${crypto.randomUUID()}@example.com`,
+          password: "correct horse battery",
+          name: "Nobody",
+        }),
+      });
+
+    expect((await signUpOn(organizationOrigin)).status).toBe(404);
+    expect((await signUpOn("https://api-test-unknown.example.com")).status).toBe(404);
+  });
+
   test("marks every answer uncacheable, whatever it answers", async () => {
     // The same URL answers differently per cookie, so a shared cache reusing one
     // learner's decision for another would skip the session check entirely.
@@ -273,6 +305,23 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       200, 204, 404, 401,
     ]);
     for (const response of [answered, caughtUp, unavailable, refused]) {
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+  });
+
+  test("lists the organizations someone manages, uncacheably, and only to a session", async () => {
+    const list = (cookie?: string) =>
+      api.request("/api/organizations", cookie ? { headers: { cookie } } : undefined);
+
+    const managed = await list(teacher.cookie);
+    const anonymous = await list();
+
+    expect(await managed.json()).toMatchObject({
+      organizations: [{ id: organizationId, slug: organizationId }],
+    });
+    expect(await (await list(learner.cookie)).json()).toEqual({ organizations: [] });
+    expect(anonymous.status).toBe(401);
+    for (const response of [managed, anonymous]) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
   });
@@ -472,6 +521,29 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   const routes = ["evidence", "objectives", "tasks", "courses", "attempts"] as const;
 
+  test("names the organization the request's host serves, and nothing for other hosts", async () => {
+    const served = await api.request(`${organizationOrigin}/api/organization`);
+    const unserved = await api.request(`${baseUrl}/api/organization`);
+
+    expect(served.status).toBe(200);
+    // `seedOrganization` names an organization after its ID.
+    expect(await served.json()).toEqual({ name: organizationId });
+    expect(served.headers.get("cache-control")).toBe("private, no-store");
+    expect(unserved.status).toBe(404);
+  });
+
+  test("answers a course on its own organization's domain and the installation's, and 404 elsewhere", async () => {
+    const on = (origin: string) =>
+      api.request(`${origin}/api/courses/${courseId}/next`, {
+        headers: { cookie: learner.cookie },
+      });
+
+    expect((await on(organizationOrigin)).status).toBe(200);
+    expect((await on(baseUrl)).status).toBe(200);
+    expect((await on(otherOrganizationOrigin)).status).toBe(404);
+    expect((await on("https://api-test-unknown.example.com")).status).toBe(404);
+  });
+
   test.each(routes)("refuses a forgeable write to %s", async (route) => {
     const { path, body, accepted } = write(route);
 
@@ -496,8 +568,22 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       headers: { "content-type": "application/json", origin: baseUrl, cookie: teacher.cookie },
       body: JSON.stringify(body),
     });
+    const organizations = await api.request(path, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: organizationOrigin,
+        cookie: teacher.cookie,
+      },
+      body: JSON.stringify(body),
+    });
 
-    expect([notJson.status, elsewhere.status, ours.status]).toEqual([403, 403, accepted]);
+    expect([notJson.status, elsewhere.status, ours.status, organizations.status]).toEqual([
+      403,
+      403,
+      accepted,
+      accepted,
+    ]);
   });
 
   test.each(routes)("bounds the body of a write to %s", async (route) => {
@@ -871,7 +957,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   });
 
-  test("lists the courses of every organization the learner is in, and nobody else's", async () => {
+  test("lists the courses of every organization the learner is in, and on a domain only its own", async () => {
     const secondOrganizationId = "api-test-second-org";
     await testing.seedOrganization(database, {
       organizationId: secondOrganizationId,
@@ -899,6 +985,18 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       courseId,
     ]);
     expect(ids).not.toContain(foreignCourseId);
+
+    // On an organization's domain, that organization's alone; elsewhere, none.
+    const on = async (origin: string) => {
+      const answer = await api.request(`${origin}/api/courses`, {
+        headers: { cookie: learner.cookie },
+      });
+      return ((await answer.json()) as { courses: { id: string }[] }).courses.map(({ id }) => id);
+    };
+    const onDomain = await on(organizationOrigin);
+    expect(onDomain).toContain(courseId);
+    expect(onDomain).not.toContain(secondCourseId);
+    expect(await on("https://api-test-unknown.example.com")).toEqual([]);
 
     const anonymous = await api.request("/api/courses");
     expect(anonymous.status).toBe(401);

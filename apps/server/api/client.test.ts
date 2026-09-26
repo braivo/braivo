@@ -44,6 +44,17 @@ function clientFor(response: Response) {
 }
 
 describe("the Braivo client", () => {
+  test("reads a domain serving no organization as undefined, and a failure as an error", async () => {
+    const unserved = clientFor(new Response(null, { status: 404 }));
+    const failed = clientFor(new Response(null, { status: 500 }));
+
+    expect(await unserved.client.hostOrganization()).toBeUndefined();
+    expect(unserved.calls[0]?.url).toBe("/api/organization");
+    const error = await failed.client.hostOrganization().catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(BraivoError);
+    expect((error as BraivoError).status).toBe(500);
+  });
+
   test("returns the activity Braivo answered with", async () => {
     const { client } = clientFor(Response.json(activity));
 
