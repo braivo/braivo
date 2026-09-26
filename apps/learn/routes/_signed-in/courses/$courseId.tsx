@@ -180,7 +180,8 @@ function Practice({
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
         // Reloading explains these. 401: the guard sends the learner to sign
-        // in. 404: the course or task is gone. 409: the task was answered
+        // in. 404: the course is gone, or the task was retired while on screen;
+        // the reload offers what is there now. 409: the task was answered
         // moments ago elsewhere, another tab say, and the reload says when it
         // may be answered again.
         if ([401, 404, 409].includes(error.status)) {

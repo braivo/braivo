@@ -4,7 +4,12 @@
 import type { Database } from "@braivo/db";
 
 import { parseTaskBody, type TaskBody } from "../content/index.ts";
-import { createTasks, findObjectivesOutsideOrganization } from "../persistence/index.ts";
+import {
+  createTasks,
+  findObjectivesOutsideOrganization,
+  findTasksOutsideOrganization,
+  markTasksRetired,
+} from "../persistence/index.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /** A task that is not a valid one of its kind, whoever sent it. */
@@ -55,4 +60,30 @@ export async function defineTasks(input: {
   }
 
   return createTasks(database, organizationId, parsed, now);
+}
+
+/**
+ * Withdraws tasks from practice (docs/adr/0015-tasks.md). Refuses the whole
+ * batch when the caller may not administer or a task is not the organization's.
+ */
+export async function retireTasks(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  taskIds: readonly string[];
+  now: Date;
+}): Promise<void> {
+  const { database, organizationId, actingAs, taskIds, now } = input;
+
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  // Checked apart from the write: a task never changes organization.
+  const outside = await findTasksOutsideOrganization(database, organizationId, taskIds);
+  if (outside.length > 0) {
+    throw new NotPermitted(
+      `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
+    );
+  }
+
+  await markTasksRetired(database, taskIds, now);
 }

@@ -225,6 +225,11 @@ export const task = pgTable(
     objectiveId: text("objective_id").notNull(),
     body: jsonb("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    /**
+     * When a content owner withdrew it — a wrong answer key, say. Never offered
+     * after, and accepts no new attempt; kept, since attempts point at it.
+     */
+    retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     // Matching the organization, as `course_objective` does, so a task cannot

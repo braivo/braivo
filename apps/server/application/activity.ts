@@ -19,6 +19,7 @@ import {
   readObjectivesWithTasks,
   recordAttempt,
   RestingTask,
+  RetiredTask,
 } from "../persistence/index.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
@@ -80,10 +81,10 @@ export async function chooseNextActivity(input: {
   });
   if (decision === undefined) return { kind: "no-activity" };
 
-  // The decision's objective had a task a moment ago, and nothing removes one.
-  // Once retirement can, both reads must apply it, or this throws.
+  // It had a task a moment ago, so its last one was retired since; the next
+  // asking skips the objective.
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
-  if (task === undefined) throw new Error(`Objective "${decision.objectiveId}" has no task.`);
+  if (task === undefined) return { kind: "no-activity" };
 
   // Waiting rather than selecting again without this objective, which can
   // introduce unseen material ahead of it unless a second selection rule
@@ -172,6 +173,7 @@ export async function submitAttempt(input: {
   } catch (error) {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
     if (error instanceof RestingTask) return { kind: "resting" };
+    if (error instanceof RetiredTask) return { kind: "unavailable" };
     throw error;
   }
 
@@ -179,11 +181,11 @@ export async function submitAttempt(input: {
 }
 
 /**
- * `unavailable` is a missing course, one the learner is not in, and a task
- * outside it, alike, as for `NextObjective`. `invalid` is an attempt ID out of
- * bounds or a response that cannot answer this task; `conflict`, an attempt ID
- * already used otherwise; `resting`, a task this learner answered too recently
- * to answer again yet.
+ * `unavailable` is a missing course, one the learner is not in, a task outside
+ * it, and a new attempt on a retired task, alike, as for `NextObjective`.
+ * `invalid` is an attempt ID out of bounds or a response that cannot answer
+ * this task; `conflict`, an attempt ID already used otherwise; `resting`, a
+ * task this learner answered too recently to answer again yet.
  */
 export type SubmittedAttempt =
   | { kind: "unavailable" }

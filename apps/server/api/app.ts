@@ -22,6 +22,7 @@ import {
   readHostOrganization,
   readLearnerProgress,
   recordGradedEvidence,
+  retireTasks,
   submitAttempt,
   type RequestHost,
 } from "../application/index.ts";
@@ -199,6 +200,16 @@ function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | u
     parsed.push({ objectiveId, body: rest });
   }
   return parsed;
+}
+
+/** Reads `taskIds`, each non-empty, out of a request body. */
+function parseTaskIds(body: unknown): string[] | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const ids = (body as { taskIds?: unknown }).taskIds;
+  if (!Array.isArray(ids) || ids.length > MAX_ITEMS_PER_REQUEST) return undefined;
+  if (!ids.every((id) => typeof id === "string" && id !== "")) return undefined;
+  return ids as string[];
 }
 
 /**
@@ -585,6 +596,38 @@ export function createApi(options: ApiOptions) {
         return context.json({ taskIds }, 201);
       } catch (error) {
         if (error instanceof InvalidTask) return context.body(null, 400);
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * Withdraws tasks from practice. A POST rather than a DELETE, because nothing
+   * is deleted: the tasks stay, for the attempts that point at them.
+   */
+  api.post(
+    "/api/organizations/:organizationId/tasks/retire",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const taskIds = parseTaskIds(await context.req.json().catch(() => undefined));
+      if (taskIds === undefined) return context.body(null, 400);
+
+      try {
+        await retireTasks({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          taskIds,
+          now: new Date(),
+        });
+        return context.body(null, 204);
+      } catch (error) {
         if (error instanceof NotPermitted) return context.body(null, 403);
         throw error;
       }

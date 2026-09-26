@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Database } from "@braivo/db";
 import { attempt, courseObjective, learnerEvidence, task } from "@braivo/db/schema";
-import { and, asc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
@@ -21,6 +21,14 @@ export class ConflictingAttempt extends Error {
   constructor(readonly id: string) {
     super(`Attempt "${id}" is already recorded with a different task or response.`);
     this.name = "ConflictingAttempt";
+  }
+}
+
+/** A new attempt on a retired task. */
+export class RetiredTask extends Error {
+  constructor() {
+    super("The task was retired.");
+    this.name = "RetiredTask";
   }
 }
 
@@ -62,7 +70,39 @@ export async function createTasks(
   return rows.map((row) => row.id);
 }
 
-/** Which of these objectives have at least one task, and so something to practise. */
+/** The IDs among these that are not the organization's tasks, missing ones included. */
+export async function findTasksOutsideOrganization(
+  database: Database,
+  organizationId: string,
+  taskIds: readonly string[],
+): Promise<string[]> {
+  const wanted = [...new Set(taskIds)];
+  if (wanted.length === 0) return [];
+
+  const owned = await database
+    .select({ id: task.id })
+    .from(task)
+    .where(and(eq(task.organizationId, organizationId), inArray(task.id, wanted)));
+
+  const inside = new Set(owned.map((row) => row.id));
+  return wanted.filter((id) => !inside.has(id));
+}
+
+/** Stamps tasks retired; one already retired keeps its first date. */
+export async function markTasksRetired(
+  database: Database,
+  taskIds: readonly string[],
+  at: Date,
+): Promise<void> {
+  if (taskIds.length === 0) return;
+
+  await database
+    .update(task)
+    .set({ retiredAt: at })
+    .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
+}
+
+/** Which of these objectives have an unretired task, and so something to practise. */
 export async function readObjectivesWithTasks(
   database: Database,
   objectiveIds: readonly string[],
@@ -72,14 +112,15 @@ export async function readObjectivesWithTasks(
   const rows = await database
     .selectDistinct({ objectiveId: task.objectiveId })
     .from(task)
-    .where(inArray(task.objectiveId, [...objectiveIds]));
+    .where(and(inArray(task.objectiveId, [...objectiveIds]), isNull(task.retiredAt)));
   return new Set(rows.map((row) => row.objectiveId));
 }
 
 /**
- * The objective's task this learner attempted least recently, never-attempted
- * first, then oldest: rotating through an objective's tasks keeps a learner from
- * answering the one they just saw. `undefined` when the objective has none.
+ * The objective's unretired task this learner attempted least recently,
+ * never-attempted first, then oldest: rotating through an objective's tasks
+ * keeps a learner from answering the one they just saw. `undefined` when the
+ * objective has none.
  *
  * `lastAttemptAt` is when this learner last answered it, if ever. It is the
  * least recent, so if it was answered too recently to offer, so was every task
@@ -94,7 +135,7 @@ export async function readNextTask(
     .select({ id: task.id, objectiveId: task.objectiveId, body: task.body, lastAttemptAt })
     .from(task)
     .leftJoin(attempt, and(eq(attempt.taskId, task.id), eq(attempt.learnerId, input.learnerId)))
-    .where(eq(task.objectiveId, input.objectiveId))
+    .where(and(eq(task.objectiveId, input.objectiveId), isNull(task.retiredAt)))
     .groupBy(task.id)
     .orderBy(sql`${lastAttemptAt} asc nulls first`, asc(task.createdAt), asc(task.id))
     .limit(1);
@@ -104,8 +145,10 @@ export async function readNextTask(
 }
 
 /**
- * A task, provided it assesses one of this course's objectives. Answering is
+ * A task, provided it assesses one of this course's objectives: answering is
  * authorized through the course, so a task outside it is as good as missing.
+ * Retired ones included, so a resend of an attempt recorded before retirement
+ * still reaches `recordAttempt`, which refuses only a new one.
  */
 export async function readCourseTask(
   database: Database,
@@ -133,6 +176,10 @@ export async function readCourseTask(
  * first submission's date. The same ID with anything else is `ConflictingAttempt`.
  * Compared after the insert, inside the transaction, so two racing submissions
  * see whichever one won (see `recordEvidence`).
+ *
+ * A new attempt is `RetiredTask` when the task is retired, read `FOR SHARE`:
+ * the attempt's foreign key takes only a key-share lock, which does not wait
+ * for the update that retires, so an attempt could be recorded after it.
  *
  * A new attempt is `RestingTask` when the learner answered the same task in
  * another attempt after `restWindowStart` (docs/adr/0017-task-rest.md). Checked only
@@ -169,6 +216,13 @@ export async function recordAttempt(
       if (stored?.taskId === taskId && isDeepStrictEqual(stored.response, response)) return;
       throw new ConflictingAttempt(attemptId);
     }
+
+    const [current] = await transaction
+      .select({ retiredAt: task.retiredAt })
+      .from(task)
+      .where(eq(task.id, taskId))
+      .for("share");
+    if (current?.retiredAt) throw new RetiredTask();
 
     const [previous] = await transaction
       .select({ id: attempt.id })
