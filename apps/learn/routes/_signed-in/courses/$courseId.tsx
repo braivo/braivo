@@ -175,9 +175,8 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
 }
 
 /**
- * Why this comes now, from the values the decision was made on — the learner's
- * side of the principle that decisions are explainable. A reteach is always
- * after a miss, since only a failure leaves an objective being learned.
+ * Why this comes now, from the values the decision was made on: decisions are
+ * explainable. A reteach always follows a miss: only a failure keeps an objective acquiring.
  */
 function Reason({ decision }: { decision: LearningDecision }) {
   switch (decision.intent) {

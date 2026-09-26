@@ -121,7 +121,7 @@ function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefi
  * a due objective may have no task (glossary: No activity). `resting`: every
  * task of the decided objective rests until `retryAt`; the decision is left
  * out, as it may no longer hold by then. Both name the objective, so a learner
- * is told what they are practising and not only why.
+ * sees what they practise, not only why.
  */
 export type NextActivity =
   | { kind: "unavailable" }

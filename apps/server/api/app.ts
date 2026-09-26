@@ -370,8 +370,8 @@ export function createApi(options: ApiOptions) {
   });
 
   /**
-   * The next objective and a task to practise it with, for the signed-in
-   * learner. Answered like the decision route, whose statuses it shares.
+   * The signed-in learner's next objective, with a task to practise it or, while
+   * its tasks rest, when to ask again. Statuses as for the decision route.
    */
   api.get("/api/courses/:courseId/activity", async (context) => {
     context.header("cache-control", "private, no-store");

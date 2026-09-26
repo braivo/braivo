@@ -26,10 +26,9 @@ import { cn } from "#lib/utils";
  * focus, which would leave a keyboard learner nowhere while the answer is on
  * its way.
  *
- * Until then, keys 1 to 9 choose the option shown in that place, but only while
- * focus is within the question, so a stray digit from elsewhere on the page, or
- * from speech input, answers nothing (WCAG 2.1.4). `ref` is the question itself,
- * for a caller to move focus to.
+ * Until then, keys 1 to 9 choose the option shown in that place, only while
+ * focus is within the question: WCAG 2.1.4 allows character shortcuts active
+ * only on focus. `ref` is the question itself, for a caller to move focus to.
  */
 export function ChoiceQuestion(props: {
   prompt: string;
@@ -53,8 +52,7 @@ export function ChoiceQuestion(props: {
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (locked || event.repeat) return;
-    // Not Shift: on some layouts, AZERTY among them, it is what types a digit,
-    // and where it types something else, that is no digit.
+    // Not Shift: on AZERTY it types the digit; elsewhere it types no digit.
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const option = /^[1-9]$/.test(event.key) ? options[Number(event.key) - 1] : undefined;
     if (option === undefined) return;

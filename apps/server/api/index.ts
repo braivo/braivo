@@ -48,7 +48,8 @@
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
-// serves: the next objective and a task to practise it. Statuses as for `next`,
+// serves: the next objective, with a task to practise it or, while its tasks
+// rest, when to ask again. Statuses as for `next`,
 // except that only objectives with a task are considered, so 204 also means the
 // course has nothing to practise yet. When a task is available, 200 answers the
 // decision, its objective, and the task, never the task's answer:
@@ -66,7 +67,7 @@
 // the grade reveals the answer. When every task for the decision is resting,
 // 200 answers the objective and in how many seconds to ask again: whole
 // seconds, rounded up, and a duration rather than a date, so the client's clock
-// does not matter:
+// does not matter. No decision: it may no longer hold when the rest ends.
 //
 //   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540 }
 //

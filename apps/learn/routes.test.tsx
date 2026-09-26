@@ -476,6 +476,10 @@ describe("the learn app", () => {
     await screen.findByText("Past tense of 'hablar'?");
 
     const question = screen.getByRole("group");
+    // Hinted, and hidden from the option's name.
+    const hint = screen.getByRole("button", { name: "hablé" }).querySelector("kbd");
+    expect(hint?.textContent).toBe("2");
+    expect(hint?.getAttribute("aria-hidden")).toBe("true");
 
     // Not from outside the question, which takes the focus when shown, nor
     // held down, nor with a modifier other than Shift.
