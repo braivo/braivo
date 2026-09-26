@@ -24,7 +24,7 @@ export class ConflictingAttempt extends Error {
   }
 }
 
-/** A new attempt on a task retired since it was read. */
+/** A new attempt on a retired task. */
 export class RetiredTask extends Error {
   constructor() {
     super("The task was retired.");

@@ -25,9 +25,9 @@ const at = new Date("2026-06-01T00:00:00.000Z");
 let objectiveId!: string;
 let taskId!: string;
 
-/** Resolves once another session waits on a `FOR SHARE` lock. */
-async function waitingOnShareLock(): Promise<void> {
-  for (;;) {
+/** Resolves once another session waits on a `FOR SHARE` lock, or once stopped. */
+async function waitingOnShareLock(stopped: () => boolean): Promise<void> {
+  while (!stopped()) {
     const waiting = await database.execute(
       sql`select 1 from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%for share%'`,
     );
@@ -99,7 +99,11 @@ describe.skipIf(!connectionString)("recording an attempt on a retired task", () 
     // Committed only once the attempt waits for it, or has been recorded
     // without waiting, which is the failure this pins.
     const recording = record("during");
-    await Promise.race([recording.catch(() => {}), waitingOnShareLock()]);
+    let settled = false;
+    const waiting = waitingOnShareLock(() => settled);
+    await Promise.race([recording.catch(() => {}), waiting]);
+    settled = true;
+    await waiting;
     commit();
     await retiring;
 

@@ -192,7 +192,7 @@
 //
 // `POST /api/organizations/:organizationId/tasks/retire` — withdraws tasks from
 // practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never
-// offered and takes no new answer; it is not deleted, and evidence already
+// offered and accepts no new attempt; it is not deleted, and evidence already
 // graded from it stands. Answers 204, also for a task already retired; 403 when
 // any task is not this organization's or does not exist, retiring none.
 //

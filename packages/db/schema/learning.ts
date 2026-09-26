@@ -227,7 +227,7 @@ export const task = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     /**
      * When a content owner withdrew it — a wrong answer key, say. Never offered
-     * after, and takes no new answer; kept, since attempts point at it.
+     * after, and accepts no new attempt; kept, since attempts point at it.
      */
     retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
   },

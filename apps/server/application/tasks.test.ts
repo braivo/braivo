@@ -37,7 +37,7 @@ function define(tasks: readonly { objectiveId: string; body: unknown }[], acting
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
-describe.skipIf(!connectionString)("defining tasks", () => {
+describe.skipIf(!connectionString)("tasks", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
   });
@@ -143,7 +143,7 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     ).rejects.toBeInstanceOf(InvalidTask);
   });
 
-  test("retires a task: never offered, no new answer taken, and retiring twice is harmless", async () => {
+  test("retires a task: never offered, no new attempt accepted, and retiring twice is harmless", async () => {
     const [wrong, right] = (await define([
       { objectiveId: objective, body: choice },
       { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
@@ -164,6 +164,7 @@ describe.skipIf(!connectionString)("defining tasks", () => {
       });
 
     const before = await answer("before");
+    expect(before).toMatchObject({ kind: "graded", grade: { outcome: "failure" } });
     await retire([wrong]);
     await retire([wrong]);
 
