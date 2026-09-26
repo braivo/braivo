@@ -143,14 +143,27 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     ).rejects.toBeInstanceOf(InvalidTask);
   });
 
-  test("retires a task: never offered or answered again, and retiring twice is harmless", async () => {
+  test("retires a task: never offered, no new answer taken, and retiring twice is harmless", async () => {
     const [wrong, right] = (await define([
       { objectiveId: objective, body: choice },
       { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
     ])) as [string, string];
     const retire = (taskIds: string[], actingAs = author) =>
       retireTasks({ database, organizationId, actingAs, taskIds, now });
+    const answer = (attemptId: string) =>
+      submitAttempt({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        attemptId,
+        taskId: wrong,
+        // Failed, so the objective stays in practice and a task is still offered.
+        response: { choice: 1 },
+        now,
+      });
 
+    const before = await answer("before");
     await retire([wrong]);
     await retire([wrong]);
 
@@ -159,20 +172,13 @@ describe.skipIf(!connectionString)("defining tasks", () => {
     ).toMatchObject({
       task: { id: right },
     });
-    const answered = await submitAttempt({
-      database,
-      learnerId: learner,
-      courseId,
-      host: installation,
-      attemptId: "on-retired",
-      taskId: wrong,
-      response: { choice: 0 },
-      now,
-    });
-    expect(answered).toEqual({ kind: "unavailable" });
+    // A resend whose answer was lost still gets its grade; a new answer does not.
+    expect(await answer("before")).toEqual(before);
+    expect(await answer("after")).toEqual({ kind: "unavailable" });
 
     // With its last task retired, the objective has nothing left to practise.
     await retire([right]);
+    expect(await readObjectivesWithTasks(database, [objective])).toEqual(new Set());
     expect(
       await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
     ).toEqual({

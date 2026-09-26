@@ -73,6 +73,17 @@ describe.skipIf(!connectionString)("recording an attempt on a retired task", () 
     expect(await database.select().from(attempt).where(eq(attempt.taskId, taskId))).toEqual([]);
   });
 
+  test("retiring again keeps the first date", async () => {
+    await markTasksRetired(database, [taskId], at);
+    await markTasksRetired(database, [taskId], new Date(at.getTime() + 1000));
+
+    const [stored] = await database
+      .select({ retiredAt: task.retiredAt })
+      .from(task)
+      .where(eq(task.id, taskId));
+    expect(stored?.retiredAt).toEqual(at);
+  });
+
   test("waits for a retirement in progress, then refuses it", async () => {
     let updated!: () => void;
     const hasUpdated = new Promise<void>((resolve) => (updated = resolve));

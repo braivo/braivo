@@ -479,7 +479,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
    * Resolved inside each test rather than in the table, since the learner and
    * the organization only exist once `beforeAll` has run.
    */
-  function write(route: "evidence" | "objectives" | "tasks" | "courses" | "attempts") {
+  function write(route: "evidence" | "objectives" | "tasks" | "retire" | "courses" | "attempts") {
     switch (route) {
       case "evidence":
         return {
@@ -500,6 +500,12 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           body: { tasks: [] } as unknown,
           accepted: 201,
         };
+      case "retire":
+        return {
+          path: `/api/organizations/${organizationId}/tasks/retire`,
+          body: { taskIds: [] } as unknown,
+          accepted: 204,
+        };
       case "courses":
         return {
           path: `/api/organizations/${organizationId}/courses`,
@@ -519,7 +525,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   }
 
-  const routes = ["evidence", "objectives", "tasks", "courses", "attempts"] as const;
+  const routes = ["evidence", "objectives", "tasks", "retire", "courses", "attempts"] as const;
 
   test("names the organization the request's host serves, and nothing for other hosts", async () => {
     const served = await api.request(`${organizationOrigin}/api/organization`);
@@ -692,7 +698,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
   });
 
-  test("lets an admin retire tasks, and nobody else", async () => {
+  test("lets an admin retire tasks, refusing a learner, no session, and an invalid batch", async () => {
     const [objectiveId] = await createObjectives(database, organizationId, ["Retired"]);
     const taskId = await testing.createTask(database, {
       organizationId,
@@ -700,15 +706,18 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       body: { kind: "choice", prompt: "?", options: ["a", "b"], answer: 0 },
       createdAt: at,
     });
-    const retire = (body: unknown, cookie: string) =>
+    const retire = (body: unknown, cookie?: string) =>
       api.request(`/api/organizations/${organizationId}/tasks/retire`, {
         method: "POST",
-        headers: { "content-type": "application/json", cookie },
+        headers: { "content-type": "application/json", ...(cookie && { cookie }) },
         body: JSON.stringify(body),
       });
+    const tooMany = Array.from({ length: 1001 }, () => taskId);
 
+    expect((await retire({ taskIds: [taskId] })).status).toBe(401);
     expect((await retire({ taskIds: [taskId] }, learner.cookie)).status).toBe(403);
     expect((await retire({ taskIds: [""] }, teacher.cookie)).status).toBe(400);
+    expect((await retire({ taskIds: tooMany }, teacher.cookie)).status).toBe(400);
     expect((await retire({ taskIds: [taskId] }, teacher.cookie)).status).toBe(204);
     expect((await retire({ taskIds: [taskId] }, teacher.cookie)).status).toBe(204);
   });

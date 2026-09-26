@@ -82,7 +82,8 @@
 //        cannot answer the task
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task,
-//        or the task was retired
+//        or the task was retired (a resend of an attempt recorded before that
+//        still answers its grade)
 //   409  `id` was already used for a different task or response, or the
 //        learner answered this task in another attempt less than ten minutes
 //        ago. Either way, ask for the activity again rather than resending.
@@ -192,7 +193,7 @@
 //
 // `POST /api/organizations/:organizationId/tasks/retire` — withdraws tasks from
 // practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never offered
-// or answered again, which is how a task with a wrong answer key is taken back.
+// and takes no new answer, which is how a task with a wrong answer key is taken back.
 // It is not deleted, and the evidence already graded from it stands. Answers
 // 204, also for a task already retired; 403 when any task is not this
 // organization's or does not exist, retiring none.

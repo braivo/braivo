@@ -181,8 +181,8 @@ export async function submitAttempt(input: {
 }
 
 /**
- * `unavailable` is a missing course, one the learner is not in, and a task
- * outside it or retired, alike, as for `NextObjective`. `invalid` is an attempt ID out of
+ * `unavailable` is a missing course, one the learner is not in, a task outside
+ * it, and a new attempt on a retired task, alike, as for `NextObjective`. `invalid` is an attempt ID out of
  * bounds or a response that cannot answer this task; `conflict`, an attempt ID
  * already used otherwise; `resting`, a task this learner answered too recently
  * to answer again yet.

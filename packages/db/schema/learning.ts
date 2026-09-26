@@ -227,7 +227,7 @@ export const task = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     /**
      * When a content owner withdrew it — a wrong answer key, say. A retired task
-     * is never offered or answered again, but stays, since attempts point at it
+     * is never offered and takes no new answer, but stays, since attempts point at it
      * and immutability is what keeps them interpretable.
      */
     retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),

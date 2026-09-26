@@ -147,10 +147,10 @@ export async function readNextTask(
 }
 
 /**
- * A task, provided it assesses one of this course's objectives and is not
- * retired. Answering is authorized through the course, so a task outside it is
- * as good as missing; a retired one is withdrawn, most likely for grading
- * wrongly, so answering it would record wrong evidence.
+ * A task, provided it assesses one of this course's objectives: answering is
+ * authorized through the course, so a task outside it is as good as missing.
+ * Retired ones included, so a resend of an attempt recorded before retirement
+ * still reaches `recordAttempt`, which refuses only a new one.
  */
 export async function readCourseTask(
   database: Database,
@@ -166,7 +166,7 @@ export async function readCourseTask(
         eq(courseObjective.objectiveId, task.objectiveId),
       ),
     )
-    .where(and(eq(task.id, input.taskId), isNull(task.retiredAt)));
+    .where(eq(task.id, input.taskId));
   return row && { ...row, body: row.body as TaskBody };
 }
 
