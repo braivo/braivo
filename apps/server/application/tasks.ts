@@ -63,11 +63,8 @@ export async function defineTasks(input: {
 }
 
 /**
- * Withdraws tasks from practice — the way to take back a task, since tasks are
- * immutable (docs/adr/0015-tasks.md). A retired task is never offered and
- * takes no new answer; its attempts and the evidence graded from them stay, because
- * evidence is not rewritten after the fact. Refuses the whole batch when the
- * caller may not author or a task is not the organization's.
+ * Withdraws tasks from practice (docs/adr/0015-tasks.md). Refuses the whole
+ * batch when the caller may not administer or a task is not the organization's.
  */
 export async function retireTasks(input: {
   database: Database;

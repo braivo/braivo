@@ -81,8 +81,8 @@ export async function chooseNextActivity(input: {
   });
   if (decision === undefined) return { kind: "no-activity" };
 
-  // The objective had a task a moment ago; its last one being retired since is
-  // the only way to have none now, and it passes by the next asking.
+  // It had a task a moment ago, so its last one was retired since; the next
+  // asking skips the objective.
   const task = await readNextTask(database, { learnerId, objectiveId: decision.objectiveId });
   if (task === undefined) return { kind: "no-activity" };
 
@@ -182,10 +182,10 @@ export async function submitAttempt(input: {
 
 /**
  * `unavailable` is a missing course, one the learner is not in, a task outside
- * it, and a new attempt on a retired task, alike, as for `NextObjective`. `invalid` is an attempt ID out of
- * bounds or a response that cannot answer this task; `conflict`, an attempt ID
- * already used otherwise; `resting`, a task this learner answered too recently
- * to answer again yet.
+ * it, and a new attempt on a retired task, alike, as for `NextObjective`.
+ * `invalid` is an attempt ID out of bounds or a response that cannot answer
+ * this task; `conflict`, an attempt ID already used otherwise; `resting`, a
+ * task this learner answered too recently to answer again yet.
  */
 export type SubmittedAttempt =
   | { kind: "unavailable" }

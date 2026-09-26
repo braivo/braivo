@@ -226,9 +226,8 @@ export const task = pgTable(
     body: jsonb("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
     /**
-     * When a content owner withdrew it — a wrong answer key, say. A retired task
-     * is never offered and takes no new answer, but stays, since attempts point at it
-     * and immutability is what keeps them interpretable.
+     * When a content owner withdrew it — a wrong answer key, say. Never offered
+     * after, and takes no new answer; kept, since attempts point at it.
      */
     retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
   },

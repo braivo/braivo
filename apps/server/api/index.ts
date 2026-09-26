@@ -185,18 +185,16 @@
 // index of the correct one, `explanation` optional and shown after grading, and
 // `keepOrder: true` to present the options as written rather than shuffled —
 // for a scale, or "all of the above".
-// Tasks are immutable: correcting one means adding another and retiring the
-// wrong one. Answers 201 with
-// `{ "taskIds": [...] }`, positionally matching; 400 when any task is not a
-// valid one of its kind, and 403 when an objective is not this organization's.
-// Either refusal stores nothing in the batch.
+// Tasks are immutable: to correct one, add another and retire the wrong one.
+// Answers 201 with `{ "taskIds": [...] }`, positionally matching; 400 when any
+// task is not a valid one of its kind, and 403 when an objective is not this
+// organization's. Either refusal stores nothing in the batch.
 //
 // `POST /api/organizations/:organizationId/tasks/retire` — withdraws tasks from
-// practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never offered
-// and takes no new answer, which is how a task with a wrong answer key is taken back.
-// It is not deleted, and the evidence already graded from it stands. Answers
-// 204, also for a task already retired; 403 when any task is not this
-// organization's or does not exist, retiring none.
+// practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never
+// offered and takes no new answer; it is not deleted, and evidence already
+// graded from it stands. Answers 204, also for a task already retired; 403 when
+// any task is not this organization's or does not exist, retiring none.
 //
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,

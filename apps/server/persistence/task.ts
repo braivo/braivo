@@ -88,10 +88,7 @@ export async function findTasksOutsideOrganization(
   return wanted.filter((id) => !inside.has(id));
 }
 
-/**
- * Stamps tasks retired, so they are never offered or answered again. A task
- * already retired keeps its first date.
- */
+/** Stamps tasks retired; one already retired keeps its first date. */
 export async function markTasksRetired(
   database: Database,
   taskIds: readonly string[],
@@ -105,7 +102,7 @@ export async function markTasksRetired(
     .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
 }
 
-/** Which of these objectives have at least one task still offered, and so something to practise. */
+/** Which of these objectives have an unretired task, and so something to practise. */
 export async function readObjectivesWithTasks(
   database: Database,
   objectiveIds: readonly string[],
@@ -121,8 +118,9 @@ export async function readObjectivesWithTasks(
 
 /**
  * The objective's unretired task this learner attempted least recently,
- * never-attempted first, then oldest: rotating through an objective's tasks keeps a learner from
- * answering the one they just saw. `undefined` when the objective has none.
+ * never-attempted first, then oldest: rotating through an objective's tasks
+ * keeps a learner from answering the one they just saw. `undefined` when the
+ * objective has none.
  *
  * `lastAttemptAt` is when this learner last answered it, if ever. It is the
  * least recent, so if it was answered too recently to offer, so was every task
@@ -179,9 +177,9 @@ export async function readCourseTask(
  * Compared after the insert, inside the transaction, so two racing submissions
  * see whichever one won (see `recordEvidence`).
  *
- * A new attempt is `RetiredTask` when the task is retired, checked under a
- * row lock: the attempt's foreign key alone would not wait for a retirement in
- * progress, so an attempt read before one could still be recorded after it.
+ * A new attempt is `RetiredTask` when the task is retired, read `FOR SHARE`:
+ * the attempt's foreign key takes only a key-share lock, which does not wait
+ * for the update that retires, so an attempt could be recorded after it.
  *
  * A new attempt is `RestingTask` when the learner answered the same task in
  * another attempt after `restWindowStart` (docs/adr/0017-task-rest.md). Checked only
@@ -219,7 +217,6 @@ export async function recordAttempt(
       throw new ConflictingAttempt(attemptId);
     }
 
-    // FOR SHARE conflicts with the update that retires, so one waits for the other.
     const [current] = await transaction
       .select({ retiredAt: task.retiredAt })
       .from(task)
