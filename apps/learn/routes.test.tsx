@@ -475,14 +475,25 @@ describe("the learn app", () => {
     });
     await screen.findByText("Past tense of 'hablar'?");
 
-    // Not from outside the question, nor with a modifier: only a plain digit
-    // while the question has focus, which it takes when shown.
+    const question = screen.getByRole("group");
+    const option = screen.getByRole("button", { name: "hablé" });
+    expect(option.getAttribute("aria-keyshortcuts")).toBe("2");
+
+    // Not from outside the question, which takes the focus when shown, nor
+    // held down, nor with a modifier other than Shift.
     fireEvent.keyDown(document.body, { key: "2" });
-    fireEvent.keyDown(document.activeElement!, { key: "2", shiftKey: true });
+    fireEvent.keyDown(question, { key: "2", repeat: true });
+    for (const modifier of ["altKey", "ctrlKey", "metaKey"]) {
+      fireEvent.keyDown(question, { key: "2", [modifier]: true });
+    }
     expect(submitAttempt).not.toHaveBeenCalled();
 
-    // "hablé" is shown second but is choice 0: the key picks by place.
-    fireEvent.keyDown(document.activeElement!, { key: "2" });
+    // "hablé" is shown second but is choice 0: the key picks by place. Shift
+    // counts when it types the digit, as on AZERTY.
+    expect(document.activeElement).toBe(question);
+    fireEvent.keyDown(question, { key: "2", shiftKey: true });
+    // Not again while the answer is on its way.
+    fireEvent.keyDown(question, { key: "1" });
 
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(1);
@@ -491,9 +502,10 @@ describe("the learn app", () => {
       expect.anything(),
     );
 
-    // Answered, so the keys choose nothing more.
-    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    // Answered, so the keys choose nothing more, nor claim to.
+    fireEvent.keyDown(question, { key: "1" });
     expect(submitAttempt).toHaveBeenCalledTimes(1);
+    expect(option.getAttribute("aria-keyshortcuts")).toBeNull();
   });
 
   test("says why a question comes now", async () => {
@@ -514,10 +526,12 @@ describe("the learn app", () => {
     expect(await screen.findByText("Review · Past tense")).toBeTruthy();
     expect(screen.getByText("Due for review: about 72% likely to recall now.")).toBeTruthy();
     // Read with the question, which takes the focus and so would skip them.
-    const described = screen.getByRole("group").getAttribute("aria-describedby")!;
-    expect(document.getElementById(described)!.textContent).toBe(
-      "Review · Past tenseDue for review: about 72% likely to recall now.",
-    );
+    expect(
+      screen.getByRole("group", {
+        name: "Past tense of 'hablar'?",
+        description: "Review · Past tense Due for review: about 72% likely to recall now.",
+      }),
+    ).toBeTruthy();
   });
 
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {

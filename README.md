@@ -124,7 +124,8 @@ curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
 
 # What comes next follows from that answer: greetings again, with the other task.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
-# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"task":{…,"prompt":"Goodbye, in Spanish?",…}}
+# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"objective":{…,"title":"Greetings"},
+#  "task":{…,"prompt":"Goodbye, in Spanish?",…}}
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress

@@ -64,8 +64,9 @@
 //
 // A task rests for ten minutes after Braivo accepts an answer to it, because
 // the grade reveals the answer. When every task for the decision is resting,
-// 200 answers only in how many seconds to ask again: whole seconds, rounded up,
-// and a duration rather than a date, so the client's clock does not matter:
+// 200 answers the objective and in how many seconds to ask again: whole
+// seconds, rounded up, and a duration rather than a date, so the client's clock
+// does not matter:
 //
 //   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540 }
 //

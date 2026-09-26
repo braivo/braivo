@@ -53,8 +53,9 @@ export function ChoiceQuestion(props: {
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (locked || event.repeat) return;
-    // Shift too: on some layouts, AZERTY among them, it is what types a digit.
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    // Not Shift: on some layouts, AZERTY among them, it is what types a digit,
+    // and where it types something else, that is no digit.
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const option = /^[1-9]$/.test(event.key) ? options[Number(event.key) - 1] : undefined;
     if (option === undefined) return;
     event.preventDefault();
@@ -84,7 +85,7 @@ export function ChoiceQuestion(props: {
               key={choice}
               variant="outline"
               aria-disabled={locked}
-              aria-keyshortcuts={place < 9 ? String(place + 1) : undefined}
+              aria-keyshortcuts={!locked && place < 9 ? String(place + 1) : undefined}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
                 "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:pointer-events-none",

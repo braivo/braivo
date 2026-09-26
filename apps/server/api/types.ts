@@ -48,8 +48,9 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
 
 /**
  * What a learner is to do next, as `GET /api/courses/:courseId/activity`
- * answers it: a task to answer now, or, when every task for the decision was
- * answered too recently, in how many seconds to ask again.
+ * answers it: the decided objective and a task to answer now, or, when every
+ * task for it was answered too recently, the objective and in how many seconds
+ * to ask again.
  */
 export type Activity =
   | {
