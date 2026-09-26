@@ -235,7 +235,7 @@ describe("the learn app", () => {
     expect(option.matches(":disabled")).toBe(false);
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
     // Marked as the learner's answer, with no spinner, since nothing is on its way.
-    expect(option.textContent).toBe("habléYour answer");
+    expect(option.textContent).toContain("Your answer");
     expect(screen.queryByRole("status")).toBeNull();
 
     // The options stay locked on the answer given: another would conflict

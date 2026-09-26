@@ -65,7 +65,7 @@ export function ChoiceQuestion(props: {
       aria-labelledby={promptId}
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="flex flex-col gap-4 outline-none"
+      className="flex flex-col gap-4"
     >
       <p id={promptId} className="font-heading text-lg font-semibold text-pretty">
         {prompt}
@@ -89,8 +89,13 @@ export function ChoiceQuestion(props: {
               )}
             >
               <span className="flex items-center gap-3">
-                {/* Hidden from the accessible name, which `aria-keyshortcuts` covers. */}
-                {place < 9 && !locked && <Kbd aria-hidden>{place + 1}</Kbd>}
+                {/* Hidden from the accessible name, which `aria-keyshortcuts` covers;
+                    kept in place once locked, so the text does not shift. */}
+                {place < 9 && (
+                  <Kbd aria-hidden className={cn(locked && "invisible")}>
+                    {place + 1}
+                  </Kbd>
+                )}
                 {text}
               </span>
               {correct && <span className="text-xs font-semibold text-primary">Correct</span>}
