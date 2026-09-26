@@ -42,8 +42,11 @@ export function ChoiceQuestion(props: {
   pending?: boolean;
   onChoose: (choice: number) => void;
   ref?: Ref<HTMLDivElement>;
+  /** Context read after the prompt when the question takes focus. */
+  "aria-describedby"?: string;
 }) {
   const { prompt, options, chosen, correctChoice, pending, onChoose, ref } = props;
+  const describedBy = props["aria-describedby"];
   const promptId = useId();
   const graded = correctChoice !== undefined;
   const locked = graded || chosen !== undefined;
@@ -63,6 +66,7 @@ export function ChoiceQuestion(props: {
       ref={ref}
       role="group"
       aria-labelledby={promptId}
+      aria-describedby={describedBy}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       className="flex flex-col gap-4"

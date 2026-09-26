@@ -221,6 +221,8 @@ function Practice({
   // The question itself, so its number keys work at once and a screen reader
   // announces the prompt that labels it.
   const focused = useFocusOnMount<HTMLDivElement>();
+  // Describes the question, so the focus landing on it reads this too.
+  const contextId = useId();
   const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
@@ -284,7 +286,7 @@ function Practice({
 
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col">
+      <div id={contextId} className="flex flex-col">
         <MutedText>
           {INTENT_LABELS[decision.intent]} · {objective.title}
         </MutedText>
@@ -298,6 +300,7 @@ function Practice({
         pending={sending}
         onChoose={submit}
         ref={focused}
+        aria-describedby={contextId}
       />
       {failed && chosen !== undefined && (
         <>

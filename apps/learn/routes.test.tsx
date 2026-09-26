@@ -213,6 +213,8 @@ describe("the learn app", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("group", { name: "Past tense of 'comer'?" }),
     );
+    expect(screen.getByText("Try again · Past tense")).toBeTruthy();
+    expect(screen.getByText("You missed this last time.")).toBeTruthy();
   });
 
   test.each([
@@ -511,6 +513,11 @@ describe("the learn app", () => {
 
     expect(await screen.findByText("Review · Past tense")).toBeTruthy();
     expect(screen.getByText("Due for review: about 72% likely to recall now.")).toBeTruthy();
+    // Read with the question, which takes the focus and so would skip them.
+    const described = screen.getByRole("group").getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)!.textContent).toBe(
+      "Review · Past tenseDue for review: about 72% likely to recall now.",
+    );
   });
 
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
