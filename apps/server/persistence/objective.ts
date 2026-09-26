@@ -73,3 +73,15 @@ export async function readObjectives(
     .where(eq(objective.organizationId, organizationId))
     .orderBy(asc(objective.title), asc(objective.id));
 }
+
+/** One objective, by its ID alone: the caller has already established it may be read. */
+export async function readObjective(
+  database: Database,
+  objectiveId: string,
+): Promise<Objective | undefined> {
+  const [row] = await database
+    .select({ id: objective.id, title: objective.title })
+    .from(objective)
+    .where(eq(objective.id, objectiveId));
+  return row;
+}

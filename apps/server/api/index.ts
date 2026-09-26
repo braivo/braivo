@@ -54,6 +54,7 @@
 // decision with the task, never its answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
+//     "objective": { "id": "…", "title": "Greetings" },
 //     "task": { "id": "…", "kind": "choice", "prompt": "…",
 //               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
 //
@@ -66,7 +67,7 @@
 // 200 answers only in how many seconds to ask again: whole seconds, rounded up,
 // and a duration rather than a date, so the client's clock does not matter:
 //
-//   { "retryAfter": 540 }
+//   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540 }
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body

@@ -19,6 +19,7 @@ afterEach(cleanup);
 
 const activity: Activity = {
   decision: { objectiveId: "o1", modelVersion: "v1", intent: "introduce" },
+  objective: { id: "o1", title: "Past tense" },
   task: {
     id: "t1",
     kind: "choice",
@@ -39,6 +40,7 @@ const anotherActivity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
+  objective: { id: "o1", title: "Past tense" },
   task: {
     id: "t2",
     kind: "choice",
@@ -187,6 +189,8 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    // What is being practised, not only why.
+    expect(screen.getByText("New · Past tense")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledWith("c1", { signal: expect.any(AbortSignal) });
 
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
@@ -207,8 +211,10 @@ describe("the learn app", () => {
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
     expect(screen.queryByText("Not quite")).toBeNull();
     expect(document.activeElement).toBe(
-      screen.getByRole("region", { name: "Past tense of 'comer'?" }),
+      screen.getByRole("group", { name: "Past tense of 'comer'?" }),
     );
+    expect(screen.getByText("Try again · Past tense")).toBeTruthy();
+    expect(screen.getByText("You missed this last time.")).toBeTruthy();
   });
 
   test.each([
@@ -231,7 +237,7 @@ describe("the learn app", () => {
     expect(option.matches(":disabled")).toBe(false);
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
     // Marked as the learner's answer, with no spinner, since nothing is on its way.
-    expect(option.textContent).toBe("habléYour answer");
+    expect(option.textContent).toContain("Your answer");
     expect(screen.queryByRole("status")).toBeNull();
 
     // The options stay locked on the answer given: another would conflict
@@ -335,12 +341,13 @@ describe("the learn app", () => {
   test("says when a just-answered task comes back, and asks again then", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
-      .mockResolvedValueOnce({ retryAfter: 0.05 })
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
       .mockResolvedValueOnce(activity);
     renderAt("/courses/c1", { signedIn: true, nextActivity });
 
     const notice = await screen.findByRole("region", { name: "Take a short break" });
     expect(document.activeElement).toBe(notice);
+    expect(notice.textContent).toContain("You practised Past tense recently.");
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
@@ -356,7 +363,7 @@ describe("the learn app", () => {
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
-        .mockResolvedValueOnce({ retryAfter: 0.05 })
+        .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
         .mockResolvedValueOnce(reshuffled),
     });
 
@@ -366,7 +373,7 @@ describe("the learn app", () => {
     // Unanswered, though it is the same task: nothing carries over.
     await screen.findByRole("region", { name: "Take a short break" });
     const [first, second] = await screen.findAllByRole("button", { name: /^habl/ });
-    expect(first!.textContent).toBe("hablé");
+    expect(first).toBe(screen.getByRole("button", { name: "hablé" }));
     expect(second!.getAttribute("aria-disabled")).toBe("false");
     fireEvent.click(first!);
 
@@ -379,7 +386,7 @@ describe("the learn app", () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce({ retryAfter: 600 });
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600 });
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity,
@@ -459,6 +466,58 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+  });
+
+  test("answers from the keyboard, by the place an option is shown in", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+    });
+    await screen.findByText("Past tense of 'hablar'?");
+
+    // Not from outside the question, nor with a modifier: only a plain digit
+    // while the question has focus, which it takes when shown.
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.activeElement!, { key: "2", shiftKey: true });
+    expect(submitAttempt).not.toHaveBeenCalled();
+
+    // "hablé" is shown second but is choice 0: the key picks by place.
+    fireEvent.keyDown(document.activeElement!, { key: "2" });
+
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+    expect(submitAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ response: { choice: 0 } }),
+      expect.anything(),
+    );
+
+    // Answered, so the keys choose nothing more.
+    fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  test("says why a question comes now", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => ({
+        ...activity,
+        decision: {
+          objectiveId: "o1",
+          modelVersion: "v1",
+          intent: "review",
+          retrievability: 0.724,
+          stability: 3,
+        },
+      }),
+    });
+
+    expect(await screen.findByText("Review · Past tense")).toBeTruthy();
+    expect(screen.getByText("Due for review: about 72% likely to recall now.")).toBeTruthy();
+    // Read with the question, which takes the focus and so would skip them.
+    const described = screen.getByRole("group").getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)!.textContent).toBe(
+      "Review · Past tenseDue for review: about 72% likely to recall now.",
+    );
   });
 
   test("says when there is nothing to practise, without claiming the learner is caught up", async () => {

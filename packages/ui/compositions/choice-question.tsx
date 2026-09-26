@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useId } from "react";
+import { type KeyboardEvent, type Ref, useId } from "react";
 
 import { Button } from "#components/button";
+import { Kbd } from "#components/kbd";
 import { Spinner } from "#components/spinner";
 import { cn } from "#lib/utils";
 
@@ -24,6 +25,11 @@ import { cn } from "#lib/utils";
  * Locked with `aria-disabled` rather than `disabled`: a disabled button drops
  * focus, which would leave a keyboard learner nowhere while the answer is on
  * its way.
+ *
+ * Until then, keys 1 to 9 choose the option shown in that place, but only while
+ * focus is within the question, so a stray digit from elsewhere on the page, or
+ * from speech input, answers nothing (WCAG 2.1.4). `ref` is the question itself,
+ * for a caller to move focus to.
  */
 export function ChoiceQuestion(props: {
   prompt: string;
@@ -35,19 +41,41 @@ export function ChoiceQuestion(props: {
   /** Whether the chosen option is on its way. */
   pending?: boolean;
   onChoose: (choice: number) => void;
+  ref?: Ref<HTMLDivElement>;
+  /** Context read after the prompt when the question takes focus. */
+  "aria-describedby"?: string;
 }) {
-  const { prompt, options, chosen, correctChoice, pending, onChoose } = props;
+  const { prompt, options, chosen, correctChoice, pending, onChoose, ref } = props;
+  const describedBy = props["aria-describedby"];
   const promptId = useId();
   const graded = correctChoice !== undefined;
   const locked = graded || chosen !== undefined;
 
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (locked || event.repeat) return;
+    // Shift too: on some layouts, AZERTY among them, it is what types a digit.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const option = /^[1-9]$/.test(event.key) ? options[Number(event.key) - 1] : undefined;
+    if (option === undefined) return;
+    event.preventDefault();
+    onChoose(option.choice);
+  }
+
   return (
-    <div role="group" aria-labelledby={promptId} className="flex flex-col gap-4">
+    <div
+      ref={ref}
+      role="group"
+      aria-labelledby={promptId}
+      aria-describedby={describedBy}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      className="flex flex-col gap-4"
+    >
       <p id={promptId} className="font-heading text-lg font-semibold text-pretty">
         {prompt}
       </p>
       <div className="flex flex-col gap-2">
-        {options.map(({ choice, text }) => {
+        {options.map(({ choice, text }, place) => {
           const correct = graded && choice === correctChoice;
           const wrong = graded && choice === chosen && choice !== correctChoice;
           const ungraded = !graded && choice === chosen;
@@ -56,6 +84,7 @@ export function ChoiceQuestion(props: {
               key={choice}
               variant="outline"
               aria-disabled={locked}
+              aria-keyshortcuts={place < 9 ? String(place + 1) : undefined}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
                 "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:pointer-events-none",
@@ -63,7 +92,16 @@ export function ChoiceQuestion(props: {
                 wrong && "border-destructive bg-destructive/10",
               )}
             >
-              <span>{text}</span>
+              <span className="flex items-center gap-3">
+                {/* Hidden from the accessible name, which `aria-keyshortcuts` covers;
+                    kept in place once locked, so the text does not shift. */}
+                {place < 9 && (
+                  <Kbd aria-hidden className={cn(locked && "invisible")}>
+                    {place + 1}
+                  </Kbd>
+                )}
+                {text}
+              </span>
               {correct && <span className="text-xs font-semibold text-primary">Correct</span>}
               {wrong && <span className="text-xs font-semibold text-destructive">Your answer</span>}
               {ungraded &&

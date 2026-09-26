@@ -73,7 +73,11 @@ function NextStep() {
         // be due (glossary: No activity), and the summary above says so.
         <Notice title="Nothing to practise right now" />
       ) : "retryAfter" in activity ? (
-        <Resting key={attemptId} retryAfter={activity.retryAfter} />
+        <Resting
+          key={attemptId}
+          objective={activity.objective.title}
+          retryAfter={activity.retryAfter}
+        />
       ) : (
         // Keyed, so the next activity starts unanswered.
         <Practice key={attemptId} activity={activity} attemptId={attemptId} />
@@ -104,7 +108,7 @@ function ProgressSummary({ report }: { report: KnowledgeReport }) {
   ].filter(Boolean);
   if (parts.length === 0) return null;
 
-  return <MutedText className="mb-6">{parts.join(" · ")}</MutedText>;
+  return <MutedText className="mb-6 block">{parts.join(" · ")}</MutedText>;
 }
 
 /** What the page says instead of a question, focused as a question would be. */
@@ -151,7 +155,7 @@ function CourseError() {
 }
 
 /** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
-function Resting({ retryAfter }: { retryAfter: number }) {
+function Resting({ objective, retryAfter }: { objective: string; retryAfter: number }) {
   const router = useRouter();
   const delay = retryAfter * 1000;
   // Display only: the timer waits out the duration, so the device's clock cannot move it.
@@ -165,9 +169,31 @@ function Resting({ retryAfter }: { retryAfter: number }) {
   return (
     <Notice
       title="Take a short break"
-      description={`You answered this question recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+      description={`You practised ${objective} recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
     />
   );
+}
+
+/**
+ * Why this comes now, from the values the decision was made on — the learner's
+ * side of the principle that decisions are explainable. A reteach is always
+ * after a miss, since only a failure leaves an objective being learned.
+ */
+function Reason({ decision }: { decision: LearningDecision }) {
+  switch (decision.intent) {
+    case "introduce":
+      return null;
+    case "reteach":
+      return <MutedText>You missed this last time.</MutedText>;
+    case "review":
+      return (
+        <MutedText>
+          Due for review: about {Math.round(decision.retrievability * 100)}% likely to recall now.
+        </MutedText>
+      );
+    default:
+      return decision satisfies never;
+  }
 }
 
 const INTENT_LABELS: Record<LearningDecision["intent"], string> = {
@@ -192,8 +218,12 @@ function Practice({
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
-  const focused = useFocusOnMount<HTMLElement>();
-  const { decision, task } = activity;
+  // The question itself, so its number keys work at once and a screen reader
+  // announces the prompt that labels it.
+  const focused = useFocusOnMount<HTMLDivElement>();
+  // Describes the question, so the focus landing on it reads this too.
+  const contextId = useId();
+  const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
   // act on whatever page the learner has moved on to. Created in the effect,
@@ -255,8 +285,13 @@ function Practice({
   if (refused) return <Notice title="Something went wrong." />;
 
   return (
-    <section ref={focused} tabIndex={-1} aria-label={task.prompt} className="flex flex-col gap-6">
-      <MutedText>{INTENT_LABELS[decision.intent]}</MutedText>
+    <section className="flex flex-col gap-6">
+      <div id={contextId} className="flex flex-col">
+        <MutedText>
+          {INTENT_LABELS[decision.intent]} · {objective.title}
+        </MutedText>
+        <Reason decision={decision} />
+      </div>
       <ChoiceQuestion
         prompt={task.prompt}
         options={task.options}
@@ -264,6 +299,8 @@ function Practice({
         correctChoice={grade?.correctChoice}
         pending={sending}
         onChoose={submit}
+        ref={focused}
+        aria-describedby={contextId}
       />
       {failed && chosen !== undefined && (
         <>
