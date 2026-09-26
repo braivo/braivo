@@ -75,7 +75,7 @@ function NextStep() {
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
-          objective={activity.objective.title}
+          objectiveTitle={activity.objective.title}
           retryAfter={activity.retryAfter}
         />
       ) : (
@@ -155,7 +155,7 @@ function CourseError() {
 }
 
 /** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
-function Resting({ objective, retryAfter }: { objective: string; retryAfter: number }) {
+function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retryAfter: number }) {
   const router = useRouter();
   const delay = retryAfter * 1000;
   // Display only: the timer waits out the duration, so the device's clock cannot move it.
@@ -169,7 +169,7 @@ function Resting({ objective, retryAfter }: { objective: string; retryAfter: num
   return (
     <Notice
       title="Take a short break"
-      description={`You practised ${objective} recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+      description={`You practised ${objectiveTitle} recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
     />
   );
 }

@@ -69,7 +69,7 @@ export type Grade = content.Grade;
 /** A course as its organization's content owners see it listed. */
 export type Course = { id: string; title: string };
 
-/** A learning target as its organization's content owners see it listed. */
+/** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };
 
 /** An organization as those who manage it find it; `slug` is its console address. */

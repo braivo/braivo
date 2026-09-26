@@ -51,7 +51,7 @@
 // serves: the next objective and a task to practise it. Statuses as for `next`,
 // except that only objectives with a task are considered, so 204 also means the
 // course has nothing to practise yet. When a task is available, 200 answers the
-// decision with the task, never its answer:
+// decision, its objective, and the task, never the task's answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "objective": { "id": "…", "title": "Greetings" },

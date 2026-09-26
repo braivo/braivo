@@ -87,9 +87,10 @@ export async function chooseNextActivity(input: {
     readNextTask(database, { learnerId, objectiveId: decision.objectiveId }),
     readObjective(database, decision.objectiveId),
   ]);
-  // An objective is never deleted while a course orders it, so only a task can
-  // be missing: its last one was retired since, and the next asking skips it.
-  if (task === undefined || objective === undefined) return { kind: "no-activity" };
+  // Its last task was retired since; the next asking skips the objective.
+  if (task === undefined) return { kind: "no-activity" };
+  // Never missing: its course and tasks reference it, with deletes restricted.
+  if (objective === undefined) throw new Error(`Objective ${decision.objectiveId} is missing`);
 
   // Waiting rather than selecting again without this objective, which can
   // introduce unseen material ahead of it unless a second selection rule

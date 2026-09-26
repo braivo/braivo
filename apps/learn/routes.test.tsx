@@ -476,8 +476,6 @@ describe("the learn app", () => {
     await screen.findByText("Past tense of 'hablar'?");
 
     const question = screen.getByRole("group");
-    const option = screen.getByRole("button", { name: "hablé" });
-    expect(option.getAttribute("aria-keyshortcuts")).toBe("2");
 
     // Not from outside the question, which takes the focus when shown, nor
     // held down, nor with a modifier other than Shift.
@@ -502,10 +500,9 @@ describe("the learn app", () => {
       expect.anything(),
     );
 
-    // Answered, so the keys choose nothing more, nor claim to.
+    // Answered, so the keys choose nothing more.
     fireEvent.keyDown(question, { key: "1" });
     expect(submitAttempt).toHaveBeenCalledTimes(1);
-    expect(option.getAttribute("aria-keyshortcuts")).toBeNull();
   });
 
   test("says why a question comes now", async () => {

@@ -85,7 +85,6 @@ export function ChoiceQuestion(props: {
               key={choice}
               variant="outline"
               aria-disabled={locked}
-              aria-keyshortcuts={!locked && place < 9 ? String(place + 1) : undefined}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
                 "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:pointer-events-none",
@@ -94,8 +93,9 @@ export function ChoiceQuestion(props: {
               )}
             >
               <span className="flex items-center gap-3">
-                {/* Hidden from the accessible name, which `aria-keyshortcuts` covers;
-                    kept in place once locked, so the text does not shift. */}
+                {/* Hidden from the accessible name. Not `aria-keyshortcuts`, which
+                    names physical keys: a digit takes Shift on AZERTY, not on QWERTY.
+                    Kept in place once locked, so the text does not shift. */}
                 {place < 9 && (
                   <Kbd aria-hidden className={cn(locked && "invisible")}>
                     {place + 1}
