@@ -108,7 +108,7 @@ function ProgressSummary({ report }: { report: KnowledgeReport }) {
   ].filter(Boolean);
   if (parts.length === 0) return null;
 
-  return <MutedText className="mb-6">{parts.join(" · ")}</MutedText>;
+  return <MutedText className="mb-6 block">{parts.join(" · ")}</MutedText>;
 }
 
 /** What the page says instead of a question, focused as a question would be. */
@@ -284,7 +284,7 @@ function Practice({
 
   return (
     <section className="flex flex-col gap-6">
-      <div>
+      <div className="flex flex-col">
         <MutedText>
           {INTENT_LABELS[decision.intent]} · {objective.title}
         </MutedText>
