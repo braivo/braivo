@@ -5,8 +5,9 @@ import {
   type Activity,
   BraivoError,
   type Grade,
-  type KnowledgeReport,
+  type LearnerProgressReport,
   type LearningDecision,
+  type LearnerProgressStanding,
 } from "@braivo/server/client";
 import { ChoiceQuestion, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
@@ -86,29 +87,41 @@ function NextStep() {
   );
 }
 
+const LABELS = ["retained", "due for review", "learning", "not started"] as const;
+type Label = (typeof LABELS)[number];
+
 /**
- * Where the learner stands in the course, in one line: counts by the model's
- * own states, so it claims no more than they do — "retained" rather than
- * "mastered", which Braivo does not define.
+ * The model's phases, with `due` splitting retaining, so the summary claims no
+ * more than the model does: "retained", not "mastered", which Braivo does not define.
  */
-function ProgressSummary({ report }: { report: KnowledgeReport }) {
-  const counts = { retained: 0, due: 0, learning: 0, unseen: 0 };
-  for (const standing of report.objectives) {
-    if (standing.phase === "unseen") counts.unseen++;
-    else if (standing.phase === "acquiring") counts.learning++;
-    else if (standing.due) counts.due++;
-    else counts.retained++;
-  }
+function labelOf(standing: LearnerProgressStanding): Label {
+  if (standing.phase === "unseen") return "not started";
+  if (standing.phase === "acquiring") return "learning";
+  return standing.due ? "due for review" : "retained";
+}
 
-  const parts = [
-    counts.retained && `${counts.retained} retained`,
-    counts.due && `${counts.due} due for review`,
-    counts.learning && `${counts.learning} learning`,
-    counts.unseen && `${counts.unseen} not started`,
-  ].filter(Boolean);
-  if (parts.length === 0) return null;
+function ProgressSummary({ report }: { report: LearnerProgressReport }) {
+  const labels = report.objectives.map(labelOf);
+  const line = LABELS.map(
+    (label) => [label, labels.filter((each) => each === label).length] as const,
+  )
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(" · ");
+  if (!line) return null;
 
-  return <MutedText className="mb-6 block">{parts.join(" · ")}</MutedText>;
+  return (
+    <details className="mb-6 text-sm text-muted-foreground">
+      <summary className="cursor-pointer">{line}</summary>
+      <ul className="mt-2 flex flex-col gap-1">
+        {report.objectives.map((standing) => (
+          <li key={standing.objectiveId}>
+            {standing.title}: {labelOf(standing)}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /** What the page says instead of a question, focused as a question would be. */

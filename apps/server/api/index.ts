@@ -109,17 +109,18 @@
 //        values that describe its phase:
 //
 //          { "modelVersion": "v1", "objectives": [
-//              { "objectiveId": "…", "phase": "unseen" },
-//              { "objectiveId": "…", "phase": "acquiring",
+//              { "objectiveId": "…", "title": "Greetings", "phase": "unseen" },
+//              { "objectiveId": "…", "title": "…", "phase": "acquiring",
 //                "lastEvidenceAt": "2026-06-01T00:00:00.000Z" },
-//              { "objectiveId": "…", "phase": "retaining",
+//              { "objectiveId": "…", "title": "…", "phase": "retaining",
 //                "lastEvidenceAt": "…", "stability": 3.2,
 //                "retrievability": 0.87, "due": false }
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
 //        offer for review — so given the same evidence and time, the two agree.
-//        The shape is `KnowledgeReport` serialized, pinned like the decision's.
+//        The shape is `LearnerProgressReport` serialized, pinned like the
+//        decision's.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —
 // records what a learner did. The grader is the session's user and is never

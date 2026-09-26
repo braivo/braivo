@@ -7,8 +7,7 @@ import type {
   Grade,
   GradedEvidence,
   HostOrganization,
-  KnowledgeReport,
-  Objective,
+  LearnerProgressReport,
   Organization,
   TaskResponse,
 } from "./types.ts";
@@ -27,10 +26,10 @@ export type {
   Grade,
   GradedEvidence,
   HostOrganization,
-  KnowledgeReport,
+  LearnerProgressReport,
   LearningDecision,
   Objective,
-  ObjectiveStanding,
+  LearnerProgressStanding,
   Organization,
   TaskResponse,
 } from "./types.ts";
@@ -112,7 +111,7 @@ export type BraivoClient = {
   learnerProgress(
     input: { courseId: string; learnerId: string },
     options?: RequestOptions,
-  ): Promise<KnowledgeReport>;
+  ): Promise<LearnerProgressReport>;
 
   /**
    * The courses the signed-in learner may study, by title: every course of
@@ -134,15 +133,6 @@ export type BraivoClient = {
    * throws a {@link BraivoError} with status 403.
    */
   listCourses(organizationId: string, options?: RequestOptions): Promise<Course[]>;
-
-  /**
-   * Every objective an organization has registered, by title — a listing
-   * order, not the order a course teaches them in.
-   *
-   * Whoever the session belongs to must hold `owner` or `admin` there, or this
-   * throws a {@link BraivoError} with status 403.
-   */
-  listObjectives(organizationId: string, options?: RequestOptions): Promise<Objective[]>;
 
   /**
    * Records what a learner did, on behalf of an organization. The session must
@@ -287,7 +277,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `reading the progress of learner "${input.learnerId}" in course "${input.courseId}"`;
       if (response.status !== 200) throw unexpected(response, doing);
 
-      return parsed<KnowledgeReport>(response, doing);
+      return parsed<LearnerProgressReport>(response, doing);
     },
 
     async learnerCourses(requestOptions) {
@@ -321,19 +311,6 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { courses } = await parsed<{ courses: Course[] }>(response, doing);
       return courses;
-    },
-
-    async listObjectives(organizationId, requestOptions) {
-      const response = await get(
-        `/api/organizations/${encodeURIComponent(organizationId)}/objectives`,
-        requestOptions,
-      );
-
-      const doing = `listing the objectives of organization "${organizationId}"`;
-      if (response.status !== 200) throw unexpected(response, doing);
-
-      const { objectives } = await parsed<{ objectives: Objective[] }>(response, doing);
-      return objectives;
     },
 
     async recordEvidence(input, requestOptions) {

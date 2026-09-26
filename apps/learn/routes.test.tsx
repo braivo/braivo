@@ -6,10 +6,10 @@ import {
   BraivoError,
   type BraivoClient,
   type Grade,
-  type KnowledgeReport,
+  type LearnerProgressReport,
 } from "@braivo/server/client";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
@@ -52,7 +52,7 @@ const anotherActivity: Activity = {
   },
 };
 
-const noProgress: KnowledgeReport = { modelVersion: "v1", objectives: [] };
+const noProgress: LearnerProgressReport = { modelVersion: "v1", objectives: [] };
 
 /**
  * The app as a learner reaches it, at `path`, with Braivo and the session
@@ -410,6 +410,7 @@ describe("the learn app", () => {
         objectives: [
           {
             objectiveId: "a",
+            title: "Greetings",
             phase: "retaining",
             lastEvidenceAt: at,
             stability: 3,
@@ -418,37 +419,54 @@ describe("the learn app", () => {
           },
           {
             objectiveId: "b",
+            title: "Numbers",
             phase: "retaining",
             lastEvidenceAt: at,
             stability: 1,
             retrievability: 0.5,
             due: true,
           },
-          { objectiveId: "c", phase: "acquiring", lastEvidenceAt: at },
-          { objectiveId: "d", phase: "unseen" },
-          { objectiveId: "e", phase: "unseen" },
+          { objectiveId: "c", title: "Colours", phase: "acquiring", lastEvidenceAt: at },
+          { objectiveId: "d", title: "Days", phase: "unseen" },
+          { objectiveId: "e", title: "Months", phase: "unseen" },
         ],
       }),
     });
 
+    const summary = await screen.findByText(
+      "1 retained · 1 due for review · 1 learning · 2 not started",
+    );
+    // Which is which opens from the counts, by name.
+    const details = summary.closest("details")!;
+    expect(details.open).toBe(false);
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
     expect(
-      await screen.findByText("1 retained · 1 due for review · 1 learning · 2 not started"),
-    ).toBeTruthy();
+      within(details)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "Greetings: retained",
+      "Numbers: due for review",
+      "Colours: learning",
+      "Days: not started",
+      "Months: not started",
+    ]);
     expect(learnerProgress).toHaveBeenCalledWith(
       { courseId: "c1", learnerId: "ada" },
       { signal: expect.any(AbortSignal) },
     );
   });
 
-  test("leaves out states with nothing in them", async () => {
+  test("leaves out empty counts", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => ({
         modelVersion: "v1",
         objectives: [
-          { objectiveId: "a", phase: "unseen" },
-          { objectiveId: "b", phase: "unseen" },
+          { objectiveId: "a", title: "Greetings", phase: "unseen" },
+          { objectiveId: "b", title: "Numbers", phase: "unseen" },
         ],
       }),
     });

@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { type Activity, BraivoError, createClient, type KnowledgeReport } from "./client.ts";
+import { type Activity, BraivoError, createClient, type LearnerProgressReport } from "./client.ts";
 
 const activity: Activity = {
   decision: {
@@ -267,13 +267,19 @@ describe("the Braivo client", () => {
   });
 
   test("returns the progress report Braivo answered with", async () => {
-    const report: KnowledgeReport = {
+    const report: LearnerProgressReport = {
       modelVersion: "v1",
       objectives: [
-        { objectiveId: "o1", phase: "unseen" },
-        { objectiveId: "o2", phase: "acquiring", lastEvidenceAt: "2026-06-01T00:00:00.000Z" },
+        { objectiveId: "o1", title: "One", phase: "unseen" },
+        {
+          objectiveId: "o2",
+          title: "Two",
+          phase: "acquiring",
+          lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+        },
         {
           objectiveId: "o3",
+          title: "Three",
           phase: "retaining",
           lastEvidenceAt: "2026-06-01T00:00:00.000Z",
           stability: 3.2,
@@ -372,33 +378,6 @@ describe("the Braivo client", () => {
     const { client } = clientFor(Response.json({ courses: [] }, { status: 202 }));
 
     const error = await client.listCourses("org-1").catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(BraivoError);
-    expect((error as BraivoError).status).toBe(202);
-  });
-
-  test("returns the objectives Braivo listed", async () => {
-    const objectives = [{ id: "objective-1", title: "Past tense" }];
-    const { calls, client } = clientFor(Response.json({ objectives }));
-
-    expect(await client.listObjectives("org 1")).toEqual(objectives);
-    expect(calls[0]!.url).toBe("/api/organizations/org%201/objectives");
-    expect(calls[0]!.init).toMatchObject({ method: "GET", credentials: "include" });
-  });
-
-  test("throws with the status when Braivo will not list the objectives", async () => {
-    const { client } = clientFor(new Response(null, { status: 403 }));
-
-    const error = await client.listObjectives("org-1").catch((thrown: unknown) => thrown);
-
-    expect(error).toBeInstanceOf(BraivoError);
-    expect((error as BraivoError).status).toBe(403);
-  });
-
-  test("refuses an objective listing with a status Braivo does not send", async () => {
-    const { client } = clientFor(Response.json({ objectives: [] }, { status: 202 }));
-
-    const error = await client.listObjectives("org-1").catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(BraivoError);
     expect((error as BraivoError).status).toBe(202);

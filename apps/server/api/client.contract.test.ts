@@ -12,11 +12,11 @@ import { createApi } from "./app.ts";
 import { BraivoError, createClient } from "./client.ts";
 
 /**
- * The client's types are derived from the domain, which says what the routes
+ * The client's types are derived from the server's, which say what the routes
  * *should* send; only the routes say what they do send. This drives the real
  * client against the real app, so a route that serializes something other than
- * what the client parses fails here, and so does a client that builds a
- * request the routes refuse.
+ * what the client parses fails here, and so does a client that builds a request
+ * the routes refuse.
  */
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -218,24 +218,6 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
-  test("lists objectives in the shape it declares, and refuses a learner", async () => {
-    const objectives = await client.listObjectives(organizationId, {
-      headers: { cookie: teacherCookie },
-    });
-
-    expect(objectives).toEqual([
-      { id: decimals, title: "Decimals" },
-      { id: fractions, title: "Fractions" },
-      { id: pastTense, title: "Past tense" },
-    ]);
-
-    const rejected = await client
-      .listObjectives(organizationId, { headers: { cookie: learnerCookie } })
-      .catch((thrown: unknown) => thrown);
-    expect(rejected).toBeInstanceOf(BraivoError);
-    expect(rejected as BraivoError).toMatchObject({ status: 403 });
-  });
-
   test("reads nothing to practise as undefined rather than as an error", async () => {
     const activity = await client.nextActivity(emptyCourseId, {
       headers: { cookie: learnerCookie },
@@ -316,14 +298,20 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       objectives: [
         {
           objectiveId: pastTense,
+          title: "Past tense",
           phase: "retaining",
           lastEvidenceAt: at.toISOString(),
           stability: 1,
           retrievability: expect.any(Number),
           due: true,
         },
-        { objectiveId: fractions, phase: "acquiring", lastEvidenceAt: at.toISOString() },
-        { objectiveId: decimals, phase: "unseen" },
+        {
+          objectiveId: fractions,
+          title: "Fractions",
+          phase: "acquiring",
+          lastEvidenceAt: at.toISOString(),
+        },
+        { objectiveId: decimals, title: "Decimals", phase: "unseen" },
       ],
     });
   });

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ObjectiveStanding } from "@braivo/server/client";
+import type { LearnerProgressStanding } from "@braivo/server/client";
 import { Heading } from "@braivo/ui";
 import {
   Table,
@@ -28,27 +28,25 @@ export const Route = createFileRoute(
       signal,
     });
 
-    const [report, objectives, members] = await Promise.all([
+    const [report, members] = await Promise.all([
       orNotFound(
         context.braivo.learnerProgress(
           { courseId: params.courseId, learnerId: params.learnerId },
           { signal },
         ),
       ),
-      orNotFound(context.braivo.listObjectives(organizationId, { signal })),
       readMembers(context.auth, organizationId),
     ]);
 
-    const titles = new Map(objectives.map(({ id, title }) => [id, title]));
     const learner = members.find(({ userId }) => userId === params.learnerId);
-    return { report, titles, learnerName: learner?.user.name ?? params.learnerId };
+    return { report, learnerName: learner?.user.name ?? params.learnerId };
   },
   component: Progress,
   notFoundComponent: () => <p>This learner's progress is not yours to see, or does not exist.</p>,
 });
 
 function Progress() {
-  const { report, titles, learnerName } = Route.useLoaderData();
+  const { report, learnerName } = Route.useLoaderData();
 
   return (
     <>
@@ -64,7 +62,7 @@ function Progress() {
         <TableBody>
           {report.objectives.map((standing) => (
             <TableRow key={standing.objectiveId}>
-              <TableCell>{titles.get(standing.objectiveId) ?? standing.objectiveId}</TableCell>
+              <TableCell>{standing.title}</TableCell>
               <TableCell>{describe(standing)}</TableCell>
               <TableCell>
                 {standing.phase === "unseen"
@@ -79,7 +77,7 @@ function Progress() {
   );
 }
 
-function describe(standing: ObjectiveStanding): string {
+function describe(standing: LearnerProgressStanding): string {
   switch (standing.phase) {
     case "unseen":
       return "Not started";

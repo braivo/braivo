@@ -23,6 +23,7 @@ export {
   findObjectivesOutsideOrganization,
   readObjective,
   readObjectives,
+  readObjectiveTitles,
 } from "./objective.ts";
 export { organizationOwnsLearningContent, readOrganizationSlug } from "./organization.ts";
 export {
