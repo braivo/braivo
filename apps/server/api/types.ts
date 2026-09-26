@@ -48,12 +48,17 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
 
 /**
  * What a learner is to do next, as `GET /api/courses/:courseId/activity`
- * answers it: a task to answer now, or, when every task for the decision was
- * answered too recently, in how many seconds to ask again.
+ * answers it: the decided objective and a task to answer now, or, when every
+ * task for it was answered too recently, the objective and in how many seconds
+ * to ask again.
  */
 export type Activity =
-  | { decision: LearningDecision; task: { id: string } & content.PresentedTask }
-  | { retryAfter: number };
+  | {
+      decision: LearningDecision;
+      objective: Objective;
+      task: { id: string } & content.PresentedTask;
+    }
+  | { objective: Objective; retryAfter: number };
 
 /** A learner's answer to a task, as posted in an attempt. */
 export type TaskResponse = content.TaskResponse;
@@ -64,7 +69,7 @@ export type Grade = content.Grade;
 /** A course as its organization's content owners see it listed. */
 export type Course = { id: string; title: string };
 
-/** A learning target as its organization's content owners see it listed. */
+/** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };
 
 /** An organization as those who manage it find it; `slug` is its console address. */

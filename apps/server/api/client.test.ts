@@ -14,6 +14,7 @@ const activity: Activity = {
     intent: "reteach",
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
+  objective: { id: "objective-1", title: "Past tense" },
   task: {
     id: "task-1",
     kind: "choice",

@@ -370,8 +370,8 @@ export function createApi(options: ApiOptions) {
   });
 
   /**
-   * The next objective and a task to practise it with, for the signed-in
-   * learner. Answered like the decision route, whose statuses it shares.
+   * The signed-in learner's next objective, with a task to practise it or, while
+   * its tasks rest, when to ask again. Statuses as for the decision route.
    */
   api.get("/api/courses/:courseId/activity", async (context) => {
     context.header("cache-control", "private, no-store");
@@ -394,9 +394,16 @@ export function createApi(options: ApiOptions) {
       case "no-activity":
         return context.body(null, 204);
       case "resting":
-        return context.json({ retryAfter: secondsUntil(next.retryAt, now) });
+        return context.json({
+          objective: next.objective,
+          retryAfter: secondsUntil(next.retryAt, now),
+        });
       case "decided":
-        return context.json({ decision: next.decision, task: next.task });
+        return context.json({
+          decision: next.decision,
+          objective: next.objective,
+          task: next.task,
+        });
       default:
         throw new Error(`Unhandled answer: ${JSON.stringify(next satisfies never)}`);
     }
@@ -448,11 +455,12 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * Where a learner stands on each objective in a course, for a content owner.
+   * Where a learner stands on each objective in a course, for a content owner
+   * or the learner themselves.
    *
    * The learner is named in the path, as the evidence route names one, because
-   * the reader is someone else. Who that reader is comes from the session and is
-   * never named; whether they may read it is decided by the use case.
+   * the reader may be someone else. Who that reader is comes from the session
+   * and is never named; whether they may read it is decided by the use case.
    */
   api.get("/api/courses/:courseId/learners/:learnerId/progress", async (context) => {
     // First, as on the decision route: the same URL answers differently

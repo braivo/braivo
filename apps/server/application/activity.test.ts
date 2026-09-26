@@ -181,7 +181,11 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       grade: { outcome: "failure", correctChoice: 0 },
     });
     // Its one task rests, since the learner has just been shown the answer.
-    expect(await activity(later(2))).toEqual({ kind: "resting", retryAt: later(11) });
+    expect(await activity(later(2))).toEqual({
+      kind: "resting",
+      objective: { id: pastTense, title: "Past tense" },
+      retryAt: later(11),
+    });
     expect((await decided(later(11))).decision).toMatchObject({
       objectiveId: pastTense,
       intent: "reteach",

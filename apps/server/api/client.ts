@@ -77,8 +77,9 @@ export type BraivoClient = {
   hostOrganization(options?: RequestOptions): Promise<HostOrganization | undefined>;
 
   /**
-   * What the signed-in learner should do next in a course — the decision and a
-   * task to practise it — or `undefined` when there is nothing to practise now
+   * What the signed-in learner should do next in a course — the decision, its
+   * objective, and a task to practise it, or the objective while its tasks
+   * rest — or `undefined` when there is nothing to practise now
    * (glossary: No activity), which is not necessarily caught up. A course that
    * does not exist and one this learner may not see are both a
    * {@link BraivoError} with status 404, deliberately indistinguishable.

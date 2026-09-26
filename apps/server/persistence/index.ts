@@ -21,6 +21,7 @@ export type { Objective } from "./objective.ts";
 export {
   createObjectives,
   findObjectivesOutsideOrganization,
+  readObjective,
   readObjectives,
 } from "./objective.ts";
 export { organizationOwnsLearningContent, readOrganizationSlug } from "./organization.ts";

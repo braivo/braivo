@@ -110,6 +110,7 @@ curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
 ACTIVITY=$(curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity)
 echo "$ACTIVITY"
 # {"decision":{"objectiveId":"…","modelVersion":"v1","intent":"introduce"},
+#  "objective":{"id":"…","title":"Greetings"},
 #  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?",
 #          "options":[{"choice":1,"text":"Adiós"},{"choice":0,"text":"Hola"}]}}
 # Options come shuffled; each carries the `choice` that answers with it.
@@ -123,7 +124,8 @@ curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
 
 # What comes next follows from that answer: greetings again, with the other task.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
-# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"task":{…,"prompt":"Goodbye, in Spanish?",…}}
+# {"decision":{…,"intent":"reteach","lastEvidenceAt":"…"},"objective":{…,"title":"Greetings"},
+#  "task":{…,"prompt":"Goodbye, in Spanish?",…}}
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
@@ -139,7 +141,7 @@ A few things that shape how this behaves:
 - **Evidence graded elsewhere is a content owner's to record.** An application with its own tasks uses `GET /api/courses/<id>/next` for the bare decision, and `POST /api/organizations/<id>/learners/<id>/evidence` to record outcomes, which needs `owner` or `admin`: a `member` could otherwise grade themselves.
 - **Progress is the learner's, and their organization's administrators'.** A learner reads their own standing — the learn app shows it above each question — and `owner` or `admin` reads any of its learners'. A `member` asking about someone else gets a 404, the same answer as a course that does not exist.
 - **`at` must be exactly what `Date#toISOString` produces.** Braivo refuses looser formats, because a timestamp is what it orders replay by.
-- **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced — so a learner who keeps failing stays within what they have already met instead of being handed more. Above, with one objective started, that means greetings come back until they are passed, and numbers wait; where several are in progress, re-teaching moves between them, oldest first. That is how content order sequences a course, and it is [specified and tested](docs/specs/learning-model.md#selection-rule) rather than incidental.
+- **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced — so a learner who keeps failing stays within what they have already met instead of being handed more. Above, with one objective started, that means greetings come back until they are passed, and numbers wait; where several are in progress, re-teaching moves between them, oldest first. That is how content order sequences a course, and it is [specified and tested](docs/specs/learning-model.md#selection-rule) rather than incidental. It holds among objectives that have tasks to practise: one whose tasks are all retired drops out of what the learn app offers, and what follows it moves up.
 
 ## An organization's domain
 
