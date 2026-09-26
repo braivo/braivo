@@ -7,11 +7,14 @@
 export type { NextActivity, SubmittedAttempt } from "./activity.ts";
 export { chooseNextActivity, submitAttempt } from "./activity.ts";
 export { defineCourse, listCourses, listLearnerCourses } from "./courses.ts";
+export type { RequestHost } from "./host.ts";
+export { readHostOrganization } from "./host.ts";
 export type { LearnerProgress } from "./learner-progress.ts";
 export { readLearnerProgress } from "./learner-progress.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";
 export { defineObjectives, listObjectives } from "./objectives.ts";
+export { listManagedOrganizations } from "./organizations.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { defineTasks, InvalidTask } from "./tasks.ts";

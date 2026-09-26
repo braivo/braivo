@@ -1,6 +1,6 @@
 # 0003: Two apps, a database package, and Vite+ as the one toolchain
 
-Status: accepted (2026-09-16). Its origin layout — learn at `/`, console at `/console/` — is superseded by [ADR 0004](0004-one-application-origin.md); the same-origin rule for the API stands.
+Status: accepted (2026-09-16). Its origin layout — learn at `/`, console at `/console/` — is superseded by [ADR 0004](0004-one-application-origin.md), which also trusts an organization's domain as an origin; the same-origin rule for the API stands.
 
 ## Context
 
@@ -49,7 +49,7 @@ Two audiences need a UI now, and they want different things. A learner needs one
 ## Consequences
 
 - The server does not serve the built apps yet. Until it does, a deployment has to put the apps and the API behind one origin itself. Serving them from the server is the natural next step, and it is what keeps a self-hosted installation a single process.
-- The console creates organizations and reads what is in them, but does not author content yet: objectives and courses are created through the API, as the README walkthrough shows.
+- The console reads what is in an organization (the operator creates organizations, [ADR 0018](0018-sign-in-and-invitations.md)), but does not author content yet: objectives and courses are created through the API, as the README walkthrough shows.
 - The learn app has no course list. The API has no endpoint that lists a learner's courses, and none can exist until enrolment is decided ([architecture.md](../architecture.md)). A learner opens a course by its link.
 - Type-aware lint rules now run on every check, and caught real defects on their first run, such as a promise left unawaited in a test teardown.
 - The oxlint and oxfmt versions are whatever the pinned Vite+ bundles. Upgrading either means upgrading `vite-plus`.

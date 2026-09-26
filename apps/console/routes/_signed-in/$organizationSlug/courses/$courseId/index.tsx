@@ -7,15 +7,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { readCourseInOrganization, readMembers } from "#lib/refusals";
 
-export const Route = createFileRoute(
-  "/_signed-in/organizations/$organizationId/courses/$courseId/",
-)({
+export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
   loader: async ({ context, params, abortController }) => {
+    const organizationId = context.organization.id;
     const course = await readCourseInOrganization(context.braivo, {
-      ...params,
+      organizationId,
+      courseId: params.courseId,
       signal: abortController.signal,
     });
-    const members = await readMembers(context.auth, params.organizationId);
+    const members = await readMembers(context.auth, organizationId);
 
     return { course, members };
   },
@@ -25,7 +25,7 @@ export const Route = createFileRoute(
 
 function Course() {
   const { course, members } = Route.useLoaderData();
-  const { organizationId, courseId } = Route.useParams();
+  const { organizationSlug, courseId } = Route.useParams();
 
   return (
     <>
@@ -35,8 +35,8 @@ function Course() {
         {members.map((member) => (
           <li key={member.id}>
             <Link
-              to="/organizations/$organizationId/courses/$courseId/learners/$learnerId"
-              params={{ organizationId, courseId, learnerId: member.userId }}
+              to="/$organizationSlug/courses/$courseId/learners/$learnerId"
+              params={{ organizationSlug, courseId, learnerId: member.userId }}
               className="underline"
             >
               {member.user.name}

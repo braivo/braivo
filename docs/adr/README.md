@@ -1,6 +1,6 @@
 # Architecture decision records
 
-One file per material decision: context, the decision, and its consequences. Record a decision when it is made, not afterwards. Supersede an ADR with a new one instead of editing a decision that was actually taken; correcting or clarifying an existing one is fine.
+One file per material decision: context, the decision, and its consequences. Record a decision when it is made, not afterwards. Until a decision ships or something outside this repository depends on it, amend it in place, naming what it replaced among the alternatives rejected. Afterwards, supersede it with a new ADR. Corrections and clarifications may always be made in place.
 
 A number is an identity, not a date: a new ADR takes the next free one. The list below is grouped by what the decision is about, and is the order to read them in.
 
@@ -9,7 +9,7 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0001: Split licensing, copyleft core and permissive SDK](0001-licensing.md) — superseded by 0002
 - [0002: AGPL-3.0-only for Braivo's code, with a commercial license, and no SDK package](0002-agpl-only.md)
 - [0003: Two apps, a database package, and Vite+ as the one toolchain](0003-workspace-layout.md)
-- [0004: One application origin, addressed by organization](0004-one-application-origin.md)
+- [0004: Application origins and organization addressing](0004-one-application-origin.md)
 - [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
 
 ## Server
@@ -22,6 +22,7 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0010: Hono for the HTTP layer, and what a route is allowed to do](0010-hono-http-layer.md)
 - [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
 - [0017: A task rests after it is answered](0017-task-rest.md)
+- [0018: One sign-in on Braivo's origin, invitations to organizations, and a learner session per learn domain](0018-sign-in-and-invitations.md)
 
 ## Web
 

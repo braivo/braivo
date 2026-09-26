@@ -66,3 +66,9 @@ export type Course = { id: string; title: string };
 
 /** A learning target as its organization's content owners see it listed. */
 export type Objective = { id: string; title: string };
+
+/** An organization as those who manage it find it; `slug` is its console address. */
+export type Organization = { id: string; name: string; slug: string };
+
+/** The organization a domain serves, as its learn app presents itself. */
+export type HostOrganization = { name: string };

@@ -3,7 +3,7 @@
 
 import { requireSession } from "@braivo/auth-client";
 import { Button } from "@braivo/ui/components/button";
-import { createFileRoute, Link, Outlet, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatch, useRouter } from "@tanstack/react-router";
 
 /**
  * Everything a content owner sees once signed in. Checked before any child
@@ -17,6 +17,9 @@ export const Route = createFileRoute("/_signed-in")({
 function SignedIn() {
   const { auth, user } = Route.useRouteContext();
   const router = useRouter();
+  // Shown on each of its pages, so someone managing several sees which one they act on.
+  const organization = useMatch({ from: "/_signed-in/$organizationSlug", shouldThrow: false })
+    ?.context.organization;
 
   async function signOut() {
     await auth.signOut();
@@ -27,9 +30,17 @@ function SignedIn() {
   return (
     <>
       <header className="mb-6 flex items-center justify-between">
-        <Link to="/" className="font-semibold">
-          Organizations
-        </Link>
+        <nav className="flex gap-2 font-semibold">
+          <Link to="/organizations">Organizations</Link>
+          {organization && (
+            <>
+              <span aria-hidden>/</span>
+              <Link to="/$organizationSlug" params={{ organizationSlug: organization.slug }}>
+                {organization.name}
+              </Link>
+            </>
+          )}
+        </nav>
         <span className="flex gap-4">
           {user.name}
           <Button variant="link" onClick={signOut}>

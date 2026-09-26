@@ -12,7 +12,7 @@ export type SessionAuth<User> = {
 };
 
 /**
- * The signed-in user, or a redirect to `/sign-in` that brings them back to
+ * The signed-in user, or a redirect to `/login` that brings them back to
  * `location` afterwards. For a layout route's `beforeLoad`, so that no page
  * under it asks Braivo anything on behalf of nobody.
  *
@@ -25,6 +25,6 @@ export async function requireSession<User>(
 ): Promise<{ user: User }> {
   const { data, error } = await auth.getSession();
   if (error) throw new Error(error.message ?? "Could not check whether you are signed in.");
-  if (!data) throw redirect({ to: "/sign-in", search: { redirect: location.href } });
+  if (!data) throw redirect({ to: "/login", search: { redirect: location.href } });
   return { user: data.user };
 }

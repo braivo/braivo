@@ -22,7 +22,7 @@ describe("requireSession", () => {
 
     expect(isRedirect(thrown)).toBe(true);
     expect((thrown as { options: unknown }).options).toMatchObject({
-      to: "/sign-in",
+      to: "/login",
       search: { redirect: "/courses/c1?tab=next" },
     });
   });

@@ -10,12 +10,13 @@
  * to start beats starting quietly wrong: an empty `PORT` coerced to 0 serves on
  * a random free port and announces a URL nobody can reach it at.
  */
-export type ServeConfig = {
+export type AuthConfig = {
   databaseUrl: string;
   secret: string;
   baseUrl: string;
-  port: number;
 };
+
+export type ServeConfig = AuthConfig & { port: number };
 
 const DEFAULT_PORT = 3000;
 
@@ -28,13 +29,16 @@ export function readDatabaseUrl(environment: Environment): string {
   return required(environment, "DATABASE_URL");
 }
 
-export function readServeConfig(environment: Environment): ServeConfig {
+export function readAuthConfig(environment: Environment): AuthConfig {
   return {
     databaseUrl: readDatabaseUrl(environment),
     secret: readSecret(environment, "BETTER_AUTH_SECRET"),
     baseUrl: readUrl(environment, "BRAIVO_URL"),
-    port: readPort(environment, "PORT"),
   };
+}
+
+export function readServeConfig(environment: Environment): ServeConfig {
+  return { ...readAuthConfig(environment), port: readPort(environment, "PORT") };
 }
 
 /**

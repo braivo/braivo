@@ -16,13 +16,16 @@ import {
   InvalidTask,
   listCourses,
   listLearnerCourses,
+  listManagedOrganizations,
   listObjectives,
   NotPermitted,
+  readHostOrganization,
   readLearnerProgress,
   recordGradedEvidence,
   submitAttempt,
+  type RequestHost,
 } from "../application/index.ts";
-import type { Auth } from "../auth/index.ts";
+import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
 
 /**
@@ -72,15 +75,22 @@ function parseEvidence(body: unknown): Evidence[] | undefined {
  * cross-origin without a preflight this server never answers, and when it does
  * send an `Origin` it has to be ours. A server-to-server caller sends no
  * `Origin` at all and sets the content type, so neither check touches it.
+ * Besides this installation's origin, an organization's domain serves the
+ * learn app, and is registered only when the operator controls it (ADR 0004).
  */
-function isTrustedWrite(context: Context, origin: string): boolean {
+async function isTrustedWrite(
+  context: Context,
+  origin: string,
+  database: Database,
+): Promise<boolean> {
   // The media type alone, so that `application/json; charset=utf-8` is accepted
   // and `application/jsonp` is not — a prefix test would take both.
   const mediaType = (context.req.header("content-type") ?? "").split(";")[0] ?? "";
   if (mediaType.trim().toLowerCase() !== "application/json") return false;
 
   const requestOrigin = context.req.header("origin");
-  return requestOrigin === undefined || requestOrigin === origin;
+  if (requestOrigin === undefined || requestOrigin === origin) return true;
+  return isOrganizationOrigin(database, requestOrigin);
 }
 
 export type ApiOptions = {
@@ -215,7 +225,14 @@ const MAX_BODY_BYTES = 1_000_000;
 export function createApi(options: ApiOptions) {
   const { auth, database } = options;
   const origin = new URL(options.baseUrl).origin;
+  const installationHostname = new URL(options.baseUrl).hostname;
   const api = new Hono();
+
+  /** The host a request was sent to, which `hostAdmits` limits routes by. */
+  const requestHost = (context: Context): RequestHost => {
+    const { hostname } = new URL(context.req.url);
+    return { hostname, installation: hostname === installationHostname };
+  };
 
   // Better Auth owns the routing below this path (ADR 0006); Braivo still owes
   // it the protections. Unguarded, `sign-up/email` accepts a megabytes-long
@@ -226,6 +243,11 @@ export function createApi(options: ApiOptions) {
     "/api/auth/*",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
+      // An account made on any other host would belong to no organization and
+      // reach no course; hiding the learn app's form is not the boundary.
+      const signingUp = context.req.path.startsWith("/api/auth/sign-up/");
+      if (signingUp && !requestHost(context).installation) return context.body(null, 404);
+
       const answered = await auth.handler(context.req.raw);
 
       // Set on every answer, not only the ones Better Auth leaves bare: nothing
@@ -261,6 +283,24 @@ export function createApi(options: ApiOptions) {
   }
 
   /**
+   * The organization this request's host serves, which a learn app on that
+   * domain is branded as. No session: the domain is public and so is its name.
+   * The host is the request URL's, so a router in front must forward `Host`.
+   */
+  api.get("/api/organization", async (context) => {
+    // The same URL names a different organization on every domain, and a
+    // rename should show on the next load.
+    context.header("cache-control", "private, no-store");
+
+    const found = await readHostOrganization({
+      database,
+      hostname: new URL(context.req.url).hostname,
+    });
+
+    return found ? context.json(found) : context.body(null, 404);
+  });
+
+  /**
    * What the signed-in learner should do next in a course. The learner is the
    * session's user and never a value from the request: unlike the routes below,
    * this one has no reason to name somebody else, so there is nothing to
@@ -280,6 +320,7 @@ export function createApi(options: ApiOptions) {
       database,
       learnerId: session.user.id,
       courseId: context.req.param("courseId"),
+      host: requestHost(context),
       now: new Date(),
     });
 
@@ -309,7 +350,11 @@ export function createApi(options: ApiOptions) {
     const session = await sessionFor(context);
     if (!session) return context.body(null, 401);
 
-    const courses = await listLearnerCourses({ database, learnerId: session.user.id });
+    const courses = await listLearnerCourses({
+      database,
+      learnerId: session.user.id,
+      host: requestHost(context),
+    });
     return context.json({ courses });
   });
 
@@ -328,6 +373,7 @@ export function createApi(options: ApiOptions) {
       database,
       learnerId: session.user.id,
       courseId: context.req.param("courseId"),
+      host: requestHost(context),
       now,
     });
 
@@ -353,7 +399,7 @@ export function createApi(options: ApiOptions) {
     "/api/courses/:courseId/attempts",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -365,6 +411,7 @@ export function createApi(options: ApiOptions) {
         database,
         learnerId: session.user.id,
         courseId: context.req.param("courseId"),
+        host: requestHost(context),
         attemptId: attempt.id,
         taskId: attempt.taskId,
         response: attempt.response,
@@ -409,6 +456,7 @@ export function createApi(options: ApiOptions) {
       viewedBy: session.user.id,
       learnerId: context.req.param("learnerId"),
       courseId: context.req.param("courseId"),
+      host: requestHost(context),
       now: new Date(),
     });
 
@@ -436,7 +484,7 @@ export function createApi(options: ApiOptions) {
     async (context) => {
       // Before the session is even resolved: a forged request should cost this
       // server nothing, and the answer does not depend on who it claims to be.
-      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -485,7 +533,7 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/objectives",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -517,7 +565,7 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/tasks",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -554,7 +602,7 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/courses",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!isTrustedWrite(context, origin)) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -578,6 +626,16 @@ export function createApi(options: ApiOptions) {
       }
     },
   );
+
+  /** The organizations the session's user manages. */
+  api.get("/api/organizations", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    const organizations = await listManagedOrganizations({ database, actingAs: session.user.id });
+    return context.json({ organizations });
+  });
 
   /** Every course an organization has, for whoever administers it. */
   api.get("/api/organizations/:organizationId/courses", async (context) => {

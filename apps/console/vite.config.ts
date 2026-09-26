@@ -9,14 +9,13 @@ import { defineConfig, loadEnv } from "vite-plus";
 import { braivoApi } from "../../tooling/dev-proxy.ts";
 
 /**
- * The content owners' app, served under `/console/` on the same origin as the
- * learn app and the API (docs/adr/0003-workspace-layout.md).
+ * The content owners' app, served from the root of Braivo's own origin
+ * alongside the API (docs/adr/0004-one-application-origin.md).
  */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "../..", "BRAIVO_");
 
   return {
-    base: "/console/",
     plugins: [
       tanstackRouter({
         target: "react",

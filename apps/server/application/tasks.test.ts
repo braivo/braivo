@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createCourse, createObjectives, readObjectivesWithTasks } from "../persistence/index.ts";
 import { chooseNextActivity } from "./activity.ts";
+import type { RequestHost } from "./host.ts";
 import { NotPermitted } from "./permission.ts";
 import { defineTasks, InvalidTask } from "./tasks.ts";
 
@@ -18,6 +19,7 @@ const otherOrganizationId = "tasks-test-other-org";
 const author = "tasks-test-author";
 const learner = "tasks-test-learner";
 const now = new Date("2026-06-01T00:00:00.000Z");
+const installation: RequestHost = { hostname: "localhost", installation: true };
 
 const choice = { kind: "choice", prompt: "Which?", options: ["this", "that"], answer: 0 };
 
@@ -64,7 +66,13 @@ describe.skipIf(!connectionString)("defining tasks", () => {
       { objectiveId: objective, body: { ...choice, keepOrder: true } },
     ]);
 
-    const next = await chooseNextActivity({ database, learnerId: learner, courseId, now });
+    const next = await chooseNextActivity({
+      database,
+      learnerId: learner,
+      courseId,
+      host: installation,
+      now,
+    });
     expect(next).toMatchObject({
       kind: "decided",
       task: {
@@ -89,9 +97,9 @@ describe.skipIf(!connectionString)("defining tasks", () => {
       })),
     );
 
-    expect(await chooseNextActivity({ database, learnerId: learner, courseId, now })).toMatchObject(
-      { task: { id: first } },
-    );
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toMatchObject({ task: { id: first } });
   });
 
   test("refuses the whole batch over one invalid task, naming it", async () => {
@@ -102,7 +110,9 @@ describe.skipIf(!connectionString)("defining tasks", () => {
 
     expect(refused).toBeInstanceOf(InvalidTask);
     expect((refused as InvalidTask).index).toBe(1);
-    expect(await chooseNextActivity({ database, learnerId: learner, courseId, now })).toEqual({
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toEqual({
       kind: "no-activity",
     });
   });

@@ -27,6 +27,8 @@ const connectionString = process.env.TEST_DATABASE_URL;
 // `fileURLToPath` rather than `.pathname`, which leaves `%20` in place and would
 // look for a file that does not exist on a checkout path containing spaces.
 const readmePath = fileURLToPath(new URL("../../../README.md", import.meta.url));
+const cliPath = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
+const secret = "quickstart-secret-long-enough-32ch";
 
 /** The tools the README tells a reader to use. Without them there is nothing to check. */
 const hasShell = Bun.which("curl") !== null && Bun.which("bash") !== null;
@@ -63,8 +65,9 @@ function runnable(block: string): string {
 
   return block
     .replace("BRAIVO=http://localhost:3000", `${strict}\nBRAIVO=${baseUrl}`)
-    .replace("owner@example.com", `owner-${unique}@example.com`)
-    .replace("example-school", `example-school-${unique}`);
+    .replace("bun apps/server/cli/index.ts", `bun ${JSON.stringify(cliPath)}`)
+    .replaceAll("owner@example.com", `owner-${unique}@example.com`)
+    .replaceAll("example-school", `example-school-${unique}`);
 }
 
 describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => {
@@ -89,7 +92,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
       baseUrl,
       auth: createAuth({
         database,
-        secret: "quickstart-secret-long-enough-32ch",
+        secret,
         baseURL: baseUrl,
       }),
     });
@@ -110,8 +113,16 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
     // Spawned rather than run synchronously: the server answering these requests
     // lives in this process, so blocking the loop to wait would deadlock against
     // the very curl it is waiting for.
+    // The operator's command reaches the same database and installation as the
+    // server, as it would beside a real one.
     const shell = Bun.spawn(["bash", "-c", runnable(block!)], {
       cwd: workspace,
+      env: {
+        ...process.env,
+        DATABASE_URL: connectionString,
+        BETTER_AUTH_SECRET: secret,
+        BRAIVO_URL: baseUrl,
+      },
       stdout: "pipe",
       stderr: "pipe",
     });

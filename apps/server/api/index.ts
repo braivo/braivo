@@ -5,7 +5,19 @@
 // here are public contracts; everything else is an internal detail.
 // Why Hono, and what a route may do: docs/adr/0010-hono-http-layer.md.
 //
-// `/api/auth/*` — Better Auth's own surface, mounted per ADR 0006.
+// `/api/auth/*` — Better Auth's own surface, mounted per ADR 0006. Until ADR
+// 0018 replaces password sign-up, sign-up answers 404 on any host but
+// `BRAIVO_URL`'s.
+//
+// `GET /api/organization` — the organization the request's host serves, for the
+// learn app on that domain to present itself as. No session needed. 200 answers
+// `{ "name": "…" }`; 404 means the host serves no organization. The host is the
+// request's `Host`, so a router in front forwards it unchanged (ADR 0004).
+//
+// Every `/api/courses/:courseId/…` route below answers 404, as for a course that
+// does not exist, when the request's host may not reach the course: on an
+// organization's domain, another organization's course; on a host that is
+// neither that nor `BRAIVO_URL`'s, any course.
 //
 // `GET /api/courses/:courseId/next` — what the signed-in learner should do next
 // in a course. The learner is the session's user; the request never names one.
@@ -29,7 +41,9 @@
 //        response; `app.test.ts` pins it so that cannot happen quietly.
 //
 // `GET /api/courses` — the courses the signed-in learner may study: every course
-// of every organization they belong to, by title.
+// of every organization they belong to, by title. On an organization's domain,
+// only that organization's; on a host that is neither that nor `BRAIVO_URL`'s,
+// none.
 // 401 without a session; otherwise 200 with
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
 //
@@ -124,9 +138,9 @@
 //        record more than five minutes ahead, or uses an `id` starting with
 //        `attempt:`, which is reserved for evidence graded from attempts
 //   403  the request could have been forged (it must be `application/json`, and
-//        any `Origin` it sends must be this installation's), or the grader may
-//        not grade here, or the learner or an objective is not this
-//        organization's
+//        any `Origin` it sends must be this installation's or an organization's
+//        own domain), or the grader may not grade here, or the learner or an
+//        objective is not this organization's
 //   413  the body is larger than 1 MB
 //   409  a record's `id` already holds a different result for this learner —
 //        another outcome, date, or objective. Nothing in the batch is stored.
@@ -135,6 +149,11 @@
 //        attempt, and each one after the first answers this.
 //   204  recorded. Redelivering the same result is a no-op, so a retry answers
 //        the same way and writes no second row.
+//
+// `GET /api/organizations` — the organizations the signed-in user manages
+// (`owner` or `admin`, not `member`), by name:
+// `{ "organizations": [{ "id": "…", "name": "…", "slug": "…" }] }`. 401 without
+// a session.
 //
 // The organization routes below share their refusals: 401 without a session,
 // and 403 unless the session holds `owner` or `admin` there — authoring is a
@@ -180,9 +199,9 @@
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, by title.
 //
 // Every GET above answers `Cache-Control: private, no-store`, since each one
-// answers differently per cookie; so does a 500 raised after the route set it,
-// because Hono's default error response keeps the headers already on the
-// context. Braivo's writes set none: nothing caches a POST unasked.
+// answers differently per cookie or per host; so does a 500 raised after the
+// route set it, because Hono's default error response keeps the headers already
+// on the context. Braivo's writes set none: nothing caches a POST unasked.
 
 export type { Api, ApiOptions } from "./app.ts";
 export { createApi } from "./app.ts";

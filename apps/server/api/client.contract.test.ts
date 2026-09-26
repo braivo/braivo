@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
@@ -32,6 +33,13 @@ const client = createClient({
   // The client only ever passes a path, which is what `request` addresses.
   fetch: ((path: string, init?: RequestInit) =>
     api.request(path, init)) as unknown as typeof globalThis.fetch,
+});
+
+/** The same app reached at `organizationId`'s own domain, which serves its learn app. */
+const organizationHost = "contract-test.example.com";
+const onOrganizationDomain = createClient({
+  fetch: ((path: string, init?: RequestInit) =>
+    api.request(`https://${organizationHost}${path}`, init)) as unknown as typeof globalThis.fetch,
 });
 
 const organizationId = "contract-test-org";
@@ -84,6 +92,11 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       at,
     });
 
+    await database
+      .insert(organizationDomain)
+      .values({ hostname: organizationHost, organizationId })
+      .onConflictDoNothing();
+
     pastTense = (await createObjectives(database, organizationId, ["Past tense"]))[0]!;
     courseId = await createCourse(database, {
       organizationId,
@@ -121,6 +134,12 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
   beforeEach(async () => {
     await testing.clearLearnerHistory(database, [learnerId]);
+  });
+
+  test("names the organization a domain serves, and none for another", async () => {
+    // `seedOrganization` names an organization after its ID.
+    expect(await onOrganizationDomain.hostOrganization()).toEqual({ name: organizationId });
+    expect(await client.hostOrganization()).toBeUndefined();
   });
 
   test("parses an activity into the shape it declares", async () => {
@@ -168,6 +187,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       { id: emptyCourseId, title: "Not started" },
       { id: courseId, title: "Spanish" },
     ]);
+  });
+
+  test("lists the organizations a content owner manages, and none a learner is only in", async () => {
+    expect(await client.listOrganizations({ headers: { cookie: teacherCookie } })).toEqual([
+      { id: organizationId, name: organizationId, slug: organizationId },
+    ]);
+    expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
   });
 
   test("lists courses in the shape it declares, and refuses a learner", async () => {

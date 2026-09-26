@@ -6,8 +6,10 @@ import type {
   Course,
   Grade,
   GradedEvidence,
+  HostOrganization,
   KnowledgeReport,
   Objective,
+  Organization,
   TaskResponse,
 } from "./types.ts";
 
@@ -24,10 +26,12 @@ export type {
   Course,
   Grade,
   GradedEvidence,
+  HostOrganization,
   KnowledgeReport,
   LearningDecision,
   Objective,
   ObjectiveStanding,
+  Organization,
   TaskResponse,
 } from "./types.ts";
 
@@ -65,6 +69,13 @@ export type RequestOptions = {
 };
 
 export type BraivoClient = {
+  /**
+   * The organization the app's own domain serves, which it is branded as, or
+   * `undefined` when the domain serves none — an installation reached at its
+   * own address, say. Needs no session.
+   */
+  hostOrganization(options?: RequestOptions): Promise<HostOrganization | undefined>;
+
   /**
    * What the signed-in learner should do next in a course — the decision and a
    * task to practise it — or `undefined` when there is nothing to practise now
@@ -105,9 +116,16 @@ export type BraivoClient = {
 
   /**
    * The courses the signed-in learner may study, by title: every course of
-   * every organization they belong to.
+   * every organization they belong to, and on an organization's domain only
+   * that one's.
    */
   learnerCourses(options?: RequestOptions): Promise<Course[]>;
+
+  /**
+   * The organizations the session's user manages, holding `owner` or `admin`,
+   * by name — not every one they are in, since a learner is a member too.
+   */
+  listOrganizations(options?: RequestOptions): Promise<Organization[]>;
 
   /**
    * Every course an organization has, by title.
@@ -220,6 +238,16 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
   }
 
   return {
+    async hostOrganization(requestOptions) {
+      const response = await get("/api/organization", requestOptions);
+
+      const doing = "asking which organization this domain serves";
+      if (response.status === 404) return undefined;
+      if (response.status !== 200) throw unexpected(response, doing);
+
+      return parsed<HostOrganization>(response, doing);
+    },
+
     async nextActivity(courseId, requestOptions) {
       const response = await get(
         `/api/courses/${encodeURIComponent(courseId)}/activity`,
@@ -270,6 +298,16 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { courses } = await parsed<{ courses: Course[] }>(response, doing);
       return courses;
+    },
+
+    async listOrganizations(requestOptions) {
+      const response = await get("/api/organizations", requestOptions);
+
+      const doing = "listing the organizations you manage";
+      if (response.status !== 200) throw unexpected(response, doing);
+
+      const { organizations } = await parsed<{ organizations: Organization[] }>(response, doing);
+      return organizations;
     },
 
     async listCourses(organizationId, requestOptions) {

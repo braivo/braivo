@@ -8,8 +8,10 @@ import {
   createCourse,
   findObjectivesOutsideOrganization,
   readCourses,
+  readDomainOrganization,
   readLearnerCourses,
 } from "../persistence/index.ts";
+import type { RequestHost } from "./host.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
@@ -64,12 +66,18 @@ export async function listCourses(input: {
 
 /**
  * The courses a learner may study: every course of every organization they
- * belong to. Membership stands in for enrollment; this is the one place to
- * change once enrollment is defined.
+ * belong to, and on an organization's domain only that one's (ADR 0004).
+ * Membership stands in for enrollment; this is the one place to change once
+ * enrollment is defined.
  */
 export async function listLearnerCourses(input: {
   database: Database;
   learnerId: string;
+  host: RequestHost;
 }): Promise<Course[]> {
-  return readLearnerCourses(input.database, input.learnerId);
+  const { database, learnerId, host } = input;
+  if (host.installation) return readLearnerCourses(database, learnerId);
+
+  const served = await readDomainOrganization(database, host.hostname);
+  return served ? readLearnerCourses(database, learnerId, served.id) : [];
 }

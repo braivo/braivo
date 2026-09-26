@@ -7,10 +7,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { orNotFound } from "#lib/refusals";
 
-export const Route = createFileRoute("/_signed-in/organizations/$organizationId/")({
-  loader: async ({ context, params, abortController }) => ({
+export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
+  loader: async ({ context, abortController }) => ({
     courses: await orNotFound(
-      context.braivo.listCourses(params.organizationId, { signal: abortController.signal }),
+      context.braivo.listCourses(context.organization.id, { signal: abortController.signal }),
     ),
   }),
   component: Courses,
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_signed-in/organizations/$organizationId/
 
 function Courses() {
   const { courses } = Route.useLoaderData();
-  const { organizationId } = Route.useParams();
+  const { organizationSlug } = Route.useParams();
 
   if (courses.length === 0) {
     return (
@@ -39,8 +39,8 @@ function Courses() {
         {courses.map((course) => (
           <li key={course.id}>
             <Link
-              to="/organizations/$organizationId/courses/$courseId"
-              params={{ organizationId, courseId: course.id }}
+              to="/$organizationSlug/courses/$courseId"
+              params={{ organizationSlug, courseId: course.id }}
               className="underline"
             >
               {course.title}

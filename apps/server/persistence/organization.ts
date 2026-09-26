@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { course, objective } from "@braivo/db/schema";
+import { course, objective, organization } from "@braivo/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -37,4 +37,17 @@ export async function organizationOwnsLearningContent(
   ]);
 
   return objectives.length > 0 || courses.length > 0;
+}
+
+/** An organization's slug, or `undefined` when there is no such organization. */
+export async function readOrganizationSlug(
+  database: Database,
+  organizationId: string,
+): Promise<string | undefined> {
+  const [row] = await database
+    .select({ slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, organizationId));
+
+  return row?.slug;
 }

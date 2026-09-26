@@ -8,8 +8,9 @@ import {
   readCourseObjectives,
   readCourseOrganization,
   readLearnerEvidence,
-  readOrganizationRoles,
 } from "../persistence/index.ts";
+import { hostAdmits, type RequestHost } from "./host.ts";
+import { isMember } from "./permission.ts";
 
 /**
  * What every view of a learner in a course is computed from: the course's
@@ -27,8 +28,9 @@ type LearnerInCourse = {
 
 /**
  * Loads a learner as they stand in a course at `now`, or `undefined` when the
- * course is missing, `authorize` refuses, or the learner is not in the course's
- * organization; callers cannot tell which. "What next" and "where they stand"
+ * course is missing, belongs to an organization `host` does not reach,
+ * `authorize` refuses, or the learner is not in the course's organization;
+ * callers cannot tell which. "What next" and "where they stand"
  * both load through here, so they cannot drift apart.
  *
  * The organization comes from the course, never from the caller. `authorize` is
@@ -42,20 +44,20 @@ export async function loadLearnerInCourse(
   input: {
     courseId: string;
     learnerId: string;
+    /** The host the request came to; see `hostAdmits`. */
+    host: RequestHost;
     now: Date;
     authorize: (organizationId: string) => boolean | Promise<boolean>;
   },
 ): Promise<LearnerInCourse | undefined> {
-  const { courseId, learnerId, now, authorize } = input;
+  const { courseId, learnerId, host, now, authorize } = input;
 
   const organizationId = await readCourseOrganization(database, courseId);
   if (organizationId === undefined) return undefined;
+  if (!(await hostAdmits(database, host, organizationId))) return undefined;
   if (!(await authorize(organizationId))) return undefined;
 
-  // Any role will do: being in the organization is what entitles a learner to
-  // its material. What anyone may *do* to it is asked elsewhere.
-  const roles = await readOrganizationRoles(database, { organizationId, userId: learnerId });
-  if (roles.length === 0) return undefined;
+  if (!(await isMember(database, { organizationId, userId: learnerId }))) return undefined;
 
   const [objectiveIds, evidence] = await Promise.all([
     readCourseObjectives(database, courseId),
