@@ -31,9 +31,8 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       const [activity, progress] = await Promise.all([
         context.braivo.nextActivity(params.courseId, { signal }),
         // Optional: a failure leaves the summary out rather than failing the
-        // page. Awaited with the activity, not deferred, since it loads the same
-        // evidence and no more, and a line arriving later would shift the
-        // question down.
+        // page. Awaited with the activity, which does the same reads and more,
+        // so the line never arrives late and shifts the question down.
         context.braivo
           .learnerProgress({ courseId: params.courseId, learnerId: context.user.id }, { signal })
           .catch(() => undefined),
@@ -68,7 +67,7 @@ function NextStep() {
 
   return (
     <>
-      {progress && <Standing report={progress} />}
+      {progress && <ProgressSummary report={progress} />}
       {!activity ? (
         // Not "caught up": an objective with no task to practise it can still
         // be due (glossary: No activity), and the summary above says so.
@@ -86,10 +85,9 @@ function NextStep() {
 /**
  * Where the learner stands in the course, in one line: counts by the model's
  * own states, so it claims no more than they do — "retained" rather than
- * "mastered", which Braivo does not define. States with nothing in them are
- * left out, and a course with no objectives shows nothing.
+ * "mastered", which Braivo does not define.
  */
-function Standing({ report }: { report: KnowledgeReport }) {
+function ProgressSummary({ report }: { report: KnowledgeReport }) {
   const counts = { retained: 0, due: 0, learning: 0, unseen: 0 };
   for (const standing of report.objectives) {
     if (standing.phase === "unseen") counts.unseen++;

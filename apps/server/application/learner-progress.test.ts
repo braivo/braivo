@@ -165,6 +165,10 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     expect(await progress({ viewedBy: learner })).toMatchObject({ kind: "assessed" });
     expect(await progress({ viewedBy: classmate })).toEqual({ kind: "unavailable" });
     expect(await progress({ viewedBy: stranger })).toEqual({ kind: "unavailable" });
+    // Reading one's own is no way around membership.
+    expect(await progress({ learnerId: stranger, viewedBy: stranger })).toEqual({
+      kind: "unavailable",
+    });
   });
 
   test("refuses the administrator of a different organization", async () => {

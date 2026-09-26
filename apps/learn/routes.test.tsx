@@ -101,12 +101,15 @@ function renderAt(
 
 describe("the learn app", () => {
   test("sends a signed-out learner to sign in, and asks Braivo nothing", async () => {
-    const { nextActivity, router } = renderAt("/courses/c1", { signedIn: false });
+    const { learnerProgress, nextActivity, router } = renderAt("/courses/c1", {
+      signedIn: false,
+    });
 
     expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
+    expect(learnerProgress).not.toHaveBeenCalled();
   });
 
   test("wears the brand of the organization its domain serves, before sign-in", async () => {

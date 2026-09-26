@@ -116,7 +116,7 @@
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
-//        offer for review — so the two answers cannot disagree about a learner.
+//        offer for review — so given the same evidence and time, the two agree.
 //        The shape is `KnowledgeReport` serialized, pinned like the decision's.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —

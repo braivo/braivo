@@ -13,8 +13,8 @@ import { mayAdminister } from "./permission.ts";
  * for the learner themselves.
  *
  * Loaded through `loadLearnerInCourse`, like `chooseNextObjective`, so both read
- * the same evidence under the same model, and what this reports as due is what
- * selection would review.
+ * the same evidence under the same model, and given the same evidence and time,
+ * what this reports as due is what selection would review.
  *
  * `viewedBy` is the reader, not the learner, so it is authorized
  * (docs/adr/0010-hono-http-layer.md): it must be the learner, or administer the
@@ -59,8 +59,9 @@ export async function readLearnerProgress(input: {
 
 /**
  * `unavailable` covers four cases on purpose. A missing course and one the reader
- * may not read look alike, so a reader cannot confirm that a course exists. A learner outside the organization and an ID that belongs to nobody
- * look alike, so an administrator cannot probe whether an ID exists elsewhere.
+ * may not read look alike, so a reader cannot confirm that a course exists. A
+ * learner outside the organization and an ID that belongs to nobody look alike,
+ * so an administrator cannot probe whether an ID exists elsewhere.
  * Timing still differs: each check that passes costs another query.
  */
 export type LearnerProgress =
