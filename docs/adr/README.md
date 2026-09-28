@@ -11,6 +11,7 @@ A number is an identity, not a date: a new ADR takes the next free one. The list
 - [0003: Two apps, a database package, and Vite+ as the one toolchain](0003-workspace-layout.md)
 - [0004: Application origins and organization addressing](0004-one-application-origin.md)
 - [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
+- [0019: Local notes shared by every worktree through one link](0019-shared-local-notes.md)
 
 ## Server
 
