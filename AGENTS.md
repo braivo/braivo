@@ -2,7 +2,7 @@
 
 Adaptive learning powered by AI: Braivo turns existing educational content into a personal AI tutor.
 
-Before making product or feature decisions, read `docs/product.md` in the `braivo` repository. It defines users, principles, non-goals, and the repository boundary. Shared terms are defined in `docs/glossary.md`.
+Before making product or feature decisions, read `docs/product.md` in the `braivo` repository. It defines users, principles, non-goals, and the repository boundary. Shared terms are defined in `docs/glossary.md`. Before changing an area, read its spec in `docs/specs/` and, if there is one, its plan, `local/plans/<area>.md`, gitignored. Update the spec in the same change when behavior, rules, boundaries, or gaps change, not for a refactor; the plan as work goes on. How to write each: `docs/specs/README.md`.
 
 ## Where things live
 

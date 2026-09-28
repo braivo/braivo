@@ -20,7 +20,8 @@ function SignIn() {
       <Heading>Sign in</Heading>
       <EmailSignIn
         auth={auth}
-        // Learners join organizations by invitation (ADR 0018).
+        // Sign-in only: the server refuses sign-up off the installation's host, and
+        // learners are to join organizations by invitation (ADR 0018).
         mode="sign-in"
         onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
       />

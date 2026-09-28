@@ -62,4 +62,4 @@ Add an abstraction only for a concrete need: another implementation, an integrat
 
 ## Not yet decided
 
-Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership by invitation stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A machine credential for server-to-server callers is open too — evidence is recordable over HTTP today, but only by a session ([ADR 0010](adr/0010-hono-http-layer.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.
+Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A machine credential for server-to-server callers is open too — evidence is recordable over HTTP today, but only by a session ([ADR 0010](adr/0010-hono-http-layer.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.
