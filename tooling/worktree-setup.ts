@@ -4,9 +4,10 @@
 /**
  * Bootstraps a linked worktree for development, whichever tool created it:
  * copies the local files `.worktreeinclude` lists from the main checkout,
- * creates `tmp/`, then installs dependencies. Safe to rerun, and a no-op in
- * the main checkout (docs/adr/0014-worktree-setup.md). Bun and Git only: it
- * runs before `node_modules` exists.
+ * links the shared notes directory, creates `tmp/`, then installs
+ * dependencies. Safe to rerun, and a no-op in the main checkout
+ * (docs/adr/0014-worktree-setup.md). Bun and Git only: it runs before
+ * `node_modules` exists.
  *
  *   bun tooling/worktree-setup.ts
  */
@@ -16,13 +17,18 @@ import {
   constants,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   realpathSync,
+  symlinkSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 
 export type Install = (root: string) => void;
+
+/** The gitignored directory of notes every worktree shares (docs/adr/0019-shared-local-notes.md). */
+const NOTES = "local";
 
 /**
  * Output goes to stderr: a Claude Code hook's stdout becomes the agent's
@@ -62,6 +68,23 @@ export function setUpWorktree(cwd: string, install: Install = bunInstall): strin
     }
   }
 
+  // Linked, not copied, so every worktree shares one set of notes. Never in
+  // `.worktreeinclude`: Claude Code would copy it before this runs.
+  const notes = join(main, NOTES);
+  const ignored = isIgnored(root, NOTES);
+  let unlinked = false;
+  if (ignored) {
+    mkdirSync(notes, { recursive: true });
+    const target = join(root, NOTES);
+    if (!lstatSync(target, { throwIfNoEntry: false })) {
+      symlinkSync(notes, target, "dir");
+      done.push(`linked ${NOTES}/`);
+    } else {
+      // Kept, but reported: a copy would drift from the shared notes.
+      unlinked = !lstatSync(target).isSymbolicLink() || !sameFile(target, notes);
+    }
+  }
+
   // Gitignored scratch space agents and review skills write to (tmp/feedback.md).
   if (mkdirSync(join(root, "tmp"), { recursive: true })) done.push("created tmp/");
 
@@ -69,6 +92,18 @@ export function setUpWorktree(cwd: string, install: Install = bunInstall): strin
   // makes this a 0.3 s no-op.
   install(root);
   done.push("installed dependencies");
+  // Thrown after the install: the worktree is usable, but missing notes must
+  // not go unnoticed.
+  if (!ignored) {
+    throw new Error(
+      `Worktree set up, but /${NOTES} is not gitignored, so its notes are not linked.`,
+    );
+  }
+  if (unlinked) {
+    throw new Error(
+      `Worktree set up, but ${NOTES}/ is not a link to ${notes}. Move anything worth keeping there, delete ${NOTES}/ here, and rerun.`,
+    );
+  }
   return done;
 }
 
@@ -94,6 +129,15 @@ function includedPaths(root: string): string[] {
       }
       return path;
     });
+}
+
+/** A dangling link counts as a different file. */
+function sameFile(a: string, b: string): boolean {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return false;
+  }
 }
 
 /** Against the worktree's own ignore rules, as Claude Code checks. */

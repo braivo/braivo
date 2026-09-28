@@ -49,7 +49,7 @@ Today the console signs people in with email and password at `/login` and `/sign
 - The learn app's sign-in page is on Braivo's origin, branded as the organization, with Braivo's address in the location bar.
 - `/login` and `/invitations` are reserved from slugs; `signup` leaves the list with the route.
 - To build, in dependency order — invitations need the handoff, since an account made by email code has no password for today's learn-domain sign-in:
-  1. email-code `/login` with the name step and settings above, replacing `/signup` and the password form; the command that creates an organization for an existing user and the console's creation form removed (both done);
+  1. email-code `/login` with the name step and settings above, replacing `/signup` and the password form; and, already done, the command that creates an organization for an existing user, with the console's creation form removed;
   2. the learner session and handoff, replacing learn-domain sign-in, and learn domains dropped from Better Auth's trusted origins; `/login?handoff=` names the organization and the domain it returns to ("Sign in to Acme Learning"), without Braivo's branding;
   3. learner and administrator invitations;
   4. the pilot, then Google.
