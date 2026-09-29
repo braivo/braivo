@@ -29,7 +29,14 @@ Update a spec in the same change as its behavior, rules, boundaries, or gaps; a 
 
 ## Plans
 
-A plan is an area's working notes, kept out of Git so they can be rough: the goal and the rules it meets, design, steps, roadmap, questions for the maintainer, chores only an engineer would notice, and findings and rejected approaches that matter while the work lasts. It may propose changing the spec but never overrides it: until code and spec change together, the spec holds. What ships leaves the plan, its rules into the spec and anything worth knowing later, a rejected approach included, into an ADR or a comment, so deleting a finished plan loses nothing. Every worktree shares `local/` ([ADR 0019](../adr/0019-shared-local-notes.md)), so one worktree works on an area at a time; `local/NEXT.md` orders the work across areas.
+A plan is an area's working notes, kept out of Git so they can be rough: the goal and the rules it meets, design, steps, roadmap, questions for the maintainer, chores only an engineer would notice, and findings and rejected approaches that matter while the work lasts. Work too large for one reviewable commit is a list of ordered checkpoints, each naming one thing that becomes true, what it meets (spec rule IDs, a heading before the spec has IDs, or for tooling an ADR or repository rule), and the observation that proves it. `AGENTS.md` says how to work through them.
+
+```md
+- [ ] C1 A report lists objectives not yet started (progress-4). Proof: an unpractised objective is reported, not started.
+- [ ] C2 A report counts only evidence up to its moment (progress-6). Proof: evidence dated after that moment leaves the report unchanged.
+```
+
+A plan may propose changing the spec but never overrides it: until code and spec change together, the spec holds. What ships leaves the plan, its rules into the spec and anything worth knowing later, a rejected approach included, into an ADR or a comment, so deleting a finished plan loses nothing. Every worktree shares `local/` ([ADR 0019](../adr/0019-shared-local-notes.md)), so one worktree works on an area at a time; `local/NEXT.md` orders the work across areas.
 
 ## Areas
 
