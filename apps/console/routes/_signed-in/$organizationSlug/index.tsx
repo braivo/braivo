@@ -21,19 +21,35 @@ function Courses() {
   const { courses } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
 
+  // Where a course starts: the material it is written from.
+  const sources = (
+    <p className="mb-4">
+      <Link to="/$organizationSlug/sources" params={{ organizationSlug }} className="underline">
+        Sources
+      </Link>
+    </p>
+  );
+
   if (courses.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No courses published yet</EmptyTitle>
-          <EmptyDescription>Courses are published through the API for now.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <>
+        {sources}
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No courses published yet</EmptyTitle>
+            <EmptyDescription>
+              Add material under Sources and draft a course from it there, or with your desktop
+              agent through braivo mcp.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </>
     );
   }
 
   return (
     <>
+      {sources}
       <Heading>Courses</Heading>
       <ul className="list-disc pl-6">
         {courses.map((course) => (

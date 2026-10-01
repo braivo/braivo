@@ -24,6 +24,18 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
 - [0017: A task rests after it is answered](0017-task-rest.md)
 - [0018: One sign-in on Braivo's origin, invitations to organizations, and a learner session per learn domain](0018-sign-in-and-invitations.md)
+- [0020: Source content is an immutable text snapshot, extracted by whoever holds the file](0020-source-content.md)
+- [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)
+- [0022: A content owner's tools sign in through the device flow and act as them](0022-machine-access.md)
+- [0023: `braivo mcp` serves Braivo's API as tools, through the official SDK](0023-mcp-server.md)
+- [0024: Adding what is already there returns what is there](0024-idempotent-authoring.md)
+- [0025: A recording enters as timed cues, and a passage cited from it names its moment](0025-timed-transcripts.md)
+- [0026: A document enters page by page, and a passage cited from it names its page](0026-paged-documents.md)
+- [0027: `braivo` ships as one compiled file per platform](0027-standalone-cli.md)
+- [0028: Originals are content-addressed files in a store the installation chooses](0028-original-files.md)
+- [0029: Braivo drafts a course from a source on request, checks it, and stores nothing](0029-server-drafting.md)
+- [0030: Braivo reads a PDF or photo into pages on request, and the caller adds them](0030-server-extraction.md)
+- [0031: Each AI request is recorded, and an operator may set an organization's monthly quota](0031-ai-limits.md)
 - [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
 
 ## Web

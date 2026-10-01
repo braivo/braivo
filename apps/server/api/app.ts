@@ -6,28 +6,54 @@ import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 
 import {
+  addSource,
   chooseNextActivity,
+  citeSources,
   chooseNextObjective,
   ConflictingEvidence,
+  ConflictingKey,
   defineCourse,
   defineObjectives,
   defineTasks,
+  type Ai,
+  AiLimitReached,
+  AiNotEntitled,
+  AiUnavailable,
+  draftFromSource,
+  FilesUnavailable,
+  getSource,
+  InvalidCitation,
+  InvalidAiRequest,
   InvalidEvidence,
+  InvalidFile,
+  InvalidKey,
+  InvalidSource,
   InvalidTask,
   listCourses,
   listLearnerCourses,
   listManagedOrganizations,
+  listObjectiveCitations,
   listObjectives,
+  listObjectiveTasks,
+  listSources,
+  ModelUnavailable,
   NotPermitted,
+  openFile,
   readHostOrganization,
+  readAuthoredCourse,
+  readFileText,
   readLearnerProgress,
   recordGradedEvidence,
+  type QuotedCitation,
   retireTasks,
   submitAttempt,
   type RequestHost,
+  uploadFile,
 } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
+import { isStorableText, MAX_TITLE } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
+import type { FileStore } from "../storage/index.ts";
 
 /**
  * Reads evidence out of a request body, or nothing when the body is not
@@ -77,21 +103,45 @@ function parseEvidence(body: unknown): Evidence[] | undefined {
  * send an `Origin` it has to be ours. A server-to-server caller sends no
  * `Origin` at all and sets the content type, so neither check touches it.
  * Besides this installation's origin, an organization's domain serves the
- * learn app, and is registered only when the operator controls it (ADR 0004).
+ * learn app, and is registered only when the operator controls it (ADR 0004);
+ * it writes only to itself.
  */
 async function isTrustedWrite(
   context: Context,
   origin: string,
   database: Database,
+  host: RequestHost,
 ): Promise<boolean> {
   // The media type alone, so that `application/json; charset=utf-8` is accepted
   // and `application/jsonp` is not — a prefix test would take both.
   const mediaType = (context.req.header("content-type") ?? "").split(";")[0] ?? "";
   if (mediaType.trim().toLowerCase() !== "application/json") return false;
 
+  // Each app calls its own origin's API, so a write comes from the host it is
+  // sent to: a learn domain cannot write through the console's session.
   const requestOrigin = context.req.header("origin");
-  if (requestOrigin === undefined || requestOrigin === origin) return true;
-  return isOrganizationOrigin(database, requestOrigin);
+  if (requestOrigin === undefined) return true;
+  if (host.installation) return requestOrigin === origin;
+  return (
+    URL.canParse(requestOrigin) &&
+    new URL(requestOrigin).hostname === host.hostname &&
+    isOrganizationOrigin(database, requestOrigin)
+  );
+}
+
+/**
+ * `isTrustedWrite` for a body that is a file rather than JSON. What a browser
+ * sends cross-site without a preflight is a form's content type or none, so
+ * an upload must name another; `text/plain` falls to that rule, which costs
+ * nothing, since text is sent as a source rather than kept as a file.
+ */
+function isTrustedUpload(context: Context, origin: string): boolean {
+  const mediaType = (context.req.header("content-type") ?? "").split(";")[0] ?? "";
+  const simple = ["", "application/x-www-form-urlencoded", "multipart/form-data", "text/plain"];
+  if (simple.includes(mediaType.trim().toLowerCase())) return false;
+
+  const requestOrigin = context.req.header("origin");
+  return requestOrigin === undefined || requestOrigin === origin;
 }
 
 export type ApiOptions = {
@@ -99,30 +149,72 @@ export type ApiOptions = {
   database: Database;
   /** The public origin this installation is served from, used to judge writes. */
   baseUrl: string;
+  /** Where uploaded files are kept; without one, the file routes answer 501. */
+  files?: FileStore;
+  /** The installation's model, and who may use it; without one, AI routes answer 501. */
+  ai?: Ai;
 };
 
 /**
- * Reads objective titles out of a request body. Blank titles are refused rather
- * than stored: an objective nobody can recognise is worse than none, and the ID
- * that names it is opaque by design.
+ * Reads objectives out of a request body: each a title and, optionally, the
+ * caller's key. Blank titles, and those past `MAX_TITLE`, are refused rather
+ * than stored: an objective nobody can recognise is worse than none, and the
+ * ID that names it is opaque by design. What a key may be is the use case's rule.
  */
-function parseTitles(body: unknown): string[] | undefined {
+function parseObjectives(body: unknown): { title: string; key?: string }[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const titles = (body as { titles?: unknown }).titles;
-  if (!Array.isArray(titles)) return undefined;
-  if (titles.length > MAX_ITEMS_PER_REQUEST) return undefined;
+  const objectives = (body as { objectives?: unknown }).objectives;
+  if (!Array.isArray(objectives)) return undefined;
+  if (objectives.length > MAX_ITEMS_PER_REQUEST) return undefined;
 
-  const parsed: string[] = [];
-  for (const title of titles) {
+  const parsed: { title: string; key?: string }[] = [];
+  for (const item of objectives) {
+    if (typeof item !== "object" || item === null) return undefined;
+
+    const { title, key } = item as Record<string, unknown>;
     if (typeof title !== "string") return undefined;
+    if (key !== undefined && typeof key !== "string") return undefined;
 
+    if (!isStorableText(title, MAX_TITLE)) return undefined;
     const trimmed = title.trim();
-    if (trimmed === "") return undefined;
 
-    parsed.push(trimmed);
+    parsed.push(key === undefined ? { title: trimmed } : { title: trimmed, key });
   }
   return parsed;
+}
+
+/**
+ * The refusals of defining an objective or a course. A malformed or
+ * conflicting key is explained, since the caller is often an agent that chose
+ * it.
+ */
+function keyRefusal(context: Context, error: unknown): Response {
+  if (error instanceof InvalidKey) return context.json({ error: error.message }, 400);
+  if (error instanceof ConflictingKey) return context.json({ error: error.message }, 409);
+  if (error instanceof NotPermitted) return context.body(null, 403);
+  throw error;
+}
+
+/**
+ * The statuses of a route that asks the installation's model: each refusal
+ * explained, since the fix is someone's to make — the operator's for 501 and
+ * 403, the caller's for 400, the calendar's for 429, nobody's but a retry's
+ * for 502.
+ */
+function aiRefusal(context: Context, error: unknown): Response {
+  if (error instanceof AiUnavailable || error instanceof FilesUnavailable) {
+    return context.json({ error: error.message }, 501);
+  }
+  if (error instanceof InvalidAiRequest) return context.json({ error: error.message }, 400);
+  if (error instanceof AiNotEntitled) return context.json({ error: error.message }, 403);
+  if (error instanceof AiLimitReached) {
+    context.header("retry-after", String(secondsUntil(error.renewsAt, new Date())));
+    return context.json({ error: error.message }, 429);
+  }
+  if (error instanceof ModelUnavailable) return context.json({ error: error.message }, 502);
+  if (error instanceof NotPermitted) return context.body(null, 403);
+  throw error;
 }
 
 /**
@@ -133,6 +225,12 @@ function parseTitles(body: unknown): string[] | undefined {
 const MAX_ITEMS_PER_REQUEST = 1000;
 
 /**
+ * How many quotes one write may ask Braivo to find, each a scan of a source of
+ * up to `MAX_SOURCE_BYTES`. A unit's worth; more goes in several requests.
+ */
+const MAX_QUOTES_PER_REQUEST = 200;
+
+/**
  * Reads a course out of a request body.
  *
  * Duplicate objectives are refused here rather than left to the database, which
@@ -140,14 +238,17 @@ const MAX_ITEMS_PER_REQUEST = 1000;
  * what is plainly a malformed request. An objective belongs to a course at most
  * once, because position is what orders it and two positions would contradict.
  */
-function parseCourse(body: unknown): { title: string; objectiveIds: string[] } | undefined {
+function parseCourse(
+  body: unknown,
+): { title: string; objectiveIds: string[]; key?: string } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const { title, objectiveIds } = body as { title?: unknown; objectiveIds?: unknown };
+  const { title, objectiveIds, key } = body as Record<string, unknown>;
   if (typeof title !== "string") return undefined;
+  if (key !== undefined && typeof key !== "string") return undefined;
 
+  if (!isStorableText(title, MAX_TITLE)) return undefined;
   const trimmed = title.trim();
-  if (trimmed === "") return undefined;
 
   if (!Array.isArray(objectiveIds)) return undefined;
   if (objectiveIds.length > MAX_ITEMS_PER_REQUEST) return undefined;
@@ -159,7 +260,9 @@ function parseCourse(body: unknown): { title: string; objectiveIds: string[] } |
   }
   if (new Set(ids).size !== ids.length) return undefined;
 
-  return { title: trimmed, objectiveIds: ids };
+  return key === undefined
+    ? { title: trimmed, objectiveIds: ids }
+    : { title: trimmed, objectiveIds: ids, key };
 }
 
 /**
@@ -180,26 +283,44 @@ function parseAttempt(
 }
 
 /**
- * Reads tasks out of a request body: each an `objectiveId` beside the fields of
- * its kind. Only the envelope is read here; the body is `content`'s to judge.
+ * Reads tasks out of a request body: each an `objectiveId` and optional
+ * `citations` beside the fields of its kind. Only the envelope is read here;
+ * the body is `content`'s to judge, and the quotes are located by the use case.
  */
-function parseTasks(body: unknown): { objectiveId: string; body: unknown }[] | undefined {
+function parseTasks(body: unknown): ParsedTask[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
   const tasks = (body as { tasks?: unknown }).tasks;
   if (!Array.isArray(tasks)) return undefined;
   if (tasks.length > MAX_ITEMS_PER_REQUEST) return undefined;
 
-  const parsed: { objectiveId: string; body: unknown }[] = [];
+  const parsed: ParsedTask[] = [];
   for (const task of tasks) {
     if (typeof task !== "object" || task === null) return undefined;
 
-    const { objectiveId, ...rest } = task as Record<string, unknown>;
+    const { objectiveId, citations, ...rest } = task as Record<string, unknown>;
     if (typeof objectiveId !== "string" || objectiveId === "") return undefined;
 
-    parsed.push({ objectiveId, body: rest });
+    if (citations === undefined) {
+      parsed.push({ objectiveId, body: rest });
+      continue;
+    }
+    if (!Array.isArray(citations) || citations.length > MAX_CITATIONS_PER_TASK) return undefined;
+
+    const quoted: { sourceId: string; quote: string }[] = [];
+    for (const citation of citations) {
+      if (typeof citation !== "object" || citation === null) return undefined;
+
+      const { sourceId, quote } = citation as Record<string, unknown>;
+      if (typeof sourceId !== "string" || sourceId === "") return undefined;
+      if (typeof quote !== "string") return undefined;
+
+      quoted.push({ sourceId, quote });
+    }
+    parsed.push({ objectiveId, body: rest, citations: quoted });
   }
-  return parsed;
+  const quotes = parsed.reduce((sum, task) => sum + (task.citations?.length ?? 0), 0);
+  return quotes > MAX_QUOTES_PER_REQUEST ? undefined : parsed;
 }
 
 /** Reads `taskIds`, each non-empty, out of a request body. */
@@ -212,6 +333,17 @@ function parseTaskIds(body: unknown): string[] | undefined {
   return ids as string[];
 }
 
+type ParsedTask = {
+  objectiveId: string;
+  body: unknown;
+  citations?: { sourceId: string; quote: string }[];
+};
+
+/**
+ * A question is written from a passage or two, not a chapter's worth.
+ */
+const MAX_CITATIONS_PER_TASK = 10;
+
 /**
  * Whole seconds until `when`, rounded up so a client waiting that long is never
  * early. A duration, not a date: the client's clock may disagree with this one.
@@ -220,8 +352,103 @@ function secondsUntil(when: Date, now: Date): number {
   return Math.ceil((when.getTime() - now.getTime()) / 1000);
 }
 
+/**
+ * Reads a source out of a request body: a title, and exactly one of `text`, a
+ * recording's `cues`, or a document's `pages`. Only the types: what makes each
+ * value valid is `content`'s rule, applied by the use case. `url`, `language`,
+ * and `original` are optional, and absent is the only way to leave one out.
+ */
+function parseSource(
+  body: unknown,
+):
+  | ({ title: string; url?: string; language?: string; original?: string } & (
+      | { text: string }
+      | { cues: { at: number; text: string }[] }
+      | { pages: { page: string; text: string }[] }
+    ))
+  | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const { title, text, cues, pages, url, language, original } = body as Record<string, unknown>;
+  if (typeof title !== "string") return undefined;
+  if (url !== undefined && typeof url !== "string") return undefined;
+  if (language !== undefined && typeof language !== "string") return undefined;
+  if (original !== undefined && typeof original !== "string") return undefined;
+  const common = { title, url, language, original };
+
+  const sent = [text, cues, pages].filter((value) => value !== undefined);
+  if (sent.length !== 1) return undefined;
+  if (typeof text === "string") return { ...common, text };
+
+  if (Array.isArray(cues)) {
+    const parsed: { at: number; text: string }[] = [];
+    for (const cue of cues) {
+      if (typeof cue !== "object" || cue === null) return undefined;
+      const { at, text: said } = cue as Record<string, unknown>;
+      if (typeof at !== "number" || typeof said !== "string") return undefined;
+      parsed.push({ at, text: said });
+    }
+    return { ...common, cues: parsed };
+  }
+
+  if (Array.isArray(pages)) {
+    const parsed: { page: string; text: string }[] = [];
+    for (const each of pages) {
+      if (typeof each !== "object" || each === null) return undefined;
+      const { page, text: written } = each as Record<string, unknown>;
+      if (typeof page !== "string" || typeof written !== "string") return undefined;
+      parsed.push({ page, text: written });
+    }
+    return { ...common, pages: parsed };
+  }
+
+  return undefined;
+}
+
+/** Reads citations out of a request body: only their types, as for a source. */
+function parseCitations(body: unknown): QuotedCitation[] | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const citations = (body as { citations?: unknown }).citations;
+  if (!Array.isArray(citations)) return undefined;
+  if (citations.length > MAX_QUOTES_PER_REQUEST) return undefined;
+
+  const parsed: QuotedCitation[] = [];
+  for (const citation of citations) {
+    if (typeof citation !== "object" || citation === null) return undefined;
+
+    const { objectiveId, sourceId, quote } = citation as Record<string, unknown>;
+    if (typeof objectiveId !== "string" || objectiveId === "") return undefined;
+    if (typeof sourceId !== "string" || sourceId === "") return undefined;
+    if (typeof quote !== "string") return undefined;
+
+    parsed.push({ objectiveId, sourceId, quote });
+  }
+  return parsed;
+}
+
 /** Enough for that many records, and far less than a body worth buffering. */
 const MAX_BODY_BYTES = 1_000_000;
+
+/**
+ * A file is buffered whole, to be hashed before it is stored: a textbook's
+ * PDF, a worksheet's scan, a slide deck. Video, larger, needs a direct
+ * upload to the store instead (ADR 0028).
+ */
+const MAX_FILE_BYTES = 50_000_000;
+
+/**
+ * A source is one document's text, and a textbook's runs to a few megabytes.
+ * Larger material is split into several sources, which is also the grain a
+ * citation is easiest to review at.
+ */
+const MAX_SOURCE_BYTES = 10_000_000;
+
+/** What Better Auth answers a bearer token: who it is, and their organizations. */
+const BEARER_AUTH_PATHS: ReadonlySet<string> = new Set([
+  "/api/auth/get-session",
+  "/api/auth/organization/list",
+]);
 
 /**
  * The HTTP entry point to `application`. A route resolves who is asking, calls
@@ -234,7 +461,7 @@ const MAX_BODY_BYTES = 1_000_000;
  * Endpoints and statuses: `index.ts`. Why any of it: ADR 0010.
  */
 export function createApi(options: ApiOptions) {
-  const { auth, database } = options;
+  const { auth, database, files, ai } = options;
   const origin = new URL(options.baseUrl).origin;
   const installationHostname = new URL(options.baseUrl).hostname;
   const api = new Hono();
@@ -244,6 +471,24 @@ export function createApi(options: ApiOptions) {
     const { hostname } = new URL(context.req.url);
     return { hostname, installation: hostname === installationHostname };
   };
+
+  // The installation's origin is the console's and its tools': the account's
+  // own credentials — sign-up, the device flow, a bearer token — and the
+  // console's API reach nothing on any other host, which serves one
+  // organization's learn app (ADR 0004, ADR 0022). Before authentication, so
+  // a credential presented elsewhere is refused whatever it could do.
+  api.use("/api/*", async (context, next) => {
+    if (requestHost(context).installation) return next();
+    // A refusal here depends on the host, so no shared cache may keep one.
+    context.header("cache-control", "private, no-store");
+    if (context.req.header("authorization") !== undefined) return context.body(null, 401);
+    const { path } = context.req;
+    const installationOnly = ["/api/organizations", "/api/auth/sign-up/", "/api/auth/device"];
+    if (installationOnly.some((prefix) => path.startsWith(prefix))) {
+      return context.body(null, 404);
+    }
+    return next();
+  });
 
   // Better Auth owns the routing below this path (ADR 0006); Braivo still owes
   // it the protections. Unguarded, `sign-up/email` accepts a megabytes-long
@@ -262,14 +507,23 @@ export function createApi(options: ApiOptions) {
     },
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      // An account made on any other host would belong to no organization and
-      // reach no course; hiding the learn app's form is not the boundary.
-      const signingUp = context.req.path.startsWith("/api/auth/sign-up/");
-      if (signingUp && !requestHost(context).installation) return context.body(null, 404);
+      // A tool's token is for Braivo's API and for finding its way there, not
+      // for managing the account — approving another device, changing an
+      // email — which takes the person in their browser.
+      const bearer = context.req.header("authorization") !== undefined;
+      if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
 
       // Copied, since a library's response may carry immutable headers.
       const answered = await auth.handler(context.req.raw);
-      return new Response(answered.body, answered);
+      const response = new Response(answered.body, answered);
+      // A renewed session comes back as a signed cookie, which the bearer
+      // plugin also copies into `set-auth-token`: either would carry a token's
+      // session past every limit set on bearers here.
+      if (bearer) {
+        response.headers.delete("set-cookie");
+        response.headers.delete("set-auth-token");
+      }
+      return response;
     },
   );
 
@@ -285,6 +539,9 @@ export function createApi(options: ApiOptions) {
       returnHeaders: true,
     });
 
+    // Not to a bearer, which renews by being used, and must not be handed a
+    // cookie it could carry where tokens are refused.
+    if (context.req.header("authorization") !== undefined) return response;
     for (const cookie of headers.getSetCookie()) {
       context.header("set-cookie", cookie, { append: true });
     }
@@ -415,7 +672,8 @@ export function createApi(options: ApiOptions) {
     "/api/courses/:courseId/attempts",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -445,7 +703,13 @@ export function createApi(options: ApiOptions) {
         case "resting":
           return context.body(null, 409);
         case "graded":
-          return context.json(submitted.grade);
+          // `passages` only when there are some, as `explanation` only when
+          // the task has one: a hand-written task cites nothing.
+          return context.json(
+            submitted.passages.length > 0
+              ? { ...submitted.grade, passages: submitted.passages }
+              : submitted.grade,
+          );
         default:
           throw new Error(`Unhandled answer: ${JSON.stringify(submitted satisfies never)}`);
       }
@@ -501,7 +765,8 @@ export function createApi(options: ApiOptions) {
     async (context) => {
       // Before the session is even resolved: a forged request should cost this
       // server nothing, and the answer does not depend on who it claims to be.
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -539,37 +804,33 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * Registers learning targets for an organization.
-   *
-   * Objectives are the vocabulary evidence and courses are written against, and
-   * until content can be derived from source material a content owner has to
-   * say what they are. Before this route they could only be created by writing
-   * to the database.
+   * Registers learning targets for an organization: the vocabulary evidence and
+   * courses are written against.
    */
   api.post(
     "/api/organizations/:organizationId/objectives",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
 
-      const titles = parseTitles(await context.req.json().catch(() => undefined));
-      if (titles === undefined) return context.body(null, 400);
+      const objectives = parseObjectives(await context.req.json().catch(() => undefined));
+      if (objectives === undefined) return context.body(null, 400);
 
       try {
         const objectiveIds = await defineObjectives({
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: session.user.id,
-          titles,
+          objectives,
         });
 
         return context.json({ objectiveIds }, 201);
       } catch (error) {
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return keyRefusal(context, error);
       }
     },
   );
@@ -582,7 +843,8 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/tasks",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -601,7 +863,10 @@ export function createApi(options: ApiOptions) {
 
         return context.json({ taskIds }, 201);
       } catch (error) {
-        if (error instanceof InvalidTask) return context.body(null, 400);
+        // Explained, as on the citations route, so a drafting model can fix it.
+        if (error instanceof InvalidTask || error instanceof InvalidCitation) {
+          return context.json({ error: error.message }, 400);
+        }
         if (error instanceof NotPermitted) return context.body(null, 403);
         throw error;
       }
@@ -616,7 +881,8 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/tasks/retire",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -651,7 +917,8 @@ export function createApi(options: ApiOptions) {
     "/api/organizations/:organizationId/courses",
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database))) return context.body(null, 403);
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
 
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
@@ -664,14 +931,12 @@ export function createApi(options: ApiOptions) {
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: session.user.id,
-          title: course.title,
-          objectiveIds: course.objectiveIds,
+          ...course,
         });
 
         return context.json({ courseId }, 201);
       } catch (error) {
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return keyRefusal(context, error);
       }
     },
   );
@@ -684,6 +949,38 @@ export function createApi(options: ApiOptions) {
 
     const organizations = await listManagedOrganizations({ database, actingAs: session.user.id });
     return context.json({ organizations });
+  });
+
+  /**
+   * One course as authored — objectives in order, each with its passages and
+   * tasks, answers included — for whoever administers its organization.
+   */
+  api.get("/api/organizations/:organizationId/courses/:courseId", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const course = await readAuthoredCourse({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+        courseId: context.req.param("courseId"),
+      });
+      if (!course) return context.body(null, 404);
+
+      return context.json({
+        ...course,
+        objectives: course.objectives.map(({ tasks, ...objective }) => ({
+          ...objective,
+          // As `GET …/objectives/:objectiveId/tasks` answers them.
+          tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+        })),
+      });
+    } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
   });
 
   /** Every course an organization has, for whoever administers it. */
@@ -721,6 +1018,333 @@ export function createApi(options: ApiOptions) {
 
       return context.json({ objectives });
     } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
+  });
+
+  /**
+   * Adds material a content owner provides, as text. Extracting that text from
+   * a file is the caller's business, which is what lets a content owner's own
+   * tools do it (ADR 0020).
+   */
+  api.post(
+    "/api/organizations/:organizationId/sources",
+    bodyLimit({ maxSize: MAX_SOURCE_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const source = parseSource(await context.req.json().catch(() => undefined));
+      if (source === undefined) return context.body(null, 400);
+
+      try {
+        const sourceId = await addSource({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          ...source,
+          now: new Date(),
+        });
+
+        return context.json({ sourceId }, 201);
+      } catch (error) {
+        if (error instanceof InvalidSource) return context.json({ error: error.message }, 400);
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /** Every source an organization has, without their text, for whoever administers it. */
+  api.get("/api/organizations/:organizationId/sources", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const sources = await listSources({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+      });
+
+      return context.json({ sources });
+    } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
+  });
+
+  /**
+   * Links objectives to the passages of sources that teach them. Braivo, not
+   * the caller, decides where a quote is: that check is what makes derived
+   * content grounded rather than merely attributed (ADR 0021).
+   */
+  api.post(
+    "/api/organizations/:organizationId/citations",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const citations = parseCitations(await context.req.json().catch(() => undefined));
+      if (citations === undefined) return context.body(null, 400);
+
+      try {
+        const located = await citeSources({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          citations,
+        });
+
+        return context.json({ citations: located });
+      } catch (error) {
+        // Explained: the caller is often a model drafting from a source, and
+        // "quote more of it" is something it can act on where a bare status is
+        // not.
+        if (error instanceof InvalidCitation) return context.json({ error: error.message }, 400);
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /** The passages an objective cites, for whoever administers its organization. */
+  api.get(
+    "/api/organizations/:organizationId/objectives/:objectiveId/citations",
+    async (context) => {
+      context.header("cache-control", "private, no-store");
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      try {
+        const citations = await listObjectiveCitations({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          objectiveId: context.req.param("objectiveId"),
+        });
+
+        return citations ? context.json({ citations }) : context.body(null, 404);
+      } catch (error) {
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * An objective's tasks still offered, as authored and with the passages they
+   * cite, for whoever administers its organization: answers included, so
+   * never a learner's.
+   */
+  api.get("/api/organizations/:organizationId/objectives/:objectiveId/tasks", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const tasks = await listObjectiveTasks({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+        objectiveId: context.req.param("objectiveId"),
+      });
+      if (!tasks) return context.body(null, 404);
+
+      // The shape a task is authored in, so one read back can be sent again.
+      return context.json({
+        tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+      });
+    } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
+  });
+
+  /**
+   * A course drafted from a source by the installation's own model, checked
+   * against the source and returned for review — never stored (ADR 0029).
+   * Slow: the model reads the whole source.
+   */
+  api.post(
+    "/api/organizations/:organizationId/sources/:sourceId/draft",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      const body = (await context.req.json().catch(() => undefined)) as unknown;
+      if (typeof body !== "object" || body === null) return context.body(null, 400);
+      const { audience } = body as Record<string, unknown>;
+
+      // Bun, Hono's `env` here, closes a connection idle for ten seconds, and a
+      // model reading a chapter takes longer: this request waits instead for as
+      // long as the model may take (`ai`'s own timeout).
+      const server = context.env as
+        | { timeout?: (request: Request, seconds: number) => void }
+        | undefined;
+      server?.timeout?.(context.req.raw, 0);
+      if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
+
+      try {
+        const draft = await draftFromSource({
+          database,
+          ai,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          sourceId: context.req.param("sourceId"),
+          audience,
+          now: new Date(),
+          signal: context.req.raw.signal,
+        });
+        return draft ? context.json(draft) : context.body(null, 404);
+      } catch (error) {
+        return aiRefusal(context, error);
+      }
+    },
+  );
+
+  /** One source, text included, for whoever administers its organization. */
+  api.get("/api/organizations/:organizationId/sources/:sourceId", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const source = await getSource({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+        sourceId: context.req.param("sourceId"),
+      });
+
+      // Reached only by an administrator, so a 404 confirms nothing they could
+      // not already list.
+      return source ? context.json(source) : context.body(null, 404);
+    } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
+  });
+
+  /**
+   * Keeps a file a content owner uploads — the original a source's text was
+   * extracted from — as the request's body, typed by its `Content-Type`.
+   */
+  api.post(
+    "/api/organizations/:organizationId/files",
+    bodyLimit({ maxSize: MAX_FILE_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!isTrustedUpload(context, origin)) return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      try {
+        const file = await uploadFile({
+          database,
+          files,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          bytes: new Uint8Array(await context.req.arrayBuffer()),
+          contentType: context.req.header("content-type") ?? "",
+          now: new Date(),
+        });
+
+        const { sha256, contentType, size } = file;
+        return context.json({ fileId: sha256, contentType, size }, 201);
+      } catch (error) {
+        if (error instanceof FilesUnavailable) return context.json({ error: error.message }, 501);
+        if (error instanceof InvalidFile) return context.json({ error: error.message }, 400);
+        if (error instanceof NotPermitted) return context.body(null, 403);
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * A file's text, page by page, read by the installation's model and returned
+   * for the caller to add as a source (ADR 0030). Slow, as drafting is.
+   */
+  api.post(
+    "/api/organizations/:organizationId/files/:fileId/text",
+    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    async (context) => {
+      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+        return context.body(null, 403);
+
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+
+      // As for drafting: past Bun's ten-second idle timeout, bounded by the model's.
+      const server = context.env as
+        | { timeout?: (request: Request, seconds: number) => void }
+        | undefined;
+      server?.timeout?.(context.req.raw, 0);
+
+      try {
+        const pages = await readFileText({
+          database,
+          ai,
+          files,
+          organizationId: context.req.param("organizationId"),
+          actingAs: session.user.id,
+          fileId: context.req.param("fileId"),
+          now: new Date(),
+          signal: context.req.raw.signal,
+        });
+        return pages ? context.json({ pages }) : context.body(null, 404);
+      } catch (error) {
+        return aiRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * A file's bytes, for whoever administers its organization. Always a
+   * download, never rendered: an uploaded HTML file served inline from this
+   * origin would run as Braivo.
+   */
+  api.get("/api/organizations/:organizationId/files/:fileId", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const opened = await openFile({
+        database,
+        files,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+        fileId: context.req.param("fileId"),
+      });
+      if (!opened) return context.body(null, 404);
+
+      // A stream, not the blob: Bun refuses a bucket's file with response options.
+      return new Response(opened.bytes.stream(), {
+        headers: {
+          "cache-control": "private, no-store",
+          "content-type": opened.file.contentType,
+          "content-length": String(opened.file.size),
+          "content-disposition": "attachment",
+          "content-security-policy": "sandbox",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch (error) {
+      if (error instanceof FilesUnavailable) return context.json({ error: error.message }, 501);
       if (error instanceof NotPermitted) return context.body(null, 403);
       throw error;
     }

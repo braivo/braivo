@@ -217,6 +217,35 @@ describe("the learn app", () => {
     expect(screen.getByText("You missed this last time.")).toBeTruthy();
   });
 
+  test("shows the passages a graded task was written from, linking the ones with a link", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: async () => ({
+        outcome: "failure",
+        correctChoice: 0,
+        passages: [
+          {
+            quote: "Hablé con mi madre.",
+            source: { title: "El pretérito", url: "https://www.youtube.com/watch?v=abc" },
+          },
+          { quote: "hablar — to speak", source: { title: "Vocabulario" } },
+        ],
+      }),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+
+    const passages = await screen.findByRole("region", { name: "From your lessons" });
+    expect(passages.textContent).toContain("Hablé con mi madre.");
+    expect(screen.getByRole("link", { name: "El pretérito" }).getAttribute("href")).toBe(
+      "https://www.youtube.com/watch?v=abc",
+    );
+    // Pasted text has nowhere to link to.
+    expect(screen.queryByRole("link", { name: "Vocabulario" })).toBeNull();
+    expect(passages.textContent).toContain("Vocabulario");
+  });
+
   test.each([
     ["was lost", new TypeError("Failed to fetch")],
     ["failed on the server", new BraivoError(500, "server error")],

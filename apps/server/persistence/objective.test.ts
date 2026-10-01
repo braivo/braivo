@@ -12,6 +12,7 @@ import {
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { ConflictingKey } from "./key.ts";
 import {
   createObjectives,
   findObjectivesOutsideOrganization,
@@ -101,5 +102,83 @@ describe.skipIf(!connectionString)("objectives", () => {
       .catch((thrown: unknown) => thrown);
 
     expect(violatedConstraint(error)).toBe("objective_organization_id_organization_id_fk");
+  });
+
+  describe("under the caller's keys", () => {
+    test("returns the objective a key already names, as a retry needs", async () => {
+      const [first] = await createObjectives(database, organizationId, [
+        { title: "Greetings", key: "es-greetings" },
+      ]);
+      const again = await createObjectives(database, organizationId, [
+        { title: "Greetings", key: "es-greetings" },
+        "Unkeyed",
+      ]);
+
+      expect(again[0]).toBe(first);
+      expect(await readObjectives(database, organizationId)).toHaveLength(2);
+    });
+
+    test("refuses the whole batch over a key naming another title, storing nothing", async () => {
+      await createObjectives(database, organizationId, [{ title: "Greetings", key: "greetings" }]);
+
+      const refused = createObjectives(database, organizationId, [
+        { title: "Numbers", key: "numbers" },
+        { title: "Saludos", key: "greetings" },
+      ]);
+
+      await expect(refused).rejects.toBeInstanceOf(ConflictingKey);
+      await expect(refused).rejects.toThrow(/^Objective 1 has key "greetings"/);
+      expect((await readObjectives(database, organizationId)).map((row) => row.title)).toEqual([
+        "Greetings",
+      ]);
+    });
+
+    test("reads a key repeated within a batch as one objective, on the same terms", async () => {
+      const [one, two] = await createObjectives(database, organizationId, [
+        { title: "Greetings", key: "greetings" },
+        { title: "Greetings", key: "greetings" },
+      ]);
+      expect(two).toBe(one);
+
+      await expect(
+        createObjectives(database, organizationId, [
+          { title: "Colors", key: "colors" },
+          { title: "Colours", key: "colors" },
+        ]),
+      ).rejects.toBeInstanceOf(ConflictingKey);
+    });
+
+    test("lets each organization use a key of its own, and writers racing on one share it", async () => {
+      const [ours] = await createObjectives(database, organizationId, [
+        { title: "Greetings", key: "greetings" },
+      ]);
+      const [theirs] = await createObjectives(database, otherOrganizationId, [
+        { title: "Greetings", key: "greetings" },
+      ]);
+      expect(theirs).not.toBe(ours);
+
+      const raced = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          createObjectives(database, organizationId, [{ title: "Numbers", key: "numbers" }]),
+        ),
+      );
+      expect(new Set(raced.flat()).size).toBe(1);
+    });
+
+    test("lets batches naming the same new keys in opposite orders race without deadlock", async () => {
+      // Each would otherwise insert its first key, then wait on the other's.
+      const a = { title: "A", key: "race-a" };
+      const b = { title: "B", key: "race-b" };
+
+      const raced = await Promise.all(
+        Array.from({ length: 6 }, (_, index) =>
+          createObjectives(database, organizationId, index % 2 === 0 ? [a, b] : [b, a]),
+        ),
+      );
+
+      const [ab, ba] = [raced[0]!, raced[1]!];
+      expect(ba).toEqual([ab[1], ab[0]]);
+      expect(new Set(raced.flat()).size).toBe(2);
+    });
   });
 });

@@ -50,8 +50,8 @@ Grouped by primary concern. Start with the group's specs, and follow their links
 
 ### Content
 
-- [Sources](sources.md) (planned): the material content owners bring, and how derived content links back to it.
-- [Generation](generation.md) (planned): what AI may produce from sources, and how an owner accepts it.
+- [Sources](sources.md): the material content owners bring, and how derived content links back to it.
+- [Generation](generation.md): what AI may produce from sources, and how an owner accepts it.
 - [Authoring](authoring.md): objectives, courses, and tasks, including their editing, retirement, and deletion.
 
 ### Platform

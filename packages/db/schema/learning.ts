@@ -54,9 +54,17 @@ export const objective = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
+    /**
+     * The caller's own name for the objective — `es-greetings` — so that adding
+     * it again returns it rather than a twin. Optional, and unique within the
+     * organization; an objective's content is not its identity, since two with
+     * one title can teach different things (docs/adr/0024-idempotent-authoring.md).
+     */
+    key: text("key"),
   },
   (table) => [
     index("objective_organization_idx").on(table.organizationId),
+    uniqueIndex("objective_organization_key_uidx").on(table.organizationId, table.key),
     // Redundant on its own, since `id` is already unique. It exists so that
     // course membership can reference `(organization, objective)` together and
     // have the database refuse an objective belonging to someone else. A
@@ -80,9 +88,12 @@ export const course = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "restrict" }),
     title: text("title").notNull(),
+    /** The caller's own name for the course, as on `objective`. */
+    key: text("key"),
   },
   (table) => [
     index("course_organization_idx").on(table.organizationId),
+    uniqueIndex("course_organization_key_uidx").on(table.organizationId, table.key),
     /** Referenced together with the organization, for the same reason as on `objective`. */
     unique("course_organization_id_key").on(table.organizationId, table.id),
   ],
@@ -298,5 +309,205 @@ export const attempt = pgTable(
     }).onDelete("restrict"),
     // Serves "which of an objective's tasks this learner saw least recently".
     index("attempt_learner_task_idx").on(table.learnerId, table.taskId, table.at),
+  ],
+);
+
+/**
+ * One request of the installation's model on an organization's behalf —
+ * reading a file, drafting a course — counted when asked, whether or not the
+ * model answered, since a failed answer may still have been paid for. What an
+ * operator's monthly limit is counted against, and a ledger of who spends
+ * their credits (docs/adr/0031-ai-limits.md).
+ */
+export const aiRequest = pgTable(
+  "ai_request",
+  {
+    id: text("id").primaryKey(),
+    /** Cascading: the count exists for the organization's limit, which ends with it. */
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** What was asked: `read` a file, or `draft` a course. */
+    kind: text("kind").notNull(),
+    /** Who asked, for the ledger; set null if their account goes. */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("ai_request_organization_created_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
+/**
+ * A file a content owner uploaded — a textbook's PDF, a worksheet's scan — as
+ * the database knows it: its bytes live in the installation's file store under
+ * `organizations/<organizationId>/files/<sha256>` (docs/adr/0028-original-files.md).
+ * Named by its SHA-256, so uploading the same bytes again stores them once,
+ * and a name is proof of the bytes behind it.
+ */
+export const file = pgTable(
+  "file",
+  {
+    /** Restricted, as on `source`: a source keeps its original. */
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    /** Lowercase hex SHA-256 of the bytes. */
+    sha256: text("sha256").notNull(),
+    /** The media type it was last uploaded as, such as `application/pdf`; it is served as this. */
+    contentType: text("content_type").notNull(),
+    /** In bytes. */
+    size: integer("size").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.sha256] })],
+);
+
+/**
+ * Material a content owner provides, as the text everything derived from it is
+ * grounded in: objectives, tasks, and feedback cite it rather than paraphrase
+ * it. An original file — a PDF, a recording — is where the text came from, not
+ * a substitute for it; whoever extracted the text, Braivo or the content
+ * owner's own tools, hands over the same thing.
+ *
+ * Immutable, like a task: a revised document is a new source. Citations
+ * address this text by position, so it must never change beneath them. See
+ * docs/adr/0020-source-content.md.
+ */
+export const source = pgTable(
+  "source",
+  {
+    id: text("id").primaryKey(),
+    /** Restricted, as on `objective`: a source is what derived content is answerable to. */
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    title: text("title").notNull(),
+    /** Normalized by `content` before it is stored, so a position in it means one thing. */
+    text: text("text").notNull(),
+    /**
+     * Where the text came from when that is a link — a YouTube video, a web
+     * article — kept instead of a copy. Several sources may share one: each
+     * revision of an article is a snapshot of its own.
+     */
+    url: text("url"),
+    /** The text's main language as a canonical BCP 47 tag, such as `es` or `en-US`. */
+    language: text("language"),
+    /**
+     * For a transcript, where each cue begins in `text` (in code points) and at
+     * which second of the recording: `[{ "start": 0, "at": 12.5 }, …]`, ordered
+     * by `start`. What lets a passage cited from a video name its moment
+     * (docs/adr/0025-timed-transcripts.md). Null for text that is not timed.
+     */
+    timing: jsonb("timing"),
+    /**
+     * For a document, where each page begins in `text` (in code points) and
+     * its label as printed: `[{ "start": 0, "page": "12" }, …]`, ordered by
+     * `start`. What lets a passage cited from a book name its page
+     * (docs/adr/0026-paged-documents.md). Null for text without pages; never
+     * set with `timing`.
+     */
+    pagination: jsonb("pagination"),
+    /**
+     * The uploaded file the text was extracted from, by its SHA-256, when the
+     * content owner kept one: what a later extraction, or a person checking
+     * this one, starts from. Null for text with no file behind it.
+     */
+    original: text("original"),
+    /**
+     * What the source is — its title, text, link, language, timing or
+     * pagination, and original — as a SHA-256 hex digest, which
+     * `content.sourceDigest` defines. Adding a source already there returns it
+     * rather than storing it twice, so an agent or a script that retries after
+     * a lost answer duplicates nothing (docs/adr/0024-idempotent-authoring.md).
+     */
+    digest: text("digest").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    index("source_organization_idx").on(table.organizationId),
+    /** Referenced together with the organization, for the same reason as on `objective`. */
+    unique("source_organization_id_key").on(table.organizationId, table.id),
+    // One row per source per organization, whoever races to add it.
+    uniqueIndex("source_organization_digest_uidx").on(table.organizationId, table.digest),
+    foreignKey({
+      name: "source_original_fk",
+      columns: [table.organizationId, table.original],
+      foreignColumns: [file.organizationId, file.sha256],
+    }).onDelete("restrict"),
+  ],
+);
+
+/**
+ * A passage of a source that teaches an objective: the link that keeps derived
+ * content answerable to its source. Many to many, because knowledge recurs —
+ * the past tense taught in two textbooks is one objective citing both.
+ *
+ * Stored as a range rather than as the quote the caller sent, since the source
+ * is immutable and the range is what was verified: `content` located the quote
+ * in the text before this row was written. Positions count Unicode code points,
+ * which is what PostgreSQL's `substr` counts, so the passage can be read back
+ * without loading the whole text. See docs/adr/0021-citations.md.
+ */
+export const objectiveCitation = pgTable(
+  "objective_citation",
+  {
+    /** Carried so both references match it, as on `course_objective`. */
+    organizationId: text("organization_id").notNull(),
+    objectiveId: text("objective_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    start: integer("start").notNull(),
+    end: integer("end").notNull(),
+  },
+  (table) => [
+    // The same passage cited twice for one objective is one citation, so a
+    // retried write stores nothing new.
+    primaryKey({ columns: [table.objectiveId, table.sourceId, table.start, table.end] }),
+    // Serves "what does this source teach", for reviewing a source's coverage.
+    index("objective_citation_source_idx").on(table.sourceId),
+    // Restricted both ways: a citation is the record of why an objective exists,
+    // and deleting either end would leave the other unexplained.
+    foreignKey({
+      name: "objective_citation_objective_fk",
+      columns: [table.organizationId, table.objectiveId],
+      foreignColumns: [objective.organizationId, objective.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "objective_citation_source_fk",
+      columns: [table.organizationId, table.sourceId],
+      foreignColumns: [source.organizationId, source.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+/**
+ * A passage of a source a task was written from: what its question asks about
+ * and its explanation relies on. Shaped and verified like `objective_citation`,
+ * but written only with its task, in one transaction: a task is immutable, so
+ * what it was grounded in is fixed when it is created. See
+ * docs/adr/0021-citations.md.
+ */
+export const taskCitation = pgTable(
+  "task_citation",
+  {
+    organizationId: text("organization_id").notNull(),
+    taskId: text("task_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    start: integer("start").notNull(),
+    end: integer("end").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.sourceId, table.start, table.end] }),
+    index("task_citation_source_idx").on(table.sourceId),
+    foreignKey({
+      name: "task_citation_task_fk",
+      columns: [table.organizationId, table.taskId],
+      foreignColumns: [task.organizationId, task.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "task_citation_source_fk",
+      columns: [table.organizationId, table.sourceId],
+      foreignColumns: [source.organizationId, source.id],
+    }).onDelete("restrict"),
   ],
 );

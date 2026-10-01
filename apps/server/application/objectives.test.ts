@@ -22,8 +22,13 @@ const learner = "objectives-test-learner";
 const outsider = "objectives-test-outsider";
 const at = new Date("2026-01-01T00:00:00.000Z");
 
-function define(titles: readonly string[], actingAs = author, organization = organizationId) {
-  return defineObjectives({ database, organizationId: organization, actingAs, titles });
+function define(
+  titles: readonly (string | { title: string; key?: string })[],
+  actingAs = author,
+  organization = organizationId,
+) {
+  const objectives = titles.map((item) => (typeof item === "string" ? { title: item } : item));
+  return defineObjectives({ database, organizationId: organization, actingAs, objectives });
 }
 
 function list(actingAs = author, organization = organizationId) {

@@ -25,6 +25,7 @@ apps/server            API, use cases, learning model, auth, queries, CLI (one B
   application/         use cases: resolve scope, check access, then call learning and persistence
   learning/            pure learning model; spec in docs/specs/learning-model.md
   persistence/         queries; tables live in packages/db
+  storage/             uploaded files' bytes: a directory or an S3-compatible bucket
   auth/                Better Auth server config
   cli/                 process entry point (serve, db migrate)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)

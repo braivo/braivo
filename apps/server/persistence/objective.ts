@@ -5,11 +5,20 @@ import type { Database } from "@braivo/db";
 import { objective } from "@braivo/db/schema";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
+import { ConflictingKey } from "./key.ts";
+
 export type Objective = { id: string; title: string };
 
 /**
- * Registers learning targets for a content owner and returns their generated
- * IDs, positionally matching the titles given.
+ * Registers learning targets for a content owner and returns their IDs,
+ * positionally matching the objectives given — a title, or a title with the
+ * caller's key.
+ *
+ * A keyed objective the organization already has under that key is not added
+ * again: its ID is returned, if its title is the one sent, and otherwise the
+ * whole batch is refused as a `ConflictingKey`. So a retry adds nothing, and a
+ * key cannot quietly come to mean two things (docs/adr/0024-idempotent-authoring.md).
+ * A key repeated within the batch is one objective, on the same terms.
  *
  * The IDs are generated here rather than by the database so that the returned
  * order is the caller's own, instead of depending on the order a multi-row
@@ -18,14 +27,57 @@ export type Objective = { id: string; title: string };
 export async function createObjectives(
   database: Database,
   organizationId: string,
-  titles: readonly string[],
+  objectives: readonly (string | { title: string; key?: string })[],
 ): Promise<string[]> {
-  if (titles.length === 0) return [];
+  if (objectives.length === 0) return [];
 
-  const rows = titles.map((title) => ({ id: crypto.randomUUID(), organizationId, title }));
-  await database.insert(objective).values(rows);
+  const items = objectives.map((item) => (typeof item === "string" ? { title: item } : item));
+  const rows = items.map(({ title, key }) => ({
+    id: crypto.randomUUID(),
+    organizationId,
+    title,
+    key: key ?? null,
+  }));
 
-  return rows.map((row) => row.id);
+  return database.transaction(async (transaction) => {
+    // Unique on (organization, key), and keyless rows never conflict: nulls are
+    // distinct. A writer racing on the same key waits for the other to commit —
+    // so keys are inserted in one order, whatever order they were sent in: two
+    // batches naming the same keys differently would otherwise each hold one the
+    // other waits for, and deadlock. The IDs keep the caller's order.
+    const inserted = await transaction
+      .insert(objective)
+      .values(rows.toSorted((a, b) => keyOrder(a.key, b.key)))
+      .onConflictDoNothing({ target: [objective.organizationId, objective.key] })
+      .returning({ id: objective.id });
+    const added = new Set(inserted.map((row) => row.id));
+
+    const keys = [...new Set(rows.filter((row) => !added.has(row.id)).map((row) => row.key!))];
+    const named = keys.length
+      ? await transaction
+          .select({ id: objective.id, title: objective.title, key: objective.key })
+          .from(objective)
+          .where(and(eq(objective.organizationId, organizationId), inArray(objective.key, keys)))
+      : [];
+    const byKey = new Map(named.map((row) => [row.key, row]));
+
+    return rows.map((row, index) => {
+      if (added.has(row.id)) return row.id;
+      const existing = byKey.get(row.key)!;
+      if (existing.title !== row.title) {
+        throw new ConflictingKey(`Objective ${index}`, row.key!, "an objective with another title");
+      }
+      return existing.id;
+    });
+  });
+}
+
+/** Keys in code-unit order, keyless last: the same order on every server, whatever its locale. */
+function keyOrder(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a < b ? -1 : 1;
 }
 
 /**

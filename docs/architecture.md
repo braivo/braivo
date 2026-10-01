@@ -19,15 +19,16 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 
 ## Modules
 
-- **content:** structured learning content and its link to source material. Today, task kinds: what a task asks, what a learner sees of it, and how an answer is graded — pure, like `learning` ([ADR 0015](adr/0015-tasks.md)).
+- **content:** structured learning content and its link to source material. Today, task kinds — what a task asks, what a learner sees of it, and how an answer is graded ([ADR 0015](adr/0015-tasks.md)) — and the one form source text is stored in ([ADR 0020](adr/0020-source-content.md)). Pure, like `learning`.
 - **learning:** turns learner evidence into knowledge estimates, and estimates into the next objective and learning intent, or into a report of where a learner stands ([spec](specs/learning-model.md)). It does not choose activities: naming one requires subject knowledge it deliberately lacks. One active model, replaced and recomputed rather than selected at runtime ([ADR 0007](adr/0007-one-learning-model.md)).
-- **ai:** model calls, prompts, and validation of model output.
+- **ai:** model calls, prompts, and validation of model output, behind a one-operation `Model` port: reading a PDF or photo into pages, and drafting a course from a source, each checked against `content`'s rules before anyone sees it ([ADR 0029](adr/0029-server-drafting.md), [ADR 0030](adr/0030-server-extraction.md)).
 - **auth:** identity, sessions, and organization membership, via Better Auth ([ADR 0006](adr/0006-better-auth.md)). Its handler is a standard `Request` → `Response` function, so mounting it does not commit us to a web framework.
-- **application:** use cases that coordinate `content`, `learning`, `ai`, and `persistence`. Not `auth`: identity is resolved before a use case is called and reaches it as plain user IDs — the actor's, and the learner's where one is named.
+- **application:** use cases that coordinate `content`, `learning`, `ai`, `persistence`, and `storage`. Not `auth`: identity is resolved before a use case is called and reaches it as plain user IDs — the actor's, and the learner's where one is named.
+- **storage:** the bytes of files content owners upload, behind a two-operation `FileStore`: a directory, or an S3-compatible bucket — R2, Google Cloud Storage, MinIO, S3 — as the installation chooses ([ADR 0028](adr/0028-original-files.md)). What a file is lives in `persistence`; `application` joins the two.
 - **persistence:** the queries Braivo asks of its database, shaped for the modules that ask them. The client, tables, and migrations are `packages/db`'s: PostgreSQL with Drizzle ([ADR 0005](adr/0005-postgresql-drizzle.md)).
 - **api:** HTTP entry point to `application`, a Hono app over Web-standard `Request` and `Response` ([ADR 0010](adr/0010-hono-http-layer.md)). A route resolves identity from the session, calls one use case, and turns the result into a status; it runs no queries of its own. Only explicitly documented endpoints and types are public contracts.
 - **web:** learner and content-owner UI, as the `learn` and `console` apps.
-- **cli:** the process and operational entry point — composing the server, applying migrations. A command that does anything beyond that calls the module that owns it — `application`, or `auth` for accounts and organizations — or HTTP where it addresses a remote installation. No business logic.
+- **cli:** the process and operational entry point — composing the server, applying migrations. A command that does anything beyond that calls the module that owns it — `application`, or `auth` for accounts and organizations — or HTTP where it addresses a remote installation: `login`, `sources add`, and `mcp` are the latter, a content owner's own tools reaching Braivo through `@braivo/server/client` as the signed-in person ([ADR 0022](adr/0022-machine-access.md), [ADR 0023](adr/0023-mcp-server.md)). No business logic.
 
 ## Dependency rules
 
@@ -63,4 +64,4 @@ Add an abstraction only for a concrete need: another implementation, an integrat
 
 ## Not yet decided
 
-Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A machine credential for server-to-server callers is open too — evidence is recordable over HTTP today, but only by a session ([ADR 0010](adr/0010-hono-http-layer.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.
+Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A credential for server-to-server callers acting as no person — an LMS recording evidence, say — is open too; a person's own tools, such as a CLI or an MCP server, act as that person through the device flow ([ADR 0022](adr/0022-machine-access.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.

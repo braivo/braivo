@@ -64,8 +64,14 @@ export type Activity =
 /** A learner's answer to a task, as posted in an attempt. */
 export type TaskResponse = content.TaskResponse;
 
-/** How an attempt was graded, as `POST /api/courses/:courseId/attempts` answers it. */
-export type Grade = content.Grade;
+/**
+ * How an attempt was graded, as `POST /api/courses/:courseId/attempts` answers
+ * it: with the passages the task was written from, when it cites any.
+ */
+export type Grade = content.Grade & { passages?: Passage[] };
+
+/** A passage a graded task was written from: the words, and where they are from. */
+export type Passage = application.Passage;
 
 /** A course as its organization's content owners see it listed. */
 export type Course = { id: string; title: string };
@@ -78,3 +84,55 @@ export type Organization = { id: string; name: string; slug: string };
 
 /** The organization a domain serves, as its learn app presents itself. */
 export type HostOrganization = { name: string };
+
+/** A source as its organization's content owners see it listed: everything but its text. */
+export type SourceSummary = Json<application.SourceSummary>;
+
+/** A source, text included, as `GET …/sources/:sourceId` answers it. */
+export type Source = Json<application.Source>;
+
+/** A quote to cite for an objective, as it is posted: Braivo finds where it is. */
+export type QuotedCitation = application.QuotedCitation;
+
+/** Where Braivo found a cited quote, in code points of its source's text. */
+export type LocatedCitation = application.Citation;
+
+/**
+ * A task as it is authored: an objective, the fields of its kind, and the
+ * passages it was written from, each a quote Braivo locates.
+ */
+export type TaskDraft = content.TaskBody & {
+  objectiveId: string;
+  citations?: { sourceId: string; quote: string }[];
+};
+
+/**
+ * A course drafted from a source by the installation's model: objectives with
+ * keys, citations, and tasks in the shapes the authoring methods take, and
+ * what was refused. Nothing in it is stored until it is authored.
+ */
+export type Draft = application.Draft;
+
+/**
+ * A course as authored: its objectives in the order learners meet them, each
+ * with the passages that teach it and its tasks, answers included.
+ */
+export type AuthoredCourse = Course & {
+  objectives: {
+    id: string;
+    title: string;
+    citations: { sourceId: string; start: number; end: number; quote: string }[];
+    tasks: AuthoredTask[];
+  }[];
+  /** Every source the passages above are from, once. */
+  sources: SourceSummary[];
+};
+
+/**
+ * A task read back as it was authored, answer included, with its ID and the
+ * passages it cites — where Braivo found each, and the words there.
+ */
+export type AuthoredTask = content.TaskBody & {
+  id: string;
+  citations: { sourceId: string; start: number; end: number; quote: string }[];
+};

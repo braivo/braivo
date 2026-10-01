@@ -6,11 +6,19 @@ import * as authTables from "@braivo/db/schema/auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
-import { organization } from "better-auth/plugins";
+import { bearer, deviceAuthorization, organization } from "better-auth/plugins";
 
 import { organizationOwnsLearningContent, readOrganizationSlug } from "../persistence/index.ts";
 import { isOrganizationOrigin } from "./origin.ts";
 import { slugProblem } from "./slug.ts";
+
+/**
+ * The programs that may ask to act for a user through the device flow: Braivo's
+ * CLI, whose MCP server is one of its commands. The approval page names the
+ * client, so an unknown ID is refused rather than shown to someone deciding
+ * whether to trust it (docs/adr/0022-machine-access.md).
+ */
+export const DEVICE_CLIENTS: ReadonlySet<string> = new Set(["braivo-cli"]);
 
 type AuthOptions = {
   database: Database;
@@ -99,13 +107,39 @@ export function createAuth(options: AuthOptions) {
               throw new APIError("CONFLICT", {
                 code: "ORGANIZATION_OWNS_LEARNING_CONTENT",
                 message:
-                  "This organization still owns objectives or courses, so it cannot be deleted.",
+                  "This organization still owns learning content — objectives, courses, sources, or files — so it cannot be deleted.",
               });
             }
           },
         },
       }),
+      // A content owner's own tools — a CLI, an MCP server a desktop agent runs —
+      // act as the content owner: the CLI asks for a code, the content owner
+      // approves it in a signed-in browser, and the CLI receives a session
+      // token it sends as `Authorization: Bearer`. No separate credential to
+      // authorize: the token is the user, with their memberships and roles
+      // (docs/adr/0022-machine-access.md).
+      deviceAuthorization({
+        // Short, since a code is only ever typed moments after it is shown, and
+        // a pending one is what device-code phishing needs to stay alive.
+        expiresIn: "10m",
+        validateClient: (clientId) => DEVICE_CLIENTS.has(clientId),
+        // The console's approval page, not Better Auth's JSON endpoint of the
+        // same name: approving takes a person reading who is asking. Resolved
+        // against this origin, where the console serves it (ADR 0004).
+        verificationUri: "/device",
+      }),
+      // Unsigned tokens accepted, since the device flow hands out the session
+      // token itself; it is as secret as the cookie it stands in for.
+      bearer(),
     ],
+
+    // A CLI polls for its token until the code expires, and the generic limit
+    // cuts it off first — sooner for teachers sharing a school's one address.
+    // The device flow paces each code itself (`slow_down` to a poll within its
+    // interval), and a device code is too random to guess, so this limit would
+    // add nothing but that failure.
+    rateLimit: { customRules: { "/device/token": false } },
 
     // Stated, not left to a default: a self-hosted installation does not phone
     // home.

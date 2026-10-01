@@ -4,10 +4,24 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Database } from "@braivo/db";
-import { attempt, courseObjective, learnerEvidence, task } from "@braivo/db/schema";
+import {
+  attempt,
+  courseObjective,
+  learnerEvidence,
+  source,
+  task,
+  taskCitation,
+} from "@braivo/db/schema";
 import { and, asc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
-import type { TaskBody, TaskResponse } from "../content/index.ts";
+import {
+  momentOf,
+  pageOf,
+  type Pagination,
+  type TaskBody,
+  type TaskResponse,
+  type Timing,
+} from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
 
 type Task = { id: string; objectiveId: string; body: TaskBody };
@@ -41,34 +55,126 @@ export class RestingTask extends Error {
   }
 }
 
+/** A located passage a task was written from, positions in code points. */
+export type TaskCitation = { sourceId: string; start: number; end: number };
+
 /**
- * Stores tasks and returns their generated IDs, positionally matching the tasks
- * given. Bodies must already be valid — `content` validates them — since a
- * stored task is never corrected.
+ * Stores tasks with the passages they cite and returns their IDs, positionally
+ * matching the tasks given. Bodies must already be valid and citations located
+ * — `content` does both — since a stored task is never corrected, only
+ * replaced.
  *
- * Each is stamped a millisecond after the one before it, so tasks created
- * together are offered in the order given rather than in the order of their
- * random IDs (`readNextTask` breaks ties oldest first). A batch sent sooner
- * after a large one than its size in milliseconds may interleave with it; an
- * ordering column would fix that, once authoring needs one.
+ * A task the objective already has, unretired — the same body and the same
+ * passages — is not stored again: its ID is returned, so an agent or script
+ * retrying after a lost answer duplicates nothing, and the same holds for a
+ * task repeated within one batch (docs/adr/0024-idempotent-authoring.md). A
+ * retired twin does not count: adding a task again is how to bring it back.
+ *
+ * One transaction, because a task is immutable: one stored without the
+ * citations it was written with could never be given them afterwards. Each
+ * objective written to is locked for it, so two writers racing to add the same
+ * task store one.
+ *
+ * Each new task is stamped a millisecond after the one before it, so tasks
+ * created together are offered in the order given, not by random ID
+ * (`readNextTask` breaks ties oldest first). A batch sent sooner after a large
+ * one than its size in milliseconds may interleave with it; an ordering column
+ * would fix that if authoring needs one.
  */
 export async function createTasks(
   database: Database,
   organizationId: string,
-  tasks: readonly { objectiveId: string; body: TaskBody }[],
+  tasks: readonly { objectiveId: string; body: TaskBody; citations?: readonly TaskCitation[] }[],
   createdAt: Date,
 ): Promise<string[]> {
   if (tasks.length === 0) return [];
 
-  const rows = tasks.map(({ objectiveId, body }, index) => ({
-    id: crypto.randomUUID(),
-    organizationId,
-    objectiveId,
-    body,
-    createdAt: new Date(createdAt.getTime() + index),
-  }));
-  await database.insert(task).values(rows);
-  return rows.map((row) => row.id);
+  const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))].toSorted();
+
+  return database.transaction(async (transaction) => {
+    await lockObjectiveTasks(transaction, objectiveIds);
+
+    // Every unretired task these objectives have, with its passages: few per
+    // objective, and compared here since jsonb equality alone would not
+    // compare the citations beside it.
+    const stored = await transaction
+      .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
+      .from(task)
+      .where(
+        and(
+          eq(task.organizationId, organizationId),
+          inArray(task.objectiveId, objectiveIds),
+          isNull(task.retiredAt),
+        ),
+      );
+    const passages = stored.length
+      ? await transaction
+          .select({
+            taskId: taskCitation.taskId,
+            sourceId: taskCitation.sourceId,
+            start: taskCitation.start,
+            end: taskCitation.end,
+          })
+          .from(taskCitation)
+          .where(
+            inArray(
+              taskCitation.taskId,
+              stored.map((row) => row.id),
+            ),
+          )
+      : [];
+    const known = stored.map((row) => ({
+      id: row.id,
+      objectiveId: row.objectiveId,
+      body: row.body,
+      cited: citedKey(passages.filter((passage) => passage.taskId === row.id)),
+    }));
+
+    const rows: (typeof task.$inferInsert)[] = [];
+    const citations: (typeof taskCitation.$inferInsert)[] = [];
+    const ids = tasks.map((item) => {
+      // Compared as it will be stored: `jsonb` keeps what JSON can say, so a
+      // value JSON cannot — an answer of -0, stored as 0 — must not make a
+      // retry look like another task.
+      const body = JSON.parse(JSON.stringify(item.body)) as TaskBody;
+      const cited = citedKey(item.citations ?? []);
+      const twin = known.find(
+        (candidate) =>
+          candidate.objectiveId === item.objectiveId &&
+          candidate.cited === cited &&
+          // Key order does not matter, option order does: it is what `answer` indexes.
+          isDeepStrictEqual(candidate.body, body),
+      );
+      if (twin) return twin.id;
+
+      const id = crypto.randomUUID();
+      rows.push({
+        id,
+        organizationId,
+        objectiveId: item.objectiveId,
+        body,
+        createdAt: new Date(createdAt.getTime() + rows.length),
+      });
+      for (const citation of item.citations ?? []) {
+        citations.push({ organizationId, taskId: id, ...citation });
+      }
+      known.push({ id, objectiveId: item.objectiveId, body, cited });
+      return id;
+    });
+
+    if (rows.length > 0) await transaction.insert(task).values(rows);
+    // The same passage cited twice by one task is one citation, as for objectives.
+    if (citations.length > 0) {
+      await transaction.insert(taskCitation).values(citations).onConflictDoNothing();
+    }
+    return ids;
+  });
+}
+
+/** A task's passages as one comparable value: the same set, however listed or repeated. */
+function citedKey(citations: readonly TaskCitation[]): string {
+  const keys = citations.map(({ sourceId, start, end }) => JSON.stringify([sourceId, start, end]));
+  return JSON.stringify([...new Set(keys)].toSorted());
 }
 
 /** The IDs among these that are not the organization's tasks, missing ones included. */
@@ -89,7 +195,12 @@ export async function findTasksOutsideOrganization(
   return wanted.filter((id) => !inside.has(id));
 }
 
-/** Stamps tasks retired; one already retired keeps its first date. */
+/**
+ * Stamps tasks retired; one already retired keeps its first date. Under its
+ * objective's lock, as `createTasks` takes it, so a twin that is being added
+ * again is either retired before it is found or found and then retired —
+ * never returned to the adder as live after it was retired.
+ */
 export async function markTasksRetired(
   database: Database,
   taskIds: readonly string[],
@@ -97,10 +208,135 @@ export async function markTasksRetired(
 ): Promise<void> {
   if (taskIds.length === 0) return;
 
-  await database
-    .update(task)
-    .set({ retiredAt: at })
-    .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
+  await database.transaction(async (transaction) => {
+    const objectives = await transaction
+      .selectDistinct({ objectiveId: task.objectiveId })
+      .from(task)
+      .where(inArray(task.id, [...taskIds]));
+    await lockObjectiveTasks(
+      transaction,
+      objectives.map((row) => row.objectiveId),
+    );
+    await transaction
+      .update(task)
+      .set({ retiredAt: at })
+      .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
+  });
+}
+
+/**
+ * Holds, until the transaction ends, the right to change which tasks these
+ * objectives have. In one order, so two writers over the same objectives
+ * cannot each hold a lock the other waits for.
+ */
+async function lockObjectiveTasks(
+  transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  objectiveIds: readonly string[],
+): Promise<void> {
+  for (const objectiveId of [...objectiveIds].toSorted()) {
+    await transaction.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`braivo:task:${objectiveId}`}, 0))`,
+    );
+  }
+}
+
+/** A passage a task cites, with its quote and what a reader needs to find its source. */
+export type CitedTaskPassage = TaskCitation & {
+  quote: string;
+  /** The second of the recording it is said at, when the source is a timed transcript. */
+  at?: number;
+  /** The label of the page it is on, when the source is a paged document. */
+  page?: string;
+  source: { title: string; url?: string };
+};
+
+/**
+ * The passages a task cites, by source title and then position in the text:
+ * the order a learner reads them in.
+ */
+export async function readTaskCitations(
+  database: Database,
+  taskId: string,
+): Promise<CitedTaskPassage[]> {
+  const rows = await database
+    .select({
+      sourceId: taskCitation.sourceId,
+      start: taskCitation.start,
+      end: taskCitation.end,
+      // Code points on both sides, as for objective citations.
+      quote: sql<string>`substr(${source.text}, ${taskCitation.start} + 1, ${taskCitation.end} - ${taskCitation.start})`,
+      title: source.title,
+      url: source.url,
+      timing: source.timing,
+      pagination: source.pagination,
+    })
+    .from(taskCitation)
+    .innerJoin(source, eq(source.id, taskCitation.sourceId))
+    .where(eq(taskCitation.taskId, taskId))
+    .orderBy(asc(source.title), asc(taskCitation.sourceId), asc(taskCitation.start));
+
+  return rows.map(({ title, url, timing, pagination, ...citation }) => {
+    // Where the passage begins in the original, when the source keeps that.
+    const at = timing === null ? undefined : momentOf(timing as Timing, citation.start);
+    const page = pagination === null ? undefined : pageOf(pagination as Pagination, citation.start);
+    return {
+      ...citation,
+      ...(at === undefined ? {} : { at }),
+      ...(page === undefined ? {} : { page }),
+      source: url === null ? { title } : { title, url },
+    };
+  });
+}
+
+/** A task as its author wrote it, with the passages it cites and their words. */
+export type AuthoredTask = {
+  id: string;
+  body: TaskBody;
+  citations: (TaskCitation & { quote: string })[];
+};
+
+/**
+ * An objective's unretired tasks, oldest first as they are offered, each with
+ * its cited passages by source and position: what a content owner or their
+ * agent reviews before retiring one or writing another.
+ */
+export async function readObjectiveTasks(
+  database: Database,
+  objectiveId: string,
+): Promise<AuthoredTask[]> {
+  const tasks = await database
+    .select({ id: task.id, body: task.body })
+    .from(task)
+    .where(and(eq(task.objectiveId, objectiveId), isNull(task.retiredAt)))
+    .orderBy(asc(task.createdAt), asc(task.id));
+  if (tasks.length === 0) return [];
+
+  const citations = await database
+    .select({
+      taskId: taskCitation.taskId,
+      sourceId: taskCitation.sourceId,
+      start: taskCitation.start,
+      end: taskCitation.end,
+      // Code points on both sides, as for objective citations.
+      quote: sql<string>`substr(${source.text}, ${taskCitation.start} + 1, ${taskCitation.end} - ${taskCitation.start})`,
+    })
+    .from(taskCitation)
+    .innerJoin(source, eq(source.id, taskCitation.sourceId))
+    .where(
+      inArray(
+        taskCitation.taskId,
+        tasks.map(({ id }) => id),
+      ),
+    )
+    .orderBy(asc(taskCitation.sourceId), asc(taskCitation.start));
+
+  return tasks.map(({ id, body }) => ({
+    id,
+    body: body as TaskBody,
+    citations: citations
+      .filter((citation) => citation.taskId === id)
+      .map(({ sourceId, start, end, quote }) => ({ sourceId, start, end, quote })),
+  }));
 }
 
 /** Which of these objectives have an unretired task, and so something to practise. */

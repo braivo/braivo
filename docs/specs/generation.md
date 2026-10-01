@@ -1,14 +1,60 @@
 # Generation
 
-Status: planned. Specify after [sources](sources.md), whose identity and provenance rules constrain it.
+Status: living; checked against the code on 2026-10-02.
 
-What AI may produce from [sources](sources.md) — objectives, tasks, explanations — and how a content owner accepts it ([product.md](../product.md), core jobs 1 and 4; "Grounded AI"). Generated content must stay tied to the source it adapts and never replace it with unrelated material. Grading a learner's answer with AI, and the feedback on it, belong to the [learner loop](learner-loop.md) until they outgrow it.
+A content owner without a desktop agent turns their material into a course with the installation's own AI: Braivo reads a PDF or photo into pages, drafts objectives and tasks from a source, and the owner reviews the draft in the console before authoring what they keep ([product.md](../product.md), core jobs 1 and 4). A model proposes and Braivo checks: everything a draft offers quotes passages located in the source ("Grounded AI"), and nothing is stored until the owner accepts it, as ordinary objectives, citations, tasks, and a course.
 
-## To decide
+## Rules
 
-- What is generated first, and the structured output each kind must satisfy before it is stored.
-- Proposal or content: whether generation writes reviewable proposals or ordinary objectives and tasks, and when generated content becomes ordinary authored content. Once accepted, the learner loop should not know or care that AI wrote it.
-- Review: whether anything reaches learners without a content owner accepting it, and what accept, edit, reject, and regenerate do.
-- Provenance: which source locations an item came from, and what belongs to the generation run instead (model, prompt version).
-- Where the line sits between deterministic application code and model calls, so the rest stays testable without a model.
-- Failure, retry, and idempotency of a generation request.
+- **generation-1:** Reading a file answers its words page by page, each page labelled with its printed number (or its place from 1), in reading order, pages without words left out, in the shape a paged source takes. Nothing is stored: adding the pages as a source is the caller's next request. `apps/server/ai/ai.test.ts`, `apps/server/api/app.test.ts`, `apps/server/api/materials.test.ts`
+- **generation-2:** Braivo reads a PDF of at most 24 MB, or a PNG, JPEG, GIF, or WebP image of at most 3.75 MB; any other file is a 400 saying to extract its text another way. An installation that keeps no files answers 501; a file the organization does not have, 404. `apps/server/api/app.test.ts` (the size limits untested)
+- **generation-3:** Drafting from a source answers objectives in teaching order, each with its citations and multiple-choice tasks, in the shapes the objective, citation, and task endpoints take, plus `refused`, the list of what the model proposed and Braivo left out. Nothing is stored. `apps/server/ai/ai.test.ts`, `apps/server/api/app.test.ts`
+- **generation-4:** A draft keeps only what traces to the source: a quote located exactly once in it, a task valid by the task endpoint's rules with at least one located quote, and an objective with a valid title, at least one located quote, and at least one kept task. Everything else is refused by position and reason, such as "Objective 0, task 1, quote 0: the quote does not occur in the source." A hand-written task may cite nothing; a drafted one may not. `apps/server/ai/ai.test.ts`, `apps/server/api/app.test.ts`
+- **generation-5:** A draft holds at most twelve objectives and five tasks each, and only the first three quotes of a task and five of an objective are looked for; whatever is past a cap is named in `refused`. So one draft, accepted whole, fits the authoring endpoints' 200 quotes per request. `apps/server/ai/ai.test.ts`
+- **generation-6:** A source over 200,000 characters is a 400 saying to add it as several sources, a chapter each. The audience, the owner's description of the learners, is optional and at most 200 characters, else a 400. `apps/server/api/app.test.ts` (the source length untested)
+- **generation-7:** Each drafted objective's key is random, made with the draft: accepting the same draft again finds the objectives it already made, and another draft of the same source makes new ones. `apps/server/ai/ai.test.ts`, `apps/server/api/materials.test.ts`
+- **generation-8:** Only an `owner` or `admin` of the organization may read a file or draft with the installation's AI; anyone else gets a bare 403, before anything about the organization's entitlement or its sources is revealed. `apps/server/api/app.test.ts`
+- **generation-9:** Without `ANTHROPIC_API_KEY`, both requests answer 501 with an `error` pointing to a desktop agent through `braivo mcp`. With a key, every organization may use it unless `BRAIVO_AI_ORGANIZATIONS` lists the IDs that may; any other answers 403 with an `error` saying to ask the operator. That variable set but naming no ID, or `*`, stops the server at startup. `BRAIVO_AI_MODEL` picks the model, `claude-sonnet-5` by default. `apps/server/cli/config.test.ts`, `apps/server/api/app.test.ts`
+- **generation-10:** Every request that reaches the model is recorded for its organization: what was asked (`read` or `draft`), by whom, and when. A request refused as invalid, unknown, or because the stored file could not be fetched is not recorded; one the model then fails still is. `apps/server/api/app.test.ts` (the counted failure untested)
+- **generation-11:** With `BRAIVO_AI_MONTHLY_LIMIT` set, a whole number of at least 1, an organization that has made that many requests in the calendar month (UTC) is answered 429, with `Retry-After` until the first of next month and an `error` naming that date and a desktop agent meanwhile. Two requests racing for the last one cannot both have it. Unset, requests are recorded and never capped. `apps/server/persistence/ai-request.test.ts`, `apps/server/api/app.test.ts`, `apps/server/cli/config.test.ts`
+- **generation-12:** A model that cannot be reached, answers an error, is cut short, or answers in another shape, or a file in which it finds no words, is a 502 with an `error` saying which; nothing is stored. `apps/server/ai/ai.test.ts`, `apps/server/api/app.test.ts`
+- **generation-13:** Reading and drafting wait for the model past the server's ten-second idle timeout, bounded by the model's own five-minute one. A caller that goes away stops Braivo waiting and asks the provider to stop; the request still counts (generation-10). The console aborts a draft, an upload, and a reading when the owner leaves the page. `apps/server/api/app.test.ts`, `apps/server/ai/ai.test.ts`, `apps/console/routes.test.tsx`
+- **generation-14:** In the console, adding material with a file and no pasted text has Braivo read the file, adds its pages as a source with the file as its original, and opens the source's page; a refused addition sent again does not read the same file twice. `apps/console/routes.test.tsx`
+- **generation-15:** The console reviews a draft on its source's page: what Braivo refused is listed, every objective and task is kept until unticked, dropping an objective drops its tasks, and nothing is stored until the owner creates the course or after they discard the draft. `apps/console/routes.test.tsx`
+- **generation-16:** In review, a task's question, options, correct option, and explanation can be corrected, its number of options and its passages cannot; an edit is checked as the server would (blank, repeated, over 2,000 characters, not text) before it is saved, and the course cannot be created while an edit is open. `packages/ui/compositions/task-editor.test.tsx`, `apps/console/routes.test.tsx`
+- **generation-17:** Creating the course checks its title first (present, at most 500 characters, text) and sends nothing until it passes. Once sent, the review is locked: after a failure, trying again sends exactly what was first sent and finishes that course rather than duplicating it, and Braivo's reason for a refusal is shown. `apps/console/routes.test.tsx`, `apps/server/api/materials.test.ts`
+- **generation-18:** Accepting a draft is authoring through the ordinary endpoints, as the person accepting: objectives by their keys, then citations, then tasks, then a course keyed by the source, its title, and its objectives' keys. The same accepted draft again resolves to the same course, and keeping a different set of objectives makes another; keeping different tasks under the same objectives resolves to the same course, those objectives keeping every task added to them. A course accepted from a draft is ordinary authored content, and the learner loop does not know AI wrote it. `apps/server/api/materials.test.ts`
+
+## Boundaries
+
+- What a source is, its pages, original file, immutability, and how a quote is located and cited: [sources](sources.md).
+- Objectives, courses, tasks, their keys and idempotence, and the MCP tools a desktop agent drafts with: [authoring](authoring.md). Drafting with one's own agent through `braivo mcp` is the alternative to this area, at the owner's own AI cost, and needs no key on the installation.
+- Who is an `owner` or `admin`, and sign-in: [access](access.md).
+- Review before learners see a course is the console's workflow, not a state the server enforces: the authoring API and `braivo mcp` create courses directly, as the person they act for.
+- Not here yet: AI grading and feedback on a learner's answer ([learner loop](learner-loop.md) until it outgrows it), explanations, task kinds other than multiple choice, video and audio, which reach Braivo as captions.
+
+## Decisions
+
+- [ADR 0021](../adr/0021-citations.md): proposals are not stored; review happens where a draft is made.
+- [ADR 0024](../adr/0024-idempotent-authoring.md): keyed writes, so accepting a draft again finishes it rather than duplicating it.
+- [ADR 0029](../adr/0029-server-drafting.md): Braivo drafts on request with one model port, checks the draft against the source, and stores nothing.
+- [ADR 0030](../adr/0030-server-extraction.md): Braivo reads a PDF or photo into pages, returned for the caller to add; one gate for every AI request.
+- [ADR 0031](../adr/0031-ai-limits.md): each AI request is recorded, and an operator may cap an organization's month.
+
+## Gaps
+
+| Gap                                                                                      | Impact                                                                                                | Next step                                                                                      |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Reading and drafting are synchronous, tens of seconds for a chapter                      | A proxy with a shorter timeout in front of Braivo cuts them off, still counted against the quota      | Document the proxy setting; make drafting a job if it proves too slow (revisits ADR 0029)      |
+| No stored draft                                                                          | Closing the tab or navigating away loses a review in progress, and a new draft spends another request | Store drafts once drafting is a job, or once someone other than the drafter must review        |
+| No record of the model or prompt that produced a draft or reading                        | An owner or operator cannot tell which version wrote a course, or compare versions                    | Record the model and a prompt version on each `ai_request` row                                 |
+| The quota counts requests, not cost                                                      | A 200,000-character chapter costs the operator many times a photo, under the same count               | Meter tokens where cost matters (Braivo Cloud does downstream); a per-organization limit later |
+| One limit for every organization, and nothing shows the ledger                           | An operator cannot give one school more, or see usage without querying the database                   | A per-organization setting and a console page, when a self-hoster needs them                   |
+| A redraft's objectives are new, never matched to earlier ones                            | Drafting the same source again and accepting it duplicates objectives already authored                | Match a redraft to existing objectives when teachers need it                                   |
+| An objective's title and its passages, and a task's passages, cannot be edited in review | A wrong title must be dropped with its tasks; titles cannot be edited afterwards either               | Allow editing the title in review; passages stay as located                                    |
+| A transcription can misread a smudged scan or handwriting                                | Quotes and tasks inherit the misreading; the owner sees it only on the source's page                  | Let the owner check the pages before adding them; meanwhile add the material with pasted text  |
+| One provider, Anthropic                                                                  | An operator with another provider or their own endpoint cannot turn on Braivo's AI                    | Another small adapter behind the model port                                                    |
+
+## Entry points
+
+`apps/server/ai/draft.ts` (what a draft keeps and refuses), `apps/server/application/ai.ts` (who may, and the quota), `apps/server/application/drafts.ts`, `apps/server/api/client.ts` (`acceptDraft`), `apps/console/routes/_signed-in/$organizationSlug/sources/$sourceId.tsx` (review).

@@ -6,8 +6,10 @@ import { clearLearningData, seedOrganization, sharedDatabase } from "@braivo/db/
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createCourse } from "./course.ts";
+import { recordFile } from "./file.ts";
 import { createObjectives } from "./objective.ts";
 import { organizationOwnsLearningContent } from "./organization.ts";
+import { createSource } from "./source.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -44,6 +46,29 @@ describe.skipIf(!connectionString)("what an organization still owns", () => {
     // objectives would report nothing to lose and leave the delete to fail on a
     // constraint — the outcome the check exists to replace.
     await createCourse(database, { organizationId, title: "Empty", objectiveIds: [] });
+
+    expect(await owns()).toBe(true);
+  });
+
+  test("owns something once a source exists, before anything is derived from it", async () => {
+    await createSource(database, {
+      organizationId,
+      title: "Unidad 1",
+      text: "Hola",
+      createdAt: at,
+    });
+
+    expect(await owns()).toBe(true);
+  });
+
+  test("owns something once a file is uploaded, before a source names it", async () => {
+    await recordFile(database, {
+      organizationId,
+      sha256: "a".repeat(64),
+      contentType: "application/pdf",
+      size: 4,
+      createdAt: at,
+    });
 
     expect(await owns()).toBe(true);
   });

@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { runMigrations } from "@braivo/db";
 import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
@@ -8,6 +12,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
+import { directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
 import { BraivoError, createClient } from "./client.ts";
 
@@ -26,7 +31,12 @@ const auth = createAuth({
   secret: "contract-test-secret-that-is-long-32",
   baseURL: baseUrl,
 });
-const api = createApi({ auth, database, baseUrl });
+const api = createApi({
+  auth,
+  database,
+  baseUrl,
+  files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-contract-files-"))),
+});
 
 /** The client reaches Braivo over HTTP; here that HTTP is the app itself. */
 const client = createClient({
@@ -368,5 +378,152 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     expect(await rejected).toBeInstanceOf(BraivoError);
     expect((await rejected) as BraivoError).toMatchObject({ status: 403 });
+  });
+
+  test("authors a grounded course from a source, as a drafting agent does", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+
+    const sourceId = await client.addSource(
+      {
+        organizationId,
+        title: "Unidad 1",
+        text: "Hola significa hello. Adiós significa goodbye.",
+        url: "https://example.com/u1",
+        language: "es",
+      },
+      as,
+    );
+    expect(await client.listSources(organizationId, as)).toContainEqual({
+      id: sourceId,
+      title: "Unidad 1",
+      url: "https://example.com/u1",
+      language: "es",
+      createdAt: expect.any(String),
+    });
+    expect(await client.getSource({ organizationId, sourceId }, as)).toMatchObject({
+      text: "Hola significa hello. Adiós significa goodbye.",
+    });
+
+    const [greetings] = await client.defineObjectives(
+      { organizationId, objectives: [{ title: "Greetings" }] },
+      as,
+    );
+    expect(await client.listObjectives(organizationId, as)).toContainEqual({
+      id: greetings,
+      title: "Greetings",
+    });
+    expect(
+      await client.citeSources(
+        {
+          organizationId,
+          citations: [{ objectiveId: greetings!, sourceId, quote: "Hola significa hello." }],
+        },
+        as,
+      ),
+    ).toEqual([{ objectiveId: greetings, sourceId, start: 0, end: 21 }]);
+
+    const taskIds = await client.defineTasks(
+      {
+        organizationId,
+        tasks: [
+          {
+            objectiveId: greetings!,
+            kind: "choice",
+            prompt: "Hola?",
+            options: ["hello", "goodbye"],
+            answer: 0,
+            citations: [{ sourceId, quote: "Hola significa hello." }],
+          },
+        ],
+      },
+      as,
+    );
+    expect(taskIds).toEqual([expect.any(String)]);
+
+    const course = await client.defineCourse(
+      { organizationId, title: "Saludos", objectiveIds: [greetings!] },
+      as,
+    );
+    expect(await client.listCourses(organizationId, as)).toContainEqual({
+      id: course,
+      title: "Saludos",
+    });
+  });
+
+  test("carries Braivo's explanation of a quote it cannot cite", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+    const sourceId = await client.addSource(
+      { organizationId, title: "Unidad 2", text: "uno, dos" },
+      as,
+    );
+
+    const refused = await client
+      .citeSources(
+        { organizationId, citations: [{ objectiveId: pastTense, sourceId, quote: "tres" }] },
+        as,
+      )
+      .catch((thrown: unknown) => thrown);
+
+    expect(refused).toBeInstanceOf(BraivoError);
+    expect(refused).toMatchObject({
+      status: 400,
+      reason: "Citation 0: the quote does not occur in the source.",
+    });
+    expect((refused as BraivoError).message).toContain("does not occur in the source");
+  });
+
+  test("keeps a source's original file, uploaded once however often it is sent", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+    const pdf = new Blob(["%PDF-1.7 Unidad 2"], { type: "application/pdf" });
+
+    const uploaded = await client.uploadFile({ organizationId, file: pdf }, as);
+    expect(uploaded).toEqual({
+      fileId: new Bun.CryptoHasher("sha256").update("%PDF-1.7 Unidad 2").digest("hex"),
+      contentType: "application/pdf",
+      size: 17,
+    });
+    expect(await client.uploadFile({ organizationId, file: pdf }, as)).toEqual(uploaded);
+
+    const sourceId = await client.addSource(
+      { organizationId, title: "Unidad 2", text: "Rojo.", original: uploaded.fileId },
+      as,
+    );
+    expect(await client.getSource({ organizationId, sourceId }, as)).toMatchObject({
+      original: uploaded.fileId,
+    });
+    await expect(
+      client.addSource(
+        { organizationId, title: "Unidad 3", text: "Azul.", original: "0".repeat(64) },
+        as,
+      ),
+    ).rejects.toMatchObject({ status: 400, reason: expect.stringMatching(/upload it first/) });
+  });
+
+  test("carries Braivo's explanation of a source or task it cannot store", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+
+    await expect(
+      client.addSource({ organizationId, title: "Blank", text: "   " }, as),
+    ).rejects.toMatchObject({ status: 400, reason: expect.stringMatching(/text is blank/) });
+    await expect(
+      client.defineTasks(
+        {
+          organizationId,
+          tasks: [
+            {
+              objectiveId: pastTense,
+              kind: "choice",
+              prompt: "?",
+              options: ["sí", "sí"],
+              answer: 0,
+            },
+          ],
+        },
+        as,
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      reason: "Task 0 repeats option 0 as option 1; every option must differ.",
+    });
   });
 });

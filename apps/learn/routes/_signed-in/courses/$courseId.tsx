@@ -9,7 +9,7 @@ import {
   type LearningDecision,
   type LearnerProgressStanding,
 } from "@braivo/server/client";
-import { ChoiceQuestion, MutedText } from "@braivo/ui";
+import { ChoiceQuestion, MutedText, SourcePassage } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import {
@@ -20,7 +20,7 @@ import {
   EmptyTitle,
 } from "@braivo/ui/components/empty";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   // Dropped on leaving: what comes next depends on every answer since, and a
@@ -55,11 +55,12 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
 /**
  * Focuses its element on mount, so focus follows the learner to whatever
  * replaced Continue instead of falling to the page. Explicit: React applies
- * `autoFocus` only to form controls.
+ * `autoFocus` only to form controls. In the commit that shows it, not after:
+ * nothing — a screen reader, a test — sees the element without the focus.
  */
 function useFocusOnMount<T extends HTMLElement>() {
   const ref = useRef<T>(null);
-  useEffect(() => ref.current?.focus(), []);
+  useLayoutEffect(() => ref.current?.focus(), []);
   return ref;
 }
 
@@ -331,6 +332,21 @@ function Practice({
             <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
             {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
           </Alert>
+          {grade.passages && (
+            <section aria-label="From your lessons" className="flex flex-col gap-3">
+              {grade.passages.map((passage, index) => (
+                <SourcePassage
+                  // Stable for this grade: passages never change once graded.
+                  key={index}
+                  quote={passage.quote}
+                  title={passage.source.title}
+                  url={passage.source.url}
+                  at={passage.at}
+                  page={passage.page}
+                />
+              ))}
+            </section>
+          )}
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
           <Button autoFocus aria-disabled={continuing} onClick={next}>
             {continuing ? "Loading…" : "Continue"}

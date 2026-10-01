@@ -3,15 +3,25 @@
 
 import type { Database } from "@braivo/db";
 
+import { isKey } from "../content/index.ts";
 import {
+  type AuthoredTask,
+  type CitedPassage,
   type Course,
   createCourse,
   findObjectivesOutsideOrganization,
+  readCourseObjectives,
   readCourses,
   readDomainOrganization,
   readLearnerCourses,
+  readObjectiveCitations,
+  readObjectiveTasks,
+  readObjectiveTitles,
+  readSources,
+  type SourceSummary,
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
+import { InvalidKey } from "./objectives.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
@@ -30,14 +40,20 @@ export async function defineCourse(input: {
   actingAs: string;
   title: string;
   objectiveIds: readonly string[];
+  /**
+   * The caller's own name for the course, unique within the organization:
+   * adding the same course again under it returns it (docs/adr/0024-idempotent-authoring.md).
+   */
+  key?: string;
 }): Promise<string> {
-  const { database, organizationId, actingAs, title, objectiveIds } = input;
+  const { database, organizationId, actingAs, title, objectiveIds, key } = input;
 
   // A course orders each objective once; a repeat would reach the database as a
   // constraint violation. Checked first, since it depends only on what was sent.
   if (new Set(objectiveIds).size !== objectiveIds.length) {
     throw new RangeError("A course lists each objective at most once.");
   }
+  if (key !== undefined && !isKey(key)) throw new InvalidKey("The course");
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
@@ -48,7 +64,7 @@ export async function defineCourse(input: {
     );
   }
 
-  return createCourse(database, { organizationId, title, objectiveIds });
+  return createCourse(database, { organizationId, title, objectiveIds, key });
 }
 
 /** Every course an organization has, for whoever administers it. */
@@ -80,4 +96,61 @@ export async function listLearnerCourses(input: {
 
   const served = await readDomainOrganization(database, host.hostname);
   return served ? readLearnerCourses(database, learnerId, served.id) : [];
+}
+
+/**
+ * A course as its content owner authored it: its objectives in the order
+ * learners meet them, each with the passages that teach it and the tasks that
+ * practise it — answers included — and the sources those passages are from.
+ */
+export type AuthoredCourse = Course & {
+  objectives: {
+    id: string;
+    title: string;
+    citations: CitedPassage[];
+    tasks: AuthoredTask[];
+  }[];
+  /** Every source a passage above is from, once, by title. */
+  sources: SourceSummary[];
+};
+
+/**
+ * One of an organization's courses as authored, for whoever administers it,
+ * or `undefined` when it has no such course: what reviewing a whole course —
+ * in the console, or by an agent — reads, in one request.
+ */
+export async function readAuthoredCourse(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseId: string;
+}): Promise<AuthoredCourse | undefined> {
+  const { database, organizationId, actingAs, courseId } = input;
+
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  const course = (await readCourses(database, organizationId)).find(({ id }) => id === courseId);
+  if (!course) return undefined;
+
+  const objectiveIds = await readCourseObjectives(database, courseId);
+  const titles = await readObjectiveTitles(database, objectiveIds);
+  // Two indexed reads per objective, all at once: a course is tens of them.
+  const objectives = await Promise.all(
+    objectiveIds.map(async (id) => ({
+      id,
+      title: titles.get(id) ?? "",
+      citations: await readObjectiveCitations(database, id),
+      tasks: await readObjectiveTasks(database, id),
+    })),
+  );
+
+  const cited = new Set(
+    objectives.flatMap(({ citations, tasks }) => [
+      ...citations.map(({ sourceId }) => sourceId),
+      ...tasks.flatMap((task) => task.citations.map(({ sourceId }) => sourceId)),
+    ]),
+  );
+  const sources = (await readSources(database, organizationId)).filter(({ id }) => cited.has(id));
+
+  return { ...course, objectives, sources };
 }

@@ -63,6 +63,7 @@ Both applications write through Braivo's API and Better Auth, which must refuse 
   - slug format and reserved list, application routes only, enforced at creation;
   - Better Auth and Braivo's writes trust `BRAIVO_URL`'s origin and `https://<hostname>` for a registered hostname, failing closed otherwise;
   - the host ceiling on the learner's course routes;
+  - the console's API, sign-up, the device flow, and bearer tokens on the installation's host alone, and writes from a learn domain to that domain alone ([ADR 0022](0022-machine-access.md));
   - at most one domain per organization.
 - Still open:
   - slug changes by an `owner` or `admin`, with the warning (today refused);

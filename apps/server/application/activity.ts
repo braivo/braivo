@@ -19,6 +19,7 @@ import {
   readObjective,
   type Objective,
   readObjectivesWithTasks,
+  readTaskCitations,
   recordAttempt,
   RestingTask,
   RetiredTask,
@@ -195,8 +196,35 @@ export async function submitAttempt(input: {
     throw error;
   }
 
-  return { kind: "graded", grade };
+  // Read only now, once graded: shown before answering, a passage could give
+  // the answer away. Nothing distinguishes source from learner here, so the
+  // learner sees the quote and where it is from, never the source's whole text.
+  const citations = await readTaskCitations(database, taskId);
+  const passages = citations.map(({ quote, at, page, source }) => ({
+    quote,
+    ...(at === undefined ? {} : { at }),
+    ...(page === undefined ? {} : { page }),
+    source,
+  }));
+
+  return { kind: "graded", grade, passages };
 }
+
+/**
+ * A passage the graded task was written from, as a learner sees it: the words,
+ * and the title and link of where they are from (docs/adr/0021-citations.md).
+ */
+export type Passage = {
+  quote: string;
+  /**
+   * The second of the recording the words are said at, when the source is a
+   * timed transcript — a video's — so the learner can be taken to that moment.
+   */
+  at?: number;
+  /** The label of the page the words are on, when the source is a paged document — a book's. */
+  page?: string;
+  source: { title: string; url?: string };
+};
 
 /**
  * `unavailable` is a missing course, one the learner is not in, a task outside
@@ -210,4 +238,4 @@ export type SubmittedAttempt =
   | { kind: "invalid" }
   | { kind: "conflict" }
   | { kind: "resting" }
-  | { kind: "graded"; grade: Grade };
+  | { kind: "graded"; grade: Grade; passages: Passage[] };
