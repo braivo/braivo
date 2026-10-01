@@ -273,6 +273,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
 
     expect(oversized.status).toBe(413);
+    // Braivo's own refusal under the mount, so the mount's cache header too.
+    expect(oversized.headers.get("cache-control")).toBe("private, no-store");
   });
 
   test("signs nobody up on an organization's domain, or any host but the installation's", async () => {
@@ -287,7 +289,9 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         }),
       });
 
-    expect((await signUpOn(organizationOrigin)).status).toBe(404);
+    const onOrganizationDomain = await signUpOn(organizationOrigin);
+    expect(onOrganizationDomain.status).toBe(404);
+    expect(onOrganizationDomain.headers.get("cache-control")).toBe("private, no-store");
     expect((await signUpOn("https://api-test-unknown.example.com")).status).toBe(404);
   });
 
