@@ -27,8 +27,16 @@ The schema is source; migrations are its committed history, so they sit beside i
 
 Two audiences, two commands:
 
-- Maintainers run `bun run db:generate`, **read the generated SQL**, and commit schema and migration together. Correct generated SQL only where the resulting database still matches the TypeScript schema. Backfills and transformations every installation must run are custom migrations; an environment-specific repair is an operational script, not something every future installation replays. Structural DDL the TypeScript schema cannot express is an exception to justify, not the normal escape hatch, because it makes the TypeScript schema stop being the whole schema. Drizzle's snapshots are never hand-edited: they are what the next diff is computed against.
-- Installations run `braivo db migrate`, which applies committed migrations through `drizzle-orm`'s migrator. Drizzle Kit stays a devDependency and is never part of a deployment.
+- Maintainers run `bun run db:generate`, **read the generated SQL**, and commit schema and migration together. Correct generated SQL only where the resulting database still matches the TypeScript schema. Backfills and transformations every installation must run are custom migrations, except a structural backfill (below); an environment-specific repair is an operational script, not something every future installation replays. Structural DDL the TypeScript schema cannot express is an exception to justify, not the normal escape hatch, because it makes the TypeScript schema stop being the whole schema. Drizzle's snapshots are never hand-edited: they are what the next diff is computed against.
+- Installations run `braivo db migrate` (`bun run db:migrate` from a checkout, [ADR 0002](0002-agpl-only.md)), which applies committed migrations through `drizzle-orm`'s migrator. Drizzle Kit stays a devDependency and is never part of a deployment.
+
+A **structural backfill** may go into the generated migration whose constraint it makes valid. It is structural when it exists only to satisfy the new schema and derives every value deterministically from relational data already valid in the database, as when a new required column is filled from a row each record already references. Drizzle Kit adds such a column `NOT NULL` at once, which fails on any existing row, and does not always order its statements runnably; splitting and reordering them around the backfill keeps one schema change in one migration, where three would leave two snapshots of a schema no code uses. It requires:
+
+- a comment at the top of the migration saying what was changed by hand;
+- a database built through the migration chain with the same columns, constraints, and indexes as one built from a migration generated afresh from the schema, hand-written exceptions aside. `drizzle-kit generate` answering "No schema changes" is not this check: it compares snapshots, never the SQL;
+- the upgrade tested from the preceding migration, on rows the backfill must fill.
+
+A custom or staged migration stays right for a backfill that carries a judgment (converting content, recomputing values, calling a model) or is too large for one transaction.
 
 `drizzle-kit push` is not part of the workflow. It changes a database without leaving a committed migration, so Braivo-owned schema in a persistent database changes only through committed migrations applied by `braivo db migrate`.
 
@@ -44,6 +52,7 @@ The scaffolding above lands with the first real table, not before; this ADR prec
 
 ## Consequences
 
+- `braivo db migrate` applies pending migrations in one transaction (Drizzle's migrator does), so a schema change and its structural backfill apply together or not at all. SQL run by other means has whatever atomicity that gives it.
 - PostgreSQL and Drizzle become implementation dependencies of `braivo`. Self-hosting requires a PostgreSQL instance.
 - Generated migrations must be read before they are committed. Drizzle Kit diffs schema snapshots, which cannot tell a rename from a drop plus an add, so it asks; answering that prompt and accepting the resulting DDL, destructive statements included, is the maintainer's call.
 - Drizzle Kit generates forward migrations only. Rollback is handled deliberately when a migration carries meaningful risk, not by a generated down file.

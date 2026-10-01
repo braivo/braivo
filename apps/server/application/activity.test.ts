@@ -46,6 +46,8 @@ let fractionsTasks!: [string, string];
 let courseId!: string;
 let untaughtCourseId!: string;
 let foreignTask!: string;
+/** The other organization's course of `foreignTask`, where the learner also studies. */
+let foreignCourseId!: string;
 /** A course of one task with six options: enough that orders rarely coincide. */
 let shuffleCourseId!: string;
 let shuffleTask!: string;
@@ -85,7 +87,8 @@ function answer(
   });
 }
 
-const stored = () => readLearnerEvidence(database, learner, later(10_000));
+const stored = () =>
+  readLearnerEvidence(database, { learnerId: learner, organizationId }, later(10_000));
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
 describe.skipIf(!connectionString)("the learner loop", () => {
@@ -98,7 +101,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     });
     await testing.seedOrganization(database, {
       organizationId: otherOrganizationId,
-      learnerIds: [outsider],
+      learnerIds: [outsider, learner],
       at: start,
     });
     await database
@@ -154,6 +157,11 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       objectiveId: theirs!,
       body: question("Theirs?"),
       createdAt: start,
+    });
+    foreignCourseId = await createCourse(database, {
+      organizationId: otherOrganizationId,
+      title: "Theirs",
+      objectiveIds: [theirs!],
     });
   });
 
@@ -318,6 +326,19 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
     expect(await answer("reused", second, 0, later(2))).toEqual({ kind: "conflict" });
     expect(await stored()).toMatchObject([{ id: `attempt:reused:${fractions}`, at: later(1) }]);
+  });
+
+  test("keeps a learner's attempt IDs at two organizations apart", async () => {
+    // Each organization's app names attempts on its own, so the same ID at both
+    // is two attempts; and a retry here stays a retry while the other holds a
+    // different answer under that ID.
+    const theirs = await answer("shared", foreignTask, 1, later(1), { course: foreignCourseId });
+    const mine = await answer("shared", pastTenseTask, 0, later(2));
+
+    expect(theirs).toMatchObject({ kind: "graded", grade: { outcome: "failure" } });
+    expect(mine).toMatchObject({ kind: "graded", grade: { outcome: "success" } });
+    expect(await answer("shared", pastTenseTask, 0, later(3))).toEqual(mine);
+    expect(await stored()).toMatchObject([{ id: `attempt:shared:${pastTense}`, at: later(2) }]);
   });
 
   test("records one of two disagreeing submissions that arrive at once", async () => {

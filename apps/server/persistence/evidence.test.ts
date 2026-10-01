@@ -6,6 +6,7 @@ import { objective } from "@braivo/db/schema";
 import {
   clearLearnerHistory,
   clearLearningData,
+  readStoredEvidence,
   seedOrganization,
   sharedDatabase,
   violatedConstraint,
@@ -21,6 +22,8 @@ const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
 
 const organizationId = "evidence-test-org";
+/** Where the learner also studies. */
+const otherOrganizationId = "evidence-test-other-org";
 const learner = "evidence-test-learner";
 const otherLearner = "evidence-test-other-learner";
 const start = new Date("2026-01-01T00:00:00.000Z");
@@ -28,12 +31,18 @@ const at = (days: number) => new Date(start.getTime() + days * 86_400_000);
 
 let pastTense!: string;
 let fractions!: string;
+/** The other organization's own past tense. */
+let theirPastTense!: string;
 
 function evidence(overrides: Partial<Evidence> = {}): Evidence {
   return { id: "e1", objectiveId: pastTense, outcome: "success", at: start, ...overrides };
 }
 
 const learnerIds = [learner, otherLearner];
+/** The learner's evidence at each organization, and another learner's here. */
+const here = { learnerId: learner, organizationId };
+const elsewhere = { learnerId: learner, organizationId: otherOrganizationId };
+const otherLearnerHere = { learnerId: otherLearner, organizationId };
 /** Later than any evidence these tests record, for the cases not about the bound. */
 const whenever = at(1000);
 
@@ -51,36 +60,42 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     fractions = objectives[1]!;
   });
 
-  beforeEach(async () => {
-    await clearLearnerHistory(database, learnerIds);
-  });
-
-  test("keeps a learner's evidence when another organization's is cleared", async () => {
-    const otherOrganizationId = "evidence-test-other-org";
+  /** Seeds the other organization afresh, since one test clears it. */
+  async function seedOtherOrganization() {
     await seedOrganization(database, {
       organizationId: otherOrganizationId,
       learnerIds: [learner],
       at: start,
     });
-    const [theirs] = await createObjectives(database, otherOrganizationId, ["Past tense"]);
-    await recordEvidence(database, learner, [
-      evidence({ id: "mine" }),
-      evidence({ id: "theirs", objectiveId: theirs! }),
+    [theirPastTense] = (await createObjectives(database, otherOrganizationId, ["Past tense"])) as [
+      string,
+    ];
+  }
+
+  beforeEach(async () => {
+    await clearLearnerHistory(database, learnerIds);
+  });
+
+  test("keeps a learner's evidence when another organization's is cleared", async () => {
+    await seedOtherOrganization();
+    await recordEvidence(database, here, [evidence({ id: "mine" })]);
+    await recordEvidence(database, elsewhere, [
+      evidence({ id: "theirs", objectiveId: theirPastTense }),
     ]);
 
     await clearLearningData(database, otherOrganizationId);
 
-    const kept = await readLearnerEvidence(database, learner, whenever);
+    const kept = await readStoredEvidence(database, learner);
     expect(kept.map((record) => record.id)).toEqual(["mine"]);
   });
 
   test("reads back what was recorded, in replay order", async () => {
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, here, [
       evidence({ id: "e2", at: at(2) }),
       evidence({ id: "e1", objectiveId: fractions, outcome: "failure", at: at(1) }),
     ]);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toEqual([
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([
       { id: "e1", objectiveId: fractions, outcome: "failure", at: at(1) },
       { id: "e2", objectiveId: pastTense, outcome: "success", at: at(2) },
     ]);
@@ -88,42 +103,100 @@ describe.skipIf(!connectionString)("learner evidence", () => {
 
   test("reads colliding timestamps in ID order, whatever order they arrived in", async () => {
     // Two calls, so the rows are written "b" first: one call would sort them.
-    await recordEvidence(database, learner, [evidence({ id: "b" })]);
-    await recordEvidence(database, learner, [evidence({ id: "a", outcome: "failure" })]);
+    await recordEvidence(database, here, [evidence({ id: "b" })]);
+    await recordEvidence(database, here, [evidence({ id: "a", outcome: "failure" })]);
 
-    const read = await readLearnerEvidence(database, learner, whenever);
+    const read = await readLearnerEvidence(database, here, whenever);
 
     expect(read.map((record) => record.id)).toEqual(["a", "b"]);
+  });
+
+  test("keeps two organizations' evidence for one learner apart under one ID", async () => {
+    // Each organization's graders name evidence independently, so the same ID
+    // from both is two results, neither a redelivery nor a conflict.
+    await seedOtherOrganization();
+    await recordEvidence(database, here, [evidence({ id: "shared" })]);
+    await recordEvidence(database, elsewhere, [
+      evidence({ id: "shared", objectiveId: theirPastTense, outcome: "failure" }),
+    ]);
+
+    expect(await readStoredEvidence(database, learner)).toEqual(
+      expect.arrayContaining([
+        evidence({ id: "shared" }),
+        evidence({ id: "shared", objectiveId: theirPastTense, outcome: "failure" }),
+      ]),
+    );
+  });
+
+  test("reads only the organization asked about", async () => {
+    // What keeps one organization's evidence out of another's decisions,
+    // whatever the model does across objectives.
+    await seedOtherOrganization();
+    await recordEvidence(database, here, [evidence({ id: "mine" })]);
+    await recordEvidence(database, elsewhere, [
+      evidence({ id: "theirs", objectiveId: theirPastTense }),
+    ]);
+
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([evidence({ id: "mine" })]);
+    expect(await readLearnerEvidence(database, elsewhere, whenever)).toEqual([
+      evidence({ id: "theirs", objectiveId: theirPastTense }),
+    ]);
+  });
+
+  test("accepts a redelivery while another organization holds a different result under its ID", async () => {
+    // The comparison after the insert must look at this organization's row
+    // alone: read across organizations, a harmless retry here would be refused
+    // because of what the learner did elsewhere.
+    await seedOtherOrganization();
+    const mine = evidence({ id: "shared" });
+    const theirs = evidence({ id: "shared", objectiveId: theirPastTense, outcome: "failure" });
+    await recordEvidence(database, elsewhere, [theirs]);
+    await recordEvidence(database, here, [mine]);
+
+    await recordEvidence(database, here, [mine]);
+
+    const stored = await readStoredEvidence(database, learner);
+    expect(stored).toHaveLength(2);
+    expect(stored).toEqual(expect.arrayContaining([mine, theirs]));
+  });
+
+  test("refuses evidence an organization records about another's objective", async () => {
+    await seedOtherOrganization();
+    const error = await recordEvidence(database, here, [
+      evidence({ objectiveId: theirPastTense }),
+    ]).catch((thrown: unknown) => thrown);
+
+    expect(violatedConstraint(error)).toBe("learner_evidence_objective_fk");
   });
 
   test("refuses evidence about an objective that does not exist", async () => {
     // Without the foreign key this would record knowledge of nothing, silently
     // and permanently, and replay would then attribute estimates to it.
-    const error = await recordEvidence(database, learner, [
+    const error = await recordEvidence(database, here, [
       evidence({ objectiveId: "no-such-objective" }),
     ]).catch((thrown: unknown) => thrown);
 
-    expect(violatedConstraint(error)).toBe("learner_evidence_objective_id_objective_id_fk");
+    expect(violatedConstraint(error)).toBe("learner_evidence_objective_fk");
   });
 
   test("refuses to delete an objective that evidence depends on", async () => {
     // Restricting the delete is the schema's only way to stop an objective
     // vanishing out from under the history attributed to it.
-    await recordEvidence(database, learner, [evidence({ id: "depends-on-it" })]);
+    await recordEvidence(database, here, [evidence({ id: "depends-on-it" })]);
 
     const error = await database
       .delete(objective)
       .where(eq(objective.id, pastTense))
       .catch((thrown: unknown) => thrown);
 
-    expect(violatedConstraint(error)).toBe("learner_evidence_objective_id_objective_id_fk");
+    expect(violatedConstraint(error)).toBe("learner_evidence_objective_fk");
   });
 
   test("stores a redelivered result once, and says nothing about it", async () => {
-    await recordEvidence(database, learner, [evidence({ id: "retried" })]);
-    await recordEvidence(database, learner, [evidence({ id: "retried" })]);
+    await recordEvidence(database, here, [evidence({ id: "retried" })]);
+    await recordEvidence(database, here, [evidence({ id: "retried" })]);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toEqual([
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([
       { id: "retried", objectiveId: pastTense, outcome: "success", at: start },
     ]);
   });
@@ -139,12 +212,12 @@ describe.skipIf(!connectionString)("learner evidence", () => {
   ];
   for (const [field, change] of disagreements) {
     test(`refuses a redelivery whose ${field} disagrees, and keeps the first`, async () => {
-      await recordEvidence(database, learner, [evidence({ id: "reused" })]);
+      await recordEvidence(database, here, [evidence({ id: "reused" })]);
 
-      const refused = recordEvidence(database, learner, [evidence({ id: "reused", ...change() })]);
+      const refused = recordEvidence(database, here, [evidence({ id: "reused", ...change() })]);
 
       await expect(refused).rejects.toBeInstanceOf(ConflictingEvidence);
-      expect(await readLearnerEvidence(database, learner, whenever)).toEqual([
+      expect(await readLearnerEvidence(database, here, whenever)).toEqual([
         { id: "reused", objectiveId: pastTense, outcome: "success", at: start },
       ]);
     });
@@ -153,16 +226,16 @@ describe.skipIf(!connectionString)("learner evidence", () => {
   test("stores nothing from a batch that disagrees with something already stored", async () => {
     // The batch's new records are inserted before the disagreement is found, so
     // this is the rollback, not merely the check.
-    await recordEvidence(database, learner, [evidence({ id: "reused" })]);
+    await recordEvidence(database, here, [evidence({ id: "reused" })]);
 
     await expect(
-      recordEvidence(database, learner, [
+      recordEvidence(database, here, [
         evidence({ id: "new", at: at(1) }),
         evidence({ id: "reused", outcome: "failure" }),
       ]),
     ).rejects.toThrow('"reused"');
 
-    expect((await readLearnerEvidence(database, learner, whenever)).map((row) => row.id)).toEqual([
+    expect((await readLearnerEvidence(database, here, whenever)).map((row) => row.id)).toEqual([
       "reused",
     ]);
   });
@@ -171,13 +244,13 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     // The insert keeps the first copy and skips the second without a word, so
     // the check has to look at every record sent, not only at the ones skipped.
     await expect(
-      recordEvidence(database, learner, [
+      recordEvidence(database, here, [
         evidence({ id: "twice" }),
         evidence({ id: "twice", outcome: "failure" }),
       ]),
     ).rejects.toBeInstanceOf(ConflictingEvidence);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toEqual([]);
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([]);
   });
 
   test("refuses one of two disagreeing results that arrive at the same time", async () => {
@@ -188,8 +261,8 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     for (let race = 0; race < 10; race++) {
       await clearLearnerHistory(database, learnerIds);
       const [succeeded, failed] = await Promise.allSettled([
-        recordEvidence(database, learner, [evidence({ id: "raced", outcome: "success" })]),
-        recordEvidence(database, learner, [evidence({ id: "raced", outcome: "failure" })]),
+        recordEvidence(database, here, [evidence({ id: "raced", outcome: "success" })]),
+        recordEvidence(database, here, [evidence({ id: "raced", outcome: "failure" })]),
       ]);
 
       const outcomes = [succeeded, failed].map((settled) => settled.status);
@@ -200,7 +273,7 @@ describe.skipIf(!connectionString)("learner evidence", () => {
       // And what is stored is the write that was told it succeeded.
       const winner = succeeded.status === "fulfilled" ? "success" : "failure";
       expect(
-        (await readLearnerEvidence(database, learner, whenever)).map((row) => row.outcome),
+        (await readLearnerEvidence(database, here, whenever)).map((row) => row.outcome),
       ).toEqual([winner]);
     }
   });
@@ -218,24 +291,24 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     for (let race = 0; race < 10; race++) {
       await clearLearnerHistory(database, learnerIds);
       await Promise.all([
-        recordEvidence(database, learner, batch),
-        recordEvidence(database, learner, batch.toReversed()),
+        recordEvidence(database, here, batch),
+        recordEvidence(database, here, batch.toReversed()),
       ]);
 
-      expect(await readLearnerEvidence(database, learner, whenever)).toHaveLength(100);
+      expect(await readLearnerEvidence(database, here, whenever)).toHaveLength(100);
     }
   });
 
   test("records the new part of a batch that also redelivers something", async () => {
     // The path where a comparison runs and finds nothing wrong.
-    await recordEvidence(database, learner, [evidence({ id: "retried" })]);
+    await recordEvidence(database, here, [evidence({ id: "retried" })]);
 
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, here, [
       evidence({ id: "retried" }),
       evidence({ id: "new", at: at(1) }),
     ]);
 
-    expect((await readLearnerEvidence(database, learner, whenever)).map((row) => row.id)).toEqual([
+    expect((await readLearnerEvidence(database, here, whenever)).map((row) => row.id)).toEqual([
       "retried",
       "new",
     ]);
@@ -244,16 +317,16 @@ describe.skipIf(!connectionString)("learner evidence", () => {
   test("accepts the same result twice within one batch", async () => {
     const graded = evidence({ id: "twice" });
 
-    await recordEvidence(database, learner, [graded, graded]);
+    await recordEvidence(database, here, [graded, graded]);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toHaveLength(1);
+    expect(await readLearnerEvidence(database, here, whenever)).toHaveLength(1);
   });
 
   test("keeps one learner's evidence out of another's history", async () => {
-    await recordEvidence(database, learner, [evidence({ id: "mine" })]);
-    await recordEvidence(database, otherLearner, [evidence({ id: "theirs" })]);
+    await recordEvidence(database, here, [evidence({ id: "mine" })]);
+    await recordEvidence(database, otherLearnerHere, [evidence({ id: "theirs" })]);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toEqual([
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([
       { id: "mine", objectiveId: pastTense, outcome: "success", at: start },
     ]);
   });
@@ -262,36 +335,36 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     // A grader that builds IDs from task and objective rather than from the
     // attempt produces exactly this; a globally keyed table would silently lose
     // whichever learner's evidence arrived second.
-    await recordEvidence(database, learner, [evidence({ id: "shared" })]);
-    await recordEvidence(database, otherLearner, [evidence({ id: "shared" })]);
+    await recordEvidence(database, here, [evidence({ id: "shared" })]);
+    await recordEvidence(database, otherLearnerHere, [evidence({ id: "shared" })]);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toHaveLength(1);
-    expect(await readLearnerEvidence(database, otherLearner, whenever)).toHaveLength(1);
+    expect(await readLearnerEvidence(database, here, whenever)).toHaveLength(1);
+    expect(await readLearnerEvidence(database, otherLearnerHere, whenever)).toHaveLength(1);
   });
 
   test("leaves out evidence dated after the instant asked about", async () => {
     // A decision is made at a time, and a grader writing concurrently must not
     // retroactively become part of one already in flight.
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, here, [
       evidence({ id: "before", at: at(1) }),
       evidence({ id: "after", at: at(3) }),
     ]);
 
-    expect(await readLearnerEvidence(database, learner, at(2))).toEqual([
+    expect(await readLearnerEvidence(database, here, at(2))).toEqual([
       { id: "before", objectiveId: pastTense, outcome: "success", at: at(1) },
     ]);
   });
 
   test("includes evidence dated at exactly that instant", async () => {
-    await recordEvidence(database, learner, [evidence({ id: "exactly", at: at(2) })]);
+    await recordEvidence(database, here, [evidence({ id: "exactly", at: at(2) })]);
 
-    expect(await readLearnerEvidence(database, learner, at(2))).toHaveLength(1);
+    expect(await readLearnerEvidence(database, here, at(2))).toHaveLength(1);
   });
 
   test("records nothing, and does not fail, for an empty batch", async () => {
-    await recordEvidence(database, learner, []);
+    await recordEvidence(database, here, []);
 
-    expect(await readLearnerEvidence(database, learner, whenever)).toEqual([]);
+    expect(await readLearnerEvidence(database, here, whenever)).toEqual([]);
   });
 
   test("stored evidence replays to the same estimates as the records in memory", async () => {
@@ -304,9 +377,9 @@ describe.skipIf(!connectionString)("learner evidence", () => {
       evidence({ id: "e4", objectiveId: fractions, outcome: "failure", at: at(5) }),
       evidence({ id: "e5", objectiveId: pastTense, at: at(9.5) }),
     ];
-    await recordEvidence(database, learner, history);
+    await recordEvidence(database, here, history);
 
-    const stored = await readLearnerEvidence(database, learner, whenever);
+    const stored = await readLearnerEvidence(database, here, whenever);
 
     expect(replay(stored, activeModel)).toEqual(replay(history, activeModel));
   });

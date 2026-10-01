@@ -61,7 +61,7 @@ export async function loadLearnerInCourse(
 
   const [objectiveIds, evidence] = await Promise.all([
     readCourseObjectives(database, courseId),
-    readLearnerEvidence(database, learnerId, now),
+    readLearnerEvidence(database, { learnerId, organizationId }, now),
   ]);
 
   return { objectiveIds, estimates: replay(evidence, activeModel) };

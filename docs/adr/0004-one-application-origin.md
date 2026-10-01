@@ -1,12 +1,14 @@
 # 0004: Application origins and organization addressing
 
-Status: accepted (2026-09-16), partly implemented (2026-09-25; see Consequences). Supersedes the origin layout in [ADR 0003](0003-workspace-layout.md).
+Status: accepted (2026-09-16), partly implemented (2026-09-25; see Consequences)
 
 ## Context
 
-[ADR 0003](0003-workspace-layout.md) served a learner app at `/` and the console at `/console/` of one Braivo origin, which suits neither. The learn app is white-label: it runs for one organization under that organization's brand and domain — `springo.app`, say — and as Braivo's demonstration at `demo.braivo.app` ([product.md](../product.md)). The console is Braivo's: Springo's content owners manage it at `braivo.app/springo`.
+Braivo has two applications with different owners. The learn app is white-label: it runs for one organization under that organization's brand and domain — `springo.app`, say — and as Braivo's demonstration at `demo.braivo.app` ([product.md](../product.md)). The console is Braivo's: Springo's content owners manage it at `braivo.app/springo`.
 
 One person may belong to several organizations — a school and its test copy, schools they consult for — so each needs a stable, shareable address.
+
+Both applications write through Braivo's API and Better Auth, which must refuse a write that another site's page forges.
 
 ## Decision
 
@@ -32,20 +34,22 @@ One person may belong to several organizations — a school and its test copy, s
 - **Marketing lives on `www.braivo.app`; `braivo.app` serves the application alone**, so marketing may use analytics and tag managers without their scripts running on the application's origin, and reserves no slugs. On Braivo Cloud the router in front sends a bare `braivo.app/` without a session cookie to `www`, so a visitor learns what Braivo is while someone signed in lands in their organization; marketing links to `/login`, which the app always serves. A self-hosted installation has no marketing site.
 - **An organization's domain serves its learn app, and nothing else; an organization has at most one.** The hostname identifies the organization, so no slug appears: `springo.app/…`. Anything needing the learn domain — an invitation, a session handoff — names the organization and looks it up. The console stays on Braivo's origin: the server resolves hosts, the console resolves slugs, and nothing resolves both.
 - **The learn app serves each organization's learners on its domain**; `demo.braivo.app` is Braivo's own deployment of it. Learners join by invitation and sign in on Braivo's origin ([ADR 0018](0018-sign-in-and-invitations.md)). Until then the learn app signs learners in but never up, and the API refuses sign-up on any host but the installation's.
-- **Every origin that serves an app also serves `/api`**, so apps call a same-origin API and [ADR 0003](0003-workspace-layout.md)'s origin checks stand. Whether integrators get an API hostname of their own is decided with their credential.
+- **Every origin that serves an app also serves `/api`, and only those origins may write.** Braivo and Better Auth both refuse a write whose `Origin` is neither `BRAIVO_URL`'s nor `https://<hostname>` for a registered hostname, looked up on each request and failing closed, so trust needs no configured list and ends with the hostname's row. In development each Vite server stands in for its site: it proxies `/api` to the server and rewrites the `Origin` of a request same-origin _to itself_ into the API's (`tooling/dev-proxy.ts`); a page on any other site still sends its own and is refused. Whether integrators get an API hostname of their own is decided with their credential.
 - **URLs do not dictate deployment.** Marketing, console, and learn app stay separate apps behind a router that dispatches by host and path. On Braivo Cloud the router, the marketing site, and domain provisioning are the managed service's; resolving an organization from its host stays here ([product.md](../product.md)). `organization_domain` records which hostname serves which organization, written by whoever verifies the domain — Braivo Cloud or the operator — never by the organization's members.
-- **Until learn domains hold sessions scoped to their organization, only hostnames the operator controls may be registered.** Today Better Auth and Braivo's writes trust `https://<hostname>` for a registered hostname, so the account's session cookie lives there and learners enter credentials there. Whoever controls that hostname's DNS or content could take sessions that act in every organization the user is in. So on Braivo Cloud only hostnames under a domain Braivo holds qualify, and self-hosted only the operator's own. Once [ADR 0018](0018-sign-in-and-invitations.md)'s learner sessions exist, which reach one organization, a domain the organization owns may be registered too.
+- **Until learn domains hold sessions scoped to their organization, only hostnames the operator controls may be registered.** A registered hostname is a trusted origin, so the account's session cookie lives there and learners enter credentials there. Whoever controls that hostname's DNS or content could take sessions that act in every organization the user is in. So on Braivo Cloud only hostnames under a domain Braivo holds qualify, and self-hosted only the operator's own. Once [ADR 0018](0018-sign-in-and-invitations.md)'s learner sessions exist, which reach one organization, a domain the organization owns may be registered too.
 
 ## Alternatives rejected
 
-- **Marketing on the bare domain, beside the application**, as Linear and GitHub do (first version). Every marketing page would be held to the application's script policy — strict CSP, reviewed third-party scripts only, no tag manager — which Braivo's marketing needs to break, and every marketing page would be a reserved slug, tying this public repository to the private site.
+- **The learn app at `/` and the console at `/console/` of one Braivo origin** (replaced). It suits neither: learners belong on their organization's domain under its brand, and every console address would carry a segment that says nothing.
+- **A configured list of trusted origins**, as Better Auth's `BETTER_AUTH_TRUSTED_ORIGINS`. Braivo's own write check would need the same list, and a deployment would gain a setting whose only purpose is to be wrong in a new way; a registered hostname is already a row.
+- **Marketing on the bare domain, beside the application**, as Linear and GitHub do (replaced). Every marketing page would be held to the application's script policy — strict CSP, reviewed third-party scripts only, no tag manager — which Braivo's marketing needs to break, and every marketing page would be a reserved slug, tying this public repository to the private site.
 - **`console.braivo.app`.** A subdomain for Braivo's only application, lengthening every address.
-- **`braivo.app/console/<organization>`**, or **`braivo.app/organizations/<organization>`** (briefly adopted). A segment that says nothing on every shared address; the reserved list it avoids is a small price.
+- **`braivo.app/console/<organization>`**, or **`braivo.app/organizations/<organization>`** (replaced). A segment that says nothing on every shared address; the reserved list it avoids is a small price.
 - **`learn.braivo.app`.** Learners belong on their content owner's domain, under its brand.
 - **The last organization in the session**, as Better Auth's active organization: a server write on every switch, racing between tabs, for a browser preference.
 - **The organization from the session alone.** URLs could not be shared, and two tabs could not show two organizations.
 - **Trusting a verified customer domain with the account's session.** Verification proves who controls the hostname — exactly who could then take sessions valid everywhere.
-- **The console on an organization's domain** (first version). A resolver reading host then path, and the account that manages every organization on a hostname one of them controls.
+- **The console on an organization's domain** (replaced). A resolver reading host then path, and the account that manages every organization on a hostname one of them controls.
 
 ## Consequences
 

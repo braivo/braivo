@@ -1,6 +1,6 @@
 # Progress
 
-Status: living; checked against the code on 2026-09-28.
+Status: living; checked against the code on 2026-10-01.
 
 For one learner in one course, Braivo reports where they stand on each objective: not started, learning, retained, or due for review, with how likely they are to recall it ([product.md](../product.md), core job 5). Content owners read it in the console; learners read their own as a summary in the learn app. The report comes from the same replay that chooses the learner's next activity, so it explains selection rather than restating it ("Explainable decisions").
 
@@ -15,6 +15,7 @@ For one learner in one course, Braivo reports where they stand on each objective
 - **progress-7:** Every progress answer, refusals included, carries `Cache-Control: private, no-store`. `apps/server/api/app.test.ts`
 - **progress-8:** A learner sees counts by standing that open into each objective by title; if their report cannot be read, the summary is left out and practice goes on. `apps/learn/routes.test.tsx`
 - **progress-9:** The console never pairs one organization's course with another's learners: it reads nothing about a course until the course is in the organization's own listing, and shows any refusal as not found. `apps/console/routes.test.tsx`
+- **progress-10:** A learner who also studies at another organization is reported from this organization's objectives alone: evidence recorded there neither appears in the report nor changes it, and who may read either report is progress-1. `apps/server/application/learner-progress.test.ts`
 
 ## Boundaries
 
@@ -25,9 +26,10 @@ For one learner in one course, Braivo reports where they stand on each objective
 ## Decisions
 
 - [ADR 0007](../adr/0007-one-learning-model.md): one active model, so a report is recomputed rather than stored.
-- [ADR 0009](../adr/0009-evidence-is-read-whole.md): a report replays the learner's whole evidence, not only the course's.
+- [ADR 0009](../adr/0009-evidence-read-whole.md): a report replays the learner's evidence at the course's organization, never narrowed to the course.
 - [ADR 0010](../adr/0010-hono-http-layer.md): the reader comes from the session, the learner from the path; the body is the use case's report, serialized.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): membership is enrollment, so every member appears in every course.
+- [ADR 0032](../adr/0032-learner-history.md): one history per learner, recorded and read per organization.
 
 ## Gaps
 

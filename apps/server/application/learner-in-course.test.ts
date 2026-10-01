@@ -106,7 +106,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
   });
 
   test("loads the course's objectives in content order and the learner's estimates", async () => {
-    await recordEvidence(database, learner, [evidence()]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [evidence()]);
 
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,
@@ -122,7 +122,9 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
   });
 
   test("leaves out evidence dated after the moment it loads for", async () => {
-    await recordEvidence(database, learner, [evidence({ at: new Date(now.getTime() + 1000) })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ at: new Date(now.getTime() + 1000) }),
+    ]);
 
     const loaded = await loadLearnerInCourse(database, {
       courseId: course,

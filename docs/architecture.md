@@ -11,7 +11,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - `apps/server` exports only its browser client, `@braivo/server/client`, which may import nothing from the server but types. Add exports only when a real consumer requires them.
 - `packages/db` owns the database: schema, migrations, client, and test seeding. It stores learning data but holds no learning behaviour and imports nothing from the server; queries live in `persistence`.
 - `apps/console` is the content owners' application and `apps/learn` the learner app. Each is served at the root of its own origin together with `/api` — the console on Braivo's origin, the learn app on a domain serving one organization — and reaches the server through that same-origin API ([ADR 0004](adr/0004-one-application-origin.md)). The console addresses an organization by its slug, `/<organization>/…`.
-- `packages/ui` holds the apps' tokens and components, `apps/storybook` shows those components, and `packages/auth-client` holds browser authentication helpers ([ADR 0003](adr/0003-workspace-layout.md), [ADR 0011](adr/0011-design-system-and-auth-packages.md), [ADR 0013](adr/0013-ui-package-and-storybook.md)).
+- `packages/ui` holds the apps' tokens and components, `apps/storybook` shows those components, and `packages/auth-client` holds browser authentication helpers ([ADR 0011](adr/0011-ui-and-auth-client-packages.md)).
 - One toolchain, Vite+, configured in the root `vite.config.ts`: `vp check` formats, lints, and type-checks; `bun run test` runs Vitest on Bun.
 - Developers integrate over the documented HTTP API. Braivo's own code is AGPL-3.0-only, with a commercial license available, and third-party code keeps its upstream license ([ADR 0002](adr/0002-agpl-only.md)).
 - No microservices, queues, or caches until a concrete workflow or measured problem requires them.
@@ -44,6 +44,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 
 ## Data
 
+- A learner has one history, in which each organization records attempts and evidence about its own content and reads only its own ([ADR 0032](adr/0032-learner-history.md)).
 - Preserve the learner evidence used to derive learning state, including AI-derived evidence passed to `learning`, not only the derived estimates. This lets estimates be recomputed when the learning model changes.
 - Store enough immutable task context to interpret an attempt after content changes; edits must not rewrite historical evidence.
 - Keep derived content linked to the source material it came from.

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 
 import { createDatabase, type Database } from "./database.ts";
 import {
@@ -131,32 +131,36 @@ export async function createTask(
 }
 
 /**
- * Removes an organization's objectives, courses, and tasks, with all evidence
- * and attempts recorded against them, whoever recorded them: the restricted
- * foreign keys refuse to delete what anything still points at.
+ * Removes an organization's objectives, courses, and tasks, with the attempts
+ * and evidence recorded there first: the restricted foreign keys refuse to
+ * delete what anything still points at.
  */
 export async function clearLearningData(database: Database, organizationId: string): Promise<void> {
-  const tasks = database
-    .select({ id: task.id })
-    .from(task)
-    .where(eq(task.organizationId, organizationId));
-  await database.delete(attempt).where(inArray(attempt.taskId, tasks));
+  await database.delete(attempt).where(eq(attempt.organizationId, organizationId));
   await database.delete(task).where(eq(task.organizationId, organizationId));
 
-  await database
-    .delete(learnerEvidence)
-    .where(
-      inArray(
-        learnerEvidence.objectiveId,
-        database
-          .select({ id: objective.id })
-          .from(objective)
-          .where(eq(objective.organizationId, organizationId)),
-      ),
-    );
+  await database.delete(learnerEvidence).where(eq(learnerEvidence.organizationId, organizationId));
 
   await database.delete(course).where(eq(course.organizationId, organizationId));
   await database.delete(objective).where(eq(objective.organizationId, organizationId));
+}
+
+/**
+ * Everything stored for a learner at every organization, future-dated records
+ * included, in `(at, organization, id)` order, which is total: what a test
+ * asserts was or was not written, which no decision's read shows whole.
+ */
+export async function readStoredEvidence(database: Database, learnerId: string) {
+  return database
+    .select({
+      id: learnerEvidence.id,
+      objectiveId: learnerEvidence.objectiveId,
+      outcome: learnerEvidence.outcome,
+      at: learnerEvidence.at,
+    })
+    .from(learnerEvidence)
+    .where(eq(learnerEvidence.learnerId, learnerId))
+    .orderBy(asc(learnerEvidence.at), asc(learnerEvidence.organizationId), asc(learnerEvidence.id));
 }
 
 /** Removes just these learners' attempts and evidence, which most suites reset between tests. */

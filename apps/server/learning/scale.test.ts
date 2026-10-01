@@ -10,8 +10,8 @@ import { selectNext } from "./select.ts";
 /**
  * Guards the shape of the cost, not the cost itself.
  *
- * A decision replays a learner's whole history, so what that costs is worth
- * guarding — but not as a number, since quoted numbers rot. What would actually
+ * A decision replays a learner's whole history at an organization, so what
+ * that costs is worth guarding — but not as a number, since quoted numbers rot. What would actually
  * hurt is not a slower constant but a changed exponent: a fold or a sort turned
  * quadratic is invisible on the handful of records every other test uses, and
  * arrives as a timeout once one learner has a few years of history.

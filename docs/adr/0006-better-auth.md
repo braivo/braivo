@@ -6,7 +6,7 @@ Status: accepted (2026-09-16)
 
 A standalone Braivo installation needs to know who is signed in before it can do anything useful: content owners administer content, learners accumulate evidence against their own identity, and both are product concepts defined in `product.md`. Authentication is not the product, and building it is not a good use of pre-PMF time.
 
-Content owners also work in groups — a school, a training provider, a team inside a company — so content and learners need an ownership boundary even with no managed service involved.
+Content owners also work in groups — a school, a training provider, a team inside a company — so content needs an ownership boundary, and learners a way to reach it, even with no managed service involved.
 
 ## Decision
 
@@ -17,7 +17,7 @@ Use **Better Auth** (MIT) with its organization plugin, in `braivo`, against the
 - The CLI only generates; nothing it produces reaches a database on its own. Every schema change, Better Auth upgrades included, is applied as a committed Drizzle migration ([ADR 0005](0005-postgresql-drizzle.md)). One database, one migration history, no second migration runner.
 - `schema/auth.ts` is generated and committed, never hand-edited, and regenerated with the tooling version this repository pins — otherwise the same commit yields different tables on different days. Additional fields on Better Auth's tables are declared in the Better Auth config and regenerated, so config and schema change together.
 - `better-auth` and its CLI are pinned to exact versions rather than ranges. The committed `schema/auth.ts` and the migration generated from it describe one version's tables, so a range would let an install resolve a Better Auth whose expectations the shipped migration does not meet.
-- **Organization** is therefore a product concept in `braivo`, not a Braivo Cloud one. It answers "who owns this content and these learners" for a standalone installation.
+- **Organization** is therefore a product concept in `braivo`, not a Braivo Cloud one. It answers "who owns this content, and who may learn from it" for a standalone installation. A learner's history is kept per learner, not per organization ([ADR 0032](0032-learner-history.md)).
 - Organization context from a request or session is not authorization. A workflow verifies the actor's membership and permission for an organization before reaching its data. Passing an `organizationId` explicitly, as `architecture.md` requires, only removes hidden state; it says nothing about whether the actor was entitled to that organization, and confusing the two is how cross-organization data leaks happen.
 
 How a Braivo Cloud tenant relates to an organization, and how tenant data is isolated in storage, stay open. Organizations exist because a standalone install needs them; adopting one as the tenancy boundary is a separate decision with its own trade-offs, and nothing here presumes it.

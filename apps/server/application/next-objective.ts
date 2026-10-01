@@ -11,8 +11,9 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
  * What a learner should work on next, decided from their recorded evidence.
  *
  * Estimates are replayed on every call rather than stored, so none can go stale
- * (cost: docs/adr/0007-one-learning-model.md), and from the whole history rather
- * than this course's objectives (docs/adr/0009-evidence-is-read-whole.md).
+ * (cost: docs/adr/0007-one-learning-model.md), and from the learner's whole
+ * history at the organization rather than this course's objectives
+ * (docs/adr/0009-evidence-read-whole.md, docs/adr/0032-learner-history.md).
  *
  * Candidates come from the course, never the caller, so a nonexistent objective
  * cannot be asked about. Eligibility rules will narrow them here, keeping their

@@ -7,15 +7,14 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Evidence } from "../learning/index.ts";
-import {
-  ConflictingEvidence,
-  createCourse,
-  createObjectives,
-  readLearnerEvidence,
-} from "../persistence/index.ts";
+import { ConflictingEvidence, createCourse, createObjectives } from "../persistence/index.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 import { NotPermitted } from "./permission.ts";
-import { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
+import {
+  InvalidEvidence,
+  MAX_EVIDENCE_ID_LENGTH,
+  recordGradedEvidence,
+} from "./record-evidence.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -54,13 +53,9 @@ function record(
   });
 }
 
-/**
- * Everything stored, not what a decision would see: read as of the year 9999,
- * the latest date PostgreSQL parses from `toISOString`, rather than as of `now`,
- * so a stored future-dated record could not hide from these assertions.
- */
+/** Everything stored, not what a decision would see, so nothing can hide from these assertions. */
 function stored(learnerId = learner) {
-  return readLearnerEvidence(database, learnerId, new Date("9999-12-31T23:59:59.999Z"));
+  return testing.readStoredEvidence(database, learnerId);
 }
 
 const minutes = (count: number) => new Date(now.getTime() + count * 60_000);
@@ -210,6 +205,16 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     expect(await stored(learner)).toEqual([
       { id: "reused", objectiveId: pastTense, outcome: "success", at: daysAgo(1) },
     ]);
+  });
+
+  test("refuses an ID too long to index, and accepts one at the limit", async () => {
+    await expect(
+      record([evidence({ id: "x".repeat(MAX_EVIDENCE_ID_LENGTH + 1) })]),
+    ).rejects.toBeInstanceOf(InvalidEvidence);
+    expect(await stored()).toEqual([]);
+
+    await record([evidence({ id: "x".repeat(MAX_EVIDENCE_ID_LENGTH) })]);
+    expect(await stored()).toHaveLength(1);
   });
 
   test("refuses an ID in the namespace attempts grade into", async () => {

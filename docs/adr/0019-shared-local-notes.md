@@ -1,6 +1,6 @@
 # 0019: Local notes shared by every worktree through one link
 
-Status: accepted (2026-09-28).
+Status: accepted (2026-09-28)
 
 ## Context
 

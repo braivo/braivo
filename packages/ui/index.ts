@@ -6,7 +6,7 @@
 // `@braivo/ui/lib/utils` — shadcn's monorepo layout. Presentation only:
 // nothing here knows about sessions, Braivo's API, or routing. Styles come
 // from `@braivo/ui/globals.css`.
-// See docs/adr/0013-ui-package-and-storybook.md.
+// See docs/adr/0011-ui-and-auth-client-packages.md.
 
 export { ChoiceQuestion } from "./compositions/choice-question.tsx";
 export { Heading } from "./compositions/heading.tsx";

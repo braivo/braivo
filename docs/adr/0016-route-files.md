@@ -1,6 +1,6 @@
 # 0016: Route files mirror the URL, and a guard lives in its folder
 
-Status: accepted (2026-09-24).
+Status: accepted (2026-09-24)
 
 ## Context
 

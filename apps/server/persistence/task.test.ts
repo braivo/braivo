@@ -39,6 +39,7 @@ async function waitingOnShareLock(stopped: () => boolean): Promise<void> {
 function record(attemptId: string) {
   return recordAttempt(database, {
     learnerId: learner,
+    organizationId,
     attemptId,
     taskId,
     response: { choice: 0 },

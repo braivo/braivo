@@ -252,6 +252,14 @@ export function createApi(options: ApiOptions) {
   api.on(
     ["GET", "POST"],
     "/api/auth/*",
+    // Set on every answer, Braivo's own refusals below included, not only the
+    // ones Better Auth leaves bare: nothing under this mount is public with the
+    // plugins in use, and exempting a header that already said `no-store` only
+    // ever skipped this same value.
+    async (context, next) => {
+      await next();
+      context.res.headers.set("cache-control", "private, no-store");
+    },
     bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
     async (context) => {
       // An account made on any other host would belong to no organization and
@@ -259,19 +267,9 @@ export function createApi(options: ApiOptions) {
       const signingUp = context.req.path.startsWith("/api/auth/sign-up/");
       if (signingUp && !requestHost(context).installation) return context.body(null, 404);
 
+      // Copied, since a library's response may carry immutable headers.
       const answered = await auth.handler(context.req.raw);
-
-      // Set on every answer, not only the ones Better Auth leaves bare: nothing
-      // under this mount is public with the plugins in use, and exempting a
-      // header that already said `no-store` only ever skipped this same value.
-      const headers = new Headers(answered.headers);
-      headers.set("cache-control", "private, no-store");
-
-      return new Response(answered.body, {
-        status: answered.status,
-        statusText: answered.statusText,
-        headers,
-      });
+      return new Response(answered.body, answered);
     },
   );
 

@@ -47,8 +47,8 @@ The outcome is binary. A continuous score would have to mean the same thing acro
 
 **Ordering and idempotency.** The evidence ID does two jobs:
 
-- It breaks timestamp ties, so evidence replays in a total `(at, id)` order that does not depend on arrival. IDs compare by UTF-16 code unit, never by locale, which would not be deterministic.
-- It is the key a grading result is recorded under, unique per learner. A retry is always a retry for the same learner, and a global key would silently drop one learner's evidence whenever another learner's ID collided with it.
+- It breaks timestamp ties, so evidence replays in an `(at, id)` order that does not depend on arrival. Objectives fold independently, so the order needs to be total only within one objective's records. IDs compare by UTF-16 code unit, never by locale, which would not be deterministic.
+- It is the key a grading result is recorded under, unique per learner within the organization recording it, which owns the objective. A retry is always a retry for the same learner at the same organization. A global key would silently drop one learner's evidence whenever another learner's ID collided with it. A key shared across organizations would let one organization's ID refuse another's write, and the refusal would reveal the learner's record elsewhere ([ADR 0032](../adr/0032-learner-history.md)).
 
 Recording enforces identity; replay does not deduplicate, so a duplicate that reached it would be folded twice rather than hidden. Under an ID already stored:
 

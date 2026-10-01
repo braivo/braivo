@@ -1,6 +1,6 @@
 # 0014: One worktree bootstrap script, called from agent tools' hooks
 
-Status: accepted (2026-09-23).
+Status: accepted (2026-09-23)
 
 ## Context
 
