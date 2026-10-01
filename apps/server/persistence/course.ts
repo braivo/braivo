@@ -5,6 +5,8 @@ import type { Database } from "@braivo/db";
 import { course, courseObjective, member } from "@braivo/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 
+import { ConflictingKey } from "./key.ts";
+
 export type Course = { id: string; title: string };
 
 /**
@@ -16,14 +18,44 @@ export type Course = { id: string; title: string };
  */
 export async function createCourse(
   database: Database,
-  input: { organizationId: string; title: string; objectiveIds: readonly string[] },
+  input: { organizationId: string; title: string; objectiveIds: readonly string[]; key?: string },
 ): Promise<string> {
   const id = crypto.randomUUID();
 
   return database.transaction(async (transaction) => {
-    await transaction
+    // Keyless courses never conflict here: nulls are distinct in the index.
+    const [inserted] = await transaction
       .insert(course)
-      .values({ id, organizationId: input.organizationId, title: input.title });
+      .values({ id, organizationId: input.organizationId, title: input.title, key: input.key })
+      .onConflictDoNothing({ target: [course.organizationId, course.key] })
+      .returning({ id: course.id });
+
+    // The organization already has a course under this key: the same one —
+    // title and objectives in the same order — is returned, as a retry needs;
+    // anything else would make the key mean two courses (docs/adr/0024-idempotent-authoring.md).
+    if (!inserted) {
+      const [existing] = await transaction
+        .select({ id: course.id, title: course.title })
+        .from(course)
+        .where(and(eq(course.organizationId, input.organizationId), eq(course.key, input.key!)));
+      const arranged = await transaction
+        .select({ objectiveId: courseObjective.objectiveId })
+        .from(courseObjective)
+        .where(eq(courseObjective.courseId, existing!.id))
+        .orderBy(asc(courseObjective.position));
+      const same =
+        existing!.title === input.title &&
+        arranged.length === input.objectiveIds.length &&
+        arranged.every((row, position) => row.objectiveId === input.objectiveIds[position]);
+      if (!same) {
+        throw new ConflictingKey(
+          "The course",
+          input.key!,
+          "a course with another title or other objectives",
+        );
+      }
+      return existing!.id;
+    }
 
     if (input.objectiveIds.length > 0) {
       await transaction.insert(courseObjective).values(

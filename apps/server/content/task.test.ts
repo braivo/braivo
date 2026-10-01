@@ -21,32 +21,83 @@ const choice: TaskBody = {
 
 describe("parseTaskBody", () => {
   test("accepts a choice task, trimmed", () => {
-    expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual(choice);
+    expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual({ body: choice });
   });
 
   test("keeps keepOrder only when true", () => {
-    expect(parseTaskBody({ ...choice, keepOrder: true })).toEqual({ ...choice, keepOrder: true });
-    expect(parseTaskBody({ ...choice, keepOrder: false })).toEqual(choice);
-    expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toBeUndefined();
+    expect(parseTaskBody({ ...choice, keepOrder: true })).toEqual({
+      body: { ...choice, keepOrder: true },
+    });
+    expect(parseTaskBody({ ...choice, keepOrder: false })).toEqual({ body: choice });
+    expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toHaveProperty("problem");
   });
 
   test("accepts one without an explanation", () => {
     const { explanation: _, ...bare } = choice;
-    expect(parseTaskBody(bare)).toEqual(bare);
+    expect(parseTaskBody(bare)).toEqual({ body: bare });
   });
 
+  // Each refusal says what is wrong and what would fix it: its reader is often
+  // a model drafting tasks, which can correct only a mistake it is told about.
   test.each([
-    ["not an object", "choice"],
-    ["an unknown kind", { ...choice, kind: "essay" }],
-    ["a blank prompt", { ...choice, prompt: " " }],
-    ["one option", { ...choice, options: ["hablé"] }],
-    ["a blank option", { ...choice, options: ["hablé", ""] }],
-    ["duplicate options", { ...choice, options: ["hablé", " hablé"] }],
-    ["an answer out of range", { ...choice, answer: 2 }],
-    ["a fractional answer", { ...choice, answer: 0.5 }],
-    ["a blank explanation", { ...choice, explanation: "" }],
-  ])("refuses %s", (_, body) => {
-    expect(parseTaskBody(body)).toBeUndefined();
+    ["not an object", "choice", "is not a task"],
+    [
+      "an unknown kind",
+      { ...choice, kind: "essay" },
+      'has an unknown kind; the only kind is "choice"',
+    ],
+    ["a blank prompt", { ...choice, prompt: " " }, "needs a prompt of 1 to 2000 characters"],
+    [
+      "a prompt carrying a NUL",
+      { ...choice, prompt: "¿\u0000?" },
+      "needs a prompt of 1 to 2000 characters",
+    ],
+    ["one option", { ...choice, options: ["hablé"] }, "needs 2 to 26 options"],
+    [
+      "a blank option",
+      { ...choice, options: ["hablé", ""] },
+      "has an option that is blank or over 2000 characters",
+    ],
+    [
+      "a malformed option",
+      { ...choice, options: ["hablé", "\ud800"] },
+      "has an option that is blank or over 2000 characters",
+    ],
+    [
+      "duplicate options",
+      { ...choice, options: ["hablé", "hablo", " hablé"] },
+      "repeats option 0 as option 2; every option must differ",
+    ],
+    [
+      "an answer out of range",
+      { ...choice, answer: 2 },
+      "needs its answer to be the index of the correct option, a whole number from 0 to 1",
+    ],
+    [
+      "a fractional answer",
+      { ...choice, answer: 0.5 },
+      "needs its answer to be the index of the correct option, a whole number from 0 to 1",
+    ],
+    [
+      "a blank explanation",
+      { ...choice, explanation: "" },
+      "has an explanation that is blank or over 2000 characters; leave a blank one out",
+    ],
+  ])("refuses %s, saying why", (_, body, problem) => {
+    expect(parseTaskBody(body)).toEqual({ problem });
+  });
+
+  test("never repeats what was sent, however long", () => {
+    const long = "x".repeat(400_000);
+
+    for (const body of [
+      { ...choice, options: [long, long] },
+      { ...choice, kind: long },
+      { ...choice, answer: long },
+    ]) {
+      const read = parseTaskBody(body);
+      expect("problem" in read && read.problem.length).toBeLessThan(120);
+    }
   });
 });
 

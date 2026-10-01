@@ -16,7 +16,9 @@ Early development, before any release. The HTTP API, the database schema, and bo
 
 Working end to end: accounts and organizations, objectives arranged into courses, multiple-choice tasks, and the learner loop — the learn app asks the next question, Braivo grades the answer, records it as evidence, and chooses what comes next from it. Also a learner's progress report, and recording evidence graded elsewhere.
 
-Not built yet: content derived from source material, since tasks are written by hand; AI-generated practice and feedback, and task kinds beyond multiple choice; authoring in the console; enrolling learners in a course, which organization membership stands in for; and any deployment packaging ([below](#deployment)).
+And a course from existing material ([below](#your-materials-a-tutor)): a teacher adds a PDF, a photo, or a video's captions; Braivo's AI drafts objectives and multiple-choice tasks that quote it, which the teacher reviews in the console — or the teacher's own desktop agent writes the course through the same API. A learner who answers wrongly is shown the passage the question came from, with its page or its moment in the video.
+
+Not built yet: task kinds beyond multiple choice, and feedback generated per answer; enrolling learners in a course, which organization membership stands in for; and any deployment packaging ([below](#deployment)).
 
 ## How it works
 
@@ -24,7 +26,7 @@ Not built yet: content derived from source material, since tasks are written by 
 browser apps ──▶ same-origin /api ──▶ Bun server ──▶ PostgreSQL
 ```
 
-1. A content owner names **objectives**, arranges them into a **course**, and gives each objective **tasks** to practise it with. Position in the course is the order learners meet them in.
+1. A content owner adds **sources** — their material's text, from a PDF, a photo, or a video's captions — and names **objectives**, arranges them into a **course**, and gives each objective **tasks** to practise it with, each citing the passage it was written from. Braivo's AI or the owner's own agent may draft all of it; Braivo checks every quote against the source either way. Position in the course is the order learners meet objectives in.
 2. A learner answers a task, and Braivo grades the answer into **evidence**: which objective, when, and whether it went right. An application that grades elsewhere can record evidence directly.
 3. The **learning model** replays that evidence into a knowledge estimate per objective. It is a pure function of the history, so the same evidence always yields the same estimate and a replaced model recomputes rather than migrates.
 4. A request for what comes next picks one objective and an intent — introduce, reteach, or review — from those estimates and the course's order, and one of that objective's tasks for the learner to answer.
@@ -85,7 +87,7 @@ ORG=$(curl -sb jar.txt $BRAIVO/api/organizations | field 'r.organizations[0].id'
 # Name what is taught, then arrange it into a course. Position in objectiveIds
 # is the order learners meet them in.
 OBJECTIVES=$(curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/objectives \
-  -H 'content-type: application/json' -d '{"titles":["Greetings","Numbers"]}' \
+  -H 'content-type: application/json' -d '{"objectives":[{"title":"Greetings"},{"title":"Numbers"}]}' \
   | field 'JSON.stringify(r.objectiveIds)')
 FIRST=$(echo "$OBJECTIVES" | field 'r[0]')
 SECOND=$(echo "$OBJECTIVES" | field 'r[1]')
@@ -157,6 +159,71 @@ curl -s http://example.localhost:3000/api/organization
 
 The learn app at `http://example.localhost:5173` now wears that name. There the API serves that organization's courses only, answering 404 for others; a hostname that is neither an organization's nor the installation's gets none. In production the hostname is trusted only over HTTPS.
 
+## Your materials, a tutor
+
+Three roads lead from material a teacher already has to a course, and they meet at the same endpoints and the same checks: every quote located in its source and every task a valid one ([ADR 0021](docs/adr/0021-citations.md)). Reviewing before learners see a course is the console's workflow; the API and agents create courses as the person they act for ([ADR 0029](docs/adr/0029-server-drafting.md)).
+
+- **In the console, with Braivo's AI.** Under an organization's Sources, add material with its PDF or a photo attached and no text: Braivo reads it page by page. On the source's page, describe the learners and draft a course; untick what is wrong, name the course, and create it. The course page then shows every objective's passages and tasks, and retires a wrong one. Needs `ANTHROPIC_API_KEY` ([ADR 0029](docs/adr/0029-server-drafting.md), [ADR 0030](docs/adr/0030-server-extraction.md)).
+- **With your own desktop agent.** `braivo mcp` gives Claude Desktop, Codex, or Grok Braivo's authoring as tools — the drafting runs on your machine, at your AI's cost ([below](#let-your-desktop-agent-build-the-course)).
+- **From the command line.** `braivo sources add` takes text, `pdftotext`'s pages, or a caption file, with its original; objectives and tasks then come from either road above, or from your own scripts over the API ([below](#your-own-material-from-your-own-machine)).
+
+## Your own material, from your own machine
+
+Braivo takes material as text, and extracting it — a PDF's, a video's transcript — can happen wherever you already have the tools: a desktop Claude, Codex, or Grok, `yt-dlp` for YouTube captions, Whisper for speech. The `braivo` command then adds it as you, over the API, to any installation.
+
+Each [release](https://github.com/braivo/braivo/releases) carries `braivo` for your system — one file, nothing else to install ([ADR 0027](docs/adr/0027-standalone-cli.md)). Until the first one, run it from a clone, below.
+
+```sh
+curl -Lo braivo https://github.com/braivo/braivo/releases/latest/download/braivo-darwin-arm64
+chmod +x braivo && mv braivo /usr/local/bin/
+```
+
+Builds exist for `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, and `windows-x64` (`braivo-windows-x64.exe`). From a clone, `bun apps/server/cli/index.ts` is the same command, and `bun run build` builds it as `apps/server/dist/braivo`.
+
+```sh
+# Sign in: open the link it prints, check the code, approve.
+braivo login http://localhost:3000
+
+# Fetch a video's Spanish captions.
+yt-dlp --skip-download --write-auto-subs --sub-langs es --sub-format vtt -o lesson \
+  "https://www.youtube.com/watch?v=…"
+
+# Add the transcript, keeping where it came from and its language.
+braivo sources add lesson.es.vtt --organization <id> \
+  --title "Los saludos" --url "https://www.youtube.com/watch?v=…" --language es
+# prints the new source's ID
+```
+
+A `.vtt` or `.srt` file is read into timed lines — markup dropped, and the rolling repeats of auto-generated captions skipped, though a line really said twice is kept — so a passage cited from it opens the video where it is said ([ADR 0025](docs/adr/0025-timed-transcripts.md)). A book's text from `pdftotext`, whose form feeds separate its pages, is added page by page, so a passage names the page to turn to ([ADR 0026](docs/adr/0026-paged-documents.md)):
+
+```sh
+pdftotext libro.pdf - | braivo sources add - --organization <id> \
+  --title "Mi primer libro" --language es --original libro.pdf
+```
+
+`--original` keeps the PDF itself with the text, so whoever reviews the source — or extracts it again, better — has what it came from.
+
+Pages are numbered from the PDF's first sheet; for a book whose printed numbers differ, let your agent send them (below). Any other text is added as it reads. Running the same command again adds nothing: a source Braivo already has, word for word, answers with its ID ([ADR 0024](docs/adr/0024-idempotent-authoring.md)).
+
+The session it keeps in `~/.config/braivo/credentials.json` is yours, with your roles ([ADR 0022](docs/adr/0022-machine-access.md)). Objectives and tasks can then cite the source's exact words, which Braivo checks ([ADR 0021](docs/adr/0021-citations.md)).
+
+### Let your desktop agent build the course
+
+`braivo mcp` gives an agent that speaks the Model Context Protocol — Claude Desktop, Codex, Grok — Braivo's authoring as tools, signed in as you. For Claude Desktop, add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "braivo": {
+      "command": "/usr/local/bin/braivo",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Then ask it, say, to "turn this PDF into a Braivo course for beginners". It reads the PDF, adds its text page by page, defines what it teaches, cites the words that teach each objective, writes questions that cite them too, and orders them into a course. Braivo checks every quote against the source and tells the agent which one it could not find, so a model's paraphrase never passes for the source's words ([ADR 0023](docs/adr/0023-mcp-server.md)). The drafting runs on your machine, at your AI's cost. The agent reads files but never uploads them, since the material it reads could steer it to any file on your machine: to keep the PDF with its source, add the source with `braivo sources add --original`, or in the console ([ADR 0028](docs/adr/0028-original-files.md)).
+
 ## Deployment
 
 ```bash
@@ -168,6 +235,10 @@ That serves the API and nothing else. **There is no deployment packaging yet** �
 Organizations are created by the operator, for an account that has signed in once, with `bun apps/server/cli/index.ts organization create` and the same environment as `serve`; the console creates none ([ADR 0018](docs/adr/0018-sign-in-and-invitations.md)).
 
 `BRAIVO_URL` is the public origin this installation is served from; Better Auth builds callback URLs from it, so it must match how the server is actually reached. `PORT` defaults to 3000.
+
+`ANTHROPIC_API_KEY` lets Braivo draft a course from a source itself, and read an uploaded PDF or photo into its text, for content owners without a desktop agent ([ADR 0029](docs/adr/0029-server-drafting.md), [ADR 0030](docs/adr/0030-server-extraction.md)); unset, those routes answer 501 and content owners draft with their own agents through `braivo mcp`. `BRAIVO_AI_MODEL` picks the model, `claude-sonnet-5` by default. `BRAIVO_AI_ORGANIZATIONS`, comma-separated organization IDs, limits who may spend the key; unset, every organization may, and set but empty or `*`, Braivo refuses to start. `BRAIVO_AI_MONTHLY_LIMIT` is a quota on the AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another; every request is recorded in `ai_request` either way ([ADR 0031](docs/adr/0031-ai-limits.md)).
+
+`BRAIVO_FILES` is where uploaded files — the PDFs sources were extracted from — are kept: an absolute path on this machine, or `s3://<bucket>` in any S3-compatible store, with `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_REGION` as Bun's S3 client reads them ([ADR 0028](docs/adr/0028-original-files.md)). For Cloudflare R2, `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`; for Google Cloud Storage, `https://storage.googleapis.com` with an HMAC key. Unset, the installation keeps no files and its file routes answer 501.
 
 **Set `NODE_ENV=production` when you deploy** — it is what enables Better Auth's rate limiting on its own endpoints, and worth knowing the shape of. The limit is keyed on `X-Forwarded-For` and `bun run serve` supplies no peer address, so with nothing in front of it every caller shares one bucket — three sign-ins per ten seconds across the whole installation — and any caller can sidestep it by sending that header themselves. It is real protection only behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend. Braivo's own routes are not rate limited in any environment.
 

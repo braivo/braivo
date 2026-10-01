@@ -5,13 +5,18 @@ import { asc, eq, inArray } from "drizzle-orm";
 
 import { createDatabase, type Database } from "./database.ts";
 import {
+  aiRequest,
   attempt,
   course,
+  file,
   learnerEvidence,
   member,
   objective,
+  objectiveCitation,
   organization,
+  source,
   task,
+  taskCitation,
   user,
 } from "./schema/index.ts";
 
@@ -131,11 +136,17 @@ export async function createTask(
 }
 
 /**
- * Removes an organization's objectives, courses, and tasks, with the attempts
- * and evidence recorded there first: the restricted foreign keys refuse to
- * delete what anything still points at.
+ * Removes an organization's learning data — sources, files, objectives,
+ * courses, tasks, citations, AI requests — with the attempts and evidence
+ * recorded there first: the restricted foreign keys refuse to delete what
+ * anything still points at.
  */
 export async function clearLearningData(database: Database, organizationId: string): Promise<void> {
+  await database
+    .delete(objectiveCitation)
+    .where(eq(objectiveCitation.organizationId, organizationId));
+  await database.delete(taskCitation).where(eq(taskCitation.organizationId, organizationId));
+
   await database.delete(attempt).where(eq(attempt.organizationId, organizationId));
   await database.delete(task).where(eq(task.organizationId, organizationId));
 
@@ -143,6 +154,10 @@ export async function clearLearningData(database: Database, organizationId: stri
 
   await database.delete(course).where(eq(course.organizationId, organizationId));
   await database.delete(objective).where(eq(objective.organizationId, organizationId));
+  await database.delete(source).where(eq(source.organizationId, organizationId));
+  // After the sources that name them as originals.
+  await database.delete(file).where(eq(file.organizationId, organizationId));
+  await database.delete(aiRequest).where(eq(aiRequest.organizationId, organizationId));
 }
 
 /**

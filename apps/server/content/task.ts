@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { isStorableText } from "./text.ts";
+
 /**
  * What a task asks and how it is graded, one variant per kind. Stored whole as
  * JSON beside the task's relational columns, so adding a kind is a new variant
@@ -49,42 +51,68 @@ export type Grade = {
   explanation?: string;
 };
 
-/** More options than anyone reads through. Bounds their number, not their length. */
+/** More options than anyone reads through. */
 const MAX_OPTIONS = 26;
 
+/** Longer than any question, option, or explanation a learner reads. */
+const MAX_TEXT = 2000;
+
 /**
- * Reads a task body, or nothing when it is not a valid one. Checked on the way
- * in because a task is immutable: a broken answer key cannot be fixed later,
- * only replaced.
+ * Reads a task body, or says what is wrong with it. Checked on the way in
+ * because a task is immutable: a broken answer key cannot be fixed later, only
+ * replaced.
+ *
+ * `problem` finishes the sentence "The task …", and says what would fix it:
+ * its reader is often a model drafting tasks from a source, which can correct
+ * a mistake it is told about and cannot one it is not (docs/adr/0021-citations.md).
+ * It names options by position and never repeats what was sent, which may be as
+ * long as the request allows and would crowd that model's context.
  */
-export function parseTaskBody(value: unknown): TaskBody | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
+export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: string } {
+  if (typeof value !== "object" || value === null) return { problem: "is not a task" };
 
   const { kind, prompt, options, answer, explanation, keepOrder } = value as Record<
     string,
     unknown
   >;
-  if (kind !== "choice") return undefined;
-  if (!isText(prompt)) return undefined;
+  if (kind !== "choice") return { problem: 'has an unknown kind; the only kind is "choice"' };
+  if (!isText(prompt)) return { problem: `needs a prompt of 1 to ${MAX_TEXT} characters` };
   if (!Array.isArray(options) || options.length < 2 || options.length > MAX_OPTIONS) {
-    return undefined;
+    return { problem: `needs 2 to ${MAX_OPTIONS} options` };
   }
-  if (!options.every(isText)) return undefined;
+  if (!options.every(isText)) {
+    return { problem: `has an option that is blank or over ${MAX_TEXT} characters` };
+  }
   // Two identical options would make "which one" unanswerable from the text.
-  if (new Set(options.map((option) => option.trim())).size !== options.length) return undefined;
-  if (!Number.isInteger(answer) || (answer as number) < 0 || (answer as number) >= options.length) {
-    return undefined;
+  const trimmed = options.map((option) => option.trim());
+  const repeat = trimmed.findIndex((option, index) => trimmed.indexOf(option) !== index);
+  if (repeat !== -1) {
+    const first = trimmed.indexOf(trimmed[repeat]!);
+    return { problem: `repeats option ${first} as option ${repeat}; every option must differ` };
   }
-  if (explanation !== undefined && !isText(explanation)) return undefined;
-  if (keepOrder !== undefined && typeof keepOrder !== "boolean") return undefined;
+  if (!Number.isInteger(answer) || (answer as number) < 0 || (answer as number) >= options.length) {
+    return {
+      problem: `needs its answer to be the index of the correct option, a whole number from 0 to ${options.length - 1}`,
+    };
+  }
+  if (explanation !== undefined && !isText(explanation)) {
+    return {
+      problem: `has an explanation that is blank or over ${MAX_TEXT} characters; leave a blank one out`,
+    };
+  }
+  if (keepOrder !== undefined && typeof keepOrder !== "boolean") {
+    return { problem: "has a keepOrder that is not true or false" };
+  }
 
   return {
-    kind,
-    prompt: prompt.trim(),
-    options: options.map((option) => option.trim()),
-    answer: answer as number,
-    ...(explanation === undefined ? {} : { explanation: explanation.trim() }),
-    ...(keepOrder === true ? { keepOrder } : {}),
+    body: {
+      kind,
+      prompt: prompt.trim(),
+      options: trimmed,
+      answer: answer as number,
+      ...(explanation === undefined ? {} : { explanation: explanation.trim() }),
+      ...(keepOrder === true ? { keepOrder } : {}),
+    },
   };
 }
 
@@ -160,5 +188,5 @@ function mulberry32(seed: number): () => number {
 }
 
 function isText(value: unknown): value is string {
-  return typeof value === "string" && value.trim() !== "";
+  return isStorableText(value, MAX_TEXT);
 }

@@ -7,7 +7,13 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { presentTask, type TaskBody } from "../content/index.ts";
-import { createCourse, createObjectives, readLearnerEvidence } from "../persistence/index.ts";
+import {
+  createCourse,
+  createObjectives,
+  createSource,
+  createTasks,
+  readLearnerEvidence,
+} from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import type { RequestHost } from "./host.ts";
 
@@ -187,6 +193,8 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect(await answer("a1", pastTenseTask, 1, later(1))).toEqual({
       kind: "graded",
       grade: { outcome: "failure", correctChoice: 0 },
+      // Written by hand, from no source.
+      passages: [],
     });
     // Its one task rests, since the learner has just been shown the answer.
     expect(await activity(later(2))).toEqual({
@@ -245,6 +253,60 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     // A resend records nothing, so it is not a new asking either.
     await answer("s1", shuffleTask, 1, later(16), { course: shuffleCourseId });
     expect(await shown(later(17))).toEqual(order(later(5)));
+  });
+
+  test("shows the passages a grounded task was written from, once it is graded", async () => {
+    const [greetings] = await createObjectives(database, organizationId, ["Greetings"]);
+    const greetingsCourse = await createCourse(database, {
+      organizationId,
+      title: "Greetings",
+      objectiveIds: [greetings!],
+    });
+    const video = await createSource(database, {
+      organizationId,
+      title: "Los saludos",
+      text: "Hola significa hello. Adiós significa goodbye.",
+      url: "https://www.youtube.com/watch?v=abc123",
+      createdAt: start,
+    });
+    const workbook = await createSource(database, {
+      organizationId,
+      title: "Cuaderno",
+      text: "Di hola a tu compañero.",
+      createdAt: start,
+    });
+    const [taskId] = await createTasks(
+      database,
+      organizationId,
+      [
+        {
+          objectiveId: greetings!,
+          body: question("Hola?"),
+          citations: [
+            { sourceId: video, start: 0, end: 21 },
+            { sourceId: workbook, start: 0, end: 7 },
+          ],
+        },
+      ],
+      start,
+    );
+
+    // Before answering, the task alone: a passage could give the answer away.
+    expect((await activity(start, learner, greetingsCourse)) as object).not.toHaveProperty(
+      "passages",
+    );
+    expect(await answer("g1", taskId!, 1, later(1), { course: greetingsCourse })).toEqual({
+      kind: "graded",
+      grade: { outcome: "failure", correctChoice: 0 },
+      // By source title, each with where a learner can find it.
+      passages: [
+        { quote: "Di hola", source: { title: "Cuaderno" } },
+        {
+          quote: "Hola significa hello.",
+          source: { title: "Los saludos", url: "https://www.youtube.com/watch?v=abc123" },
+        },
+      ],
+    });
   });
 
   test("has no activity in a course with nothing to practise", async () => {

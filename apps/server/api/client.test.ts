@@ -397,3 +397,76 @@ test("loads nothing at runtime, so an app bundling it bundles no server code", a
   expect(imports.filter((line) => !line.startsWith("import type "))).toEqual([]);
   expect(new Bun.Transpiler({ loader: "ts" }).scanImports(source)).toEqual([]);
 });
+
+describe("a refusal's explanation", () => {
+  const cite = (response: Response) =>
+    clientFor(response).client.citeSources({ organizationId: "o", citations: [] });
+
+  test("is carried for a key already naming something else, which answers 409", async () => {
+    const { client } = clientFor(
+      Response.json(
+        { error: 'Objective 0 has key "greetings", which already names …' },
+        { status: 409 },
+      ),
+    );
+
+    await expect(
+      client.defineObjectives({
+        organizationId: "o",
+        objectives: [{ title: "Hi", key: "greetings" }],
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      reason: 'Objective 0 has key "greetings", which already names …',
+    });
+  });
+
+  test("is carried when Braivo gave one", async () => {
+    await expect(
+      cite(
+        Response.json(
+          { error: "Citation 0: the quote does not occur in the source." },
+          { status: 400 },
+        ),
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      reason: "Citation 0: the quote does not occur in the source.",
+    });
+  });
+
+  test("is not looked for in anything but a JSON 400", async () => {
+    const page = new Response("<html>Bad gateway</html>", {
+      status: 502,
+      headers: { "content-type": "text/html" },
+    });
+
+    await expect(cite(page)).rejects.toMatchObject({ status: 502, reason: undefined });
+  });
+
+  test("does not wait on a body that never ends", async () => {
+    // Whatever answered keeps the body open: the status alone must be reported.
+    const endless = new Response(new ReadableStream({ pull: () => new Promise(() => {}) }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
+
+    await expect(cite(endless)).rejects.toMatchObject({ status: 500, reason: undefined });
+  });
+
+  test("is not read past what an explanation could run to", async () => {
+    let pulled = 0;
+    const huge = new Response(
+      new ReadableStream({
+        pull: (controller) => {
+          pulled += 1;
+          controller.enqueue(new Uint8Array(16 * 1024).fill(32));
+        },
+      }),
+      { status: 400, headers: { "content-type": "application/json" } },
+    );
+
+    await expect(cite(huge)).rejects.toMatchObject({ status: 400, reason: undefined });
+    expect(pulled).toBeLessThan(10);
+  });
+});

@@ -2,16 +2,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { task as taskTable } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { and, eq, isNull } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
   createCourse,
   createObjectives,
+  createSource,
   createTasks,
   readObjectivesWithTasks,
+  readTaskCitations,
 } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
+import { InvalidCitation } from "./citations.ts";
 import type { RequestHost } from "./host.ts";
 import { NotPermitted } from "./permission.ts";
 import { defineTasks, InvalidTask, retireTasks } from "./tasks.ts";
@@ -32,8 +37,24 @@ let objective!: string;
 let foreignObjective!: string;
 let courseId!: string;
 
-function define(tasks: readonly { objectiveId: string; body: unknown }[], actingAs = author) {
+type Draft = {
+  objectiveId: string;
+  body: unknown;
+  citations?: { sourceId: string; quote: string }[];
+};
+
+function define(tasks: readonly Draft[], actingAs = author) {
   return defineTasks({ database, organizationId, actingAs, tasks, now });
+}
+
+/** A lesson with a character outside the BMP, so code points and UTF-16 differ. */
+function addLesson(organization = organizationId) {
+  return createSource(database, {
+    organizationId: organization,
+    title: "Unidad 1",
+    text: "🙂 Hola significa hello. Adiós significa goodbye.",
+    createdAt: now,
+  });
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -212,5 +233,197 @@ describe.skipIf(!connectionString)("tasks", () => {
 
   test("defines nothing, and does not fail, for an empty batch", async () => {
     expect(await define([])).toEqual([]);
+  });
+
+  test("stores the passages each task was written from, located in its source", async () => {
+    const lesson = await addLesson();
+
+    const [greeting, plain] = await define([
+      {
+        objectiveId: objective,
+        body: choice,
+        citations: [
+          { sourceId: lesson, quote: "Hola significa hello." },
+          { sourceId: lesson, quote: "Adiós   significa goodbye." },
+        ],
+      },
+      { objectiveId: objective, body: choice },
+    ]);
+
+    // The emoji is one position, and the reflowed quote reads back as written.
+    expect(await readTaskCitations(database, greeting!)).toEqual([
+      {
+        sourceId: lesson,
+        start: 2,
+        end: 23,
+        quote: "Hola significa hello.",
+        source: { title: "Unidad 1" },
+      },
+      {
+        sourceId: lesson,
+        start: 24,
+        end: 48,
+        quote: "Adiós significa goodbye.",
+        source: { title: "Unidad 1" },
+      },
+    ]);
+    expect(await readTaskCitations(database, plain!)).toEqual([]);
+  });
+
+  test("refuses the whole batch over one quote not in its source, naming task and citation", async () => {
+    const lesson = await addLesson();
+
+    const refused = define([
+      { objectiveId: objective, body: choice, citations: [{ sourceId: lesson, quote: "Hola" }] },
+      {
+        objectiveId: objective,
+        body: choice,
+        citations: [
+          { sourceId: lesson, quote: "Adiós" },
+          { sourceId: lesson, quote: "Buenas noches" },
+        ],
+      },
+    ]);
+
+    await expect(refused).rejects.toBeInstanceOf(InvalidCitation);
+    await expect(refused).rejects.toThrow(
+      "Task 1, citation 1: the quote does not occur in the source.",
+    );
+    // No task either: one stored without its citations could never be given them.
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toEqual({
+      kind: "no-activity",
+    });
+  });
+
+  test("stores a passage one task cites twice once", async () => {
+    const lesson = await addLesson();
+    const quote = { sourceId: lesson, quote: "Hola significa hello." };
+
+    const [taskId] = await define([
+      { objectiveId: objective, body: choice, citations: [quote, quote] },
+    ]);
+
+    expect(await readTaskCitations(database, taskId!)).toHaveLength(1);
+  });
+
+  test("refuses a learner before looking at their quotes", async () => {
+    // Otherwise whether a quote occurs would tell them what the source says.
+    const lesson = await addLesson();
+
+    await expect(
+      define(
+        [{ objectiveId: objective, body: choice, citations: [{ sourceId: lesson, quote: "x" }] }],
+        learner,
+      ),
+    ).rejects.toBeInstanceOf(NotPermitted);
+  });
+
+  test("refuses a citation of another organization's source, storing nothing", async () => {
+    const theirs = await addLesson(otherOrganizationId);
+
+    await expect(
+      define([
+        { objectiveId: objective, body: choice, citations: [{ sourceId: theirs, quote: "Hola" }] },
+      ]),
+    ).rejects.toBeInstanceOf(NotPermitted);
+    expect(
+      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+    ).toEqual({
+      kind: "no-activity",
+    });
+  });
+
+  describe("adding a task already there", () => {
+    /** The objective's unretired tasks, however they were added. */
+    const stored = async () =>
+      (
+        await database
+          .select({ id: taskTable.id })
+          .from(taskTable)
+          .where(and(eq(taskTable.objectiveId, objective), isNull(taskTable.retiredAt)))
+      ).map((row) => row.id);
+
+    test("returns it rather than storing it twice, as a retrying agent needs", async () => {
+      const lesson = await addLesson();
+      const draft = {
+        objectiveId: objective,
+        body: choice,
+        citations: [{ sourceId: lesson, quote: "Hola significa hello." }],
+      };
+
+      const [first] = await define([draft]);
+      // Written another way — keys reordered, the passage quoted twice — it is the same task.
+      const [again] = await define([
+        {
+          ...draft,
+          body: { answer: 0, options: ["this", "that"], prompt: "Which?", kind: "choice" },
+          citations: [...draft.citations, ...draft.citations],
+        },
+      ]);
+
+      expect(again).toBe(first);
+      expect(await stored()).toEqual([first]);
+    });
+
+    test("matches a retry whose values JSON stores differently, such as an answer of -0", async () => {
+      const [first] = await define([{ objectiveId: objective, body: { ...choice, answer: -0 } }]);
+      const [again] = await define([{ objectiveId: objective, body: { ...choice, answer: -0 } }]);
+
+      expect(again).toBe(first);
+      expect(await stored()).toEqual([first]);
+    });
+
+    test("returns one ID for a task repeated within a batch", async () => {
+      const [one, two] = await define([
+        { objectiveId: objective, body: choice },
+        { objectiveId: objective, body: choice },
+      ]);
+
+      expect(two).toBe(one);
+      expect(await stored()).toEqual([one]);
+    });
+
+    test("keeps a task with other passages, or options in another order, as its own", async () => {
+      const lesson = await addLesson();
+
+      const ids = await define([
+        { objectiveId: objective, body: choice },
+        { objectiveId: objective, body: choice, citations: [{ sourceId: lesson, quote: "Hola" }] },
+        // The same options reordered is another question: `answer` points elsewhere.
+        { objectiveId: objective, body: { ...choice, options: ["that", "this"], answer: 1 } },
+      ]);
+
+      expect(new Set(ids).size).toBe(3);
+    });
+
+    test("adds a retired task anew, since adding it again is how to bring it back", async () => {
+      const [retired] = await define([{ objectiveId: objective, body: choice }]);
+      await retireTasks({ database, organizationId, actingAs: author, taskIds: [retired!], now });
+
+      const [back] = await define([{ objectiveId: objective, body: choice }]);
+
+      expect(back).not.toBe(retired);
+      expect(await stored()).toEqual([back]);
+    });
+
+    test("stores one task when writers race to add the same one", async () => {
+      const ids = (
+        await Promise.all(
+          Array.from({ length: 4 }, () =>
+            createTasks(
+              database,
+              organizationId,
+              [{ objectiveId: objective, body: { ...choice, kind: "choice" } }],
+              now,
+            ),
+          ),
+        )
+      ).flat();
+
+      expect(new Set(ids).size).toBe(1);
+      expect(await stored()).toHaveLength(1);
+    });
   });
 });

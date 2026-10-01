@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# The standalone `braivo` for each platform a content owner's machine runs,
+# attached to the release a version tag makes, so signing in, adding material,
+# and `braivo mcp` need no clone and no Bun (docs/adr/0027-standalone-cli.md).
+name: CLI
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build and release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      # Cross-compiled from one runner: Bun embeds its runtime for each target.
+      - run: |
+          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64 windows-x64; do
+            bun build --compile --target="bun-$target" apps/server/cli/index.ts \
+              --outfile "dist/braivo-$target"
+          done
+
+      # The one this runner can run: a build that crashes on start never ships.
+      - run: dist/braivo-linux-x64
+
+      - run: gh release create "$GITHUB_REF_NAME" dist/braivo-* --verify-tag --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

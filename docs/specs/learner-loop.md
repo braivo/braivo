@@ -1,6 +1,6 @@
 # Learner loop
 
-Status: living; checked against the code on 2026-10-01.
+Status: living; checked against the code on 2026-10-02.
 
 A learner opens a course and Braivo keeps choosing what to practise next from what they know, struggle with, or may be forgetting; each answer is graded into evidence that shapes the next choice. This is `product.md`'s core jobs 2 and 3, closed end to end without AI for `choice` tasks. Integrators who grade elsewhere feed the same estimates through the evidence endpoint.
 
@@ -34,23 +34,23 @@ Statuses and shapes in full: `apps/server/api/index.ts`. The learner is always t
 - New ID, and this learner answered the task in another attempt within the rest: 409, rolled back.
 - Otherwise the attempt and one evidence record, ID `attempt:<attemptId>:<objectiveId>`, dated `now`.
 
-The grade is `{ outcome, correctChoice, explanation? }`, recomputed from the immutable task on every resend.
+The grade is `{ outcome, correctChoice, explanation?, passages? }`, recomputed from the immutable task on every resend. `passages` are those the task cites ([authoring](authoring.md)), present only when it cites any: each its `quote`, its source's `title` and `url` if it has one, and `at`, the second of a timed transcript the words are said at, or `page`, the printed label of a paged document's page they are on ([sources](sources.md)). Never before grading, since a passage could give the answer away; never the source's text or positions.
 
 **Evidence graded elsewhere.** An `owner` or `admin` posts up to 1000 records for a member. Each `at` must be exactly `toISOString` output and at most five minutes ahead; IDs are at most 256 characters, and those starting `attempt:` are reserved; every objective must be the organization's. The batch is all or nothing: resending a stored result is a no-op, a different result under an ID the organization already stored for the learner is 409. Another organization's IDs are its own and never collide. It enters the same replay, but creates no attempt, so it neither rests a task nor reseeds a shuffle. Only a session can post it.
 
 **The learn app.** `/` lists the courses, or "No courses yet". `/courses/$courseId` loads the activity and mints one attempt ID per activity shown; above it, a summary of where the learner stands ([progress](progress.md)). It renders one of:
 
-| State                            | Shows                                                     | Next                                                          |
-| -------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------- |
-| Task                             | label ("New · Greetings"), why now, prompt, options       | a choice or key 1–9 sends the attempt; options lock meanwhile |
-| Graded                           | Correct or Not quite, the explanation, the correct option | Continue reloads the activity, with a new attempt ID          |
-| Unconfirmed (network error, 5xx) | "Your answer could not be confirmed."                     | Send again resends the same attempt and choice                |
-| Refused (400, 403, 413)          | "Something went wrong."                                   | nothing; the same answer would be refused again               |
-| 401, 404, 409 on an attempt      | —                                                         | reloads: to sign-in, not found, or the rest                   |
-| Resting                          | the objective and the local time practice resumes         | reloads itself after `retryAfter`                             |
-| No activity                      | "Nothing to practise right now"                           | nothing                                                       |
-| 404                              | "This course does not exist, or is not one of yours."     | nothing                                                       |
-| Load failed                      | "Something went wrong."                                   | Try again                                                     |
+| State                            | Shows                                                                                                                                                       | Next                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Task                             | label ("New · Greetings"), why now, prompt, options                                                                                                         | a choice or key 1–9 sends the attempt; options lock meanwhile |
+| Graded                           | Correct or Not quite, the explanation, the correct option, and the passages under "From your lessons", each linked to its source, a recording at its moment | Continue reloads the activity, with a new attempt ID          |
+| Unconfirmed (network error, 5xx) | "Your answer could not be confirmed."                                                                                                                       | Send again resends the same attempt and choice                |
+| Refused (400, 403, 413)          | "Something went wrong."                                                                                                                                     | nothing; the same answer would be refused again               |
+| 401, 404, 409 on an attempt      | —                                                                                                                                                           | reloads: to sign-in, not found, or the rest                   |
+| Resting                          | the objective and the local time practice resumes                                                                                                           | reloads itself after `retryAfter`                             |
+| No activity                      | "Nothing to practise right now"                                                                                                                             | nothing                                                       |
+| 404                              | "This course does not exist, or is not one of yours."                                                                                                       | nothing                                                       |
+| Load failed                      | "Something went wrong."                                                                                                                                     | Try again                                                     |
 
 ```mermaid
 sequenceDiagram
@@ -82,7 +82,8 @@ sequenceDiagram
 
 - The course routes act for the session's user and never for a learner named in the request (`apps/server/api/app.test.ts`).
 - A missing course, another organization's course, a course the host does not admit, and a task outside the course answer alike: 404 (`apps/server/api/app.test.ts`, `apps/server/application/next-objective.test.ts`, `apps/server/application/activity.test.ts`).
-- An activity never carries the answer or the explanation (`apps/server/api/app.test.ts`, `apps/server/content/task.test.ts`).
+- An activity never carries the answer, the explanation, or the task's passages (`apps/server/api/app.test.ts`, `apps/server/content/task.test.ts`, `apps/server/application/activity.test.ts`).
+- A graded attempt carries the passages its task cites, with quote, source title and link, and the moment or page where the source keeps one (`apps/server/api/app.test.ts`, `apps/server/application/activity.test.ts`).
 - A learner never chooses an outcome: attempts are graded by Braivo, and the evidence endpoint refuses a member grading themselves (`apps/server/application/record-evidence.test.ts`, `apps/server/api/app.test.ts`).
 - One attempt ID at an organization yields at most one attempt and one evidence record; a resend answers the same grade, a different task or response is 409 (`apps/server/application/activity.test.ts`, `apps/server/api/app.test.ts`).
 - A new answer to a task within ten minutes of the learner's last accepted one is refused and records nothing; a resend is not; another learner is unaffected (`apps/server/application/activity.test.ts`, `apps/server/api/client.contract.test.ts`).
@@ -97,6 +98,7 @@ sequenceDiagram
 - Evidence dated more than five minutes ahead, or under an ID longer than 256 characters or starting `attempt:`, is refused (`apps/server/application/record-evidence.test.ts`, `apps/server/api/app.test.ts`).
 - Every GET answers `private, no-store` (`apps/server/api/app.test.ts`).
 - The learn app sends one attempt however many options are tapped, and resends only that attempt (`apps/learn/routes.test.tsx`).
+- The learn app shows a grade's passages after answering, linking those whose source has a link, a recording at its moment (`apps/learn/routes.test.tsx`, `packages/ui/compositions/source-passage.test.tsx`).
 
 ## Code map
 
@@ -108,9 +110,10 @@ sequenceDiagram
 | Course list                                | `apps/server/application/courses.ts` (`listLearnerCourses`)                                       |
 | Evidence graded elsewhere                  | `apps/server/application/record-evidence.ts`, `apps/server/persistence/evidence.ts`               |
 | Task shape, presentation, shuffle, grading | `apps/server/content/task.ts`                                                                     |
-| Task choice and attempt storage            | `apps/server/persistence/task.ts` (`readNextTask`, `recordAttempt`)                               |
+| Task choice, attempt storage, passages     | `apps/server/persistence/task.ts` (`readNextTask`, `recordAttempt`, `readTaskCitations`)          |
 | Replay and selection                       | `apps/server/learning/` ([learning-model.md](learning-model.md))                                  |
 | Learn app pages                            | `apps/learn/routes/_signed-in/index.tsx`, `apps/learn/routes/_signed-in/courses/$courseId.tsx`    |
+| A passage as shown                         | `packages/ui/compositions/source-passage.tsx`                                                     |
 
 ## Decisions
 
@@ -121,6 +124,7 @@ sequenceDiagram
 - [ADR 0010](../adr/0010-hono-http-layer.md): the HTTP layer, and routes that call one use case.
 - [ADR 0015](../adr/0015-tasks.md): immutable tasks, Braivo grades, client-named attempts, task availability as eligibility.
 - [ADR 0017](../adr/0017-task-rest.md): the ten-minute rest, waiting rather than switching objective, 409 rather than 429.
+- [ADR 0021](../adr/0021-citations.md): a learner sees a task's passages in the grade, never before.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): organization membership stands in for course enrollment.
 
 ## Gaps

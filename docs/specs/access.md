@@ -10,7 +10,8 @@ How people sign in, and what they reach once in. Anyone may create an account, a
 
 - Better Auth ([ADR 0006](../adr/0006-better-auth.md)) serves `/api/auth/*`, with email and password as the only sign-in method. No email is verified and no password can be reset.
 - The console offers `/login` and `/signup`; the learn app offers `/login` only. Both render `EmailSignIn` from `packages/auth-client`. After sign-in, each app goes to the `redirect` search parameter if `safeRedirect` keeps it within the origin, else `/`. After sign-up, the console goes to `/`, since a new account manages no organization.
-- The server answers `404` to `/api/auth/sign-up/*` on any host but `BRAIVO_URL`'s: an account made on an organization's domain would belong to no organization. Hiding the learn app's form is not the boundary.
+- On any host but `BRAIVO_URL`'s, before authentication, the server answers `401` to a request carrying `Authorization`, and `404` to `/api/auth/sign-up/*`, the device flow (`/api/auth/device*`), and the console's `/api/organizations*`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)), and an account made there would belong to no organization. Hiding the learn app's form is not the boundary.
+- A content owner's tools — `braivo login`, `braivo mcp` — get a session token through the device flow, approved at the console's `/device`, and send it as `Authorization: Bearer` ([ADR 0022](../adr/0022-machine-access.md)). Of `/api/auth/*`, a token reaches `get-session` and `organization/list` only; anything else answers `403`. No answer to a token sets a cookie, its session's renewal included.
 - Sign-in works on the installation's origin and on an organization's domain; either way the session is the whole account's, in a cookie on that host.
 - Every `/api/auth/*` answer is `Cache-Control: private, no-store`, and bodies over 1 MB answer `413`.
 - `_signed-in/route.tsx` in each app calls `requireSession` in `beforeLoad`: it asks Better Auth on every navigation, redirects a signed-out visitor to `/login?redirect=<href>`, and throws rather than signing out when the session cannot be checked.
@@ -19,7 +20,7 @@ How people sign in, and what they reach once in. Anyone may create an account, a
 ### Organizations, members, and roles
 
 - An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` (`bun apps/server/cli/index.ts organization create …` from a checkout) calls `createOrganization`, which needs an account that has already signed up and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
-- Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md)) and refuse deleting an organization that still owns objectives or courses with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
+- Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md)) and refuse deleting an organization that still owns objectives, courses, sources, or files with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
 - A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `0001_member_uniqueness.sql` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
 - Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md)).
 
@@ -58,7 +59,7 @@ flowchart TD
 
 ### Write origins
 
-- Braivo's own writes pass `isTrustedWrite` before the session is resolved: the media type must be `application/json`, and an `Origin`, if sent, must be `BRAIVO_URL`'s or an organization's domain (`isOrganizationOrigin`: HTTPS, default port, looked up per request).
+- Braivo's own writes pass `isTrustedWrite` before the session is resolved: the media type must be `application/json`, and an `Origin`, if sent, must be the host's own: `BRAIVO_URL`'s on the installation's host, and on an organization's domain that domain, while it is one (`isOrganizationOrigin`: HTTPS, default port, looked up per request). A learn domain cannot write through the console's session.
 - Better Auth runs its own origin check with `disableOriginCheck: false`, so tests see it too. Its trusted origins are `BRAIVO_URL` plus the request's origin while it is an organization's domain.
 
 ### Planned (ADR 0018)
@@ -76,6 +77,7 @@ flowchart TD
 - No session creates an organization; the operator's command does, for an existing account only. `apps/server/auth/auth.test.ts`
 - An organization owning learning content is not deleted, and a refused delete keeps its members. `apps/server/auth/auth.test.ts`
 - No sign-up on any host but the installation's. `apps/server/api/app.test.ts`; the learn app shows no sign-up: `apps/learn/routes.test.tsx`
+- A bearer token, the device flow, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
 - A forgeable write is refused before it records anything; a foreign origin is refused by Braivo and by Better Auth. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - An organization's domain is trusted only while it maps to an organization. `apps/server/auth/origin.test.ts`
 - `GET /api/organizations` lists only managed organizations, only to a session, never cached. `apps/server/api/app.test.ts`
@@ -83,17 +85,17 @@ flowchart TD
 
 ## Code map
 
-| Concern                                                 | Where                                                                                                                                       |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Better Auth config, organization hooks, trusted origins | `apps/server/auth/auth.ts`, `apps/server/auth/origin.ts`, `apps/server/auth/slug.ts`                                                        |
-| Operator creates an organization                        | `apps/server/cli/index.ts`, `apps/server/auth/organization.ts`                                                                              |
-| Mount, sign-up block, session, `isTrustedWrite`         | `apps/server/api/app.ts`; contract in `apps/server/api/index.ts`                                                                            |
-| Role checks                                             | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                                         |
-| Membership queries                                      | `apps/server/persistence/membership.ts`                                                                                                     |
-| Tables, member uniqueness                               | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                                           |
-| Browser client, form, guard, redirect                   | `packages/auth-client/`                                                                                                                     |
-| Console pages                                           | `apps/console/routes/login.tsx`, `signup.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts` |
-| Learn app pages                                         | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`                                                                     |
+| Concern                                                    | Where                                                                                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Better Auth config, organization hooks, trusted origins    | `apps/server/auth/auth.ts`, `apps/server/auth/origin.ts`, `apps/server/auth/slug.ts`                                                        |
+| Operator creates an organization                           | `apps/server/cli/index.ts`, `apps/server/auth/organization.ts`                                                                              |
+| Mount, host gate, bearer limits, session, `isTrustedWrite` | `apps/server/api/app.ts`; contract in `apps/server/api/index.ts`                                                                            |
+| Role checks                                                | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                                         |
+| Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                                     |
+| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                                           |
+| Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                                     |
+| Console pages                                              | `apps/console/routes/login.tsx`, `signup.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts` |
+| Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`                                                                     |
 
 ## Decisions
 
@@ -104,6 +106,7 @@ flowchart TD
 - [ADR 0011](../adr/0011-ui-and-auth-client-packages.md): browser sign-in lives in `packages/auth-client`.
 - [ADR 0016](../adr/0016-route-files.md): `_signed-in/route.tsx` guards signed-in pages.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): email-code sign-in, invitations, learner sessions per learn domain; operator-created organizations.
+- [ADR 0022](../adr/0022-machine-access.md): content owners' tools sign in by the device flow and act as them, on the installation's host only.
 
 ## Gaps
 
@@ -113,5 +116,5 @@ flowchart TD
 | Better Auth's default `membershipLimit` of 100 applies: accepting an invitation or adding a member fails past 100. | An organization cannot pass 100 learners; the console roster silently truncates.                   | Set `membershipLimit` deliberately and page the roster.                                |
 | Any `member` can call `organization/list-members` and read every member's name and email.                          | Learners see each other's emails.                                                                  | Decide the rule; restrict with a hook or custom access control.                        |
 | No email verification and no password reset.                                                                       | Anyone can sign up with someone else's email; a forgotten password locks the account out.          | ADR 0018 step 1 (email code) removes both problems.                                    |
-| A learn domain holds the account's full session and accepts all of `/api/auth/*` but sign-up.                      | A console-grade session lives on every learn domain, so only operator-controlled domains are safe. | ADR 0018 step 2: learner session and handoff; drop learn domains from trusted origins. |
+| A learn domain holds the account's full session and accepts `/api/auth/*` but sign-up and the device flow.         | A console-grade session lives on every learn domain, so only operator-controlled domains are safe. | ADR 0018 step 2: learner session and handoff; drop learn domains from trusted origins. |
 | No console UI to manage members, roles, or the organization; only Better Auth endpoints.                           | Removing a learner or promoting an admin needs raw API calls.                                      | Follows invitations; scope with ADR 0018 step 3.                                       |

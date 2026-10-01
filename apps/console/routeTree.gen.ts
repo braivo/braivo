@@ -14,8 +14,11 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInOrganizationSlugRouteRouteImport } from './routes/_signed-in/$organizationSlug/route'
+import { Route as SignedInDeviceRouteImport } from './routes/_signed-in/device'
 import { Route as SignedInOrganizationsRouteImport } from './routes/_signed-in/organizations'
 import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
+import { Route as SignedInOrganizationSlugSourcesIndexRouteImport } from './routes/_signed-in/$organizationSlug/sources/index'
+import { Route as SignedInOrganizationSlugSourcesSourceIdRouteImport } from './routes/_signed-in/$organizationSlug/sources/$sourceId'
 import { Route as SignedInOrganizationSlugCoursesCourseIdIndexRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/index'
 import { Route as SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
 
@@ -44,6 +47,11 @@ const SignedInOrganizationSlugRouteRoute =
     path: '/$organizationSlug',
     getParentRoute: () => SignedInRouteRoute,
   } as any)
+const SignedInDeviceRoute = SignedInDeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => SignedInRouteRoute,
+} as any)
 const SignedInOrganizationsRoute = SignedInOrganizationsRouteImport.update({
   id: '/organizations',
   path: '/organizations',
@@ -53,6 +61,18 @@ const SignedInOrganizationSlugIndexRoute =
   SignedInOrganizationSlugIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugSourcesIndexRoute =
+  SignedInOrganizationSlugSourcesIndexRouteImport.update({
+    id: '/sources/',
+    path: '/sources/',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugSourcesSourceIdRoute =
+  SignedInOrganizationSlugSourcesSourceIdRouteImport.update({
+    id: '/sources/$sourceId',
+    path: '/sources/$sourceId',
     getParentRoute: () => SignedInOrganizationSlugRouteRoute,
   } as any)
 const SignedInOrganizationSlugCoursesCourseIdIndexRoute =
@@ -73,17 +93,23 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/device': typeof SignedInDeviceRoute
   '/organizations': typeof SignedInOrganizationsRoute
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
+  '/$organizationSlug/sources/': typeof SignedInOrganizationSlugSourcesIndexRoute
   '/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
   '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/device': typeof SignedInDeviceRoute
   '/organizations': typeof SignedInOrganizationsRoute
   '/': typeof SignedInIndexRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
+  '/$organizationSlug/sources': typeof SignedInOrganizationSlugSourcesIndexRoute
   '/$organizationSlug/courses/$courseId': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
   '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
@@ -93,9 +119,12 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/_signed-in/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/_signed-in/device': typeof SignedInDeviceRoute
   '/_signed-in/organizations': typeof SignedInOrganizationsRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/_signed-in/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
+  '/_signed-in/$organizationSlug/sources/': typeof SignedInOrganizationSlugSourcesIndexRoute
   '/_signed-in/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
   '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
@@ -106,17 +135,23 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/$organizationSlug'
+    | '/device'
     | '/organizations'
     | '/$organizationSlug/'
+    | '/$organizationSlug/sources/$sourceId'
+    | '/$organizationSlug/sources/'
     | '/$organizationSlug/courses/$courseId/'
     | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/signup'
+    | '/device'
     | '/organizations'
     | '/'
     | '/$organizationSlug'
+    | '/$organizationSlug/sources/$sourceId'
+    | '/$organizationSlug/sources'
     | '/$organizationSlug/courses/$courseId'
     | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   id:
@@ -125,9 +160,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/_signed-in/$organizationSlug'
+    | '/_signed-in/device'
     | '/_signed-in/organizations'
     | '/_signed-in/'
     | '/_signed-in/$organizationSlug/'
+    | '/_signed-in/$organizationSlug/sources/$sourceId'
+    | '/_signed-in/$organizationSlug/sources/'
     | '/_signed-in/$organizationSlug/courses/$courseId/'
     | '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesById: FileRoutesById
@@ -175,6 +213,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInOrganizationSlugRouteRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
+    '/_signed-in/device': {
+      id: '/_signed-in/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof SignedInDeviceRouteImport
+      parentRoute: typeof SignedInRouteRoute
+    }
     '/_signed-in/organizations': {
       id: '/_signed-in/organizations'
       path: '/organizations'
@@ -187,6 +232,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/$organizationSlug/'
       preLoaderRoute: typeof SignedInOrganizationSlugIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/sources/': {
+      id: '/_signed-in/$organizationSlug/sources/'
+      path: '/sources'
+      fullPath: '/$organizationSlug/sources/'
+      preLoaderRoute: typeof SignedInOrganizationSlugSourcesIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/sources/$sourceId': {
+      id: '/_signed-in/$organizationSlug/sources/$sourceId'
+      path: '/sources/$sourceId'
+      fullPath: '/$organizationSlug/sources/$sourceId'
+      preLoaderRoute: typeof SignedInOrganizationSlugSourcesSourceIdRouteImport
       parentRoute: typeof SignedInOrganizationSlugRouteRoute
     }
     '/_signed-in/$organizationSlug/courses/$courseId/': {
@@ -208,6 +267,8 @@ declare module '@tanstack/react-router' {
 
 interface SignedInOrganizationSlugRouteRouteChildren {
   SignedInOrganizationSlugIndexRoute: typeof SignedInOrganizationSlugIndexRoute
+  SignedInOrganizationSlugSourcesSourceIdRoute: typeof SignedInOrganizationSlugSourcesSourceIdRoute
+  SignedInOrganizationSlugSourcesIndexRoute: typeof SignedInOrganizationSlugSourcesIndexRoute
   SignedInOrganizationSlugCoursesCourseIdIndexRoute: typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
   SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute: typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
@@ -215,6 +276,10 @@ interface SignedInOrganizationSlugRouteRouteChildren {
 const SignedInOrganizationSlugRouteRouteChildren: SignedInOrganizationSlugRouteRouteChildren =
   {
     SignedInOrganizationSlugIndexRoute: SignedInOrganizationSlugIndexRoute,
+    SignedInOrganizationSlugSourcesSourceIdRoute:
+      SignedInOrganizationSlugSourcesSourceIdRoute,
+    SignedInOrganizationSlugSourcesIndexRoute:
+      SignedInOrganizationSlugSourcesIndexRoute,
     SignedInOrganizationSlugCoursesCourseIdIndexRoute:
       SignedInOrganizationSlugCoursesCourseIdIndexRoute,
     SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute:
@@ -228,6 +293,7 @@ const SignedInOrganizationSlugRouteRouteWithChildren =
 
 interface SignedInRouteRouteChildren {
   SignedInOrganizationSlugRouteRoute: typeof SignedInOrganizationSlugRouteRouteWithChildren
+  SignedInDeviceRoute: typeof SignedInDeviceRoute
   SignedInOrganizationsRoute: typeof SignedInOrganizationsRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
@@ -235,6 +301,7 @@ interface SignedInRouteRouteChildren {
 const SignedInRouteRouteChildren: SignedInRouteRouteChildren = {
   SignedInOrganizationSlugRouteRoute:
     SignedInOrganizationSlugRouteRouteWithChildren,
+  SignedInDeviceRoute: SignedInDeviceRoute,
   SignedInOrganizationsRoute: SignedInOrganizationsRoute,
   SignedInIndexRoute: SignedInIndexRoute,
 }

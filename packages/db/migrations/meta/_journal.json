@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790369101689,
+      "when": 1790893231181,
       "tag": "0000_initial",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1790369103001,
+      "when": 1790893231760,
       "tag": "0001_member_uniqueness",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790414715824,
-      "tag": "0002_task_retirement",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790886231793,
-      "tag": "0003_learner_history_per_organization",
       "breakpoints": true
     }
   ]

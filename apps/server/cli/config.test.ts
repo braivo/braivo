@@ -11,6 +11,75 @@ const valid = {
   BRAIVO_URL: "https://learn.example.com",
 };
 
+describe("the model that drafts courses", () => {
+  test("is none without a key, and Anthropic's default with one", () => {
+    const all = { ANTHROPIC_API_KEY: " key " };
+    expect(readServeConfig(valid).ai).toBeUndefined();
+    expect(readServeConfig({ ...valid, ...all }).ai).toEqual({
+      apiKey: "key",
+      model: "claude-sonnet-5",
+      organizations: "all",
+    });
+    expect(
+      readServeConfig({ ...valid, ...all, BRAIVO_AI_MODEL: "claude-opus-5-5" }).ai?.model,
+    ).toBe("claude-opus-5-5");
+  });
+
+  test("limits each organization's month only when the operator says how far", () => {
+    const ai = { ANTHROPIC_API_KEY: "key" };
+    expect(readServeConfig({ ...valid, ...ai }).ai?.monthlyLimit).toBeUndefined();
+    expect(
+      readServeConfig({ ...valid, ...ai, BRAIVO_AI_MONTHLY_LIMIT: "200" }).ai?.monthlyLimit,
+    ).toBe(200);
+    for (const value of ["0", "-1", "2.5", "many"]) {
+      expect(() => readServeConfig({ ...valid, ...ai, BRAIVO_AI_MONTHLY_LIMIT: value })).toThrow(
+        "BRAIVO_AI_MONTHLY_LIMIT must be a whole number",
+      );
+    }
+  });
+
+  test("is spent by every organization, or only those the operator names", () => {
+    expect(
+      readServeConfig({
+        ...valid,
+        ANTHROPIC_API_KEY: "key",
+        BRAIVO_AI_ORGANIZATIONS: " org-1, org-2 ,",
+      }).ai?.organizations,
+    ).toEqual(new Set(["org-1", "org-2"]));
+    // The operator creates every organization, so a key alone is theirs to spend.
+    expect(readServeConfig({ ...valid, ANTHROPIC_API_KEY: "key" }).ai?.organizations).toBe("all");
+    // Set but naming none fails closed: an empty template value is not "unset".
+    for (const value of ["", " , ", "*"]) {
+      expect(() =>
+        readServeConfig({ ...valid, ANTHROPIC_API_KEY: "key", BRAIVO_AI_ORGANIZATIONS: value }),
+      ).toThrow("leave it unset to let every organization");
+    }
+  });
+});
+
+describe("where files are kept", () => {
+  test("is nowhere unless set", () => {
+    expect(readServeConfig(valid).files).toBeUndefined();
+    expect(readServeConfig({ ...valid, BRAIVO_FILES: " " }).files).toBeUndefined();
+  });
+
+  test("is a bucket, or a directory named from the root", () => {
+    expect(readServeConfig({ ...valid, BRAIVO_FILES: "s3://braivo-files/" }).files).toEqual({
+      bucket: "braivo-files",
+    });
+    expect(readServeConfig({ ...valid, BRAIVO_FILES: "/var/lib/braivo" }).files).toEqual({
+      directory: "/var/lib/braivo",
+    });
+  });
+
+  test.each(["files", "./files", "s3://", "s3://Braivo_Files", "s3://braivo/files"])(
+    "refuses %o, saying what it takes",
+    (value) => {
+      expect(() => readServeConfig({ ...valid, BRAIVO_FILES: value })).toThrow("BRAIVO_FILES must");
+    },
+  );
+});
+
 describe("serve configuration", () => {
   test("reads a complete environment, defaulting the port", () => {
     expect(readServeConfig(valid)).toEqual({
@@ -99,8 +168,8 @@ describe("serve configuration", () => {
     ["empty", ""],
     ["blank", "   "],
   ])("falls back to 3000 when PORT is %s", (_label, value) => {
-    // An empty PORT used to become 0, which Bun serves on a random free port —
-    // a server that announces a URL nobody can reach it at.
+    // An empty PORT coerced to 0 would serve on a random free port — a server
+    // that announces a URL nobody can reach it at.
     expect(readServeConfig({ ...valid, PORT: value }).port).toBe(3000);
   });
 
