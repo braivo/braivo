@@ -35,21 +35,29 @@ export class InvalidEvidence extends Error {
 const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 
 /**
+ * Room for a UUID or a composite integration key. Unbounded, a long ID would
+ * overflow PostgreSQL's index entry limit as an error rather than a refusal.
+ */
+export const MAX_EVIDENCE_ID_LENGTH = 256;
+
+/**
  * Records graded evidence for a learner, on behalf of one organization.
  *
  * Checks run in this order, and any failure refuses the whole batch:
  *
- * 1. Every date is valid and not ahead of `now`, and no ID is in the namespace
- *    attempts are graded into. This reads only the payload, so
- *    a caller who may not grade learns nothing about the organization.
+ * 1. Every date is valid and not ahead of `now`, and every ID is at most
+ *    `MAX_EVIDENCE_ID_LENGTH` and outside the namespace attempts are graded
+ *    into. This reads only the payload, so a caller who may not grade learns
+ *    nothing about the organization.
  * 2. `gradedBy` administers the organization. Without this, a learner could
  *    award themselves successes.
  * 3. The learner is a member.
  * 4. Every objective is the organization's own.
  *
- * Checks 3 and 4 are the only guard on "a learner and their objectives belong to
- * one organization": evidence carries no organization, since membership changes
- * and evidence must outlive it.
+ * Check 3 is the only guard on "a learner belongs to the organization grading
+ * them": evidence carries the organization that recorded it, not membership,
+ * which changes while evidence must outlive it. Check 4 answers before the
+ * schema would, which refuses evidence about another organization's objective.
  *
  * Membership holds as of the check. A learner removed before the insert still
  * gets the batch, but the row is inert: this organization's decisions re-check
@@ -80,6 +88,14 @@ export async function recordGradedEvidence(input: {
   if (undated.length > 0) {
     throw new InvalidEvidence(
       `Evidence ${undated.map((record) => `"${record.id}"`).join(", ")} has no valid date.`,
+    );
+  }
+
+  // Counted rather than quoted: the IDs are the problem.
+  const oversized = evidence.filter((record) => record.id.length > MAX_EVIDENCE_ID_LENGTH);
+  if (oversized.length > 0) {
+    throw new InvalidEvidence(
+      `An evidence ID may be at most ${MAX_EVIDENCE_ID_LENGTH} characters; this batch has ${oversized.length} longer.`,
     );
   }
 
@@ -116,5 +132,5 @@ export async function recordGradedEvidence(input: {
     );
   }
 
-  await recordEvidence(database, learnerId, evidence);
+  await recordEvidence(database, { learnerId, organizationId }, evidence);
 }

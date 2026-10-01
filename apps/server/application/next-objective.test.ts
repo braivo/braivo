@@ -105,7 +105,9 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
   });
 
   test("reteaches an objective the learner has failed", async () => {
-    await recordEvidence(database, learner, [evidence({ outcome: "failure", at: daysAgo(1) })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ outcome: "failure", at: daysAgo(1) }),
+    ]);
 
     expect(await decide(bothCourse)).toMatchObject({
       objectiveId: pastTense,
@@ -115,7 +117,9 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
   });
 
   test("reviews an objective whose recall has fallen below target", async () => {
-    await recordEvidence(database, learner, [evidence({ at: daysAgo(10) })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ at: daysAgo(10) }),
+    ]);
 
     const decision = await decide(bothCourse);
 
@@ -126,7 +130,7 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
   });
 
   test("reports a learner caught up when nothing in the course is due", async () => {
-    await recordEvidence(database, learner, [evidence({ at: now })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [evidence({ at: now })]);
 
     expect(await choose(soloCourse)).toEqual({ kind: "caught-up" });
   });
@@ -141,8 +145,10 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     // Recorded second, but happened first. Folding in arrival order would leave
     // the objective acquiring and ask for re-teaching; replaying in event order
     // is what makes a late grading result free to accept.
-    await recordEvidence(database, learner, [evidence({ id: "later", at: daysAgo(10) })]);
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "later", at: daysAgo(10) }),
+    ]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "earlier", outcome: "failure", at: daysAgo(20) }),
     ]);
 
@@ -154,7 +160,7 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
   });
 
   test("prefers re-teaching over reviewing, across the whole path", async () => {
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "due", objectiveId: pastTense, at: daysAgo(10) }),
       evidence({ id: "failed", objectiveId: fractions, outcome: "failure", at: daysAgo(1) }),
     ]);
@@ -171,7 +177,7 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     // course does not list it as a candidate. Material this course does not
     // teach is not this course's to re-teach, failed or not, and a failure
     // outranks everything if it ever reaches the decision.
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "elsewhere", objectiveId: fractions, outcome: "failure", at: daysAgo(1) }),
     ]);
 
@@ -187,7 +193,9 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     // tied evidence to the course it was produced under, rather than to the
     // objective it is about, would quietly break this and nothing else.
     // See docs/adr/0008-courses-order-objectives.md.
-    await recordEvidence(database, learner, [evidence({ at: daysAgo(10) })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ at: daysAgo(10) }),
+    ]);
 
     expect(await decide(soloCourse)).toMatchObject({ objectiveId: pastTense, intent: "review" });
     expect(await decide(bothCourse)).toMatchObject({ objectiveId: pastTense, intent: "review" });
@@ -212,7 +220,7 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     // told there is nothing to do, and an outsider is told nothing at all.
     // Only a member can reach the first answer, which is why giving it away
     // costs nothing.
-    await recordEvidence(database, learner, [evidence({ at: now })]);
+    await recordEvidence(database, { learnerId: learner, organizationId }, [evidence({ at: now })]);
 
     expect(await choose(soloCourse)).toEqual({ kind: "caught-up" });
     expect(await choose(soloCourse, outsider)).toEqual({ kind: "unavailable" });
@@ -222,7 +230,7 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     // A grader writing between the clock being read and the evidence being read
     // would otherwise hand the model evidence from its future, which it rejects
     // — turning a recommendation into a 500 with nothing actually wrong.
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "from-the-future", outcome: "failure", at: new Date(now.getTime() + 1000) }),
     ]);
 

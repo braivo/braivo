@@ -59,8 +59,9 @@ export function createAuth(options: AuthOptions) {
     // Passwords need no external identity provider to register with.
     emailAndPassword: { enabled: true },
 
-    // An organization owns content and learners; membership is what Braivo's
-    // authorization rules are built on.
+    // An organization owns content, and its members may learn from it; membership
+    // is what Braivo's authorization rules are built on. A learner's history is
+    // kept per learner, not per organization (ADR 0032).
     plugins: [
       organization({
         // The operator creates organizations (`createOrganization`), not the

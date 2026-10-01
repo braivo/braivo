@@ -152,12 +152,10 @@ export const learnerEvidenceOutcome = pgEnum("learner_evidence_outcome", ["succe
  * there is deliberately no estimate table beside it.
  *
  * Storing derived estimates would be an optimization for a measured cost, and
- * the cost has been measured: a decision for a learner with 50,000 of these
- * rows takes about 29ms end to end, one learner at a time against a local
- * database. That settles how it grows with a history's length, not how it
- * behaves under load. While there is no estimate table, replacing the learning
- * model also costs nothing, because nothing needs recomputing.
- * See docs/adr/0007-one-learning-model.md.
+ * the measurements do not call for it (docs/adr/0007-one-learning-model.md,
+ * docs/adr/0032-learner-history.md). While there is no estimate table,
+ * replacing the learning model also costs nothing, because nothing needs
+ * recomputing.
  */
 export const learnerEvidence = pgTable(
   "learner_evidence",
@@ -179,15 +177,17 @@ export const learnerEvidence = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     /**
+     * The organization that recorded it, always its objective's: where the
+     * record came from. Not membership, which changes while evidence must
+     * outlive it (docs/adr/0032-learner-history.md).
+     */
+    organizationId: text("organization_id").notNull(),
+    /**
      * Evidence is about a known learning target, never an arbitrary string: a
      * typo would otherwise record knowledge of something that does not exist,
-     * silently and permanently. Restricted rather than cascading, because
-     * deleting an objective that has evidence would not tidy that history up,
-     * it would destroy its meaning.
+     * silently and permanently. Referenced with the organization below.
      */
-    objectiveId: text("objective_id")
-      .notNull()
-      .references(() => objective.id, { onDelete: "restrict" }),
+    objectiveId: text("objective_id").notNull(),
     outcome: learnerEvidenceOutcome("outcome").notNull(),
     /**
      * When the learner produced the evidence, not when it was written. The
@@ -197,17 +197,37 @@ export const learnerEvidence = pgTable(
   },
   (table) => [
     /**
-     * Keyed per learner, not globally. A retry is always a retry for the same
-     * learner, so that is the scope idempotency actually needs — and a global
-     * key would add a failure mode instead of a guarantee: one learner's
-     * evidence would be dropped as a duplicate whenever another learner's ID
-     * collided with it, silently, which is exactly how a grader that builds IDs
-     * from task and objective rather than from the attempt would fail.
+     * Keyed per learner and organization, not globally. A retry is always a
+     * retry for the same learner at the same organization, so that is the scope
+     * idempotency actually needs — and a wider key would add a failure mode
+     * instead of a guarantee. Across learners, one learner's evidence would be
+     * dropped as a duplicate whenever another's ID collided with it, silently,
+     * which is exactly how a grader that builds IDs from task and objective
+     * rather than from the attempt would fail. Across organizations, whose
+     * graders name evidence independently, one's ID would refuse the other's
+     * write, and the refusal would tell it what the learner did elsewhere.
      */
-    primaryKey({ columns: [table.learnerId, table.id] }),
-    // Replay reads one learner's whole history in `(at, id)` order; this serves
-    // that read as an index scan, and it is the only query shape the table has.
-    index("learner_evidence_replay_idx").on(table.learnerId, table.at, table.id),
+    primaryKey({ columns: [table.learnerId, table.organizationId, table.id] }),
+    /**
+     * Matching the organization, as `task` does, so evidence cannot claim an
+     * organization other than its objective's. Restricted rather than
+     * cascading, because deleting an objective that has evidence would not tidy
+     * that history up, it would destroy its meaning.
+     */
+    foreignKey({
+      name: "learner_evidence_objective_fk",
+      columns: [table.organizationId, table.objectiveId],
+      foreignColumns: [objective.organizationId, objective.id],
+    }).onDelete("restrict"),
+    // Replay reads one learner's history at one organization in `(at, id)`
+    // order; this serves that read as one index range, and it is the only
+    // query shape the table has (docs/adr/0032-learner-history.md).
+    index("learner_evidence_replay_idx").on(
+      table.learnerId,
+      table.organizationId,
+      table.at,
+      table.id,
+    ),
   ],
 );
 
@@ -240,6 +260,8 @@ export const task = pgTable(
       foreignColumns: [objective.organizationId, objective.id],
     }).onDelete("restrict"),
     index("task_objective_idx").on(table.objectiveId, table.createdAt, table.id),
+    /** Referenced together with the organization, for the same reason as on `objective`. */
+    unique("task_organization_id_key").on(table.organizationId, table.id),
   ],
 );
 
@@ -253,21 +275,27 @@ export const attempt = pgTable(
   {
     /**
      * Chosen by the client, so a resubmission is recognised rather than recorded
-     * twice. Scoped per learner, like evidence IDs, so learners cannot collide.
+     * twice. Scoped per learner and organization, as evidence IDs are, so
+     * neither two learners nor one learner's two organizations collide.
      */
     id: text("id").notNull(),
     /** Cascading: deleting an account erases its learning history, as evidence does. */
     learnerId: text("learner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    taskId: text("task_id")
-      .notNull()
-      .references(() => task.id, { onDelete: "restrict" }),
+    /** The task's, as on evidence: where the attempt was made. */
+    organizationId: text("organization_id").notNull(),
+    taskId: text("task_id").notNull(),
     response: jsonb("response").notNull(),
     at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.learnerId, table.id] }),
+    primaryKey({ columns: [table.learnerId, table.organizationId, table.id] }),
+    foreignKey({
+      name: "attempt_task_fk",
+      columns: [table.organizationId, table.taskId],
+      foreignColumns: [task.organizationId, task.id],
+    }).onDelete("restrict"),
     // Serves "which of an objective's tasks this learner saw least recently".
     index("attempt_learner_task_idx").on(table.learnerId, table.taskId, table.at),
   ],

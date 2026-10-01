@@ -138,7 +138,7 @@ The same loop runs in the learn app: with `bun run dev`, sign in at `http://loca
 A few things that shape how this behaves:
 
 - **The learner is whoever the session belongs to.** `activity` and `attempts` take no learner, so there is no second identity to authorize — the course still is: one in an organization the signed-in user is not in answers 404. One account plays every part above: the organization was created for it, so it is the owner, and owners may practise too.
-- **Braivo grades, so a learner may answer for themselves.** They choose the answer, never the outcome. Each attempt carries an ID of the client's choosing, unique per learner, so resending one after a lost answer records it once.
+- **Braivo grades, so a learner may answer for themselves.** They choose the answer, never the outcome. Each attempt carries an ID of the client's choosing, unique per learner within the course's organization, so resending one after a lost answer records it once.
 - **Evidence graded elsewhere is a content owner's to record.** An application with its own tasks uses `GET /api/courses/<id>/next` for the bare decision, and `POST /api/organizations/<id>/learners/<id>/evidence` to record outcomes, which needs `owner` or `admin`: a `member` could otherwise grade themselves.
 - **Progress is the learner's, and their organization's administrators'.** A learner reads their own standing — the learn app shows it above each question — and `owner` or `admin` reads any of its learners'. A `member` asking about someone else gets a 404, the same answer as a course that does not exist.
 - **`at` must be exactly what `Date#toISOString` produces.** Braivo refuses looser formats, because a timestamp is what it orders replay by.

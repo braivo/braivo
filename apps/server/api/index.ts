@@ -75,7 +75,8 @@
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
 // the option's, as the activity gave it. `id` is the client's, unique per
-// learner, at most 128 characters (a UUID will do). Mint it once per answer,
+// learner within the course's organization, at most 128 characters (a UUID
+// will do). Mint it once per answer,
 // and when delivery is uncertain (a network error, a 5xx) resend that same ID:
 // the resend records nothing twice and answers the same grade, where a fresh ID
 // would record it again. A 409 is not such a case.
@@ -87,7 +88,8 @@
 //   404  the course does not exist, is not the learner's, or has no such task,
 //        or the task was retired (a resend of an attempt recorded before that
 //        still answers its grade)
-//   409  `id` was already used for a different task or response, or the
+//   409  `id` was already used at this organization for a different task or
+//        response, or the
 //        learner answered this task in another attempt less than ten minutes
 //        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
@@ -140,15 +142,18 @@
 //
 //   401  no session
 //   400  the body is not evidence, carries more than 1000 records, dates a
-//        record more than five minutes ahead, or uses an `id` starting with
-//        `attempt:`, which is reserved for evidence graded from attempts
+//        record more than five minutes ahead, or has an `id` longer than 256
+//        characters or starting with `attempt:`, which is reserved for evidence
+//        graded from attempts
 //   403  the request could have been forged (it must be `application/json`, and
 //        any `Origin` it sends must be this installation's or an organization's
 //        own domain), or the grader may not grade here, or the learner or an
 //        objective is not this organization's
 //   413  the body is larger than 1 MB
-//   409  a record's `id` already holds a different result for this learner —
-//        another outcome, date, or objective. Nothing in the batch is stored.
+//   409  a record's `id` already holds a different result for this learner in
+//        this organization — another outcome, date, or objective. Nothing in
+//        the batch is stored. IDs are the organization's own: another
+//        organization's evidence under the same `id` is unrelated.
 //        An evidence ID identifies one attempt's result for one objective;
 //        built from the task and the objective alone it repeats on every
 //        attempt, and each one after the first answers this.

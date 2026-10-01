@@ -10,6 +10,7 @@ import { activeModel, type Evidence } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
 import { chooseNextObjective } from "./next-objective.ts";
+import { recordGradedEvidence } from "./record-evidence.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -33,6 +34,8 @@ let fractions!: string;
 let course!: string;
 let emptyCourse!: string;
 let foreignCourse!: string;
+/** The other organization's own past tense: the same title, a different objective. */
+let theirPastTense!: string;
 
 function evidence(overrides: Partial<Evidence> = {}): Evidence {
   return { id: "e1", objectiveId: pastTense, outcome: "success", at: now, ...overrides };
@@ -59,9 +62,10 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       adminIds: [teacher],
       at: now,
     });
+    // The learner studies there too, at the same time.
     await testing.seedOrganization(database, {
       organizationId: otherOrganizationId,
-      learnerIds: [],
+      learnerIds: [learner],
       adminIds: [otherTeacher],
       at: now,
     });
@@ -91,11 +95,13 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       title: "Empty",
       objectiveIds: [],
     });
-    const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
+    [theirPastTense] = (await createObjectives(database, otherOrganizationId, ["Past tense"])) as [
+      string,
+    ];
     foreignCourse = await createCourse(database, {
       organizationId: otherOrganizationId,
       title: "Theirs",
-      objectiveIds: [theirs!],
+      objectiveIds: [theirPastTense],
     });
   });
 
@@ -104,7 +110,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
   });
 
   test("reports each objective in the course, in content order", async () => {
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "kept", objectiveId: pastTense, at: daysAgo(10) }),
     ]);
 
@@ -124,7 +130,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
   test("describes a learner the way the decision about them does", async () => {
     // The report is built from the same replay as the decision, so whatever is
     // chosen must be visible in it as the reason for choosing it.
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "due", objectiveId: pastTense, at: daysAgo(10) }),
       evidence({ id: "failed", objectiveId: fractions, outcome: "failure", at: daysAgo(1) }),
     ]);
@@ -145,7 +151,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
   });
 
   test("leaves out evidence dated after the moment it describes", async () => {
-    await recordEvidence(database, learner, [
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
       evidence({ id: "later", outcome: "failure", at: new Date(now.getTime() + 1000) }),
     ]);
 
@@ -159,6 +165,41 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       kind: "assessed",
       report: { modelVersion: activeModel.version, objectives: [] },
     });
+  });
+
+  test("keeps a learner's two organizations apart, though both name their evidence alike", async () => {
+    // Knowledge belongs to the learner, and each organization grades only its
+    // own objectives (docs/adr/0032-learner-history.md). Graders name
+    // evidence independently, so one organization's ID must neither block the
+    // other's write nor tell it what the learner did there.
+    await recordGradedEvidence({
+      database,
+      organizationId,
+      gradedBy: teacher,
+      learnerId: learner,
+      evidence: [evidence({ id: "e1", at: daysAgo(10) })],
+      now,
+    });
+    await recordGradedEvidence({
+      database,
+      organizationId: otherOrganizationId,
+      gradedBy: otherTeacher,
+      learnerId: learner,
+      evidence: [evidence({ id: "e1", objectiveId: theirPastTense, outcome: "failure" })],
+      now,
+    });
+
+    expect(await progress()).toMatchObject({
+      report: {
+        objectives: [{ objectiveId: pastTense, phase: "retaining" }, { phase: "unseen" }],
+      },
+    });
+    expect(await progress({ courseId: foreignCourse, viewedBy: otherTeacher })).toMatchObject({
+      report: { objectives: [{ objectiveId: theirPastTense, phase: "acquiring" }] },
+    });
+    // Neither administrator reads the other organization's course.
+    expect(await progress({ courseId: foreignCourse })).toEqual({ kind: "unavailable" });
+    expect(await progress({ viewedBy: otherTeacher })).toEqual({ kind: "unavailable" });
   });
 
   test("lets a learner read their own, and no other member read it", async () => {

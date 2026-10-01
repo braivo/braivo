@@ -8,6 +8,12 @@ import { and, asc, eq, inArray, lte } from "drizzle-orm";
 import type { Evidence } from "../learning/index.ts";
 
 /**
+ * One learner's evidence at one organization: what a record's ID is unique in,
+ * and all a decision there may read (docs/adr/0032-learner-history.md).
+ */
+export type EvidenceScope = { learnerId: string; organizationId: string };
+
+/**
  * A delivery that disagrees with what is already recorded under its ID.
  *
  * An evidence ID has to identify one attempt. A grader that builds it from the
@@ -26,12 +32,15 @@ export class ConflictingEvidence extends Error {
 }
 
 /**
- * Appends graded evidence for one learner.
+ * Appends graded evidence for one learner, as recorded by one organization,
+ * whose objectives it must all be about: the schema refuses any other.
  *
- * Redelivering a result is a no-op, because the grader's own ID is the primary
- * key: a retry after a timeout stores nothing twice. A delivery that disagrees
- * with what an ID already holds is refused instead, as `ConflictingEvidence`,
- * and nothing in its batch is stored. The insert alone cannot tell those two
+ * Redelivering a result is a no-op, because the grader's own ID, within the
+ * organization, is the primary key: a retry after a timeout stores nothing
+ * twice. Another organization's evidence under the same ID is a different
+ * record, and never a conflict. A delivery that disagrees with what an ID
+ * already holds is refused instead, as `ConflictingEvidence`, and nothing in
+ * its batch is stored. The insert alone cannot tell those two
  * apart — it skips both the same way — so the stored rows are compared against
  * the sent ones after it.
  *
@@ -49,9 +58,10 @@ export class ConflictingEvidence extends Error {
  */
 export async function recordEvidence(
   database: Database,
-  learnerId: string,
+  scope: EvidenceScope,
   evidence: readonly Evidence[],
 ): Promise<void> {
+  const { learnerId, organizationId } = scope;
   if (evidence.length === 0) return;
 
   // Inserted in one fixed order, whatever order they arrived in. Each row takes
@@ -62,9 +72,10 @@ export async function recordEvidence(
   // Sorted, every recording takes those locks in the same sequence, so no cycle
   // can form between two of them. That is the whole claim: a writer outside this
   // function, such as a learner's deletion cascading here, takes its own order.
-  // The learner is the same across a batch, so the ID alone orders it.
+  // The learner and organization are the same across a batch, so the ID alone
+  // orders it.
   const inOrder = evidence
-    .map((record) => ({ ...record, learnerId }))
+    .map((record) => ({ ...record, learnerId, organizationId }))
     .toSorted((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
   await database.transaction(async (transaction) => {
@@ -73,7 +84,9 @@ export async function recordEvidence(
       .values(inOrder)
       // Named rather than left bare, so a unique index added later raises instead
       // of being swallowed as though it were a redelivery.
-      .onConflictDoNothing({ target: [learnerEvidence.learnerId, learnerEvidence.id] })
+      .onConflictDoNothing({
+        target: [learnerEvidence.learnerId, learnerEvidence.organizationId, learnerEvidence.id],
+      })
       .returning({ id: learnerEvidence.id });
 
     // Every record went in exactly as sent, so none can disagree with anything.
@@ -91,6 +104,7 @@ export async function recordEvidence(
       .where(
         and(
           eq(learnerEvidence.learnerId, learnerId),
+          eq(learnerEvidence.organizationId, organizationId),
           inArray(learnerEvidence.id, [...new Set(evidence.map((record) => record.id))]),
         ),
       );
@@ -122,15 +136,17 @@ function isSameResult(sent: Evidence, stored: Evidence | undefined): boolean {
 }
 
 /**
- * Every record a learner's estimates are derived from as of one instant, ready
- * to hand to `replay`.
+ * Every record a learner's estimates at one organization are derived from as of
+ * one instant, ready to hand to `replay`.
  *
- * Reads the learner's whole history rather than only the objectives a given
- * decision will consult. Narrowing it looks obviously right — replay folds each
- * objective independently, so the rest cannot reach the answer — and was tried
- * and measured. It made this read slower, not faster, for reasons that belong to
- * the query planner rather than to the model; the numbers and the reasoning are
- * in docs/adr/0009-evidence-is-read-whole.md. Read that before narrowing it.
+ * Narrowed to the organization, so no other organization's evidence can reach
+ * its decisions, whatever a future model does across objectives, and the read
+ * does not grow with the learner's history elsewhere. The index puts the
+ * organization in its key, so this is one range scan
+ * (docs/adr/0032-learner-history.md). Narrowing further, to the objectives a
+ * decision consults, looks obviously right and was measured slower: the
+ * numbers and the reasoning are in docs/adr/0009-evidence-read-whole.md.
+ * Read that before narrowing it.
  *
  * `asOf` is required rather than optional because a decision is made at a time,
  * and evidence dated after that instant is not part of it. A caller that read
@@ -150,9 +166,10 @@ function isSameResult(sent: Evidence, stored: Evidence | undefined): boolean {
  */
 export async function readLearnerEvidence(
   database: Database,
-  learnerId: string,
+  scope: EvidenceScope,
   asOf: Date,
 ): Promise<Evidence[]> {
+  const { learnerId, organizationId } = scope;
   return database
     .select({
       id: learnerEvidence.id,
@@ -161,6 +178,12 @@ export async function readLearnerEvidence(
       at: learnerEvidence.at,
     })
     .from(learnerEvidence)
-    .where(and(eq(learnerEvidence.learnerId, learnerId), lte(learnerEvidence.at, asOf)))
+    .where(
+      and(
+        eq(learnerEvidence.learnerId, learnerId),
+        eq(learnerEvidence.organizationId, organizationId),
+        lte(learnerEvidence.at, asOf),
+      ),
+    )
     .orderBy(asc(learnerEvidence.at), asc(learnerEvidence.id));
 }

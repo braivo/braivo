@@ -44,6 +44,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 
 ## Data
 
+- A learner has one history, in which each organization records attempts and evidence about its own content and reads only its own ([ADR 0032](adr/0032-learner-history.md)).
 - Preserve the learner evidence used to derive learning state, including AI-derived evidence passed to `learning`, not only the derived estimates. This lets estimates be recomputed when the learning model changes.
 - Store enough immutable task context to interpret an attempt after content changes; edits must not rewrite historical evidence.
 - Keep derived content linked to the source material it came from.

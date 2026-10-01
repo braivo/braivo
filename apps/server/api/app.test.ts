@@ -8,20 +8,13 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
 import { activeModel } from "../learning/index.ts";
-import {
-  createCourse,
-  createObjectives,
-  readLearnerEvidence,
-  recordEvidence,
-} from "../persistence/index.ts";
+import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import { createApi } from "./app.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
 
-/** Everything stored for a learner, future-dated records included. */
-const stored = (learnerId: string) =>
-  readLearnerEvidence(database, learnerId, new Date("9999-12-31T23:59:59.999Z"));
+const stored = (learnerId: string) => testing.readStoredEvidence(database, learnerId);
 const auth = createAuth({
   database,
   secret: "api-test-secret-that-is-long-enough-32",
@@ -340,7 +333,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   test("answers from the session's learner, not from anything in the request", async () => {
     // Same URL, same course, two sessions: only the cookie differs, so a route
     // that took the learner from the path or a query could not tell these apart.
-    await recordEvidence(database, learner.id, [
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "api-test-failure", objectiveId: pastTense, outcome: "failure", at },
     ]);
 
@@ -363,7 +356,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       intent: "introduce",
     });
 
-    await recordEvidence(database, learner.id, [
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "contract-failure", objectiveId: pastTense, outcome: "failure", at: recordedAt },
     ]);
     const reteach = await (await next(courseId, learner.cookie)).json();
@@ -377,7 +370,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
 
     await testing.clearLearnerHistory(database, [learner.id]);
-    await recordEvidence(database, learner.id, [
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "contract-success", objectiveId: pastTense, outcome: "success", at: recordedAt },
     ]);
     const review = (await (await next(courseId, learner.cookie)).json()) as {
@@ -435,6 +428,13 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const ahead = new Date(Date.now() + 60 * 60_000).toISOString();
 
     const response = await postEvidence(graded({ id: "api-ahead", at: ahead }), teacher.cookie);
+
+    expect(response.status).toBe(400);
+    expect(await stored(learner.id)).toEqual([]);
+  });
+
+  test("refuses an evidence ID too long to index as a bad request", async () => {
+    const response = await postEvidence(graded({ id: "x".repeat(257) }), teacher.cookie);
 
     expect(response.status).toBe(400);
     expect(await stored(learner.id)).toEqual([]);
@@ -920,7 +920,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen" }],
     });
 
-    await recordEvidence(database, learner.id, [
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "progress-failed", objectiveId: pastTense, outcome: "failure", at: recordedAt },
     ]);
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
@@ -936,7 +936,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
 
     const later = new Date(recordedAt.getTime() + 1000);
-    await recordEvidence(database, learner.id, [
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "progress-kept", objectiveId: pastTense, outcome: "success", at: later },
     ]);
     // Retrievability is read off the real clock, so only its type is pinned;

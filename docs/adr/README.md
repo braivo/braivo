@@ -19,11 +19,12 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0006: Better Auth for identity and organizations](0006-better-auth.md)
 - [0007: One learning model, replaced rather than selected](0007-one-learning-model.md)
 - [0008: Courses order objectives, and position stops at the module boundary](0008-courses-order-objectives.md)
-- [0009: Evidence is read whole, not narrowed to the decision](0009-evidence-is-read-whole.md)
+- [0009: An organization's evidence is read whole, never narrowed to the decision](0009-evidence-read-whole.md)
 - [0010: Hono for the HTTP layer, and what a route is allowed to do](0010-hono-http-layer.md)
 - [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
 - [0017: A task rests after it is answered](0017-task-rest.md)
 - [0018: One sign-in on Braivo's origin, invitations to organizations, and a learner session per learn domain](0018-sign-in-and-invitations.md)
+- [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
 
 ## Web
 

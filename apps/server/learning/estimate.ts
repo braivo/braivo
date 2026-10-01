@@ -18,7 +18,7 @@ const STABILITY_ANCHOR = 0.9;
  * evidence for several objectives, each record attributed to exactly one.
  */
 export type Evidence = {
-  /** Evidence identity: breaks timestamp ties on replay, and the unique key under which a grading result is recorded once. */
+  /** Evidence identity: breaks timestamp ties on replay, and the key under which a grading result is recorded once. */
   id: string;
   objectiveId: string;
   /** Binary, because no two graders agree on what a continuous score means. */
@@ -231,10 +231,12 @@ export function replay(
 
 /**
  * Order on `(at, id)`: timestamps collide and graders retry, so an order that
- * does not depend on arrival is what makes replay reproducible. It is total for
- * evidence whose IDs are unique, as evidence identity requires; replay does not
- * deduplicate. IDs compare by UTF-16 code unit — the fixed order `<` gives —
- * never by locale, which would reintroduce the non-determinism this removes.
+ * does not depend on arrival is what makes replay reproducible. Objectives fold
+ * independently, so it needs to be total only within one objective's records,
+ * which it is while their IDs are unique, as evidence identity requires; replay
+ * does not deduplicate. IDs compare by UTF-16 code unit — the fixed order `<`
+ * gives — never by locale, which would reintroduce the non-determinism this
+ * removes.
  */
 function byEvidenceOrder(a: Evidence, b: Evidence): number {
   if (a.at.getTime() !== b.at.getTime()) return a.at.getTime() - b.at.getTime();

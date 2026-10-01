@@ -172,6 +172,7 @@ export async function submitAttempt(input: {
   try {
     await recordAttempt(database, {
       learnerId,
+      organizationId,
       attemptId,
       taskId,
       response,

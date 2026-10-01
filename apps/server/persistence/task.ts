@@ -13,7 +13,8 @@ import type { Evidence } from "../learning/index.ts";
 type Task = { id: string; objectiveId: string; body: TaskBody };
 
 /**
- * An attempt ID this learner already used for a different task or response.
+ * An attempt ID this learner already used at the organization for a different
+ * task or response.
  * Like `ConflictingEvidence`, a client bug to surface rather than a retry to
  * absorb: the first submission's evidence already stands.
  */
@@ -174,6 +175,8 @@ export async function readCourseTask(
  * Resubmitting the same attempt — same ID, task, and response — stores nothing
  * and returns, so a client may retry after a lost answer; its evidence keeps the
  * first submission's date. The same ID with anything else is `ConflictingAttempt`.
+ * IDs are the organization's, as evidence IDs are: the same ID at another
+ * organization is another attempt.
  * Compared after the insert, inside the transaction, so two racing submissions
  * see whichever one won (see `recordEvidence`).
  *
@@ -190,6 +193,8 @@ export async function recordAttempt(
   database: Database,
   input: {
     learnerId: string;
+    /** The task's organization, where the attempt and its evidence are recorded. */
+    organizationId: string;
     attemptId: string;
     taskId: string;
     response: TaskResponse;
@@ -199,20 +204,27 @@ export async function recordAttempt(
     evidence: Omit<Evidence, "at">;
   },
 ): Promise<void> {
-  const { learnerId, attemptId, taskId, response, at, restWindowStart, evidence } = input;
+  const { learnerId, organizationId, attemptId, taskId, response, at, restWindowStart, evidence } =
+    input;
 
   await database.transaction(async (transaction) => {
     const inserted = await transaction
       .insert(attempt)
-      .values({ id: attemptId, learnerId, taskId, response, at })
-      .onConflictDoNothing({ target: [attempt.learnerId, attempt.id] })
+      .values({ id: attemptId, learnerId, organizationId, taskId, response, at })
+      .onConflictDoNothing({ target: [attempt.learnerId, attempt.organizationId, attempt.id] })
       .returning({ id: attempt.id });
 
     if (inserted.length === 0) {
       const [stored] = await transaction
         .select({ taskId: attempt.taskId, response: attempt.response })
         .from(attempt)
-        .where(and(eq(attempt.learnerId, learnerId), eq(attempt.id, attemptId)));
+        .where(
+          and(
+            eq(attempt.learnerId, learnerId),
+            eq(attempt.organizationId, organizationId),
+            eq(attempt.id, attemptId),
+          ),
+        );
       if (stored?.taskId === taskId && isDeepStrictEqual(stored.response, response)) return;
       throw new ConflictingAttempt(attemptId);
     }
@@ -239,6 +251,8 @@ export async function recordAttempt(
     // Thrown inside the transaction, so the attempt just inserted goes with it.
     if (previous) throw new RestingTask();
 
-    await transaction.insert(learnerEvidence).values({ ...evidence, learnerId, at });
+    await transaction
+      .insert(learnerEvidence)
+      .values({ ...evidence, learnerId, organizationId, at });
   });
 }
