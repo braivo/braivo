@@ -1,6 +1,6 @@
 # 0018: One sign-in on Braivo's origin, invitations to organizations, and a learner session per learn domain
 
-Status: accepted (2026-09-25), partly implemented (see Consequences).
+Status: accepted (2026-09-25), partly implemented (see Consequences)
 
 ## Context
 
@@ -34,8 +34,8 @@ Today the console signs people in with email and password at `/login` and `/sign
 
 ## Alternatives rejected
 
-- **Accounts only where there is a reason for them** (first version). Authority carried through the code and Google round trips to stop an identity that reaches nothing; and "there is no account" enumerates accounts.
-- **The account's session on operator-controlled domains, a scoped one on customer-owned** (first version). Two sign-in designs, and Better Auth reachable from learn domains.
+- **Accounts only where there is a reason for them** (replaced). Authority carried through the code and Google round trips to stop an identity that reaches nothing; and "there is no account" enumerates accounts.
+- **The account's session on operator-controlled domains, a scoped one on customer-owned** (replaced). Two sign-in designs, and Better Auth reachable from learn domains.
 - **Bootstrapping an owner by invitation.** An invitation needs an inviting member, which a new organization lacks.
 - **An invitation naming a learn domain.** It freezes a hostname that may change before acceptance.
 - **A return URL from the browser.** The handoff records the hostname from the domain mapping.

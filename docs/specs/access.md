@@ -1,6 +1,6 @@
 # Access
 
-Status: living; checked against the code on 2026-09-28.
+Status: living; checked against the code on 2026-10-01.
 
 How people sign in, and what they reach once in. Anyone may create an account, and an account alone reaches nothing: what a person may see or do in an organization follows from their membership in it and the organization roles it carries. The server decides every request from the session's user and the member record, never from what the request names.
 
@@ -18,7 +18,7 @@ How people sign in, and what they reach once in. Anyone may create an account, a
 
 ### Organizations, members, and roles
 
-- An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` calls `createOrganization`, which needs an account that has already signed up and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
+- An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` (`bun apps/server/cli/index.ts organization create …` from a checkout) calls `createOrganization`, which needs an account that has already signed up and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
 - Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md)) and refuse deleting an organization that still owns objectives or courses with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
 - A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `0001_member_uniqueness.sql` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
 - Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md)).
@@ -67,7 +67,7 @@ flowchart TD
 
 ## Invariants
 
-- A request naming an organization authorizes nothing; the actor's role there is checked on every organization route. `apps/server/api/app.test.ts`, `apps/server/application/objectives.test.ts`, `apps/server/application/tasks.test.ts`, `apps/server/application/courses.test.ts`
+- A request naming an organization authorizes nothing; the actor's role there is checked on every organization route that reads or writes anything (an empty evidence batch does neither). `apps/server/api/app.test.ts`, `apps/server/application/objectives.test.ts`, `apps/server/application/tasks.test.ts`, `apps/server/application/courses.test.ts`
 - A `member` never authors or records evidence. `apps/server/api/app.test.ts`, `apps/server/application/record-evidence.test.ts`
 - The learner is the session's user, never a value from the request. `apps/server/api/app.test.ts`
 - A learner route answers a course outside the learner's organizations as `404`, like a missing one. `apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`
@@ -101,7 +101,7 @@ flowchart TD
 - [ADR 0005](../adr/0005-postgresql-drizzle.md): hand-written migrations, like member uniqueness, are the justified exception.
 - [ADR 0006](../adr/0006-better-auth.md): Better Auth owns identity and membership; organization context is not authorization.
 - [ADR 0010](../adr/0010-hono-http-layer.md): a route resolves the session and passes user IDs to one use case.
-- [ADR 0011](../adr/0011-design-system-and-auth-packages.md): browser sign-in lives in `packages/auth-client`.
+- [ADR 0011](../adr/0011-ui-and-auth-client-packages.md): browser sign-in lives in `packages/auth-client`.
 - [ADR 0016](../adr/0016-route-files.md): `_signed-in/route.tsx` guards signed-in pages.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): email-code sign-in, invitations, learner sessions per learn domain; operator-created organizations.
 

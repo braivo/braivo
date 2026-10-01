@@ -5,7 +5,7 @@
 // the signed-in check, and where it is safe to go afterwards. Browser-side
 // only — the server's Better Auth configuration is `apps/server/auth`, which
 // needs the database. Visuals come from `@braivo/ui`.
-// See docs/adr/0011-design-system-and-auth-packages.md.
+// See docs/adr/0011-ui-and-auth-client-packages.md.
 
 export { createBrowserAuth } from "./client.ts";
 export { type EmailAuth, EmailSignIn } from "./email-sign-in.tsx";

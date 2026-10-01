@@ -114,7 +114,7 @@
 //                "lastEvidenceAt": "2026-06-01T00:00:00.000Z" },
 //              { "objectiveId": "…", "title": "…", "phase": "retaining",
 //                "lastEvidenceAt": "…", "stability": 3.2,
-//                "retrievability": 0.87, "due": false }
+//                "retrievability": 0.94, "due": false }
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
@@ -153,7 +153,9 @@
 //        built from the task and the objective alone it repeats on every
 //        attempt, and each one after the first answers this.
 //   204  recorded. Redelivering the same result is a no-op, so a retry answers
-//        the same way and writes no second row.
+//        the same way and writes no second row. An empty `evidence` records
+//        nothing and is checked no further than the session and origin, so its
+//        204 says nothing about permission to grade.
 //
 // `GET /api/organizations` — the organizations the signed-in user manages
 // (`owner` or `admin`, not `member`), by name:

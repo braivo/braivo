@@ -140,7 +140,8 @@ export type BraivoClient = {
    * Records what a learner did, on behalf of an organization. The session must
    * hold `owner` or `admin` there: grading is a content owner's act, and a
    * learner able to grade themselves would be writing the history their own
-   * estimates are rebuilt from.
+   * estimates are rebuilt from. An empty `evidence` records nothing and checks
+   * no permission.
    *
    * Redelivering a result is a no-op, so retrying after a timeout is safe. One
    * that disagrees with what its `id` already holds is a {@link BraivoError}

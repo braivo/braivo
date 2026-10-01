@@ -3,7 +3,7 @@
 
 import { defineConfig } from "vite-plus";
 
-/** What the shadcn CLI generates into `packages/ui` (ADR 0012, ADR 0013). */
+/** What the shadcn CLI generates into `packages/ui` (ADR 0011, ADR 0012). */
 const shadcnOutput = [
   "packages/ui/components/**",
   "packages/ui/hooks/**",

@@ -12,7 +12,7 @@ Canonical terms for Braivo's docs, code, API, and UI. Use each term as written h
 - **Tenant:** an isolation boundary within Braivo Cloud for a customer's data and operations. Tenant isolation is Braivo Cloud's responsibility. Not a synonym for organization: whether an organization is the tenancy boundary is undecided ([ADR 0006](adr/0006-better-auth.md)).
 - **Learn app** (`apps/learn`): the learner-facing app. White-label: on an organization's domain, such as `springo.app`, it wears that organization's brand and serves its courses alone. `demo.braivo.app` is Braivo's own deployment of it ([ADR 0004](adr/0004-one-application-origin.md)).
 - **Console** (`apps/console`): the application content owners use to manage their organization. It owns the root of the installation's origin, never an organization's domain, and addresses organizations by slug: `braivo.app/<organization>` on Braivo Cloud ([ADR 0004](adr/0004-one-application-origin.md)).
-- **Braivo Design System:** the whole of Braivo's visual language — tokens, components, their stories, and the conventions for using them. `@braivo/ui` is its React implementation and `apps/storybook` its catalog ([ADR 0013](adr/0013-ui-package-and-storybook.md)).
+- **Braivo Design System:** the whole of Braivo's visual language — tokens, components, their stories, and the conventions for using them. `@braivo/ui` is its React implementation and `apps/storybook` its catalog ([ADR 0011](adr/0011-ui-and-auth-client-packages.md)).
 
 ## People and access
 

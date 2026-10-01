@@ -8,7 +8,7 @@ import { defineConfig, loadEnv } from "vite-plus";
 
 import { braivoApi } from "../../tooling/dev-proxy.ts";
 
-/** The learner-facing app, served at the root of a Braivo installation's origin. */
+/** The learner-facing app, served at the root of an organization's own domain (ADR 0004). */
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "../..", "BRAIVO_");
 
