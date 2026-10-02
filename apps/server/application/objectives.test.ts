@@ -6,7 +6,7 @@ import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { defineObjectives, listObjectives } from "./objectives.ts";
+import { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";
 import { NotPermitted } from "./permission.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -106,6 +106,20 @@ describe.skipIf(!connectionString)("defining objectives", () => {
 
     expect(await list()).toMatchObject([{ title: "Ours" }]);
     expect(await list(author, otherOrganizationId).catch(() => "refused")).toBe("refused");
+  });
+
+  test("refuses a title or key it cannot store, naming the objective, before asking who is acting", async () => {
+    await expect(define(["Alpha", "\u0000"], learner)).rejects.toThrow(
+      new InvalidDefinition(
+        "Objective 1",
+        "has a title that is blank, over 500 characters, or carries a NUL or an unpaired surrogate, which Braivo cannot store as text",
+      ),
+    );
+    await expect(define([{ title: "Alpha", key: "Alpha" }], learner)).rejects.toThrow(
+      /^Objective 0 has a key that cannot be one/,
+    );
+
+    expect(await list()).toEqual([]);
   });
 
   test("defines nothing, and does not fail, for an empty list", async () => {

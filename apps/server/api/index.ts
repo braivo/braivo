@@ -226,9 +226,10 @@
 // is checked since that reveals nothing about the organization. Below is what
 // each answers beyond that.
 //
-// A source, task, citation, or key of the documented shape refused for what it
-// says answers 400 with `{ "error": "…" }`: which item, what is wrong, and what
-// would fix it — "Task 0 repeats option 0 as option 1; every option must differ."
+// A source, objective, course, task, or citation of the documented shape
+// refused for what it says answers 400 with `{ "error": "…" }`: which item,
+// what is wrong, and what would fix it — "Task 0 repeats option 0 as option 1;
+// every option must differ."
 // The caller is often a model drafting from a source, which can correct a
 // mistake it is told about. Anything else malformed answers a bare 400.
 //
@@ -244,7 +245,8 @@
 // and `. _ / -`, starting with a letter or digit. An objective sent again
 // under its key with the same title answers its ID, so a retry adds nothing;
 // under a key already naming another title the batch answers 409 with an
-// `error` saying which (ADR 0024). A malformed key answers 400 with an `error`.
+// `error` saying which (ADR 0024). A refused title or key answers 400 with an
+// `error` naming the objective.
 //
 // `GET /api/organizations/:organizationId/objectives` — answers
 // `{ "objectives": [{ "id": "…", "title": "…" }] }`, by title. That is a listing
@@ -295,9 +297,9 @@
 //
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,
-// the title non-blank and at most 500 characters, the objectives at most 1000
-// and each appearing once; position in that list is content order, and that
-// list is what selection chooses from. Answers 201 with
+// the objectives at most 1000; position in that list is content order, and
+// that list is what selection chooses from. A title refused as for objectives,
+// or an objective listed twice, answers 400 with an `error`. Answers 201 with
 // `{ "courseId": "…" }`, or 403 when an objective is not this organization's —
 // also the answer for one that does not exist, so neither confirms the other's.
 // An optional `key` works as for objectives: the same course again — title and

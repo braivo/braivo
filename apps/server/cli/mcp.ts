@@ -77,7 +77,7 @@ const quote = z
   .describe("The source's exact words, copied verbatim; must occur exactly once in it.");
 
 // The API's own limits, said in the schemas so an agent learns of one from the
-// tool before Braivo refuses the call with a bare 400.
+// tool's description, before it calls.
 
 /** Text a person reads, as the API stores it: not blank, no NUL, at most `max`. */
 const text = (max: number) =>

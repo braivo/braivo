@@ -154,7 +154,7 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     expect(correcting.text).toContain("Send a task with replaces alone");
   });
 
-  test("refuses a blank title, saying why, before Braivo would with a bare 400", async () => {
+  test("refuses a blank title, saying why, before calling Braivo", async () => {
     const refused = await call("define_objectives", {
       organizationId,
       objectives: [{ title: "   " }],
