@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import {
+  customType,
   foreignKey,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -16,6 +16,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { organization, user } from "./auth.ts";
+
+/**
+ * `jsonb` passed through for Bun SQL to encode and decode: Drizzle's own
+ * stringifies first, so Bun stored a JSON string. Holds objects and arrays.
+ */
+const jsonb = customType<{ data: unknown }>({ dataType: () => "jsonb" });
 
 /**
  * A stable, assessable learning target, and the unit knowledge estimates are
