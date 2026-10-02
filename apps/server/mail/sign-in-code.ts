@@ -24,7 +24,7 @@ export function signInCodeMail(input: { to: string; code: string; minutes: numbe
       <p style="margin:0 0 16px;font-size:16px;line-height:24px">Enter this code to sign in:</p>
       <p style="margin:0 0 16px;font-size:36px;font-weight:600;letter-spacing:0.25em;font-family:Menlo,Consolas,monospace">${code}</p>
       <p style="margin:0 0 16px;font-size:14px;line-height:20px;color:#525f7f">${expiry}</p>
-      <p style="margin:0;font-size:14px;line-height:20px;color:#8898aa">${ignore}</p>
+      <p style="margin:0;font-size:14px;line-height:20px;color:#525f7f">${ignore}</p>
     </div>
   </body>
 </html>`,
