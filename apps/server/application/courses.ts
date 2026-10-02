@@ -3,7 +3,6 @@
 
 import type { Database } from "@braivo/db";
 
-import { isKey } from "../content/index.ts";
 import {
   type AuthoredTask,
   type CitedPassage,
@@ -21,7 +20,7 @@ import {
   type SourceSummary,
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
-import { InvalidKey } from "./objectives.ts";
+import { checkNames, InvalidDefinition } from "./objectives.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
@@ -46,14 +45,23 @@ export async function defineCourse(input: {
    */
   key?: string;
 }): Promise<string> {
-  const { database, organizationId, actingAs, title, objectiveIds, key } = input;
+  const { database, organizationId, actingAs, objectiveIds, key } = input;
 
-  // A course orders each objective once; a repeat would reach the database as a
-  // constraint violation. Checked first, since it depends only on what was sent.
-  if (new Set(objectiveIds).size !== objectiveIds.length) {
-    throw new RangeError("A course lists each objective at most once.");
+  // Checked first, since it depends only on what was sent.
+  const title = checkNames("The course", input);
+  // Position orders an objective, so two would contradict; the database would
+  // refuse the second as a constraint violation, a 500.
+  const positions = new Map<string, number>();
+  for (const [index, id] of objectiveIds.entries()) {
+    const first = positions.get(id);
+    if (first !== undefined) {
+      throw new InvalidDefinition(
+        "The course",
+        `lists objective ${first} again as objective ${index}; a course lists each objective once`,
+      );
+    }
+    positions.set(id, index);
   }
-  if (key !== undefined && !isKey(key)) throw new InvalidKey("The course");
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 

@@ -930,22 +930,40 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(response.status).toBe(403);
   });
 
+  const refusedTitle =
+    "has a title that is blank, over 500 characters, or carries a NUL or an unpaired surrogate, which Braivo cannot store as text.";
+
   test.each([
-    ["no title", { objectiveIds: [] }],
-    ["a blank title", { title: "  ", objectiveIds: [] }],
-    ["a title carrying a NUL", { title: "Course\u0000", objectiveIds: [] }],
-    ["a title past 500 characters", { title: "C".repeat(501), objectiveIds: [] }],
-    ["no objectiveIds", { title: "Course" }],
-    ["a duplicated objective", { title: "Course", objectiveIds: ["a", "a"] }],
-    ["an empty objective id", { title: "Course", objectiveIds: [""] }],
-  ])("rejects a course with %s", async (_label, body) => {
+    ["no title", { objectiveIds: [] }, undefined],
+    ["a blank title", { title: "  ", objectiveIds: [] }, `The course ${refusedTitle}`],
+    [
+      "a title carrying a NUL",
+      { title: "Course\u0000", objectiveIds: [] },
+      `The course ${refusedTitle}`,
+    ],
+    [
+      "a title past 500 characters",
+      { title: "C".repeat(501), objectiveIds: [] },
+      `The course ${refusedTitle}`,
+    ],
+    ["no objectiveIds", { title: "Course" }, undefined],
+    [
+      "a duplicated objective",
+      { title: "Course", objectiveIds: ["a", "b", "a"] },
+      "The course lists objective 0 again as objective 2; a course lists each objective once.",
+    ],
+    ["an empty objective id", { title: "Course", objectiveIds: [""] }, undefined],
+  ])("rejects a course with %s", async (_label, body, error) => {
+    // A learner's cookie: what was sent is refused before who sent it is read.
     const response = await api.request(`/api/organizations/${organizationId}/courses`, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: teacher.cookie },
+      headers: { "content-type": "application/json", cookie: learner.cookie },
       body: JSON.stringify(body),
     });
 
     expect(response.status).toBe(400);
+    // Explained when it is what was said; a body not of the shape is bare.
+    expect(await response.text()).toBe(error === undefined ? "" : JSON.stringify({ error }));
   });
 
   test("refuses a learner creating or listing courses", async () => {
@@ -1011,22 +1029,31 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test.each([
-    ["objectives missing", {}],
-    ["objectives not an array", { objectives: "Conditional" }],
-    ["a bare title", { objectives: ["Conditional"] }],
-    ["a blank title", { objectives: [{ title: "   " }] }],
-    ["a title with an unpaired surrogate", { objectives: [{ title: "Past \ud800" }] }],
-    ["a title past 500 characters", { objectives: [{ title: "P".repeat(501) }] }],
-    ["a title that is not a string", { objectives: [{ title: 7 }] }],
-    ["a key that is not a string", { objectives: [{ title: "Conditional", key: 7 }] }],
-  ])("rejects a definition with %s", async (_label, body) => {
+    ["objectives missing", {}, undefined],
+    ["objectives not an array", { objectives: "Conditional" }, undefined],
+    ["a bare title", { objectives: ["Conditional"] }, undefined],
+    ["a blank title", { objectives: [{ title: "   " }] }, `Objective 0 ${refusedTitle}`],
+    [
+      "a title with an unpaired surrogate",
+      { objectives: [{ title: "Present" }, { title: "Past \ud800" }] },
+      `Objective 1 ${refusedTitle}`,
+    ],
+    [
+      "a title past 500 characters",
+      { objectives: [{ title: "P".repeat(501) }] },
+      `Objective 0 ${refusedTitle}`,
+    ],
+    ["a title that is not a string", { objectives: [{ title: 7 }] }, undefined],
+    ["a key that is not a string", { objectives: [{ title: "Conditional", key: 7 }] }, undefined],
+  ])("rejects a definition with %s", async (_label, body, error) => {
     const response = await api.request(`/api/organizations/${organizationId}/objectives`, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: teacher.cookie },
+      headers: { "content-type": "application/json", cookie: learner.cookie },
       body: JSON.stringify(body),
     });
 
     expect(response.status).toBe(400);
+    expect(await response.text()).toBe(error === undefined ? "" : JSON.stringify({ error }));
   });
 
   test("returns a keyed objective or course again, and explains a key that names another", async () => {

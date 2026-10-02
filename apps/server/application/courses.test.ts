@@ -10,6 +10,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createObjectives, readCourseObjectives } from "../persistence/index.ts";
 import { defineCourse, listCourses } from "./courses.ts";
+import { InvalidDefinition } from "./objectives.ts";
 import { NotPermitted } from "./permission.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -103,7 +104,22 @@ describe.skipIf(!connectionString)("defining courses", () => {
   });
 
   test("refuses an objective listed twice, before asking who is acting", async () => {
-    await expect(define([alpha, bravo, alpha], learner)).rejects.toBeInstanceOf(RangeError);
+    await expect(define([alpha, bravo, alpha], learner)).rejects.toThrow(
+      new InvalidDefinition(
+        "The course",
+        "lists objective 0 again as objective 2; a course lists each objective once",
+      ),
+    );
+  });
+
+  test("refuses a blank title, before asking who is acting, and trims a title", async () => {
+    await expect(define([alpha], learner, " \n ")).rejects.toBeInstanceOf(InvalidDefinition);
+
+    const courseId = await define([alpha], author, "  Trimmed  ");
+    expect(await listCourses({ database, organizationId, actingAs: author })).toContainEqual({
+      id: courseId,
+      title: "Trimmed",
+    });
   });
 
   test("refuses an objective that does not exist", async () => {

@@ -281,7 +281,9 @@ export type BraivoClient = {
    * `key` is the caller's own name for one, unique within the organization:
    * sent again with the same title it resolves to the same ID, so a retry adds
    * nothing, and with another title it is a {@link BraivoError} with status 409
-   * whose `reason` says so. 403 unless the session administers the organization.
+   * whose `reason` says so. A title or key Braivo will not store is a 400 whose
+   * `reason` names the objective. 403 unless the session administers the
+   * organization.
    */
   defineObjectives(
     input: { organizationId: string; objectives: readonly { title: string; key?: string }[] },
@@ -395,7 +397,9 @@ export type BraivoClient = {
    * Creates a course over existing objectives, in the order learners meet them,
    * and resolves to its ID. With a `key`, sending the same course again —
    * title and objectives in the same order — resolves to the same ID, and
-   * sending another under it is a {@link BraivoError} with status 409.
+   * sending another under it is a {@link BraivoError} with status 409. A title
+   * or key Braivo will not store, or an objective listed twice, is a 400 whose
+   * `reason` says which.
    */
   defineCourse(
     input: {

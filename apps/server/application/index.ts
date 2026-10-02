@@ -26,7 +26,7 @@ export type { LearnerProgress, LearnerProgressReport } from "./learner-progress.
 export { readLearnerProgress } from "./learner-progress.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";
-export { defineObjectives, InvalidKey, listObjectives } from "./objectives.ts";
+export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";
 export { listManagedOrganizations, listMembers } from "./organizations.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";

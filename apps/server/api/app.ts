@@ -26,7 +26,7 @@ import {
   InvalidAiRequest,
   InvalidEvidence,
   InvalidFile,
-  InvalidKey,
+  InvalidDefinition,
   InvalidSource,
   InvalidTask,
   listCourses,
@@ -54,7 +54,6 @@ import {
   uploadFile,
 } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
-import { isStorableText, MAX_TITLE } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import type { FileStore } from "../storage/index.ts";
 
@@ -160,9 +159,7 @@ export type ApiOptions = {
 
 /**
  * Reads objectives out of a request body: each a title and, optionally, the
- * caller's key. Blank titles, and those past `MAX_TITLE`, are refused rather
- * than stored: an objective nobody can recognise is worse than none, and the
- * ID that names it is opaque by design. What a key may be is the use case's rule.
+ * caller's key. Only the types: what each may be is the use case's rule.
  */
 function parseObjectives(body: unknown): { title: string; key?: string }[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
@@ -179,21 +176,17 @@ function parseObjectives(body: unknown): { title: string; key?: string }[] | und
     if (typeof title !== "string") return undefined;
     if (key !== undefined && typeof key !== "string") return undefined;
 
-    if (!isStorableText(title, MAX_TITLE)) return undefined;
-    const trimmed = title.trim();
-
-    parsed.push(key === undefined ? { title: trimmed } : { title: trimmed, key });
+    parsed.push(key === undefined ? { title } : { title, key });
   }
   return parsed;
 }
 
 /**
- * The refusals of defining an objective or a course. A malformed or
- * conflicting key is explained, since the caller is often an agent that chose
- * it.
+ * The refusals of defining an objective or a course, explained but for 403,
+ * since the caller is often an agent that can fix what it sent.
  */
-function keyRefusal(context: Context, error: unknown): Response {
-  if (error instanceof InvalidKey) return context.json({ error: error.message }, 400);
+function definitionRefusal(context: Context, error: unknown): Response {
+  if (error instanceof InvalidDefinition) return context.json({ error: error.message }, 400);
   if (error instanceof ConflictingKey) return context.json({ error: error.message }, 409);
   if (error instanceof NotPermitted) return context.body(null, 403);
   throw error;
@@ -233,14 +226,7 @@ const MAX_ITEMS_PER_REQUEST = 1000;
  */
 const MAX_QUOTES_PER_REQUEST = 200;
 
-/**
- * Reads a course out of a request body.
- *
- * Duplicate objectives are refused here rather than left to the database, which
- * would reject the second membership row as a constraint violation — a 500 for
- * what is plainly a malformed request. An objective belongs to a course at most
- * once, because position is what orders it and two positions would contradict.
- */
+/** Reads a course out of a request body: only the types, as for objectives. */
 function parseCourse(
   body: unknown,
 ): { title: string; objectiveIds: string[]; key?: string } | undefined {
@@ -250,9 +236,6 @@ function parseCourse(
   if (typeof title !== "string") return undefined;
   if (key !== undefined && typeof key !== "string") return undefined;
 
-  if (!isStorableText(title, MAX_TITLE)) return undefined;
-  const trimmed = title.trim();
-
   if (!Array.isArray(objectiveIds)) return undefined;
   if (objectiveIds.length > MAX_ITEMS_PER_REQUEST) return undefined;
 
@@ -261,11 +244,8 @@ function parseCourse(
     if (typeof id !== "string" || id === "") return undefined;
     ids.push(id);
   }
-  if (new Set(ids).size !== ids.length) return undefined;
 
-  return key === undefined
-    ? { title: trimmed, objectiveIds: ids }
-    : { title: trimmed, objectiveIds: ids, key };
+  return key === undefined ? { title, objectiveIds: ids } : { title, objectiveIds: ids, key };
 }
 
 /**
@@ -882,7 +862,7 @@ export function createApi(options: ApiOptions) {
 
         return context.json({ objectiveIds }, 201);
       } catch (error) {
-        return keyRefusal(context, error);
+        return definitionRefusal(context, error);
       }
     },
   );
@@ -991,7 +971,7 @@ export function createApi(options: ApiOptions) {
 
         return context.json({ courseId }, 201);
       } catch (error) {
-        return keyRefusal(context, error);
+        return definitionRefusal(context, error);
       }
     },
   );

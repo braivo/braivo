@@ -3,16 +3,41 @@
 
 import type { Database } from "@braivo/db";
 
-import { isKey, KEY_RULE } from "../content/index.ts";
+import { isKey, isStorableText, KEY_RULE, MAX_TITLE } from "../content/index.ts";
 import { createObjectives, type Objective, readObjectives } from "../persistence/index.ts";
 import { assertMayAdminister } from "./permission.ts";
 
-/** A key that is not one, named by where it was sent: "Objective 1", "The course". */
-export class InvalidKey extends Error {
-  constructor(what: string) {
-    super(`${what} has a key that cannot be one: ${KEY_RULE}.`);
-    this.name = "InvalidKey";
+/**
+ * An objective or a course Braivo will not store, named by where it was sent
+ * ("Objective 1", "The course") with what would fix it: the caller is often a
+ * model, which can correct a mistake it is told about (ADR 0021).
+ */
+export class InvalidDefinition extends Error {
+  constructor(subject: string, problem: string) {
+    super(`${subject} ${problem}.`);
+    this.name = "InvalidDefinition";
   }
+}
+
+/**
+ * Checks an objective's or a course's title and key, answering the title
+ * trimmed. An unrecognisable title is refused, since the ID is opaque by
+ * design. The refusal never echoes what was sent, which may be long.
+ */
+export function checkNames(
+  subject: string,
+  { title, key }: { title: string; key?: string },
+): string {
+  if (!isStorableText(title, MAX_TITLE)) {
+    throw new InvalidDefinition(
+      subject,
+      `has a title that is blank, over ${MAX_TITLE} characters, or carries a NUL or an unpaired surrogate, which Braivo cannot store as text`,
+    );
+  }
+  if (key !== undefined && !isKey(key)) {
+    throw new InvalidDefinition(subject, `has a key that cannot be one: ${KEY_RULE}`);
+  }
+  return title.trim();
 }
 
 /**
@@ -35,13 +60,14 @@ export async function defineObjectives(input: {
   const { database, organizationId, actingAs, objectives } = input;
 
   // Checked first, since it depends only on what was sent.
-  for (const [index, { key }] of objectives.entries()) {
-    if (key !== undefined && !isKey(key)) throw new InvalidKey(`Objective ${index}`);
-  }
+  const checked = objectives.map((objective, index) => ({
+    ...objective,
+    title: checkNames(`Objective ${index}`, objective),
+  }));
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
-  return createObjectives(database, organizationId, objectives);
+  return createObjectives(database, organizationId, checked);
 }
 
 /**
