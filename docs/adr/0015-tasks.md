@@ -14,7 +14,7 @@ Closing that loop needs content a learner answers, a record of the answer, a gra
 - **Tasks are immutable.** Correcting one means creating another. An attempt references its task instead of copying it, which is sound only because the task cannot change under it.
 - **Braivo grades.** The learner posts a response to `POST /api/courses/:courseId/attempts`; the server grades it and writes the attempt and its evidence in one transaction. A learner may submit for themselves because they choose the answer, never the outcome. That is the whole guarantee: submissions are not bound to a served task, and a learner may answer again under a new ID. Enough for practice; assessment would need a server-issued binding, mechanism undecided. The administrator-only evidence endpoint remains for integrators who grade elsewhere.
 - **The client names the attempt.** Its ID is unique per learner within the organization, so a retry after a lost answer is recognised and recorded once, and two organizations' apps never collide ([ADR 0032](0032-learner-history.md)); the same ID with another task or response is a conflict. Evidence IDs are `attempt:<attemptId>:<objectiveId>`, one per objective an attempt assesses.
-- **Content availability is eligibility.** `GET /api/courses/:courseId/activity` offers `learning` only objectives that have a task, then picks the objective's least recently attempted task. `GET …/next` stays the pure decision, for integrators who bring their own tasks.
+- **Content availability is eligibility.** `GET /api/courses/:courseId/activity` offers `learning` the objectives that have a task, then picks the objective's least recently attempted task. Only when none of them is selectable does it decide among those without, answering without a task (no activity), so the learner learns what holds them up rather than that they are caught up. Whether one that outside evidence made acquiring should instead hold back later material is open (learner-loop spec, Gaps). `GET …/next` stays the pure decision, for integrators who bring their own tasks.
 - **The grade is recomputed, not stored.** Grading `choice` is a function of an immutable task and the stored response, and the outcome is in the evidence.
 
 ## Consequences
@@ -23,4 +23,8 @@ Closing that loop needs content a learner answers, a record of the answer, a gra
 - A replaced task must stop being offered while its attempts keep pointing at it, so it is retired rather than deleted: `task.retired_at`, set through `POST …/tasks/retire`. Evidence it already graded stands; correcting that is a separate decision, not taken.
 - AI-graded kinds break the "recompute the grade" rule, since a model's verdict is not reproducible. They will store the grade and its provenance (model, prompt version) on the attempt when they arrive, and must grade once per attempt: today every retry grades before the insert decides which one wins, which is free for `choice` but not for a model call.
 - A task serves every course its objective is in, since courses order objectives rather than own them ([ADR 0008](0008-courses-order-objectives.md)). Whether a task derived from one source applies wherever its objective does belongs to the source-linking and authoring design, not here.
-- A course whose objectives have no tasks answers the activity route with 204 (`no-activity`), as for a caught-up learner: nothing to practise now.
+- The activity route's 204 means caught up, as on `…/next`.
+
+## Alternatives rejected
+
+- **(replaced) 204 for no activity, whether caught up or held up by a missing task.** A learner could not tell whether to come back later, and the learn app could only say "nothing to practise", never "caught up".

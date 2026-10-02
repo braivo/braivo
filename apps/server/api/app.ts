@@ -646,8 +646,10 @@ export function createApi(options: ApiOptions) {
     switch (next.kind) {
       case "unavailable":
         return context.body(null, 404);
-      case "no-activity":
+      case "caught-up":
         return context.body(null, 204);
+      case "no-activity":
+        return context.json({ decision: next.decision, objective: next.objective });
       case "resting":
         return context.json({
           objective: next.objective,

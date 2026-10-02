@@ -11,6 +11,7 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
+import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
@@ -228,7 +229,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
-  test("reads nothing to practise as undefined rather than as an error", async () => {
+  test("reads a learner caught up as undefined rather than as an error", async () => {
     const activity = await client.nextActivity(emptyCourseId, {
       headers: { cookie: learnerCookie },
     });
@@ -236,7 +237,25 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(activity).toBeUndefined();
   });
 
-  test("reads a course the learner cannot see as a 404, not as nothing to practise", async () => {
+  test("reads an objective with nothing to practise as the decision without a task", async () => {
+    const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
+    const untaughtCourseId = await createCourse(database, {
+      organizationId,
+      title: "Untaught",
+      objectiveIds: [untaught!],
+    });
+
+    const activity = await client.nextActivity(untaughtCourseId, {
+      headers: { cookie: learnerCookie },
+    });
+
+    expect(activity).toEqual({
+      decision: { objectiveId: untaught, modelVersion: activeModel.version, intent: "introduce" },
+      objective: { id: untaught, title: "Untaught" },
+    });
+  });
+
+  test("reads a course the learner cannot see as a 404, not as caught up", async () => {
     // The two used to be one answer, and a client holding a stale course ID
     // would have told its learner, indefinitely, that there was nothing to do.
     const rejected = await client

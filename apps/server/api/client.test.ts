@@ -62,13 +62,13 @@ describe("the Braivo client", () => {
     expect(await client.nextActivity("course-1")).toEqual(activity);
   });
 
-  test("reports nothing to practise as undefined rather than an error", async () => {
+  test("reports a learner caught up as undefined rather than an error", async () => {
     const { client } = clientFor(new Response(null, { status: 204 }));
 
     expect(await client.nextActivity("course-1")).toBeUndefined();
   });
 
-  test("throws for a course the learner cannot see, rather than reading it as nothing to practise", async () => {
+  test("throws for a course the learner cannot see, rather than reading it as caught up", async () => {
     // 404 is how Braivo answers both a missing course and somebody else's, and
     // neither is "nothing to do": a client that read it that way would tell a
     // learner holding a stale course ID to come back later, forever.

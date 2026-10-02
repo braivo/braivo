@@ -138,8 +138,9 @@ describe.skipIf(!connectionString)("tasks", () => {
     expect((refused as InvalidTask).index).toBe(1);
     expect(
       await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
-    ).toEqual({
+    ).toMatchObject({
       kind: "no-activity",
+      objective: { id: objective },
     });
   });
 
@@ -203,8 +204,9 @@ describe.skipIf(!connectionString)("tasks", () => {
     expect(await readObjectivesWithTasks(database, [objective])).toEqual(new Set());
     expect(
       await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
-    ).toEqual({
+    ).toMatchObject({
       kind: "no-activity",
+      objective: { id: objective },
     });
   });
 
@@ -292,8 +294,9 @@ describe.skipIf(!connectionString)("tasks", () => {
     // No task either: one stored without its citations could never be given them.
     expect(
       await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
-    ).toEqual({
+    ).toMatchObject({
       kind: "no-activity",
+      objective: { id: objective },
     });
   });
 
@@ -330,8 +333,9 @@ describe.skipIf(!connectionString)("tasks", () => {
     ).rejects.toBeInstanceOf(NotPermitted);
     expect(
       await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
-    ).toEqual({
+    ).toMatchObject({
       kind: "no-activity",
+      objective: { id: objective },
     });
   });
 

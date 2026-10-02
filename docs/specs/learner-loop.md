@@ -12,13 +12,13 @@ Every course route below is limited by the host ceiling ([white-label.md](white-
 | --------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/courses`                                  | the session's learner | 200 `{ courses: [{ id, title }] }`: every course of every organization they are a member of, by title, only one organization's on its domain; 401 |
 | `GET /api/courses/:id/next`                         | the session's learner | 200 learning decision; 204 caught up; 404 missing or not theirs; 401                                                                              |
-| `GET /api/courses/:id/activity`                     | the session's learner | 200 `{ decision, objective, task }` or `{ objective, retryAfter }`; 204 no activity; 404; 401                                                     |
+| `GET /api/courses/:id/activity`                     | the session's learner | 200 `{ decision, objective, task }`, `{ decision, objective }` (no activity), or `{ objective, retryAfter }`; 204 caught up; 404; 401             |
 | `POST /api/courses/:id/attempts`                    | the session's learner | 200 grade; 400; 401; 403 forgeable; 404, also a retired task; 409 conflict or resting; 413                                                        |
 | `POST /api/organizations/:id/learners/:id/evidence` | a content owner       | 204 recorded; 400; 401; 403; 409 conflicting; 413                                                                                                 |
 
 Statuses and shapes in full: `apps/server/api/index.ts`. The learner is always the session's user on the course routes; nothing in the request names one.
 
-**Deciding.** On each read, the learner's evidence at the course's organization up to `now` is replayed under the active model, and `selectNext` chooses from the course's objectives in content order ([learning-model.md](learning-model.md)). `/next` is that bare decision, for integrators with their own tasks. `/activity` first drops objectives with no task, so 204 there means no activity, not caught up.
+**Deciding.** On each read, the learner's evidence at the course's organization up to `now` is replayed under the active model, and `selectNext` chooses from the course's objectives in content order ([learning-model.md](learning-model.md)). `/next` is that bare decision, for integrators with their own tasks. `/activity` decides among objectives with a task first, and among those without only when none of those is selectable, answering that decision without a task (no activity); 204 is caught up, as on `/next`.
 
 **Choosing the task.** Retired tasks are never offered ([authoring](authoring.md)). For the decided objective, the task this learner answered least recently: never-answered first, then oldest created, then ID.
 
@@ -38,7 +38,7 @@ The grade is `{ outcome, correctChoice, explanation?, passages? }`, recomputed f
 
 **Evidence graded elsewhere.** An `owner` or `admin` posts up to 1000 records for a member. Each `at` must be exactly `toISOString` output and at most five minutes ahead; IDs are at most 256 characters, and those starting `attempt:` are reserved; every objective must be the organization's. The batch is all or nothing: resending a stored result is a no-op, a different result under an ID the organization already stored for the learner is 409. Another organization's IDs are its own and never collide. It enters the same replay, but creates no attempt, so it neither rests a task nor reseeds a shuffle. Only a session can post it.
 
-**The learn app.** `/` lists the courses, or "No courses yet". `/courses/$courseId` loads the activity and mints one attempt ID per activity shown; above it, a summary of where the learner stands ([progress](progress.md)). It renders one of:
+**The learn app.** `/` lists the courses, or "No courses yet"; a failed load offers Try again. `/courses/$courseId` loads the activity and mints one attempt ID per activity shown; above it, a link back to the list, the course's title from that list, and a summary of where the learner stands ([progress](progress.md)), the last two left out when they fail to load. It renders one of:
 
 | State                            | Shows                                                                                                                                                       | Next                                                          |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -48,9 +48,10 @@ The grade is `{ outcome, correctChoice, explanation?, passages? }`, recomputed f
 | Refused (400, 403, 413)          | "Something went wrong."                                                                                                                                     | nothing; the same answer would be refused again               |
 | 401, 404, 409 on an attempt      | —                                                                                                                                                           | reloads: to sign-in, not found, or the rest                   |
 | Resting                          | the objective and the local time practice resumes                                                                                                           | reloads itself after `retryAfter`                             |
-| No activity                      | "Nothing to practise right now"                                                                                                                             | nothing                                                       |
-| 404                              | "This course does not exist, or is not one of yours."                                                                                                       | nothing                                                       |
-| Load failed                      | "Something went wrong."                                                                                                                                     | Try again                                                     |
+| Caught up                        | "You're caught up", nothing due right now                                                                                                                   | nothing                                                       |
+| No activity                      | "Nothing to practise right now", naming the objective that comes next without a task                                                                        | nothing                                                       |
+| 404                              | "This course does not exist, or is not one of yours."                                                                                                       | back to the course list                                       |
+| Load failed                      | "Something went wrong."                                                                                                                                     | Try again, or back to the course list                         |
 
 ```mermaid
 sequenceDiagram
@@ -63,12 +64,21 @@ sequenceDiagram
   A->>U: chooseNextActivity(session user, course, host, now)
   U->>P: course organization, membership, objectives, evidence ≤ now
   U->>M: replay, then selectNext over objectives with a task
-  U->>P: least recently answered task
-  alt answered within ten minutes
-    A-->>L: 200 { objective, retryAfter }
+  alt none selected
+    U->>M: selectNext over objectives without a task
+    alt one selected
+      A-->>L: 200 { decision, objective } (no activity)
+    else
+      A-->>L: 204 caught up
+    end
   else
-    U->>M: presentTask(body, seed)
-    A-->>L: 200 { decision, objective, task }
+    U->>P: least recently answered task
+    alt answered within ten minutes
+      A-->>L: 200 { objective, retryAfter }
+    else
+      U->>M: presentTask(body, seed)
+      A-->>L: 200 { decision, objective, task }
+    end
   end
   L->>A: POST /api/courses/:id/attempts { id, taskId, response }
   A->>U: submitAttempt
@@ -88,10 +98,10 @@ sequenceDiagram
 - One attempt ID at an organization yields at most one attempt and one evidence record; a resend answers the same grade, a different task or response is 409 (`apps/server/application/activity.test.ts`, `apps/server/api/app.test.ts`).
 - A new answer to a task within ten minutes of the learner's last accepted one is refused and records nothing; a resend is not; another learner is unaffected (`apps/server/application/activity.test.ts`, `apps/server/api/client.contract.test.ts`).
 - While every task of the decided objective rests, `/activity` waits instead of offering another objective (`apps/server/application/activity.test.ts`).
-- `/activity` considers only objectives with a task (`apps/server/application/activity.test.ts`).
+- `/activity` decides on an objective without a task only when none with a task needs attention, and is caught up only when no objective does (`apps/server/application/activity.test.ts`).
 - A retired task is never offered and accepts no new attempt (`apps/server/application/tasks.test.ts`).
 - Option order depends only on learner, task, and last attempt; `keepOrder` keeps the authored order (`apps/server/application/activity.test.ts`, `apps/server/content/task.test.ts`).
-- No activity is never presented as caught up (`apps/server/api/client.test.ts`, `apps/learn/routes.test.tsx`).
+- No activity (glossary) is never presented as caught up (`apps/server/api/app.test.ts`, `apps/learn/routes.test.tsx`).
 - Evidence dated after `now` does not reach a decision (`apps/server/application/next-objective.test.ts`, `apps/server/application/learner-in-course.test.ts`).
 - An evidence batch is stored whole or not at all; redelivery is a no-op, a conflicting result is 409 (`apps/server/persistence/evidence.test.ts`, `apps/server/application/record-evidence.test.ts`, `apps/server/api/app.test.ts`).
 - A learner may study at several organizations at once: each records attempts and evidence only about its own tasks and objectives, under IDs of its own, and decides from its own evidence alone, so one organization's IDs never refuse or reveal another's; reports stay apart too (progress-10) (`apps/server/persistence/evidence.test.ts`, `apps/server/application/activity.test.ts`, `apps/server/application/learner-progress.test.ts`).
@@ -132,9 +142,7 @@ sequenceDiagram
 | Gap                                                                                                                                    | Impact                                                                                    | Next step                                                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `/activity` drops objectives without a task before selection, so one `acquiring` from outside evidence no longer holds back later ones | Content order silently stops sequencing new material (untested)                           | Decide whether such an objective blocks or is skipped; pin it in `activity.test.ts` |
-| No activity is a dead end: no retry, no reason, and a due objective without a task looks the same as caught up                         | Learner cannot tell whether to come back; nobody is told a task is missing                | Tell content owners which objectives lack tasks; auto-retry or explain in the app   |
-| Course page shows no course title and no link back to the list                                                                         | Learner navigates only by browser back                                                    | Return the title with the activity or load it; add a back link                      |
-| Course list load failure falls to the root error, with no retry button                                                                 | A transient failure strands the learner (untested)                                        | Give `/` an error component with Try again, as the course page has                  |
+| Nobody tells content owners that an objective learners need has no task                                                                | Learners wait on it until someone notices                                                 | Flag objectives without tasks in the console                                        |
 | Two new attempts on one task at the same moment can both be recorded (ADR 0017)                                                        | Rest bypassable by racing requests (untested)                                             | Lock per learner and task if it is seen                                             |
 | Attempts are not bound to a served activity: any course task outside its rest may be answered                                          | Fine for practice, not for assessment (ADR 0015)                                          | Server-issued binding when assessment is needed                                     |
 | Every read replays the learner's whole history at the organization                                                                     | Cost grows without bound per learner (ADR 0009)                                           | Cache estimates once measured to matter                                             |
