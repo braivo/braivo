@@ -96,6 +96,13 @@ function progress(courseId: string, learnerId: string, cookie?: string) {
   );
 }
 
+function courseProgress(courseId: string, cookie?: string) {
+  return api.request(
+    `/api/courses/${courseId}/progress`,
+    cookie ? { headers: { cookie } } : undefined,
+  );
+}
+
 function postEvidence(
   body: unknown,
   cookie?: string,
@@ -562,6 +569,19 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const on = (origin: string) =>
       api.request(`${origin}/api/courses/${courseId}/next`, {
         headers: { cookie: learner.cookie },
+      });
+
+    expect((await on(organizationOrigin)).status).toBe(200);
+    expect((await on(baseUrl)).status).toBe(200);
+    expect((await on(otherOrganizationOrigin)).status).toBe(404);
+    expect((await on("https://api-test-unknown.example.com")).status).toBe(404);
+  });
+
+  test("answers a course's overview on the same hosts only", async () => {
+    // It lists the organization's members, so a host it leaks to learns who they are.
+    const on = (origin: string) =>
+      api.request(`${origin}/api/courses/${courseId}/progress`, {
+        headers: { cookie: teacher.cookie },
       });
 
     expect((await on(organizationOrigin)).status).toBe(200);
@@ -1137,6 +1157,41 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
     expect([answered.status, refused.status, anonymous.status]).toEqual([200, 404, 401]);
     for (const response of [answered, refused, anonymous]) {
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+  });
+
+  test("shows a content owner each learner's standings in a course, in the documented shape", async () => {
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      { id: "overview-failed", objectiveId: pastTense, outcome: "failure", at: recordedAt },
+    ]);
+
+    const response = await courseProgress(courseId, teacher.cookie);
+    expect(response.status).toBe(200);
+    // Exact at the top, so no field joins unnoticed; other tests add members.
+    expect(await response.json()).toEqual({
+      modelVersion: activeModel.version,
+      learners: expect.arrayContaining([
+        {
+          userId: learner.id,
+          name: expect.any(String),
+          roles: ["member"],
+          standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
+        },
+      ]),
+    });
+  });
+
+  test("shows a course's progress to its organization's administrators only, uncacheable", async () => {
+    const answered = await courseProgress(courseId, teacher.cookie);
+    const learners = await courseProgress(courseId, learner.cookie);
+    const anonymous = await courseProgress(courseId);
+    const unknown = await courseProgress("no-such-course", teacher.cookie);
+    const foreign = await courseProgress(foreignCourseId, teacher.cookie);
+
+    expect([answered, learners, anonymous].map(({ status }) => status)).toEqual([200, 404, 401]);
+    expect([foreign.status, await foreign.text()]).toEqual([unknown.status, await unknown.text()]);
+    for (const response of [answered, learners, anonymous, unknown]) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
   });

@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type AuthoredCourse, BraivoError } from "@braivo/server/client";
+import {
+  type AuthoredCourse,
+  BraivoError,
+  type CourseProgressOverview,
+} from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -24,6 +28,14 @@ import {
 } from "@braivo/ui/components/alert-dialog";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@braivo/ui/components/table";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -39,23 +51,23 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
         { signal: abortController.signal },
       ),
     );
-    const members = await orNotFound(
-      context.braivo.listMembers(organizationId, { signal: abortController.signal }),
+    const progress = await orNotFound(
+      context.braivo.courseProgress(params.courseId, { signal: abortController.signal }),
     );
 
-    return { course, members };
+    return { course, progress };
   },
   component: Course,
   notFoundComponent: () => <p>This course does not exist, or you do not manage it.</p>,
 });
 
 function Course() {
-  const { course, members } = Route.useLoaderData();
-  const { organizationSlug, courseId } = Route.useParams();
+  const { course, progress } = Route.useLoaderData();
 
   return (
     <>
       <Heading>{course.title}</Heading>
+      <Learners learners={progress.learners} />
       <section aria-labelledby="teaches" className="flex flex-col gap-6">
         <Heading level={2} id="teaches">
           What it teaches
@@ -65,26 +77,58 @@ function Course() {
           <Objective key={objective.id} objective={objective} place={index + 1} course={course} />
         ))}
       </section>
-      <Heading level={2}>Members</Heading>
-      <ul className="list-disc pl-6">
-        {members.map((member) => (
-          <li key={member.userId}>
-            <Link
-              to="/$organizationSlug/courses/$courseId/learners/$learnerId"
-              params={{ organizationSlug, courseId, learnerId: member.userId }}
-              className="underline"
-            >
-              {member.name}
-            </Link>
-            {member.roles.map((role) => (
-              <Badge key={role} variant="secondary" className="ml-2">
-                {role}
-              </Badge>
-            ))}
-          </li>
-        ))}
-      </ul>
     </>
+  );
+}
+
+/**
+ * Every member, as each is enrolled (ADR 0018), with their objectives counted
+ * by standing, labelled as the learner's own report labels them.
+ */
+function Learners({ learners }: { learners: CourseProgressOverview["learners"] }) {
+  const { organizationSlug, courseId } = Route.useParams();
+
+  return (
+    <section aria-labelledby="learners" className="flex flex-col gap-3">
+      <Heading level={2} id="learners">
+        Learners
+      </Heading>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Learner</TableHead>
+            <TableHead className="text-right">Not started</TableHead>
+            <TableHead className="text-right">Learning</TableHead>
+            <TableHead className="text-right">Retained</TableHead>
+            <TableHead className="text-right">Due for review</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {learners.map(({ userId, name, roles, standings }) => (
+            <TableRow key={userId}>
+              <TableCell>
+                <Link
+                  to="/$organizationSlug/courses/$courseId/learners/$learnerId"
+                  params={{ organizationSlug, courseId, learnerId: userId }}
+                  className="underline"
+                >
+                  {name}
+                </Link>
+                {roles.map((role) => (
+                  <Badge key={role} variant="secondary" className="ml-2">
+                    {role}
+                  </Badge>
+                ))}
+              </TableCell>
+              <TableCell className="text-right">{standings.unseen}</TableCell>
+              <TableCell className="text-right">{standings.acquiring}</TableCell>
+              <TableCell className="text-right">{standings.retained}</TableCell>
+              <TableCell className="text-right">{standings.due}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
   );
 }
 

@@ -14,7 +14,7 @@ Braivo is an open-source platform for educators, schools, training providers, an
 
 Early development, before any release. The HTTP API, the database schema, and both apps change without deprecation or a compatibility layer.
 
-Working end to end: accounts and organizations, objectives arranged into courses, multiple-choice tasks, and the learner loop — the learn app asks the next question, Braivo grades the answer, records it as evidence, and chooses what comes next from it. Also a learner's progress report, and recording evidence graded elsewhere.
+Working end to end: accounts and organizations, objectives arranged into courses, multiple-choice tasks, and the learner loop — the learn app asks the next question, Braivo grades the answer, records it as evidence, and chooses what comes next from it. Also progress: a learner's report and a course's overview of every member; and recording evidence graded elsewhere.
 
 And a course from existing material ([below](#your-materials-a-tutor)): a teacher adds a PDF, a photo, or a video's captions; Braivo's AI drafts objectives and multiple-choice tasks that quote it, which the teacher reviews in the console — or the teacher's own desktop agent writes the course through the same API. A learner who answers wrongly is shown the passage the question came from, with its page or its moment in the video.
 
@@ -133,6 +133,11 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
 # {"modelVersion":"v1","objectives":[{…,"title":"Greetings","phase":"acquiring",…},
 #  {…,"title":"Numbers","phase":"unseen"}]}
+
+# Or every member at once, their objectives counted by standing.
+curl -sb jar.txt $BRAIVO/api/courses/$COURSE/progress
+# {"modelVersion":"v1","learners":[{"userId":"…","name":"Owner","roles":["owner"],
+#  "standings":{"unseen":1,"acquiring":1,"retained":0,"due":0}}]}
 ```
 
 The same loop runs in the learn app: with `bun run dev`, sign in at `http://localhost:5173` as `owner@example.com` and choose the course.

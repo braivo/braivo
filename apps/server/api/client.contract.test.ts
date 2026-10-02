@@ -368,6 +368,36 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
+  test("parses a course's progress into the shape it declares", async () => {
+    await client.recordEvidence(
+      {
+        organizationId,
+        learnerId,
+        evidence: [
+          {
+            id: "contract-overview-failed",
+            objectiveId: fractions,
+            outcome: "failure",
+            at: at.toISOString(),
+          },
+        ],
+      },
+      { headers: { cookie: teacherCookie } },
+    );
+
+    const overview = await client.courseProgress(progressCourseId, {
+      headers: { cookie: teacherCookie },
+    });
+
+    expect(overview.modelVersion).toBe("v1");
+    expect(overview.learners.find(({ userId }) => userId === learnerId)).toEqual({
+      userId: learnerId,
+      name: expect.any(String),
+      roles: ["member"],
+      standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 },
+    });
+  });
+
   test("reads progress the session may not see as a 404", async () => {
     // A learner asking about someone else: only their own is theirs to read.
     const rejected = await client

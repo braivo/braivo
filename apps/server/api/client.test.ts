@@ -324,6 +324,20 @@ describe("the Braivo client", () => {
     expect((error as BraivoError).status).toBe(404);
   });
 
+  test("reads a course's progress at its encoded URL, and a refusal as an error", async () => {
+    const overview = { modelVersion: "v1", learners: [] };
+    const { calls, client } = clientFor(Response.json(overview));
+    const refused = clientFor(new Response(null, { status: 404 }));
+
+    expect(await client.courseProgress("course/1")).toEqual(overview);
+    expect(calls[0]!.url).toBe("/api/courses/course%2F1/progress");
+    const error = await refused.client
+      .courseProgress("course-1")
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(BraivoError);
+    expect((error as BraivoError).status).toBe(404);
+  });
+
   test("refuses a progress answer with a status Braivo does not send", async () => {
     // A valid JSON body, so the only thing refusing it is the status: an empty
     // one would be refused for failing to parse, whatever the status check did.

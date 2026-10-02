@@ -10,6 +10,8 @@ export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
 export type { AuthoredCourse } from "./courses.ts";
 export type { Ai } from "./ai.ts";
+export type { CourseProgressOverview } from "./course-progress.ts";
+export { readCourseProgress } from "./course-progress.ts";
 export { AiLimitReached, AiNotEntitled, AiUnavailable, InvalidAiRequest } from "./ai.ts";
 export { draftFromSource } from "./drafts.ts";
 export { DomainRefused, registerLearnDomain } from "./domains.ts";

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { objective } from "@braivo/db/schema";
+import { member, objective } from "@braivo/db/schema";
 import {
   clearLearnerHistory,
   clearLearningData,
@@ -11,11 +11,16 @@ import {
   sharedDatabase,
   violatedConstraint,
 } from "@braivo/db/testing";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { activeModel, type Evidence, replay } from "../learning/index.ts";
-import { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evidence.ts";
+import {
+  ConflictingEvidence,
+  readLearnerEvidence,
+  readMembersEvidence,
+  recordEvidence,
+} from "./evidence.ts";
 import { createObjectives } from "./objective.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -365,6 +370,33 @@ describe.skipIf(!connectionString)("learner evidence", () => {
     await recordEvidence(database, here, []);
 
     expect(await readLearnerEvidence(database, here, whenever)).toEqual([]);
+  });
+
+  test("reads each current member's evidence at the organization, by learner", async () => {
+    await seedOtherOrganization();
+    await recordEvidence(database, here, [
+      evidence({ id: "before", at: at(1) }),
+      evidence({ id: "after", at: at(3) }),
+    ]);
+    await recordEvidence(database, elsewhere, [
+      evidence({ id: "theirs", objectiveId: theirPastTense, at: at(1) }),
+    ]);
+    await recordEvidence(database, otherLearnerHere, [evidence({ id: "left", at: at(1) })]);
+    const membership = and(
+      eq(member.organizationId, organizationId),
+      eq(member.userId, otherLearner),
+    );
+    const [otherMembership] = await database.select().from(member).where(membership);
+    await database.delete(member).where(membership);
+
+    try {
+      // As `readLearnerEvidence` reads each one.
+      expect(await readMembersEvidence(database, organizationId, at(2))).toEqual(
+        new Map([[learner, await readLearnerEvidence(database, here, at(2))]]),
+      );
+    } finally {
+      await database.insert(member).values(otherMembership!);
+    }
   });
 
   test("stored evidence replays to the same estimates as the records in memory", async () => {

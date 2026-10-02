@@ -31,6 +31,9 @@ export type LearnerProgressReport = Json<application.LearnerProgressReport>;
 /** Where a learner stands on one objective, by its ID and title. */
 export type LearnerProgressStanding = LearnerProgressReport["objectives"][number];
 
+/** Where each learner in a course stands, counted, as `GET /api/courses/:courseId/progress` answers it. */
+export type CourseProgressOverview = Json<application.CourseProgressOverview>;
+
 /**
  * One graded outcome, as it is posted.
  *

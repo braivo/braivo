@@ -56,7 +56,7 @@ function Progress() {
           <TableRow>
             <TableHead>Objective</TableHead>
             <TableHead>Standing</TableHead>
-            <TableHead>Last attempted</TableHead>
+            <TableHead>Last evidence</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

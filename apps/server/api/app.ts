@@ -43,6 +43,7 @@ import {
   readHostOrganization,
   readAuthoredCourse,
   readFileText,
+  readCourseProgress,
   readLearnerProgress,
   recordGradedEvidence,
   type QuotedCitation,
@@ -758,6 +759,31 @@ export function createApi(options: ApiOptions) {
         return context.body(null, 404);
       case "assessed":
         return context.json(progress.report);
+      default:
+        throw new Error(`Unhandled answer: ${JSON.stringify(progress satisfies never)}`);
+    }
+  });
+
+  /** Where each learner in a course stands, counted, for a content owner. */
+  api.get("/api/courses/:courseId/progress", async (context) => {
+    context.header("cache-control", "private, no-store");
+
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    const progress = await readCourseProgress({
+      database,
+      viewedBy: session.user.id,
+      courseId: context.req.param("courseId"),
+      host: requestHost(context),
+      now: new Date(),
+    });
+
+    switch (progress.kind) {
+      case "unavailable":
+        return context.body(null, 404);
+      case "assessed":
+        return context.json(progress.overview);
       default:
         throw new Error(`Unhandled answer: ${JSON.stringify(progress satisfies never)}`);
     }

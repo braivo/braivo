@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { learnerEvidence } from "@braivo/db/schema";
+import { learnerEvidence, member } from "@braivo/db/schema";
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 
 import type { Evidence } from "../learning/index.ts";
@@ -186,4 +186,45 @@ export async function readLearnerEvidence(
       ),
     )
     .orderBy(asc(learnerEvidence.at), asc(learnerEvidence.id));
+}
+
+/**
+ * `readLearnerEvidence` for every current member of an organization at once,
+ * by learner: what a course overview replays. Members without evidence are
+ * absent, and so is the evidence of former members.
+ *
+ * One query rather than one per member, joined from `member` so the planner can
+ * read each member's range of the replay index rather than scan the
+ * organization's history, of which the index has no prefix.
+ */
+export async function readMembersEvidence(
+  database: Database,
+  organizationId: string,
+  asOf: Date,
+): Promise<Map<string, Evidence[]>> {
+  const rows = await database
+    .select({
+      learnerId: learnerEvidence.learnerId,
+      id: learnerEvidence.id,
+      objectiveId: learnerEvidence.objectiveId,
+      outcome: learnerEvidence.outcome,
+      at: learnerEvidence.at,
+    })
+    .from(member)
+    .innerJoin(
+      learnerEvidence,
+      and(
+        eq(learnerEvidence.learnerId, member.userId),
+        eq(learnerEvidence.organizationId, member.organizationId),
+      ),
+    )
+    .where(and(eq(member.organizationId, organizationId), lte(learnerEvidence.at, asOf)));
+
+  const byLearner = new Map<string, Evidence[]>();
+  for (const { learnerId, ...evidence } of rows) {
+    const history = byLearner.get(learnerId);
+    if (history) history.push(evidence);
+    else byLearner.set(learnerId, [evidence]);
+  }
+  return byLearner;
 }
