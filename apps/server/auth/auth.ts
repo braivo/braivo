@@ -134,6 +134,20 @@ export function createAuth(options: AuthOptions) {
       bearer(),
     ],
 
+    // Better Auth's invitations are off until ADR 0018 guards them: with no
+    // verified email, whoever signs up with an invited address joins, and
+    // nothing checks the learn domain. The plugin has no switch of its own;
+    // this one misses direct `auth.api` calls, which Braivo never makes.
+    disabledPaths: [
+      "/organization/invite-member",
+      "/organization/accept-invitation",
+      "/organization/reject-invitation",
+      "/organization/cancel-invitation",
+      "/organization/get-invitation",
+      "/organization/list-invitations",
+      "/organization/list-user-invitations",
+    ],
+
     // A CLI polls for its token until the code expires, and the generic limit
     // cuts it off first — sooner for teachers sharing a school's one address.
     // The device flow paces each code itself (`slow_down` to a poll within its

@@ -22,6 +22,8 @@ const owner = {
 };
 /** Signed up by the test that checks signing up. */
 const newcomer = "auth-test-newcomer@example.com";
+/** Signed up by the test that tries to answer invitations. */
+const invitee = { ...owner, email: "auth-test-invitee@example.com", name: "Invitee" };
 /** Every organization this suite creates or tries to, by slug. */
 const slugs = {
   school: "auth-test-school",
@@ -35,6 +37,7 @@ const slugs = {
   noOwner: "auth-test-no-owner",
   selfServe: "auth-test-self-serve",
   taken: "auth-test-taken",
+  invites: "auth-test-invites",
   // Listed so a regression that lets it through is cleaned up after itself.
   reserved: "login",
 };
@@ -65,8 +68,9 @@ function post(path: string, body: unknown, headers: Record<string, string> = {})
  * they arrived with. Replaying `Set-Cookie` verbatim parses, but is a header no
  * client sends.
  */
-async function signIn(): Promise<string> {
-  const response = await post("/sign-in/email", { email: owner.email, password: owner.password });
+async function signIn(account = owner): Promise<string> {
+  const { email, password } = account;
+  const response = await post("/sign-in/email", { email, password });
   return response.headers
     .getSetCookie()
     .map((cookie) => cookie.split(";", 1)[0])
@@ -91,7 +95,7 @@ async function clearFixtures(): Promise<void> {
   const leftovers = await database.select({ id: organization.id }).from(organization).where(ours);
   for (const { id } of leftovers) await testing.clearLearningData(database, id);
   await database.delete(organization).where(ours);
-  await database.delete(user).where(inArray(user.email, [owner.email, newcomer]));
+  await database.delete(user).where(inArray(user.email, [owner.email, newcomer, invitee.email]));
 }
 
 /** Requires TEST_DATABASE_URL: the point is that Better Auth runs on the real schema. */
@@ -185,6 +189,74 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     });
 
     expect(created.status).toBe(401);
+  });
+
+  test("answers none of Better Auth's invitation endpoints, and stored invitations stay pending", async () => {
+    // Each request, from the account it expects, succeeds without the switch,
+    // so only the switch refuses it.
+    const id = await createOwned(slugs.invites);
+    const [inviter] = await membersOf(id);
+    // Named once, so a request cannot drift from the invitation it answers.
+    const invitationIds = {
+      accept: "auth-test-accept",
+      reject: "auth-test-reject",
+      cancel: "auth-test-cancel",
+      get: "auth-test-get",
+    };
+    await database.insert(authTables.invitation).values(
+      Object.values(invitationIds).map((invitationId) => ({
+        id: invitationId,
+        organizationId: id,
+        email: invitee.email,
+        role: "member",
+        status: "pending",
+        expiresAt: new Date(Date.now() + 86_400_000),
+        createdAt: new Date(),
+        inviterId: inviter!.userId,
+      })),
+    );
+    await post("/sign-up/email", invitee);
+    // Listing one's own invitations takes a verified email, which no account
+    // has until email codes (ADR 0018).
+    const { user } = authTables;
+    await database.update(user).set({ emailVerified: true }).where(eq(user.email, invitee.email));
+    const ownerHeaders = { cookie: await signIn() };
+    const inviteeHeaders = { cookie: await signIn(invitee) };
+
+    const answers = await Promise.all([
+      post(
+        "/organization/invite-member",
+        { organizationId: id, email: newcomer, role: "member" },
+        ownerHeaders,
+      ),
+      post("/organization/cancel-invitation", { invitationId: invitationIds.cancel }, ownerHeaders),
+      call(`/organization/list-invitations?organizationId=${id}`, { headers: ownerHeaders }),
+      post(
+        "/organization/accept-invitation",
+        { invitationId: invitationIds.accept },
+        inviteeHeaders,
+      ),
+      post(
+        "/organization/reject-invitation",
+        { invitationId: invitationIds.reject },
+        inviteeHeaders,
+      ),
+      call(`/organization/get-invitation?id=${invitationIds.get}`, { headers: inviteeHeaders }),
+      call("/organization/list-user-invitations", { headers: inviteeHeaders }),
+    ]);
+
+    expect(answers.map((answer) => answer.status)).toEqual(Array(7).fill(404));
+    const { invitation } = authTables;
+    const stored = await database
+      .select({ id: invitation.id, status: invitation.status })
+      .from(invitation)
+      .where(eq(invitation.organizationId, id));
+    expect(stored.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual(
+      Object.values(invitationIds)
+        .toSorted()
+        .map((invitationId) => ({ id: invitationId, status: "pending" })),
+    );
+    expect((await membersOf(id)).map((member) => member.userId)).toEqual([inviter!.userId]);
   });
 
   test("refuses a reserved slug", async () => {
