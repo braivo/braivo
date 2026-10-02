@@ -986,6 +986,125 @@ describe("the console", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Retire" }));
   });
 
+  test("corrects a task with its passages, then reads the course again", async () => {
+    let corrected = false;
+    let answer!: () => void;
+    const defineTasks = vi.fn(
+      () =>
+        new Promise<string[]>((resolve) => {
+          answer = () => {
+            corrected = true;
+            resolve(["t2"]);
+          };
+        }),
+    );
+    // Options kept in their order, which the correction must keep too.
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      const shown = corrected ? { ...task!, id: "t2", answer: 1 } : task!;
+      return {
+        ...course,
+        objectives: [{ ...greetings!, tasks: [{ ...shown, keepOrder: true as const }] }, ...rest],
+      };
+    });
+    renderAt("/example/courses/course-1", { braivo: { readCourse: reading, defineTasks } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(defineTasks).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      tasks: [
+        {
+          objectiveId: "greetings",
+          kind: "choice",
+          prompt: "Hello, in Spanish?",
+          options: ["Hola", "Adiós"],
+          answer: 1,
+          explanation: "Adiós is goodbye.",
+          keepOrder: true,
+          citations: [{ sourceId: "s1", quote: "Hola." }],
+          replaces: "t1",
+        },
+      ],
+    });
+    // While it is sent, the edit can be neither changed nor cancelled.
+    expect(screen.getByRole("button", { name: "Cancel" }).closest("fieldset")?.disabled).toBe(true);
+
+    answer();
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Correct answer").closest("li")?.textContent).toBe(
+      "Adiós Correct answer",
+    );
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" })),
+    );
+  });
+
+  test("leaves a task as it was when its edit is cancelled, or fails", async () => {
+    const defineTasks = vi
+      .fn()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockRejectedValueOnce(new BraivoError(409, "Braivo answered 409.", "Task 0 replaces…"));
+    renderAt("/example/courses/course-1", { braivo: { readCourse, defineTasks } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Question")).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "Hi, in Spanish?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const failed = await screen.findByText("The task could not be corrected. Try again.");
+    // Still open with the edit, to save again, and the reason focused.
+    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+    expect(document.activeElement).toBe(failed.closest("[role=alert]"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText("Someone changed or retired this task since the page loaded."),
+    ).toBeTruthy();
+    expect(defineTasks).toHaveBeenCalledTimes(2);
+    // Saving again cannot help: reloading shows the course as stored.
+    fireEvent.click(screen.getByRole("button", { name: "Reload the course" }));
+    await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" }));
+  });
+
+  test("closes an edit whose task a reload no longer lists", async () => {
+    let reloaded = false;
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      const other = { ...task!, id: "t3", prompt: "Goodbye, in Spanish?" };
+      // Someone else corrected "Hello, in Spanish?" meanwhile, into t4.
+      const tasks = reloaded ? [{ ...task!, id: "t4" }] : [task!, other];
+      return { ...course, objectives: [{ ...greetings!, tasks }, ...rest] };
+    });
+    const retireTasks = vi.fn(async () => {
+      reloaded = true;
+    });
+    renderAt("/example/courses/course-1", { braivo: { readCourse: reading, retireTasks } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retire" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+    );
+
+    await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
+    const edit = screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" });
+    expect((edit as HTMLButtonElement).disabled).toBe(false);
+  });
+
   test("links each member of a course's organization to their progress", async () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse } });
 

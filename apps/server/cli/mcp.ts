@@ -41,7 +41,8 @@ Work as the signed-in content owner, in an organization from list_organizations.
 
 To review or improve a course, read_course shows it whole, and list_tasks one
 objective's tasks, with their answers and quotes. Tasks are never edited:
-retire_tasks withdraws a wrong one, and author_tasks writes its replacement.
+author_tasks with replaces, one task a call, writes a wrong one's correction
+and retires it in one step, and retire_tasks withdraws one.
 
 Braivo checks every quote against the source. Copy quotes verbatim; line breaks
 and spacing may differ, nothing else. A quote must occur exactly once: if Braivo
@@ -273,7 +274,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     "author_tasks",
     {
       description:
-        "Adds multiple-choice tasks, each practising one objective and citing the passages it was written from. Tasks are never edited. Returns their IDs; a task already there returns its ID, so retrying is safe.",
+        "Adds multiple-choice tasks, each practising one objective and citing the passages it was written from. Returns their IDs; a task already there returns its ID, so retrying is safe. Tasks are never edited: one task sent alone with replaces corrects an existing one.",
       inputSchema: {
         organizationId,
         tasks: z
@@ -299,6 +300,13 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
                 .array(z.object({ sourceId: z.string().min(1), quote }))
                 .max(10)
                 .optional(),
+              replaces: z
+                .string()
+                .min(1)
+                .optional()
+                .describe(
+                  "The ID of the task this corrects, of the same objective, retired in the same step. Send it alone; repeating it is safe. If that task is already retired, this succeeds only when exactly this task is offered; otherwise list the tasks again.",
+                ),
             }),
           )
           .min(1)
@@ -307,6 +315,10 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
             (tasks) =>
               tasks.reduce((sum, task) => sum + (task.citations?.length ?? 0), 0) <= MAX_QUOTES,
             `Cite at most ${MAX_QUOTES} quotes in one call; send the tasks in several.`,
+          )
+          .refine(
+            (tasks) => tasks.length === 1 || tasks.every((task) => task.replaces === undefined),
+            "Send a task with replaces alone: one correction per call.",
           )
           .describe(`Citing at most ${MAX_QUOTES} quotes in all; send more in several calls.`),
       },
@@ -329,7 +341,7 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
     "retire_tasks",
     {
       description:
-        "Withdraws tasks from practice: learners are never asked them again, and what they answered stays. Tasks are never edited, so a wrong one is retired and written again with author_tasks. Ask the content owner before retiring tasks you did not just write.",
+        "Withdraws tasks from practice: learners are never asked them again, and what they answered stays. To correct a task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
       inputSchema: {
         organizationId,
         taskIds: z.array(z.string().min(1)).min(1).max(1000),

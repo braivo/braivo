@@ -11,6 +11,8 @@ import {
   findTasksOutsideOrganization,
   markTasksRetired,
   readObjectiveTasks,
+  readTaskObjective,
+  replaceTask,
 } from "../persistence/index.ts";
 import { locateCitations } from "./citations.ts";
 import { assertMayAdminister, NotPermitted } from "./permission.ts";
@@ -37,6 +39,10 @@ export class InvalidTask extends Error {
  * invalid task, a caller who may not author, or an objective that is not the
  * organization's.
  *
+ * A task naming one it `replaces` is that task's correction (`replaceTask`),
+ * sent alone for the same objective: moving a task changes which courses ask
+ * it, so that is retiring and adding.
+ *
  * Bodies are checked first, reading only the payload, so a refused caller
  * learns nothing about the organization. A task is immutable once stored, so
  * this is the only chance to catch a broken answer key (docs/adr/0015-tasks.md).
@@ -55,6 +61,7 @@ export async function defineTasks(input: {
     objectiveId: string;
     body: unknown;
     citations?: readonly { sourceId: string; quote: string }[];
+    replaces?: string;
   }[];
   now: Date;
 }): Promise<string[]> {
@@ -66,6 +73,14 @@ export async function defineTasks(input: {
     if ("problem" in read) throw new InvalidTask(index, read.problem);
     parsed.push({ objectiveId: task.objectiveId, body: read.body });
   }
+  const correcting = tasks.findIndex(({ replaces }) => replaces !== undefined);
+  if (correcting !== -1 && tasks.length > 1) {
+    throw new InvalidTask(
+      correcting,
+      "replaces a task, so it is sent alone, one correction a request",
+    );
+  }
+  const replaces = tasks[correcting]?.replaces;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
@@ -78,6 +93,19 @@ export async function defineTasks(input: {
     throw new NotPermitted(
       `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
     );
+  }
+  if (replaces !== undefined) {
+    // Read apart from the write, as on retiring: a task never changes organization or objective.
+    const objectiveId = await readTaskObjective(database, organizationId, replaces);
+    if (objectiveId === undefined) {
+      throw new NotPermitted(`Organization "${organizationId}" does not own "${replaces}".`);
+    }
+    if (objectiveId !== parsed[0]!.objectiveId) {
+      throw new InvalidTask(
+        0,
+        "replaces a task of another objective; a correction keeps its objective, so retire that task and add this one instead",
+      );
+    }
   }
 
   // Located in one pass over the whole batch, so each source's text is read once.
@@ -98,7 +126,9 @@ export async function defineTasks(input: {
     return { ...task, citations };
   });
 
-  return createTasks(database, organizationId, grounded, now);
+  return replaces === undefined
+    ? createTasks(database, organizationId, grounded, now)
+    : [await replaceTask(database, organizationId, replaces, grounded[0]!, now)];
 }
 
 /**
@@ -131,7 +161,7 @@ export async function retireTasks(input: {
  * An objective's unretired tasks as authored, answers included, with the
  * passages each cites, for whoever administers its organization; or
  * `undefined` when the organization has no such objective. A task is changed
- * only by retiring it and writing another, so this is what review starts from.
+ * only by a correction replacing it, so this is what review starts from.
  */
 export async function listObjectiveTasks(input: {
   database: Database;

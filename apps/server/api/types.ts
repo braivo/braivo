@@ -104,11 +104,13 @@ export type LocatedCitation = application.Citation;
 
 /**
  * A task as it is authored: an objective, the fields of its kind, and the
- * passages it was written from, each a quote Braivo locates.
+ * passages it was written from, each a quote Braivo locates; with `replaces`,
+ * a correction of that task (`defineTasks`).
  */
 export type TaskDraft = content.TaskBody & {
   objectiveId: string;
   citations?: { sourceId: string; quote: string }[];
+  replaces?: string;
 };
 
 /**

@@ -46,6 +46,7 @@ import {
   readLearnerProgress,
   recordGradedEvidence,
   type QuotedCitation,
+  StaleCorrection,
   retireTasks,
   submitAttempt,
   type RequestHost,
@@ -284,8 +285,9 @@ function parseAttempt(
 }
 
 /**
- * Reads tasks out of a request body: each an `objectiveId` and optional
- * `citations` beside the fields of its kind. Only the envelope is read here;
+ * Reads tasks out of a request body: each an `objectiveId`, optional
+ * `citations`, and an optional task it `replaces`, beside the fields of its
+ * kind. Only the envelope is read here;
  * the body is `content`'s to judge, and the quotes are located by the use case.
  */
 function parseTasks(body: unknown): ParsedTask[] | undefined {
@@ -299,11 +301,15 @@ function parseTasks(body: unknown): ParsedTask[] | undefined {
   for (const task of tasks) {
     if (typeof task !== "object" || task === null) return undefined;
 
-    const { objectiveId, citations, ...rest } = task as Record<string, unknown>;
+    const { objectiveId, citations, replaces, ...rest } = task as Record<string, unknown>;
     if (typeof objectiveId !== "string" || objectiveId === "") return undefined;
+    if (replaces !== undefined && (typeof replaces !== "string" || replaces === "")) {
+      return undefined;
+    }
+    const envelope = { objectiveId, body: rest, ...(replaces !== undefined && { replaces }) };
 
     if (citations === undefined) {
-      parsed.push({ objectiveId, body: rest });
+      parsed.push(envelope);
       continue;
     }
     if (!Array.isArray(citations) || citations.length > MAX_CITATIONS_PER_TASK) return undefined;
@@ -318,7 +324,7 @@ function parseTasks(body: unknown): ParsedTask[] | undefined {
 
       quoted.push({ sourceId, quote });
     }
-    parsed.push({ objectiveId, body: rest, citations: quoted });
+    parsed.push({ ...envelope, citations: quoted });
   }
   const quotes = parsed.reduce((sum, task) => sum + (task.citations?.length ?? 0), 0);
   return quotes > MAX_QUOTES_PER_REQUEST ? undefined : parsed;
@@ -338,6 +344,7 @@ type ParsedTask = {
   objectiveId: string;
   body: unknown;
   citations?: { sourceId: string; quote: string }[];
+  replaces?: string;
 };
 
 /**
@@ -869,6 +876,9 @@ export function createApi(options: ApiOptions) {
         // Explained, as on the citations route, so a drafting model can fix it.
         if (error instanceof InvalidTask || error instanceof InvalidCitation) {
           return context.json({ error: error.message }, 400);
+        }
+        if (error instanceof StaleCorrection) {
+          return context.json({ error: error.message }, 409);
         }
         if (error instanceof NotPermitted) return context.body(null, 403);
         throw error;

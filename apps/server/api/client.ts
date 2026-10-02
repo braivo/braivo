@@ -293,6 +293,10 @@ export type BraivoClient = {
    * their IDs in the order given. A task already there, unretired, resolves to
    * its ID instead, so a retry is safe. All or nothing; a quote Braivo cannot
    * cite is a 400 whose `reason` names the task and citation.
+   *
+   * A task naming one it `replaces`, sent alone for the same objective, is its
+   * correction: that task is retired with it. Repeating one is safe; a 409
+   * means someone changed the task first.
    */
   defineTasks(
     input: { organizationId: string; tasks: readonly TaskDraft[] },
@@ -367,9 +371,9 @@ export type BraivoClient = {
 
   /**
    * Withdraws tasks from practice: never offered or answered again, their
-   * evidence kept. How a task is changed, since tasks are immutable — retire
-   * it and add another. All or nothing: a task not the organization's is a
-   * {@link BraivoError} with status 403.
+   * evidence kept. To correct one instead, add its correction with `replaces`.
+   * All or nothing: a task not the organization's is a {@link BraivoError}
+   * with status 403.
    */
   retireTasks(
     input: { organizationId: string; taskIds: readonly string[] },

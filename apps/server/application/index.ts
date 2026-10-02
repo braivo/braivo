@@ -43,4 +43,4 @@ export { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tas
  * from a disagreement. Named here so callers of `application` need not
  * reach into `persistence` for it.
  */
-export { ConflictingEvidence, ConflictingKey } from "../persistence/index.ts";
+export { ConflictingEvidence, ConflictingKey, StaleCorrection } from "../persistence/index.ts";

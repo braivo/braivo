@@ -1,8 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { AuthoredCourse } from "@braivo/server/client";
-import { AuthoredTask, Heading, MutedText, SourcePassage } from "@braivo/ui";
+import { type AuthoredCourse, BraivoError } from "@braivo/server/client";
+import {
+  AuthoredTask,
+  type EditableTask,
+  Heading,
+  MutedText,
+  SourcePassage,
+  TaskEditor,
+} from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import {
   AlertDialog,
@@ -18,7 +25,7 @@ import {
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { orNotFound } from "#lib/refusals";
 
@@ -92,6 +99,11 @@ function Objective(props: {
 }) {
   const { objective, place, course } = props;
   const heading = useRef<HTMLHeadingElement>(null);
+  const [editing, setEditing] = useState<string>();
+  // Open only while its task is listed: a reload may show it corrected or retired by someone else.
+  const open = objective.tasks.some(({ id }) => id === editing) ? editing : undefined;
+  // The task whose Edit button takes focus back once its editor closes unsaved.
+  const refocus = useRef<string>(undefined);
   const sources = new Map(course.sources.map((source) => [source.id, source]));
   const passages = (citations: AuthoredCourse["objectives"][number]["citations"]) =>
     citations.map((citation) => {
@@ -108,7 +120,7 @@ function Objective(props: {
 
   return (
     <article aria-labelledby={objective.id} className="flex flex-col gap-3">
-      {/* Focusable, to receive focus from a task retired beneath it. */}
+      {/* Focusable, to receive focus from a task retired or corrected beneath it. */}
       <Heading level={3} id={objective.id} ref={heading} tabIndex={-1}>
         {place}. {objective.title}
       </Heading>
@@ -120,33 +132,151 @@ function Objective(props: {
       {objective.tasks.length === 0 ? (
         <MutedText>No tasks: learners are not asked about it.</MutedText>
       ) : (
-        objective.tasks.map((task) => (
-          <AuthoredTask
-            key={task.id}
-            prompt={task.prompt}
-            options={task.options}
-            answer={task.answer}
-            explanation={task.explanation}
-            action={
-              <RetireTask
-                taskId={task.id}
-                prompt={task.prompt}
-                onRetired={() => heading.current?.focus()}
-              />
-            }
-          >
-            {passages(task.citations)}
-          </AuthoredTask>
-        ))
+        objective.tasks.map((task) =>
+          open === task.id ? (
+            <CorrectTask
+              key={task.id}
+              objectiveId={objective.id}
+              task={task}
+              onDone={() => {
+                setEditing(undefined);
+                heading.current?.focus();
+              }}
+              onCancel={() => {
+                refocus.current = task.id;
+                setEditing(undefined);
+              }}
+            />
+          ) : (
+            <AuthoredTask
+              key={task.id}
+              prompt={task.prompt}
+              options={task.options}
+              answer={task.answer}
+              explanation={task.explanation}
+              action={
+                <span className="flex items-start gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Edit “${task.prompt}”`}
+                    ref={(button) => {
+                      if (button && refocus.current === task.id) {
+                        refocus.current = undefined;
+                        button.focus();
+                      }
+                    }}
+                    disabled={open !== undefined}
+                    onClick={() => setEditing(task.id)}
+                  >
+                    Edit
+                  </Button>
+                  <RetireTask
+                    taskId={task.id}
+                    prompt={task.prompt}
+                    onRetired={() => heading.current?.focus()}
+                  />
+                </span>
+              }
+            >
+              {passages(task.citations)}
+            </AuthoredTask>
+          ),
+        )
       )}
     </article>
   );
 }
 
 /**
- * Retiring is how a task is taken back, since tasks are never edited: asked
- * first, because learners stop seeing it at once. Once retired, the task and
- * this button are gone, so `onRetired` says where focus goes instead.
+ * Edits a task the only way an immutable one can be: its correction, with the
+ * task's passages and option order, replaces it in one step. Not asked first,
+ * unlike retiring, since learners always have one or the other.
+ */
+function CorrectTask(props: {
+  objectiveId: string;
+  task: AuthoredCourse["objectives"][number]["tasks"][number];
+  /** Corrected, or reloaded to find it changed: the course as stored is shown. */
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const { objectiveId, task, onDone, onCancel } = props;
+  const { braivo, organization } = Route.useRouteContext();
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  // `stale` when someone changed the task first, so saving again cannot help.
+  const [error, setError] = useState<{ text: string; stale?: true }>();
+  const alert = useRef<HTMLDivElement>(null);
+
+  // Saving disabled the button that had focus; the reason it failed takes it.
+  useLayoutEffect(() => {
+    if (error) alert.current?.focus();
+  }, [error]);
+
+  async function save(edit: EditableTask) {
+    setSaving(true);
+    setError(undefined);
+    try {
+      await braivo.defineTasks({
+        organizationId: organization.id,
+        tasks: [
+          {
+            objectiveId,
+            kind: task.kind,
+            ...edit,
+            options: [...edit.options],
+            ...(task.keepOrder && { keepOrder: true }),
+            citations: task.citations.map(({ sourceId, quote }) => ({ sourceId, quote })),
+            replaces: task.id,
+          },
+        ],
+      });
+      await router.invalidate();
+      onDone();
+    } catch (thrown) {
+      setSaving(false);
+      setError(
+        thrown instanceof BraivoError && thrown.status === 409
+          ? { text: "Someone changed or retired this task since the page loaded.", stale: true }
+          : { text: "The task could not be corrected. Try again." },
+      );
+    }
+  }
+
+  async function reload() {
+    setSaving(true);
+    await router.invalidate();
+    onDone();
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <MutedText>
+        Saving replaces the task: learners are asked the corrected one from now on, and what they
+        already answered stays.
+      </MutedText>
+      {error && (
+        <Alert variant="destructive" ref={alert} tabIndex={-1}>
+          <AlertDescription>{error.text}</AlertDescription>
+          {error.stale && (
+            <Button variant="outline" size="sm" className="mt-2 w-fit" onClick={reload}>
+              Reload the course
+            </Button>
+          )}
+        </Alert>
+      )}
+      {/* Disabled while saving, so the edit sent is the one shown, and Cancel cannot undo it. */}
+      <fieldset disabled={saving} aria-busy={saving} className="min-w-0">
+        <TaskEditor task={task} onSave={save} onCancel={onCancel} />
+      </fieldset>
+    </div>
+  );
+}
+
+/**
+ * Retiring takes a task out of practice for good: asked first, because
+ * learners stop seeing it at once. Once retired, the task and this button are
+ * gone, so `onRetired` says where focus goes instead.
  */
 function RetireTask(props: { taskId: string; prompt: string; onRetired: () => void }) {
   const { taskId, prompt, onRetired } = props;
@@ -189,9 +319,8 @@ function RetireTask(props: { taskId: string; prompt: string; onRetired: () => vo
           <AlertDialogHeader>
             <AlertDialogTitle>Retire “{prompt}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Learners will not be asked it again; what they already answered stays. Tasks are never
-              edited: to change one, retire it and add the corrected one from a new draft or your
-              desktop agent.
+              Learners will not be asked it again; what they already answered stays. To change it
+              instead, edit it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

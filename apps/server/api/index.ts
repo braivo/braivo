@@ -238,15 +238,22 @@
 // the options as written rather than shuffled — for a scale, or "all of the
 // above". Any task may add `"citations": [{ "sourceId": "…", "quote": "…" }]`,
 // at most 10: the passages it was written from, located as on the citations
-// route and stored with the task. Tasks are immutable: to correct one, add
-// another and retire the wrong one. A task the objective already has,
-// unretired — the same body and passages — is not added again: its ID is
-// answered, so a retry duplicates nothing (ADR 0024). Answers 201 with
-// `{ "taskIds": [...] }`, positionally matching; 400 with an `error` when a
-// task is not a valid one of its kind or cites a quote Braivo cannot find —
-// "Task 1, citation 0: the quote does not occur in the source." — and 403 when
-// an objective or a source is not this organization's. Either refusal stores
-// nothing in the batch.
+// route and stored with the task. A task the objective already has, unretired
+// — the same body and passages — is not added again: its ID is answered, so a
+// retry duplicates nothing (ADR 0024). Answers 201 with `{ "taskIds": [...] }`,
+// positionally matching; 400 with an `error` when a task is not a valid one of
+// its kind or cites a quote Braivo cannot find — "Task 1, citation 0: the
+// quote does not occur in the source." — and 403 when an objective or a
+// source is not this organization's. Any refusal stores nothing in the batch.
+//
+// Tasks are immutable. A task with `"replaces": "<taskId>"`, sent alone and for
+// the replaced task's objective (else 400, explained), is that task's
+// correction: stored, and the task retired, in one transaction. A correction
+// equal to the task answers the task's ID, retiring nothing. Once the task is
+// retired, a correction answers the task already offered that it asks for, as
+// on a retry after a lost answer, and otherwise 409 with an `error`: it was
+// written from a stale read. 403 when the replaced task is not this
+// organization's.
 //
 // `POST /api/organizations/:organizationId/tasks/retire` — withdraws tasks from
 // practice: `{ "taskIds": ["…"] }`, at most 1000. A retired task is never
