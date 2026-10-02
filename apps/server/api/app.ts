@@ -32,6 +32,7 @@ import {
   listCourses,
   listLearnerCourses,
   listManagedOrganizations,
+  listMembers,
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
@@ -951,6 +952,26 @@ export function createApi(options: ApiOptions) {
 
     const organizations = await listManagedOrganizations({ database, actingAs: session.user.id });
     return context.json({ organizations });
+  });
+
+  /** Every member of an organization, for whoever administers it. */
+  api.get("/api/organizations/:organizationId/members", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    try {
+      const members = await listMembers({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: session.user.id,
+      });
+
+      return context.json({ members });
+    } catch (error) {
+      if (error instanceof NotPermitted) return context.body(null, 403);
+      throw error;
+    }
   });
 
   /**

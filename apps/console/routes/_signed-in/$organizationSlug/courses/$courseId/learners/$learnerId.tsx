@@ -13,7 +13,7 @@ import {
 } from "@braivo/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { orNotFound, readCourseInOrganization, readMembers } from "#lib/refusals";
+import { orNotFound, readCourseInOrganization } from "#lib/refusals";
 
 export const Route = createFileRoute(
   "/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId",
@@ -35,11 +35,11 @@ export const Route = createFileRoute(
           { signal },
         ),
       ),
-      readMembers(context.auth, organizationId),
+      orNotFound(context.braivo.listMembers(organizationId, { signal })),
     ]);
 
     const learner = members.find(({ userId }) => userId === params.learnerId);
-    return { report, learnerName: learner?.user.name ?? params.learnerId };
+    return { report, learnerName: learner?.name ?? params.learnerId };
   },
   component: Progress,
   notFoundComponent: () => <p>This learner's progress is not yours to see, or does not exist.</p>,

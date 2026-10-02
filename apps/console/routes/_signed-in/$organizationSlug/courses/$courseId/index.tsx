@@ -20,7 +20,7 @@ import { Button } from "@braivo/ui/components/button";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-import { orNotFound, readMembers } from "#lib/refusals";
+import { orNotFound } from "#lib/refusals";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
   loader: async ({ context, params, abortController }) => {
@@ -32,7 +32,9 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
         { signal: abortController.signal },
       ),
     );
-    const members = await readMembers(context.auth, organizationId);
+    const members = await orNotFound(
+      context.braivo.listMembers(organizationId, { signal: abortController.signal }),
+    );
 
     return { course, members };
   },
@@ -59,15 +61,19 @@ function Course() {
       <Heading level={2}>Members</Heading>
       <ul className="list-disc pl-6">
         {members.map((member) => (
-          <li key={member.id}>
+          <li key={member.userId}>
             <Link
               to="/$organizationSlug/courses/$courseId/learners/$learnerId"
               params={{ organizationSlug, courseId, learnerId: member.userId }}
               className="underline"
             >
-              {member.user.name}
-            </Link>{" "}
-            <Badge variant="secondary">{member.role}</Badge>
+              {member.name}
+            </Link>
+            {member.roles.map((role) => (
+              <Badge key={role} variant="secondary" className="ml-2">
+                {role}
+              </Badge>
+            ))}
           </li>
         ))}
       </ul>

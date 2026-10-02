@@ -15,8 +15,8 @@ afterEach(() => {
 });
 
 const members = [
-  { id: "m1", userId: "u1", role: "owner", user: { name: "Olive Owner" } },
-  { id: "m2", userId: "u2", role: "member", user: { name: "Lee Learner" } },
+  { userId: "u1", name: "Olive Owner", roles: ["owner"] },
+  { userId: "u2", name: "Lee Learner", roles: ["member"] },
 ];
 
 const school = { id: "org-1", name: "Example School", slug: "example" };
@@ -32,7 +32,6 @@ function renderAt(
   stubs: {
     signedIn?: boolean;
     braivo?: object;
-    listMembers?: () => Promise<unknown>;
     organizations?: (typeof school)[];
     /** Better Auth's device flow: `device(query)`, with `approve` and `deny` on it. */
     device?: object;
@@ -56,11 +55,6 @@ function renderAt(
         return { error: null };
       }),
     },
-    organization: {
-      listMembers:
-        stubs.listMembers ??
-        (async () => ({ data: { members, total: members.length }, error: null })),
-    },
     device: stubs.device,
   };
 
@@ -71,6 +65,7 @@ function renderAt(
       auth: auth as unknown as AppContext["auth"],
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
+        listMembers: async () => members,
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
     },
@@ -875,16 +870,13 @@ describe("the console", () => {
 
   test("asks nothing scoped to a course before that course is the organization's", async () => {
     const learnerProgress = vi.fn();
-    const listMembers = vi.fn(async () => ({
-      data: { members, total: members.length },
-      error: null,
-    }));
+    const listMembers = vi.fn(async () => members);
     renderAt("/example/courses/elsewhere/learners/u2", {
       braivo: {
         listCourses: async () => [{ id: "course-1", title: "Beginners" }],
         learnerProgress,
+        listMembers,
       },
-      listMembers,
     });
 
     expect(
@@ -899,13 +891,9 @@ describe("the console", () => {
   });
 
   test("asks nothing about the organization's roster until the course is its own", async () => {
-    const listMembers = vi.fn(async () => ({
-      data: { members, total: members.length },
-      error: null,
-    }));
+    const listMembers = vi.fn(async () => members);
     renderAt("/example/courses/elsewhere", {
-      braivo: { readCourse },
-      listMembers,
+      braivo: { readCourse, listMembers },
     });
 
     expect(
@@ -914,12 +902,14 @@ describe("the console", () => {
     expect(listMembers.mock.calls).toEqual([]);
   });
 
-  test("reads a course as not found when Better Auth refuses its organization", async () => {
-    // `readMembers` converts Better Auth's own refusal, which `orNotFound` never
-    // sees: without this the roster's 403 would surface as an error page.
+  test("reads a course as not found when Braivo refuses its roster", async () => {
     renderAt("/example/courses/course-1", {
-      braivo: { readCourse },
-      listMembers: async () => ({ data: null, error: { status: 403, message: "Forbidden" } }),
+      braivo: {
+        readCourse,
+        listMembers: async () => {
+          throw new BraivoError(403, "forbidden");
+        },
+      },
     });
 
     expect(
@@ -1003,6 +993,7 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Lee Learner" }).getAttribute("href")).toBe(
       "/example/courses/course-1/learners/u2",
     );
+    expect(screen.getByText("owner")).toBeTruthy();
   });
 
   test("shows where a learner stands on each objective, by title", async () => {
@@ -1023,13 +1014,9 @@ describe("the console", () => {
     };
     const learnerProgress = vi.fn(async () => report);
     const listCourses = vi.fn(async () => [{ id: "course-1", title: "Beginners" }]);
-    const listMembers = vi.fn(async () => ({
-      data: { members, total: members.length },
-      error: null,
-    }));
+    const listMembers = vi.fn(async () => members);
     renderAt("/example/courses/course-1/learners/u2", {
-      braivo: { learnerProgress, listCourses },
-      listMembers,
+      braivo: { learnerProgress, listCourses, listMembers },
     });
 
     expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
@@ -1045,7 +1032,7 @@ describe("the console", () => {
       options,
     );
     expect(listCourses).toHaveBeenCalledWith("org-1", options);
-    expect(listMembers).toHaveBeenCalledWith({ query: { organizationId: "org-1" } });
+    expect(listMembers).toHaveBeenCalledWith("org-1", options);
   });
 
   test("reads progress Braivo will not show as not found", async () => {

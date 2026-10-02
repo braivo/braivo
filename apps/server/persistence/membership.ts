@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { member, organization } from "@braivo/db/schema";
+import { member, organization, user } from "@braivo/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 
 /** An organization as the people who manage it find it: by name and slug. */
@@ -56,6 +56,21 @@ export async function readMemberships(
     .orderBy(asc(organization.name), asc(organization.id));
 
   return rows.map(({ role, ...organization }) => ({ organization, roles: splitRoles(role) }));
+}
+
+/** A member as the people who manage the organization see them: no email. */
+export type Member = { userId: string; name: string; roles: string[] };
+
+/** Every member of this organization, whatever their role, by name. */
+export async function readMembers(database: Database, organizationId: string): Promise<Member[]> {
+  const rows = await database
+    .select({ userId: member.userId, name: user.name, role: member.role })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(eq(member.organizationId, organizationId))
+    .orderBy(asc(user.name), asc(member.userId));
+
+  return rows.map(({ role, ...person }) => ({ ...person, roles: splitRoles(role) }));
 }
 
 function splitRoles(role: string): string[] {

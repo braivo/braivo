@@ -59,6 +59,7 @@ const at = new Date("2026-06-01T00:00:00.000Z");
 let learnerCookie!: string;
 let learnerId!: string;
 let teacherCookie!: string;
+let teacherId!: string;
 let courseId!: string;
 /** The learner's organization's, and teaching nothing yet: never anything to practise. */
 let emptyCourseId!: string;
@@ -95,6 +96,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     learnerCookie = learner.cookie;
     learnerId = learner.id;
     teacherCookie = teacher.cookie;
+    teacherId = teacher.id;
 
     await testing.seedOrganization(database, {
       organizationId,
@@ -209,6 +211,27 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       { id: organizationId, name: organizationId, slug: organizationId },
     ]);
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
+  });
+
+  test("lists members in the shape it declares, and refuses a learner", async () => {
+    const members = await client.listMembers(organizationId, {
+      headers: { cookie: teacherCookie },
+    });
+
+    expect(members.map(({ userId, roles }) => ({ userId, roles }))).toEqual(
+      expect.arrayContaining([
+        { userId: learnerId, roles: ["member"] },
+        { userId: teacherId, roles: ["admin"] },
+      ]),
+    );
+    expect(members).toHaveLength(2);
+    expect(members.every(({ name }) => typeof name === "string")).toBe(true);
+
+    const rejected = await client
+      .listMembers(organizationId, { headers: { cookie: learnerCookie } })
+      .catch((thrown: unknown) => thrown);
+    expect(rejected).toBeInstanceOf(BraivoError);
+    expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
   test("lists courses in the shape it declares, and refuses a learner", async () => {

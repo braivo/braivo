@@ -134,11 +134,22 @@ export function createAuth(options: AuthOptions) {
       bearer(),
     ],
 
-    // Better Auth's invitations are off until ADR 0018 guards them: with no
-    // verified email, whoever signs up with an invited address joins, and
-    // nothing checks the learn domain. The plugin has no switch of its own;
-    // this one misses direct `auth.api` calls, which Braivo never makes.
+    // Off where the plugin has no switch of its own. Direct `auth.api` calls
+    // bypass it; Braivo makes none to these.
     disabledPaths: [
+      // These answer any member, not only owners and admins: a learner would
+      // read members' and invitations' emails, another's role, or, from
+      // `remove-member`'s error, whether an email is a member's; a role change
+      // needs a member-row ID nothing left lists. Braivo serves the roster;
+      // changing another member takes the database until ADR 0018.
+      "/organization/list-members",
+      "/organization/get-full-organization",
+      "/organization/get-active-member-role",
+      "/organization/remove-member",
+      "/organization/update-member-role",
+      // Invitations, until ADR 0018 guards them: with no verified email,
+      // whoever signs up with an invited address joins, and nothing checks the
+      // learn domain.
       "/organization/invite-member",
       "/organization/accept-invitation",
       "/organization/reject-invitation",

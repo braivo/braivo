@@ -25,7 +25,7 @@ export { readLearnerProgress } from "./learner-progress.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";
 export { defineObjectives, InvalidKey, listObjectives } from "./objectives.ts";
-export { listManagedOrganizations } from "./organizations.ts";
+export { listManagedOrganizations, listMembers } from "./organizations.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";

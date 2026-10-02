@@ -916,6 +916,42 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect([publishing.status, listing.status]).toEqual([403, 403]);
   });
 
+  test("lists an organization's members to its admin, in the public shape", async () => {
+    const response = await api.request(`/api/organizations/${organizationId}/members`, {
+      headers: { cookie: teacher.cookie },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const { members } = (await response.json()) as { members: unknown[] };
+    // Whole objects, so an email or any other field fails.
+    const name = expect.any(String);
+    expect(members).toEqual(
+      expect.arrayContaining([
+        { userId: learner.id, name, roles: ["member"] },
+        { userId: classmate.id, name, roles: ["member"] },
+        { userId: teacher.id, name, roles: ["admin"] },
+      ]),
+    );
+    expect(members).toHaveLength(3);
+  });
+
+  test("refuses the roster to a learner, an outsider, and a visitor not signed in", async () => {
+    const roster = (organization: string, cookie?: string) =>
+      api.request(
+        `/api/organizations/${organization}/members`,
+        cookie ? { headers: { cookie } } : undefined,
+      );
+
+    const statuses = await Promise.all([
+      roster(organizationId, learner.cookie),
+      roster(otherOrganizationId, teacher.cookie),
+      roster(organizationId),
+    ]);
+
+    expect(statuses.map((response) => response.status)).toEqual([403, 403, 401]);
+  });
+
   test("refuses a learner authoring or listing objectives", async () => {
     const defining = await api.request(`/api/organizations/${organizationId}/objectives`, {
       method: "POST",

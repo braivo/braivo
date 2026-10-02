@@ -4,10 +4,10 @@
 import { runMigrations } from "@braivo/db";
 import { member, user } from "@braivo/db/schema";
 import { seedOrganization, sharedDatabase, violatedConstraint } from "@braivo/db/testing";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
-import { readOrganizationRoles } from "./membership.ts";
+import { readMembers, readOrganizationRoles } from "./membership.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -77,6 +77,41 @@ describe.skipIf(!connectionString)("organization membership", () => {
         userId: learner,
       }),
     ).toEqual([]);
+  });
+
+  test("lists an organization's members by name, then ID, each role split", async () => {
+    const rosterOrganizationId = "membership-test-roster-org";
+    // IDs against name order, so sorting by ID would fail; a second Adam,
+    // inserted first, for the tie-break.
+    const [zoe, adam, otherAdam] = ["membership-test-a", "membership-test-b", "membership-test-c"];
+    await seedOrganization(database, {
+      organizationId: rosterOrganizationId,
+      learnerIds: [otherAdam, zoe, adam],
+      at,
+    });
+    await database.update(user).set({ name: "Zoe" }).where(eq(user.id, zoe));
+    await database
+      .update(user)
+      .set({ name: "Adam" })
+      .where(inArray(user.id, [adam, otherAdam]));
+    await database
+      .update(member)
+      .set({ role: "member,admin" })
+      .where(and(eq(member.organizationId, rosterOrganizationId), eq(member.userId, adam)));
+
+    expect(await readMembers(database, rosterOrganizationId)).toEqual([
+      { userId: adam, name: "Adam", roles: ["member", "admin"] },
+      { userId: otherAdam, name: "Adam", roles: ["member"] },
+      { userId: zoe, name: "Zoe", roles: ["member"] },
+    ]);
+  });
+
+  test("lists every member, past Better Auth's default page of 100", async () => {
+    const crowdOrganizationId = "membership-test-crowd-org";
+    const learnerIds = Array.from({ length: 101 }, (_, n) => `membership-test-crowd-${n}`);
+    await seedOrganization(database, { organizationId: crowdOrganizationId, learnerIds, at });
+
+    expect(await readMembers(database, crowdOrganizationId)).toHaveLength(101);
   });
 
   test("refuses a second membership for the same user and organization", async () => {
