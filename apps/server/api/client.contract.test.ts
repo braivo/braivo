@@ -396,6 +396,11 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       roles: ["member"],
       standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 },
     });
+    expect(overview.objectives.find(({ objectiveId }) => objectiveId === fractions)).toEqual({
+      objectiveId: fractions,
+      title: expect.any(String),
+      standings: expect.objectContaining({ acquiring: 1 }),
+    });
   });
 
   test("reads progress the session may not see as a 404", async () => {

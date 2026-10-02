@@ -31,6 +31,7 @@ let colours!: string;
 /** The organization's, but outside the course. */
 let weather!: string;
 let course!: string;
+let emptyCourse!: string;
 let foreignCourse!: string;
 let theirGreetings!: string;
 
@@ -48,6 +49,21 @@ function overview(
     host: input.host ?? installation,
     now,
   });
+}
+
+/** Each standing's count, summed over the rows. */
+function totals(
+  rows: readonly { standings: Record<"unseen" | "acquiring" | "retained" | "due", number> }[],
+) {
+  return rows.reduce(
+    (sum, { standings }) => ({
+      unseen: sum.unseen + standings.unseen,
+      acquiring: sum.acquiring + standings.acquiring,
+      retained: sum.retained + standings.retained,
+      due: sum.due + standings.due,
+    }),
+    { unseen: 0, acquiring: 0, retained: 0, due: 0 },
+  );
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -78,6 +94,11 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       title: "Beginners",
       objectiveIds: [greetings, numbers, colours],
     });
+    emptyCourse = await createCourse(database, {
+      organizationId,
+      title: "Empty",
+      objectiveIds: [],
+    });
     [theirGreetings] = (await createObjectives(database, otherOrganizationId, ["Greetings"])) as [
       string,
     ];
@@ -92,7 +113,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
     await testing.clearLearnerHistory(database, [ana, ben]);
   });
 
-  test("counts each learner's standings as their own report shows them", async () => {
+  test("counts the same standings per learner and per objective, in content order", async () => {
     await recordEvidence(database, { learnerId: ana, organizationId }, [
       // One success ten days ago: stability 1, so due.
       evidence({ id: "a1", objectiveId: greetings, at: daysAgo(10) }),
@@ -137,8 +158,29 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 },
           },
         ],
+        objectives: [
+          {
+            objectiveId: greetings,
+            title: "Greetings",
+            standings: { unseen: 1, acquiring: 0, retained: 1, due: 1 },
+          },
+          {
+            objectiveId: numbers,
+            title: "Numbers",
+            standings: { unseen: 1, acquiring: 1, retained: 1, due: 0 },
+          },
+          {
+            objectiveId: colours,
+            title: "Colours",
+            standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 },
+          },
+        ],
       },
     });
+    // Per objective or per learner, the same standings are counted.
+    if (read.kind === "assessed") {
+      expect(totals(read.overview.objectives)).toEqual(totals(read.overview.learners));
+    }
     // Each overview count must equal that learner's report at the same `now`.
     for (const learner of read.kind === "assessed" ? read.overview.learners : []) {
       const report = await readLearnerProgress({
@@ -160,6 +202,13 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
         due: phases.filter((phase) => phase === "due").length,
       });
     }
+  });
+
+  test("lists no objectives for a course without any", async () => {
+    const read = await overview({ courseId: emptyCourse });
+
+    if (read.kind !== "assessed") throw new Error("No overview");
+    expect(read.overview.objectives).toEqual([]);
   });
 
   test("shows the overview to the organization's administrators only", async () => {

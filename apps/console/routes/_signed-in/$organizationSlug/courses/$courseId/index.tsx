@@ -37,7 +37,7 @@ import {
   TableRow,
 } from "@braivo/ui/components/table";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { orNotFound } from "#lib/refusals";
 
@@ -67,6 +67,7 @@ function Course() {
   return (
     <>
       <Heading>{course.title}</Heading>
+      <ObjectiveProgress objectives={progress.objectives} />
       <Learners learners={progress.learners} />
       <section aria-labelledby="teaches" className="flex flex-col gap-6">
         <Heading level={2} id="teaches">
@@ -82,8 +83,32 @@ function Course() {
 }
 
 /**
+ * Knowledge gaps across learners: each objective with its learners counted by
+ * standing. Absent for a course without objectives, which "What it teaches" says.
+ */
+function ObjectiveProgress({ objectives }: { objectives: CourseProgressOverview["objectives"] }) {
+  if (objectives.length === 0) return null;
+
+  return (
+    <section aria-labelledby="by-objective" className="flex flex-col gap-3">
+      <Heading level={2} id="by-objective">
+        Progress by objective
+      </Heading>
+      <StandingsTable
+        rowHeader="Objective"
+        rows={objectives.map(({ objectiveId, title, standings }) => ({
+          key: objectiveId,
+          label: title,
+          standings,
+        }))}
+      />
+    </section>
+  );
+}
+
+/**
  * Every member, as each is enrolled (ADR 0018), with their objectives counted
- * by standing, labelled as the learner's own report labels them.
+ * by standing.
  */
 function Learners({ learners }: { learners: CourseProgressOverview["learners"] }) {
   const { organizationSlug, courseId } = Route.useParams();
@@ -93,42 +118,68 @@ function Learners({ learners }: { learners: CourseProgressOverview["learners"] }
       <Heading level={2} id="learners">
         Learners
       </Heading>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Learner</TableHead>
-            <TableHead className="text-right">Not started</TableHead>
-            <TableHead className="text-right">Learning</TableHead>
-            <TableHead className="text-right">Retained</TableHead>
-            <TableHead className="text-right">Due for review</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {learners.map(({ userId, name, roles, standings }) => (
-            <TableRow key={userId}>
-              <TableCell>
-                <Link
-                  to="/$organizationSlug/courses/$courseId/learners/$learnerId"
-                  params={{ organizationSlug, courseId, learnerId: userId }}
-                  className="underline"
-                >
-                  {name}
-                </Link>
-                {roles.map((role) => (
-                  <Badge key={role} variant="secondary" className="ml-2">
-                    {role}
-                  </Badge>
-                ))}
-              </TableCell>
-              <TableCell className="text-right">{standings.unseen}</TableCell>
-              <TableCell className="text-right">{standings.acquiring}</TableCell>
-              <TableCell className="text-right">{standings.retained}</TableCell>
-              <TableCell className="text-right">{standings.due}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <StandingsTable
+        rowHeader="Learner"
+        rows={learners.map(({ userId, name, roles, standings }) => ({
+          key: userId,
+          label: (
+            <>
+              <Link
+                to="/$organizationSlug/courses/$courseId/learners/$learnerId"
+                params={{ organizationSlug, courseId, learnerId: userId }}
+                className="underline"
+              >
+                {name}
+              </Link>
+              {roles.map((role) => (
+                <Badge key={role} variant="secondary" className="ml-2">
+                  {role}
+                </Badge>
+              ))}
+            </>
+          ),
+          standings,
+        }))}
+      />
     </section>
+  );
+}
+
+/** Rows counted by standing, labelled as the learner's own report labels them. */
+function StandingsTable(props: {
+  rowHeader: string;
+  rows: {
+    key: string;
+    label: ReactNode;
+    standings: CourseProgressOverview["learners"][number]["standings"];
+  }[];
+}) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{props.rowHeader}</TableHead>
+          <TableHead className="text-right">Not started</TableHead>
+          <TableHead className="text-right">Learning</TableHead>
+          <TableHead className="text-right">Retained</TableHead>
+          <TableHead className="text-right">Due for review</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {props.rows.map(({ key, label, standings }) => (
+          <TableRow key={key}>
+            {/* A row header, so each count is announced with whose it is. */}
+            <TableHead scope="row" className="font-normal">
+              {label}
+            </TableHead>
+            <TableCell className="text-right">{standings.unseen}</TableCell>
+            <TableCell className="text-right">{standings.acquiring}</TableCell>
+            <TableCell className="text-right">{standings.retained}</TableCell>
+            <TableCell className="text-right">{standings.due}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 

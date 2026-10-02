@@ -325,7 +325,7 @@ describe("the Braivo client", () => {
   });
 
   test("reads a course's progress at its encoded URL, and a refusal as an error", async () => {
-    const overview = { modelVersion: "v1", learners: [] };
+    const overview = { modelVersion: "v1", learners: [], objectives: [] };
     const { calls, client } = clientFor(Response.json(overview));
     const refused = clientFor(new Response(null, { status: 404 }));
 

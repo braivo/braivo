@@ -151,8 +151,9 @@
 //        decision's.
 //
 // `GET /api/courses/:courseId/progress` — where each learner in a course
-// stands, counted: every member of its organization, by name. The reader must
-// hold `owner` or `admin` there.
+// stands, counted: every member of its organization, by name; and each
+// objective, in content order, with its learners counted. The reader must hold
+// `owner` or `admin` there.
 //
 //   401  no session
 //   404  the course does not exist, or the reader does not administer its
@@ -160,11 +161,14 @@
 //   200  { "modelVersion": "v1", "learners": [
 //          { "userId": "…", "name": "Ana", "roles": ["member"],
 //            "standings": { "unseen": 1, "acquiring": 2, "retained": 0, "due": 1 } }
+//        ], "objectives": [
+//          { "objectiveId": "…", "title": "Greetings",
+//            "standings": { "unseen": 3, "acquiring": 1, "retained": 2, "due": 0 } }
 //        ] }
 //
-//        `standings` count what each learner's report shows at the same moment;
-//        `retained` is retaining and not due. `CourseProgressOverview`
-//        serialized.
+//        `standings` count what each learner's report shows at the same moment,
+//        per learner and per objective; `retained` is retaining and not due.
+//        `CourseProgressOverview` serialized.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —
 // records what a learner did. The grader is the session's user and is never

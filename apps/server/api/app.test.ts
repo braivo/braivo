@@ -1161,13 +1161,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     }
   });
 
-  test("shows a content owner each learner's standings in a course, in the documented shape", async () => {
+  test("shows a content owner each learner's standings in a course, and each objective's, in the documented shape", async () => {
     await recordEvidence(database, { learnerId: learner.id, organizationId }, [
       { id: "overview-failed", objectiveId: pastTense, outcome: "failure", at: recordedAt },
     ]);
 
     const response = await courseProgress(courseId, teacher.cookie);
     expect(response.status).toBe(200);
+    // Exact counts are the use case's to prove; other tests add members.
+    const anyCounts = {
+      unseen: expect.any(Number),
+      acquiring: expect.any(Number),
+      retained: expect.any(Number),
+      due: expect.any(Number),
+    };
     // Exact at the top, so no field joins unnoticed; other tests add members.
     expect(await response.json()).toEqual({
       modelVersion: activeModel.version,
@@ -1178,6 +1185,9 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           roles: ["member"],
           standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
         },
+      ]),
+      objectives: expect.arrayContaining([
+        { objectiveId: pastTense, title: expect.any(String), standings: anyCounts },
       ]),
     });
   });

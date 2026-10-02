@@ -19,12 +19,24 @@ const members = [
   { userId: "u2", name: "Lee Learner", roles: ["member"] },
 ];
 
-/** Braivo's overview of `course-1`: every member counted, by name. */
+/** Braivo's overview of `course-1`: every member counted, by name, and every objective. */
 const courseProgress = async () => ({
   modelVersion: "v1",
   learners: [
     { ...members[1]!, standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 } },
     { ...members[0]!, standings: { unseen: 2, acquiring: 0, retained: 0, due: 0 } },
+  ],
+  objectives: [
+    {
+      objectiveId: "greetings",
+      title: "Greetings",
+      standings: { unseen: 1, acquiring: 1, retained: 0, due: 0 },
+    },
+    {
+      objectiveId: "numbers",
+      title: "Numbers",
+      standings: { unseen: 1, acquiring: 0, retained: 0, due: 1 },
+    },
   ],
 });
 
@@ -1127,10 +1139,12 @@ describe("the console", () => {
     ).toEqual(["Learner", "Not started", "Learning", "Retained", "Due for review"]);
     expect(
       rows.map((row) => {
-        const [learner, ...counts] = within(row).getAllByRole("cell");
+        const learner = within(row).getByRole("rowheader");
         return [
-          within(learner!).getByRole("link").textContent,
-          ...counts.map((cell) => cell.textContent),
+          within(learner).getByRole("link").textContent,
+          ...within(row)
+            .getAllByRole("cell")
+            .map((cell) => cell.textContent),
         ];
       }),
     ).toEqual([
@@ -1142,6 +1156,29 @@ describe("the console", () => {
     expect(within(learners).getByRole("link", { name: "Lee Learner" }).getAttribute("href")).toBe(
       "/example/courses/course-1/learners/u2",
     );
+  });
+
+  test("counts each objective's learners by standing, in content order", async () => {
+    renderAt("/example/courses/course-1", { braivo: { readCourse } });
+
+    const objectives = await screen.findByRole("region", { name: "Progress by objective" });
+    const [header, ...rows] = within(objectives).getAllByRole("row");
+    expect(
+      within(header!)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Objective", "Not started", "Learning", "Retained", "Due for review"]);
+    expect(
+      rows.map((row) => [
+        within(row).getByRole("rowheader").textContent,
+        ...within(row)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent),
+      ]),
+    ).toEqual([
+      ["Greetings", "1", "1", "0", "0"],
+      ["Numbers", "1", "0", "0", "1"],
+    ]);
   });
 
   test("shows where a learner stands on each objective, by title", async () => {
