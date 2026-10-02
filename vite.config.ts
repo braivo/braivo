@@ -89,7 +89,8 @@ export default defineConfig({
           // The database suites share one PostgreSQL database, so one file at
           // a time keeps them from cutting across each other.
           fileParallelism: false,
-          globalSetup: "../../tooling/require-bun.ts",
+          // In this order: the second needs Bun.
+          globalSetup: ["../../tooling/require-bun.ts", "../../tooling/test-database.ts"],
         },
       },
       { test: { name: "tooling", root: "tooling" } },

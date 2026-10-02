@@ -30,17 +30,21 @@ These hooks run the worktree's own copy of the script and its `bun install`, so 
 
 **`.worktreeinclude` is the one list of files to copy**, because Claude Code reads it natively, including for subagent worktrees no hook reaches. The script accepts only literal paths, the subset of its `.gitignore` syntax that means the same to both, refuses patterns, and like Claude Code copies only paths the worktree ignores.
 
+**Each linked worktree tests against a database of its own**, derived when the server's suites start, not written into `.env`: `tooling/test-database.ts` suffixes `TEST_DATABASE_URL`'s database with the worktree's Git id, verbatim (`braivo_test_braivo1`), and creates it if missing; the main checkout uses it as configured. Suites seed fixed IDs, so worktrees sharing one database cleared each other's rows, and one branch's schema broke another's tests.
+
 ## Alternatives rejected
 
 - **A `post-checkout` hook.** It would make a plain `git worktree add` run the checked-out branch's setup and `prepare` scripts, and plain Git must not run a branch's code; an agent environment already runs it. It also ran alongside Zed's task, two installs at once in one checkout.
 - **Each tool's own copy list** (`git.worktreeIncludeFiles`, a Zed task that copies, `.worktreeinclude`): lists that drift, and none installs dependencies.
 - **A `WorktreeCreate` hook for Claude Code.** It replaces Claude Code's creation, losing its base-branch choice, pull-request checkout, and the marker its clean-up relies on, for what `SessionStart` already gives.
 - **A worktree manager CLI.** The editors and agents create worktrees themselves and would not call it.
+- **Rewriting `TEST_DATABASE_URL` in a worktree's `.env`.** Claude Code copies `.env` before the script runs, and the script never overwrites, so those worktrees would keep the shared database.
+- **A fresh database per test run.** A run killed midway leaves its database behind, and a sweep cannot tell that orphan from a live run between files.
 
 ## Consequences
 
 - Automatic bootstrap is for trusted branches: it copies `.env`, then runs the branch's install scripts, which could read it. So `.env` holds development credentials only, and untrusted changes are inspected with plain Git, without setup.
 - The script copies `.envrc` but never approves it: direnv's approval stays a person's decision.
 - A worktree no hook reaches — plain Git, VS Code's Copilot and Codex harnesses, Claude Code mid-session (`EnterWorktree`, a subagent's `isolation: worktree`) — needs the script run in it; the agent does so as `AGENTS.md` tells it, since the script is safe to rerun.
-- Worktrees share ports and the databases `.env` names, so concurrent dev servers or database suites collide. The script does not isolate them.
+- Worktrees share ports and the development database, so concurrent dev servers collide; test runs collide only within one worktree. A worktree's test database outlives it, and Git may reuse its id: `dropdb` it before removing the worktree, while `git rev-parse --git-dir` still names it.
 - Claude Code's worktrees live in the repository, under `.claude/worktrees/`, which is gitignored.

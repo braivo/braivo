@@ -55,7 +55,7 @@ bun apps/server/cli/index.ts organization create \
   --name "My School" --slug my-school --owner you@example.com
 ```
 
-`.env` is gitignored. Tests that need a database skip themselves when `TEST_DATABASE_URL` is unset; point it at a database of its own, since tests create, modify, and delete fixture data.
+`.env` is gitignored. Tests that need a database skip themselves when `TEST_DATABASE_URL` is unset; point it at a database of its own, since tests create, modify, and delete fixture data. A linked worktree's tests use that name suffixed with the worktree's Git id (the last part of `git rev-parse --git-dir`), created on first use, which needs `CREATEDB` ([ADR 0014](docs/adr/0014-worktree-setup.md)).
 
 ```bash
 bun run test       # Vitest, on Bun
