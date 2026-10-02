@@ -84,4 +84,11 @@ describe("the bundled CLI", () => {
     expect(code).toBe(1);
     expect(stderr).toContain("This braivo has no migrations to apply.");
   });
+
+  test("asks for the hostname of a learn domain left out", async () => {
+    const { stderr, code } = await run(["organization", "add-domain", "--slug", "acme"]);
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("organization add-domain --slug <slug> --hostname <hostname>");
+  });
 });

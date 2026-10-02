@@ -5,6 +5,8 @@ import type { Database } from "@braivo/db";
 import { course, file, objective, organization, source } from "@braivo/db/schema";
 import { eq } from "drizzle-orm";
 
+import type { Organization } from "./membership.ts";
+
 /**
  * Whether anything of the learning model still belongs to this organization.
  *
@@ -47,4 +49,17 @@ export async function readOrganizationSlug(
     .where(eq(organization.id, organizationId));
 
   return row?.slug;
+}
+
+/** An organization by its slug, or `undefined` when no organization has it. */
+export async function readOrganizationBySlug(
+  database: Database,
+  slug: string,
+): Promise<Organization | undefined> {
+  const [row] = await database
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.slug, slug));
+
+  return row;
 }

@@ -148,10 +148,12 @@ A few things that shape how this behaves:
 
 ## An organization's domain
 
-The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization; Braivo trusts that origin only while the row exists ([ADR 0004](docs/adr/0004-one-application-origin.md)). There is no API for it yet. Register only a hostname you control, in DNS and in what it serves: learners sign in there with their installation-wide account. Locally, a `*.localhost` name stands in for the domain (it resolves to this machine, and the dev server passes `Host` through); plain `localhost` stays the installation's own. Continuing the walkthrough above, with `DATABASE_URL` from `.env`:
+The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization; Braivo trusts that origin only while the row exists ([ADR 0004](docs/adr/0004-one-application-origin.md)). The operator registers one per organization; DNS, TLS, and routing it to Braivo stay theirs. Register only a hostname you control, in DNS and in what it serves: learners sign in there with their installation-wide account. Locally, a `*.localhost` name stands in for the domain (it resolves to this machine, and the dev server passes `Host` through); plain `localhost` stays the installation's own. Continuing the walkthrough above:
 
 ```bash
-psql "$DATABASE_URL" -c "insert into organization_domain (hostname, organization_id) values ('example.localhost', '$ORG')"
+bun apps/server/cli/index.ts organization add-domain \
+  --slug example-school --hostname example.localhost
+# Registered example.localhost for Example School.
 
 curl -s http://example.localhost:3000/api/organization
 # {"name":"Example School"}
@@ -230,9 +232,9 @@ Then ask it, say, to "turn this PDF into a Braivo course for beginners". It read
 bun run serve
 ```
 
-That serves the API and nothing else. **There is no deployment packaging yet** — no image, no static serving, no supported proxy configuration. Self-hosting is what Braivo is for and this repository holds everything an installation runs, but building the apps and putting them in front of the API is currently yours to arrange: each is served at the root of an origin that also serves `/api` from this server ([ADR 0004](docs/adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization, which Braivo trusts only while an `organization_domain` row maps that hostname to the organization, and a proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
+That serves the API and nothing else. **There is no deployment packaging yet** — no image, no static serving, no supported proxy configuration. Self-hosting is what Braivo is for and this repository holds everything an installation runs, but building the apps and putting them in front of the API is currently yours to arrange: each is served at the root of an origin that also serves `/api` from this server ([ADR 0004](docs/adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization, which Braivo trusts only while it is registered to the organization, and a proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
 
-Organizations are created by the operator, for an account that has signed in once, with `bun apps/server/cli/index.ts organization create` and the same environment as `serve`; the console creates none ([ADR 0018](docs/adr/0018-sign-in-and-invitations.md)).
+Organizations are created by the operator, for an account that has signed in once, with `bun apps/server/cli/index.ts organization create` and the same environment as `serve`; the console creates none ([ADR 0018](docs/adr/0018-sign-in-and-invitations.md)). `organization add-domain` registers an organization's learn domain the same way.
 
 `BRAIVO_URL` is the public origin this installation is served from; Better Auth builds callback URLs from it, so it must match how the server is actually reached. `PORT` defaults to 3000.
 

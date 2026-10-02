@@ -8,6 +8,7 @@ import { createDatabase, runMigrations } from "@braivo/db";
 
 import { anthropicModel } from "../ai/index.ts";
 import { createApi } from "../api/index.ts";
+import { registerLearnDomain } from "../application/index.ts";
 import { createAuth, createOrganization } from "../auth/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
@@ -21,6 +22,9 @@ Running an installation:
   db migrate    Apply committed database migrations.
   organization create --name <name> --slug <slug> --owner <email>
                 Create an organization owned by an existing account.
+  organization add-domain --slug <slug> --hostname <hostname>
+                Register <hostname>, one you control, for the organization's
+                learn app; DNS, TLS, and routing it here stay yours.
   serve         Serve the HTTP API.
 
 Working with one, as yourself:
@@ -67,6 +71,34 @@ async function main(argv: readonly string[]): Promise<number> {
       const auth = createAuth({ database, secret: config.secret, baseURL: config.baseUrl });
       const created = await createOrganization(auth, { name, slug, ownerEmail: owner });
       console.log(`Created ${created.name}, owned by ${owner}: ${config.baseUrl}/${created.slug}`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
+  if (argv[0] === "organization" && argv[1] === "add-domain") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: { slug: { type: "string" }, hostname: { type: "string" } },
+    });
+    const { slug, hostname } = values;
+    if (!slug || !hostname) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    // `organization create`'s environment, so operators set one; the secret goes unused.
+    const config = readAuthConfig(process.env);
+    const database = createDatabase(config.databaseUrl);
+    try {
+      const domain = await registerLearnDomain({
+        database,
+        baseUrl: config.baseUrl,
+        organizationSlug: slug,
+        hostname,
+      });
+      console.log(`Registered ${domain.hostname} for ${domain.organization.name}.`);
     } finally {
       await database.$client.end();
     }
