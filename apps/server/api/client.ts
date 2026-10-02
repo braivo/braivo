@@ -12,6 +12,7 @@ import type {
   HostOrganization,
   LearnerProgressReport,
   LocatedCitation,
+  Member,
   Objective,
   Organization,
   QuotedCitation,
@@ -42,6 +43,7 @@ export type {
   LearnerProgressReport,
   LearningDecision,
   LocatedCitation,
+  Member,
   Objective,
   LearnerProgressStanding,
   Organization,
@@ -152,6 +154,14 @@ export type BraivoClient = {
    * by name — not every one they are in, since a learner is a member too.
    */
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
+
+  /**
+   * Every member of an organization, by name, without their emails.
+   *
+   * Whoever the session belongs to must hold `owner` or `admin` there, or this
+   * throws a {@link BraivoError} with status 403.
+   */
+  listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
 
   /**
    * Every course an organization has, by title.
@@ -531,6 +541,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { organizations } = await parsed<{ organizations: Organization[] }>(response, doing);
       return organizations;
+    },
+
+    async listMembers(organizationId, requestOptions) {
+      const response = await get(
+        `/api/organizations/${encodeURIComponent(organizationId)}/members`,
+        requestOptions,
+      );
+
+      const doing = `listing the members of organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      const { members } = await parsed<{ members: Member[] }>(response, doing);
+      return members;
     },
 
     async listCourses(organizationId, requestOptions) {

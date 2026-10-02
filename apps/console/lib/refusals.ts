@@ -4,8 +4,6 @@
 import { type BraivoClient, BraivoError } from "@braivo/server/client";
 import { notFound } from "@tanstack/react-router";
 
-import type { ConsoleAuth } from "./auth.ts";
-
 /**
  * A Braivo read whose refusal is the route's not-found page. Braivo answers a
  * missing resource and one this session may not see alike, and so does this.
@@ -38,14 +36,4 @@ export async function readCourseInOrganization(
   const course = courses.find(({ id }) => id === input.courseId);
   if (!course) throw notFound();
   return course;
-}
-
-/** An organization's members, or not found for someone outside it. */
-export async function readMembers(auth: ConsoleAuth, organizationId: string) {
-  const { data, error } = await auth.organization.listMembers({ query: { organizationId } });
-  if (error) {
-    if (error.status === 403 || error.status === 404) throw notFound();
-    throw new Error(error.message ?? "Could not list the organization's members.");
-  }
-  return data.members;
 }

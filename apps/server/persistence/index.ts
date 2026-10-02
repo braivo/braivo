@@ -21,8 +21,8 @@ export { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evid
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
 export { ConflictingKey } from "./key.ts";
-export type { Organization } from "./membership.ts";
-export { readMemberships, readOrganizationRoles } from "./membership.ts";
+export type { Member, Organization } from "./membership.ts";
+export { readMembers, readMemberships, readOrganizationRoles } from "./membership.ts";
 export type { Objective } from "./objective.ts";
 export {
   createObjectives,

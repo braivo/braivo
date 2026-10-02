@@ -44,19 +44,19 @@ flowchart TD
   A -- yes --> OK
 ```
 
-| Ability                                                | `owner` | `admin` | `member` | Checked by                             |
-| ------------------------------------------------------ | ------- | ------- | -------- | -------------------------------------- |
-| List and study the organization's courses              | yes     | yes     | yes      | `isMember`, `hostAdmits`               |
-| Author objectives, tasks, courses; record evidence     | yes     | yes     | no       | `assertMayAdminister`                  |
-| Read a learner's progress                              | yes     | yes     | own only | progress-1 ([progress](progress.md))   |
-| Appear in `GET /api/organizations` and the console     | yes     | yes     | no       | `listManagedOrganizations`             |
-| Rename the organization                                | yes     | yes     | no       | Better Auth's default access control   |
-| Delete the organization                                | yes     | no      | no       | Better Auth's default access control   |
-| List the organization's members (names, emails, roles) | yes     | yes     | yes      | Better Auth: any member                |
-| Create an organization (operator's command only)       | no      | no      | no       | `allowUserToCreateOrganization: false` |
+| Ability                                                  | `owner` | `admin` | `member` | Checked by                             |
+| -------------------------------------------------------- | ------- | ------- | -------- | -------------------------------------- |
+| List and study the organization's courses                | yes     | yes     | yes      | `isMember`, `hostAdmits`               |
+| Author objectives, tasks, courses; record evidence       | yes     | yes     | no       | `assertMayAdminister`                  |
+| Read a learner's progress                                | yes     | yes     | own only | progress-1 ([progress](progress.md))   |
+| Appear in `GET /api/organizations` and the console       | yes     | yes     | no       | `listManagedOrganizations`             |
+| Rename the organization                                  | yes     | yes     | no       | Better Auth's default access control   |
+| Delete the organization                                  | yes     | no      | no       | Better Auth's default access control   |
+| List the organization's members (user IDs, names, roles) | yes     | yes     | no       | `assertMayAdminister`                  |
+| Create an organization (operator's command only)         | no      | no      | no       | `allowUserToCreateOrganization: false` |
 
 - `GET /api/organizations` answers the organizations the session's user manages, by name; the console resolves `/<slug>` among them ([white-label](white-label.md)).
-- The console's course page lists members through Better Auth's `organization/list-members`.
+- The console's course and learner pages read members through `GET /api/organizations/:organizationId/members`: user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding, removing, or changing the role of another member takes the database.
 
 ### Write origins
 
@@ -76,6 +76,7 @@ flowchart TD
 - Roles are split, never compared whole. `apps/server/persistence/membership.test.ts`
 - One member record per user and organization. `apps/server/persistence/membership.test.ts`
 - Better Auth answers its invitation endpoints `404`, even requests they would carry out; a stored invitation stays pending and admits no one. `apps/server/auth/auth.test.ts`
+- Only an `owner` or `admin` lists an organization's members, and never with emails; Better Auth answers its own member listings, removal, and role changes `404`, even to an owner. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - No session creates an organization; the operator's command does, for an existing account only. `apps/server/auth/auth.test.ts`
 - An organization owning learning content is not deleted, and a refused delete keeps its members. `apps/server/auth/auth.test.ts`
 - No sign-up on any host but the installation's. `apps/server/api/app.test.ts`; the learn app shows no sign-up: `apps/learn/routes.test.tsx`
@@ -112,11 +113,11 @@ flowchart TD
 
 ## Gaps
 
-| Gap                                                                                                                                             | Impact                                                                                             | Next step                                                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| No Braivo way to add a learner or admin to an organization.                                                                                     | Learners get in only by seeding the database.                                                      | Build ADR 0018 invitations (after email code and handoff).                             |
-| Better Auth's default `membershipLimit` of 100 applies: adding a member fails past 100.                                                         | An organization cannot pass 100 learners; the console roster silently truncates.                   | Set `membershipLimit` deliberately and page the roster.                                |
-| Any `member` can call `organization/list-members` or `get-full-organization` and read every member's name and email, and a stored invitation's. | Learners see each other's emails.                                                                  | Decide the rule; restrict with a hook or custom access control.                        |
-| No email verification and no password reset.                                                                                                    | Anyone can sign up with someone else's email; a forgotten password locks the account out.          | ADR 0018 step 1 (email code) removes both problems.                                    |
-| A learn domain holds the account's full session and accepts `/api/auth/*` but sign-up and the device flow.                                      | A console-grade session lives on every learn domain, so only operator-controlled domains are safe. | ADR 0018 step 2: learner session and handoff; drop learn domains from trusted origins. |
-| No console UI to manage members, roles, or the organization; only Better Auth endpoints.                                                        | Removing a learner or promoting an admin needs raw API calls.                                      | Follows invitations; scope with ADR 0018 step 3.                                       |
+| Gap                                                                                                                           | Impact                                                                                             | Next step                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| No Braivo way to add a learner or admin to an organization.                                                                   | Learners get in only by seeding the database.                                                      | Build ADR 0018 invitations (after email code and handoff).                             |
+| Better Auth's default `membershipLimit` of 100 applies to the members it adds; no schema caps them.                           | Its member-adding flows stop at 100 members.                                                       | Set `membershipLimit` deliberately.                                                    |
+| Whether a member may leave is undecided: Better Auth's `organization/leave` lets any member but an organization's sole owner. | A learner can end their own enrollment.                                                            | Maintainer decides; then a rule and a test, or disable it.                             |
+| No email verification and no password reset.                                                                                  | Anyone can sign up with someone else's email; a forgotten password locks the account out.          | ADR 0018 step 1 (email code) removes both problems.                                    |
+| A learn domain holds the account's full session and accepts `/api/auth/*` but sign-up and the device flow.                    | A console-grade session lives on every learn domain, so only operator-controlled domains are safe. | ADR 0018 step 2: learner session and handoff; drop learn domains from trusted origins. |
+| No console UI to change members, roles, or the organization's settings.                                                       | Changing another member takes the database; renaming the organization, a raw Better Auth call.     | Follows invitations; scope with ADR 0018 step 3.                                       |

@@ -38,6 +38,7 @@ const slugs = {
   selfServe: "auth-test-self-serve",
   taken: "auth-test-taken",
   invites: "auth-test-invites",
+  roster: "auth-test-roster",
   // Listed so a regression that lets it through is cleaned up after itself.
   reserved: "login",
 };
@@ -257,6 +258,41 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
         .map((invitationId) => ({ id: invitationId, status: "pending" })),
     );
     expect((await membersOf(id)).map((member) => member.userId)).toEqual([inviter!.userId]);
+  });
+
+  test("answers no member listing, role, removal, or role change, to a learner or the owner", async () => {
+    // Without the switch, either reads all three, and removing or updating
+    // someone unknown answers 400: only the switch answers 404.
+    const id = await createOwned(slugs.roster);
+    const [own] = await membersOf(id);
+    const headers = { cookie: await signIn() };
+    const statuses = async () =>
+      (
+        await Promise.all([
+          call(`/organization/list-members?organizationId=${id}`, { headers }),
+          call(`/organization/get-full-organization?organizationId=${id}`, { headers }),
+          call(`/organization/get-active-member-role?organizationId=${id}&userId=${own!.userId}`, {
+            headers,
+          }),
+          post(
+            "/organization/remove-member",
+            { organizationId: id, memberIdOrEmail: "auth-test-nobody@example.com" },
+            headers,
+          ),
+          post(
+            "/organization/update-member-role",
+            { organizationId: id, memberId: "auth-test-nobody", role: "admin" },
+            headers,
+          ),
+        ])
+      ).map((answer) => answer.status);
+
+    expect(await statuses()).toEqual(Array(5).fill(404));
+    await database
+      .update(authTables.member)
+      .set({ role: "member" })
+      .where(eq(authTables.member.id, own!.id));
+    expect(await statuses()).toEqual(Array(5).fill(404));
   });
 
   test("refuses a reserved slug", async () => {

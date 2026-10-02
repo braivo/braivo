@@ -284,6 +284,11 @@
 // lists each source those cite once, as the sources listing does. 404 when the
 // organization has no such course.
 //
+// `GET /api/organizations/:organizationId/members` — answers
+// `{ "members": [{ "userId": "…", "name": "…", "roles": ["member"] }] }`, by
+// name, every role a member holds. No emails: the roster's clients need only
+// names and roles.
+//
 // `POST /api/organizations/:organizationId/sources` — adds material a content
 // owner provides, as text:
 //
