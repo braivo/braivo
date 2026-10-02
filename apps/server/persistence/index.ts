@@ -41,6 +41,7 @@ export {
   readOrganizationBySlug,
   readOrganizationSlug,
 } from "./organization.ts";
+export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export type { AuthoredTask, CitedTaskPassage, TaskCitation } from "./task.ts";

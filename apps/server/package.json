@@ -17,9 +17,11 @@
     "better-auth": "1.7.5",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.8",
+    "nodemailer": "^8.0.11",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "auth": "1.7.5"
   }
 }

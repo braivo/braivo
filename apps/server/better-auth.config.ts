@@ -15,4 +15,5 @@ export const auth = createAuth({
   database: createDatabase("postgres://schema-generation/none"),
   secret: "schema-generation-only-never-signs-anything",
   baseURL: "http://localhost",
+  sendMail: () => Promise.reject(new Error("Schema generation sends no email.")),
 });

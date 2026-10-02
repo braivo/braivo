@@ -12,6 +12,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
+import { createOutbox } from "../auth/testing.ts";
 import { readSource } from "../persistence/index.ts";
 import { readServer } from "./credentials.ts";
 import { remoteClient, signIn, whoAmI } from "./remote.ts";
@@ -20,10 +21,12 @@ import { addSourceFromFile } from "./sources.ts";
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
 const server = "http://localhost:3000";
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "cli-test-secret-that-is-long-enough-32",
   baseURL: server,
+  sendMail: outbox.sendMail,
 });
 const api = createApi({ auth, database, baseUrl: server });
 

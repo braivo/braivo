@@ -460,6 +460,16 @@ const BEARER_AUTH_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Signing in by an emailed code, which Better Auth origin-checks only for a
+ * request carrying a cookie: without `isTrustedWrite`, another site could sign
+ * a visitor in to an account whose code it holds.
+ */
+const SIGN_IN_CODE_PATHS: ReadonlySet<string> = new Set([
+  "/api/auth/email-otp/send-verification-otp",
+  "/api/auth/sign-in/email-otp",
+]);
+
+/**
  * The HTTP entry point to `application`. A route resolves who is asking, calls
  * one use case, and turns its result into a status; anything it had to look up
  * for itself would be a workflow, and workflows belong to `application`.
@@ -521,6 +531,12 @@ export function createApi(options: ApiOptions) {
       // email — which takes the person in their browser.
       const bearer = context.req.header("authorization") !== undefined;
       if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
+      if (
+        SIGN_IN_CODE_PATHS.has(context.req.path) &&
+        !(await isTrustedWrite(context, origin, database, requestHost(context)))
+      ) {
+        return context.body(null, 403);
+      }
 
       // Copied, since a library's response may carry immutable headers.
       const answered = await auth.handler(context.req.raw);

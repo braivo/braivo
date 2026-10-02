@@ -5,10 +5,16 @@ import type { Database } from "@braivo/db";
 import * as authTables from "@braivo/db/schema/auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
-import { bearer, deviceAuthorization, organization } from "better-auth/plugins";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
+import * as z from "zod";
 
-import { organizationOwnsLearningContent, readOrganizationSlug } from "../persistence/index.ts";
+import type { SendMail } from "../mail/index.ts";
+import {
+  claimSignInCode,
+  organizationOwnsLearningContent,
+  readOrganizationSlug,
+} from "../persistence/index.ts";
 import { isOrganizationOrigin } from "./origin.ts";
 import { slugProblem } from "./slug.ts";
 
@@ -26,7 +32,17 @@ type AuthOptions = {
   secret: string;
   /** Public origin this installation is served from, used to build callback URLs. */
   baseURL: string;
+  /** Delivers sign-in codes. */
+  sendMail: SendMail;
 };
+
+/**
+ * Sign-in codes, chosen rather than Better Auth's defaults (ADR 0018). Ten
+ * minutes leave time to switch to a mail app and back; five guesses at a
+ * six-digit code leave an attacker one chance in 200,000 per code, and the
+ * address's minute between codes bounds how many codes they get.
+ */
+const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
 
 /** Refuses a slug that cannot address an organization, as a 400 carrying the reason. */
 function assertSlugAllowed(slug: string): void {
@@ -64,13 +80,64 @@ export function createAuth(options: AuthOptions) {
       return (await isOrganizationOrigin(options.database, origin)) ? [origin] : [];
     },
 
-    // Passwords need no external identity provider to register with.
+    // Until the apps sign in by email code (ADR 0018).
     emailAndPassword: { enabled: true },
 
-    // An organization owns content, and its members may learn from it; membership
-    // is what Braivo's authorization rules are built on. A learner's history is
-    // kept per learner, not per organization (ADR 0032).
+    hooks: {
+      before: createAuthMiddleware(async (context) => {
+        if (context.path !== "/email-otp/send-verification-otp") return;
+        const { email, type } = (context.body ?? {}) as { email?: unknown; type?: unknown };
+        // Its other kinds serve flows that are off (`disabledPaths`).
+        if (type !== "sign-in") {
+          throw new APIError("BAD_REQUEST", {
+            code: "SIGN_IN_CODES_ONLY",
+            message: "Only sign-in codes are sent.",
+          });
+        }
+        // Normalized as the endpoint does; what it would refuse is left to it.
+        const address = typeof email === "string" ? email.toLowerCase() : "";
+        if (!z.email().safeParse(address).success) return;
+        // One code a minute per address, whoever asks: a client limit alone
+        // lets a few addresses flood one inbox. Every address gets codes, so
+        // this says nothing about which have accounts.
+        const claimed = await claimSignInCode(options.database, {
+          email: address,
+          at: new Date(),
+          seconds: SIGN_IN_CODE.cooldownSeconds,
+        });
+        if (!claimed) {
+          throw new APIError("TOO_MANY_REQUESTS", {
+            code: "SIGN_IN_CODE_JUST_SENT",
+            message: "A code was just sent to this address. Wait a minute before asking again.",
+          });
+        }
+      }),
+    },
+
     plugins: [
+      // Proving an email signs someone in, making their account if needed, so
+      // asking for a code never says whether one exists (ADR 0018).
+      emailOTP({
+        otpLength: SIGN_IN_CODE.digits,
+        expiresIn: SIGN_IN_CODE.seconds,
+        allowedAttempts: SIGN_IN_CODE.attempts,
+        // A database leak then yields no live code.
+        storeOTP: "hashed",
+        // Per client, and only in production, as all of Better Auth's limits.
+        // Generous, since a school's classroom shares one address; the
+        // per-address minute above is what protects an inbox.
+        rateLimit: { window: 60, max: 10 },
+        sendVerificationOTP: async ({ email, otp }) => {
+          await options.sendMail({
+            to: email,
+            subject: `${otp} is your sign-in code`,
+            text: `Enter ${otp} to sign in. It works once, for ${SIGN_IN_CODE.seconds / 60} minutes.\n\nIf you did not ask for it, ignore this email: nothing happens without the code.`,
+          });
+        },
+      }),
+      // An organization owns content, and its members may learn from it;
+      // membership is what Braivo's authorization rules are built on. A
+      // learner's history is kept per learner, not per organization (ADR 0032).
       organization({
         // The operator creates organizations (`createOrganization`), not the
         // console, until self-serve onboarding is wanted (ADR 0018).
@@ -137,6 +204,16 @@ export function createAuth(options: AuthOptions) {
     // Off where the plugin has no switch of its own. Direct `auth.api` calls
     // bypass it; Braivo makes none to these.
     disabledPaths: [
+      // Email codes sign in and nothing else: resetting a password would give
+      // an account made by code a password, and the rest serve flows Braivo
+      // does not offer.
+      "/email-otp/check-verification-otp",
+      "/email-otp/verify-email",
+      "/email-otp/request-password-reset",
+      "/forget-password/email-otp",
+      "/email-otp/reset-password",
+      "/email-otp/request-email-change",
+      "/email-otp/change-email",
       // These answer any member, not only owners and admins: a learner would
       // read members' and invitations' emails, another's role, or, from
       // `remove-member`'s error, whether an email is a member's; a role change

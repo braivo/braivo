@@ -37,6 +37,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0030: Braivo reads a PDF or photo into pages on request, and the caller adds them](0030-server-extraction.md)
 - [0031: Each AI request is recorded, and an operator may set an organization's monthly quota](0031-ai-limits.md)
 - [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
+- [0033: Email goes out over SMTP, or to the log of an installation only its machine reaches](0033-email-over-smtp.md)
 
 ## Web
 

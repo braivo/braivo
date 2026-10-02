@@ -18,6 +18,13 @@ export type AuthConfig = {
 
 export type ServeConfig = AuthConfig & {
   port: number;
+  /**
+   * The one address to listen on, or every one. A server logging sign-in codes
+   * listens on its loopback hostname alone, so nobody else can ask for them.
+   */
+  hostname?: string;
+  /** How sign-in codes reach people: an SMTP server, or this server's log. */
+  mail: { url: string; from: string } | "log";
   /** Where uploaded files are kept, or nowhere: an installation may do without them. */
   files?: FilesConfig;
   /** The model that drafts courses, or none: content owners' own agents can draft instead. */
@@ -60,12 +67,44 @@ export function readAuthConfig(environment: Environment): AuthConfig {
 }
 
 export function readServeConfig(environment: Environment): ServeConfig {
+  const auth = readAuthConfig(environment);
+  const mail = readMail(environment, auth.baseUrl);
   return {
-    ...readAuthConfig(environment),
+    ...auth,
     port: readPort(environment, "PORT"),
+    // `[::1]` is a URL's spelling; a socket takes `::1`.
+    ...(mail === "log" && { hostname: new URL(auth.baseUrl).hostname.replace(/^\[|\]$/g, "") }),
+    mail,
     ...readFiles(environment, "BRAIVO_FILES"),
     ...readAi(environment),
   };
+}
+
+/** Hosts only this machine reaches. */
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * `BRAIVO_SMTP_URL` (`smtp://` or `smtps://`, credentials in the URL) and the
+ * `BRAIVO_MAIL_FROM` it sends as. Unset, codes are written to the log, but only
+ * while `BRAIVO_URL` is loopback: there, whoever reads the log is whoever signs
+ * in. Anywhere else that would announce sent codes no one receives and put
+ * live credentials in logs, so serving is refused (ADR 0033).
+ */
+function readMail(environment: Environment, baseUrl: string): ServeConfig["mail"] {
+  const smtpUrl = environment.BRAIVO_SMTP_URL?.trim();
+  if (!smtpUrl) {
+    if (LOOPBACK.has(new URL(baseUrl).hostname)) return "log";
+    throw new Error(
+      "BRAIVO_SMTP_URL is not set: people sign in with codes sent by email, so an installation others reach must send it.",
+    );
+  }
+  // With a host: Nodemailer would take a missing one as localhost. Not echoed
+  // back, since the URL carries the SMTP password.
+  const parsed = URL.canParse(smtpUrl) ? new URL(smtpUrl) : undefined;
+  if (!parsed?.hostname || (parsed.protocol !== "smtp:" && parsed.protocol !== "smtps:")) {
+    throw new Error("BRAIVO_SMTP_URL must be an smtp:// or smtps:// URL with a host.");
+  }
+  return { url: smtpUrl, from: required(environment, "BRAIVO_MAIL_FROM").trim() };
 }
 
 /**
