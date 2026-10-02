@@ -39,17 +39,18 @@ Today the console signs people in with email and password at `/login` and `/sign
 - **Bootstrapping an owner by invitation.** An invitation needs an inviting member, which a new organization lacks.
 - **An invitation naming a learn domain.** It freezes a hostname that may change before acceptance.
 - **A return URL from the browser.** The handoff records the hostname from the domain mapping.
+- **Password sign-in on learn domains until the handoff** (replaced): an account made by email code has no password, so it could not learn until step 2.
 - **Passwords alongside**, needing verification and reset; **a separate `/signup`**, a question Braivo need not ask; **signing in on each learn domain**, credentials on hostnames an organization may control; **magic links**, which fail across devices and are spent by mail scanners; **course enrollment now**, a second access model with no customer asking.
 
 ## Consequences
 
-- An installation must send email; Google needs an OAuth client.
+- An installation must send email ([ADR 0033](0033-email-over-smtp.md)); Google needs an OAuth client.
 - Email ownership is proven at every sign-in; unused accounts accumulate, reaching nothing.
 - With learner sessions in place, a customer-owned domain may be registered: whoever controls it reaches only that organization's learner sessions ([ADR 0004](0004-one-application-origin.md)).
 - The learn app's sign-in page is on Braivo's origin, branded as the organization, with Braivo's address in the location bar.
-- `/login` and `/invitations` are reserved from slugs; `signup` leaves the list with the route.
-- To build, in dependency order — invitations need the handoff, since an account made by email code has no password for today's learn-domain sign-in:
-  1. email-code `/login` with the name step and settings above, replacing `/signup` and the password form; and, already done, the command that creates an organization for an existing user, with the console's creation form removed;
-  2. the learner session and handoff, replacing learn-domain sign-in, and learn domains dropped from Better Auth's trusted origins; `/login?handoff=` names the organization and the domain it returns to ("Sign in to Acme Learning"), without Braivo's branding;
+- `/login` and `/invitations` are reserved from slugs.
+- To build, in this order:
+  1. done: the command that creates an organization for an existing user, with the console's creation form removed; and email-code `/login` with the name step and settings above, replacing `/signup` and every password form; until step 2, the learn app signs in by code on its own domain;
+  2. the learner session and handoff, replacing learn-domain sign-in and ending the account sessions learn domains hold, and learn domains dropped from Better Auth's trusted origins; `/login?handoff=` names the organization and the domain it returns to ("Sign in to Acme Learning"), without Braivo's branding;
   3. learner and administrator invitations;
   4. the pilot, then Google.

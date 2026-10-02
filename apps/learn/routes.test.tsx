@@ -77,11 +77,17 @@ function renderAt(
   const submitAttempt = vi.fn(
     options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
+  let signedIn = options.signedIn;
+  const user = { id: "ada", name: "Ada Learner" };
   const auth = {
-    getSession: async () => ({
-      data: options.signedIn ? { user: { id: "ada", name: "Ada Learner" } } : null,
-      error: null,
-    }),
+    getSession: async () => ({ data: signedIn ? { user } : null, error: null }),
+    emailOtp: { sendVerificationOtp: async () => ({ error: null }) },
+    signIn: {
+      emailOtp: vi.fn(async () => {
+        signedIn = true;
+        return { data: { user }, error: null };
+      }),
+    },
   } as unknown as AppContext["auth"];
   const braivo = {
     hostOrganization,
@@ -107,7 +113,7 @@ describe("the learn app", () => {
       signedIn: false,
     });
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
@@ -121,7 +127,7 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Springo")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send code" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Springo"));
   });
 
@@ -129,7 +135,7 @@ describe("the learn app", () => {
     document.title = "";
     renderAt("/login", { signedIn: false });
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
     expect(screen.queryByText("Springo")).toBeNull();
     await vi.waitFor(() => expect(document.title).toBe("Learning"));
   });
@@ -142,14 +148,27 @@ describe("the learn app", () => {
       },
     });
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
   });
 
-  test("offers learners no way to sign up", async () => {
-    renderAt("/login", { signedIn: false });
+  test("signs a learner in with an emailed code, and returns them where they were headed", async () => {
+    const { learnerCourses, router } = renderAt("/", {
+      signedIn: false,
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+    });
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "ada@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+    fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+    // No link: an emailed code makes the account, so there is nothing to sign up for.
     expect(screen.queryByRole("link")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/");
+    expect(learnerCourses).toHaveBeenCalled();
   });
 
   test("lists the learner's courses, each a way into it", async () => {
@@ -364,7 +383,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByRole("button", { name: "Sign in" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
   });
 

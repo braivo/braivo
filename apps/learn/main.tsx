@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createBrowserAuth } from "@braivo/auth-client";
 import { createClient } from "@braivo/server/client";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { createLearnAuth } from "./lib/auth.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
 import "./styles.css";
@@ -18,7 +18,7 @@ const router = createRouter({
   routeTree,
   context: {
     braivo: createClient(),
-    auth: createBrowserAuth({ baseURL: origin }),
+    auth: createLearnAuth(origin),
   },
 });
 

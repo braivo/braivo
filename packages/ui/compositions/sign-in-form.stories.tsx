@@ -7,7 +7,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 const meta = {
   title: "Compositions/SignInForm",
   component: SignInForm,
-  args: { mode: "sign-in", onSubmit: () => {} },
+  args: { step: { step: "email" }, onSubmit: () => {}, onChangeEmail: () => {} },
   decorators: [
     (Story) => (
       <div className="w-80">
@@ -20,12 +20,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Email: Story = {};
 
-export const SignUp: Story = {
-  args: { mode: "sign-up", switchMode: <a href="#login">Have an account? Sign in</a> },
+export const Code: Story = { args: { step: { step: "code", email: "ada@example.com" } } };
+
+export const Resent: Story = {
+  args: { step: { step: "code", email: "ada@example.com", sent: 2 } },
 };
 
-export const Refused: Story = { args: { error: "Invalid email or password" } };
+export const Name: Story = { args: { step: { step: "name" } } };
+
+export const Refused: Story = {
+  args: { step: { step: "code", email: "ada@example.com" }, error: "Invalid OTP" },
+};
 
 export const Pending: Story = { args: { pending: true } };

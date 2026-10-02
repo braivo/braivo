@@ -9,7 +9,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
-import { createOutbox } from "../auth/testing.ts";
+import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { readCourseObjectives } from "../persistence/index.ts";
 import { createMcpServer } from "./mcp.ts";
 import { remoteClient } from "./remote.ts";
@@ -57,22 +57,17 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
 
-    // A device-flow token is a bearer session; one from signing up is the same kind.
+    // A device-flow token is a bearer session; one from signing in is the same kind.
     const email = `mcp-test-${crypto.randomUUID()}@example.com`;
-    const signedUp = await api.request("/api/auth/sign-up/email", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, password: "correct horse battery", name: email }),
-    });
-    const token = signedUp.headers.get("set-auth-token") ?? "";
-    const session = await api.request("/api/auth/get-session", {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const { user } = (await session.json()) as { user: { id: string } };
+    const { token, id } = await signInWithCode(
+      (path, init) => api.request(`/api/auth${path}`, init),
+      outbox,
+      { email, name: email },
+    );
     await testing.seedOrganization(database, {
       organizationId,
       learnerIds: [],
-      adminIds: [user.id],
+      adminIds: [id],
       at,
     });
 

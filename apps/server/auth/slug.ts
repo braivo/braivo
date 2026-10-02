@@ -14,7 +14,6 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "invitations",
   "login",
   "organizations",
-  "signup",
 ]);
 
 /**

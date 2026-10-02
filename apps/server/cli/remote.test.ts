@@ -12,7 +12,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
-import { createOutbox } from "../auth/testing.ts";
+import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { readSource } from "../persistence/index.ts";
 import { readServer } from "./credentials.ts";
 import { remoteClient, signIn, whoAmI } from "./remote.ts";
@@ -41,15 +41,12 @@ let teacher!: { cookie: string; id: string; email: string };
 
 async function signUp() {
   const email = `cli-test-${crypto.randomUUID()}@example.com`;
-  const signedUp = await api.request("/api/auth/sign-up/email", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "correct horse battery", name: email }),
-  });
-  const cookie = signedUp.headers.get("set-cookie") ?? "";
-  const session = await api.request("/api/auth/get-session", { headers: { cookie } });
-  const { user } = (await session.json()) as { user: { id: string } };
-  return { cookie, id: user.id, email };
+  const { cookie, id } = await signInWithCode(
+    (path, init) => api.request(`/api/auth${path}`, init),
+    outbox,
+    { email, name: email },
+  );
+  return { cookie, id, email };
 }
 
 /**

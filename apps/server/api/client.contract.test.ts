@@ -11,7 +11,7 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
-import { createOutbox } from "../auth/testing.ts";
+import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
@@ -74,19 +74,12 @@ let decimals!: string;
 /** Three objectives, so a progress report can show every phase at once. */
 let progressCourseId!: string;
 
-async function signUp(): Promise<{ cookie: string; id: string }> {
+function signUp(): Promise<{ cookie: string; id: string }> {
   const email = `contract-${crypto.randomUUID()}@example.com`;
-  const signedUp = await api.request("/api/auth/sign-up/email", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "correct horse battery", name: email }),
+  return signInWithCode((path, init) => api.request(`/api/auth${path}`, init), outbox, {
+    email,
+    name: email,
   });
-  const cookie = signedUp.headers.get("set-cookie") ?? "";
-
-  const session = await api.request("/api/auth/get-session", { headers: { cookie } });
-  const { user } = (await session.json()) as { user: { id: string } };
-
-  return { cookie, id: user.id };
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */

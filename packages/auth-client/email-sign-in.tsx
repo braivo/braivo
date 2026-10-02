@@ -1,53 +1,93 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { SignInForm, type SignInValues } from "@braivo/ui";
-import { type ReactNode, useState } from "react";
+import { SignInForm, type SignInStep, type SignInValues } from "@braivo/ui";
+import { useState } from "react";
 
-/**
- * The part of a Better Auth client signing in uses. Structural, so either app's
- * client fits whichever plugins it was built with.
- */
-export type EmailAuth = {
-  signIn: {
-    email(input: { email: string; password: string }): Promise<AuthResult>;
-  };
-  signUp: {
-    email(input: { email: string; password: string; name: string }): Promise<AuthResult>;
-  };
+type AuthResult<Data = unknown> = {
+  data?: Data | null;
+  error: { code?: string; message?: string } | null;
 };
 
-type AuthResult = { error: { message?: string } | null };
+/**
+ * The part of a Better Auth client, with its email code plugin, that signing in
+ * uses. Structural, so either app's client fits whichever plugins it was built
+ * with.
+ */
+export type EmailAuth = {
+  emailOtp: {
+    sendVerificationOtp(input: { email: string; type: "sign-in" }): Promise<AuthResult>;
+  };
+  signIn: {
+    emailOtp(input: {
+      email: string;
+      otp: string;
+    }): Promise<AuthResult<{ user: { name: string } }>>;
+  };
+  updateUser(input: { name: string }): Promise<AuthResult>;
+};
+
+/** Better Auth's refusals of a code, said so the next step is plain. */
+const CODE_REFUSALS: Partial<Record<string, string>> = {
+  INVALID_OTP: "That code is not right. Check it, or send a new one.",
+  OTP_EXPIRED: "That code has expired. Send a new one.",
+  TOO_MANY_ATTEMPTS: "That code was tried too many times. Send a new one.",
+};
+
+function refusal(error: { code?: string; message?: string }): string {
+  return CODE_REFUSALS[error.code ?? ""] ?? (error.message || "That did not work. Try again.");
+}
 
 /**
- * Signing in, or creating an account, with an email and password. Reports
+ * Signing in with a code sent by email, which makes the account if there is
+ * none, then naming an account that has no name yet (ADR 0018). Starts at the
+ * name when `needsName` says a session is open for such an account. Reports
  * success through `onSignedIn` and leaves where to go next to the caller.
  */
 export function EmailSignIn(props: {
   auth: EmailAuth;
-  mode: SignInValues["mode"];
-  /** The way to the other mode, usually a link to the app's other route. */
-  switchMode?: ReactNode;
+  needsName?: boolean;
   onSignedIn: () => void;
 }) {
+  const { auth } = props;
+  const [step, setStep] = useState<SignInStep>(
+    props.needsName ? { step: "name" } : { step: "email" },
+  );
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
+
+  /** Takes one step, answering why it was refused if it was. */
+  async function next(values: SignInValues): Promise<string | undefined> {
+    if (values.step === "email") {
+      const { error } = await auth.emailOtp.sendVerificationOtp({
+        email: values.email,
+        type: "sign-in",
+      });
+      if (error) return refusal(error);
+      // Asked again from the code step, a refusal above keeps it there, so the
+      // first code can still be entered.
+      setStep({
+        step: "code",
+        email: values.email,
+        sent: step.step === "code" ? (step.sent ?? 1) + 1 : 1,
+      });
+    } else if (values.step === "code" && step.step === "code") {
+      const { data, error } = await auth.signIn.emailOtp({ email: step.email, otp: values.code });
+      if (error) return refusal(error);
+      if (data?.user.name.trim()) props.onSignedIn();
+      else setStep({ step: "name" });
+    } else if (values.step === "name") {
+      const { error } = await auth.updateUser({ name: values.name });
+      if (error) return refusal(error);
+      props.onSignedIn();
+    }
+  }
 
   async function submit(values: SignInValues) {
     setPending(true);
     setError(undefined);
     try {
-      const { error } =
-        values.mode === "sign-in"
-          ? await props.auth.signIn.email({ email: values.email, password: values.password })
-          : await props.auth.signUp.email({
-              email: values.email,
-              password: values.password,
-              name: values.name,
-            });
-
-      if (error) setError(error.message ?? "That did not work. Try again.");
-      else props.onSignedIn();
+      setError(await next(values));
     } catch {
       // Refused answers arrive as `error` above; this is a request that got no
       // answer at all, which is worth another try. No product name: the learn
@@ -60,11 +100,17 @@ export function EmailSignIn(props: {
 
   return (
     <SignInForm
-      mode={props.mode}
-      switchMode={props.switchMode}
+      step={step}
       pending={pending}
       error={error}
       onSubmit={submit}
+      onResend={
+        step.step === "code" ? () => submit({ step: "email", email: step.email }) : undefined
+      }
+      onChangeEmail={() => {
+        setError(undefined);
+        setStep({ step: "email", email: step.step === "code" ? step.email : undefined });
+      }}
     />
   );
 }

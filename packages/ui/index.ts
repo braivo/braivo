@@ -12,6 +12,6 @@ export { AuthoredTask } from "./compositions/authored-task.tsx";
 export { ChoiceQuestion } from "./compositions/choice-question.tsx";
 export { Heading } from "./compositions/heading.tsx";
 export { MutedText } from "./compositions/muted-text.tsx";
-export { SignInForm, type SignInValues } from "./compositions/sign-in-form.tsx";
+export { SignInForm, type SignInStep, type SignInValues } from "./compositions/sign-in-form.tsx";
 export { SourcePassage } from "./compositions/source-passage.tsx";
 export { type EditableTask, TaskEditor } from "./compositions/task-editor.tsx";

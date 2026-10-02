@@ -492,17 +492,17 @@ export function createApi(options: ApiOptions) {
   };
 
   // The installation's origin is the console's and its tools': the account's
-  // own credentials — sign-up, the device flow, a bearer token — and the
-  // console's API reach nothing on any other host, which serves one
-  // organization's learn app (ADR 0004, ADR 0022). Before authentication, so
-  // a credential presented elsewhere is refused whatever it could do.
+  // own credentials — the device flow, a bearer token — and the console's API
+  // reach nothing on any other host, which serves one organization's learn app
+  // (ADR 0004, ADR 0022). Before authentication, so a credential presented
+  // elsewhere is refused whatever it could do.
   api.use("/api/*", async (context, next) => {
     if (requestHost(context).installation) return next();
     // A refusal here depends on the host, so no shared cache may keep one.
     context.header("cache-control", "private, no-store");
     if (context.req.header("authorization") !== undefined) return context.body(null, 401);
     const { path } = context.req;
-    const installationOnly = ["/api/organizations", "/api/auth/sign-up/", "/api/auth/device"];
+    const installationOnly = ["/api/organizations", "/api/auth/device"];
     if (installationOnly.some((prefix) => path.startsWith(prefix))) {
       return context.body(null, 404);
     }
@@ -510,7 +510,7 @@ export function createApi(options: ApiOptions) {
   });
 
   // Better Auth owns the routing below this path (ADR 0006); Braivo still owes
-  // it the protections. Unguarded, `sign-up/email` accepts a megabytes-long
+  // it the protections. Unguarded, `sign-in/email-otp` accepts a megabytes-long
   // name unauthenticated, and `organization/list` answers with one caller's
   // organizations under no cache header at all.
   api.on(

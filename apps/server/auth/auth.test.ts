@@ -11,28 +11,22 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { createObjectives } from "../persistence/index.ts";
 import { createAuth } from "./auth.ts";
 import { createOrganization } from "./organization.ts";
-import { codeSentTo, createOutbox } from "./testing.ts";
+import { codeSentTo, createOutbox, signInWithCode } from "./testing.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 
-/** Signed up once per run, so each test can sign in on its own. */
-const owner = {
-  email: "auth-test-owner@example.com",
-  password: "correct horse battery",
-  name: "Owner",
-};
-/** Signed up by the test that checks signing up. */
+/** Signed in once per run: an address gets one code a minute. */
+const owner = { email: "auth-test-owner@example.com", name: "Owner" };
+/** Signed in by the test that checks making an account. */
 const newcomer = "auth-test-newcomer@example.com";
-/** Signed in by code by the test that checks it makes an account. */
-const coded = "auth-test-coded@example.com";
+/** Signed in by the test that tries to answer invitations. */
+const invitee = { email: "auth-test-invitee@example.com", name: "Invitee" };
 /** Asked for codes by the tests that check their limits. */
 const asking = [
   "auth-test-asks@example.com",
   "auth-test-asks-at-once@example.com",
   "auth-test-asks-late@example.com",
 ];
-/** Signed up by the test that tries to answer invitations. */
-const invitee = { ...owner, email: "auth-test-invitee@example.com", name: "Invitee" };
 /** Every organization this suite creates or tries to, by slug. */
 const slugs = {
   school: "auth-test-school",
@@ -75,19 +69,10 @@ function post(path: string, body: unknown, headers: Record<string, string> = {})
   });
 }
 
-/**
- * Returns what a browser sends back: `name=value` pairs without the attributes
- * they arrived with. Replaying `Set-Cookie` verbatim parses, but is a header no
- * client sends.
- */
-async function signIn(account = owner): Promise<string> {
-  const { email, password } = account;
-  const response = await post("/sign-in/email", { email, password });
-  return response.headers
-    .getSetCookie()
-    .map((cookie) => cookie.split(";", 1)[0])
-    .join("; ");
-}
+/** The owner's session, from `beforeAll`. */
+let ownerCookie!: string;
+const signIn = (account: { email: string; name: string }) =>
+  signInWithCode(call, outbox, account).then(({ cookie }) => cookie);
 
 async function createOwned(slug: string): Promise<string> {
   return (await createOrganization(auth, { name: slug, slug, ownerEmail: owner.email })).id;
@@ -108,7 +93,7 @@ async function clearFixtures(): Promise<void> {
   const leftovers = await database.select({ id: organization.id }).from(organization).where(ours);
   for (const { id } of leftovers) await testing.clearLearningData(database, id);
   await database.delete(organization).where(ours);
-  const emails = [owner.email, newcomer, invitee.email, coded, ...asking];
+  const emails = [owner.email, newcomer, invitee.email, ...asking];
   await database.delete(user).where(inArray(user.email, emails));
   await database.delete(verification).where(
     inArray(
@@ -126,37 +111,26 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
     await clearFixtures();
-    await post("/sign-up/email", owner);
+    ownerCookie = await signIn(owner);
   });
 
   afterAll(clearFixtures);
 
-  test("signing up answers with a session cookie", async () => {
-    const response = await post("/sign-up/email", {
-      email: newcomer,
-      password: "correct horse battery",
-      name: "Newcomer",
-    });
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("better-auth.session_token");
-  });
-
   test("an emailed code makes a verified, named account and signs it in, once", async () => {
-    expect((await sendCode(coded)).status).toBe(200);
-    const [mail] = outbox.sent.filter((sent) => sent.to === coded);
-    const code = codeSentTo(outbox, coded);
+    expect((await sendCode(newcomer)).status).toBe(200);
+    const [mail] = outbox.sent.filter((sent) => sent.to === newcomer);
+    const code = codeSentTo(outbox, newcomer);
     expect(mail?.subject).toBe(`${code} is your sign-in code`);
     // Hashed: whoever reads the table holds no live code.
     const { verification } = authTables;
     const [stored] = await database
       .select({ value: verification.value })
       .from(verification)
-      .where(eq(verification.identifier, `sign-in-otp-${coded}`));
+      .where(eq(verification.identifier, `sign-in-otp-${newcomer}`));
     expect(stored?.value).not.toContain(code);
 
     const signedIn = await post("/sign-in/email-otp", {
-      email: coded,
+      email: newcomer,
       otp: code,
       name: "Newcomer",
     });
@@ -165,10 +139,10 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(cookie).toContain("better-auth.session_token");
     const session = await call("/get-session", { headers: { cookie } });
     expect(await session.json()).toMatchObject({
-      user: { email: coded, name: "Newcomer", emailVerified: true },
+      user: { email: newcomer, name: "Newcomer", emailVerified: true },
     });
 
-    const again = await post("/sign-in/email-otp", { email: coded, otp: code });
+    const again = await post("/sign-in/email-otp", { email: newcomer, otp: code });
     expect(again.status).toBe(400);
   });
 
@@ -191,6 +165,29 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const late = await post("/sign-in/email-otp", { email, otp: codeSentTo(outbox, email) });
     expect(late.status).toBe(400);
     expect(await late.json()).toMatchObject({ code: "OTP_EXPIRED" });
+  });
+
+  test("signs in to the same account however often, never making another", async () => {
+    // `beforeAll` signed the owner in; a minute later, a second code does the same.
+    await database
+      .delete(authTables.verification)
+      .where(eq(authTables.verification.identifier, `sign-in-code-sent:${owner.email}`));
+    const again = await signInWithCode(call, outbox, { email: owner.email, name: "Renamed" });
+
+    const { user } = authTables;
+    const accounts = await database.select().from(user).where(eq(user.email, owner.email));
+    expect(accounts).toMatchObject([{ id: again.id, name: "Owner" }]);
+  });
+
+  test("takes no password, to make an account or to sign in", async () => {
+    const credentials = { email: newcomer, password: "correct horse battery", name: "Newcomer" };
+
+    const answers = await Promise.all([
+      post("/sign-up/email", credentials),
+      post("/sign-in/email", credentials),
+    ]);
+
+    expect(answers.map((answer) => answer.status)).toEqual([400, 400]);
   });
 
   test("sends one code a minute per address, however its guesses are spent", async () => {
@@ -237,8 +234,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       post("/email-otp/request-password-reset", { email: owner.email }),
       post("/forget-password/email-otp", { email: owner.email }),
       post("/email-otp/reset-password", { email: owner.email, otp: "0", password: "x".repeat(12) }),
-      post("/email-otp/request-email-change", { newEmail: coded }, { cookie: await signIn() }),
-      post("/email-otp/change-email", { newEmail: coded, otp: "0" }, { cookie: await signIn() }),
+      post("/email-otp/request-email-change", { newEmail: newcomer }, { cookie: ownerCookie }),
+      post("/email-otp/change-email", { newEmail: newcomer, otp: "0" }, { cookie: ownerCookie }),
     ]);
     const kinds = await Promise.all(
       ["email-verification", "forget-password"].map((type) => sendCode(owner.email, type)),
@@ -249,9 +246,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
   });
 
   test("the session resolves back to the signed-in user", async () => {
-    const cookie = await signIn();
-
-    const session = await call("/get-session", { headers: { cookie } });
+    const session = await call("/get-session", { headers: { cookie: ownerCookie } });
 
     expect(await session.json()).toMatchObject({ user: { email: owner.email } });
   });
@@ -294,7 +289,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const created = await post(
       "/organization/create",
       { name: "Self-Serve", slug: slugs.selfServe },
-      { cookie: await signIn() },
+      { cookie: ownerCookie },
     );
 
     expect(created.status).toBe(403);
@@ -344,12 +339,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
         inviterId: inviter!.userId,
       })),
     );
-    await post("/sign-up/email", invitee);
-    // Listing one's own invitations takes a verified email, which no account
-    // has until email codes (ADR 0018).
-    const { user } = authTables;
-    await database.update(user).set({ emailVerified: true }).where(eq(user.email, invitee.email));
-    const ownerHeaders = { cookie: await signIn() };
+    // Signing in by code verifies the email, as listing one's own invitations needs.
+    const ownerHeaders = { cookie: ownerCookie };
     const inviteeHeaders = { cookie: await signIn(invitee) };
 
     const answers = await Promise.all([
@@ -393,7 +384,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // someone unknown answers 400: only the switch answers 404.
     const id = await createOwned(slugs.roster);
     const [own] = await membersOf(id);
-    const headers = { cookie: await signIn() };
+    const headers = { cookie: ownerCookie };
     const statuses = async () =>
       (
         await Promise.all([
@@ -436,7 +427,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
   });
 
   test("refuses changing a slug, but not resending it with other changes", async () => {
-    const cookie = await signIn();
+    const cookie = ownerCookie;
     const id = await createOwned(slugs.renamed);
     const update = (data: Record<string, string>) =>
       post("/organization/update", { organizationId: id, data }, { cookie });
@@ -452,25 +443,18 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(stored).toMatchObject({ name: "Renamed School", slug: slugs.renamed });
   });
 
-  test("trusts sign-in from an organization's own domain as origin, not a foreign one", async () => {
+  test("trusts an organization's own domain as origin, not a foreign one", async () => {
+    // Better Auth checks the origin of a request carrying a session; a code
+    // sign-in, which carries none, is the API's to check (`api/app.ts`).
     const id = await createOwned(slugs.hasDomain);
     await database
       .insert(organizationDomain)
       .values({ hostname: "auth-test.example.com", organizationId: id });
+    const rename = (origin: string) =>
+      post("/update-user", { name: owner.name }, { cookie: ownerCookie, origin });
 
-    const signedIn = await post(
-      "/sign-in/email",
-      { email: owner.email, password: owner.password },
-      { origin: "https://auth-test.example.com" },
-    );
-
-    expect(signedIn.status).toBe(200);
-    const foreign = await post(
-      "/sign-in/email",
-      { email: owner.email, password: owner.password },
-      { origin: "https://evil.example" },
-    );
-    expect(foreign.status).toBe(403);
+    expect((await rename("https://auth-test.example.com")).status).toBe(200);
+    expect((await rename("https://evil.example")).status).toBe(403);
   });
 
   test("refuses an organization write from a foreign origin", async () => {
@@ -481,7 +465,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const updated = await post(
       "/organization/update",
       { organizationId: id, data: { name: "Foreign Origin" } },
-      { cookie: await signIn(), origin: "https://evil.example" },
+      { cookie: ownerCookie, origin: "https://evil.example" },
     );
 
     expect(updated.status).toBe(403);
@@ -489,7 +473,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
 
   test("refuses to delete an organization that still owns learning content", async () => {
     // The 409 distinguishes the hook from the underlying foreign key's refusal.
-    const cookie = await signIn();
+    const cookie = ownerCookie;
     const id = await createOwned(slugs.ownsContent);
     await createObjectives(database, id, ["Blocks deletion"]);
     const before = await membersOf(id);
@@ -529,7 +513,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
   test("deletes an organization that owns nothing", async () => {
     // Without this, a guard that refused every deletion would pass the tests
     // above.
-    const cookie = await signIn();
+    const cookie = ownerCookie;
     const id = await createOwned(slugs.ownsNothing);
 
     const deleted = await post("/organization/delete", { organizationId: id }, { cookie });

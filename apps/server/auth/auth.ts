@@ -80,8 +80,9 @@ export function createAuth(options: AuthOptions) {
       return (await isOrganizationOrigin(options.database, origin)) ? [origin] : [];
     },
 
-    // Until the apps sign in by email code (ADR 0018).
-    emailAndPassword: { enabled: true },
+    // No passwords: an account is made, and signed in to, by proving its email
+    // (ADR 0018).
+    emailAndPassword: { enabled: false },
 
     hooks: {
       before: createAuthMiddleware(async (context) => {

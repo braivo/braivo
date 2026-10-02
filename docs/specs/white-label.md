@@ -52,14 +52,14 @@ The learn app reads `GET /api/organization` before sign-in, once per visit: the 
 | `/`                                                           | Signed in: the organization last opened in this browser, while still managed, else the only one managed, else `/organizations`. Anonymous: `/login` |
 | `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead                                                       |
 | `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                                                          |
-| `/login`, `/signup`                                           | Sign-in ([access](access.md))                                                                                                                       |
+| `/login`                                                      | Sign-in ([access](access.md))                                                                                                                       |
 
 The URL names the organization, never the session: Better Auth's active organization is unused. The last organization opened is kept in `localStorage` by ID, not slug, and written when the page renders, not in `beforeLoad`, which preloading also runs. `_signed-in/$organizationSlug/route.tsx` resolves the slug among the organizations the user manages; an unknown slug is not found, and child pages read `context.organization`.
 
 ### Slugs
 
 - Lowercase letters, digits and single hyphens, at most 63 characters, checked in Better Auth's create hook.
-- Reserved: the console's root paths, `api`, `assets`, `invitations`, `login`, `organizations`, `signup`.
+- Reserved: the console's root paths, `api`, `assets`, `invitations`, `login`, `organizations`.
 - Never changed: the update hook refuses a different slug and accepts the current one resent.
 
 ## Invariants

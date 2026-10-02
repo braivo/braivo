@@ -50,7 +50,8 @@ ENV
 bun run db:migrate
 bun run dev        # API on :3000, learn app on :5173, console on :5174
 
-# Sign up in the console, then give that account an organization to manage.
+# Sign in to the console with the code the API prints, then give that account
+# an organization to manage.
 bun apps/server/cli/index.ts organization create \
   --name "My School" --slug my-school --owner you@example.com
 ```
@@ -73,10 +74,15 @@ The whole loop, against a running server. Each step answers with an ID the next 
 BRAIVO=http://localhost:3000
 field() { bun -e "const r = JSON.parse(await Bun.stdin.text()); console.log($1)"; }
 
-# Sign up, then have the operator create an organization for that account to
-# own the content (ADR 0018): browsers cannot create one.
-curl -sc jar.txt -X POST $BRAIVO/api/auth/sign-up/email -H 'content-type: application/json' \
-  -d '{"email":"owner@example.com","password":"correct horse battery","name":"Owner"}' >/dev/null
+# Sign in with a code sent to your email, which makes the account, then have
+# the operator create an organization for it to own the content (ADR 0018):
+# browsers cannot create one. A local server without BRAIVO_SMTP_URL prints
+# the code in its log instead.
+curl -s -X POST $BRAIVO/api/auth/email-otp/send-verification-otp -H 'content-type: application/json' \
+  -d '{"email":"owner@example.com","type":"sign-in"}' >/dev/null
+read -r CODE  # type the code
+curl -sc jar.txt -X POST $BRAIVO/api/auth/sign-in/email-otp -H 'content-type: application/json' \
+  -d "{\"email\":\"owner@example.com\",\"otp\":\"$CODE\",\"name\":\"Owner\"}" >/dev/null
 
 LEARNER=$(curl -sb jar.txt $BRAIVO/api/auth/get-session | field 'r.user.id')
 
@@ -245,13 +251,13 @@ Organizations are created by the operator, for an account that has signed in onc
 
 `BRAIVO_URL` is the public origin this installation is served from; Better Auth builds callback URLs from it, so it must match how the server is actually reached. `PORT` defaults to 3000.
 
-People can sign in with a code sent to their email, so an installation sends email: `BRAIVO_SMTP_URL` is an SMTP server as `smtps://user:password@host` (or `smtp://`, upgraded with STARTTLS where the server offers it), and `BRAIVO_MAIL_FROM` the sender, such as `Braivo <signin@example.com>`. Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `localhost`, `127.0.0.1`, or `[::1]`, and the server then listens there alone; anywhere else `serve` refuses to start ([ADR 0033](docs/adr/0033-email-over-smtp.md)). An address gets one code a minute; per client, Better Auth's limits apply as below, ten code requests a minute.
+People sign in with a code sent to their email, so an installation sends email: `BRAIVO_SMTP_URL` is an SMTP server as `smtps://user:password@host` (or `smtp://`, upgraded with STARTTLS where the server offers it), and `BRAIVO_MAIL_FROM` the sender, such as `Braivo <signin@example.com>`. Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `localhost`, `127.0.0.1`, or `[::1]`, and the server then listens there alone; anywhere else `serve` refuses to start ([ADR 0033](docs/adr/0033-email-over-smtp.md)). An address gets one code a minute; per client, Better Auth's limits apply as below.
 
 `ANTHROPIC_API_KEY` lets Braivo draft a course from a source itself, and read an uploaded PDF or photo into its text, for content owners without a desktop agent ([ADR 0029](docs/adr/0029-server-drafting.md), [ADR 0030](docs/adr/0030-server-extraction.md)); unset, those routes answer 501 and content owners draft with their own agents through `braivo mcp`. `BRAIVO_AI_MODEL` picks the model, `claude-sonnet-5` by default. `BRAIVO_AI_ORGANIZATIONS`, comma-separated organization IDs, limits who may spend the key; unset, every organization may, and set but empty or `*`, Braivo refuses to start. `BRAIVO_AI_MONTHLY_LIMIT` is a quota on the AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another; every request is recorded in `ai_request` either way ([ADR 0031](docs/adr/0031-ai-limits.md)).
 
 `BRAIVO_FILES` is where uploaded files — the PDFs sources were extracted from — are kept: an absolute path on this machine, or `s3://<bucket>` in any S3-compatible store, with `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_REGION` as Bun's S3 client reads them ([ADR 0028](docs/adr/0028-original-files.md)). For Cloudflare R2, `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`; for Google Cloud Storage, `https://storage.googleapis.com` with an HMAC key. Unset, the installation keeps no files and its file routes answer 501.
 
-**Set `NODE_ENV=production` when you deploy** — it is what enables Better Auth's rate limiting on its own endpoints, and worth knowing the shape of. The limit is keyed on `X-Forwarded-For` and `bun run serve` supplies no peer address, so with nothing in front of it every caller shares one bucket — three sign-ins per ten seconds across the whole installation — and any caller can sidestep it by sending that header themselves. It is real protection only behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend. Braivo's own routes are not rate limited in any environment.
+**Set `NODE_ENV=production` when you deploy** — it is what enables Better Auth's rate limiting on its own endpoints, and worth knowing the shape of. The limit is keyed on `X-Forwarded-For` and `bun run serve` supplies no peer address, so with nothing in front of it every caller shares one bucket — ten code requests and ten sign-ins a minute across the whole installation — and any caller can sidestep it by sending that header themselves. It is real protection only behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend. Braivo's own routes are not rate limited in any environment.
 
 The server mounts Better Auth at `/api/auth/*` and serves the learning API alongside it:
 

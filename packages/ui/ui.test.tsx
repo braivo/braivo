@@ -35,49 +35,81 @@ describe("Braivo's components", () => {
     expect(classes).not.toContain("text-sm");
   });
 
-  test("a sign-in form reports what was entered, and the name only when signing up", () => {
+  test("a sign-in form asks for each step's value, and reports it", () => {
     const onSubmit = vi.fn();
-    const { rerender } = render(
-      <SignInForm
-        mode="sign-in"
-        switchMode={<a href="/signup">Create one</a>}
-        onSubmit={onSubmit}
-      />,
-    );
+    const onChangeEmail = vi.fn();
+    const { rerender } = render(<SignInForm step={{ step: "email" }} onSubmit={onSubmit} />);
     const fill = (label: string, value: string) =>
       fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
     fill("Email", "ada@example.com");
-    fill("Password", "correct horse battery");
+    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+    expect(onSubmit).toHaveBeenLastCalledWith({ step: "email", email: "ada@example.com" });
+
+    rerender(
+      <SignInForm
+        step={{ step: "code", email: "ada@example.com" }}
+        onSubmit={onSubmit}
+        onChangeEmail={onChangeEmail}
+      />,
+    );
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    // Described by where it went, announced when that changes, and six digits long.
+    const code = screen.getByLabelText("Code");
+    expect(code.getAttribute("aria-describedby")).toBe(screen.getByRole("status").id);
+    expect(screen.getByRole("status").textContent).toMatch(/^Sent to ada@example.com/);
+    expect(code.getAttribute("minlength")).toBe("6");
+    fill("Code", "123456");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(onSubmit).toHaveBeenLastCalledWith({
-      mode: "sign-in",
-      email: "ada@example.com",
-      password: "correct horse battery",
-    });
+    expect(onSubmit).toHaveBeenLastCalledWith({ step: "code", code: "123456" });
+    fireEvent.click(screen.getByRole("button", { name: /Use another email/ }));
+    expect(onChangeEmail).toHaveBeenCalledOnce();
 
-    expect(screen.queryByLabelText("Name")).toBeNull();
-    expect(screen.getByRole("link", { name: "Create one" })).toBeTruthy();
+    rerender(<SignInForm step={{ step: "name" }} onSubmit={onSubmit} />);
+    fill("Your name", "  Ada Lovelace ");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onSubmit).toHaveBeenLastCalledWith({ step: "name", name: "Ada Lovelace" });
 
-    rerender(<SignInForm mode="sign-up" onSubmit={onSubmit} />);
-    fill("Name", "Ada");
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(onSubmit).toHaveBeenLastCalledWith({
-      mode: "sign-up",
-      email: "ada@example.com",
-      password: "correct horse battery",
-      name: "Ada",
-    });
+    // Back at the email, the address entered before is kept, and focused.
+    rerender(<SignInForm step={{ step: "email", email: "ada@example.com" }} onSubmit={onSubmit} />);
+    const email = screen.getByLabelText("Email") as HTMLInputElement;
+    expect(email.value).toBe("ada@example.com");
+    expect(document.activeElement).toBe(email);
   });
 
-  test("a sign-in form announces the caller's error, and cannot be resubmitted while pending", () => {
+  test("a sign-in form clears a refused code, so the next is typed afresh", () => {
+    const step = { step: "code", email: "ada@example.com" } as const;
+    const { rerender } = render(<SignInForm step={step} onSubmit={() => {}} />);
+    const code = () => screen.getByLabelText("Code") as HTMLInputElement;
+    fireEvent.change(code(), { target: { value: "000000" } });
+
+    // As a caller does: the error cleared while the code is checked, then set.
+    rerender(<SignInForm step={step} pending onSubmit={() => {}} />);
+    expect(code().value).toBe("000000");
+    rerender(<SignInForm step={step} error="That code is not right." onSubmit={() => {}} />);
+
+    expect(code().value).toBe("");
+    expect(document.activeElement).toBe(code());
+  });
+
+  test("a sign-in form announces the caller's error, and cannot be resubmitted or left while pending", () => {
     render(
-      <SignInForm mode="sign-in" pending error="Invalid email or password" onSubmit={() => {}} />,
+      <SignInForm
+        step={{ step: "code", email: "ada@example.com" }}
+        pending
+        error="Invalid OTP"
+        onSubmit={() => {}}
+        onResend={() => {}}
+        onChangeEmail={() => {}}
+      />,
     );
 
-    expect(screen.getByRole("alert").textContent).toBe("Invalid email or password");
+    expect(screen.getByRole("alert").textContent).toBe("Invalid OTP");
     const submit = screen.getByRole("button", { name: /Sign in/ });
     expect(submit.hasAttribute("disabled")).toBe(true);
+    for (const name of ["Send a new code", "Use another email"]) {
+      expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
+    }
     expect(within(submit).getByRole("status", { name: "Loading" })).toBeTruthy();
   });
 
