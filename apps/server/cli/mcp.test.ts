@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
+import { createOutbox } from "../auth/testing.ts";
 import { readCourseObjectives } from "../persistence/index.ts";
 import { createMcpServer } from "./mcp.ts";
 import { remoteClient } from "./remote.ts";
@@ -16,10 +17,12 @@ import { remoteClient } from "./remote.ts";
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
 const server = "http://localhost:3000";
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "mcp-test-secret-that-is-long-enough-32",
   baseURL: server,
+  sendMail: outbox.sendMail,
 });
 const api = createApi({
   auth,

@@ -11,6 +11,7 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
+import { createOutbox } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
@@ -27,10 +28,12 @@ import { BraivoError, createClient } from "./client.ts";
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
 const baseUrl = "http://localhost:3000";
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "contract-test-secret-that-is-long-32",
   baseURL: baseUrl,
+  sendMail: outbox.sendMail,
 });
 const api = createApi({
   auth,

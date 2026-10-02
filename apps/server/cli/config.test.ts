@@ -9,6 +9,8 @@ const valid = {
   DATABASE_URL: "postgres://localhost/braivo",
   BETTER_AUTH_SECRET: "a".repeat(32),
   BRAIVO_URL: "https://learn.example.com",
+  BRAIVO_SMTP_URL: "smtps://user:password@smtp.example.com",
+  BRAIVO_MAIL_FROM: "Braivo <signin@example.com>",
 };
 
 describe("the model that drafts courses", () => {
@@ -80,6 +82,57 @@ describe("where files are kept", () => {
   );
 });
 
+describe("how sign-in codes are sent", () => {
+  const noSmtp = { ...valid, BRAIVO_SMTP_URL: undefined, BRAIVO_MAIL_FROM: undefined };
+
+  test("goes to the log only on a loopback installation, listening there alone", () => {
+    for (const [url, hostname] of [
+      ["http://localhost:3000", "localhost"],
+      ["http://127.0.0.1:3000", "127.0.0.1"],
+      ["http://[::1]:3000", "::1"],
+    ]) {
+      expect(readServeConfig({ ...noSmtp, BRAIVO_URL: url })).toMatchObject({
+        mail: "log",
+        hostname,
+      });
+    }
+    // Sending email, it listens everywhere, as behind a proxy it must.
+    expect(
+      readServeConfig({ ...valid, BRAIVO_URL: "http://localhost:3000" }).hostname,
+    ).toBeUndefined();
+    for (const url of [
+      "https://learn.example.com",
+      "http://localhost.example.com",
+      "http://10.0.0.5",
+    ]) {
+      expect(() => readServeConfig({ ...noSmtp, BRAIVO_URL: url })).toThrow(
+        "BRAIVO_SMTP_URL is not set",
+      );
+    }
+    // Blank is unset, not a URL.
+    expect(() => readServeConfig({ ...noSmtp, BRAIVO_SMTP_URL: " " })).toThrow(
+      "BRAIVO_SMTP_URL is not set",
+    );
+  });
+
+  test("takes an SMTP URL with a sender, without echoing its password", () => {
+    for (const url of [
+      "https://user:secret@smtp.example.com",
+      "smtp.example.com",
+      "smtp://",
+      "smtps:///no-host",
+    ]) {
+      // Anchored: the whole message, so nothing of the URL follows it.
+      expect(() => readServeConfig({ ...valid, BRAIVO_SMTP_URL: url })).toThrow(
+        /^BRAIVO_SMTP_URL must be an smtp:\/\/ or smtps:\/\/ URL with a host\.$/,
+      );
+    }
+    expect(() => readServeConfig({ ...valid, BRAIVO_MAIL_FROM: undefined })).toThrow(
+      "BRAIVO_MAIL_FROM is not set.",
+    );
+  });
+});
+
 describe("serve configuration", () => {
   test("reads a complete environment, defaulting the port", () => {
     expect(readServeConfig(valid)).toEqual({
@@ -87,6 +140,10 @@ describe("serve configuration", () => {
       secret: "a".repeat(32),
       baseUrl: "https://learn.example.com",
       port: 3000,
+      mail: {
+        url: "smtps://user:password@smtp.example.com",
+        from: "Braivo <signin@example.com>",
+      },
     });
   });
 

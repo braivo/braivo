@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 import { createObjectives } from "../persistence/index.ts";
 import { createAuth } from "./auth.ts";
 import { createOrganization } from "./organization.ts";
+import { codeSentTo, createOutbox } from "./testing.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 
@@ -22,6 +23,14 @@ const owner = {
 };
 /** Signed up by the test that checks signing up. */
 const newcomer = "auth-test-newcomer@example.com";
+/** Signed in by code by the test that checks it makes an account. */
+const coded = "auth-test-coded@example.com";
+/** Asked for codes by the tests that check their limits. */
+const asking = [
+  "auth-test-asks@example.com",
+  "auth-test-asks-at-once@example.com",
+  "auth-test-asks-late@example.com",
+];
 /** Signed up by the test that tries to answer invitations. */
 const invitee = { ...owner, email: "auth-test-invitee@example.com", name: "Invitee" };
 /** Every organization this suite creates or tries to, by slug. */
@@ -44,10 +53,12 @@ const slugs = {
 };
 
 const database = testing.sharedDatabase(connectionString ?? "");
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "test-secret-that-is-long-enough-32",
   baseURL: "http://localhost:3000",
+  sendMail: outbox.sendMail,
 });
 
 /** Drives the same `Request` → `Response` surface an HTTP entry point mounts. */
@@ -88,16 +99,27 @@ const membersOf = (id: string) =>
 /**
  * Removes this suite's rows and nothing else: its organizations, after the
  * content that would block deleting them, then its users, whose sessions and
- * memberships cascade.
+ * memberships cascade, and its addresses' codes, so a rerun within the minute
+ * gets new ones.
  */
 async function clearFixtures(): Promise<void> {
-  const { organization, user } = authTables;
+  const { organization, user, verification } = authTables;
   const ours = inArray(organization.slug, Object.values(slugs));
   const leftovers = await database.select({ id: organization.id }).from(organization).where(ours);
   for (const { id } of leftovers) await testing.clearLearningData(database, id);
   await database.delete(organization).where(ours);
-  await database.delete(user).where(inArray(user.email, [owner.email, newcomer, invitee.email]));
+  const emails = [owner.email, newcomer, invitee.email, coded, ...asking];
+  await database.delete(user).where(inArray(user.email, emails));
+  await database.delete(verification).where(
+    inArray(
+      verification.identifier,
+      emails.flatMap((email) => [`sign-in-otp-${email}`, `sign-in-code-sent:${email}`]),
+    ),
+  );
 }
+
+const sendCode = (email: string, type = "sign-in") =>
+  post("/email-otp/send-verification-otp", { email, type });
 
 /** Requires TEST_DATABASE_URL: the point is that Better Auth runs on the real schema. */
 describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
@@ -118,6 +140,112 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("set-cookie")).toContain("better-auth.session_token");
+  });
+
+  test("an emailed code makes a verified, named account and signs it in, once", async () => {
+    expect((await sendCode(coded)).status).toBe(200);
+    const [mail] = outbox.sent.filter((sent) => sent.to === coded);
+    const code = codeSentTo(outbox, coded);
+    expect(mail?.subject).toBe(`${code} is your sign-in code`);
+    // Hashed: whoever reads the table holds no live code.
+    const { verification } = authTables;
+    const [stored] = await database
+      .select({ value: verification.value })
+      .from(verification)
+      .where(eq(verification.identifier, `sign-in-otp-${coded}`));
+    expect(stored?.value).not.toContain(code);
+
+    const signedIn = await post("/sign-in/email-otp", {
+      email: coded,
+      otp: code,
+      name: "Newcomer",
+    });
+    expect(signedIn.status).toBe(200);
+    const cookie = signedIn.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("better-auth.session_token");
+    const session = await call("/get-session", { headers: { cookie } });
+    expect(await session.json()).toMatchObject({
+      user: { email: coded, name: "Newcomer", emailVerified: true },
+    });
+
+    const again = await post("/sign-in/email-otp", { email: coded, otp: code });
+    expect(again.status).toBe(400);
+  });
+
+  test("a code lasts ten minutes", async () => {
+    const [, , email] = asking as [string, string, string];
+    const before = Date.now();
+    await sendCode(email);
+    const { verification } = authTables;
+    const ofCode = eq(verification.identifier, `sign-in-otp-${email}`);
+    const [issued] = await database.select().from(verification).where(ofCode);
+    const lifetime = issued!.expiresAt.getTime() - before;
+    expect(lifetime).toBeGreaterThanOrEqual(600_000);
+    expect(lifetime).toBeLessThan(605_000);
+
+    // Past it, the code is refused, however right.
+    await database
+      .update(verification)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(ofCode);
+    const late = await post("/sign-in/email-otp", { email, otp: codeSentTo(outbox, email) });
+    expect(late.status).toBe(400);
+    expect(await late.json()).toMatchObject({ code: "OTP_EXPIRED" });
+  });
+
+  test("sends one code a minute per address, however its guesses are spent", async () => {
+    const [email] = asking as [string];
+    expect((await sendCode(email)).status).toBe(200);
+    const wrong = String((Number(codeSentTo(outbox, email)) + 1) % 1_000_000).padStart(6, "0");
+    const guesses = [];
+    for (let guess = 0; guess < 6; guess++) {
+      guesses.push((await post("/sign-in/email-otp", { email, otp: wrong })).status);
+    }
+    // Five wrong guesses, then the code is spent and its row deleted.
+    expect(guesses).toEqual([400, 400, 400, 400, 400, 403]);
+    const { verification } = authTables;
+    const codes = await database
+      .select()
+      .from(verification)
+      .where(eq(verification.identifier, `sign-in-otp-${email}`));
+    expect(codes).toEqual([]);
+
+    // The minute still holds.
+    const refused = await sendCode(email.toUpperCase());
+
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ code: "SIGN_IN_CODE_JUST_SENT" });
+  });
+
+  test("sends one code to requests for the same address at once", async () => {
+    const [, email] = asking as [string, string];
+
+    const answers = await Promise.all([sendCode(email), sendCode(email), sendCode(email)]);
+
+    expect(answers.map((answer) => answer.status).toSorted((a, b) => a - b)).toEqual([
+      200, 429, 429,
+    ]);
+    expect(outbox.sent.filter((sent) => sent.to === email)).toHaveLength(1);
+  });
+
+  test("sends sign-in codes only, and answers none of the code's other endpoints", async () => {
+    // Each would reset a password, verify, or change an email: flows Braivo
+    // does not offer, and the first would give an account a password.
+    const others = await Promise.all([
+      post("/email-otp/check-verification-otp", { email: owner.email, type: "sign-in", otp: "0" }),
+      post("/email-otp/verify-email", { email: owner.email, otp: "0" }),
+      post("/email-otp/request-password-reset", { email: owner.email }),
+      post("/forget-password/email-otp", { email: owner.email }),
+      post("/email-otp/reset-password", { email: owner.email, otp: "0", password: "x".repeat(12) }),
+      post("/email-otp/request-email-change", { newEmail: coded }, { cookie: await signIn() }),
+      post("/email-otp/change-email", { newEmail: coded, otp: "0" }, { cookie: await signIn() }),
+    ]);
+    const kinds = await Promise.all(
+      ["email-verification", "forget-password"].map((type) => sendCode(owner.email, type)),
+    );
+
+    expect(others.map((answer) => answer.status)).toEqual(Array(7).fill(404));
+    expect(kinds.map((answer) => answer.status)).toEqual([400, 400]);
   });
 
   test("the session resolves back to the signed-in user", async () => {

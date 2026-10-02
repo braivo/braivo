@@ -10,11 +10,15 @@ import { anthropicModel } from "../ai/index.ts";
 import { createApi } from "../api/index.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { createAuth, createOrganization } from "../auth/index.ts";
+import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
 import { credentialsPath, loadCredentials, readServer, saveCredentials } from "./credentials.ts";
 import { listOrganizations, remoteClient, signIn, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
+
+/** For the operator's commands, which make no one sign in. */
+const sendsNoMail: SendMail = () => Promise.reject(new Error("This command sends no email."));
 
 const USAGE = `Usage: braivo <command>
 
@@ -68,7 +72,12 @@ async function main(argv: readonly string[]): Promise<number> {
     const config = readAuthConfig(process.env);
     const database = createDatabase(config.databaseUrl);
     try {
-      const auth = createAuth({ database, secret: config.secret, baseURL: config.baseUrl });
+      const auth = createAuth({
+        database,
+        secret: config.secret,
+        baseURL: config.baseUrl,
+        sendMail: sendsNoMail,
+      });
       const created = await createOrganization(auth, { name, slug, ownerEmail: owner });
       console.log(`Created ${created.name}, owned by ${owner}: ${config.baseUrl}/${created.slug}`);
     } finally {
@@ -123,11 +132,19 @@ async function main(argv: readonly string[]): Promise<number> {
         organizations: config.ai.organizations,
         monthlyLimit: config.ai.monthlyLimit,
       },
-      auth: createAuth({ database, secret: config.secret, baseURL: config.baseUrl }),
+      auth: createAuth({
+        database,
+        secret: config.secret,
+        baseURL: config.baseUrl,
+        sendMail: config.mail === "log" ? logMail : smtpMail(config.mail),
+      }),
     });
 
-    const server = Bun.serve({ port: config.port, fetch: api.fetch });
+    const server = Bun.serve({ port: config.port, hostname: config.hostname, fetch: api.fetch });
     console.log(`Braivo listening on ${server.url.href}`);
+    if (config.mail === "log") {
+      console.log("BRAIVO_SMTP_URL is unset, so sign-in codes are written here.");
+    }
 
     // Returning does not end the process: the listening socket keeps it alive.
     return 0;

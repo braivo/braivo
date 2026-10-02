@@ -11,6 +11,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
 import { createAuth } from "../auth/index.ts";
+import { createOutbox } from "../auth/testing.ts";
 import { directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
 import { createClient } from "./client.ts";
@@ -69,10 +70,12 @@ const model: Model = {
   },
 };
 
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "materials-test-secret-long-enough-32",
   baseURL: baseUrl,
+  sendMail: outbox.sendMail,
 });
 const api = createApi({
   auth,

@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import { type Model, ModelUnavailable } from "../ai/index.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { createAuth } from "../auth/index.ts";
+import { codeSentTo, createOutbox } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import {
   createCourse,
@@ -28,10 +29,12 @@ const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
 
 const stored = (learnerId: string) => testing.readStoredEvidence(database, learnerId);
+const outbox = createOutbox();
 const auth = createAuth({
   database,
   secret: "api-test-secret-that-is-long-enough-32",
   baseURL: "http://localhost:3000",
+  sendMail: outbox.sendMail,
 });
 const baseUrl = "http://localhost:3000";
 const api = createApi({ auth, database, baseUrl });
@@ -309,6 +312,46 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(onOrganizationDomain.status).toBe(404);
     expect(onOrganizationDomain.headers.get("cache-control")).toBe("private, no-store");
     expect((await signUpOn("https://api-test-unknown.example.com")).status).toBe(404);
+  });
+
+  test("signs in by code only from the host's own origin, an organization's domain included", async () => {
+    // Without a cookie Better Auth checks no origin, so another site holding a
+    // code for its own address could sign a visitor in to that account.
+    const email = `api-test-${crypto.randomUUID()}@example.com`;
+    const post = (host: string, path: string, body: unknown, headers: Record<string, string>) =>
+      api.request(`${host}/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+    const fromDomain = { origin: organizationOrigin };
+    const foreign = { origin: "https://evil.example" };
+    // A form, which a page elsewhere may post without asking.
+    const form = { "content-type": "application/x-www-form-urlencoded" };
+    const sending = { email, type: "sign-in" };
+
+    const refusedSends = await Promise.all([
+      post(baseUrl, "/email-otp/send-verification-otp", sending, foreign),
+      post(organizationOrigin, "/email-otp/send-verification-otp", sending, { origin: baseUrl }),
+      post(baseUrl, "/email-otp/send-verification-otp", sending, form),
+    ]);
+    expect(refusedSends.map((answer) => answer.status)).toEqual([403, 403, 403]);
+    expect(outbox.sent.filter((sent) => sent.to === email)).toEqual([]);
+
+    const sent = await post(
+      organizationOrigin,
+      "/email-otp/send-verification-otp",
+      sending,
+      fromDomain,
+    );
+    expect(sent.status).toBe(200);
+    const signingIn = { email, otp: codeSentTo(outbox, email) };
+    const refused = await post(organizationOrigin, "/sign-in/email-otp", signingIn, foreign);
+    const signedIn = await post(organizationOrigin, "/sign-in/email-otp", signingIn, fromDomain);
+
+    expect(refused.status).toBe(403);
+    expect(refused.headers.get("cache-control")).toBe("private, no-store");
+    expect(signedIn.status).toBe(200);
   });
 
   test("marks every answer uncacheable, whatever it answers", async () => {

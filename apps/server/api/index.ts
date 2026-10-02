@@ -5,7 +5,12 @@
 // here are public contracts; everything else is an internal detail.
 // Why Hono, and what a route may do: docs/adr/0010-hono-http-layer.md.
 //
-// `/api/auth/*` — Better Auth's own surface, mounted per ADR 0006.
+// `/api/auth/*` — Better Auth's own surface, mounted per ADR 0006. Besides a
+// password, an account is made or signed in to by an email code: `POST /api/auth/email-otp/send-verification-otp`
+// `{ "email", "type": "sign-in" }` mails one (429 if one went to that address
+// within the minute), and `POST /api/auth/sign-in/email-otp` `{ "email", "otp",
+// "name"? }` redeems it, `name` naming a new account (ADR 0018). Both work on
+// learn domains too, until ADR 0018's handoff takes sign-in off them.
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
 // organization's learn domain — sign-up (until ADR 0018 replaces it), the

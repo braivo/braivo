@@ -11,6 +11,7 @@ import * as testing from "@braivo/db/testing";
 import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
+import { createOutbox } from "../auth/testing.ts";
 import { type Api, createApi } from "./index.ts";
 
 /**
@@ -94,6 +95,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
         database,
         secret,
         baseURL: baseUrl,
+        sendMail: createOutbox().sendMail,
       }),
     });
   });

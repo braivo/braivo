@@ -8,7 +8,11 @@ How people sign in, and what they reach once in. Anyone may create an account, a
 
 ### Accounts and sessions
 
-- Better Auth ([ADR 0006](../adr/0006-better-auth.md)) serves `/api/auth/*`, with email and password as the only sign-in method. No email is verified and no password can be reset.
+- Better Auth ([ADR 0006](../adr/0006-better-auth.md)) serves `/api/auth/*`, signing in with an email and password, or with a code sent to that email (Better Auth's `emailOTP`, [ADR 0018](../adr/0018-sign-in-and-invitations.md)). The apps offer only the password so far. A password proves no email, and none can be reset; a code sign-in to such an account verifies it and removes its password and sessions (Better Auth's `revokeUnprovenAccountAccess`).
+- A code is six digits, stored hashed, good once, for ten minutes and five guesses. Every address gets one, so asking says nothing of whether an account exists; redeeming it makes the account if there is none, verified, named by the request's `name`.
+- Only sign-in codes are sent; the plugin's endpoints for verifying an email, resetting a password, or changing an email are `disabledPaths`. An address gets one code a minute, whoever asks (`claimSignInCode`: its own `verification` row, claimed in one statement, which spending the code's guesses does not reset). Per client, Better Auth allows ten code requests a minute, in production only, keyed on `X-Forwarded-For` (README, Deployment).
+- Codes go out over SMTP, or into the server's log of an installation listening on loopback alone ([ADR 0033](../adr/0033-email-over-smtp.md)).
+- Asking for a code and redeeming it pass `isTrustedWrite` (below): Better Auth checks the origin only of a request carrying a cookie, so otherwise another site could sign a visitor in to an account whose code it holds. Both work on an organization's domain too, until ADR 0018's handoff takes sign-in off learn domains.
 - The console offers `/login` and `/signup`; the learn app offers `/login` only. Both render `EmailSignIn` from `packages/auth-client`. After sign-in, each app goes to the `redirect` search parameter if `safeRedirect` keeps it within the origin, else `/`. After sign-up, the console goes to `/`, since a new account manages no organization.
 - On any host but `BRAIVO_URL`'s, before authentication, the server answers `401` to a request carrying `Authorization`, and `404` to `/api/auth/sign-up/*`, the device flow (`/api/auth/device*`), and the console's `/api/organizations*`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)), and an account made there would belong to no organization. Hiding the learn app's form is not the boundary.
 - A content owner's tools — `braivo login`, `braivo mcp` — get a session token through the device flow, approved at the console's `/device`, and send it as `Authorization: Bearer` ([ADR 0022](../adr/0022-machine-access.md)). Of `/api/auth/*`, a token reaches `get-session` and `organization/list` only; anything else answers `403`. No answer to a token sets a cookie, its session's renewal included.
@@ -66,7 +70,7 @@ flowchart TD
 
 ### Planned (ADR 0018)
 
-[ADR 0018](../adr/0018-sign-in-and-invitations.md) replaces passwords and `/signup` with one email-code and Google `/login` on the installation's origin, turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`, and gives each learn domain a learner session handed over from that origin instead of the account's session. None of it is built beyond the operator command; see Gaps.
+[ADR 0018](../adr/0018-sign-in-and-invitations.md) replaces passwords and `/signup` with one email-code and Google `/login` on the installation's origin, turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`, and gives each learn domain a learner session handed over from that origin instead of the account's session. Built so far: the operator command, and email codes over the API; see Gaps.
 
 ## Invariants
 
@@ -80,7 +84,10 @@ flowchart TD
 - Only an `owner` or `admin` lists an organization's members, and never with emails; Better Auth answers its own member listings, removal, and role changes `404`, even to an owner. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - No session creates an organization; the operator's command does, for an existing account only. `apps/server/auth/auth.test.ts`
 - An organization owning learning content is not deleted, and a refused delete keeps its members. `apps/server/auth/auth.test.ts`
-- No sign-up on any host but the installation's. `apps/server/api/app.test.ts`; the learn app shows no sign-up: `apps/learn/routes.test.tsx`
+- A sign-in code is stored hashed and good once; an address gets one code a minute, however its guesses were spent and however many ask at once; only sign-in codes are sent. `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
+- A code is asked for and redeemed only as JSON from the host's own origin. `apps/server/api/app.test.ts`
+- An installation others reach does not start without a way to send email. `apps/server/cli/config.test.ts`
+- No password sign-up on any host but the installation's. `apps/server/api/app.test.ts`; the learn app shows no sign-up: `apps/learn/routes.test.tsx`
 - A bearer token, the device flow, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
 - A forgeable write is refused before it records anything; a foreign origin is refused by Braivo and by Better Auth. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - An organization's domain is trusted only while it maps to an organization. `apps/server/auth/origin.test.ts`
@@ -98,6 +105,7 @@ flowchart TD
 | Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                                     |
 | Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                                           |
 | Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                                     |
+| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/cli/config.ts`                                                 |
 | Console pages                                              | `apps/console/routes/login.tsx`, `signup.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts` |
 | Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`                                                                     |
 
@@ -110,6 +118,7 @@ flowchart TD
 - [ADR 0011](../adr/0011-ui-and-auth-client-packages.md): browser sign-in lives in `packages/auth-client`.
 - [ADR 0016](../adr/0016-route-files.md): `_signed-in/route.tsx` guards signed-in pages.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): email-code sign-in, invitations, learner sessions per learn domain; operator-created organizations.
+- [ADR 0033](../adr/0033-email-over-smtp.md): email over SMTP, or to the log of a loopback installation.
 - [ADR 0022](../adr/0022-machine-access.md): content owners' tools sign in by the device flow and act as them, on the installation's host only.
 
 ## Gaps
@@ -119,6 +128,6 @@ flowchart TD
 | No Braivo way to add a learner or admin to an organization.                                                                   | Learners get in only by seeding the database.                                                      | Build ADR 0018 invitations (after email code and handoff).                             |
 | Better Auth's default `membershipLimit` of 100 applies to the members it adds; no schema caps them.                           | Its member-adding flows stop at 100 members.                                                       | Set `membershipLimit` deliberately.                                                    |
 | Whether a member may leave is undecided: Better Auth's `organization/leave` lets any member but an organization's sole owner. | A learner can end their own enrollment.                                                            | Maintainer decides; then a rule and a test, or disable it.                             |
-| No email verification and no password reset.                                                                                  | Anyone can sign up with someone else's email; a forgotten password locks the account out.          | ADR 0018 step 1 (email code) removes both problems.                                    |
+| No email verification and no password reset.                                                                                  | Anyone can sign up with someone else's email; a forgotten password locks the account out.          | Move the apps to email codes and remove passwords (ADR 0018 step 1).                   |
 | A learn domain holds the account's full session and accepts `/api/auth/*` but sign-up and the device flow.                    | A console-grade session lives on every learn domain, so only operator-controlled domains are safe. | ADR 0018 step 2: learner session and handoff; drop learn domains from trusted origins. |
 | No console UI to change members, roles, or the organization's settings.                                                       | Changing another member takes the database; renaming the organization, a raw Better Auth call.     | Follows invitations; scope with ADR 0018 step 3.                                       |
