@@ -34,7 +34,7 @@ flowchart LR
   O --> M
 ```
 
-- Every course route applies it: the learner's `next`, `activity` and `attempts`, and the content owner's `progress`. The organization routes (`/api/organizations/…`) do not: they serve the console, on the installation's host. `GET /api/courses` applies it as a filter: on a domain, that organization's courses; on any other host but the installation's, none.
+- Every course route applies it: the learner's `next`, `activity` and `attempts`, and the progress routes, a learner's report and a course's overview. The organization routes (`/api/organizations/…`) do not: they serve the console, on the installation's host. `GET /api/courses` applies it as a filter: on a domain, that organization's courses; on any other host but the installation's, none.
 - An unknown host reaches nothing, so deleting a domain's row revokes access rather than widening it.
 
 ### Trusted origins

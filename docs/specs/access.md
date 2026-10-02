@@ -34,13 +34,13 @@ flowchart TD
   W -- no --> S{Session?}
   S -- no --> F401[401]
   S -- yes --> K{Route kind}
-  K -- learner route --> H{hostAdmits the course's organization?}
+  K -- course route --> H{hostAdmits the course's organization?}
   H -- no --> N404[404]
-  H -- yes --> M{isMember}
+  H -- yes --> M{Allowed this course operation? See the table}
   M -- no --> N404
   M -- yes --> OK[Allowed]
   K -- organization route --> A{owner or admin there?}
-  A -- no --> D[403, or 404 for progress]
+  A -- no --> D[403]
   A -- yes --> OK
 ```
 
@@ -49,6 +49,7 @@ flowchart TD
 | List and study the organization's courses                | yes     | yes     | yes      | `isMember`, `hostAdmits`               |
 | Author objectives, tasks, courses; record evidence       | yes     | yes     | no       | `assertMayAdminister`                  |
 | Read a learner's progress                                | yes     | yes     | own only | progress-1 ([progress](progress.md))   |
+| Read a course's overview of every member                 | yes     | yes     | no       | progress-12                            |
 | Appear in `GET /api/organizations` and the console       | yes     | yes     | no       | `listManagedOrganizations`             |
 | Rename the organization                                  | yes     | yes     | no       | Better Auth's default access control   |
 | Delete the organization                                  | yes     | no      | no       | Better Auth's default access control   |
@@ -56,7 +57,7 @@ flowchart TD
 | Create an organization (operator's command only)         | no      | no      | no       | `allowUserToCreateOrganization: false` |
 
 - `GET /api/organizations` answers the organizations the session's user manages, by name; the console resolves `/<slug>` among them ([white-label](white-label.md)).
-- The console's course and learner pages read members through `GET /api/organizations/:organizationId/members`: user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding, removing, or changing the role of another member takes the database.
+- The console's learner page reads members through `GET /api/organizations/:organizationId/members`, and its course page through the course's overview (progress-11): user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding, removing, or changing the role of another member takes the database.
 
 ### Write origins
 

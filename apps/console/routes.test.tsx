@@ -19,6 +19,15 @@ const members = [
   { userId: "u2", name: "Lee Learner", roles: ["member"] },
 ];
 
+/** Braivo's overview of `course-1`: every member counted, by name. */
+const courseProgress = async () => ({
+  modelVersion: "v1",
+  learners: [
+    { ...members[1]!, standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 } },
+    { ...members[0]!, standings: { unseen: 2, acquiring: 0, retained: 0, due: 0 } },
+  ],
+});
+
 const school = { id: "org-1", name: "Example School", slug: "example" };
 const annex = { id: "org-2", name: "Annex", slug: "annex" };
 
@@ -66,6 +75,7 @@ function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
+        courseProgress,
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
     },
@@ -890,24 +900,24 @@ describe("the console", () => {
     }).toEqual({ learnerProgress: [], listMembers: [] });
   });
 
-  test("asks nothing about the organization's roster until the course is its own", async () => {
-    const listMembers = vi.fn(async () => members);
+  test("asks nothing about a course's learners until the course is its own", async () => {
+    const progress = vi.fn(courseProgress);
     renderAt("/example/courses/elsewhere", {
-      braivo: { readCourse, listMembers },
+      braivo: { readCourse, courseProgress: progress },
     });
 
     expect(
       await screen.findByText("This course does not exist, or you do not manage it."),
     ).toBeTruthy();
-    expect(listMembers.mock.calls).toEqual([]);
+    expect(progress.mock.calls).toEqual([]);
   });
 
-  test("reads a course as not found when Braivo refuses its roster", async () => {
+  test("reads a course as not found when Braivo refuses its learners", async () => {
     renderAt("/example/courses/course-1", {
       braivo: {
         readCourse,
-        listMembers: async () => {
-          throw new BraivoError(403, "forbidden");
+        courseProgress: async () => {
+          throw new BraivoError(404, "Braivo answered 404.");
         },
       },
     });
@@ -1105,14 +1115,33 @@ describe("the console", () => {
     expect((edit as HTMLButtonElement).disabled).toBe(false);
   });
 
-  test("links each member of a course's organization to their progress", async () => {
+  test("counts each learner's objectives by standing, linking to their progress", async () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse } });
 
-    expect(await screen.findByRole("heading", { name: "Beginners" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Lee Learner" }).getAttribute("href")).toBe(
+    const learners = await screen.findByRole("region", { name: "Learners" });
+    const [header, ...rows] = within(learners).getAllByRole("row");
+    expect(
+      within(header!)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Learner", "Not started", "Learning", "Retained", "Due for review"]);
+    expect(
+      rows.map((row) => {
+        const [learner, ...counts] = within(row).getAllByRole("cell");
+        return [
+          within(learner!).getByRole("link").textContent,
+          ...counts.map((cell) => cell.textContent),
+        ];
+      }),
+    ).toEqual([
+      ["Lee Learner", "0", "1", "0", "1"],
+      ["Olive Owner", "2", "0", "0", "0"],
+    ]);
+    expect(within(rows[0]!).getByText("member")).toBeTruthy();
+    expect(within(rows[1]!).getByText("owner")).toBeTruthy();
+    expect(within(learners).getByRole("link", { name: "Lee Learner" }).getAttribute("href")).toBe(
       "/example/courses/course-1/learners/u2",
     );
-    expect(screen.getByText("owner")).toBeTruthy();
   });
 
   test("shows where a learner stands on each objective, by title", async () => {
@@ -1139,7 +1168,9 @@ describe("the console", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
-    const [, greetings, numbers] = screen.getAllByRole("row");
+    const [header, greetings, numbers] = screen.getAllByRole("row");
+    // The last evidence may have been graded outside Braivo, so not "Last attempted".
+    expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
     expect(within(greetings!).getByText("Greetings")).toBeTruthy();
     expect(within(greetings!).getByText("Due for review, 42% recall")).toBeTruthy();
     expect(within(numbers!).getByText("Not started")).toBeTruthy();

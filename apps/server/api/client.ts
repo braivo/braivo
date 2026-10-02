@@ -6,6 +6,7 @@ import type {
   AuthoredCourse,
   AuthoredTask,
   Course,
+  CourseProgressOverview,
   Draft,
   Grade,
   GradedEvidence,
@@ -36,6 +37,7 @@ export type {
   AuthoredCourse,
   AuthoredTask,
   Course,
+  CourseProgressOverview,
   Draft,
   Grade,
   GradedEvidence,
@@ -141,6 +143,15 @@ export type BraivoClient = {
     input: { courseId: string; learnerId: string },
     options?: RequestOptions,
   ): Promise<LearnerProgressReport>;
+
+  /**
+   * Where each learner in a course stands, counted: every member of its
+   * organization, by name. The session must hold `owner` or `admin` there.
+   *
+   * A missing course and one the session may not read are one
+   * {@link BraivoError} with status 404.
+   */
+  courseProgress(courseId: string, options?: RequestOptions): Promise<CourseProgressOverview>;
 
   /**
    * The courses the signed-in learner may study, by title: every course of
@@ -525,6 +536,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<LearnerProgressReport>(response, doing);
+    },
+
+    async courseProgress(courseId, requestOptions) {
+      const response = await get(
+        `/api/courses/${encodeURIComponent(courseId)}/progress`,
+        requestOptions,
+      );
+
+      const doing = `reading the progress of course "${courseId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<CourseProgressOverview>(response, doing);
     },
 
     async learnerCourses(requestOptions) {

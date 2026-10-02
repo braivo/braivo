@@ -231,8 +231,8 @@ export const learnerEvidence = pgTable(
       foreignColumns: [objective.organizationId, objective.id],
     }).onDelete("restrict"),
     // Replay reads one learner's history at one organization in `(at, id)`
-    // order; this serves that read as one index range, and it is the only
-    // query shape the table has (docs/adr/0032-learner-history.md).
+    // order; this serves that read as one index range, and a course overview
+    // by reading one range per member (docs/adr/0032-learner-history.md).
     index("learner_evidence_replay_idx").on(
       table.learnerId,
       table.organizationId,

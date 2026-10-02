@@ -17,7 +17,12 @@ export {
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";
 export { insertLearnDomain, readDomainOrganization, readLearnDomain } from "./domain.ts";
-export { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evidence.ts";
+export {
+  ConflictingEvidence,
+  readLearnerEvidence,
+  readMembersEvidence,
+  recordEvidence,
+} from "./evidence.ts";
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
 export { ConflictingKey } from "./key.ts";
