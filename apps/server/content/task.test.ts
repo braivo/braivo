@@ -32,6 +32,17 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toHaveProperty("problem");
   });
 
+  test("accepts texts of 2000 characters", () => {
+    const long = "x".repeat(2000);
+    const body = {
+      ...choice,
+      prompt: long,
+      options: [long, `${long.slice(1)}y`],
+      explanation: long,
+    };
+    expect(parseTaskBody(body)).toEqual({ body });
+  });
+
   test("accepts one without an explanation", () => {
     const { explanation: _, ...bare } = choice;
     expect(parseTaskBody(bare)).toEqual({ body: bare });
@@ -48,6 +59,11 @@ describe("parseTaskBody", () => {
     ],
     ["a blank prompt", { ...choice, prompt: " " }, "needs a prompt of 1 to 2000 characters"],
     [
+      "a prompt over 2000 characters",
+      { ...choice, prompt: "x".repeat(2001) },
+      "needs a prompt of 1 to 2000 characters",
+    ],
+    [
       "a prompt carrying a NUL",
       { ...choice, prompt: "¿\u0000?" },
       "needs a prompt of 1 to 2000 characters",
@@ -56,6 +72,11 @@ describe("parseTaskBody", () => {
     [
       "a blank option",
       { ...choice, options: ["hablé", ""] },
+      "has an option that is blank or over 2000 characters",
+    ],
+    [
+      "an option over 2000 characters",
+      { ...choice, options: ["hablé", "x".repeat(2001)] },
       "has an option that is blank or over 2000 characters",
     ],
     [
@@ -81,6 +102,11 @@ describe("parseTaskBody", () => {
     [
       "a blank explanation",
       { ...choice, explanation: "" },
+      "has an explanation that is blank or over 2000 characters; leave a blank one out",
+    ],
+    [
+      "an explanation over 2000 characters",
+      { ...choice, explanation: "x".repeat(2001) },
       "has an explanation that is blank or over 2000 characters; leave a blank one out",
     ],
   ])("refuses %s, saying why", (_, body, problem) => {

@@ -2,19 +2,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { attempt, task } from "@braivo/db/schema";
+import { attempt, objective, task, taskCitation } from "@braivo/db/schema";
 import {
   clearLearnerHistory,
   createTask,
   seedOrganization,
   sharedDatabase,
+  violatedConstraint,
 } from "@braivo/db/testing";
 import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody } from "../content/index.ts";
 import { createObjectives } from "./objective.ts";
-import { createTasks, markTasksRetired, recordAttempt, RetiredTask } from "./task.ts";
+import { createSource } from "./source.ts";
+import { createTasks, markTasksRetired, recordAttempt, replaceTask, RetiredTask } from "./task.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -153,5 +155,156 @@ describe.skipIf(!connectionString)("storing a task and an attempt", () => {
         .innerJoin(task, eq(task.id, attempt.taskId))
         .where(eq(attempt.taskId, stored)),
     ).toEqual([{ body, response: { choice: 1 }, prompt: "¿Uno?", choice: "1" }]);
+  });
+});
+
+/** Requires TEST_DATABASE_URL: the database refuses or serialises these. */
+describe.skipIf(!connectionString)("task invariants", () => {
+  const ownerId = "task-integrity-test-org";
+  const otherId = "task-integrity-test-other-org";
+  const body: TaskBody = { kind: "choice", prompt: "¿Hola?", options: ["hi", "bye"], answer: 0 };
+
+  beforeAll(async () => {
+    await runMigrations(connectionString ?? "");
+    for (const id of [ownerId, otherId]) {
+      await seedOrganization(database, { organizationId: id, learnerIds: [], at });
+    }
+  });
+
+  /** A new task citing a passage, and a read of its row and passages as stored. */
+  async function citedTask(title: string) {
+    const [objectiveId] = (await createObjectives(database, ownerId, [title])) as [string];
+    const sourceId = await createSource(database, {
+      organizationId: ownerId,
+      title: "Saludos",
+      text: "¡Hola! Adiós.",
+      createdAt: at,
+    });
+    const [taskId] = (await createTasks(
+      database,
+      ownerId,
+      [{ objectiveId, body, citations: [{ sourceId, start: 0, end: 6 }] }],
+      at,
+    )) as [string];
+    const stored = () =>
+      Promise.all([
+        database.select().from(task).where(eq(task.id, taskId)),
+        database.select().from(taskCitation).where(eq(taskCitation.taskId, taskId)),
+      ]);
+    return { objectiveId, sourceId, taskId, stored };
+  }
+
+  test("refuses a task assessing another organization's objective", async () => {
+    // Both rows exist, so a plain foreign key would take it; matching the
+    // organization is what refuses it, as for a course's objectives.
+    const [theirs] = (await createObjectives(database, otherId, ["Theirs"])) as [string];
+
+    const error = await createTasks(database, ownerId, [{ objectiveId: theirs, body }], at).catch(
+      (thrown: unknown) => thrown,
+    );
+
+    expect(violatedConstraint(error)).toBe("task_objective_fk");
+  });
+
+  test("refuses to delete an objective even after its task is retired", async () => {
+    const [assessed] = (await createObjectives(database, ownerId, ["Assessed"])) as [string];
+    const [taskId] = (await createTasks(
+      database,
+      ownerId,
+      [{ objectiveId: assessed, body }],
+      at,
+    )) as [string];
+    await markTasksRetired(database, [taskId], at);
+
+    const error = await database
+      .delete(objective)
+      .where(eq(objective.id, assessed))
+      .catch((thrown: unknown) => thrown);
+
+    expect(violatedConstraint(error)).toBe("task_objective_fk");
+  });
+
+  // Past attempts are graded again from the task they answered, so a changed
+  // body or passage would change grades already given.
+  test("retiring leaves a task as stored but for the date", async () => {
+    const { taskId, stored } = await citedTask("Retired");
+    const [[before], cited] = await stored();
+
+    await markTasksRetired(database, [taskId], at);
+
+    expect(await stored()).toEqual([[{ ...before, retiredAt: at }], cited]);
+  });
+
+  test("a correction leaves the task it replaces as stored, but retired", async () => {
+    const { objectiveId, sourceId, taskId, stored } = await citedTask("Corrected");
+    const [[before], cited] = await stored();
+    const later = new Date(at.getTime() + 1000);
+
+    await replaceTask(
+      database,
+      ownerId,
+      taskId,
+      {
+        objectiveId,
+        body: { ...body, answer: 1 },
+        citations: [{ sourceId, start: 7, end: 13 }],
+      },
+      later,
+    );
+
+    expect(await stored()).toEqual([[{ ...before, retiredAt: later }], cited]);
+  });
+
+  test("retiring takes the objective's lock before changing a task", async () => {
+    // A retirement taken around an adder's lock could retire a twin the adder
+    // has just answered as live (`markTasksRetired`).
+    const [locked] = (await createObjectives(database, ownerId, ["Locked"])) as [string];
+    const [taskId] = (await createTasks(
+      database,
+      ownerId,
+      [{ objectiveId: locked, body }],
+      at,
+    )) as [string];
+    // As `lockObjectiveTasks` names it.
+    const key = sql`hashtextextended(${`braivo:task:${locked}`}, 0)`;
+    let held!: () => void;
+    const isHeld = new Promise<void>((resolve) => (held = resolve));
+    let release!: () => void;
+    const mayRelease = new Promise<void>((resolve) => (release = resolve));
+    const holder = database.transaction(async (transaction) => {
+      await transaction.execute(sql`select pg_advisory_xact_lock(${key})`);
+      held();
+      await mayRelease;
+    });
+    await isHeld;
+
+    let done = false;
+    const retiring = markTasksRetired(database, [taskId], at);
+    retiring.then(
+      () => (done = true),
+      () => (done = true),
+    );
+    try {
+      // Until it waits on this lock, or has finished without waiting, which is
+      // the failure this pins.
+      while (!done) {
+        const waiting = await database.execute(
+          sql`select 1 from pg_locks where locktype = 'advisory' and not granted
+              and ((classid::bigint << 32) | objid::bigint) = ${key}`,
+        );
+        if (waiting.length > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      expect(done).toBe(false);
+      // An update made before the lock would hold the row, and an adder could
+      // still answer the task as live meanwhile.
+      await database.transaction((transaction) =>
+        transaction.execute(sql`select 1 from task where id = ${taskId} for update nowait`),
+      );
+    } finally {
+      release();
+      await holder;
+      await retiring;
+    }
   });
 });
