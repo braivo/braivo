@@ -71,22 +71,22 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 - Only `owner` or `admin` of the organization may create, list, or read back its objectives, courses, and tasks. `apps/server/application/objectives.test.ts`, `apps/server/application/courses.test.ts`, `apps/server/application/tasks.test.ts`, `apps/server/api/app.test.ts`
 - A malformed course or task is refused before the actor's role is read. `apps/server/application/courses.test.ts`, `apps/server/application/tasks.test.ts`
 - A course arranges only its own organization's objectives, enforced by the use case and by composite foreign keys. `apps/server/application/courses.test.ts`, `apps/server/persistence/course.test.ts`
-- A task assesses only its own organization's objective, enforced by the use case and by a composite foreign key (the key alone untested), and cites only its organization's sources. `apps/server/application/tasks.test.ts`
+- A task assesses only its own organization's objective, enforced by the use case and by a composite foreign key, and cites only its organization's sources. `apps/server/application/tasks.test.ts`, `apps/server/persistence/task.test.ts`
 - A course keeps its objectives in the order given, each at most once, no two at one position. `apps/server/persistence/course.test.ts`
 - A course is created whole or not at all. `apps/server/persistence/course.test.ts`
 - One invalid task, or one quote not found in its source, refuses the whole batch, naming it. `apps/server/application/tasks.test.ts`, `apps/server/api/app.test.ts`
-- A stored task body is a valid one of its kind; a blank, NUL-carrying, or malformed text is refused. `apps/server/content/task.test.ts` (the 2000-character bound untested)
+- A stored task body is a valid one of its kind; a blank, NUL-carrying, or malformed text is refused. `apps/server/content/task.test.ts`
 - A title past 500 characters, blank, or not storable is refused. `apps/server/api/app.test.ts`
 - Task citations follow the sources spec's citation rules (sources-15, sources-16), including at most 10 per task and 200 quotes per request.
 - Tasks from one batch are offered in the order given. `apps/server/application/tasks.test.ts`
 - Generated IDs match the request's order, and two organizations get distinct objectives for the same title. `apps/server/persistence/objective.test.ts`, `apps/server/application/objectives.test.ts`
 - An objective or course sent again under its key answers the same ID; under a key naming something else the request is refused, explained, and stores nothing; keys are per organization, and writers racing on one, in any order, share it without deadlock. `apps/server/persistence/objective.test.ts`, `apps/server/api/app.test.ts` (course keys only through the API)
-- Adding a task the objective already has, unretired, answers its ID, also within one batch and for racing writers; other passages or another option order make another task, and a retired twin is added anew. `apps/server/application/tasks.test.ts` (the lock shared with retirement untested)
+- Adding a task the objective already has, unretired, answers its ID, also within one batch and for racing writers; other passages or another option order make another task, and a retired twin is added anew. `apps/server/application/tasks.test.ts`, `apps/server/persistence/task.test.ts` (retiring takes the adders' lock)
 - Reading back answers an objective's unretired tasks as authored, and a course whole in content order; another organization's answers 404. `apps/server/api/app.test.ts`
 - An objective a course uses cannot be deleted; deleting a course removes only its arrangement. `apps/server/persistence/course.test.ts`
-- An objective a task uses cannot be deleted. (untested)
+- An objective a task uses cannot be deleted. `apps/server/persistence/task.test.ts`
 - An organization that owns objectives, courses, sources, or files cannot be deleted. `apps/server/auth/auth.test.ts`, `apps/server/persistence/organization.test.ts`, `apps/server/persistence/objective.test.ts`, `apps/server/persistence/course.test.ts`
-- A task's authored content and passages never change once stored: there is no update path, and retiring records only when. (untested)
+- A task's authored content and passages never change once stored: there is no update path, and retiring records only when. `apps/server/persistence/task.test.ts`
 - A retired task is never offered, accepts no new attempt, and retiring twice keeps the first date; only an `owner` or `admin` retires, and only the organization's own tasks. `apps/server/application/tasks.test.ts`, `apps/server/persistence/task.test.ts`
 - The console retires a task only once the owner confirms. `apps/console/routes.test.tsx`
 - A correction, sent alone for its own objective and the organization's own task, stores and retires in one transaction: resent, it answers the same while its correction is offered; unchanged, it keeps the task; stale, it stores nothing unless what it asks for is offered; and of two different corrections racing on one task, one is refused. `apps/server/application/tasks.test.ts`, `apps/server/api/client.contract.test.ts`
