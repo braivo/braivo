@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
 import { createAuth } from "../auth/index.ts";
-import { createOutbox } from "../auth/testing.ts";
+import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
 import { createClient } from "./client.ts";
@@ -91,15 +91,12 @@ const client = createClient({
 
 async function signUp(): Promise<{ headers: { cookie: string }; id: string }> {
   const email = `materials-${crypto.randomUUID()}@example.com`;
-  const signedUp = await api.request("/api/auth/sign-up/email", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "correct horse battery", name: email }),
-  });
-  const cookie = signedUp.headers.get("set-cookie") ?? "";
-  const session = await api.request("/api/auth/get-session", { headers: { cookie } });
-  const { user } = (await session.json()) as { user: { id: string } };
-  return { headers: { cookie }, id: user.id };
+  const { cookie, id } = await signInWithCode(
+    (path, init) => api.request(`/api/auth${path}`, init),
+    outbox,
+    { email, name: email },
+  );
+  return { headers: { cookie }, id };
 }
 
 let teacher!: Awaited<ReturnType<typeof signUp>>;

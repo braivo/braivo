@@ -14,7 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import { type Model, ModelUnavailable } from "../ai/index.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { createAuth } from "../auth/index.ts";
-import { codeSentTo, createOutbox } from "../auth/testing.ts";
+import { codeSentTo, createOutbox, signInWithCode } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import {
   createCourse,
@@ -69,23 +69,17 @@ let pastTenseTask!: string;
 type Signed = { cookie: string; id: string };
 
 /**
- * Signs a new learner up through the mounted Better Auth handler, which is the
- * only way to obtain a real session — and incidentally proves the mount works.
- * A fresh email each run, so a rerun never collides with a leftover account.
+ * Makes a new learner's account through the mounted Better Auth handler, which
+ * is the only way to obtain a real session — and incidentally proves the mount
+ * works. A fresh email each run, so a rerun never collides with a leftover
+ * account or its address's minute between codes.
  */
-async function signUp(): Promise<Signed> {
+function signUp(): Promise<Signed> {
   const email = `api-test-${crypto.randomUUID()}@example.com`;
-  const signedUp = await api.request("/api/auth/sign-up/email", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "correct horse battery", name: email }),
+  return signInWithCode((path, init) => api.request(`/api/auth${path}`, init), outbox, {
+    email,
+    name: email,
   });
-  const cookie = signedUp.headers.get("set-cookie") ?? "";
-
-  const session = await api.request("/api/auth/get-session", { headers: { cookie } });
-  const { user } = (await session.json()) as { user: { id: string } };
-
-  return { cookie, id: user.id };
 }
 
 function next(courseId: string, cookie?: string) {
@@ -279,14 +273,15 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("bounds the bodies Better Auth will accept", async () => {
-    // Sign-up is unauthenticated, so without a limit here anyone could make the
-    // server buffer and store a body of any size the runtime would tolerate.
-    const oversized = await api.request("/api/auth/sign-up/email", {
+    // Signing in makes an account unauthenticated, so without a limit here
+    // anyone could make the server buffer and store a name of any size the
+    // runtime would tolerate.
+    const oversized = await api.request("/api/auth/sign-in/email-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         email: `oversized-${crypto.randomUUID()}@example.com`,
-        password: "correct horse battery",
+        otp: "000000",
         name: "x".repeat(2_000_000),
       }),
     });
@@ -294,24 +289,6 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(oversized.status).toBe(413);
     // Braivo's own refusal under the mount, so the mount's cache header too.
     expect(oversized.headers.get("cache-control")).toBe("private, no-store");
-  });
-
-  test("signs nobody up on an organization's domain, or any host but the installation's", async () => {
-    const signUpOn = (origin: string) =>
-      api.request(`${origin}/api/auth/sign-up/email`, {
-        method: "POST",
-        headers: { "content-type": "application/json", origin },
-        body: JSON.stringify({
-          email: `api-test-${crypto.randomUUID()}@example.com`,
-          password: "correct horse battery",
-          name: "Nobody",
-        }),
-      });
-
-    const onOrganizationDomain = await signUpOn(organizationOrigin);
-    expect(onOrganizationDomain.status).toBe(404);
-    expect(onOrganizationDomain.headers.get("cache-control")).toBe("private, no-store");
-    expect((await signUpOn("https://api-test-unknown.example.com")).status).toBe(404);
   });
 
   test("signs in by code only from the host's own origin, an organization's domain included", async () => {

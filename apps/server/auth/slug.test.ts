@@ -6,11 +6,15 @@ import { describe, expect, test } from "vite-plus/test";
 import { slugProblem } from "./slug.ts";
 
 describe("slugProblem", () => {
-  test.each(["acme", "italian-a1", "2026-cohort", "a".repeat(63)])("allows %s", (slug) => {
-    expect(slugProblem(slug)).toBeUndefined();
-  });
+  // `signup` among them: an emailed code makes accounts, so no route takes it (ADR 0018).
+  test.each(["acme", "italian-a1", "2026-cohort", "signup", "a".repeat(63)])(
+    "allows %s",
+    (slug) => {
+      expect(slugProblem(slug)).toBeUndefined();
+    },
+  );
 
-  test.each(["api", "assets", "invitations", "login", "organizations", "signup"])(
+  test.each(["api", "assets", "invitations", "login", "organizations"])(
     "refuses the reserved %s",
     (slug) => {
       expect(slugProblem(slug)).toContain("reserved");

@@ -11,7 +11,7 @@ import * as testing from "@braivo/db/testing";
 import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createAuth } from "../auth/index.ts";
-import { createOutbox } from "../auth/testing.ts";
+import { codeSentTo, createOutbox } from "../auth/testing.ts";
 import { type Api, createApi } from "./index.ts";
 
 /**
@@ -35,13 +35,17 @@ const secret = "quickstart-secret-long-enough-32ch";
 const hasShell = Bun.which("curl") !== null && Bun.which("bash") !== null;
 
 let server: ReturnType<typeof Bun.serve> | undefined;
+/** The walkthrough, which reads the code it is mailed from its input, as a reader types it. */
+let shell: Bun.Subprocess<"pipe", "pipe", "pipe"> | undefined;
+const outbox = createOutbox();
 let baseUrl!: string;
 let workspace!: string;
 
 /**
  * Substitutes what the README cannot say for itself — where the server is
- * listening, and identities unique per run so a second run is not a duplicate
- * sign-up — and makes failures legible, which the README deliberately does not:
+ * listening, and identities unique per run so a second run neither finds the
+ * account made nor waits out its address's minute between codes — and makes
+ * failures legible, which the README deliberately does not:
  * it keeps the plainer command that shows a reader an error instead of stopping
  * on it.
  *
@@ -95,7 +99,11 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
         database,
         secret,
         baseURL: baseUrl,
-        sendMail: createOutbox().sendMail,
+        sendMail: async (mail) => {
+          await outbox.sendMail(mail);
+          await shell?.stdin.write(`${codeSentTo(outbox, mail.to)}\n`);
+          await shell?.stdin.flush();
+        },
       }),
     });
   });
@@ -117,7 +125,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
     // the very curl it is waiting for.
     // The operator's command reaches the same database and installation as the
     // server, as it would beside a real one.
-    const shell = Bun.spawn(["bash", "-c", runnable(block!)], {
+    shell = Bun.spawn(["bash", "-c", runnable(block!)], {
       cwd: workspace,
       env: {
         ...process.env,
@@ -125,6 +133,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
         BETTER_AUTH_SECRET: secret,
         BRAIVO_URL: baseUrl,
       },
+      stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",
     });

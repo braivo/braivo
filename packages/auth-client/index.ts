@@ -10,4 +10,4 @@
 export { createBrowserAuth } from "./client.ts";
 export { type EmailAuth, EmailSignIn } from "./email-sign-in.tsx";
 export { safeRedirect } from "./redirect.ts";
-export { requireSession, type SessionAuth } from "./require-session.ts";
+export { needsName, requireSession, type SessionAuth } from "./require-session.ts";

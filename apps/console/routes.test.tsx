@@ -52,30 +52,29 @@ function renderAt(
   path: string,
   stubs: {
     signedIn?: boolean;
+    /** The account's name, once signed in: none for one an emailed code just made. */
+    name?: string;
     braivo?: object;
     organizations?: (typeof school)[];
     /** Better Auth's device flow: `device(query)`, with `approve` and `deny` on it. */
     device?: object;
   } = {},
 ) {
+  const account = { name: stubs.name ?? "Olive Owner", email: "olive@example.com" };
   let signedIn = stubs.signedIn ?? true;
   const auth = {
-    getSession: async () => ({
-      data: signedIn ? { user: { name: "Olive Owner", email: "olive@example.com" } } : null,
-      error: null,
-    }),
+    getSession: async () => ({ data: signedIn ? { user: { ...account } } : null, error: null }),
+    emailOtp: { sendVerificationOtp: vi.fn(async () => ({ error: null })) },
     signIn: {
-      email: vi.fn(async () => {
+      emailOtp: vi.fn(async () => {
         signedIn = true;
-        return { error: null };
+        return { data: { user: { ...account } }, error: null };
       }),
     },
-    signUp: {
-      email: vi.fn(async () => {
-        signedIn = true;
-        return { error: null };
-      }),
-    },
+    updateUser: vi.fn(async ({ name }: { name: string }) => {
+      account.name = name;
+      return { error: null };
+    }),
     device: stubs.device,
   };
 
@@ -95,6 +94,16 @@ function renderAt(
   render(<RouterProvider router={router} />);
 
   return { auth, router };
+}
+
+/** Signs in from `/login` as a person would: an email, then the code mailed to it. */
+async function signInWithCode() {
+  fireEvent.change(await screen.findByLabelText("Email"), {
+    target: { value: "owner@example.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+  fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 /** A course as authored, one objective taught by a passage and practised by a task. */
@@ -179,18 +188,36 @@ describe("the console", () => {
     await vi.waitFor(() => expect(left.router.state.location.pathname).toBe("/example"));
   });
 
-  test("switches between signing in and signing up without losing where to go", async () => {
-    const { router } = renderAt("/example", { signedIn: false });
+  test("asks an account an emailed code just made for its name, then goes where it was headed", async () => {
+    const { auth, router } = renderAt("/example", {
+      signedIn: false,
+      name: "",
+      braivo: { listCourses: async () => [] },
+    });
 
-    fireEvent.click(await screen.findByRole("link", { name: "New here? Create an account" }));
+    await signInWithCode();
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Olive" } });
+    expect(router.history.location.pathname).toBe("/login");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByLabelText("Name")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create account" })).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/signup");
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(auth.updateUser).toHaveBeenCalledWith({ name: "Olive" });
+    expect(router.history.location.pathname).toBe("/example");
+  });
+
+  test("lets no account without a name past sign-in, however it arrives", async () => {
+    // Signed in, then gone before naming the account: the next visit asks again.
+    const { auth, router } = renderAt("/example", {
+      name: "",
+      braivo: { listCourses: async () => [] },
+    });
+
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Olive" } });
     expect(router.state.location.search).toEqual({ redirect: "/example" });
-    expect(
-      screen.getByRole("link", { name: "Have an account? Sign in" }).getAttribute("href"),
-    ).toBe("/login?redirect=%2Fexample");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
   });
 
   test("lets an owner approve their own tool, naming it and the code", async () => {
@@ -275,13 +302,7 @@ describe("the console", () => {
       device: deviceFlow(),
     });
 
-    fireEvent.change(await screen.findByLabelText("Email"), {
-      target: { value: "owner@example.com" },
-    });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "correct horse battery" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await signInWithCode();
 
     expect(await screen.findByText("Let a tool act as you?")).toBeTruthy();
     expect(router.history.location.search).toBe("?user_code=ABCD2345");
@@ -293,37 +314,21 @@ describe("the console", () => {
       braivo: { listCourses: async () => [] },
     });
 
-    fireEvent.change(await screen.findByLabelText("Email"), {
-      target: { value: "owner@example.com" },
-    });
+    await screen.findByLabelText("Email");
     expect(router.history.location.pathname).toBe("/login");
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "correct horse battery" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await signInWithCode();
 
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
-    expect(auth.signIn.email).toHaveBeenCalledWith({
+    expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
       email: "owner@example.com",
-      password: "correct horse battery",
+      type: "sign-in",
     });
+    expect(auth.signIn.emailOtp).toHaveBeenCalledWith({
+      email: "owner@example.com",
+      otp: "123456",
+    });
+    expect(auth.updateUser).not.toHaveBeenCalled();
     expect(router.history.location.pathname).toBe("/example");
-  });
-
-  test("takes someone who just signed up to /, not where they were headed", async () => {
-    const { router } = renderAt("/signup?redirect=%2Fexample", {
-      signedIn: false,
-      organizations: [],
-    });
-
-    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "New" } });
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "correct horse battery" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/organizations"));
   });
 
   test("leads from an organization to its sources", async () => {

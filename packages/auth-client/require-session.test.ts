@@ -4,7 +4,7 @@
 import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, test } from "vite-plus/test";
 
-import { requireSession } from "./require-session.ts";
+import { needsName, requireSession } from "./require-session.ts";
 
 const at = { href: "/courses/c1?tab=next" };
 
@@ -27,11 +27,40 @@ describe("requireSession", () => {
     });
   });
 
+  test("sends an account without a name to sign-in's name step, and back here afterwards", async () => {
+    const auth = { getSession: async () => ({ data: { user: { name: " " } }, error: null }) };
+
+    const thrown = await requireSession(auth, at).catch((error: unknown) => error);
+
+    expect(isRedirect(thrown)).toBe(true);
+    expect((thrown as { options: unknown }).options).toMatchObject({
+      to: "/login",
+      search: { redirect: "/courses/c1?tab=next" },
+    });
+  });
+
   test("fails rather than signing out when the session cannot be checked", async () => {
     const auth = {
       getSession: async () => ({ data: null, error: { message: "Service unavailable" } }),
     };
 
     await expect(requireSession(auth, at)).rejects.toThrow("Service unavailable");
+  });
+});
+
+describe("needsName", () => {
+  test("is true only for a session whose account has no name", async () => {
+    const session = (data: { user: { name: string } } | null) => ({
+      getSession: async () => ({ data, error: null }),
+    });
+
+    expect(await needsName(session({ user: { name: "" } }))).toBe(true);
+    expect(await needsName(session({ user: { name: "Ada" } }))).toBe(false);
+    expect(await needsName(session(null))).toBe(false);
+    expect(
+      await needsName({
+        getSession: () => Promise.reject(new TypeError("Failed to fetch")),
+      }),
+    ).toBe(false);
   });
 });
