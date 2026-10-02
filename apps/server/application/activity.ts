@@ -52,9 +52,11 @@ const TASK_REST_MS = 10 * 60_000;
  * `chooseNextObjective` is the decision alone, for integrators with their own
  * tasks.
  *
- * Only objectives with a task are candidates, filtered before `learning` is
- * called (docs/specs/learning-model.md): selecting first would strand a learner
- * on an objective they cannot practise.
+ * Objectives with a task are selected from first, filtered before `learning` is
+ * called (docs/specs/learning-model.md), so one without never holds up those
+ * with one; it is decided, as no activity, only when none of those needs
+ * attention. Whether one made acquiring by outside evidence should instead
+ * hold back later material is open (docs/specs/learner-loop.md, Gaps).
  */
 export async function chooseNextActivity(input: {
   database: Database;
@@ -75,23 +77,22 @@ export async function chooseNextActivity(input: {
   });
   if (learner === undefined) return { kind: "unavailable" };
 
+  const select = (candidates: readonly string[]) =>
+    selectNext({ now, candidates, estimates: learner.estimates, model: activeModel });
   const withTasks = await readObjectivesWithTasks(database, learner.objectiveIds);
-  const decision = selectNext({
-    now,
-    candidates: learner.objectiveIds.filter((id) => withTasks.has(id)),
-    estimates: learner.estimates,
-    model: activeModel,
-  });
-  if (decision === undefined) return { kind: "no-activity" };
+  const tasked = learner.objectiveIds.filter((id) => withTasks.has(id));
+  const taskless = learner.objectiveIds.filter((id) => !withTasks.has(id));
+  const decision = select(tasked) ?? select(taskless);
+  if (decision === undefined) return { kind: "caught-up" };
 
   const [task, objective] = await Promise.all([
     readNextTask(database, { learnerId, objectiveId: decision.objectiveId }),
     readObjective(database, decision.objectiveId),
   ]);
-  // Its last task was retired since; the next asking skips the objective.
-  if (task === undefined) return { kind: "no-activity" };
-  // Never missing: its course and tasks reference it, with deletes restricted.
+  // Never missing: its course references it, with deletes restricted.
   if (objective === undefined) throw new Error(`Objective ${decision.objectiveId} is missing`);
+  // Also when its last task was retired since `withTasks` was read.
+  if (task === undefined) return { kind: "no-activity", decision, objective };
 
   // Waiting rather than selecting again without this objective, which can
   // introduce unseen material ahead of it unless a second selection rule
@@ -118,15 +119,16 @@ function restingUntil(lastAttemptAt: Date | undefined, now: Date): Date | undefi
 }
 
 /**
- * As `NextObjective`, with the task to answer. `no-activity`, not `caught-up`:
- * a due objective may have no task (glossary: No activity). `resting`: every
- * task of the decided objective rests until `retryAt`; the decision is left
- * out, as it may no longer hold by then. Both name the objective, so a learner
- * sees what they practise, not only why.
+ * As `NextObjective`, with the task to answer. `no-activity`: the decided
+ * objective has no task (glossary: No activity). `resting`: every task of the
+ * decided objective rests until `retryAt`; the decision is left out, as it may
+ * no longer hold by then. Each names the objective, so a learner sees what they
+ * practise, or what holds them up, not only why.
  */
 export type NextActivity =
   | { kind: "unavailable" }
-  | { kind: "no-activity" }
+  | { kind: "caught-up" }
+  | { kind: "no-activity"; decision: LearningDecision; objective: Objective }
   | { kind: "resting"; objective: Objective; retryAt: Date }
   | {
       kind: "decided";

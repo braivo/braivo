@@ -7,12 +7,14 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { presentTask, type TaskBody } from "../content/index.ts";
+import { activeModel } from "../learning/index.ts";
 import {
   createCourse,
   createObjectives,
   createSource,
   createTasks,
   readLearnerEvidence,
+  recordEvidence,
 } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import type { RequestHost } from "./host.ts";
@@ -309,8 +311,46 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     });
   });
 
-  test("has no activity in a course with nothing to practise", async () => {
-    expect(await activity(start, learner, untaughtCourseId)).toEqual({ kind: "no-activity" });
+  test("has no activity when the decision falls on an objective without a task, naming it", async () => {
+    expect(await activity(start, learner, untaughtCourseId)).toEqual({
+      kind: "no-activity",
+      decision: { objectiveId: untaught, modelVersion: activeModel.version, intent: "introduce" },
+      objective: { id: untaught, title: "Untaught" },
+    });
+  });
+
+  test("has no activity, not caught up, once only an objective without a task is left", async () => {
+    for (const [attemptId, taskId] of [
+      ["p", pastTenseTask],
+      ["f", fractionsTasks[0]],
+    ] as const) {
+      expect(await answer(attemptId, taskId, 0, start)).toMatchObject({
+        grade: { outcome: "success" },
+      });
+    }
+
+    // Past tense and fractions retained, and not due for days: untaught is next.
+    expect(await activity(later(15))).toMatchObject({
+      kind: "no-activity",
+      objective: { id: untaught },
+    });
+  });
+
+  test("is caught up when an objective with a task needs no attention", async () => {
+    expect(await answer("s", shuffleTask, 0, start, { course: shuffleCourseId })).toMatchObject({
+      grade: { outcome: "success" },
+    });
+
+    expect(await activity(later(15), learner, shuffleCourseId)).toEqual({ kind: "caught-up" });
+  });
+
+  test("is caught up when an objective without a task needs no attention", async () => {
+    // Graded elsewhere: untaught has no task to answer here.
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      { id: "elsewhere", objectiveId: untaught, outcome: "success", at: start },
+    ]);
+
+    expect(await activity(later(15), learner, untaughtCourseId)).toEqual({ kind: "caught-up" });
   });
 
   test("rotates through an objective's tasks, least recently attempted first", async () => {

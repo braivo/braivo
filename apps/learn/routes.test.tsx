@@ -314,7 +314,7 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
 
     loaded(undefined);
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    expect(await screen.findByText("You're caught up")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
   });
 
@@ -347,6 +347,7 @@ describe("the learn app", () => {
     } as unknown as AppContext["auth"];
     const braivo = {
       hostOrganization: async () => undefined,
+      learnerCourses: async () => [],
       learnerProgress: async () => noProgress,
       nextActivity: async () => activity,
       submitAttempt: async () => {
@@ -582,11 +583,74 @@ describe("the learn app", () => {
     ).toBeTruthy();
   });
 
-  test("says when there is nothing to practise, without claiming the learner is caught up", async () => {
+  test("tells a learner with nothing due that they are caught up", async () => {
     renderAt("/courses/c1", { signedIn: true });
 
-    const notice = await screen.findByRole("region", { name: "Nothing to practise right now" });
+    const notice = await screen.findByRole("region", {
+      name: "You're caught up",
+      description: "Nothing is due right now.",
+    });
     expect(document.activeElement).toBe(notice);
+  });
+
+  test("names the objective that has nothing to practise, without claiming the learner is caught up", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => ({
+        decision: activity.decision,
+        objective: { id: "o2", title: "Subjunctive" },
+      }),
+    });
+
+    const notice = await screen.findByRole("region", {
+      name: "Nothing to practise right now",
+      description: "Subjunctive comes next, but there's no practice for it yet.",
+    });
+    expect(document.activeElement).toBe(notice);
+    expect(screen.queryByText("You're caught up")).toBeNull();
+  });
+
+  test("names the course and leads back to the list", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      learnerCourses: async () => [
+        { id: "c0", title: "French" },
+        { id: "c1", title: "Spanish" },
+      ],
+      nextActivity: async () => activity,
+    });
+
+    expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Spanish");
+    fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
+
+    expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
+  });
+
+  test("still asks the question when the course's title cannot be read", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      learnerCourses: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+      nextActivity: async () => activity,
+    });
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  });
+
+  test("offers to load the course list again when loading it failed", async () => {
+    const learnerCourses = vi
+      .fn<BraivoClient["learnerCourses"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([{ id: "c1", title: "Spanish" }]);
+    renderAt("/", { signedIn: true, learnerCourses });
+
+    const notice = await screen.findByRole("region", { name: "Your courses could not be loaded." });
+    expect(document.activeElement).toBe(notice);
+    fireEvent.click(within(notice).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
   test("sends one answer, however many options are tapped while it is on its way", async () => {
@@ -616,6 +680,20 @@ describe("the learn app", () => {
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
   });
 
+  test("leads back to the list when loading the course failed", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      learnerCourses: async () => [{ id: "c0", title: "French" }],
+      nextActivity: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("link", { name: "Your courses" }));
+
+    expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
+  });
+
   test("waits for a fresh activity when the learner returns to a course", async () => {
     let loaded!: (next: Activity | undefined) => void;
     const nextActivity = vi
@@ -635,7 +713,7 @@ describe("the learn app", () => {
     expect(screen.queryByText("Past tense of 'hablar'?")).toBeNull();
 
     loaded(undefined);
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    expect(await screen.findByText("You're caught up")).toBeTruthy();
   });
 
   test("offers to load again when loading the next activity failed", async () => {
@@ -650,12 +728,13 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("Nothing to practise right now")).toBeTruthy();
+    expect(await screen.findByText("You're caught up")).toBeTruthy();
   });
 
-  test("reads a course Braivo will not show as not found, not as nothing to practise", async () => {
+  test("reads a course Braivo will not show as not found, not as caught up, with a way back", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
+      learnerCourses: async () => [{ id: "c0", title: "French" }],
       nextActivity: async () => {
         throw new BraivoError(404, "not found");
       },
@@ -664,5 +743,7 @@ describe("the learn app", () => {
     expect(
       await screen.findByText("This course does not exist, or is not one of yours."),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
+    expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
   });
 });

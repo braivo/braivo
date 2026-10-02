@@ -9,18 +9,13 @@ import {
   type LearningDecision,
   type LearnerProgressStanding,
 } from "@braivo/server/client";
-import { ChoiceQuestion, MutedText, SourcePassage } from "@braivo/ui";
+import { ChoiceQuestion, Heading, MutedText, SourcePassage } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@braivo/ui/components/empty";
-import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { useEffect, useId, useRef, useState } from "react";
+
+import { Notice, useFocusOnMount } from "#components/notice";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   // Dropped on leaving: what comes next depends on every answer since, and a
@@ -29,18 +24,24 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   loader: async ({ context, params, abortController }) => {
     try {
       const signal = abortController.signal;
-      const [activity, progress] = await Promise.all([
+      // The title and the summary are optional: a failure leaves them out
+      // rather than failing the page. Awaited with the activity so they cannot
+      // arrive later and shift the question down.
+      const [activity, progress, course] = await Promise.all([
         context.braivo.nextActivity(params.courseId, { signal }),
-        // Optional: a failure leaves the summary out rather than failing the
-        // page. Awaited with the activity so it cannot arrive later and shift
-        // the question down.
         context.braivo
           .learnerProgress({ courseId: params.courseId, learnerId: context.user.id }, { signal })
+          .catch(() => undefined),
+        // The title, from the list: one more read per load, sized by the
+        // learner's courses, rather than an endpoint for one string.
+        context.braivo
+          .learnerCourses({ signal })
+          .then((courses) => courses.find(({ id }) => id === params.courseId))
           .catch(() => undefined),
       ]);
       // One attempt per activity shown, so a resend after a lost answer is
       // recorded once.
-      return { activity, progress, attemptId: crypto.randomUUID() };
+      return { activity, progress, title: course?.title, attemptId: crypto.randomUUID() };
     } catch (error) {
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
@@ -48,37 +49,41 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
     }
   },
   component: NextStep,
-  notFoundComponent: () => <Notice title="This course does not exist, or is not one of yours." />,
+  notFoundComponent: () => (
+    <Notice title="This course does not exist, or is not one of yours.">
+      <Button asChild variant="outline">
+        <Link to="/">Your courses</Link>
+      </Button>
+    </Notice>
+  ),
   errorComponent: CourseError,
 });
 
-/**
- * Focuses its element on mount, so focus follows the learner to whatever
- * replaced Continue instead of falling to the page. Explicit: React applies
- * `autoFocus` only to form controls. In the commit that shows it, not after:
- * nothing — a screen reader, a test — sees the element without the focus.
- */
-function useFocusOnMount<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  useLayoutEffect(() => ref.current?.focus(), []);
-  return ref;
-}
-
 function NextStep() {
-  const { activity, progress, attemptId } = Route.useLoaderData();
+  const { activity, progress, title, attemptId } = Route.useLoaderData();
 
   return (
     <>
+      <Link to="/" className="mb-2 inline-block text-sm text-muted-foreground underline">
+        Your courses
+      </Link>
+      {title && <Heading>{title}</Heading>}
       {progress && <ProgressSummary report={progress} />}
       {!activity ? (
-        // Not "caught up": an objective with no task to practise it can still
-        // be due (glossary: No activity), and the summary above says so.
-        <Notice title="Nothing to practise right now" />
+        // Also a course with nothing in it yet, so no promise of what comes later.
+        <Notice title="You're caught up" description="Nothing is due right now." />
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
           objectiveTitle={activity.objective.title}
           retryAfter={activity.retryAfter}
+        />
+      ) : !("task" in activity) ? (
+        // Not "caught up": the objective selected next has nothing to practise it
+        // with (glossary: No activity).
+        <Notice
+          title="Nothing to practise right now"
+          description={`${activity.objective.title} comes next, but there's no practice for it yet.`}
         />
       ) : (
         // Keyed, so the next activity starts unanswered.
@@ -125,36 +130,6 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
   );
 }
 
-/** What the page says instead of a question, focused as a question would be. */
-function Notice({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: ReactNode;
-  children?: ReactNode;
-}) {
-  const focused = useFocusOnMount<HTMLDivElement>();
-  const titleId = useId();
-  const descriptionId = useId();
-  return (
-    <Empty
-      ref={focused}
-      tabIndex={-1}
-      role="region"
-      aria-labelledby={titleId}
-      aria-describedby={description ? descriptionId : undefined}
-    >
-      <EmptyHeader>
-        <EmptyTitle id={titleId}>{title}</EmptyTitle>
-        {description && <EmptyDescription id={descriptionId}>{description}</EmptyDescription>}
-      </EmptyHeader>
-      {children && <EmptyContent>{children}</EmptyContent>}
-    </Empty>
-  );
-}
-
 /**
  * Anything that failed the route, such as a load that may only have failed for
  * now. Trying again reloads the course and resets this boundary.
@@ -164,6 +139,9 @@ function CourseError() {
   return (
     <Notice title="Something went wrong.">
       <Button onClick={() => router.invalidate()}>Try again</Button>
+      <Button asChild variant="outline">
+        <Link to="/">Your courses</Link>
+      </Button>
     </Notice>
   );
 }

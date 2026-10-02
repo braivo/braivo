@@ -1172,6 +1172,23 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await activity(emptyCourseId, learner.cookie)).status).toBe(204);
   });
 
+  test("answers the decision without a task when its objective has none", async () => {
+    const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
+    const untaughtCourseId = await createCourse(database, {
+      organizationId,
+      title: "Untaught",
+      objectiveIds: [untaught!],
+    });
+
+    const response = await activity(untaughtCourseId, learner.cookie);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      decision: { objectiveId: untaught, modelVersion: activeModel.version, intent: "introduce" },
+      objective: { id: untaught, title: "Untaught" },
+    });
+  });
+
   test("grades a learner's answer, and the next activity follows from it", async () => {
     const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } };
 

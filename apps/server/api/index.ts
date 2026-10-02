@@ -61,15 +61,19 @@
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective, with a task to practise it or, while its tasks
-// rest, when to ask again. Statuses as for `next`,
-// except that only objectives with a task are considered, so 204 also means the
-// course has nothing to practise yet. When a task is available, 200 answers the
-// decision, its objective, and the task, never the task's answer:
+// rest, when to ask again. Statuses as for `next`. The decision is made among
+// objectives with a task first, and among those without only when none of
+// those is selectable. When a task is available, 200 answers the decision, its
+// objective, and the task, never the task's answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "objective": { "id": "…", "title": "Greetings" },
 //     "task": { "id": "…", "kind": "choice", "prompt": "…",
 //               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
+//
+// When the decided objective has no task, 200 answers the decision and its
+// objective without one: the learner is not caught up, but has nothing to
+// practise until a task is added or another objective comes due.
 //
 // Options come shuffled unless the author kept their order, so a learner cannot
 // rely on where the answer was last time. Show them as given and answer with

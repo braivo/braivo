@@ -4,6 +4,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "imports": {
+    "#components/*": "./components/*.tsx",
     "#lib/*": "./lib/*.ts"
   },
   "scripts": {

@@ -49,9 +49,10 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
 
 /**
  * What a learner is to do next, as `GET /api/courses/:courseId/activity`
- * answers it: the decided objective and a task to answer now, or, when every
- * task for it was answered too recently, the objective and in how many seconds
- * to ask again.
+ * answers it: the decided objective and a task to answer now; the decision
+ * without a task when its objective has none (glossary: No activity); or, when
+ * every task for it was answered too recently, the objective and in how many
+ * seconds to ask again.
  */
 export type Activity =
   | {
@@ -59,6 +60,7 @@ export type Activity =
       objective: Objective;
       task: { id: string } & content.PresentedTask;
     }
+  | { decision: LearningDecision; objective: Objective }
   | { objective: Objective; retryAfter: number };
 
 /** A learner's answer to a task, as posted in an attempt. */
