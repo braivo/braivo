@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# The gates AGENTS.md asks of every change, so a pull request shows they passed
+# rather than trusting that they were run. Each job is named for the command
+# that reproduces it locally.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request makes its running checks moot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: vp check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx vp check
+
+  test:
+    name: bun run test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Without TEST_DATABASE_URL the database suites skip themselves and the run
+    # still passes, so this one gets a database of its own.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
