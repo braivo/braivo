@@ -3,8 +3,11 @@
 
 import { createTransport } from "nodemailer";
 
-/** One plain-text message to one address. */
-export type Mail = { to: string; subject: string; text: string };
+/**
+ * One message to one address. `text` is what a client that shows no HTML, and
+ * the log, display; `html` says the same, styled.
+ */
+export type Mail = { to: string; subject: string; text: string; html: string };
 
 /** Delivers a message, or throws. */
 export type SendMail = (mail: Mail) => Promise<void>;
