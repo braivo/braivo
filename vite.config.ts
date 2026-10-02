@@ -24,7 +24,22 @@ export default defineConfig({
   lint: {
     plugins: ["typescript", "unicorn", "oxc", "import"],
     categories: { correctness: "error" },
-    rules: { "import/no-cycle": "error" },
+    rules: {
+      "import/no-cycle": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "drizzle-orm/pg-core",
+              importNames: ["jsonb"],
+              message:
+                "It stores a JSON string under Bun SQL; use a pass-through customType, as packages/db/schema/learning.ts does.",
+            },
+          ],
+        },
+      ],
+    },
     env: { builtin: true },
     // `vp check` type-checks too, so it is the one static gate for people and
     // agents alike rather than one of two.

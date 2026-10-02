@@ -12,8 +12,9 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import type { TaskBody } from "../content/index.ts";
 import { createObjectives } from "./objective.ts";
-import { markTasksRetired, recordAttempt, RetiredTask } from "./task.ts";
+import { createTasks, markTasksRetired, recordAttempt, RetiredTask } from "./task.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -109,5 +110,48 @@ describe.skipIf(!connectionString)("recording an attempt on a retired task", () 
     await retiring;
 
     await expect(recording).rejects.toBeInstanceOf(RetiredTask);
+  });
+});
+
+/** Requires TEST_DATABASE_URL: the point is what the database holds. */
+describe.skipIf(!connectionString)("storing a task and an attempt", () => {
+  beforeAll(async () => {
+    await runMigrations(connectionString ?? "");
+    await seedOrganization(database, { organizationId, learnerIds: [learner], at });
+    await clearLearnerHistory(database, [learner]);
+  });
+
+  test("keeps the body and the response as JSON values, read back as written", async () => {
+    const [objective] = (await createObjectives(database, organizationId, ["Storing"])) as [string];
+    const body: TaskBody = { kind: "choice", prompt: "¿Uno?", options: ["one", "two"], answer: 0 };
+    const [stored] = (await createTasks(
+      database,
+      organizationId,
+      [{ objectiveId: objective, body }],
+      at,
+    )) as [string];
+    await recordAttempt(database, {
+      learnerId: learner,
+      organizationId,
+      attemptId: "stored",
+      taskId: stored,
+      response: { choice: 1 },
+      at,
+      restWindowStart: at,
+      evidence: { id: "attempt:stored", objectiveId: objective, outcome: "failure" },
+    });
+
+    expect(
+      await database
+        .select({
+          body: task.body,
+          response: attempt.response,
+          prompt: sql`${task.body}->>'prompt'`,
+          choice: sql`${attempt.response}->>'choice'`,
+        })
+        .from(attempt)
+        .innerJoin(task, eq(task.id, attempt.taskId))
+        .where(eq(attempt.taskId, stored)),
+    ).toEqual([{ body, response: { choice: 1 }, prompt: "¿Uno?", choice: "1" }]);
   });
 });
