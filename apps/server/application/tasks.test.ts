@@ -15,6 +15,7 @@ import {
   readObjectivesWithTasks,
   readTaskCitations,
 } from "../persistence/index.ts";
+import { StaleCorrection } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import { InvalidCitation } from "./citations.ts";
 import type { RequestHost } from "./host.ts";
@@ -41,6 +42,7 @@ type Draft = {
   objectiveId: string;
   body: unknown;
   citations?: { sourceId: string; quote: string }[];
+  replaces?: string;
 };
 
 function define(tasks: readonly Draft[], actingAs = author) {
@@ -428,6 +430,127 @@ describe.skipIf(!connectionString)("tasks", () => {
 
       expect(new Set(ids).size).toBe(1);
       expect(await stored()).toHaveLength(1);
+    });
+  });
+  describe("correcting a task", () => {
+    /** The objective's unretired tasks, oldest first. */
+    const offered = async () =>
+      (
+        await database
+          .select({ id: taskTable.id })
+          .from(taskTable)
+          .where(and(eq(taskTable.objectiveId, objective), isNull(taskTable.retiredAt)))
+          .orderBy(taskTable.createdAt)
+      ).map((row) => row.id);
+    const correct = (replaces: string, body: object, actingAs = author) =>
+      define([{ objectiveId: objective, body, replaces }], actingAs);
+
+    test("stores the correction and retires the task in one step, which a retry repeats", async () => {
+      const [wrong] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+
+      const [fixed] = await correct(wrong, { ...choice, answer: 1 });
+      expect(fixed).not.toBe(wrong);
+      expect(await offered()).toEqual([fixed]);
+      // Sent again after a lost answer: the same correction, nothing added or refused.
+      expect(await correct(wrong, { ...choice, answer: 1 })).toEqual([fixed]);
+      expect(await offered()).toEqual([fixed]);
+    });
+
+    test("keeps a task its correction does not change", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+
+      expect(await correct(task, choice)).toEqual([task]);
+      expect(await offered()).toEqual([task]);
+    });
+
+    test("refuses a correction of a task already retired, unless what it asks for is offered", async () => {
+      const [task, other] = (await define([
+        { objectiveId: objective, body: choice },
+        { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
+      ])) as [string, string];
+      await retireTasks({ database, organizationId, actingAs: author, taskIds: [task], now });
+
+      // Written from a stale read: stored nothing.
+      await expect(correct(task, { ...choice, answer: 1 })).rejects.toBeInstanceOf(StaleCorrection);
+      expect(await offered()).toEqual([other]);
+      // Asking for a task already offered converges on it.
+      expect(await correct(task, { ...choice, prompt: "Which, again?" })).toEqual([other]);
+      expect(await offered()).toEqual([other]);
+    });
+
+    test("lets one of two racing corrections of a task through, refusing the other", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+
+      const results = await Promise.allSettled([
+        correct(task, { ...choice, answer: 1 }),
+        correct(task, { ...choice, prompt: "Which one?" }),
+      ]);
+
+      const [won] = results.flatMap((result) =>
+        result.status === "fulfilled" ? result.value : [],
+      );
+      const lost = results.flatMap((result) => (result.status === "rejected" ? result.reason : []));
+      expect(lost).toEqual([expect.any(StaleCorrection)]);
+      expect(await offered()).toEqual([won]);
+    });
+
+    test("leaves one task when two corrections cross, each into the other", async () => {
+      const [a, b] = (await define([
+        { objectiveId: objective, body: choice },
+        { objectiveId: objective, body: { ...choice, answer: 1 } },
+      ])) as [string, string];
+
+      // Either way round, the second replaces a task still live: both succeed.
+      const results = await Promise.allSettled([
+        correct(a, { ...choice, answer: 1 }),
+        correct(b, choice),
+      ]);
+
+      expect(results.map(({ status }) => status)).toEqual(["fulfilled", "fulfilled"]);
+      expect(await offered()).toHaveLength(1);
+    });
+
+    test("corrects one task a request, in its own objective, of the organization's own", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [elsewhere] = (await createObjectives(database, organizationId, ["Elsewhere"])) as [
+        string,
+      ];
+      const [theirs] = (await createTasks(
+        database,
+        otherOrganizationId,
+        [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
+        now,
+      )) as [string];
+      const lesson = await addLesson();
+      const refusal = (tasks: Draft[], actingAs = author) =>
+        define(tasks, actingAs).catch((error: unknown) => error);
+
+      // Refused from the payload alone, before the role is read.
+      const together = await refusal(
+        [
+          { objectiveId: objective, body: { ...choice, prompt: "New" } },
+          { objectiveId: objective, body: { ...choice, answer: 1 }, replaces: task },
+        ],
+        learner,
+      );
+      expect(together).toBeInstanceOf(InvalidTask);
+      expect((together as Error).message).toContain("Task 1 replaces a task, so it is sent alone");
+      const moved = await refusal([{ objectiveId: elsewhere, body: choice, replaces: task }]);
+      expect(moved).toBeInstanceOf(InvalidTask);
+      expect((moved as Error).message).toContain("Task 0 replaces a task of another objective");
+      for (const replaces of [theirs, "no-such-task"]) {
+        // Refused before its quote, which is not in the source, is looked for.
+        const foreign = await refusal([
+          {
+            objectiveId: objective,
+            body: { ...choice, answer: 1 },
+            citations: [{ sourceId: lesson, quote: "Not in the lesson." }],
+            replaces,
+          },
+        ]);
+        expect(foreign).toBeInstanceOf(NotPermitted);
+      }
+      expect(await offered()).toEqual([task]);
     });
   });
 });

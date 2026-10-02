@@ -47,6 +47,19 @@ export class RetiredTask extends Error {
   }
 }
 
+/**
+ * A correction of a task someone already corrected or retired, written from
+ * a stale read, unless what it asks for is already offered.
+ */
+export class StaleCorrection extends Error {
+  constructor() {
+    super(
+      "Task 0 replaces a task already retired; list the objective's tasks again before deciding what to add or correct.",
+    );
+    this.name = "StaleCorrection";
+  }
+}
+
 /** A new attempt on a task this learner answered too recently in another. */
 export class RestingTask extends Error {
   constructor() {
@@ -58,11 +71,15 @@ export class RestingTask extends Error {
 /** A located passage a task was written from, positions in code points. */
 export type TaskCitation = { sourceId: string; start: number; end: number };
 
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+type NewTask = { objectiveId: string; body: TaskBody; citations?: readonly TaskCitation[] };
+
 /**
  * Stores tasks with the passages they cite and returns their IDs, positionally
  * matching the tasks given. Bodies must already be valid and citations located
  * — `content` does both — since a stored task is never corrected, only
- * replaced.
+ * replaced (`replaceTask`).
  *
  * A task the objective already has, unretired — the same body and the same
  * passages — is not stored again: its ID is returned, so an agent or script
@@ -84,97 +101,166 @@ export type TaskCitation = { sourceId: string; start: number; end: number };
 export async function createTasks(
   database: Database,
   organizationId: string,
-  tasks: readonly { objectiveId: string; body: TaskBody; citations?: readonly TaskCitation[] }[],
+  tasks: readonly NewTask[],
   createdAt: Date,
 ): Promise<string[]> {
   if (tasks.length === 0) return [];
 
-  const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))].toSorted();
-
   return database.transaction(async (transaction) => {
-    await lockObjectiveTasks(transaction, objectiveIds);
-
-    // Every unretired task these objectives have, with its passages: few per
-    // objective, and compared here since jsonb equality alone would not
-    // compare the citations beside it.
-    const stored = await transaction
-      .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
-      .from(task)
-      .where(
-        and(
-          eq(task.organizationId, organizationId),
-          inArray(task.objectiveId, objectiveIds),
-          isNull(task.retiredAt),
-        ),
-      );
-    const passages = stored.length
-      ? await transaction
-          .select({
-            taskId: taskCitation.taskId,
-            sourceId: taskCitation.sourceId,
-            start: taskCitation.start,
-            end: taskCitation.end,
-          })
-          .from(taskCitation)
-          .where(
-            inArray(
-              taskCitation.taskId,
-              stored.map((row) => row.id),
-            ),
-          )
-      : [];
-    const known = stored.map((row) => ({
-      id: row.id,
-      objectiveId: row.objectiveId,
-      body: row.body,
-      cited: citedKey(passages.filter((passage) => passage.taskId === row.id)),
-    }));
-
-    const rows: (typeof task.$inferInsert)[] = [];
-    const citations: (typeof taskCitation.$inferInsert)[] = [];
-    const ids = tasks.map((item) => {
-      // Compared as it will be stored: `jsonb` keeps what JSON can say, so a
-      // value JSON cannot — an answer of -0, stored as 0 — must not make a
-      // retry look like another task.
-      const body = JSON.parse(JSON.stringify(item.body)) as TaskBody;
-      const cited = citedKey(item.citations ?? []);
-      const twin = known.find(
-        (candidate) =>
-          candidate.objectiveId === item.objectiveId &&
-          candidate.cited === cited &&
-          // Key order does not matter, option order does: it is what `answer` indexes.
-          isDeepStrictEqual(candidate.body, body),
-      );
-      if (twin) return twin.id;
-
-      const id = crypto.randomUUID();
-      rows.push({
-        id,
-        organizationId,
-        objectiveId: item.objectiveId,
-        body,
-        createdAt: new Date(createdAt.getTime() + rows.length),
-      });
-      for (const citation of item.citations ?? []) {
-        citations.push({ organizationId, taskId: id, ...citation });
-      }
-      known.push({ id, objectiveId: item.objectiveId, body, cited });
-      return id;
-    });
-
-    if (rows.length > 0) await transaction.insert(task).values(rows);
-    // The same passage cited twice by one task is one citation, as for objectives.
-    if (citations.length > 0) {
-      await transaction.insert(taskCitation).values(citations).onConflictDoNothing();
-    }
-    return ids;
+    await lockObjectiveTasks(
+      transaction,
+      tasks.map((item) => item.objectiveId),
+    );
+    return (await storeTasks(transaction, organizationId, tasks, createdAt)).ids;
   });
+}
+
+/**
+ * Stores a task's correction, as `createTasks` stores a task, and retires the
+ * task in the same transaction, so learners meet one or the other, never both
+ * or neither. The task, `replaces`, must be the organization's and assess the
+ * correction's objective; one that does not exist is taken as retired.
+ *
+ * A correction equal to the task answers the task, retiring nothing. Once the
+ * task is retired, a correction answers what it asks for if that is already
+ * offered (a retry, or someone's same correction); otherwise it was written
+ * from a stale read and is refused (`StaleCorrection`), never offered beside
+ * whatever replaced the task.
+ */
+export async function replaceTask(
+  database: Database,
+  organizationId: string,
+  replaces: string,
+  correction: NewTask,
+  createdAt: Date,
+): Promise<string> {
+  return database.transaction(async (transaction) => {
+    await lockObjectiveTasks(transaction, [correction.objectiveId]);
+    const [replaced] = await transaction
+      .select({ retiredAt: task.retiredAt })
+      .from(task)
+      .where(eq(task.id, replaces));
+
+    const {
+      ids: [id],
+      added,
+    } = await storeTasks(transaction, organizationId, [correction], createdAt);
+    if (id === replaces) return id;
+    if (replaced?.retiredAt === null) {
+      await transaction.update(task).set({ retiredAt: createdAt }).where(eq(task.id, replaces));
+    } else if (added) {
+      // Thrown inside the transaction, so the correction just stored goes with it.
+      throw new StaleCorrection();
+    }
+    return id!;
+  });
+}
+
+/**
+ * `createTasks`' writes, under its locks: the IDs, and whether any task was
+ * newly stored rather than found.
+ */
+async function storeTasks(
+  transaction: Transaction,
+  organizationId: string,
+  tasks: readonly NewTask[],
+  createdAt: Date,
+): Promise<{ ids: string[]; added: boolean }> {
+  const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))];
+
+  // Every unretired task these objectives have, with its passages: few per
+  // objective, and compared here since jsonb equality alone would not
+  // compare the citations beside it.
+  const stored = await transaction
+    .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
+    .from(task)
+    .where(
+      and(
+        eq(task.organizationId, organizationId),
+        inArray(task.objectiveId, objectiveIds),
+        isNull(task.retiredAt),
+      ),
+    );
+  const passages = stored.length
+    ? await transaction
+        .select({
+          taskId: taskCitation.taskId,
+          sourceId: taskCitation.sourceId,
+          start: taskCitation.start,
+          end: taskCitation.end,
+        })
+        .from(taskCitation)
+        .where(
+          inArray(
+            taskCitation.taskId,
+            stored.map((row) => row.id),
+          ),
+        )
+    : [];
+  const known = stored.map((row) => ({
+    id: row.id,
+    objectiveId: row.objectiveId,
+    body: row.body,
+    cited: citedKey(passages.filter((passage) => passage.taskId === row.id)),
+  }));
+
+  const rows: (typeof task.$inferInsert)[] = [];
+  const citations: (typeof taskCitation.$inferInsert)[] = [];
+  const ids = tasks.map((item) => {
+    // Compared as it will be stored: `jsonb` keeps what JSON can say, so a
+    // value JSON cannot — an answer of -0, stored as 0 — must not make a
+    // retry look like another task.
+    const body = JSON.parse(JSON.stringify(item.body)) as TaskBody;
+    const cited = citedKey(item.citations ?? []);
+    const twin = known.find(
+      (candidate) =>
+        candidate.objectiveId === item.objectiveId &&
+        candidate.cited === cited &&
+        // Key order does not matter, option order does: it is what `answer` indexes.
+        isDeepStrictEqual(candidate.body, body),
+    );
+    if (twin) return twin.id;
+
+    const id = crypto.randomUUID();
+    rows.push({
+      id,
+      organizationId,
+      objectiveId: item.objectiveId,
+      body,
+      createdAt: new Date(createdAt.getTime() + rows.length),
+    });
+    for (const citation of item.citations ?? []) {
+      citations.push({ organizationId, taskId: id, ...citation });
+    }
+    known.push({ id, objectiveId: item.objectiveId, body, cited });
+    return id;
+  });
+
+  if (rows.length > 0) await transaction.insert(task).values(rows);
+  // The same passage cited twice by one task is one citation, as for objectives.
+  if (citations.length > 0) {
+    await transaction.insert(taskCitation).values(citations).onConflictDoNothing();
+  }
+  return { ids, added: rows.length > 0 };
 }
 
 /** A task's passages as one comparable value: the same set, however listed or repeated. */
 function citedKey(citations: readonly TaskCitation[]): string {
   const keys = citations.map(({ sourceId, start, end }) => JSON.stringify([sourceId, start, end]));
   return JSON.stringify([...new Set(keys)].toSorted());
+}
+
+/** The objective an organization's task assesses, or `undefined` for a task not its own. */
+export async function readTaskObjective(
+  database: Database,
+  organizationId: string,
+  taskId: string,
+): Promise<string | undefined> {
+  const [row] = await database
+    .select({ objectiveId: task.objectiveId })
+    .from(task)
+    .where(and(eq(task.organizationId, organizationId), eq(task.id, taskId)));
+  return row?.objectiveId;
 }
 
 /** The IDs among these that are not the organization's tasks, missing ones included. */
@@ -230,10 +316,10 @@ export async function markTasksRetired(
  * cannot each hold a lock the other waits for.
  */
 async function lockObjectiveTasks(
-  transaction: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  transaction: Transaction,
   objectiveIds: readonly string[],
 ): Promise<void> {
-  for (const objectiveId of [...objectiveIds].toSorted()) {
+  for (const objectiveId of [...new Set(objectiveIds)].toSorted()) {
     await transaction.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`braivo:task:${objectiveId}`}, 0))`,
     );

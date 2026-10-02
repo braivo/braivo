@@ -46,10 +46,13 @@ export {
   markTasksRetired,
   readObjectiveTasks,
   readTaskCitations,
+  readTaskObjective,
   readCourseTask,
   readNextTask,
   readObjectivesWithTasks,
   recordAttempt,
+  replaceTask,
   RestingTask,
   RetiredTask,
+  StaleCorrection,
 } from "./task.ts";

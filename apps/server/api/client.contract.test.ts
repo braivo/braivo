@@ -492,6 +492,50 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
+  test("corrects a task in one step, and explains why a stale correction is refused", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+    const sourceId = await client.addSource(
+      { organizationId, title: "Unidad 3", text: "Gracias significa thank you." },
+      as,
+    );
+    const [thanks] = await client.defineObjectives(
+      { organizationId, objectives: [{ title: "Thanks" }] },
+      as,
+    );
+    const wrong = {
+      objectiveId: thanks!,
+      kind: "choice" as const,
+      prompt: "Gracias?",
+      options: ["thank you", "please"],
+      answer: 1,
+      citations: [{ sourceId, quote: "Gracias significa thank you." }],
+    };
+    const [taskId] = await client.defineTasks({ organizationId, tasks: [wrong] }, as);
+
+    const correction = { ...wrong, answer: 0, replaces: taskId! };
+    const [correctedId] = await client.defineTasks({ organizationId, tasks: [correction] }, as);
+    expect(await client.listTasks({ organizationId, objectiveId: thanks! }, as)).toEqual([
+      {
+        id: correctedId,
+        kind: "choice",
+        prompt: "Gracias?",
+        options: ["thank you", "please"],
+        answer: 0,
+        citations: [{ sourceId, start: 0, end: 28, quote: "Gracias significa thank you." }],
+      },
+    ]);
+
+    // Written from the task as it was before: someone already corrected it.
+    const stale = client.defineTasks(
+      { organizationId, tasks: [{ ...correction, prompt: "¿Gracias?" }] },
+      as,
+    );
+    await expect(stale).rejects.toMatchObject({
+      status: 409,
+      reason: expect.stringContaining("Task 0 replaces a task already retired"),
+    });
+  });
+
   test("carries Braivo's explanation of a quote it cannot cite", async () => {
     const as = { headers: { cookie: teacherCookie } };
     const sourceId = await client.addSource(

@@ -795,6 +795,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await post({ tasks: [{ ...task, objectiveId: "" }] }, teacher.cookie)).status).toBe(
       400,
     );
+    for (const replaces of ["", 7]) {
+      expect(
+        (await post({ tasks: [{ ...task, answer: 0, replaces }] }, teacher.cookie)).status,
+      ).toBe(400);
+    }
     // Well under 1 MB, so refused on its count rather than its size.
     const tooMany = Array.from({ length: 1001 }, () => ({ ...task, answer: 1 }));
     expect((await post({ tasks: tooMany }, teacher.cookie)).status).toBe(400);

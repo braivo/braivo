@@ -146,6 +146,14 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
 
     expect(refused.isError).toBe(true);
     expect(refused.text).toContain("Cite at most 200 quotes in one call");
+
+    const { citations: _, ...uncited } = task;
+    const correcting = await call("author_tasks", {
+      organizationId,
+      tasks: [uncited, { ...uncited, answer: 1, replaces: "t" }],
+    });
+    expect(correcting.isError).toBe(true);
+    expect(correcting.text).toContain("Send a task with replaces alone");
   });
 
   test("refuses a blank title, saying why, before Braivo would with a bare 400", async () => {
@@ -165,7 +173,7 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain("original");
   });
 
-  test("reviews an objective's tasks, and replaces a wrong one", async () => {
+  test("reviews an objective's tasks, corrects a wrong one, and retires another", async () => {
     const { sourceId } = await json<{ sourceId: string }>("add_source", {
       organizationId,
       title: "Los números",
@@ -201,21 +209,23 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       { id: right, prompt: "¿Dos?", answer: 1, citations: [{ quote: "Dos significa two." }] },
     ]);
 
-    // The answer to "¿Uno?" is wrong: retire it, and write it again.
-    expect(await json("retire_tasks", { organizationId, taskIds: [wrong] })).toEqual({
-      retired: 1,
-    });
+    // The answer to "¿Uno?" is wrong: correct it, which retires it.
     const {
       taskIds: [fixed],
     } = await json<{ taskIds: string[] }>("author_tasks", {
       organizationId,
-      tasks: [task("¿Uno?", 0, "Uno significa one.")],
+      tasks: [{ ...task("¿Uno?", 0, "Uno significa one."), replaces: wrong }],
     });
-    expect(
+    const offered = async () =>
       (await json<{ id: string }[]>("list_tasks", { organizationId, objectiveId: numbers })).map(
         ({ id }) => id,
-      ),
-    ).toEqual([right, fixed]);
+      );
+    expect(await offered()).toEqual([right, fixed]);
+
+    expect(await json("retire_tasks", { organizationId, taskIds: [right] })).toEqual({
+      retired: 1,
+    });
+    expect(await offered()).toEqual([fixed]);
   });
 
   test("builds a grounded course from a transcript, as an agent would", async () => {
