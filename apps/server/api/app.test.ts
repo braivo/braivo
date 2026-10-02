@@ -6,12 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { organizationDomain, session } from "@braivo/db/schema";
+import { session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { type Model, ModelUnavailable } from "../ai/index.ts";
+import { registerLearnDomain } from "../application/index.ts";
 import { createAuth } from "../auth/index.ts";
 import { activeModel } from "../learning/index.ts";
 import {
@@ -189,16 +190,19 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       at,
     });
 
-    await database
-      .insert(organizationDomain)
-      .values([
-        { hostname: new URL(organizationOrigin).hostname, organizationId },
-        {
-          hostname: new URL(otherOrganizationOrigin).hostname,
-          organizationId: otherOrganizationId,
-        },
-      ])
-      .onConflictDoNothing();
+    // Through the operator's use case, so the domain tests below run on
+    // registered hostnames. Seeding makes each slug its organization's ID.
+    for (const [organizationSlug, origin] of [
+      [organizationId, organizationOrigin],
+      [otherOrganizationId, otherOrganizationOrigin],
+    ] as const) {
+      await registerLearnDomain({
+        database,
+        baseUrl,
+        organizationSlug,
+        hostname: new URL(origin).hostname,
+      });
+    }
 
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;

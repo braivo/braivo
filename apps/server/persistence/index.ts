@@ -16,7 +16,7 @@ export {
   readLearnerCourses,
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";
-export { readDomainOrganization } from "./domain.ts";
+export { insertLearnDomain, readDomainOrganization, readLearnDomain } from "./domain.ts";
 export { ConflictingEvidence, readLearnerEvidence, recordEvidence } from "./evidence.ts";
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
@@ -31,7 +31,11 @@ export {
   readObjectives,
   readObjectiveTitles,
 } from "./objective.ts";
-export { organizationOwnsLearningContent, readOrganizationSlug } from "./organization.ts";
+export {
+  organizationOwnsLearningContent,
+  readOrganizationBySlug,
+  readOrganizationSlug,
+} from "./organization.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export type { AuthoredTask, CitedTaskPassage, TaskCitation } from "./task.ts";

@@ -12,6 +12,7 @@ export type { AuthoredCourse } from "./courses.ts";
 export type { Ai } from "./ai.ts";
 export { AiLimitReached, AiNotEntitled, AiUnavailable, InvalidAiRequest } from "./ai.ts";
 export { draftFromSource } from "./drafts.ts";
+export { DomainRefused, registerLearnDomain } from "./domains.ts";
 /** What a draft is, and the model failing to give one, named so callers need not reach into `ai`. */
 export type { Draft } from "../ai/index.ts";
 export { ModelUnavailable } from "../ai/index.ts";

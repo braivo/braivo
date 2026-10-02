@@ -1,6 +1,6 @@
 # White-label
 
-Status: living; checked against the code on 2026-10-01.
+Status: living; checked against the code on 2026-10-02.
 
 Each organization's learners use the learn app on the organization's own hostname, which wears its name and serves its courses alone; its content owners manage it in one console at `braivo.app/<slug>` (product.md, core job 6). Which hostname serves which organization is a database row, not configuration.
 
@@ -17,7 +17,7 @@ One server process sits behind every origin, and every origin that serves an app
 | A customer's own domain (`learn.school.example`) | Not allowed until learn domains hold learner sessions | —                                     | Customer                               |
 | `www.braivo.app`                                 | Marketing, Braivo Cloud only, outside this repository | None                                  | Braivo                                 |
 
-`organization_domain` maps a hostname to an organization: lowercase (a database check) and without a port (nothing checks it), at most one per organization (a unique index), deleted with its organization. Only SQL writes it today.
+`organization_domain` maps a hostname to an organization: at most one per organization (a unique index), lowercase (a database check), deleted with its organization. The operator writes it with `braivo organization add-domain --slug <slug> --hostname <hostname>` (`registerLearnDomain`). The hostname is lowercased and must be what `URL#hostname` gives back, or lookups never match: ASCII labels of letters, digits, and inner hyphens, 1 to 63 characters each, 253 in all; no scheme, port, path, trailing dot, or IP address; an internationalized name in its `xn--` form. Public DNS is not required (`training` qualifies). Refused: `BRAIVO_URL`'s hostname, which reaches every organization whatever its row says; a hostname another organization has; a second one for an organization. The same mapping again succeeds, so provisioning may retry. DNS, TLS, and routing stay the operator's; only SQL replaces or removes a domain.
 
 ### The host ceiling
 
@@ -71,13 +71,15 @@ The URL names the organization, never the session: Better Auth's active organiza
 - A slug is never changed, and a reserved or malformed one never created (`apps/server/auth/auth.test.ts`).
 - `/` never opens an organization the user no longer manages, and a slug the user does not manage reads as not found (`apps/console/routes.test.tsx`).
 - The learn app's brand never blocks it from loading (`apps/learn/routes.test.tsx`).
-- At most one domain per organization (untested; a unique index).
+- At most one domain per organization, held by the database too (`apps/server/application/domains.test.ts`).
+- A registered hostname is one a request's host can match, and never the installation's (`apps/server/application/domains.test.ts`).
 
 ## Code map
 
 | Concern            | Where                                                                                                                         |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | Domain table       | `packages/db/schema/domain.ts`                                                                                                |
+| Registering one    | `registerLearnDomain` in `apps/server/application/domains.ts`, `organization add-domain` in `apps/server/cli/index.ts`        |
 | Host ceiling       | `apps/server/application/host.ts` (`hostAdmits`, `RequestHost`), `requestHost` in `apps/server/api/app.ts`                    |
 | Course list filter | `listLearnerCourses` in `apps/server/application/courses.ts`                                                                  |
 | Origin trust       | `apps/server/auth/origin.ts`, `trustedOrigins` in `apps/server/auth/auth.ts`, `isTrustedWrite` in `apps/server/api/app.ts`    |
@@ -93,12 +95,11 @@ The URL names the organization, never the session: Better Auth's active organiza
 
 ## Gaps
 
-| Gap                                                                                                                                  | Impact                                                               | Next step                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| A learn domain holds the account's session, so only operator-controlled hostnames may be registered; enforced by a written rule only | High once a customer asks for its own domain                         | Learner sessions and handoff (ADR 0018, step 2)                            |
-| Nothing but SQL registers a domain                                                                                                   | Every new organization needs database access                         | A CLI command beside `organization create`; provisioning on Cloud          |
-| Slugs cannot be changed                                                                                                              | A typo in a slug is permanent without SQL                            | Owner or admin rename with the warning (ADR 0004)                          |
-| Branding is the name only                                                                                                            | Weak white-label: no logo, colours, or favicon                       | A branding slice: which fields, where stored, how the learn app loads them |
-| Nothing refuses a learn domain written with a port                                                                                   | The mapping silently never matches, since lookups use `URL#hostname` | Validate it in the command that registers learn domains                    |
-| The organization routes have no host ceiling, so on a learn domain an owner's session reaches every organization they manage         | Acceptable while only operator hostnames are registered              | Refuse them off `BRAIVO_URL` when learner sessions land                    |
-| No deployment packaging for multiple hosts                                                                                           | Self-hosters must build their own proxy that passes `Host`           | Deployment docs or packaging (README, Deployment)                          |
+| Gap                                                                                                                                  | Impact                                                           | Next step                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| A learn domain holds the account's session, so only operator-controlled hostnames may be registered; enforced by a written rule only | High once a customer asks for its own domain                     | Learner sessions and handoff (ADR 0018, step 2)                            |
+| Slugs cannot be changed                                                                                                              | A typo in a slug is permanent without SQL                        | Owner or admin rename with the warning (ADR 0004)                          |
+| Branding is the name only                                                                                                            | Weak white-label: no logo, colours, or favicon                   | A branding slice: which fields, where stored, how the learn app loads them |
+| Only SQL replaces or removes a learn domain                                                                                          | Moving an organization to another hostname needs database access | A command when an organization first needs to move                         |
+| The organization routes have no host ceiling, so on a learn domain an owner's session reaches every organization they manage         | Acceptable while only operator hostnames are registered          | Refuse them off `BRAIVO_URL` when learner sessions land                    |
+| No deployment packaging for multiple hosts                                                                                           | Self-hosters must build their own proxy that passes `Host`       | Deployment docs or packaging (README, Deployment)                          |
