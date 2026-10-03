@@ -1,6 +1,6 @@
 # Learner loop
 
-Status: living; checked against the code on 2026-10-02.
+Status: living; checked against the code on 2026-10-03.
 
 A learner opens a course and Braivo keeps choosing what to practise next from what they know, struggle with, or may be forgetting; each answer is graded into evidence that shapes the next choice. This is `product.md`'s core jobs 2 and 3, closed end to end without AI for `choice` tasks. Integrators who grade elsewhere feed the same estimates through the evidence endpoint.
 
@@ -40,18 +40,18 @@ The grade is `{ outcome, correctChoice, explanation?, passages? }`, recomputed f
 
 **The learn app.** `/` lists the courses, or "No courses yet"; a failed load offers Try again. `/courses/$courseId` loads the activity and mints one attempt ID per activity shown; above it, a link back to the list, the course's title from that list, and a summary of where the learner stands ([progress](progress.md)), the last two left out when they fail to load. It renders one of:
 
-| State                            | Shows                                                                                                                                                       | Next                                                          |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Task                             | label ("New · Greetings"), why now, prompt, options                                                                                                         | a choice or key 1–9 sends the attempt; options lock meanwhile |
-| Graded                           | Correct or Not quite, the explanation, the correct option, and the passages under "From your lessons", each linked to its source, a recording at its moment | Continue reloads the activity, with a new attempt ID          |
-| Unconfirmed (network error, 5xx) | "Your answer could not be confirmed."                                                                                                                       | Send again resends the same attempt and choice                |
-| Refused (400, 403, 413)          | "Something went wrong."                                                                                                                                     | nothing; the same answer would be refused again               |
-| 401, 404, 409 on an attempt      | —                                                                                                                                                           | reloads: to sign-in, not found, or the rest                   |
-| Resting                          | the objective and the local time practice resumes                                                                                                           | reloads itself after `retryAfter`                             |
-| Caught up                        | "You're caught up", nothing due right now, and when the next review falls due, if any (progress-8)                                                          | nothing                                                       |
-| No activity                      | "Nothing to practise right now", naming the objective that comes next without a task                                                                        | nothing                                                       |
-| 404                              | "This course does not exist, or is not one of yours."                                                                                                       | back to the course list                                       |
-| Load failed                      | "Something went wrong."                                                                                                                                     | Try again, or back to the course list                         |
+| State                            | Shows                                                                                                                                                                                                                          | Next                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Task                             | label ("New · Greetings"), why now, prompt, options                                                                                                                                                                            | a choice or key 1–9 sends the attempt; options lock on it |
+| Graded                           | Correct or Not quite, the explanation, the correct option, and the passages under the heading "From your lessons", each naming its source and its moment or page, linked when the source has a link, a recording at its moment | Continue reloads the activity, with a new attempt ID      |
+| Unconfirmed (network error, 5xx) | "Your answer could not be confirmed."                                                                                                                                                                                          | Send again resends the same attempt and choice            |
+| Refused (400, 403, 413)          | "Something went wrong."                                                                                                                                                                                                        | nothing; the same answer would be refused again           |
+| 401, 404, 409 on an attempt      | —                                                                                                                                                                                                                              | reloads: to sign-in, not found, or the rest               |
+| Resting                          | the objective and the local time practice resumes, rounded up to the minute                                                                                                                                                    | reloads itself after `retryAfter`                         |
+| Caught up                        | "You're caught up", nothing due right now, and when the next review falls due, if any (progress-8)                                                                                                                             | nothing                                                   |
+| No activity                      | "Nothing to practise right now", naming the objective that comes next without a task                                                                                                                                           | nothing                                                   |
+| 404                              | "This course does not exist, or is not one of yours."                                                                                                                                                                          | back to the course list                                   |
+| Load failed                      | "Something went wrong."                                                                                                                                                                                                        | Try again, or back to the course list                     |
 
 ```mermaid
 sequenceDiagram
@@ -108,7 +108,7 @@ sequenceDiagram
 - Evidence dated more than five minutes ahead, or under an ID longer than 256 characters or starting `attempt:`, is refused (`apps/server/application/record-evidence.test.ts`, `apps/server/api/app.test.ts`).
 - Every GET answers `private, no-store` (`apps/server/api/app.test.ts`).
 - The learn app sends one attempt however many options are tapped, and resends only that attempt (`apps/learn/routes.test.tsx`).
-- The learn app shows a grade's passages after answering, linking those whose source has a link, a recording at its moment (`apps/learn/routes.test.tsx`, `packages/ui/compositions/source-passage.test.tsx`).
+- The learn app shows a grade's passages after answering, naming each one's moment or page, linking those whose source has a link, a recording at its moment (`apps/learn/routes.test.tsx`, `packages/ui/compositions/source-passage.test.tsx`).
 
 ## Code map
 
