@@ -21,14 +21,17 @@ export type QuoteRefusal = { kind: "blank" | "too-long" | "missing" | "ambiguous
  */
 export const QUOTE_REFUSALS: Record<QuoteRefusal["kind"], string> = {
   blank: "is blank",
-  "too-long": "is longer than 2000 characters; cite a passage, not a chapter",
+  "too-long":
+    "is longer than 2000 characters, not counting extra whitespace; cite a passage, not a chapter",
   missing: "does not occur in the source",
   ambiguous: "occurs more than once in the source; quote more of it",
 };
 
 /**
  * A passage, not a chapter: long enough for a paragraph, short enough that a
- * content owner reviewing it reads what was cited.
+ * content owner reviewing it reads what was cited. Measured on its words joined
+ * by single spaces, as it is matched, so a source's layout padding does not
+ * count against a passage read back.
  */
 const MAX_QUOTE_LENGTH = 2000;
 
@@ -44,7 +47,6 @@ const MAX_QUOTE_LENGTH = 2000;
  * A quote occurring twice is refused, so a citation always means one passage.
  */
 export function locateQuote(text: string, quote: string): QuoteLocation | QuoteRefusal {
-  if (quote.length > MAX_QUOTE_LENGTH) return { kind: "too-long" };
   // An unpaired surrogate cannot occur in a stored source, so it cannot match.
   if (!quote.isWellFormed()) return { kind: "missing" };
 
@@ -53,6 +55,7 @@ export function locateQuote(text: string, quote: string): QuoteLocation | QuoteR
     .split(/\s+/u)
     .filter((word) => word !== "");
   if (words.length === 0) return { kind: "blank" };
+  if (words.join(" ").length > MAX_QUOTE_LENGTH) return { kind: "too-long" };
 
   const pattern = new RegExp(words.map((word) => RegExp.escape(word)).join("\\s+"), "gu");
   const first = pattern.exec(text);

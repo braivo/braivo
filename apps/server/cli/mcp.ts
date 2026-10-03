@@ -64,11 +64,14 @@ const key = z
     "Your own name for it, unique in the organization, such as es-greetings: lowercase letters, digits, and . _ / -. Reuse it on a retry.",
   );
 
+// No `max`: the limit does not count extra whitespace, so a passage read back
+// with its source's layout padding can be sent again.
 const quote = z
   .string()
   .min(1)
-  .max(2000)
-  .describe("The source's exact words, copied verbatim; must occur exactly once in it.");
+  .describe(
+    "The source's exact words, copied verbatim, at most 2000 characters, not counting extra whitespace; must occur exactly once in it.",
+  );
 
 // The API's own limits, said in the schemas so an agent learns of one from the
 // tool's description, before it calls.

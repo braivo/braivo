@@ -57,6 +57,20 @@ describe("locating a quote", () => {
     expect(locateQuote("la la la", "la la")).toEqual({ kind: "ambiguous" });
   });
 
+  test("counts its length with whitespace as matched, so a passage read back is cited again", () => {
+    // Laid out by `pdftotext -layout`: the passage is longer than its words.
+    const words = Array.from({ length: 400 }, (_, index) => `w${index}`);
+    const text = words.join("        ");
+    const quote = words.join(" ");
+    const location = locateQuote(text, quote);
+    expect(location).toEqual({ kind: "located", start: 0, end: text.length });
+    expect(text.length).toBeGreaterThan(2000);
+    expect(locateQuote(text, text)).toEqual(location);
+
+    // The space between its words counts.
+    expect(locateQuote(text, `${"w".repeat(1999)}   x`)).toEqual({ kind: "too-long" });
+  });
+
   test.each([
     ["blank", " \n ", "blank"],
     ["longer than a passage", "a".repeat(2001), "too-long"],
