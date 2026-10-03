@@ -59,8 +59,9 @@ function readHostname(input: string): string {
 
 /**
  * Registers `hostname` as an organization's learn domain, or confirms it
- * already is, so provisioning may retry. Until learn domains hold sessions of
- * their own, only a hostname the operator controls is safe (ADR 0004).
+ * already is, so provisioning may retry. It may be the organization's own:
+ * whoever controls it reaches only that organization's learner sessions
+ * (ADR 0004, ADR 0018).
  *
  * Never the installation's hostname, which serves every organization whatever
  * a mapping says, and never a replacement: learners' links and sign-ins are on

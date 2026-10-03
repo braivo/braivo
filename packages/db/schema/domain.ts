@@ -8,10 +8,9 @@ import { organization } from "./auth.ts";
 
 /**
  * A hostname serving one organization's learn app, and so an origin Braivo
- * trusts while the row exists (ADR 0004). Written only for a hostname the
- * operator controls, never by an organization's members: until learn domains
- * get scoped sessions (ADR 0018), whoever controls it could take sessions that
- * act in every organization.
+ * trusts, for its learner sessions and its own writes, while the row exists
+ * (ADR 0004, ADR 0018). Written by the operator, never by an organization's
+ * members.
  */
 export const organizationDomain = pgTable(
   "organization_domain",

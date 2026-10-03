@@ -68,6 +68,8 @@ function renderAt(
     submitAttempt?: BraivoClient["submitAttempt"];
     /** The organization whose domain serves the app; none unless given. */
     hostOrganization?: BraivoClient["hostOrganization"];
+    /** Who is signed in, when `signedIn`. */
+    user?: { id: string; name: string };
   },
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
@@ -78,7 +80,7 @@ function renderAt(
     options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
   let signedIn = options.signedIn;
-  const user = { id: "ada", name: "Ada Learner" };
+  const user = options.user ?? { id: "ada", name: "Ada Learner" };
   const auth = {
     getSession: async () => ({ data: signedIn ? { user } : null, error: null }),
     emailOtp: { sendVerificationOtp: async () => ({ error: null }) },
@@ -89,22 +91,28 @@ function renderAt(
       }),
     },
   } as unknown as AppContext["auth"];
+  const signOut = vi.fn(async () => {
+    signedIn = false;
+  });
   const braivo = {
     hostOrganization,
+    session: async () => (signedIn ? user : undefined),
+    signOut,
     learnerCourses,
     learnerProgress,
     nextActivity,
     submitAttempt,
   } as unknown as AppContext["braivo"];
+  const visit = vi.fn<AppContext["visit"]>();
 
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: [path] }),
-    context: { auth, braivo },
+    context: { auth, braivo, visit },
   });
   render(<RouterProvider router={router} />);
 
-  return { learnerCourses, learnerProgress, nextActivity, submitAttempt, router };
+  return { learnerCourses, learnerProgress, nextActivity, submitAttempt, router, signOut, visit };
 }
 
 describe("the learn app", () => {
@@ -120,15 +128,73 @@ describe("the learn app", () => {
     expect(learnerProgress).not.toHaveBeenCalled();
   });
 
-  test("wears the brand of the organization its domain serves, before sign-in", async () => {
-    renderAt("/courses/c1", {
+  test("on its organization's domain, leaves to sign in on the installation's origin, to come back here", async () => {
+    const { visit } = renderAt("/courses/c1?tab=next", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Springo" }),
     });
 
+    // Wearing the organization's brand meanwhile, and taking no code here.
     expect(await screen.findByText("Springo")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Send code" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Springo"));
+    expect(visit).toHaveBeenCalledWith(
+      `/api/session/sign-in?redirect=${encodeURIComponent("/courses/c1?tab=next")}`,
+    );
+    expect(screen.queryByLabelText("Email")).toBeNull();
+  });
+
+  test("on its organization's domain, sends a learner already signed in onward, without a second handoff", async () => {
+    const { router, visit } = renderAt("/login?redirect=%2Fcourses%2Fc1", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
+    expect(visit).not.toHaveBeenCalled();
+    await router.navigate({ to: "/login", search: { redirect: "/" } });
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+
+    // The router puts a redirect in `/login`'s place, so Back moves past it.
+    router.history.back();
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
+  });
+
+  test("on its organization's domain, hands an unnamed learner off again, to be named there", async () => {
+    const { visit } = renderAt("/login", {
+      signedIn: true,
+      user: { id: "ada", name: "" },
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+  });
+
+  test("on its organization's domain, leaves only on navigating to sign in, not on a preload", async () => {
+    const { router, signOut, visit } = renderAt("/", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+    expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
+    // Signed out behind the page's back, so `/login` would hand off.
+    await signOut();
+
+    await router.preloadRoute({ to: "/login" });
+    expect(visit).not.toHaveBeenCalled();
+
+    await router.navigate({ to: "/login" });
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+  });
+
+  test("signs a learner out of this domain, then back to sign in", async () => {
+    const { signOut, visit } = renderAt("/", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+    expect(signOut).toHaveBeenCalledOnce();
   });
 
   test("shows no brand on a domain that serves no organization", async () => {
@@ -141,14 +207,30 @@ describe("the learn app", () => {
   });
 
   test("stays usable, unbranded, when the brand cannot be read", async () => {
-    renderAt("/login", {
+    renderAt("/", {
+      signedIn: true,
+      hostOrganization: async () => {
+        throw new BraivoError(500, "down");
+      },
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+    });
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+  });
+
+  test("offers no way to sign in where it cannot tell which host it is on", async () => {
+    // The emailed-code form works only on the installation's host, and a
+    // learn domain whose lookup failed may be anything else.
+    const { visit } = renderAt("/login", {
       signedIn: false,
       hostOrganization: async () => {
         throw new BraivoError(500, "down");
       },
     });
 
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByText("Something went wrong. Try again.")).toBeTruthy();
+    expect(screen.queryByLabelText("Email")).toBeNull();
+    expect(visit).not.toHaveBeenCalled();
   });
 
   test("signs a learner in with an emailed code, and returns them where they were headed", async () => {
@@ -359,13 +441,11 @@ describe("the learn app", () => {
   test("sends a learner whose session ended to sign in, rather than asking them to retry", async () => {
     let signedIn = true;
     const auth = {
-      getSession: async () => ({
-        data: signedIn ? { user: { name: "Ada Learner" } } : null,
-        error: null,
-      }),
+      getSession: async () => ({ data: null, error: null }),
     } as unknown as AppContext["auth"];
     const braivo = {
       hostOrganization: async () => undefined,
+      session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
       learnerCourses: async () => [],
       learnerProgress: async () => noProgress,
       nextActivity: async () => activity,
@@ -377,7 +457,7 @@ describe("the learn app", () => {
     const router = createRouter({
       routeTree,
       history: createMemoryHistory({ initialEntries: ["/courses/c1"] }),
-      context: { auth, braivo },
+      context: { auth, braivo, visit: () => {} },
     });
     render(<RouterProvider router={router} />);
 

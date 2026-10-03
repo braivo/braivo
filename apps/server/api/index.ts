@@ -12,14 +12,13 @@
 // "name"? }` redeems it, `name` naming a new account (ADR 0018).
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
-// organization's learn domain — the device flow, `/api/handoffs/*`, and every
+// organization's learn domain — `/api/auth/*`, `/api/handoffs/*`, and every
 // `/api/organizations…` route answer 404, and any request carrying
-// `Authorization` 401 (ADR 0004, ADR 0022). Email codes work on both until the
-// learn app signs in by handoff instead.
+// `Authorization` 401 (ADR 0004, ADR 0022).
 //
-// A learn domain's sign-in, handed over from `BRAIVO_URL`'s origin (ADR 0018),
-// ends in a learner session, Braivo's own, in the domain's
-// `__Host-braivo-learner` cookie:
+// A learn domain signs in by handoff from `BRAIVO_URL`'s origin (ADR 0018), and
+// holds a learner session, Braivo's own, in its `__Host-braivo-learner`
+// cookie: the session the learner routes below take there, and the only one.
 //
 // - `GET /api/session/sign-in?redirect=<path>` on a learn domain: sets the
 //   `__Host-braivo-handoff` nonce cookie and redirects to
@@ -53,14 +52,15 @@
 // organization's domain, another organization's course; on a host that is
 // neither that nor `BRAIVO_URL`'s, any course.
 //
-// A session is a cookie from a browser, or `Authorization: Bearer <token>` from
-// a content owner's own tools, which get the token through the device flow
-// under `/api/auth/device/*` as client `braivo-cli` (ADR 0022). Every route
-// below treats the two alike: "no session" means neither was sent, or it has
-// expired. A JSON write needs `application/json`, and an `Origin`, if sent,
-// must be the host's own. Of `/api/auth/*`, a token reaches only `get-session`
-// and `sign-out`, which ends its own session; anything else answers 403, and its
-// responses carry no `set-cookie` or `set-auth-token`.
+// On `BRAIVO_URL`'s host, a session is the account's: a cookie from a browser,
+// or `Authorization: Bearer <token>` from a content owner's own tools, which
+// get the token through the device flow under `/api/auth/device/*` as client
+// `braivo-cli` (ADR 0022); every route below treats the two alike. On a learn
+// domain it is that domain's learner session alone. "No session" means none
+// was sent, or it has expired. A JSON write needs `application/json`, and an
+// `Origin`, if sent, must be the host's own. Of `/api/auth/*`, a token reaches
+// only `get-session` and `sign-out`, which ends its own session; anything else
+// answers 403, and its responses carry no `set-cookie` or `set-auth-token`.
 //
 // `GET /api/courses/:courseId/next` — what the signed-in learner should do next
 // in a course. The learner is the session's user; the request never names one.
@@ -157,7 +157,8 @@
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner or the learner. The
 // reader is the session's user and must be the learner, or hold `owner` or
-// `admin` in the course's organization; the learner must belong to it.
+// `admin` in the course's organization; the learner must belong to it. A
+// learner session reads its own alone.
 //
 //   401  no session
 //   404  the course does not exist; the reader is neither the learner nor
@@ -186,7 +187,7 @@
 // `GET /api/courses/:courseId/progress` — where each learner in a course
 // stands, counted: every member of its organization, by name; and each
 // objective, in content order, with its learners counted. The reader must hold
-// `owner` or `admin` there.
+// `owner` or `admin` there. On `BRAIVO_URL`'s host alone: elsewhere, 401.
 //
 //   401  no session
 //   404  the course does not exist, or the reader does not administer its

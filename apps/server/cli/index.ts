@@ -27,8 +27,8 @@ Running an installation:
   organization create --name <name> --slug <slug> --owner <email>
                 Create an organization owned by an existing account.
   organization add-domain --slug <slug> --hostname <hostname>
-                Register <hostname>, one you control, for the organization's
-                learn app; DNS, TLS, and routing it here stay yours.
+                Register <hostname> for the organization's learn app;
+                DNS, TLS, and routing it here are set up outside Braivo.
   serve         Serve the HTTP API.
 
 Working with one, as yourself:

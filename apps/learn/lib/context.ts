@@ -12,4 +12,6 @@ import type { LearnAuth } from "./auth.ts";
 export type AppContext = {
   braivo: BraivoClient;
   auth: LearnAuth;
+  /** Loads a page outside the app in place of this one, as signing in on a learn domain does. */
+  visit: (href: string) => void;
 };

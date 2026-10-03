@@ -112,6 +112,7 @@ CREATE TABLE "learner_session" (
 	"token_hash" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"organization_id" text NOT NULL,
+	"hostname" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint

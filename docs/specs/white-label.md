@@ -10,12 +10,12 @@ Each organization's learners use the learn app on the organization's own hostnam
 
 One server process sits behind every origin, and every origin that serves an app also serves `/api`, so apps only call their own origin.
 
-| Origin                                           | Serves                                                | Session today                         | Hostname controlled by                 |
-| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------- | -------------------------------------- |
-| `BRAIVO_URL` (`braivo.app` on Cloud)             | Console at `/`, sign-in, `/api`                       | The account's, host-only cookie       | Operator                               |
-| An organization's domain (`acme.braivo.app`)     | That organization's learn app, `/api`                 | The account's, signed in on that host | Operator (the only kind allowed today) |
-| A customer's own domain (`learn.school.example`) | Not allowed until learn domains hold learner sessions | —                                     | Customer                               |
-| `www.braivo.app`                                 | Marketing, Braivo Cloud only, outside this repository | None                                  | Braivo                                 |
+| Origin                                           | Serves                                                | Session                         | Hostname controlled by |
+| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------- | ---------------------- |
+| `BRAIVO_URL` (`braivo.app` on Cloud)             | Console at `/`, sign-in, `/api`                       | The account's, host-only cookie | Operator               |
+| An organization's domain (`acme.braivo.app`)     | That organization's learn app, `/api`                 | A learner session, handed over  | Operator               |
+| A customer's own domain (`learn.school.example`) | The same                                              | A learner session, handed over  | Customer               |
+| `www.braivo.app`                                 | Marketing, Braivo Cloud only, outside this repository | None                            | Braivo                 |
 
 `organization_domain` maps a hostname to an organization: at most one per organization (a unique index), lowercase (a database check), deleted with its organization. The operator writes it with `braivo organization add-domain --slug <slug> --hostname <hostname>` (`registerLearnDomain`). The hostname is lowercased and must be what `URL#hostname` gives back, or lookups never match: ASCII labels of letters, digits, and inner hyphens, 1 to 63 characters each, 253 in all; no scheme, port, path, trailing dot, or IP address; an internationalized name in its `xn--` form. Public DNS is not required (`training` qualifies). Refused: `BRAIVO_URL`'s hostname, which reaches every organization whatever its row says; a hostname another organization has; a second one for an organization. The same mapping again succeeds, so provisioning may retry. DNS, TLS, and routing stay the operator's; only SQL replaces or removes a domain.
 
@@ -39,7 +39,7 @@ flowchart LR
 
 ### Trusted origins
 
-Better Auth and Braivo's write check ([access](access.md)) trust `BRAIVO_URL`'s origin, plus `https://<hostname>` on the default port while an `organization_domain` row maps it, looked up on every request.
+Braivo's write check ([access](access.md)) trusts `BRAIVO_URL`'s origin, plus, on a learn domain, `https://<hostname>` on the default port while an `organization_domain` row maps it, looked up on every request. Better Auth trusts `BRAIVO_URL`'s origin alone.
 
 ### Branding
 
@@ -82,24 +82,22 @@ The URL names the organization, never the session: Better Auth's active organiza
 | Registering one    | `registerLearnDomain` in `apps/server/application/domains.ts`, `organization add-domain` in `apps/server/cli/index.ts`        |
 | Host ceiling       | `apps/server/application/host.ts` (`hostAdmits`, `RequestHost`), `requestHost` in `apps/server/api/app.ts`                    |
 | Course list filter | `listLearnerCourses` in `apps/server/application/courses.ts`                                                                  |
-| Origin trust       | `apps/server/auth/origin.ts`, `trustedOrigins` in `apps/server/auth/auth.ts`, `isTrustedWrite` in `apps/server/api/app.ts`    |
+| Origin trust       | `apps/server/auth/origin.ts`, `isTrustedWrite` in `apps/server/api/app.ts`                                                    |
 | Branding           | `GET /api/organization` in `apps/server/api/app.ts`, `apps/learn/routes/__root.tsx`                                           |
 | Slugs              | `apps/server/auth/slug.ts`, organization hooks in `apps/server/auth/auth.ts`                                                  |
 | Console addressing | `apps/console/routes/_signed-in/index.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/last-organization.ts` |
 
 ## Decisions
 
-- [ADR 0004](../adr/0004-one-application-origin.md): origins, console at `/<slug>`, the host ceiling, one domain per organization, operator-controlled hostnames only, marketing on `www`.
+- [ADR 0004](../adr/0004-one-application-origin.md): origins, console at `/<slug>`, the host ceiling, one domain per organization, the organization's own domain allowed, marketing on `www`.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): learner sessions per learn domain, which admit customer-owned domains.
 - [ADR 0016](../adr/0016-route-files.md): route files, including `$organizationSlug/route.tsx` as a layout.
 
 ## Gaps
 
-| Gap                                                                                                                                  | Impact                                                           | Next step                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| A learn domain holds the account's session, so only operator-controlled hostnames may be registered; enforced by a written rule only | High once a customer asks for its own domain                     | Learner sessions and handoff (ADR 0018, step 2)                            |
-| Slugs cannot be changed                                                                                                              | A typo in a slug is permanent without SQL                        | Owner or admin rename with the warning (ADR 0004)                          |
-| Branding is the name only                                                                                                            | Weak white-label: no logo, colours, or favicon                   | A branding slice: which fields, where stored, how the learn app loads them |
-| Only SQL replaces or removes a learn domain                                                                                          | Moving an organization to another hostname needs database access | A command when an organization first needs to move                         |
-| The organization routes have no host ceiling, so on a learn domain an owner's session reaches every organization they manage         | Acceptable while only operator hostnames are registered          | Refuse them off `BRAIVO_URL` when learner sessions land                    |
-| No deployment packaging for multiple hosts                                                                                           | Self-hosters must build their own proxy that passes `Host`       | Deployment docs or packaging (README, Deployment)                          |
+| Gap                                         | Impact                                                           | Next step                                                                  |
+| ------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Slugs cannot be changed                     | A typo in a slug is permanent without SQL                        | Owner or admin rename with the warning (ADR 0004)                          |
+| Branding is the name only                   | Weak white-label: no logo, colours, or favicon                   | A branding slice: which fields, where stored, how the learn app loads them |
+| Only SQL replaces or removes a learn domain | Moving an organization to another hostname needs database access | A command when an organization first needs to move                         |
+| No deployment packaging for multiple hosts  | Self-hosters must build their own proxy that passes `Host`       | Deployment docs or packaging (README, Deployment)                          |

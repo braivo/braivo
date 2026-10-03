@@ -127,14 +127,15 @@ export async function spendHandoffCode(
       ...input.session,
       userId: spent.userId,
       organizationId: spent.organizationId,
+      hostname: spent.hostname,
     });
     return { returnPath: spent.returnPath };
   });
 }
 
 /**
- * The user of a live learner session, read on `hostname`: only while that
- * hostname serves the session's organization.
+ * The user of a live learner session, read on `hostname`: only the hostname it
+ * was handed to, and only while that serves the session's organization.
  */
 export async function readLearnerSession(
   database: Database,
@@ -148,11 +149,15 @@ export async function readLearnerSession(
       organizationDomain,
       and(
         eq(organizationDomain.organizationId, learnerSession.organizationId),
-        eq(organizationDomain.hostname, input.hostname),
+        eq(organizationDomain.hostname, learnerSession.hostname),
       ),
     )
     .where(
-      and(eq(learnerSession.tokenHash, input.tokenHash), gt(learnerSession.expiresAt, input.at)),
+      and(
+        eq(learnerSession.tokenHash, input.tokenHash),
+        eq(learnerSession.hostname, input.hostname),
+        gt(learnerSession.expiresAt, input.at),
+      ),
     );
   return row && { user: { id: row.id, name: row.name }, expiresAt: row.expiresAt };
 }

@@ -16,7 +16,6 @@ import {
   organizationOwnsLearningContent,
   readOrganizationSlug,
 } from "../persistence/index.ts";
-import { isOrganizationOrigin } from "./origin.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -71,15 +70,9 @@ export function createAuth(options: AuthOptions) {
       transaction: true,
     }),
     secret: options.secret,
+    // The one trusted origin: Better Auth serves the installation's host alone,
+    // and a learn domain holds Braivo's learner sessions instead (ADR 0018).
     baseURL: options.baseURL,
-    // `baseURL` is trusted regardless. Beyond it, only the request's own origin
-    // and only while it is an organization's domain, so the answer is per
-    // request and fails closed (ADR 0004).
-    trustedOrigins: async (request) => {
-      const origin = request?.headers.get("origin");
-      if (!origin) return [];
-      return (await isOrganizationOrigin(options.database, origin)) ? [origin] : [];
-    },
 
     // No passwords: an account is made, and signed in to, by proving its email
     // (ADR 0018).
