@@ -242,6 +242,29 @@ describe("the learn app", () => {
     expect(signOut).toHaveBeenCalledOnce();
   });
 
+  test("says when a learner could not be signed out, and lets them try again", async () => {
+    const { router, signOut } = renderAt("/", { signedIn: true });
+    const failing = Promise.withResolvers<void>();
+    signOut.mockReturnValueOnce(failing.promise);
+
+    const button = await screen.findByRole("button", { name: "Sign out" });
+    fireEvent.click(button);
+    // Locked while it is sent, but never disabled, which would drop the focus.
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.matches(":disabled")).toBe(false);
+    expect(signOut).toHaveBeenCalledOnce();
+    failing.reject(new Error("Braivo answered 500 signing out"));
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+    expect(router.state.location.pathname).toBe("/");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(signOut).toHaveBeenCalledTimes(2);
+  });
+
   test("shows no brand on a domain that serves no organization", async () => {
     document.title = "";
     renderAt("/login", { signedIn: false });
