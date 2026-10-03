@@ -93,24 +93,36 @@ describe("Braivo's components", () => {
   });
 
   test("a sign-in form announces the caller's error, and cannot be resubmitted or left while pending", () => {
+    const onSubmit = vi.fn();
+    const onResend = vi.fn();
+    const onChangeEmail = vi.fn();
     render(
       <SignInForm
         step={{ step: "code", email: "ada@example.com" }}
         pending
         error="Invalid OTP"
-        onSubmit={() => {}}
-        onResend={() => {}}
-        onChangeEmail={() => {}}
+        onSubmit={onSubmit}
+        onResend={onResend}
+        onChangeEmail={onChangeEmail}
       />,
     );
 
     expect(screen.getByRole("alert").textContent).toBe("Invalid OTP");
     const submit = screen.getByRole("button", { name: /Sign in/ });
-    expect(submit.hasAttribute("disabled")).toBe(true);
-    for (const name of ["Send a new code", "Use another email"]) {
-      expect(screen.getByRole("button", { name }).hasAttribute("disabled")).toBe(true);
-    }
+    const resend = screen.getByRole("button", { name: "Send a new code" });
+    const changeEmail = screen.getByRole("button", { name: "Use another email" });
     expect(within(submit).getByRole("status", { name: "Loading" })).toBeTruthy();
+    // Enter in the code submits the form however its button is marked.
+    fireEvent.submit(submit.closest("form")!);
+    for (const button of [submit, resend, changeEmail]) {
+      fireEvent.click(button);
+      // Locked, but never disabled, which would drop the focus.
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(button.matches(":disabled")).toBe(false);
+    }
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onResend).not.toHaveBeenCalled();
+    expect(onChangeEmail).not.toHaveBeenCalled();
   });
 
   test("generated components and utilities import one by one, as the apps import them", async () => {
