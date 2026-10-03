@@ -34,7 +34,7 @@ Running an installation:
 Working with one, as yourself:
   login <url>   Sign in to the Braivo at <url>, approving in your browser.
   logout        Sign out, ending the saved token's session, and forget it.
-  sources add <file | -> --organization <id> [--title <title>]
+  sources add <file | -> --organization <slug> [--title <title>]
                 [--url <link>] [--language <tag>] [--original <file>]
                 Add a file's text, or standard input's, as a source;
                 a .vtt or .srt caption file as a timed transcript,
@@ -214,7 +214,7 @@ async function main(argv: readonly string[]): Promise<number> {
 
     const sourceId = await addSourceFromFile({
       client: remoteClient(credentials, fetch),
-      organizationId: values.organization,
+      organizationSlug: values.organization,
       file,
       title: values.title,
       url: values.url,

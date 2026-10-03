@@ -20,6 +20,9 @@ import { uploadOriginal } from "./originals.ts";
  * between pages, as `pdftotext` writes it, is sent as pages, so a passage names
  * its page (docs/adr/0026-paged-documents.md).
  *
+ * The organization is named by its slug, the one in the console's address: an
+ * ID would take an API call to find.
+ *
  * The title defaults to the file's name without its extension, which is what
  * a content owner would have called it; standard input has no name, so needs one.
  *
@@ -29,7 +32,7 @@ import { uploadOriginal } from "./originals.ts";
  */
 export async function addSourceFromFile(input: {
   client: BraivoClient;
-  organizationId: string;
+  organizationSlug: string;
   file: string;
   title?: string;
   url?: string;
@@ -37,21 +40,33 @@ export async function addSourceFromFile(input: {
   original?: string;
   readStdin: () => Promise<string>;
 }): Promise<string> {
-  const { client, organizationId, file, url, language } = input;
+  const { client, file, url, language } = input;
 
   const title = input.title ?? (file === "-" ? undefined : basename(file, extname(file)));
   if (title === undefined) throw new Error("Text from standard input needs a --title.");
 
   const content = file === "-" ? await input.readStdin() : await readFile(file, "utf8");
   const body = sourceBody(file, content);
+  const organizationId = await organizationIdOf(client, input.organizationSlug);
 
-  // Only once the text is known to be sendable, so a refused one uploads nothing.
+  // Only once the text is known to be sendable and the organization found, so
+  // a refused one uploads nothing.
   const original =
     input.original === undefined
       ? undefined
       : await uploadOriginal(client, organizationId, input.original);
 
   return client.addSource({ organizationId, title, url, language, original, ...body });
+}
+
+/** The ID of the organization `slug` names, among those the signed-in person manages. */
+async function organizationIdOf(client: BraivoClient, slug: string): Promise<string> {
+  const managed = await client.listOrganizations();
+  const organization = managed.find((candidate) => candidate.slug === slug);
+  if (organization) return organization.id;
+
+  const yours = managed.map((candidate) => candidate.slug).join(", ") || "none";
+  throw new Error(`You manage no organization "${slug}"; yours: ${yours}.`);
 }
 
 /** What of a source `content` is: captions, pages, or text, by what the file is. */
