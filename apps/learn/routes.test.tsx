@@ -465,6 +465,7 @@ describe("the learn app", () => {
             stability: 3,
             retrievability: 0.95,
             due: false,
+            dueAt: "2026-06-04T00:00:00.001Z",
           },
           {
             objectiveId: "b",
@@ -474,6 +475,7 @@ describe("the learn app", () => {
             stability: 1,
             retrievability: 0.5,
             due: true,
+            dueAt: "2026-06-02T00:00:00.001Z",
           },
           { objectiveId: "c", title: "Colours", phase: "acquiring", lastEvidenceAt: at },
           { objectiveId: "d", title: "Days", phase: "unseen" },
@@ -610,6 +612,43 @@ describe("the learn app", () => {
       description: "Nothing is due right now.",
     });
     expect(document.activeElement).toBe(notice);
+  });
+
+  test("tells a caught-up learner when their next review falls due, and of what", async () => {
+    const retained = (objectiveId: string, title: string, dueAt: string, due = false) => ({
+      objectiveId,
+      title,
+      phase: "retaining" as const,
+      lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+      stability: 1,
+      retrievability: due ? 0.5 : 0.95,
+      due,
+      dueAt,
+    });
+    renderAt("/courses/c1", {
+      signedIn: true,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          retained("a", "Greetings", "2026-06-09T00:00:00.000Z"),
+          // Shown rounded up, never early.
+          retained("b", "Numbers", "2026-06-05T09:30:00.001Z"),
+          // Due by the report, read a moment after the activity: its time has passed.
+          retained("c", "Colours", "2026-06-02T00:00:00.000Z", true),
+        ],
+      }),
+    });
+
+    const when = new Date("2026-06-05T09:31:00.000Z").toLocaleString([], {
+      dateStyle: "full",
+      timeStyle: "short",
+    });
+    expect(
+      await screen.findByRole("region", {
+        name: "You're caught up",
+        description: `Nothing is due right now. Next review due: Numbers, on ${when}.`,
+      }),
+    ).toBeTruthy();
   });
 
   test("names the objective that has nothing to practise, without claiming the learner is caught up", async () => {

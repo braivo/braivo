@@ -285,6 +285,7 @@ describe("the Braivo client", () => {
           stability: 3.2,
           retrievability: 0.87,
           due: false,
+          dueAt: "2026-06-04T04:48:00.001Z",
         },
       ],
     };

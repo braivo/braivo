@@ -147,11 +147,13 @@
 //                "lastEvidenceAt": "2026-06-01T00:00:00.000Z" },
 //              { "objectiveId": "…", "title": "…", "phase": "retaining",
 //                "lastEvidenceAt": "…", "stability": 3.2,
-//                "retrievability": 0.94, "due": false }
+//                "retrievability": 0.94, "due": false,
+//                "dueAt": "2026-06-04T04:48:00.001Z" }
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
 //        offer for review — so given the same evidence and time, the two agree.
+//        `dueAt` is when that starts to hold, past or future.
 //        The shape is `LearnerProgressReport` serialized, pinned like the
 //        decision's.
 //

@@ -57,6 +57,7 @@ function Progress() {
             <TableHead>Objective</TableHead>
             <TableHead>Standing</TableHead>
             <TableHead>Last evidence</TableHead>
+            <TableHead>Review due</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -68,6 +69,10 @@ function Progress() {
                 {standing.phase === "unseen"
                   ? "—"
                   : new Date(standing.lastEvidenceAt).toLocaleString()}
+              </TableCell>
+              {/* Only what is retained falls due; what is learning comes back first. */}
+              <TableCell>
+                {standing.phase === "retaining" ? new Date(standing.dueAt).toLocaleString() : "—"}
               </TableCell>
             </TableRow>
           ))}

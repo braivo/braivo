@@ -1257,6 +1257,7 @@ describe("the console", () => {
           stability: 1,
           retrievability: 0.42,
           due: true,
+          dueAt: "2026-06-02T00:00:00.001Z",
         },
         { objectiveId: "o2", title: "Numbers", phase: "unseen" },
       ],
@@ -1274,7 +1275,12 @@ describe("the console", () => {
     expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
     expect(within(greetings!).getByText("Greetings")).toBeTruthy();
     expect(within(greetings!).getByText("Due for review, 42% recall")).toBeTruthy();
+    expect(within(header!).getByRole("columnheader", { name: "Review due" })).toBeTruthy();
+    expect(
+      within(greetings!).getByText(new Date("2026-06-02T00:00:00.001Z").toLocaleString()),
+    ).toBeTruthy();
     expect(within(numbers!).getByText("Not started")).toBeTruthy();
+    expect(within(numbers!).getAllByRole("cell").at(-1)!.textContent).toBe("—");
     // Every id here is an interchangeable string, so a read scoped to the wrong
     // one type-checks; these assertions are what hold the tenant boundary.
     const options = { signal: expect.any(AbortSignal) };
