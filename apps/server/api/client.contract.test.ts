@@ -380,14 +380,16 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
           retrievability: expect.any(Number),
           due: true,
           dueAt: new Date(at.getTime() + 86_400_001).toISOString(),
+          evidence: [{ outcome: "success", at: at.toISOString() }],
         },
         {
           objectiveId: fractions,
           title: "Fractions",
           phase: "acquiring",
           lastEvidenceAt: at.toISOString(),
+          evidence: [{ outcome: "failure", at: at.toISOString() }],
         },
-        { objectiveId: decimals, title: "Decimals", phase: "unseen" },
+        { objectiveId: decimals, title: "Decimals", phase: "unseen", evidence: [] },
       ],
     });
   });

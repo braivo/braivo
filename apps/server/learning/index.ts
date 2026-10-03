@@ -16,7 +16,7 @@
 export type { KnowledgeReport, ObjectiveStanding } from "./assess.ts";
 export { assessKnowledge } from "./assess.ts";
 export type { Evidence, KnowledgeEstimate } from "./estimate.ts";
-export { replay } from "./estimate.ts";
+export { inReplayOrder, replay } from "./estimate.ts";
 export type { LearningModel } from "./model.ts";
 export { activeModel } from "./model.ts";
 export type { LearningDecision } from "./select.ts";

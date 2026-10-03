@@ -11,6 +11,7 @@ For one learner in one course, Braivo reports where they stand on each objective
 - **progress-3:** On an organization's own domain, only that organization's courses report; on an unknown host, none ([white-label](white-label.md)). `apps/server/application/learner-in-course.test.ts`
 - **progress-4:** The report lists every objective of the course, by title, in content order, those not started included; a course with no objectives reports an empty list. `apps/server/application/learner-progress.test.ts`
 - **progress-5:** What the report calls due is what selection would review: whatever selection chooses appears in the report as the reason. A retained objective also carries when it falls due, past or future: when selection's rule starts to hold. `apps/server/learning/assess.test.ts`, `apps/server/application/learner-progress.test.ts`
+- **progress-14:** Each objective in a report carries the evidence its standing was replayed from, oldest first and ties as replay orders them: each result's outcome and time, under progress-6 and progress-10, and nothing else; an objective not started carries none. The console counts it by outcome per objective, so one failure and many read apart, and lists it dated, newest first, on request. `apps/server/application/learner-progress.test.ts`, `apps/console/routes.test.tsx`
 - **progress-6:** A report describes one moment; evidence dated after it does not count. Nothing is stored: every read recomputes. `apps/server/application/learner-progress.test.ts`
 - **progress-7:** Every progress answer, a report's or an overview's, refusals included, carries `Cache-Control: private, no-store`. `apps/server/api/app.test.ts`
 - **progress-8:** A learner sees counts by standing that open into each objective by title; if their report cannot be read, the summary is left out and practice goes on. When the report holds a retained objective not yet due, a caught-up learner is told which falls due next, and when, in their local time rounded up to the minute. `apps/learn/routes.test.tsx`
@@ -24,7 +25,7 @@ For one learner in one course, Braivo reports where they stand on each objective
 
 - The estimates, phases, and what "due" means belong to the [learning model](learning-model.md); this area names and shows them.
 - Who belongs to an organization, and so to its courses, is [access](access.md).
-- Not here yet: history over time, or the evidence behind a standing (see Gaps).
+- Not here yet: history over time (see Gaps).
 
 ## Decisions
 
@@ -36,12 +37,12 @@ For one learner in one course, Braivo reports where they stand on each objective
 
 ## Gaps
 
-| Gap                                                                | Impact                                                                                                   | Next step                                                                              |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| "Learning" covers both one failure and many                        | A learner stuck on an objective looks like one who just started                                          | Open question for the learning model: a failure or evidence count per standing         |
-| No explanation behind a standing: no evidence history              | "Explainable decisions" is unmet for content owners                                                      | Read a learner's evidence per objective                                                |
-| A report is always at the request's `now`                          | No trend or before/after view                                                                            | Open question: accept an instant, which replay already supports                        |
-| The console's course page lists every organization member, unpaged | A long list has no search; administrators count as learners in both tables, since anyone may be learning | Page and search the list, or list course participants once enrollment or activity says |
+| Gap                                                                                                                           | Impact                                                                                                   | Next step                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| "Learning" covers both one failure and many on the course overview                                                            | A stuck learner looks there like one who just started, until their own report is opened                  | Open question for the learning model: a failure or evidence count per standing         |
+| A report carries all evidence behind its course's objectives, which the learn app reads with every activity and does not show | Its size grows with history, about 50 bytes per result                                                   | Leave it out of the learn app's read, or bound it, once measured to matter             |
+| A report is always at the request's `now`                                                                                     | No trend or before/after view                                                                            | Open question: accept an instant, which replay already supports                        |
+| The console's course page lists every organization member, unpaged                                                            | A long list has no search; administrators count as learners in both tables, since anyone may be learning | Page and search the list, or list course participants once enrollment or activity says |
 
 ## Entry points
 

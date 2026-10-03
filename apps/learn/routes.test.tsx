@@ -570,6 +570,7 @@ describe("the learn app", () => {
             retrievability: 0.95,
             due: false,
             dueAt: "2026-06-04T00:00:00.001Z",
+            evidence: [{ outcome: "success", at }],
           },
           {
             objectiveId: "b",
@@ -580,10 +581,17 @@ describe("the learn app", () => {
             retrievability: 0.5,
             due: true,
             dueAt: "2026-06-02T00:00:00.001Z",
+            evidence: [{ outcome: "success", at }],
           },
-          { objectiveId: "c", title: "Colours", phase: "acquiring", lastEvidenceAt: at },
-          { objectiveId: "d", title: "Days", phase: "unseen" },
-          { objectiveId: "e", title: "Months", phase: "unseen" },
+          {
+            objectiveId: "c",
+            title: "Colours",
+            phase: "acquiring",
+            lastEvidenceAt: at,
+            evidence: [{ outcome: "failure", at }],
+          },
+          { objectiveId: "d", title: "Days", phase: "unseen", evidence: [] },
+          { objectiveId: "e", title: "Months", phase: "unseen", evidence: [] },
         ],
       }),
     });
@@ -620,8 +628,8 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         objectives: [
-          { objectiveId: "a", title: "Greetings", phase: "unseen" },
-          { objectiveId: "b", title: "Numbers", phase: "unseen" },
+          { objectiveId: "a", title: "Greetings", phase: "unseen", evidence: [] },
+          { objectiveId: "b", title: "Numbers", phase: "unseen", evidence: [] },
         ],
       }),
     });
@@ -728,6 +736,7 @@ describe("the learn app", () => {
       retrievability: due ? 0.5 : 0.95,
       due,
       dueAt,
+      evidence: [{ outcome: "success" as const, at: "2026-06-01T00:00:00.000Z" }],
     });
     renderAt("/courses/c1", {
       signedIn: true,

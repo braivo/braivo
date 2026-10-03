@@ -169,18 +169,23 @@
 //        values that describe its phase:
 //
 //          { "modelVersion": "v1", "objectives": [
-//              { "objectiveId": "…", "title": "Greetings", "phase": "unseen" },
+//              { "objectiveId": "…", "title": "Greetings", "phase": "unseen",
+//                "evidence": [] },
 //              { "objectiveId": "…", "title": "…", "phase": "acquiring",
-//                "lastEvidenceAt": "2026-06-01T00:00:00.000Z" },
+//                "lastEvidenceAt": "2026-06-01T00:00:00.000Z",
+//                "evidence": [{ "outcome": "failure", "at": "…" }] },
 //              { "objectiveId": "…", "title": "…", "phase": "retaining",
 //                "lastEvidenceAt": "…", "stability": 3.2,
 //                "retrievability": 0.94, "due": false,
-//                "dueAt": "2026-06-04T04:48:00.001Z" }
+//                "dueAt": "2026-06-04T04:48:00.001Z",
+//                "evidence": [{ "outcome": "success", "at": "…" }] }
 //          ] }
 //
 //        `due` is the decision route's own rule — a retained objective it would
 //        offer for review — so given the same evidence and time, the two agree.
-//        `dueAt` is when that starts to hold, past or future.
+//        `dueAt` is when that starts to hold, past or future. `evidence`, on every
+//        objective, holds the outcome and time alone of each result its
+//        standing was replayed from: oldest first, ties in replay's order.
 //        The shape is `LearnerProgressReport` serialized, pinned like the
 //        decision's.
 //

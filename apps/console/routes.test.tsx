@@ -1430,8 +1430,13 @@ describe("the console", () => {
           retrievability: 0.42,
           due: true,
           dueAt: "2026-06-02T00:00:00.001Z",
+          evidence: [
+            { outcome: "failure", at: "2026-05-30T00:00:00.000Z" },
+            { outcome: "failure", at: "2026-05-31T00:00:00.000Z" },
+            { outcome: "success", at: "2026-06-01T00:00:00.000Z" },
+          ],
         },
-        { objectiveId: "o2", title: "Numbers", phase: "unseen" },
+        { objectiveId: "o2", title: "Numbers", phase: "unseen", evidence: [] },
       ],
     };
     const learnerProgress = vi.fn(async () => report);
@@ -1445,14 +1450,36 @@ describe("the console", () => {
     const [header, greetings, numbers] = screen.getAllByRole("row");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
     expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
-    expect(within(greetings!).getByText("Greetings")).toBeTruthy();
+    expect(within(greetings!).getByRole("rowheader", { name: "Greetings" })).toBeTruthy();
     expect(within(greetings!).getByText("Due for review, 42% recall")).toBeTruthy();
     expect(within(header!).getByRole("columnheader", { name: "Review due" })).toBeTruthy();
     expect(
       within(greetings!).getByText(new Date("2026-06-02T00:00:00.001Z").toLocaleString()),
     ).toBeTruthy();
+    // Counted, so a learner who failed many times does not read like one who failed once.
+    expect(within(header!).getByRole("columnheader", { name: "Evidence" })).toBeTruthy();
+    const counted = within(greetings!).getByLabelText("Greetings: 1 success, 2 failures");
+    expect(counted.textContent).toBe("1 success, 2 failures");
+    // Dated on request, newest first.
+    const details = counted.closest("details")!;
+    expect(details.open).toBe(false);
+    fireEvent.click(counted);
+    expect(details.open).toBe(true);
+    expect(
+      within(greetings!)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      `${new Date("2026-06-01T00:00:00.000Z").toLocaleString()}: success`,
+      `${new Date("2026-05-31T00:00:00.000Z").toLocaleString()}: failure`,
+      `${new Date("2026-05-30T00:00:00.000Z").toLocaleString()}: failure`,
+    ]);
     expect(within(numbers!).getByText("Not started")).toBeTruthy();
-    expect(within(numbers!).getAllByRole("cell").at(-1)!.textContent).toBe("—");
+    expect(
+      within(numbers!)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Not started", "—", "—", "—"]);
     // Every id here is an interchangeable string, so a read scoped to the wrong
     // one type-checks; these assertions are what hold the tenant boundary.
     const options = { signal: expect.any(AbortSignal) };

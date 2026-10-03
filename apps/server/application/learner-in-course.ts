@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 
-import { activeModel, type KnowledgeEstimate, replay } from "../learning/index.ts";
+import { activeModel, type Evidence, type KnowledgeEstimate, replay } from "../learning/index.ts";
 import {
   readCourseObjectives,
   readCourseOrganization,
@@ -15,7 +15,7 @@ import { isMember } from "./permission.ts";
 /**
  * What every view of a learner in a course is computed from: the course's
  * objectives in content order, and the learner's estimates at a moment, replayed
- * under `activeModel` (ADR 0007).
+ * under `activeModel` (ADR 0007), with the evidence they were replayed from.
  *
  * `objectiveIds` is the whole course. Eligibility rules, when they arrive, narrow
  * it in the decision rather than here, since a report must still show every
@@ -24,6 +24,7 @@ import { isMember } from "./permission.ts";
 type LearnerInCourse = {
   objectiveIds: readonly string[];
   estimates: ReadonlyMap<string, KnowledgeEstimate>;
+  evidence: readonly Evidence[];
 };
 
 /**
@@ -64,5 +65,5 @@ export async function loadLearnerInCourse(
     readLearnerEvidence(database, { learnerId, organizationId }, now),
   ]);
 
-  return { objectiveIds, estimates: replay(evidence, activeModel) };
+  return { objectiveIds, estimates: replay(evidence, activeModel), evidence };
 }

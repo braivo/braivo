@@ -57,18 +57,25 @@ function Progress() {
             <TableHead>Objective</TableHead>
             <TableHead>Standing</TableHead>
             <TableHead>Last evidence</TableHead>
+            <TableHead>Evidence</TableHead>
             <TableHead>Review due</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {report.objectives.map((standing) => (
             <TableRow key={standing.objectiveId}>
-              <TableCell>{standing.title}</TableCell>
+              {/* A row header, so each value is announced with its objective. */}
+              <TableHead scope="row" className="font-normal">
+                {standing.title}
+              </TableHead>
               <TableCell>{describe(standing)}</TableCell>
               <TableCell>
                 {standing.phase === "unseen"
                   ? "—"
                   : new Date(standing.lastEvidenceAt).toLocaleString()}
+              </TableCell>
+              <TableCell>
+                <Evidence objective={standing.title} evidence={standing.evidence} />
               </TableCell>
               {/* Only what is retained falls due; what is learning comes back first. */}
               <TableCell>
@@ -79,6 +86,46 @@ function Progress() {
         </TableBody>
       </Table>
     </>
+  );
+}
+
+/**
+ * What a standing was replayed from, counted, and dated on request: one failure
+ * and many both read "Learning", and only this tells them apart. Newest first,
+ * since a long history is read for its end.
+ */
+function Evidence({
+  objective,
+  evidence,
+}: {
+  objective: string;
+  evidence: LearnerProgressStanding["evidence"];
+}) {
+  if (evidence.length === 0) return "—";
+  const successes = evidence.filter(({ outcome }) => outcome === "success").length;
+  const failures = evidence.length - successes;
+  const counted = [
+    successes > 0 && `${successes} ${successes === 1 ? "success" : "successes"}`,
+    failures > 0 && `${failures} ${failures === 1 ? "failure" : "failures"}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <details>
+      {/* Named with its objective: a toggle reached on its own is not read with its row. */}
+      <summary aria-label={`${objective}: ${counted}`} className="cursor-pointer">
+        {counted}
+      </summary>
+      <ul className="mt-1 flex flex-col gap-1 text-muted-foreground">
+        {evidence.toReversed().map(({ outcome, at }, index) => (
+          // Stable for this report: evidence never changes once recorded.
+          <li key={index}>
+            {new Date(at).toLocaleString()}: {outcome}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

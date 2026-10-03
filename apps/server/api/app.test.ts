@@ -1387,7 +1387,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(unseen.status).toBe(200);
     expect(await unseen.json()).toEqual({
       modelVersion: activeModel.version,
-      objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen" }],
+      objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen", evidence: [] }],
     });
 
     await recordEvidence(database, { learnerId: learner.id, organizationId }, [
@@ -1401,6 +1401,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           title: "Past tense",
           phase: "acquiring",
           lastEvidenceAt: recordedAt.toISOString(),
+          evidence: [{ outcome: "failure", at: recordedAt.toISOString() }],
         },
       ],
     });
@@ -1425,6 +1426,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           // A stability of one day: recall reaches target a day after, and is
           // due from the next millisecond.
           dueAt: new Date(later.getTime() + 86_400_001).toISOString(),
+          // Oldest first: what the standing was replayed from, in that order.
+          evidence: [
+            { outcome: "failure", at: recordedAt.toISOString() },
+            { outcome: "success", at: later.toISOString() },
+          ],
         },
       ],
     });

@@ -166,7 +166,7 @@ The decision explains itself _at the moment it was made_. It does not by itself 
 
 ## Module surface
 
-Four functions, all pure. Three are the module's public surface; `updateEstimate` is the fold `replay` is built from, and stays inside the module:
+Five functions, all pure. Four are the module's public surface; `updateEstimate` is the fold `replay` is built from, and stays inside the module:
 
 ```ts
 function updateEstimate(
@@ -179,6 +179,8 @@ function replay(
   evidence: readonly Evidence[],
   model: LearningModel,
 ): ReadonlyMap<string, KnowledgeEstimate>;
+
+function inReplayOrder(evidence: readonly Evidence[]): Evidence[];
 
 function selectNext(input: {
   now: Date;
@@ -218,7 +220,7 @@ The report keeps the order it was given and decides nothing. `unseen` stands in 
 
 `undefined` is how absence is spelled throughout: an unseen objective has no estimate, and a selection with nothing to offer returns none. `updateEstimate` accepts `undefined` for the unseen case rather than making every caller branch before calling it, which is what keeps the three-state model from needing a fourth representation.
 
-`replay` exists rather than leaving callers to fold `updateEstimate` themselves because it owns the `(at, id)` ordering. That ordering is what the disposable-estimate invariant rests on, so it belongs in one place instead of being re-derived at every call site — and it cannot be checked anywhere else: an estimate does not record which evidence it last absorbed, so a caller folding two records with the same timestamp could apply them in an order replay would not, and nothing would notice. That is why `updateEstimate` is not part of `learning`'s public surface. It accepts evidence spanning any number of objectives and returns one estimate per objective — the exact shape `selectNext` consumes, so recomputing a learner and choosing what they do next compose without glue. Returning a single estimate instead would have quietly obliged every caller to filter by objective first.
+`replay` exists rather than leaving callers to fold `updateEstimate` themselves because it owns the `(at, id)` ordering. That ordering is what the disposable-estimate invariant rests on, so it belongs in one place instead of being re-derived at every call site — and it cannot be checked anywhere else: an estimate does not record which evidence it last absorbed, so a caller folding two records with the same timestamp could apply them in an order replay would not, and nothing would notice. That is why `updateEstimate` is not part of `learning`'s public surface, and why `inReplayOrder` is: a reader who lists evidence beside the estimates it produced, such as a progress report, gets replay's order rather than its database's, whose collation may order tied IDs otherwise. `replay` accepts evidence spanning any number of objectives and returns one estimate per objective — the exact shape `selectNext` consumes, so recomputing a learner and choosing what they do next compose without glue. Returning a single estimate instead would have quietly obliged every caller to filter by objective first.
 
 `estimates` is a `ReadonlyMap` keyed by objective ID, which makes two estimates for the same objective unrepresentable. `selectNext` takes a named object because four arguments are easy to transpose when read; `updateEstimate` stays positional because its three arguments are distinct types and read as a sentence.
 

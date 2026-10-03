@@ -270,12 +270,13 @@ describe("the Braivo client", () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
       objectives: [
-        { objectiveId: "o1", title: "One", phase: "unseen" },
+        { objectiveId: "o1", title: "One", phase: "unseen", evidence: [] },
         {
           objectiveId: "o2",
           title: "Two",
           phase: "acquiring",
           lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+          evidence: [{ outcome: "failure", at: "2026-06-01T00:00:00.000Z" }],
         },
         {
           objectiveId: "o3",
@@ -286,6 +287,7 @@ describe("the Braivo client", () => {
           retrievability: 0.87,
           due: false,
           dueAt: "2026-06-04T04:48:00.001Z",
+          evidence: [{ outcome: "success", at: "2026-06-01T00:00:00.000Z" }],
         },
       ],
     };
