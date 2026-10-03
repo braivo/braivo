@@ -502,6 +502,30 @@ describe("adding a file as a source", () => {
     ).rejects.toThrow("Standard input: no page has text; a scanned PDF needs OCR first.");
   });
 
+  test("refuses a PDF given in place of its text before uploading the original", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "braivo-"));
+    const pdf = join(directory, "libro.pdf");
+    await writeFile(pdf, "%PDF-1.7\n\u0000\u0000\f\u0000stream\fendstream\n");
+    const uploading = {
+      ...client,
+      uploadFile: async () => {
+        throw new Error("Uploaded the original.");
+      },
+    };
+
+    await expect(
+      addSourceFromFile({
+        client: uploading as never,
+        organizationSlug: "school",
+        file: pdf,
+        original: pdf,
+        readStdin: async () => "",
+      }),
+    ).rejects.toThrow(
+      `${pdf}: not text Braivo can store; for a PDF, extract its text with pdftotext first.`,
+    );
+  });
+
   test("uploads the original, as its extension's type, and keeps it with the source", async () => {
     const directory = await mkdtemp(join(tmpdir(), "braivo-"));
     const pdf = join(directory, "libro.pdf");
@@ -543,7 +567,11 @@ describe("adding a file as a source", () => {
         readStdin: async () => "\f \f",
       }),
     ).rejects.toThrow("no page has text");
-    for (const text of [" \n", "Hola\u0000"]) {
+    for (const [text, refusal] of [
+      [" \n", "no text Braivo can store; it is blank."],
+      ["Hola\u0000", "not text Braivo can store"],
+      ["Hola\uD800", "not text Braivo can store"],
+    ] as const) {
       await expect(
         addSourceFromFile({
           client: uploading as never,
@@ -553,7 +581,7 @@ describe("adding a file as a source", () => {
           original: pdf,
           readStdin: async () => text,
         }),
-      ).rejects.toThrow("Standard input: no text Braivo can store");
+      ).rejects.toThrow(`Standard input: ${refusal}`);
     }
     expect(uploads).toHaveLength(1);
   });
