@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# The final gates from AGENTS.md, run on every pull request and push to main.
+# Each job is named for the command that reproduces it locally, which is also
+# the name branch protection requires.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels its stale runs. Each push to main gets
+# a group of its own: a group keeps one pending run and cancels any older one,
+# whatever cancel-in-progress says.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: bunx vp check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx vp check
+
+  test:
+    name: bun run test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Without TEST_DATABASE_URL the database suites skip themselves and the run
+    # still passes, so this one gets a database of its own.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+
+  # Every file Braivo writes declares its license (ADR 0002).
+  license:
+    name: bun run license:check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # An exact version: setup-uv publishes no major tags since v8.
+      - uses: astral-sh/setup-uv@v10.2.0
+      # No `bun install`: the script shells out to uvx and needs no packages.
+      - run: bun run license:check
