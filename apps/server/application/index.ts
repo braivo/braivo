@@ -23,6 +23,15 @@ export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } fro
 export type { RequestHost } from "./host.ts";
 export { readHostOrganization } from "./host.ts";
 export type { LearnerProgress, LearnerProgressReport } from "./learner-progress.ts";
+export type { CompletedHandoff } from "./learner-sessions.ts";
+export {
+  completeHandoff,
+  describeHandoff,
+  endLearnerSession,
+  resumeLearnerSession,
+  redeemHandoff,
+  startHandoff,
+} from "./learner-sessions.ts";
 export { readLearnerProgress } from "./learner-progress.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";

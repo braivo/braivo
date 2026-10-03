@@ -12,10 +12,36 @@
 // "name"? }` redeems it, `name` naming a new account (ADR 0018).
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
-// organization's learn domain — the device flow and every `/api/organizations…`
-// route answer 404, and any request carrying `Authorization` 401 (ADR 0004,
-// ADR 0022). Email codes work on both until ADR 0018's handoff, which takes
-// sign-in off learn domains.
+// organization's learn domain — the device flow, `/api/handoffs/*`, and every
+// `/api/organizations…` route answer 404, and any request carrying
+// `Authorization` 401 (ADR 0004, ADR 0022). Email codes work on both until the
+// learn app signs in by handoff instead.
+//
+// A learn domain's sign-in, handed over from `BRAIVO_URL`'s origin (ADR 0018),
+// ends in a learner session, Braivo's own, in the domain's
+// `__Host-braivo-learner` cookie:
+//
+// - `GET /api/session/sign-in?redirect=<path>` on a learn domain: sets the
+//   `__Host-braivo-handoff` nonce cookie and redirects to
+//   `BRAIVO_URL/login?handoff=<id>`; 404 on any other host.
+// - `GET /api/handoffs/:id` on `BRAIVO_URL`'s host: what that sign-in is for,
+//   `{ "organization": { "name": "…" }, "hostname": "…" }`; 404 once expired
+//   (15 minutes after it began, or a minute after a code was issued), spent,
+//   or its domain no longer the organization's.
+// - `POST /api/handoffs/:id`, a JSON write, as the session's user: 200
+//   `{ "url": "https://<hostname>/api/session/handoff?code=…" }` for a member of
+//   the organization, to navigate to within a minute; 401 no session, 403 not a
+//   member, possibly forged, or a bearer token, 404 as above.
+// - `GET /api/session/handoff?code=` on the learn domain: with the nonce cookie,
+//   sets the learner session (a week, renewed by use once a day old) and
+//   redirects to the path sign-in began from; 400, as text, for a code spent,
+//   late, or redeemed in another browser.
+// - `GET /api/session`: who is signed in on this host, `{ "user": { "id",
+//   "name" } }`, from its learner session on a learn domain or the account's on
+//   `BRAIVO_URL`'s; 401 when no one is.
+// - `POST /api/session/sign-out`, a JSON write: ends this host's session, a
+//   learn domain's learner session alone; 204, or 403 possibly forged or a
+//   bearer token.
 //
 // `GET /api/organization` — the organization the request's host serves, for the
 // learn app on that domain to present itself as. No session needed. 200 answers

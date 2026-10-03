@@ -151,6 +151,33 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.hostOrganization()).toBeUndefined();
   });
 
+  test("hands a member over to a learn domain, whose session it reads and ends", async () => {
+    // Started by a navigation, not the client.
+    const started = await api.request(`https://${organizationHost}/api/session/sign-in`);
+    const handoffId = new URL(started.headers.get("location")!).searchParams.get("handoff")!;
+    const nonce = started.headers.getSetCookie()[0]!.split(";", 1)[0]!;
+
+    expect(await client.handoff(handoffId)).toEqual({
+      organization: { name: organizationId },
+      hostname: organizationHost,
+    });
+    expect(await client.handoff("expired")).toBeUndefined();
+    const url = await client.completeHandoff(handoffId, { headers: { cookie: learnerCookie } });
+    const redeemed = await api.request(url, { headers: { cookie: nonce } });
+    const cookie = redeemed.headers
+      .getSetCookie()
+      .find((set) => set.startsWith("__Host-braivo-learner="))!
+      .split(";", 1)[0]!;
+
+    const signedIn = { headers: { cookie } };
+    expect(await onOrganizationDomain.session(signedIn)).toEqual({
+      id: learnerId,
+      name: expect.any(String),
+    });
+    await onOrganizationDomain.signOut(signedIn);
+    expect(await onOrganizationDomain.session(signedIn)).toBeUndefined();
+  });
+
   test("parses an activity into the shape it declares", async () => {
     const activity = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
 

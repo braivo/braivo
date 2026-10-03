@@ -23,6 +23,15 @@ export {
   readMembersEvidence,
   recordEvidence,
 } from "./evidence.ts";
+export {
+  deleteLearnerSession,
+  insertHandoff,
+  issueHandoffCode,
+  readHandoff,
+  readLearnerSession,
+  spendHandoffCode,
+  renewLearnerSession,
+} from "./learner-session.ts";
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
 export { ConflictingKey } from "./key.ts";

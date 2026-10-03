@@ -12,4 +12,6 @@ import type { ConsoleAuth } from "./auth.ts";
 export type AppContext = {
   braivo: BraivoClient;
   auth: ConsoleAuth;
+  /** Loads a page outside the app, as handing sign-in to a learn domain does. */
+  visit: (href: string) => void;
 };

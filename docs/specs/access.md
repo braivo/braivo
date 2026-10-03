@@ -13,9 +13,21 @@ How people sign in, and what they reach once in. Whoever proves an email has an 
 - Codes go out over SMTP, or into the server's log of an installation listening on loopback alone ([ADR 0033](../adr/0033-email-over-smtp.md)).
 - Asking for a code and redeeming it pass `isTrustedWrite` (below): Better Auth checks the origin only of a request carrying a cookie, so otherwise another site could sign a visitor in to an account whose code it holds.
 - Each app's `/login` renders `EmailSignIn` from `packages/auth-client`: an email, the code sent to it, then, for an account without a name, a name. After sign-in, each app goes to the `redirect` search parameter if `safeRedirect` keeps it within the origin, else `/`.
-- On any host but `BRAIVO_URL`'s, before authentication, the server answers `401` to a request carrying `Authorization`, and `404` to the device flow (`/api/auth/device*`) and the console's `/api/organizations*`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)).
+- On any host but `BRAIVO_URL`'s, before authentication, the server answers `401` to a request carrying `Authorization`, and `404` to the device flow (`/api/auth/device*`), the handoff's installation end (`/api/handoffs*`), and the console's `/api/organizations*`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)).
 - A content owner's tools — the `braivo` CLI and its MCP server — get a session token through the device flow, approved at the console's `/device`, and send it as `Authorization: Bearer` ([ADR 0022](../adr/0022-machine-access.md)). Of `/api/auth/*`, a token reaches `get-session` and `sign-out` (its own session, for `braivo logout`) only; anything else answers `403`. A tool finds the organizations it may work in at `GET /api/organizations`: those the person manages. No answer to a token sets a cookie, its session's renewal included.
-- Sign-in works on the installation's origin and on an organization's domain; either way the session is the whole account's, in a cookie on that host, until ADR 0018's handoff takes sign-in off learn domains.
+- Sign-in works on the installation's origin and on an organization's domain; either way the session is the whole account's, in a cookie on that host, until the learn app moves to the handoff below.
+
+### Learn domains: handoff and learner session
+
+Built, not used yet: the learn app still signs in by code on its own domain until it moves to this ([ADR 0018](../adr/0018-sign-in-and-invitations.md), step 2). The flow is OAuth's authorization code flow in miniature.
+
+1. A learn domain's `/api/session/sign-in?redirect=<path>` records a handoff (`learner_handoff`: the organization and hostname from the request's host, the path if it stays on the domain, else `/`, the nonce's hash, 15 minutes), sets the nonce in `__Host-braivo-handoff`, and redirects to `BRAIVO_URL/login?handoff=<id>`.
+2. There the console names the organization and the domain (`GET /api/handoffs/:id`; the tab's title too), not Braivo. With an account already signed in, it offers "Continue as <name>" (its email while it has none, to be named first) or "Use another account", which signs that one out; otherwise it signs in by code, name step included. A session found ended meanwhile goes back to signing in. Then `POST /api/handoffs/:id`, a trusted write, issues a code for a member of the organization only, good for 60 seconds and replacing any issued before, and the page navigates to `https://<hostname>/api/session/handoff?code=…`. A POST from a click, never a navigation, so no link hands a signed-in visitor over unasked.
+3. That route redeems the code in one transaction, only with the nonce cookie, on the hostname the handoff began on, before it expires, and while that hostname still serves its organization; anything else spends nothing and answers a 400 page. It sets `__Host-braivo-learner` (a week, renewed by use once a day old) and redirects to the stored path, `Referrer-Policy: no-referrer`.
+
+- Every secret is random, 256 bits, and stored only as its SHA-256. Both cookies are `__Host-`: `Secure`, `HttpOnly`, `SameSite=Lax`, on that host alone. Expired handoffs and sessions are deleted as new ones are written.
+- A learner session fixes a user and an organization and grants nothing: it is read only on a hostname still serving that organization. Learner routes still take the account's session until the learn app moves.
+- `GET /api/session` answers who is signed in on the host asked, and `POST /api/session/sign-out` ends that host's session: on a learn domain its learner session alone, on the installation's the account's.
 - Every `/api/auth/*` answer is `Cache-Control: private, no-store`, and bodies over 1 MB answer `413`.
 - `_signed-in/route.tsx` in each app calls `requireSession` in `beforeLoad`: it asks Better Auth on every navigation, redirects a signed-out visitor, or an account without a name, to `/login?redirect=<href>`, where `needsName` starts sign-in at the name, and throws rather than signing out when the session cannot be checked.
 - On the server, a route resolves the session itself (`sessionFor`), forwards Better Auth's renewal cookie, and hands `application` plain user IDs. `application` never imports `auth`.
@@ -69,7 +81,7 @@ flowchart TD
 
 ### Planned (ADR 0018)
 
-[ADR 0018](../adr/0018-sign-in-and-invitations.md) moves every sign-in to one `/login` on the installation's origin, adding Google; turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`; and gives each learn domain a learner session handed over from that origin instead of the account's session. Built so far: the operator command, and email codes in place of passwords; see Gaps.
+[ADR 0018](../adr/0018-sign-in-and-invitations.md) moves every sign-in to one `/login` on the installation's origin, adding Google; turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`; and gives each learn domain a learner session handed over from that origin instead of the account's session. Built so far: the operator command, email codes in place of passwords, and the handoff, which the learn app does not use yet; see Gaps.
 
 ## Invariants
 
@@ -89,6 +101,8 @@ flowchart TD
 - An account without a name reaches no signed-in page. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`
 - An installation others reach does not start without a way to send email. `apps/server/cli/config.test.ts`
 - A bearer token, the device flow, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
+- A handoff's code is issued to a member only, and opens a learner session once, only in the browser that began it, on the domain it began on, within a minute; a mismatch spends nothing; it returns only within that domain. `apps/server/application/learner-sessions.test.ts`, `apps/server/api/app.test.ts`
+- An account already signed in is offered, never used unasked, when signing in for a learn domain. `apps/console/routes.test.tsx`
 - A forgeable write is refused before it records anything; a foreign origin is refused by Braivo and by Better Auth. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - An organization's domain is trusted only while it maps to an organization. `apps/server/auth/origin.test.ts`
 - `GET /api/organizations` lists only managed organizations, only to a session, never cached. `apps/server/api/app.test.ts`
@@ -96,18 +110,20 @@ flowchart TD
 
 ## Code map
 
-| Concern                                                    | Where                                                                                                                         |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Better Auth config, organization hooks, trusted origins    | `apps/server/auth/auth.ts`, `apps/server/auth/origin.ts`, `apps/server/auth/slug.ts`                                          |
-| Operator creates an organization                           | `apps/server/cli/index.ts`, `apps/server/auth/organization.ts`                                                                |
-| Mount, host gate, bearer limits, session, `isTrustedWrite` | `apps/server/api/app.ts`; contract in `apps/server/api/index.ts`                                                              |
-| Role checks                                                | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                           |
-| Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                       |
-| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                             |
-| Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                       |
-| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/cli/config.ts`                                   |
-| Console pages                                              | `apps/console/routes/login.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts` |
-| Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`, `apps/learn/lib/auth.ts`                             |
+| Concern                                                    | Where                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Better Auth config, organization hooks, trusted origins    | `apps/server/auth/auth.ts`, `apps/server/auth/origin.ts`, `apps/server/auth/slug.ts`                                                 |
+| Operator creates an organization                           | `apps/server/cli/index.ts`, `apps/server/auth/organization.ts`                                                                       |
+| Mount, host gate, bearer limits, session, `isTrustedWrite` | `apps/server/api/app.ts`; contract in `apps/server/api/index.ts`                                                                     |
+| Handoff and learner session                                | `apps/server/application/learner-sessions.ts`, `apps/server/persistence/learner-session.ts`, `packages/db/schema/learner-session.ts` |
+| Role checks                                                | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                                  |
+| Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                              |
+| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                                    |
+| Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                              |
+| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/cli/config.ts`                                          |
+| Console pages                                              | `apps/console/routes/login.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts`        |
+| Signing in for a learn domain                              | `apps/console/routes/login.tsx`                                                                                                      |
+| Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`, `apps/learn/lib/auth.ts`                                    |
 
 ## Decisions
 

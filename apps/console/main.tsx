@@ -19,6 +19,7 @@ const router = createRouter({
   context: {
     braivo: createClient(),
     auth: createConsoleAuth(origin),
+    visit: (href) => window.location.assign(href),
   },
 });
 

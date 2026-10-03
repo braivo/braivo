@@ -75,8 +75,13 @@ function renderAt(
       account.name = name;
       return { error: null };
     }),
+    signOut: vi.fn(async () => {
+      signedIn = false;
+      return { error: null };
+    }),
     device: stubs.device,
   };
+  const visit = vi.fn<AppContext["visit"]>();
 
   const router = createRouter({
     routeTree,
@@ -89,11 +94,12 @@ function renderAt(
         courseProgress,
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
+      visit,
     },
   });
   render(<RouterProvider router={router} />);
 
-  return { auth, router };
+  return { auth, router, visit };
 }
 
 /** Signs in from `/login` as a person would: an email, then the code mailed to it. */
@@ -218,6 +224,172 @@ describe("the console", () => {
 
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
     expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
+  });
+
+  describe("signing in for a learn domain", () => {
+    const springo = { organization: { name: "Springo" }, hostname: "learn.springo.app" };
+    const url = "https://learn.springo.app/api/session/handoff?code=c1";
+
+    test("names the organization and its domain, not Braivo, and hands the account over", async () => {
+      const completeHandoff = vi.fn(async () => url);
+      const { visit } = renderAt("/login?handoff=h1", {
+        signedIn: false,
+        braivo: { handoff: async () => springo, completeHandoff },
+      });
+
+      expect(await screen.findByRole("heading", { name: "Sign in to Springo" })).toBeTruthy();
+      expect(screen.getByText(/learn\.springo\.app/)).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Sign in to Springo"));
+      expect(screen.queryByText(/Braivo/)).toBeNull();
+      await signInWithCode();
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      expect(completeHandoff).toHaveBeenCalledWith("h1");
+    });
+
+    test("offers the account already signed in, or another", async () => {
+      const completeHandoff = vi.fn(async () => url);
+      const { auth, visit } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => springo, completeHandoff },
+      });
+
+      const offered = await screen.findByRole("button", { name: "Continue as Olive Owner" });
+      // Offered, not used: nothing is handed over until it is chosen.
+      expect(completeHandoff).not.toHaveBeenCalled();
+      expect(visit).not.toHaveBeenCalled();
+      fireEvent.click(offered);
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      expect(completeHandoff).toHaveBeenCalledOnce();
+      expect(auth.signOut).not.toHaveBeenCalled();
+      cleanup();
+
+      const other = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => springo, completeHandoff: async () => url },
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(other.auth.signOut).toHaveBeenCalledOnce();
+    });
+
+    test("says when the account is not a member, offering another", async () => {
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(403, "Braivo answered 403.");
+          },
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      expect(await screen.findByText("This account is not a member of Springo.")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
+    });
+
+    test("asks the next account for its email, after one that had no name", async () => {
+      renderAt("/login?handoff=h1", {
+        name: "",
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(403, "Braivo answered 403.");
+          },
+        },
+      });
+
+      // Offered by email, so another person can switch rather than name it.
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as olive@example.com" }));
+      fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Olive" } });
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+    });
+
+    test("lets another person switch from an account left without a name, naming nothing", async () => {
+      const { auth } = renderAt("/login?handoff=h1", {
+        name: "",
+        braivo: { handoff: async () => springo, completeHandoff: async () => url },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(auth.updateUser).not.toHaveBeenCalled();
+    });
+
+    test("asks to sign in again when the session ended meanwhile", async () => {
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(401, "Braivo answered 401.");
+          },
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      expect(await screen.findByText("You were signed out. Sign in again.")).toBeTruthy();
+      expect(screen.getByLabelText("Email")).toBeTruthy();
+    });
+
+    test("announces expiry reached while signing in", async () => {
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(404, "Braivo answered 404.");
+          },
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      expect((await screen.findByRole("alert")).textContent).toContain("This sign-in has expired");
+    });
+
+    test("names no account it did not read, when continuing must be tried again", async () => {
+      const completeHandoff = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockResolvedValue(url);
+      const { visit } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => springo, completeHandoff },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
+      await signInWithCode();
+      fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+    });
+
+    test("tells a server's failure from a lost connection, offering to continue again", async () => {
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(500, "Braivo answered 500.");
+          },
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      expect(await screen.findByText("Something went wrong. Try again.")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
+    });
+
+    test("says when it has expired", async () => {
+      renderAt("/login?handoff=gone", { braivo: { handoff: async () => undefined } });
+
+      expect(await screen.findByRole("heading", { name: "This sign-in has expired" })).toBeTruthy();
+      expect(screen.queryByLabelText("Email")).toBeNull();
+      // Not Braivo's name, on the way back to an organization's site.
+      await vi.waitFor(() => expect(document.title).toBe("This sign-in has expired"));
+    });
   });
 
   test("lets an owner approve their own tool, naming it and the code", async () => {
