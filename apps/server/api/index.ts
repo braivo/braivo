@@ -471,8 +471,9 @@
 //
 // Braivo locates each quote in its source: whitespace matches any whitespace,
 // everything else exactly, and a quote must occur exactly once and be at most
-// 2000 characters. All or nothing, and a citation already stored is stored
-// once. Answers 200 with where each quote was found, in code points:
+// 2000 characters, not counting extra whitespace. All or nothing, and a
+// citation already stored is stored once. Answers 200 with where each quote
+// was found, in code points:
 //
 //   { "citations": [{ "objectiveId": "…", "sourceId": "…", "start": 13, "end": 28 }] }
 //
