@@ -22,6 +22,10 @@ export function captionFormat(file: string): CaptionFormat | undefined {
 // with a comma.
 const TIME = String.raw`(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})`;
 const TIMING = new RegExp(String.raw`^${TIME}\s+-->\s+${TIME}`);
+// A line that looks like a timing, typed right or nearly: a time, its first
+// separator a colon, dot, or comma, then an arrow such as `->` or `→`. Words a
+// caption says seldom open that way, and `p --> q` does not.
+const TIMING_LIKE = /^\s*\d+[:.,][\d:.,]*\s*(?:[-=]+>|→)/;
 // A word's own time inside a cue's text, `hola<00:00:00.560><c> amigos</c>`,
 // which auto-generated WebVTT writes and people do not.
 const WORD_TIMING = new RegExp(`<${TIME}>`);
@@ -41,7 +45,8 @@ const INSTANT_SECONDS = 0.05;
  * A caption file's cues, one per line of captions and in order, or an error
  * saying what is wrong. What a viewer reads is kept; what a player reads —
  * styling, positions, speaker tags, word timings — is dropped. A caption it
- * cannot time is refused, naming its line, rather than its words lost.
+ * cannot time, or run into another, is refused, naming its line, rather than
+ * its words lost or mistimed; a run-in timing is told by its look (`TIMING_LIKE`).
  *
  * Auto-generated captions, the ones timing each word inline, roll: a cue's last
  * line is what is newly said, a line above it carries over the line just kept,
@@ -53,13 +58,16 @@ const INSTANT_SECONDS = 0.05;
 export function parseCaptions(content: string, format: CaptionFormat): Cue[] | Error {
   const text = content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const blocks = blocksOf(text, format);
+  // WebVTT allows `-->` only in a timing, past its first line; SRT's words may say it.
+  const timingLike = ({ text }: Line) =>
+    TIMING_LIKE.test(text) || (format === "vtt" && text.includes("-->"));
 
   if (format === "vtt") {
     if (!/^WEBVTT(?:[ \t]|$)/.test(text.split("\n", 1)[0]!)) {
       return new Error("This is not a WebVTT file: its first line is not WEBVTT.");
     }
-    // The header: `WEBVTT`, then lines such as YouTube's `Kind:`.
-    const cue = blocks.shift()!.find((line) => TIMING.test(line.text));
+    // The header: `WEBVTT` and a title, then lines such as YouTube's `Kind:`.
+    const cue = blocks.shift()!.slice(1).find(timingLike);
     if (cue) {
       return new Error(
         `Line ${cue.number}: the first caption needs a blank line after the WebVTT header.`,
@@ -73,10 +81,13 @@ export function parseCaptions(content: string, format: CaptionFormat): Cue[] | E
     // an SRT counter, or a WebVTT cue name, which may be `NOTE`.
     const timings = lines.flatMap((line, index) => (TIMING.test(line.text) ? [index] : []));
     const index = timings[0];
-    // WebVTT's comments and settings.
-    if (format === "vtt" && index !== 1 && METADATA.test(lines[0]!.text)) continue;
+    // WebVTT's comments and settings; a timing on the second line, mistyped or
+    // not, makes a cue named like one. A comment quoting a mistyped timing there
+    // is refused with it, rather than a caption risked.
+    const metadata = format === "vtt" && METADATA.test(lines[0]!.text);
+    if (metadata && !(lines[1] && timingLike(lines[1]))) continue;
     if (index === undefined) {
-      const typo = lines.find((line) => line.text.includes("-->"));
+      const typo = lines.find(timingLike);
       return new Error(
         typo
           ? `Line ${typo.number}: a timing should look like ${EXAMPLE[format]}.`
@@ -88,6 +99,14 @@ export function parseCaptions(content: string, format: CaptionFormat): Cue[] | E
     if (misplaced !== undefined) {
       return new Error(
         `Line ${lines[misplaced]!.number}: captions need a blank line between them.`,
+      );
+    }
+    // A mistyped one as well, which would be read out and the words after it
+    // timed as this caption's.
+    const mistyped = lines.slice(index + 1).find(timingLike);
+    if (mistyped) {
+      return new Error(
+        `Line ${mistyped.number}: a timing should look like ${EXAMPLE[format]}, and captions need a blank line between them.`,
       );
     }
 
