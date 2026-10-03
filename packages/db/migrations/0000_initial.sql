@@ -96,6 +96,25 @@ CREATE TABLE "organization_domain" (
 	CONSTRAINT "organization_domain_hostname_lowercase" CHECK ("organization_domain"."hostname" = lower("organization_domain"."hostname"))
 );
 --> statement-breakpoint
+CREATE TABLE "learner_handoff" (
+	"id" text PRIMARY KEY NOT NULL,
+	"organization_id" text NOT NULL,
+	"hostname" text NOT NULL,
+	"return_path" text NOT NULL,
+	"nonce_hash" text NOT NULL,
+	"user_id" text,
+	"code_hash" text,
+	"expires_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "learner_handoff_code_hash_unique" UNIQUE("code_hash")
+);
+--> statement-breakpoint
+CREATE TABLE "learner_session" (
+	"token_hash" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"organization_id" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "ai_request" (
 	"id" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -207,6 +226,10 @@ ALTER TABLE "member" ADD CONSTRAINT "member_organization_id_organization_id_fk" 
 ALTER TABLE "member" ADD CONSTRAINT "member_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_domain" ADD CONSTRAINT "organization_domain_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_request" ADD CONSTRAINT "ai_request_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_request" ADD CONSTRAINT "ai_request_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "attempt" ADD CONSTRAINT "attempt_learner_id_user_id_fk" FOREIGN KEY ("learner_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -235,6 +258,10 @@ CREATE INDEX "member_userId_idx" ON "member" USING btree ("user_id");--> stateme
 CREATE INDEX "session_userId_idx" ON "session" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "verification_identifier_idx" ON "verification" USING btree ("identifier");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_domain_organization_idx" ON "organization_domain" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "learner_handoff_expires_at_idx" ON "learner_handoff" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "learner_session_expires_at_idx" ON "learner_session" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "learner_session_user_id_idx" ON "learner_session" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "learner_session_organization_id_idx" ON "learner_session" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "ai_request_organization_created_idx" ON "ai_request" USING btree ("organization_id","created_at");--> statement-breakpoint
 CREATE INDEX "attempt_learner_task_idx" ON "attempt" USING btree ("learner_id","task_id","at");--> statement-breakpoint
 CREATE INDEX "course_organization_idx" ON "course" USING btree ("organization_id");--> statement-breakpoint

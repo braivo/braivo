@@ -93,6 +93,12 @@ export type Member = { userId: string; name: string; roles: string[] };
 /** The organization a domain serves, as its learn app presents itself. */
 export type HostOrganization = { name: string };
 
+/** Who is signed in on the host asked (`GET /api/session`). */
+export type SessionUser = { id: string; name: string };
+
+/** What a learn domain's sign-in signs in to, for the installation's `/login` to say. */
+export type Handoff = { organization: { name: string }; hostname: string };
+
 /** A source as its organization's content owners see it listed: everything but its text. */
 export type SourceSummary = Json<application.SourceSummary>;
 

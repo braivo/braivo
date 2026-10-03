@@ -5,4 +5,5 @@
 // `auth.ts` by its CLI and never hand-edited; Braivo's own are in the others.
 export * from "./auth.ts";
 export * from "./domain.ts";
+export * from "./learner-session.ts";
 export * from "./learning.ts";

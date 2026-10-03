@@ -10,6 +10,7 @@ import type {
   Draft,
   Grade,
   GradedEvidence,
+  Handoff,
   HostOrganization,
   LearnerProgressReport,
   LocatedCitation,
@@ -17,6 +18,7 @@ import type {
   Objective,
   Organization,
   QuotedCitation,
+  SessionUser,
   Source,
   SourceSummary,
   TaskDraft,
@@ -41,6 +43,7 @@ export type {
   Draft,
   Grade,
   GradedEvidence,
+  Handoff,
   HostOrganization,
   LearnerProgressReport,
   LearningDecision,
@@ -51,6 +54,7 @@ export type {
   Organization,
   Passage,
   QuotedCitation,
+  SessionUser,
   Source,
   SourceSummary,
   TaskDraft,
@@ -103,6 +107,29 @@ export type BraivoClient = {
    * own address, say. Needs no session.
    */
   hostOrganization(options?: RequestOptions): Promise<HostOrganization | undefined>;
+
+  /**
+   * Who is signed in on this host, or `undefined` when no one is: on a learn
+   * domain its learner session's user, on the installation's the account's.
+   */
+  session(options?: RequestOptions): Promise<SessionUser | undefined>;
+
+  /** Signs out of this host alone: a learn domain's learner session, or the account. */
+  signOut(options?: RequestOptions): Promise<void>;
+
+  /**
+   * What a learn domain's sign-in, `handoffId`, signs in to, or `undefined`
+   * once it expired. Needs no session.
+   */
+  handoff(handoffId: string, options?: RequestOptions): Promise<Handoff | undefined>;
+
+  /**
+   * Hands the signed-in account over to the learn domain `handoffId` began on,
+   * resolving to the URL to navigate to, within a minute. A
+   * {@link BraivoError}: 401 signed out meanwhile, 403 not a member of its
+   * organization, 404 expired.
+   */
+  completeHandoff(handoffId: string, options?: RequestOptions): Promise<string>;
 
   /**
    * What the signed-in learner should do next in a course — the decision, its
@@ -498,6 +525,44 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<HostOrganization>(response, doing);
+    },
+
+    async session(requestOptions) {
+      const response = await get("/api/session", requestOptions);
+
+      const doing = "asking who is signed in";
+      if (response.status === 401) return undefined;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ user: SessionUser }>(response, doing)).user;
+    },
+
+    async signOut(requestOptions) {
+      const response = await post("/api/session/sign-out", {}, requestOptions);
+      if (response.status !== 204) throw await unexpected(response, "signing out");
+    },
+
+    async handoff(handoffId, requestOptions) {
+      const response = await get(`/api/handoffs/${encodeURIComponent(handoffId)}`, requestOptions);
+
+      const doing = "reading what this sign-in is for";
+      if (response.status === 404) return undefined;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<Handoff>(response, doing);
+    },
+
+    async completeHandoff(handoffId, requestOptions) {
+      const response = await post(
+        `/api/handoffs/${encodeURIComponent(handoffId)}`,
+        {},
+        requestOptions,
+      );
+
+      const doing = "handing this sign-in over";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ url: string }>(response, doing)).url;
     },
 
     async nextActivity(courseId, requestOptions) {

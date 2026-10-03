@@ -4,17 +4,21 @@
 import type { Database } from "@braivo/db";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
 import {
   addSource,
   chooseNextActivity,
   citeSources,
   chooseNextObjective,
+  completeHandoff,
   ConflictingEvidence,
   ConflictingKey,
   defineCourse,
   defineObjectives,
   defineTasks,
+  describeHandoff,
+  endLearnerSession,
   type Ai,
   AiLimitReached,
   AiNotEntitled,
@@ -42,13 +46,16 @@ import {
   openFile,
   readHostOrganization,
   readAuthoredCourse,
+  resumeLearnerSession,
   readFileText,
   readCourseProgress,
   readLearnerProgress,
   recordGradedEvidence,
+  redeemHandoff,
   type QuotedCitation,
   StaleCorrection,
   retireTasks,
+  startHandoff,
   submitAttempt,
   type RequestHost,
   uploadFile,
@@ -454,6 +461,21 @@ const SIGN_IN_CODE_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A learn domain's cookies (ADR 0018), each `__Host-`: Secure, on that host
+ * alone, for every path. `Lax`, since the handoff arrives by a navigation from
+ * the installation's origin.
+ */
+const LEARNER_COOKIE = "braivo-learner";
+const HANDOFF_COOKIE = "braivo-handoff";
+const cookieOptions = (expiresAt: Date) =>
+  ({
+    prefix: "host",
+    httpOnly: true,
+    sameSite: "Lax",
+    expires: expiresAt,
+  }) as const;
+
+/**
  * The HTTP entry point to `application`. A route resolves who is asking, calls
  * one use case, and turns its result into a status; anything it had to look up
  * for itself would be a workflow, and workflows belong to `application`.
@@ -476,17 +498,18 @@ export function createApi(options: ApiOptions) {
   };
 
   // The installation's origin is the console's and its tools': the account's
-  // own credentials — the device flow, a bearer token — and the console's API
-  // reach nothing on any other host, which serves one organization's learn app
-  // (ADR 0004, ADR 0022). Before authentication, so a credential presented
-  // elsewhere is refused whatever it could do.
+  // own credentials — the device flow, a bearer token — the console's API, and
+  // completing a learn domain's sign-in reach nothing on any other host, which
+  // serves one organization's learn app (ADR 0004, ADR 0018, ADR 0022). Before
+  // authentication, so a credential presented elsewhere is refused whatever it
+  // could do.
   api.use("/api/*", async (context, next) => {
     if (requestHost(context).installation) return next();
     // A refusal here depends on the host, so no shared cache may keep one.
     context.header("cache-control", "private, no-store");
     if (context.req.header("authorization") !== undefined) return context.body(null, 401);
     const { path } = context.req;
-    const installationOnly = ["/api/organizations", "/api/auth/device"];
+    const installationOnly = ["/api/organizations", "/api/auth/device", "/api/handoffs"];
     if (installationOnly.some((prefix) => path.startsWith(prefix))) {
       return context.body(null, 404);
     }
@@ -556,6 +579,173 @@ export function createApi(options: ApiOptions) {
     }
     return response;
   }
+
+  /**
+   * Who is signed in on this host: on a learn domain, its learner session's
+   * user, renewed as it is used; on the installation's host, the account's.
+   */
+  async function learnerFor(context: Context): Promise<{ id: string; name: string } | undefined> {
+    const host = requestHost(context);
+    if (host.installation) {
+      const user = (await sessionFor(context))?.user;
+      return user && { id: user.id, name: user.name };
+    }
+
+    const token = getCookie(context, LEARNER_COOKIE, "host");
+    if (token === undefined) return undefined;
+    const found = await resumeLearnerSession({
+      database,
+      hostname: host.hostname,
+      token,
+      now: new Date(),
+    });
+    if (found?.renewedUntil) {
+      setCookie(context, LEARNER_COOKIE, token, cookieOptions(found.renewedUntil));
+    }
+    return found?.user;
+  }
+
+  /**
+   * Starts a learn domain's sign-in (ADR 0018): records where it began, gives
+   * the browser the nonce that alone may redeem the code, and sends it to the
+   * installation's `/login`. A navigation, so it answers redirects.
+   */
+  api.get("/api/session/sign-in", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const host = requestHost(context);
+    if (host.installation) return context.body(null, 404);
+
+    const started = await startHandoff({
+      database,
+      hostname: host.hostname,
+      returnPath: context.req.query("redirect"),
+      now: new Date(),
+    });
+    if (!started) return context.body(null, 404);
+
+    setCookie(context, HANDOFF_COOKIE, started.nonce, cookieOptions(started.expiresAt));
+    return context.redirect(`${origin}/login?handoff=${started.handoffId}`);
+  });
+
+  /**
+   * Ends a learn domain's sign-in: redeems the code the installation's origin
+   * issued, with the nonce cookie its browser kept, as a learner session, and
+   * goes where the learner started, so no page loads with the code in its URL.
+   */
+  api.get("/api/session/handoff", async (context) => {
+    context.header("cache-control", "private, no-store");
+    context.header("referrer-policy", "no-referrer");
+    const host = requestHost(context);
+    if (host.installation) return context.body(null, 404);
+
+    const code = context.req.query("code");
+    const nonce = getCookie(context, HANDOFF_COOKIE, "host");
+    const redeemed =
+      code && nonce
+        ? await redeemHandoff({
+            database,
+            hostname: host.hostname,
+            code,
+            nonce,
+            now: new Date(),
+          })
+        : undefined;
+    // Plain text: a person followed a redirect here, and a bare status shows nothing.
+    if (!redeemed) {
+      return context.text(
+        "This sign-in expired or began in another browser. Go back and sign in again.",
+        400,
+      );
+    }
+
+    // Only once spent: after a failure, it may be a later sign-in's, begun in
+    // another tab, that one cookie holds.
+    deleteCookie(context, HANDOFF_COOKIE, { prefix: "host" });
+    setCookie(context, LEARNER_COOKIE, redeemed.token, cookieOptions(redeemed.expiresAt));
+    return context.redirect(redeemed.returnPath);
+  });
+
+  /** Who is signed in, as the learn app asks: the learner session's user, or the account's. */
+  api.get("/api/session", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const learner = await learnerFor(context);
+    return learner ? context.json({ user: learner }) : context.body(null, 401);
+  });
+
+  /**
+   * Signs out of the host asked: a learn domain's learner session, or the
+   * account. A browser's only: a tool's token manages no account (ADR 0022).
+   */
+  api.post("/api/session/sign-out", async (context) => {
+    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
+    if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+      return context.body(null, 403);
+
+    if (requestHost(context).installation) {
+      const { headers } = await auth.api.signOut({
+        headers: context.req.raw.headers,
+        returnHeaders: true,
+      });
+      for (const cookie of headers.getSetCookie()) {
+        context.header("set-cookie", cookie, { append: true });
+      }
+      return context.body(null, 204);
+    }
+
+    const token = getCookie(context, LEARNER_COOKIE, "host");
+    if (token !== undefined) await endLearnerSession({ database, token });
+    deleteCookie(context, LEARNER_COOKIE, { prefix: "host" });
+    return context.body(null, 204);
+  });
+
+  /**
+   * What a learn domain's sign-in signs in to, for the installation's `/login`
+   * to say: the organization's name and the domain it returns to.
+   */
+  api.get("/api/handoffs/:handoffId", async (context) => {
+    context.header("cache-control", "private, no-store");
+    const found = await describeHandoff({
+      database,
+      handoffId: context.req.param("handoffId"),
+      now: new Date(),
+    });
+    return found ? context.json(found) : context.body(null, 404);
+  });
+
+  /**
+   * Hands the signed-in account over to a learn domain as a learner, if it is
+   * a member there: answers the URL to go to. A write from a click on
+   * `/login`, never a navigation, so no link hands someone over unasked; and
+   * a browser's, since a tool's token manages no account (ADR 0022).
+   */
+  api.post("/api/handoffs/:handoffId", async (context) => {
+    context.header("cache-control", "private, no-store");
+    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
+    if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
+      return context.body(null, 403);
+
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+
+    const completed = await completeHandoff({
+      database,
+      handoffId: context.req.param("handoffId"),
+      userId: session.user.id,
+      now: new Date(),
+    });
+    switch (completed.kind) {
+      case "unavailable":
+        return context.body(null, 404);
+      case "not-member":
+        return context.body(null, 403);
+      case "issued":
+        return context.json({
+          url: `https://${completed.hostname}/api/session/handoff?code=${completed.code}`,
+        });
+      default:
+        throw new Error(`Unhandled answer: ${JSON.stringify(completed satisfies never)}`);
+    }
+  });
 
   /**
    * The organization this request's host serves, which a learn app on that
