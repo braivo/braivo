@@ -52,9 +52,9 @@ These are defined in the [spec](specs/learning-model.md); they are listed here s
 - **Learning model** (`LearningModel`; the one in use is `activeModel`): the algorithm and its parameter values together, replaced rather than selected ([ADR 0007](adr/0007-one-learning-model.md)).
 - **Model version** (`modelVersion`): what identifies a learning model, stamped on every estimate, decision, and report. A parameter change is a new version.
 - **Phase** (`phase`: `unseen`, `acquiring`, or `retaining`): where a learner is with one objective. `unseen` is the absence of an estimate; a failure always returns an objective to `acquiring`.
-- **Stability** (`stability`, in days): the retention timescale of a retained objective — the elapsed time at which recall probability reaches 0.9, which is the review interval at the default target retention.
+- **Stability** (`stability`, in days): the retention timescale of a retained objective — the elapsed time at which recall probability reaches 0.9, the review threshold at the default target retention.
 - **Retrievability** (`retrievability`, from 0 to 1): the estimated probability of recalling a retained objective right now.
-- **Due** (`due`, `isDue`): a retained objective whose retrievability is below the model's `targetRetention`. Selection and reports share this one rule.
+- **Due** (`due`, `isDue`; `dueAt`, when it starts to hold): a retained objective whose retrievability is below the model's `targetRetention`. Selection and reports share this one rule.
 - **Replay** (`replay`): rebuilding a learner's estimates from their evidence in `(at, id)` order; the only way from evidence to estimates.
 - **Candidates** (`candidates`): the ordered objective IDs selection chooses from; position in the list is content order.
 - **Learning decision** (`LearningDecision`): the next objective and an intent, with the values that explain it. Never an activity.

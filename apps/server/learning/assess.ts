@@ -4,6 +4,7 @@
 import {
   assertUsableAt,
   assertValidTime,
+  dueAt,
   type KnowledgeEstimate,
   retrievability,
 } from "./estimate.ts";
@@ -19,6 +20,8 @@ import { isDue } from "./select.ts";
  *
  * `due` is selection's rule, not a second one: a retained objective reported
  * as due is one selection would offer for review, were nothing more urgent.
+ * `dueAt` is when that rule starts to hold, past or future, so a reader can
+ * say when to come back.
  */
 export type ObjectiveStanding = { objectiveId: string } & (
   | { phase: "unseen" }
@@ -29,6 +32,7 @@ export type ObjectiveStanding = { objectiveId: string } & (
       stability: number;
       retrievability: number;
       due: boolean;
+      dueAt: Date;
     }
 );
 
@@ -85,6 +89,7 @@ export function assessKnowledge(input: {
         stability: estimate.stability,
         retrievability: r,
         due: isDue(r, model),
+        dueAt: dueAt(estimate, model),
       };
     }),
   };

@@ -70,8 +70,7 @@ function NextStep() {
       {title && <Heading>{title}</Heading>}
       {progress && <ProgressSummary report={progress} />}
       {!activity ? (
-        // Also a course with nothing in it yet, so no promise of what comes later.
-        <Notice title="You're caught up" description="Nothing is due right now." />
+        <CaughtUp report={progress} />
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
@@ -128,6 +127,41 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
       </ul>
     </details>
   );
+}
+
+/**
+ * Adds when the next review falls due, if any objective is retained and not
+ * yet due. The model's time, not a promise of practice: an objective may have
+ * no task. A label, since a title may be a phrase ("Greet someone").
+ */
+function CaughtUp({ report }: { report: LearnerProgressReport | undefined }) {
+  // Read moments apart from the activity, the report may already count one due,
+  // whose time has passed.
+  const next = report?.objectives
+    .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
+  return (
+    <Notice
+      title="You're caught up"
+      description={
+        next
+          ? `Nothing is due right now. Next review due: ${next.title}, on ${dueOn(next.dueAt)}.`
+          : "Nothing is due right now."
+      }
+    />
+  );
+}
+
+/**
+ * `dueAt` rounded up to the minute: shown to the minute, an earlier one would
+ * bring the learner back too soon.
+ */
+function dueOn(dueAt: string): string {
+  const minute = 60_000;
+  return new Date(Math.ceil(Date.parse(dueAt) / minute) * minute).toLocaleString([], {
+    dateStyle: "full",
+    timeStyle: "short",
+  });
 }
 
 /**

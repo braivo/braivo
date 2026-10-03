@@ -205,13 +205,14 @@ type ObjectiveStanding = { objectiveId: string } & (
       stability: number;
       retrievability: number;
       due: boolean;
+      dueAt: Date;
     }
 );
 ```
 
 `assessKnowledge` is the descriptive counterpart to `selectNext`: over the same inputs and held to the same checks, it reports where a learner stands on each objective instead of choosing one. `product.md` asks for both — choosing what comes next, and showing content owners learner progress and knowledge gaps — and retrievability, being derived from the model, may only come out of `learning`. It exists as a function rather than being assembled by its caller because that caller would otherwise need `retrievability` and the target it is compared against, which are the model's to own.
 
-`due` is the selection rule's own predicate, shared rather than restated, so the two agree on what due means: a retained objective reported as due is one selection would review, were nothing more urgent. `assess.test.ts` checks that agreement across generated learners — whatever selection chooses appears in the report as the reason for choosing it — and asserts that each kind of decision was reached a meaningful number of times. That is a floor against a branch going untested, not a proof that every case is covered.
+`due` is the selection rule's own predicate, shared rather than restated, so the two agree on what due means: a retained objective reported as due is one selection would review, were nothing more urgent. `dueAt` is when `due` starts to hold, retrievability's curve solved for `targetRetention`, so a reader can say when to come back. `assess.test.ts` checks that agreement across generated learners — whatever selection chooses appears in the report as the reason for choosing it — and asserts that each kind of decision was reached a meaningful number of times. That is a floor against a branch going untested, not a proof that every case is covered.
 
 The report keeps the order it was given and decides nothing. `unseen` stands in for the estimate that does not exist, as it does everywhere else, so every standing carries exactly the values that describe it.
 

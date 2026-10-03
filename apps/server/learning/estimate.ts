@@ -141,6 +141,19 @@ export function retrievability(estimate: RetainingEstimate, at: Date): number {
 }
 
 /**
+ * When a retained objective falls due: the first millisecond past the moment
+ * its retrievability reaches the model's `targetRetention`. Floating point may
+ * move `isDue` a few milliseconds off it at extreme stabilities. A result
+ * outside the range of a `Date` throws.
+ */
+export function dueAt(estimate: RetainingEstimate, model: LearningModel): Date {
+  const days = estimate.stability * (Math.log(model.targetRetention) / Math.log(STABILITY_ANCHOR));
+  const due = new Date(estimate.lastEvidenceAt.getTime() + Math.floor(days * DAY_MS) + 1);
+  assertValidTime(due, `Review of "${estimate.objectiveId}"`);
+  return due;
+}
+
+/**
  * Folds one evidence record into an objective's estimate. Accepts `undefined`
  * for the unseen case so callers need not branch, which is what keeps the
  * three-state model from needing a fourth representation.

@@ -1356,6 +1356,9 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
           stability: 1,
           retrievability: expect.any(Number),
           due: true,
+          // A stability of one day: recall reaches target a day after, and is
+          // due from the next millisecond.
+          dueAt: new Date(later.getTime() + 86_400_001).toISOString(),
         },
       ],
     });

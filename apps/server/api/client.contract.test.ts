@@ -379,6 +379,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
           stability: 1,
           retrievability: expect.any(Number),
           due: true,
+          dueAt: new Date(at.getTime() + 86_400_001).toISOString(),
         },
         {
           objectiveId: fractions,

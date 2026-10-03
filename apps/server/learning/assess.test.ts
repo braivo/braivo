@@ -60,6 +60,7 @@ describe("assessKnowledge", () => {
           // Stability is the interval at which recall falls to 0.9.
           retrievability: 0.9,
           due: false,
+          dueAt: new Date(now.getTime() + 1),
         },
       ],
     });
@@ -76,6 +77,32 @@ describe("assessKnowledge", () => {
     expect(assess(["a"], retaining("a", 5, daysAgo(5))).objectives[0]).toMatchObject({
       due: false,
     });
+  });
+
+  test("dates when an objective falls due as the moment selection's rule starts to hold", () => {
+    const strict: LearningModel = { ...model, version: "strict", targetRetention: 0.95 };
+    for (const [stability, under] of [
+      [1, model],
+      [10.5, model],
+      [3.7, strict],
+    ] as const) {
+      const estimate = { ...retaining("a", stability, daysAgo(30)), modelVersion: under.version };
+      const at = (time: number) =>
+        assessKnowledge({
+          now: new Date(time),
+          objectiveIds: ["a"],
+          estimates: keyed([estimate]),
+          model: under,
+        }).objectives[0] as { due: boolean; dueAt: Date };
+
+      const { dueAt } = at(now.getTime());
+      expect(at(dueAt.getTime() - 1)).toMatchObject({ due: false, dueAt });
+      expect(at(dueAt.getTime())).toMatchObject({ due: true, dueAt });
+    }
+  });
+
+  test("refuses a stability whose review falls beyond the dates JavaScript holds", () => {
+    expect(() => assess(["a"], retaining("a", 1e9, daysAgo(1)))).toThrow(RangeError);
   });
 
   test("keeps the order it was given, not an order of its own", () => {
