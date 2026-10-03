@@ -54,7 +54,7 @@ The learn app reads `GET /api/organization` before sign-in, once per visit: the 
 | `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                                                          |
 | `/login`                                                      | Sign-in ([access](access.md))                                                                                                                       |
 
-The URL names the organization, never the session: Better Auth's active organization is unused. The last organization opened is kept in `localStorage` by ID, not slug, and written when the page renders, not in `beforeLoad`, which preloading also runs. `_signed-in/$organizationSlug/route.tsx` resolves the slug among the organizations the user manages; an unknown slug is not found, and child pages read `context.organization`.
+The URL names the organization, never the session: Better Auth's active organization is unused. The last organization opened is kept in `localStorage` by ID, not slug, and written when the page renders, not in `beforeLoad`, which preloading also runs. `_signed-in/$organizationSlug/route.tsx` resolves the slug among the organizations the user manages; an unknown slug is not found, an unmatched path below a known one says only that there is nothing here, and child pages read `context.organization`.
 
 ### Slugs
 
@@ -69,7 +69,7 @@ The URL names the organization, never the session: Better Auth's active organiza
 - An origin is trusted only while its domain row exists, and only over HTTPS (`apps/server/auth/origin.test.ts`, `apps/server/auth/auth.test.ts`).
 - Every root-level console route is a reserved slug (`apps/server/auth/slug.test.ts`).
 - A slug is never changed, and a reserved or malformed one never created (`apps/server/auth/auth.test.ts`).
-- `/` never opens an organization the user no longer manages, and a slug the user does not manage reads as not found (`apps/console/routes.test.tsx`).
+- `/` never opens an organization the user no longer manages, a slug the user does not manage reads as not found, and an unmatched path below one they manage never says the organization is missing (`apps/console/routes.test.tsx`).
 - The learn app's brand never blocks it from loading (`apps/learn/routes.test.tsx`).
 - At most one domain per organization, held by the database too (`apps/server/application/domains.test.ts`).
 - A registered hostname is one a request's host can match, and never the installation's (`apps/server/application/domains.test.ts`).
