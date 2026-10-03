@@ -3,16 +3,15 @@
 
 import type { Mail } from "./index.ts";
 
-/**
- * The message carrying a sign-in code. Plain strings rather than a template
- * engine: one short message whose only variable, the code, is checked to be
- * digits, so nothing needs escaping. The HTML is one column of inline styles
- * that stays readable in old mail clients; the text says the same.
- */
-export function signInCodeMail(input: { to: string; code: string; minutes: number }): Mail {
-  const { to, code, minutes } = input;
+/** The email carrying a sign-in code. */
+export function signInCodeMail(input: {
+  to: string;
+  code: string;
+  expiresInMinutes: number;
+}): Mail {
+  const { to, code, expiresInMinutes } = input;
   if (!/^\d+$/.test(code)) throw new TypeError("A sign-in code is digits only.");
-  const expiry = `It works once, for ${minutes} minutes.`;
+  const expiry = `This code expires in ${expiresInMinutes} minutes and can be used once.`;
   const ignore = "If you did not ask for it, ignore this email: nothing happens without the code.";
   return {
     to,

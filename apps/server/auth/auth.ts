@@ -131,7 +131,7 @@ export function createAuth(options: AuthOptions) {
         rateLimit: { window: 60, max: 10 },
         sendVerificationOTP: async ({ email, otp }) => {
           await options.sendMail(
-            signInCodeMail({ to: email, code: otp, minutes: SIGN_IN_CODE.seconds / 60 }),
+            signInCodeMail({ to: email, code: otp, expiresInMinutes: SIGN_IN_CODE.seconds / 60 }),
           );
         },
       }),
