@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createRootRouteWithContext, HeadContent, Outlet } from "@tanstack/react-router";
+import { Button } from "@braivo/ui/components/button";
+import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack/react-router";
 
+import { Notice } from "#components/notice";
 import type { AppContext } from "#lib/context";
 
 export const Route = createRootRouteWithContext<AppContext>()({
@@ -19,10 +21,13 @@ export const Route = createRootRouteWithContext<AppContext>()({
     meta: [{ title: loaderData?.organization?.name ?? "Learning" }],
   }),
   component: Root,
-  notFoundComponent: () => <p>There is nothing here.</p>,
-  // Generic: the default renders whatever was thrown, which is implementation
-  // text rather than anything a reader can act on.
-  errorComponent: () => <p>Something went wrong. Try again.</p>,
+  notFoundComponent: () => (
+    <Notice title="There is nothing here.">
+      <Button asChild variant="outline">
+        <Link to="/">Your courses</Link>
+      </Button>
+    </Notice>
+  ),
 });
 
 function Root() {

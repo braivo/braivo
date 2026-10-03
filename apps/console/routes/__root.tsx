@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createRootRouteWithContext, HeadContent, Outlet } from "@tanstack/react-router";
+import { Button } from "@braivo/ui/components/button";
+import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack/react-router";
 
 import type { AppContext } from "#lib/context";
 
@@ -17,8 +19,16 @@ export const Route = createRootRouteWithContext<AppContext>()({
       </main>
     </>
   ),
-  notFoundComponent: () => <p>There is nothing here.</p>,
-  // Generic: the default renders whatever was thrown, which is implementation
-  // text rather than anything a reader can act on.
-  errorComponent: () => <p>Something went wrong. Try again.</p>,
+  notFoundComponent: () => (
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>There is nothing here.</EmptyTitle>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button asChild variant="outline">
+          <Link to="/organizations">Organizations</Link>
+        </Button>
+      </EmptyContent>
+    </Empty>
+  ),
 });

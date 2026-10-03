@@ -8,12 +8,12 @@ import {
   type Grade,
   type LearnerProgressReport,
 } from "@braivo/server/client";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
-import { routeTree } from "./routeTree.gen.ts";
+import { createLearnRouter } from "./router.tsx";
 
 afterEach(cleanup);
 
@@ -68,6 +68,8 @@ function renderAt(
     submitAttempt?: BraivoClient["submitAttempt"];
     /** The organization whose domain serves the app; none unless given. */
     hostOrganization?: BraivoClient["hostOrganization"];
+    /** Braivo's answer to who is signed in, in place of `signedIn` and `user`. */
+    session?: BraivoClient["session"];
     /** Who is signed in, when `signedIn`. */
     user?: { id: string; name: string };
   },
@@ -96,7 +98,7 @@ function renderAt(
   });
   const braivo = {
     hostOrganization,
-    session: async () => (signedIn ? user : undefined),
+    session: options.session ?? (async () => (signedIn ? user : undefined)),
     signOut,
     learnerCourses,
     learnerProgress,
@@ -105,8 +107,7 @@ function renderAt(
   } as unknown as AppContext["braivo"];
   const visit = vi.fn<AppContext["visit"]>();
 
-  const router = createRouter({
-    routeTree,
+  const router = createLearnRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
     context: { auth, braivo, visit },
   });
@@ -126,6 +127,26 @@ describe("the learn app", () => {
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
     expect(learnerProgress).not.toHaveBeenCalled();
+  });
+
+  test("says so when the session cannot be checked, asking Braivo nothing more, until tried again", async () => {
+    let down = true;
+    const { learnerCourses, router } = renderAt("/", {
+      signedIn: true,
+      session: async () => {
+        if (down) throw new TypeError("Failed to fetch");
+        return { id: "ada", name: "Ada Learner" };
+      },
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+    });
+
+    expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/");
+    expect(learnerCourses).not.toHaveBeenCalled();
+
+    down = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
   test("on its organization's domain, leaves to sign in on the installation's origin, to come back here", async () => {
@@ -245,16 +266,24 @@ describe("the learn app", () => {
   test("offers no way to sign in where it cannot tell which host it is on", async () => {
     // The emailed-code form works only on the installation's host, and a
     // learn domain whose lookup failed may be anything else.
+    let down = true;
     const { visit } = renderAt("/login", {
       signedIn: false,
       hostOrganization: async () => {
-        throw new BraivoError(500, "down");
+        if (down) throw new BraivoError(500, "down");
+        return { name: "Springo" };
       },
     });
 
-    expect(await screen.findByText("Something went wrong. Try again.")).toBeTruthy();
+    const notice = await screen.findByRole("region", { name: "Something went wrong." });
+    expect(document.activeElement).toBe(notice);
     expect(screen.queryByLabelText("Email")).toBeNull();
     expect(visit).not.toHaveBeenCalled();
+
+    // Until it is tried again, once the lookup can answer.
+    down = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
   });
 
   test("signs a learner in with an emailed code, and returns them where they were headed", async () => {
@@ -295,6 +324,15 @@ describe("the learn app", () => {
 
   test("tells a learner with no courses so", async () => {
     renderAt("/", { signedIn: true });
+
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
+  });
+
+  test("leads from a path that names nothing back to the courses", async () => {
+    renderAt("/elsewhere", { signedIn: true, learnerCourses: async () => [] });
+
+    await screen.findByRole("region", { name: "There is nothing here." });
+    fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
 
     expect(await screen.findByText("No courses yet")).toBeTruthy();
   });
@@ -478,8 +516,7 @@ describe("the learn app", () => {
         throw new BraivoError(401, "no session");
       },
     } as unknown as AppContext["braivo"];
-    const router = createRouter({
-      routeTree,
+    const router = createLearnRouter({
       history: createMemoryHistory({ initialEntries: ["/courses/c1"] }),
       context: { auth, braivo, visit: () => {} },
     });

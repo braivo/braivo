@@ -29,7 +29,7 @@ An organization's domain never holds the account's session or takes its credenti
 - `GET /api/session` answers who is signed in on the host asked, and `POST /api/session/sign-out` ends that host's session: on a learn domain its learner session alone, on the installation's the account's. The learn app's guard and sign-out use them.
 - On the installation's host, which serves the learn app only in development, learner routes take the account's session, and the learn app's `/login` signs in by code there.
 - Every `/api/auth/*` answer is `Cache-Control: private, no-store`, and bodies over 1 MB answer `413`.
-- `_signed-in/route.tsx` in each app calls `requireSession` in `beforeLoad`: it asks for the session on every navigation (the console Better Auth, the learn app `GET /api/session`), redirects a signed-out visitor, or an account without a name, to `/login?redirect=<href>`, where `needsName` starts sign-in at the name, and throws rather than signing out when the session cannot be checked.
+- `_signed-in/route.tsx` in each app calls `requireSession` in `beforeLoad`: it asks for the session on every navigation (the console Better Auth, the learn app `GET /api/session`), redirects a signed-out visitor, or an account without a name, to `/login?redirect=<href>`, where `needsName` starts sign-in at the name, and throws rather than signing out when the session cannot be checked, so the page says something went wrong and offers Try again.
 - On the server, a route resolves the session itself — `sessionFor`, the account's, forwarding Better Auth's renewal cookie; or `learnerFor` on learner routes, above — and hands `application` plain user IDs. `application` never imports `auth`.
 
 ### Organizations, members, and roles

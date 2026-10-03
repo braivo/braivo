@@ -23,8 +23,22 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug")({
     return { organization };
   },
   component: Organization,
-  notFoundComponent: () => <p>This organization does not exist, or you do not manage it.</p>,
+  notFoundComponent: OrganizationNotFound,
 });
+
+/**
+ * The slug, when `beforeLoad` found no organization. Otherwise a path below an
+ * organization that names no page, under the header naming it. Told apart by
+ * status: that path leaves this match successful, and its not-found props are
+ * empty, not the documented `isNotFound` and `routeId`.
+ */
+function OrganizationNotFound() {
+  return Route.useMatch().status === "notFound" ? (
+    <p>This organization does not exist, or you do not manage it.</p>
+  ) : (
+    <p>There is nothing here.</p>
+  );
+}
 
 function Organization() {
   const { organization } = Route.useRouteContext();

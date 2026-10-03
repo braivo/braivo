@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
-import { routeTree } from "./routeTree.gen.ts";
+import { createConsoleRouter } from "./router.tsx";
 
 afterEach(() => {
   cleanup();
@@ -83,8 +83,7 @@ function renderAt(
   };
   const visit = vi.fn<AppContext["visit"]>();
 
-  const router = createRouter({
-    routeTree,
+  const router = createConsoleRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
     context: {
       auth: auth as unknown as AppContext["auth"],
@@ -1159,6 +1158,38 @@ describe("the console", () => {
       await screen.findByText("This organization does not exist, or you do not manage it."),
     ).toBeTruthy();
     expect(listCourses).not.toHaveBeenCalled();
+  });
+
+  test("reads a path below an organization that names no page as nothing, not the organization", async () => {
+    renderAt("/example/courses", { braivo: { listCourses: async () => [] } });
+
+    expect(await screen.findByText("There is nothing here.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Example School" })).toBeTruthy();
+    expect(screen.queryByText(/This organization does not exist/)).toBeNull();
+  });
+
+  test("leads from a path that names nothing back to the organizations", async () => {
+    renderAt("/organizations/elsewhere");
+
+    fireEvent.click(await screen.findByRole("link", { name: "Organizations" }));
+
+    expect(await screen.findByRole("link", { name: "Example School" })).toBeTruthy();
+  });
+
+  test("fails a page that could not load in its place, under the header, until tried again", async () => {
+    const listCourses = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([beginners]);
+    renderAt("/example", { braivo: { listCourses } });
+
+    const failure = await screen.findByRole("region", { name: "Something went wrong." });
+    expect(document.activeElement).toBe(failure);
+    expect(screen.getByRole("link", { name: "Example School" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("link", { name: "Beginners" })).toBeTruthy();
+    expect(screen.queryByText("Something went wrong.")).toBeNull();
   });
 
   test("reads an organization Braivo refuses as not found", async () => {
