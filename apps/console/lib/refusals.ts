@@ -37,3 +37,30 @@ export async function readCourseInOrganization(
   if (!course) throw notFound();
   return course;
 }
+
+/**
+ * An AI request, with a proxy's timeout explained. A proxy in front of Braivo
+ * that waits less than the model may answers 504, or Cloudflare's 524, with no
+ * reason of its own. The status cannot tell whether the model ran: if it did,
+ * the request counted (docs/specs/generation.md, generation-13), and sent
+ * unchanged it would likely spend another and be cut off again, so "try again"
+ * is the wrong advice. Wrap only an AI request: an upload cut off spends none.
+ */
+export async function explainAiProxyTimeout<T>(request: Promise<T>): Promise<T> {
+  try {
+    return await request;
+  } catch (error) {
+    if (
+      error instanceof BraivoError &&
+      !error.reason &&
+      (error.status === 504 || error.status === 524)
+    ) {
+      throw new BraivoError(
+        error.status,
+        error.message,
+        "The request timed out before Braivo's AI answered. This may still use one of this month's AI requests. Less material may finish sooner; otherwise, ask whoever runs Braivo to allow AI requests up to five minutes.",
+      );
+    }
+    throw error;
+  }
+}

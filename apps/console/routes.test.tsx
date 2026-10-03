@@ -159,6 +159,17 @@ function deviceFlow(status = "pending") {
   return device;
 }
 
+/**
+ * A proxy's timeout told as one: that the request may have counted, what to
+ * change, and not to try again unchanged.
+ */
+function expectProxyTimeoutExplained(alert: HTMLElement) {
+  expect(alert.textContent).toMatch(/may still use one of this month's AI requests/);
+  expect(alert.textContent).toMatch(/Less material may finish sooner/);
+  expect(alert.textContent).toMatch(/up to five minutes/);
+  expect(alert.textContent).not.toMatch(/Try again/);
+}
+
 describe("the console", () => {
   test.each([
     ["their only organization", [school], "/example"],
@@ -721,6 +732,25 @@ describe("the console", () => {
     );
   });
 
+  test("says a proxy cut off reading a file, and not an upload", async () => {
+    const cutOff = new BraivoError(504, "Braivo answered 504 reading a file's text.");
+    const uploadFile = vi
+      .fn()
+      .mockRejectedValueOnce(new BraivoError(504, "Braivo answered 504 uploading a file."))
+      .mockResolvedValue({ fileId: "f".repeat(64) });
+    renderAt("/example/sources", {
+      braivo: { ...added, uploadFile, readFileText: vi.fn().mockRejectedValue(cutOff) },
+    });
+    await screen.findByText("No material yet");
+    const pdf = new File(["%PDF"], "libro.pdf", { type: "application/pdf" });
+
+    addMaterial({ title: "Mi libro", text: "", file: pdf });
+    expect(await screen.findByText("The material could not be added. Try again.")).toBeTruthy();
+    addMaterial({ title: "Mi libro", text: "", file: pdf });
+
+    expectProxyTimeoutExplained(await screen.findByText(/timed out/));
+  });
+
   test("reads a file once, however often adding its pages is refused", async () => {
     const readFileText = vi.fn(async () => [{ page: "1", text: "Hola." }]);
     const addSource = vi
@@ -925,6 +955,20 @@ describe("the console", () => {
       title: "Saludos",
       objectives: [{ ...drafted.objectives[0], tasks: [drafted.objectives[0]!.tasks[0]] }],
     });
+  });
+
+  test("says a proxy cut off drafting, rather than to try again", async () => {
+    renderAt("/example/sources/s1", {
+      braivo: {
+        ...authoring(),
+        // Cloudflare's timeout; nginx's is 504.
+        draftCourse: vi.fn().mockRejectedValue(new BraivoError(524, "Braivo answered 524.")),
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+
+    expectProxyTimeoutExplained(await screen.findByText(/timed out/));
   });
 
   test("creates a course with the owner's corrections to a proposed task", async () => {

@@ -21,7 +21,7 @@ import { type FormEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
-import { orNotFound } from "#lib/refusals";
+import { explainAiProxyTimeout, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
@@ -150,7 +150,9 @@ function AddSource() {
       let sourceId: string;
       if (fileId && text.trim() === "") {
         if (read.current?.fileId !== fileId) {
-          const pages = await braivo.readFileText({ organizationId, fileId }, { signal });
+          const pages = await explainAiProxyTimeout(
+            braivo.readFileText({ organizationId, fileId }, { signal }),
+          );
           read.current = { fileId, pages };
         }
         sourceId = await braivo.addSource({ ...source, pages: read.current.pages });

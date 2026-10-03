@@ -27,7 +27,7 @@ import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
-import { orNotFound } from "#lib/refusals";
+import { explainAiProxyTimeout, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
@@ -132,9 +132,11 @@ function DraftCourse(props: { source: Source }) {
     setError(undefined);
     try {
       setDraft(
-        await braivo.draftCourse(
-          { organizationId, sourceId: source.id, audience: audience || undefined },
-          { signal },
+        await explainAiProxyTimeout(
+          braivo.draftCourse(
+            { organizationId, sourceId: source.id, audience: audience || undefined },
+            { signal },
+          ),
         ),
       );
     } catch (thrown) {
