@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 # SPDX-License-Identifier: AGPL-3.0-only
 
-# The final gates AGENTS.md asks of every change, so a pull request shows they
-# passed rather than trusting that they were run. Each job is named for the
-# command that reproduces it locally.
+# The final gates from AGENTS.md, run on every pull request and push to main.
+# Each job is named for the command that reproduces it locally, which is also
+# the name branch protection requires.
 name: Check
 
 on:
@@ -14,14 +14,16 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request makes its running checks moot.
+# A newer push to a pull request cancels its stale runs. Each push to main gets
+# a group of its own: a group keeps one pending run and cancels any older one,
+# whatever cancel-in-progress says.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   check:
-    name: vp check
+    name: bunx vp check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -62,7 +64,5 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       # An exact version: setup-uv publishes no major tags since v8.
       - uses: astral-sh/setup-uv@v10.2.0
-      # No `bun install`: the script shells out to uvx and needs no packages —
-      # and a checkout with no build output is what keeps `dist/` out of
-      # reuse's view, which is why this passes here and can fail locally.
+      # No `bun install`: the script shells out to uvx and needs no packages.
       - run: bun run license:check
