@@ -4,11 +4,7 @@ Status: living; checked against the code on 2026-10-03.
 
 Each organization's learners use the learn app on the organization's own hostname, which wears its name and serves its courses alone; its content owners manage it in one console at `braivo.app/<slug>` (product.md, core job 6). Which hostname serves which organization is a database row, not configuration.
 
-## How it works
-
-### Origins
-
-One server process sits behind every origin, and every origin that serves an app also serves `/api`, so apps only call their own origin.
+Each app calls `/api` on its own origin; which hostname reaches which app and the API is the deployment's routing (see Boundaries):
 
 | Origin                                           | Serves                                                | Session                         | Hostname controlled by |
 | ------------------------------------------------ | ----------------------------------------------------- | ------------------------------- | ---------------------- |
@@ -17,77 +13,32 @@ One server process sits behind every origin, and every origin that serves an app
 | A customer's own domain (`learn.school.example`) | The same                                              | A learner session, handed over  | Customer               |
 | `www.braivo.app`                                 | Marketing, Braivo Cloud only, outside this repository | None                            | Braivo                 |
 
-`organization_domain` maps a hostname to an organization: at most one per organization (a unique index), lowercase (a database check), deleted with its organization. The operator writes it with `braivo organization add-domain --slug <slug> --hostname <hostname>` (`registerLearnDomain`). The hostname is lowercased and must be what `URL#hostname` gives back, or lookups never match: ASCII labels of letters, digits, and inner hyphens, 1 to 63 characters each, 253 in all; no scheme, port, path, trailing dot, or IP address; an internationalized name in its `xn--` form. Public DNS is not required (`training` qualifies). Refused: `BRAIVO_URL`'s hostname, which reaches every organization whatever its row says; a hostname another organization has; a second one for an organization. The same mapping again succeeds, so provisioning may retry. DNS, TLS, and routing stay the operator's; only SQL replaces or removes a domain.
+## Rules
 
-### The host ceiling
+- **white-label-1:** An organization has at most one learn domain, and a hostname serves at most one organization, both held by the database too, even against concurrent registrations. Once its organization is deleted, a domain maps to no organization (tested through the domain no longer being trusted). `apps/server/application/domains.test.ts`, `apps/server/auth/origin.test.ts`
+- **white-label-2:** The operator registers a domain with `braivo organization add-domain --slug <slug> --hostname <hostname>`. The hostname is stored lowercased and must be what `URL#hostname` gives back, or no request's host would match it: ASCII labels of letters, digits, and inner hyphens, 1 to 63 characters each, 253 in all; no scheme, port, path, trailing dot, or IP address; an internationalized name in its `xn--` form. Public DNS is not required (`training` qualifies). The database refuses a hostname in capitals. `apps/server/application/domains.test.ts`, `apps/server/auth/origin.test.ts`
+- **white-label-3:** Registering refuses `BRAIVO_URL`'s hostname, whatever its case, which reaches every organization whatever its row says; a slug no organization has; a hostname another organization has, naming it; and a second domain for an organization, naming the first. The same mapping again succeeds, at once or later, so provisioning may retry. `apps/server/application/domains.test.ts`
+- **white-label-4:** The host a request was sent to is a ceiling on which organization a course route reaches: on `BRAIVO_URL`'s host, any; on an organization's domain, that organization alone; on any other host, none, so deleting a domain's row revokes access rather than widening it. It grants nothing. When the request has a session, a course outside the ceiling answers exactly as a missing one, 404, so a domain learns nothing about other organizations. The course routes are a course's `…/next`, `…/activity`, and `…/attempts`, and a learner's progress report; a course's overview is read on the installation's host alone (progress-12), and `GET /api/courses` lists a domain's own courses alone (learner-loop-2). On a host that is neither, no session holds either, so what each route answers there is in `apps/server/api/index.ts`. `apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`, `apps/server/application/activity.test.ts`
+- **white-label-5:** `GET /api/organization`, needing no session, answers the name of the organization the request's host serves, or 404 when it serves none, with `Cache-Control: private, no-store`. `apps/server/api/app.test.ts`
+- **white-label-6:** The learn app reads that name before sign-in, shows it, and uses it in the page title. With an organization named `Springo`, the title is `Springo`, or `Spanish · Springo` on a course named Spanish; on a host serving no organization, those titles are `Learning` and `Spanish`. A failure to read the organization leaves the app unbranded rather than down. `apps/learn/routes.test.tsx`
+- **white-label-7:** The console's URL names the organization, never the session: Better Auth's active organization is unused. `/<slug>` is resolved among the organizations the user manages: a slug they do not manage reads as not found, and a path below one they manage that names no page says only that there is nothing here. `/` signed in opens the organization last opened in this browser while the user still manages it, else the only one they manage, else `/organizations`. `apps/console/routes.test.tsx`
 
-The host a request was sent to limits which organization it may reach. It runs before authorization, never grants anything, and answers a refused course exactly as a missing one (404), so a domain learns nothing about other organizations.
+| Path                                                          | Page                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `/`                                                           | Signed in: as white-label-7 says. Anonymous: `/login`                                         |
+| `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead |
+| `/device`                                                     | Approving a content owner's tool, by the code it showed ([access](access.md))                 |
+| `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                    |
+| `/login`                                                      | Sign-in ([access](access.md))                                                                 |
 
-```mermaid
-flowchart LR
-  R["Request to a<br/>course route"] --> I{"Host is<br/>BRAIVO_URL's?"}
-  I -->|yes| A["Any organization"]
-  I -->|no| D{"organization_domain<br/>row for host?"}
-  D -->|"yes, this course's<br/>organization"| O["That organization only"]
-  D -->|"another's"| N["404"]
-  D -->|none| X["Nothing"]
-  A --> M["Authorization:<br/>member, or content owner?"]
-  O --> M
-```
+- **white-label-8:** A slug is lowercase letters, digits, and single hyphens, at most 63 characters, and none of the reserved `api`, `assets`, `device`, `invitations`, `login`, and `organizations`, which `/<slug>` would shadow; every root-level console route is reserved. An organization is never created with a malformed or reserved slug (through creation, only a reserved one tested), and its slug never changes: an update naming a different one is refused, the current one resent accepted. `apps/server/auth/slug.test.ts`, `apps/server/auth/auth.test.ts`
 
-- Every course route applies it: the learner's `next`, `activity` and `attempts`, and the progress routes, a learner's report and a course's overview, which is read on the installation's host alone ([progress](progress.md), progress-12). The organization routes (`/api/organizations/…`) do not: they serve the console, on the installation's host. `GET /api/courses` applies it as a filter: on a domain, that organization's courses alone.
-- A host that is neither an organization's domain nor `BRAIVO_URL`'s reaches nothing, so deleting a domain's row revokes access rather than widening it. No session holds there either ([access](access.md)); what each route answers is in `apps/server/api/index.ts`.
+## Boundaries
 
-### Trusted origins
-
-Braivo's write check ([access](access.md)) trusts `BRAIVO_URL`'s origin, plus, on a learn domain, `https://<hostname>` on the default port while an `organization_domain` row maps it, looked up on every request. Better Auth trusts `BRAIVO_URL`'s origin alone.
-
-### Branding
-
-The learn app reads `GET /api/organization` before sign-in, once per visit: the name of the organization its host serves, or 404 when none. It shows that name and uses it as the page title; on a course page, the course title comes first: `Springo`, `Spanish · Springo` (`Learning`, `Spanish` when there is none); a failure leaves the app unbranded rather than down. Name only: no logo, colours, or favicon.
-
-### Console addressing
-
-| Path                                                          | Page                                                                                                                                                |
-| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                                                           | Signed in: the organization last opened in this browser, while still managed, else the only one managed, else `/organizations`. Anonymous: `/login` |
-| `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead                                                       |
-| `/device`                                                     | Approving a content owner's tool, by the code it showed ([access](access.md))                                                                       |
-| `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                                                          |
-| `/login`                                                      | Sign-in ([access](access.md))                                                                                                                       |
-
-The URL names the organization, never the session: Better Auth's active organization is unused. The last organization opened is kept in `localStorage` by ID, not slug, and written when the page renders, not in `beforeLoad`, which preloading also runs. `_signed-in/$organizationSlug/route.tsx` resolves the slug among the organizations the user manages; an unknown slug is not found, an unmatched path below a known one says only that there is nothing here, and child pages read `context.organization`.
-
-### Slugs
-
-- Lowercase letters, digits and single hyphens, at most 63 characters, checked in Better Auth's create hook.
-- Reserved, since `/<slug>` would shadow them: `api`, `assets`, `device`, `invitations`, `login`, `organizations`.
-- Never changed: the update hook refuses a different slug and accepts the current one resent.
-
-## Invariants
-
-- A domain never serves another organization's course or course list (`apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`, `apps/server/application/activity.test.ts`).
-- A host that is neither an organization's domain nor `BRAIVO_URL`'s reaches no course (`apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`).
-- An origin is trusted only while its domain row exists, and only over HTTPS (`apps/server/auth/origin.test.ts`, `apps/server/auth/auth.test.ts`).
-- Every root-level console route is a reserved slug (`apps/server/auth/slug.test.ts`).
-- A slug is never changed, and a reserved or malformed one never created (`apps/server/auth/auth.test.ts`).
-- `/` never opens an organization the user no longer manages, a slug the user does not manage reads as not found, and an unmatched path below one they manage never says the organization is missing (`apps/console/routes.test.tsx`).
-- The learn app's brand never blocks it from loading (`apps/learn/routes.test.tsx`).
-- At most one domain per organization, held by the database too (`apps/server/application/domains.test.ts`).
-- A registered hostname is one a request's host can match, and never the installation's (`apps/server/application/domains.test.ts`).
-
-## Code map
-
-| Concern            | Where                                                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Domain table       | `packages/db/schema/domain.ts`                                                                                                |
-| Registering one    | `registerLearnDomain` in `apps/server/application/domains.ts`, `organization add-domain` in `apps/server/cli/index.ts`        |
-| Host ceiling       | `apps/server/application/host.ts` (`hostAdmits`, `RequestHost`), `requestHost` in `apps/server/api/app.ts`                    |
-| Course list filter | `listLearnerCourses` in `apps/server/application/courses.ts`                                                                  |
-| Origin trust       | `apps/server/auth/origin.ts`, `isTrustedWrite` in `apps/server/api/app.ts`                                                    |
-| Branding           | `GET /api/organization` in `apps/server/api/app.ts`, `apps/learn/routes/__root.tsx`                                           |
-| Slugs              | `apps/server/auth/slug.ts`, organization hooks in `apps/server/auth/auth.ts`                                                  |
-| Console addressing | `apps/console/routes/_signed-in/index.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/last-organization.ts` |
+- Who may sign in, hold a learner session, and reach which route, and which request origins are trusted: [access](access.md). Those checks consult the hostname-to-organization mapping this spec owns; the host ceiling never grants, and access decides within it.
+- What a learner's course routes do: [learner loop](learner-loop.md); a learner's report and a course's overview: [progress](progress.md).
+- DNS, TLS, and which app each host serves stay the operator's: the server answers `/api` alone and reads the organization from the request's `Host`, which a proxy in front must pass. Only SQL replaces or removes a domain.
+- Not here yet: branding beyond the name, changing a slug, and moving an organization to another hostname (see Gaps).
 
 ## Decisions
 
@@ -103,3 +54,7 @@ The URL names the organization, never the session: Better Auth's active organiza
 | Branding is the name only                   | Weak white-label: no logo, colours, or favicon                   | A branding slice: which fields, where stored, how the learn app loads them |
 | Only SQL replaces or removes a learn domain | Moving an organization to another hostname needs database access | A command when an organization first needs to move                         |
 | No deployment packaging for multiple hosts  | Self-hosters must build their own proxy that passes `Host`       | Deployment docs or packaging (README, Deployment)                          |
+
+## Entry points
+
+`apps/server/application/host.ts` (the host ceiling), `apps/server/application/domains.ts` (registering a domain), `apps/server/auth/slug.ts` (slugs), `apps/console/routes/_signed-in/$organizationSlug/route.tsx` (resolving a slug), `apps/learn/routes/__root.tsx` (branding).

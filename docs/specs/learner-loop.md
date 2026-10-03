@@ -7,7 +7,7 @@ A learner opens a course and Braivo keeps choosing what to practise next from wh
 ## Rules
 
 - **learner-loop-1:** `GET /api/courses` and a course's `…/next`, `…/activity`, and `…/attempts` act for the session's user, on a learn domain its learner session's ([access](access.md)), and nothing in the request names a learner. `apps/server/api/app.test.ts`
-- **learner-loop-2:** `GET /api/courses` lists, by title, every course of every organization the learner is a member of; on an organization's domain, that organization's alone ([white-label](white-label.md)). `apps/server/api/app.test.ts`, `apps/server/api/client.contract.test.ts`
+- **learner-loop-2:** `GET /api/courses` lists, by title, every course of every organization the learner is a member of; on an organization's domain, that organization's alone ([white-label](white-label.md), white-label-4). `apps/server/api/app.test.ts`, `apps/server/api/client.contract.test.ts`
 - **learner-loop-3:** A missing course, another organization's, one the host does not admit, one whose organization the learner is not a member of, and a task outside the course all answer alike: 404. `apps/server/api/app.test.ts`, `apps/server/application/next-objective.test.ts`, `apps/server/application/activity.test.ts`
 - **learner-loop-4:** Each read decides afresh: the learner's evidence at the course's organization up to `now` is replayed under the active model, and the next objective chosen from the course's in content order ([learning model](learning-model.md)). Evidence dated after `now` does not count. `GET …/next` answers that bare decision, for integrators with their own tasks, or 204 when the learner is caught up. `apps/server/application/next-objective.test.ts`, `apps/server/application/learner-in-course.test.ts`, `apps/server/api/app.test.ts`
 - **learner-loop-5:** `GET …/activity` decides among the objectives with a task first, and among those without one only when none of those needs attention, answering that decision without a task (no activity). It answers 204, caught up, only when no objective needs attention, so no activity is never presented as caught up. `apps/server/application/activity.test.ts`, `apps/server/api/app.test.ts`, `apps/learn/routes.test.tsx`
@@ -42,7 +42,7 @@ A learner opens a course and Braivo keeps choosing what to practise next from wh
 
 ## Boundaries
 
-- Which organization a host reaches, and the course routes' host ceiling: [white-label](white-label.md). The evidence endpoint is an organization route, served on the installation's host alone.
+- Which organization a host reaches, and the course routes' host ceiling: [white-label](white-label.md), white-label-4. The evidence endpoint is an organization route, served on the installation's host alone.
 - Who is a learner in which organization, sign-in, and the write check: [access](access.md). Membership stands in for enrollment.
 - How objectives, courses, tasks, and their passages are made and retired: [authoring](authoring.md).
 - How evidence becomes estimates and estimates a decision: [learning model](learning-model.md); where a learner stands: [progress](progress.md).
