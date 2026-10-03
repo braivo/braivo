@@ -18,8 +18,8 @@ describe("reading captions", () => {
       "﻿WEBVTT - Los animales",
       "Kind: captions",
       "",
-      "NOTE a comment that quotes",
-      "00:00:09.000 --> 00:00:10.000",
+      "NOTE",
+      "a comment, which no viewer reads",
       "",
       "STYLE",
       "::cue { color: yellow }",
@@ -178,6 +178,48 @@ dos.
     );
     expect(parseCaptions("WEBVTT\n\nNOTE nothing here\n", "vtt")).toEqual(
       new Error("No captions found in this vtt file."),
+    );
+  });
+
+  test("reads a WebVTT cue named like a comment or a setting", () => {
+    // A timing on its second line makes a block a cue, whatever names it.
+    const vtt =
+      "WEBVTT\n\nNOTE\n00:01.000 --> 00:02.000\nUno.\n\nSTYLE intro\n00:03.000 --> 00:04.000\nDos.\n";
+
+    expect(parseCaptions(vtt, "vtt")).toEqual([
+      { at: 1, text: "Uno." },
+      { at: 3, text: "Dos." },
+    ]);
+  });
+
+  test("refuses a caption it cannot time, rather than lose its words", () => {
+    // Its milliseconds two digits, not three.
+    const mistimed =
+      "1\n00:00:01,000 --> 00:00:02,000\nUno.\n\n2\n00:00:03,00 --> 00:00:04,000\nDos.\n";
+    expect(parseCaptions(mistimed, "srt")).toEqual(
+      new Error("Line 6: a timing should look like 00:00:01,000 --> 00:00:02,000."),
+    );
+    expect(parseCaptions("1\n00:00:01,000 --> 00:00:02,000\nUno.\n\nDos.\n", "srt")).toEqual(
+      new Error("Line 5: a caption needs a timing, such as 00:00:01,000 --> 00:00:02,000."),
+    );
+  });
+
+  test("refuses captions run together, rather than say a timing or lose words", () => {
+    const unseparated = "WEBVTT\n\n00:01.000 --> 00:02.000\nUno.\n00:03.000 --> 00:04.000\nDos.\n";
+    expect(parseCaptions(unseparated, "vtt")).toEqual(
+      new Error("Line 5: captions need a blank line between them."),
+    );
+    // The second timing where an identifier would be.
+    const adjacent = "WEBVTT\n\n00:01.000 --> 00:02.000\n00:03.000 --> 00:04.000\nDos.\n";
+    expect(parseCaptions(adjacent, "vtt")).toEqual(
+      new Error("Line 4: captions need a blank line between them."),
+    );
+    // Past an identifier, so the lines above it are another caption's.
+    expect(parseCaptions("Uno.\n2\n00:00:03,000 --> 00:00:04,000\nDos.\n", "srt")).toEqual(
+      new Error("Line 3: captions need a blank line between them."),
+    );
+    expect(parseCaptions("WEBVTT\n00:01.000 --> 00:02.000\nUno.\n", "vtt")).toEqual(
+      new Error("Line 2: the first caption needs a blank line after the WebVTT header."),
     );
   });
 
