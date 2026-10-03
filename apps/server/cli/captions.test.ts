@@ -223,6 +223,48 @@ dos.
     );
   });
 
+  test("refuses a mistyped timing run into a caption, rather than read it out", () => {
+    // The second timing's milliseconds two digits, so it reads as a line of the first caption.
+    const srt = "1\n00:00:01,000 --> 00:00:02,000\nUno.\n2\n00:00:03,00 --> 00:00:04,000\nDos.\n";
+    expect(parseCaptions(srt, "srt")).toEqual(
+      new Error(
+        "Line 5: a timing should look like 00:00:01,000 --> 00:00:02,000, and captions need a blank line between them.",
+      ),
+    );
+    // A dash short, a dot for a colon, an arrow typed as one character, and in
+    // WebVTT any typo beside a right arrow, which it allows nowhere else.
+    for (const timing of [
+      "00:03.000 -> 00:04.000",
+      "00.03.000 --> 00:04.000",
+      "00:03.000 → 00:04.000",
+      "00_03.000 --> 00:04.000",
+    ]) {
+      const vtt = `WEBVTT\n\n00:01.000 --> 00:02.000\nUno.\n${timing}\nDos.\n`;
+      expect(parseCaptions(vtt, "vtt")).toEqual(
+        new Error(
+          "Line 5: a timing should look like 00:00:01.000 --> 00:00:02.000, and captions need a blank line between them.",
+        ),
+      );
+    }
+    // In the header, or a cue named like a comment, which would be dropped whole.
+    expect(parseCaptions("WEBVTT\n00:01.00 --> 00:02.000\nUno.\n", "vtt")).toEqual(
+      new Error("Line 2: the first caption needs a blank line after the WebVTT header."),
+    );
+    const note = "WEBVTT\n\nNOTE\n00_01.000 --> 00:02.000\nUno.\n\n00:03.000 --> 00:04.000\nDos.\n";
+    expect(parseCaptions(note, "vtt")).toEqual(
+      new Error("Line 4: a timing should look like 00:00:01.000 --> 00:00:02.000."),
+    );
+  });
+
+  test("takes no arrow in a caption, the WebVTT title, or a comment for a timing", () => {
+    const srt = "1\n00:00:01,000 --> 00:00:04,000\nIn C, p --> q is p-- > q.\n";
+    expect(parseCaptions(srt, "srt")).toEqual([{ at: 1, text: "In C, p --> q is p-- > q." }]);
+    // The WebVTT title, and a comment below its first line.
+    const vtt =
+      "WEBVTT Lesson A --> Lesson B\n\nNOTE Chapters\n00:00 Intro\n00:01 -> Uno\n\n00:01.000 --> 00:02.000\nUno.\n";
+    expect(parseCaptions(vtt, "vtt")).toEqual([{ at: 1, text: "Uno." }]);
+  });
+
   test("keeps no character text cannot hold", () => {
     const vtt = "WEBVTT\n\n00:01.000 --> 00:02.000\na&#0;b&#xD800;c\n";
 
