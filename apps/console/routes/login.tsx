@@ -146,7 +146,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   return (
     <>
       <Heading>Sign in to {name}</Heading>
-      <MutedText className="mb-6 block">You will continue at {handoff.hostname}.</MutedText>
+      <MutedText className="mb-6 block wrap-break-word">
+        You will continue at {handoff.hostname}.
+      </MutedText>
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
@@ -165,8 +167,10 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
       {view === "leaving" && <Spinner aria-label="Signing in" />}
       {view === "account" && (
         <div className="flex flex-col items-center gap-2">
+          {/* Wrapped whole, an unbroken email too: the account is what tells
+              a shared device's users apart. */}
           <Button
-            className="w-full"
+            className="h-auto min-h-9 w-full py-1.5 whitespace-normal wrap-anywhere"
             aria-disabled={pending}
             // An account still without a name is named first.
             onClick={() => !pending && (!stale && needsName ? setView("form") : handOver())}
