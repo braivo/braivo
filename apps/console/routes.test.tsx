@@ -1657,6 +1657,10 @@ describe("the console", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+    // Named in the page, not only the tab, and leading back to the course's other learners.
+    expect(screen.getByRole("link", { name: "Beginners" }).getAttribute("href")).toBe(
+      "/example/courses/course-1",
+    );
     const [header, greetings, numbers] = screen.getAllByRole("row");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
     expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();

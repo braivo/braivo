@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { orNotFound, readCourseInOrganization } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -53,10 +53,19 @@ export const Route = createFileRoute(
 });
 
 function Progress() {
-  const { report, learnerName } = Route.useLoaderData();
+  const { report, learnerName, courseTitle } = Route.useLoaderData();
+  const { organizationSlug, courseId } = Route.useParams();
 
   return (
     <>
+      {/* The course this report is in, and the way back to its other learners. */}
+      <Link
+        to="/$organizationSlug/courses/$courseId"
+        params={{ organizationSlug, courseId }}
+        className="mb-2 inline-block text-sm text-muted-foreground underline"
+      >
+        {courseTitle}
+      </Link>
       <Heading>{learnerName}</Heading>
       <Table>
         <TableHeader>
