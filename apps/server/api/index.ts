@@ -455,7 +455,7 @@
 // `{ "pages": [{ "page": "12", "text": "…" }] }`, labelled as printed, for
 // `POST …/sources` as `pages` with the file as `original`. Nothing is stored.
 // Body `{}`. A PDF of at most 24 MB, or a PNG, JPEG, GIF, or WebP image of at
-// most 3.75 MB; anything else is a 400 saying so. Otherwise as drafting — 403,
+// most 7.5 MB; anything else is a 400 saying so. Otherwise as drafting — 403,
 // 429, 501, and 502 explained, counted against the same monthly limit — plus
 // 501 when the installation keeps no files and 404 when the organization has
 // no such file.

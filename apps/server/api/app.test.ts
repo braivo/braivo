@@ -2203,7 +2203,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       files,
       ai: { model, organizations: new Set([organizationId]) },
     });
-    const upload = async (body: string, type: string) => {
+    const upload = async (body: string | Uint8Array, type: string) => {
       const uploaded = await postFile(
         body,
         { "content-type": type, cookie: teacher.cookie },
@@ -2227,6 +2227,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const refused = await read(epub);
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { error: string }).error).toContain("reads PDFs and images");
+    // Printable: the model here answers them back as a page's text, which may hold no NUL.
+    const bytes = (size: number) => new Uint8Array(size).fill(97);
+    expect((await read(await upload(bytes(7_500_000), "image/png"))).status).toBe(200);
+    const photo = await read(await upload(bytes(7_500_001), "image/png"));
+    expect(photo.status).toBe(400);
+    expect(await photo.json()).toEqual({
+      error:
+        "Braivo's AI reads an image of at most 7.5 MB; photograph a page at a time, or save it smaller.",
+    });
+    const book = await read(await upload(bytes(24_000_001), "application/pdf"));
+    expect(book.status).toBe(400);
+    expect(await book.json()).toEqual({
+      error: "Braivo's AI reads a PDF of at most 24 MB; send it a chapter at a time.",
+    });
     expect((await read("0".repeat(64))).status).toBe(404);
     // No file store: nothing to read from, said as for uploading.
     expect(
@@ -2244,12 +2258,15 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       adminIds: [teacher.id],
       at,
     });
-    const added = await api.request(`/api/organizations/${limitedOrganization}/sources`, {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: teacher.cookie },
-      body: JSON.stringify({ title: "Saludos", text: "Hola significa hello." }),
-    });
-    const { sourceId } = (await added.json()) as { sourceId: string };
+    const add = async (text: string) => {
+      const added = await api.request(`/api/organizations/${limitedOrganization}/sources`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: teacher.cookie },
+        body: JSON.stringify({ title: "Saludos", text }),
+      });
+      return ((await added.json()) as { sourceId: string }).sourceId;
+    };
+    const sourceId = await add("Hola significa hello.");
     let asked = 0;
     const limited = createApi({
       auth,
@@ -2259,31 +2276,40 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         model: {
           answer: async () => {
             asked += 1;
+            if (asked === 1) throw new ModelUnavailable("The model answered 529.");
             return { objectives: [] };
           },
         },
         organizations: "all",
-        monthlyLimit: 1,
+        monthlyLimit: 2,
       },
     });
-    const draft = (body: object = {}) =>
-      limited.request(`/api/organizations/${limitedOrganization}/sources/${sourceId}/draft`, {
+    const draft = (source: string, body: object = {}) =>
+      limited.request(`/api/organizations/${limitedOrganization}/sources/${source}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
         body: JSON.stringify(body),
       });
 
-    // Refused before the model is asked, so it costs nothing.
-    expect((await draft({ audience: "a".repeat(201) })).status).toBe(400);
-    expect((await draft()).status).toBe(200);
+    // Refused before the model is asked, so they cost nothing.
+    expect((await draft(sourceId, { audience: "a".repeat(201) })).status).toBe(400);
+    const long = await draft(await add("a".repeat(200_001)));
+    expect(long.status).toBe(400);
+    expect(await long.json()).toEqual({
+      error:
+        "The source is longer than 200,000 characters; add it as several sources, a chapter each, and draft from each.",
+    });
+    // Asked and failed, so it may have been paid for: it counts.
+    expect((await draft(sourceId)).status).toBe(502);
+    expect((await draft(sourceId)).status).toBe(200);
 
-    const refused = await draft();
+    const refused = await draft(sourceId);
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(((await refused.json()) as { error: string }).error).toMatch(
-      /^This organization has used its 1 AI requests for this month; more from \d{4}-\d{2}-01/,
+      /^This organization has used its 2 AI requests for this month; more from \d{4}-\d{2}-01/,
     );
-    expect(asked).toBe(1);
+    expect(asked).toBe(2);
   });
 
   test("charges nothing for a file the store failed to give", async () => {
