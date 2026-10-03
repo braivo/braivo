@@ -14,7 +14,12 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
     "Enter 123456 to sign in. This code expires in 10 minutes and can be used once.\n\n" +
       "If you did not ask for it, ignore this email: nothing happens without the code.",
   );
-  for (const part of ["Enter this code to sign in:", "123456", "10 minutes", "ignore this email"]) {
+  for (const part of [
+    "Enter this code to sign in:",
+    "123456",
+    "This code expires in 10 minutes and can be used once.",
+    "ignore this email",
+  ]) {
     expect(mail.html).toContain(part);
   }
 });

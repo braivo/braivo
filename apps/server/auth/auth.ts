@@ -33,7 +33,7 @@ type AuthOptions = {
   secret: string;
   /** Public origin this installation is served from, used to build callback URLs. */
   baseURL: string;
-  /** Delivers sign-in codes. */
+  /** Sends sign-in codes. */
   sendMail: SendMail;
 };
 
