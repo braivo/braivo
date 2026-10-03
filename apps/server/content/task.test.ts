@@ -52,7 +52,7 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, keepOrder: "yes" })).toHaveProperty("problem");
   });
 
-  test("accepts texts of 2000 characters", () => {
+  test("accepts texts of 2000 characters, counted as stored: trimmed", () => {
     const long = "x".repeat(2000);
     const body = {
       ...choice,
@@ -61,6 +61,14 @@ describe("parseTaskBody", () => {
       explanation: long,
     };
     expect(parseTaskBody(body)).toEqual({ body });
+
+    const padded = {
+      ...body,
+      prompt: ` ${long}\n`,
+      options: body.options.map((option) => `\t${option} `),
+      explanation: `${long}\n\n`,
+    };
+    expect(parseTaskBody(padded)).toEqual({ body });
   });
 
   test("accepts one without an explanation", () => {

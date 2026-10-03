@@ -76,7 +76,11 @@ const quote = z
 // The API's own limits, said in the schemas so an agent learns of one from the
 // tool's description, before it calls.
 
-/** Text a person reads, as the API stores it: not blank, no NUL, at most `max`. */
+/**
+ * Text a person reads, as the API stores it: not blank, no NUL, at most `max`.
+ * Counted untrimmed, as the schema's `maxLength` is, so the published limit is
+ * the one enforced; only edge padding makes it stricter than the API's.
+ */
 const text = (max: number) =>
   z
     .string()

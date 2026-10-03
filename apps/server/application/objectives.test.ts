@@ -122,6 +122,13 @@ describe.skipIf(!connectionString)("defining objectives", () => {
     expect(await list()).toEqual([]);
   });
 
+  test("counts a title's 500 characters as stored: trimmed", async () => {
+    const long = "P".repeat(500);
+    await define([` ${long}\n`]);
+
+    expect(await list()).toMatchObject([{ title: long }]);
+  });
+
   test("defines nothing, and does not fail, for an empty list", async () => {
     expect(await define([])).toEqual([]);
     expect(await list()).toEqual([]);
