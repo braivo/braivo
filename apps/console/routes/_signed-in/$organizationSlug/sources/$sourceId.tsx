@@ -22,7 +22,7 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
@@ -41,6 +41,8 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
   }),
   // Marked, as a course drafted from it takes its title by default.
   head: (head) => pageHead(head, head.loaderData && `${head.loaderData.source.title} · Source`),
+  // Remounted for another source, so no draft carries over to it.
+  remountDeps: ({ params }) => params,
   component: SourcePage,
   notFoundComponent: () => <p>This source does not exist, or you do not manage it.</p>,
 });
@@ -191,7 +193,8 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
   const { source, draft, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
-  const navigate = useNavigate();
+  const router = useRouter();
+  const abortOnUnmount = useAbortOnUnmount();
   // Dropped rather than kept, so the default is everything: "o:<i>", "t:<i>:<j>".
   const [dropped, setDropped] = useState<ReadonlySet<string>>(new Set());
   // Objectives' titles as the owner left them, by index; a draft's own until typed in.
@@ -283,6 +286,9 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       }
     }
 
+    const signal = abortOnUnmount();
+    // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
+    const from = router.latestLocation.pathname;
     setSubmitted(sending);
     setCreating(true);
     setError(undefined);
@@ -292,7 +298,13 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
         sourceId: source.id,
         ...sending,
       });
-      await navigate({
+      // Unless the owner left meanwhile. A review still shown can be sent
+      // again, which finishes the course already created and opens it.
+      if (signal?.aborted || router.latestLocation.pathname !== from) {
+        setCreating(false);
+        return;
+      }
+      await router.navigate({
         to: "/$organizationSlug/courses/$courseId",
         params: { organizationSlug: organization.slug, courseId },
       });

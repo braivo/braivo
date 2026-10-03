@@ -610,6 +610,54 @@ describe("the console", () => {
     expect(await screen.findByRole("heading", { name: "Unidad 1" })).toBeTruthy();
   });
 
+  test("leaves an owner where they went when the source they left is added", async () => {
+    const adding = Promise.withResolvers<string>();
+    const addSource = vi.fn(() => adding.promise);
+    const { router } = renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        // Annex's sources still loading when the source is added.
+        listSources: (organizationId: string) =>
+          organizationId === "org-1" ? Promise.resolve([]) : new Promise(() => {}),
+        addSource,
+      },
+      organizations: [school, annex],
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({ title: "Unidad 1", text: "Hola." });
+    await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
+    void router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "annex" },
+    });
+    adding.resolve("s1");
+    await adding.promise;
+
+    expect(router.history.location.pathname).toBe("/annex/sources");
+  });
+
+  test("leaves an owner on the page they returned to when the source they left is added", async () => {
+    const adding = Promise.withResolvers<string>();
+    const addSource = vi.fn(() => adding.promise);
+    const { router } = renderAt("/example/sources", {
+      braivo: { ...added, addSource, listCourses: async () => [] },
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({ title: "Unidad 1", text: "Hola." });
+    await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "example" },
+    });
+    adding.resolve("s1");
+    await adding.promise;
+
+    expect(router.history.location.pathname).toBe("/example/sources");
+  });
+
   test("stops uploading and reading a file nobody is waiting for once the owner leaves", async () => {
     let signal: AbortSignal | undefined;
     let uploading: AbortSignal | undefined;
@@ -627,6 +675,7 @@ describe("the console", () => {
         readFileText,
         addSource: async () => "s1",
       },
+      organizations: [school, annex],
     });
     await screen.findByText("No material yet");
 
@@ -636,7 +685,11 @@ describe("the console", () => {
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
     });
     await vi.waitFor(() => expect(signal).toBeDefined());
-    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    // The same page, another organization's.
+    await router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "annex" },
+    });
 
     await vi.waitFor(() => expect(signal?.aborted).toBe(true));
     expect(uploading).toBe(signal);
@@ -1006,6 +1059,75 @@ describe("the console", () => {
     });
 
     await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+  });
+
+  test("reviews no draft on another source's page than the one it was drafted from", async () => {
+    const { router } = renderAt("/example/sources/s1", { braivo: authoring() });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    expect(await screen.findByRole("button", { name: "Create course" })).toBeTruthy();
+    await router.navigate({
+      to: "/$organizationSlug/sources/$sourceId",
+      params: { organizationSlug: "example", sourceId: "s2" },
+    });
+
+    expect(await screen.findByRole("button", { name: "Draft a course" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
+  });
+
+  test("leaves a review usable when the course is created while the owner is leaving", async () => {
+    const creating = Promise.withResolvers<string>();
+    const braivo = {
+      ...authoring(),
+      // The other source still loading when the course is created.
+      getSource: ({ sourceId }: { sourceId: string }) =>
+        sourceId === "s1" ? Promise.resolve(saludos) : new Promise(() => {}),
+    };
+    braivo.acceptDraft.mockImplementation(() => creating.promise);
+    const { router } = renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    void router.navigate({
+      to: "/$organizationSlug/sources/$sourceId",
+      params: { organizationSlug: "example", sourceId: "s2" },
+    });
+    creating.resolve("course-1");
+    await creating.promise;
+    // Changing their mind before the other source loads.
+    await router.navigate({
+      to: "/$organizationSlug/sources/$sourceId",
+      params: { organizationSlug: "example", sourceId: "s1" },
+    });
+
+    expect(router.history.location.pathname).toBe("/example/sources/s1");
+    // Sent again, it finishes as created, and opens the course.
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    await vi.waitFor(() =>
+      expect(router.history.location.pathname).toBe("/example/courses/course-1"),
+    );
+  });
+
+  test("leaves an owner on the page they returned to when the course they left is created", async () => {
+    const creating = Promise.withResolvers<string>();
+    const braivo = { ...authoring(), listCourses: async () => [] };
+    braivo.acceptDraft.mockImplementation(() => creating.promise);
+    const { router } = renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await router.navigate({
+      to: "/$organizationSlug/sources/$sourceId",
+      params: { organizationSlug: "example", sourceId: "s1" },
+    });
+    creating.resolve("course-1");
+    await creating.promise;
+
+    expect(router.history.location.pathname).toBe("/example/sources/s1");
   });
 
   test("refuses an overlong course title before sending anything", async () => {

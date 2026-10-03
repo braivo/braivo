@@ -16,7 +16,7 @@ import {
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
 import { Textarea } from "@braivo/ui/components/textarea";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { type FormEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
@@ -31,6 +31,8 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
     ),
   }),
   head: (head) => pageHead(head, "Sources"),
+  // Remounted for another organization, so no form or request carries over to it.
+  remountDeps: ({ params }) => params,
   component: Sources,
   notFoundComponent: () => <p>This organization does not exist, or you do not manage it.</p>,
 });
@@ -95,7 +97,7 @@ const REFUSED_TYPES = [
 function AddSource() {
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
-  const navigate = useNavigate();
+  const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string>();
   const id = useId();
@@ -127,6 +129,8 @@ function AddSource() {
     }
 
     const signal = abortOnUnmount();
+    // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
+    const from = router.latestLocation.pathname;
     setAdding(true);
     setError(undefined);
     try {
@@ -153,8 +157,10 @@ function AddSource() {
       } else {
         sourceId = await braivo.addSource({ ...source, text });
       }
-      // To the source's page, where a course is drafted from it.
-      await navigate({
+      // To the source's page, where a course is drafted from it, unless the
+      // owner left meanwhile: added anyway, it is listed.
+      if (signal?.aborted || router.latestLocation.pathname !== from) return;
+      await router.navigate({
         to: "/$organizationSlug/sources/$sourceId",
         params: { organizationSlug: organization.slug, sourceId },
       });
