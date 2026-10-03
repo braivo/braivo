@@ -36,10 +36,10 @@ const jsonb = customType<{ data: unknown }>({ dataType: () => "jsonb" });
  * opaque token, so there is nothing for it to read in a meaningful one.
  *
  * A material change to what is being learned creates a new objective rather than
- * rewriting an existing one — rewording is not a material change, which is why
- * `title` is editable while identity is not. The schema cannot enforce that
- * rule; what it can do is refuse to let an objective disappear from under the
- * evidence attributed to it, which is what the restricted references do.
+ * rewriting an existing one — rewording is not a material change, so a new
+ * `title` keeps the same objective. The schema cannot enforce that rule; what
+ * it can do is refuse to let an objective disappear from under the evidence
+ * attributed to it, which is what the restricted references do.
  */
 export const objective = pgTable(
   "objective",
