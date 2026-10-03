@@ -28,6 +28,7 @@ import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
 import { orNotFound } from "#lib/refusals";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
   loader: async ({ context, params, abortController }) => ({
@@ -38,6 +39,8 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
       ),
     ),
   }),
+  // Marked, as a course drafted from it takes its title by default.
+  head: (head) => pageHead(head, head.loaderData && `${head.loaderData.source.title} · Source`),
   component: SourcePage,
   notFoundComponent: () => <p>This source does not exist, or you do not manage it.</p>,
 });

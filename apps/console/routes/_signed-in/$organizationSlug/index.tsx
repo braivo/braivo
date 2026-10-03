@@ -6,6 +6,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/com
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { orNotFound } from "#lib/refusals";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
   loader: async ({ context, abortController }) => ({
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
       context.braivo.listCourses(context.organization.id, { signal: abortController.signal }),
     ),
   }),
+  head: (head) => pageHead(head, "Courses"),
   component: Courses,
   notFoundComponent: () => <p>This organization does not exist, or you do not manage it.</p>,
 });

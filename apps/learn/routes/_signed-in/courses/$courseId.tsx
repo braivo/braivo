@@ -16,6 +16,7 @@ import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-rout
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   // Dropped on leaving: what comes next depends on every answer since, and a
@@ -48,6 +49,7 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       throw error;
     }
   },
+  head: (head) => pageHead(head, head.loaderData?.title),
   component: NextStep,
   notFoundComponent: () => (
     <Notice title="This course does not exist, or is not one of yours.">

@@ -43,7 +43,7 @@ Braivo's write check ([access](access.md)) trusts `BRAIVO_URL`'s origin, plus, o
 
 ### Branding
 
-The learn app reads `GET /api/organization` before sign-in, once per visit: the name of the organization its host serves, or 404 when none. It shows that name, and makes it the page title (`Learning` when there is none); a failure leaves the app unbranded rather than down. Name only: no logo, colours, or favicon.
+The learn app reads `GET /api/organization` before sign-in, once per visit: the name of the organization its host serves, or 404 when none. It shows that name and uses it as the page title; on a course page, the course title comes first: `Springo`, `Spanish · Springo` (`Learning`, `Spanish` when there is none); a failure leaves the app unbranded rather than down. Name only: no logo, colours, or favicon.
 
 ### Console addressing
 

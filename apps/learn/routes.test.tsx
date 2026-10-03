@@ -781,9 +781,10 @@ describe("the learn app", () => {
     expect(screen.queryByText("You're caught up")).toBeNull();
   });
 
-  test("names the course and leads back to the list", async () => {
+  test("names the course, in its tab too, and leads back to the list", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
       learnerCourses: async () => [
         { id: "c0", title: "French" },
         { id: "c1", title: "Spanish" },
@@ -792,9 +793,21 @@ describe("the learn app", () => {
     });
 
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Spanish");
+    await vi.waitFor(() => expect(document.title).toBe("Spanish · Springo"));
     fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
 
     expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Springo"));
+  });
+
+  test("names the course alone in its tab on a domain that serves no organization", async () => {
+    renderAt("/courses/c1", {
+      signedIn: true,
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      nextActivity: async () => activity,
+    });
+
+    await vi.waitFor(() => expect(document.title).toBe("Spanish"));
   });
 
   test("still asks the question when the course's title cannot be read", async () => {
@@ -808,6 +821,7 @@ describe("the learn app", () => {
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    await vi.waitFor(() => expect(document.title).toBe("Learning"));
   });
 
   test("offers to load the course list again when loading it failed", async () => {
@@ -916,5 +930,30 @@ describe("the learn app", () => {
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
     expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
+  });
+
+  test("stops naming a course in its tab once a reload finds it gone", async () => {
+    let gone = false;
+    renderAt("/courses/c1", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      nextActivity: async () => {
+        if (gone) throw new BraivoError(404, "not found");
+        return activity;
+      },
+      submitAttempt: async () => {
+        gone = true;
+        throw new BraivoError(404, "not found");
+      },
+    });
+    await vi.waitFor(() => expect(document.title).toBe("Spanish · Springo"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+
+    expect(
+      await screen.findByText("This course does not exist, or is not one of yours."),
+    ).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Springo"));
   });
 });

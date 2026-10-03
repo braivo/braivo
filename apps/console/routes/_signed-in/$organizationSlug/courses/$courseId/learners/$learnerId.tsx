@@ -14,6 +14,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 
 import { orNotFound, readCourseInOrganization } from "#lib/refusals";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute(
   "/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId",
@@ -22,7 +23,7 @@ export const Route = createFileRoute(
     const signal = abortController.signal;
     const organizationId = context.organization.id;
 
-    await readCourseInOrganization(context.braivo, {
+    const course = await readCourseInOrganization(context.braivo, {
       organizationId,
       courseId: params.courseId,
       signal,
@@ -39,8 +40,14 @@ export const Route = createFileRoute(
     ]);
 
     const learner = members.find(({ userId }) => userId === params.learnerId);
-    return { report, learnerName: learner?.name ?? params.learnerId };
+    return { report, learnerName: learner?.name ?? params.learnerId, courseTitle: course.title };
   },
+  // With the course, so one learner's tabs in two courses differ.
+  head: (head) =>
+    pageHead(
+      head,
+      head.loaderData && `${head.loaderData.learnerName} · ${head.loaderData.courseTitle}`,
+    ),
   component: Progress,
   notFoundComponent: () => <p>This learner's progress is not yours to see, or does not exist.</p>,
 });

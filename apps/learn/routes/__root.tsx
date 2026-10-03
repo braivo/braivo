@@ -14,7 +14,7 @@ export const Route = createRootRouteWithContext<AppContext>()({
       .catch(() => undefined),
   }),
   staleTime: Infinity,
-  // The one owner of the title; `index.html` has none to compete with it.
+  // The title, unless a page names itself (`#lib/title`); `index.html` has none.
   head: ({ loaderData }) => ({
     meta: [{ title: loaderData?.organization?.name ?? "Learning" }],
   }),

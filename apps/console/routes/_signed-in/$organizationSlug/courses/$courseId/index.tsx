@@ -40,6 +40,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { orNotFound } from "#lib/refusals";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
   loader: async ({ context, params, abortController }) => {
@@ -57,6 +58,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
 
     return { course, progress };
   },
+  head: (head) => pageHead(head, head.loaderData?.course.title),
   component: Course,
   notFoundComponent: () => <p>This course does not exist, or you do not manage it.</p>,
 });
