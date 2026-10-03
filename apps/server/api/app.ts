@@ -434,12 +434,12 @@ const MAX_FILE_BYTES = 50_000_000;
 const MAX_SOURCE_BYTES = 10_000_000;
 
 /**
- * What Better Auth answers a bearer token: who it is, their organizations, and
- * signing its own session out (`braivo logout`).
+ * What Better Auth answers a bearer token: who it is, and signing its own
+ * session out (`braivo logout`). A tool finds its organizations at Braivo's
+ * `GET /api/organizations`.
  */
 const BEARER_AUTH_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/get-session",
-  "/api/auth/organization/list",
   "/api/auth/sign-out",
 ]);
 

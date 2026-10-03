@@ -14,12 +14,6 @@ import { isStorableText, MAX_TITLE } from "../content/index.ts";
 // client, as the signed-in content owner; nothing here decides anything the
 // API does not, so the agent is held to the same rules as the console.
 
-/** What the tools reach Braivo through. */
-export type McpDependencies = {
-  client: BraivoClient;
-  listOrganizations: () => Promise<{ id: string; name: string; slug: string }[]>;
-};
-
 /**
  * Read once by the agent when it connects: the workflow, and the one rule it
  * cannot see from any single tool — that every quote is checked.
@@ -100,9 +94,8 @@ const MAX_QUOTES = 200;
 
 export { StdioServerTransport };
 
-export function createMcpServer(dependencies: McpDependencies): McpServer {
-  const { client } = dependencies;
-
+/** Braivo's tools, reaching it through `client` as the signed-in content owner. */
+export function createMcpServer(client: BraivoClient): McpServer {
   const server = new McpServer(
     { name: "braivo", version: "0.1.0" },
     { instructions: INSTRUCTIONS },
@@ -111,10 +104,11 @@ export function createMcpServer(dependencies: McpDependencies): McpServer {
   server.registerTool(
     "list_organizations",
     {
-      description: "The organizations the signed-in content owner belongs to.",
+      description:
+        "The organizations the signed-in content owner manages: where the other tools work.",
       annotations: { readOnlyHint: true },
     },
-    () => answer(dependencies.listOrganizations()),
+    () => answer(client.listOrganizations()),
   );
 
   server.registerTool(

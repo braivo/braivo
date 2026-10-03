@@ -33,6 +33,8 @@ const fetch = ((input: string | URL, init?: RequestInit) =>
   api.request(input.toString(), init)) as unknown as typeof globalThis.fetch;
 
 const organizationId = "mcp-test-org";
+/** One the content owner only learns in, where every other tool would be refused. */
+const learningOrganizationId = "mcp-test-learning-org";
 const at = new Date("2026-06-01T00:00:00.000Z");
 
 /** An agent, connected to `braivo mcp` as a desktop app would be, signed in as a content owner. */
@@ -70,12 +72,13 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       adminIds: [id],
       at,
     });
-
-    const credentials = { server, token };
-    const mcp = createMcpServer({
-      client: remoteClient(credentials, fetch),
-      listOrganizations: async () => [{ id: organizationId, name: "MCP", slug: "mcp" }],
+    await testing.seedOrganization(database, {
+      organizationId: learningOrganizationId,
+      learnerIds: [id],
+      at,
     });
+
+    const mcp = createMcpServer(remoteClient({ server, token }, fetch));
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
     agent = new Client({ name: "test-agent", version: "0" });
     await Promise.all([mcp.connect(serverSide), agent.connect(clientSide)]);
@@ -104,6 +107,12 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "read_course",
       "read_source",
       "retire_tasks",
+    ]);
+  });
+
+  test("lists only the organizations the content owner manages", async () => {
+    expect(await json("list_organizations")).toEqual([
+      { id: organizationId, name: organizationId, slug: organizationId },
     ]);
   });
 

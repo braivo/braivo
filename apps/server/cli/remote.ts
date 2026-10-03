@@ -174,25 +174,6 @@ export async function whoAmI(
 }
 
 /**
- * The organizations the signed-in person belongs to, from Better Auth, which
- * owns membership (ADR 0006): what everything else here is addressed by.
- */
-export async function listOrganizations(
-  credentials: Credentials,
-  fetch: typeof globalThis.fetch,
-): Promise<{ id: string; name: string; slug: string }[]> {
-  const response = await fetch(`${readServer(credentials.server)}/api/auth/organization/list`, {
-    headers: { authorization: `Bearer ${credentials.token}` },
-  });
-  if (!response.ok) {
-    throw new Error(`Braivo answered ${response.status} listing your organizations.`);
-  }
-
-  const organizations = (await response.json()) as { id: string; name: string; slug: string }[];
-  return organizations.map(({ id, name, slug }) => ({ id, name, slug }));
-}
-
-/**
  * Braivo's own client, reaching the signed-in installation as the signed-in
  * content owner: the same requests the console makes, with the token where the
  * console has its cookie.

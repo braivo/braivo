@@ -14,7 +14,7 @@ import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
 import { credentialsPath, loadCredentials } from "./credentials.ts";
-import { listOrganizations, login, logout, remoteClient, whoAmI } from "./remote.ts";
+import { login, logout, remoteClient, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
 
 /** For the operator's commands, which make no one sign in. */
@@ -179,10 +179,7 @@ async function main(argv: readonly string[]): Promise<number> {
     // initialized in `bun build --compile`'s bundle, and every command crashes
     // (docs/adr/0027-standalone-cli.md).
     const { createMcpServer, StdioServerTransport } = await import("./mcp.ts");
-    const server = createMcpServer({
-      client: remoteClient(credentials, fetch),
-      listOrganizations: () => listOrganizations(credentials, fetch),
-    });
+    const server = createMcpServer(remoteClient(credentials, fetch));
     await server.connect(new StdioServerTransport());
     // Returning does not end the process: the open standard input keeps it alive.
     return 0;
