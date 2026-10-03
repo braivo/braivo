@@ -83,11 +83,11 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
   if (!options.every(isText)) {
     return { problem: `has an option that is blank or over ${MAX_TEXT} characters` };
   }
-  // Two identical options would make "which one" unanswerable from the text.
-  const trimmed = options.map((option) => option.trim());
-  const repeat = trimmed.findIndex((option, index) => trimmed.indexOf(option) !== index);
+  // Options equal but for spacing would read the same, leaving "which one" unanswerable.
+  const collapsed = options.map(collapseWhitespace);
+  const repeat = collapsed.findIndex((option, index) => collapsed.indexOf(option) !== index);
   if (repeat !== -1) {
-    const first = trimmed.indexOf(trimmed[repeat]!);
+    const first = collapsed.indexOf(collapsed[repeat]!);
     return { problem: `repeats option ${first} as option ${repeat}; every option must differ` };
   }
   if (!Number.isInteger(answer) || (answer as number) < 0 || (answer as number) >= options.length) {
@@ -107,8 +107,8 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
   return {
     body: {
       kind,
-      prompt: prompt.trim(),
-      options: trimmed,
+      prompt: collapseWhitespace(prompt),
+      options: collapsed,
       answer: answer as number,
       ...(explanation === undefined ? {} : { explanation: explanation.trim() }),
       ...(keepOrder === true ? { keepOrder } : {}),
@@ -185,6 +185,15 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * Trimmed, each run of spaces, tabs, and line breaks one space, as a page
+ * collapses them: options differing only there would read the same yet grade
+ * differently. A no-break space inside stays.
+ */
+function collapseWhitespace(text: string): string {
+  return text.trim().replace(/[\t\n\r ]+/g, " ");
 }
 
 function isText(value: unknown): value is string {

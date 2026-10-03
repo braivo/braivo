@@ -29,6 +29,14 @@ export type EditableTask = {
 const MAX_TEXT = 2000;
 
 /**
+ * Trimmed, each run of spaces, tabs, and line breaks one space, as the server
+ * stores a question and its options: "a  b" repeats "a b".
+ */
+function collapseWhitespace(text: string): string {
+  return text.trim().replace(/[\t\n\r ]+/g, " ");
+}
+
+/**
  * Edits a proposed choice task before it is kept. Options stay as many as
  * they were. Checks what the server would refuse (blank, repeated, overlong,
  * or non-text input) before saving; the server checks again.
@@ -56,10 +64,11 @@ export function TaskEditor(props: {
   useEffect(() => question.current?.focus(), []);
 
   function save() {
-    const trimmed = options.map((option) => option.trim());
+    const collapsed = options.map(collapseWhitespace);
     if (prompt.trim() === "") return setProblem("Write the question.");
-    if (trimmed.some((option) => option === "")) return setProblem("Fill in every option.");
-    if (new Set(trimmed).size !== trimmed.length) return setProblem("Every option must differ.");
+    if (collapsed.some((option) => option === "")) return setProblem("Fill in every option.");
+    if (new Set(collapsed).size !== collapsed.length)
+      return setProblem("Every option must differ.");
     const texts = [prompt, ...options, explanation];
     // `maxLength` stops typing past it, not a value set otherwise.
     if (texts.some((text) => text.trim().length > MAX_TEXT)) {
@@ -70,8 +79,8 @@ export function TaskEditor(props: {
       return setProblem("Remove the characters that are not text, such as a NUL.");
     }
     onSave({
-      prompt: prompt.trim(),
-      options: trimmed,
+      prompt: collapseWhitespace(prompt),
+      options: collapsed,
       answer,
       ...(explanation.trim() === "" ? {} : { explanation: explanation.trim() }),
     });

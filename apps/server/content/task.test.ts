@@ -24,6 +24,26 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual({ body: choice });
   });
 
+  test("collapses whitespace in the prompt and options, as a page shows them", () => {
+    const code = {
+      ...choice,
+      prompt: "Which\nis valid?",
+      options: ["if x:\n    pass", "if x: pass"],
+    };
+    expect(parseTaskBody(code)).toEqual({
+      problem: "repeats option 0 as option 1; every option must differ",
+    });
+
+    const spaced = {
+      ...choice,
+      prompt: "Which\r\n\tis   valid?",
+      options: ["a\u00a0!", "b\r\n\t is\fvalid "],
+    };
+    expect(parseTaskBody(spaced)).toEqual({
+      body: { ...choice, prompt: "Which is valid?", options: ["a\u00a0!", "b is\fvalid"] },
+    });
+  });
+
   test("keeps keepOrder only when true", () => {
     expect(parseTaskBody({ ...choice, keepOrder: true })).toEqual({
       body: { ...choice, keepOrder: true },
