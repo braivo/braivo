@@ -106,12 +106,16 @@ function sourceBody(
     return { cues };
   }
 
+  // Before splitting, since a PDF's bytes can have form feeds too; and before
+  // uploading the original, since Braivo would refuse this text.
+  if (content.includes("\u0000") || !content.isWellFormed()) {
+    throw new Error(
+      `${where}: not text Braivo can store; for a PDF, extract its text with pdftotext first.`,
+    );
+  }
   const pages = splitPages(content, firstPage);
   if (pages === undefined) {
-    // Refused here, as Braivo would, so an original is never uploaded for it.
-    if (content.trim() === "" || content.includes("\u0000") || !content.isWellFormed()) {
-      throw new Error(`${where}: no text Braivo can store; it is blank, or not text.`);
-    }
+    if (content.trim() === "") throw new Error(`${where}: no text Braivo can store; it is blank.`);
     if (firstPage !== undefined) {
       throw new Error(
         `${where}: --first-page needs pages, separated by form feeds as pdftotext writes.`,
