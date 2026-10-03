@@ -106,15 +106,15 @@ export async function openFile(input: {
 }
 
 /**
- * What the model reads, and at most how much of each: its provider's limits
- * on one request, with room for base64, which grows a file by a third.
+ * What the model reads, and at most how much of each: the Anthropic API's
+ * limits, 32 MB a request and 10 MB an image, less the third base64 adds.
  */
 const READABLE: Record<string, number> = {
   "application/pdf": 24_000_000,
-  "image/png": 3_750_000,
-  "image/jpeg": 3_750_000,
-  "image/gif": 3_750_000,
-  "image/webp": 3_750_000,
+  "image/png": 7_500_000,
+  "image/jpeg": 7_500_000,
+  "image/gif": 7_500_000,
+  "image/webp": 7_500_000,
 };
 
 /**
@@ -151,7 +151,9 @@ export async function readFileText(input: {
   }
   if (file.size > limit) {
     throw new InvalidAiRequest(
-      `Braivo's AI reads a ${file.contentType === "application/pdf" ? "PDF" : "image"} of at most ${limit / 1_000_000} MB; send it a chapter at a time.`,
+      file.contentType === "application/pdf"
+        ? `Braivo's AI reads a PDF of at most ${limit / 1_000_000} MB; send it a chapter at a time.`
+        : `Braivo's AI reads an image of at most ${limit / 1_000_000} MB; photograph a page at a time, or save it smaller.`,
     );
   }
 
