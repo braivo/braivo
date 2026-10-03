@@ -236,6 +236,31 @@ describe("the console", () => {
     expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
   });
 
+  test("signs an owner out, saying so when it could not and letting them try again", async () => {
+    const { auth, router } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+    const refused = Promise.withResolvers<{ error: { status: number } }>();
+    auth.signOut.mockReturnValueOnce(refused.promise as never);
+    auth.signOut.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const signOut = await screen.findByRole("button", { name: "Sign out" });
+    fireEvent.click(signOut);
+    // Locked while it is sent, but never disabled, which would drop the focus.
+    fireEvent.click(signOut);
+    expect(signOut.getAttribute("aria-disabled")).toBe("true");
+    expect(signOut.matches(":disabled")).toBe(false);
+    expect(auth.signOut).toHaveBeenCalledOnce();
+    refused.resolve({ error: { status: 500 } });
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    fireEvent.click(signOut);
+    await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(2));
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    expect(router.state.location.pathname).toBe("/example");
+
+    fireEvent.click(signOut);
+    expect(await screen.findByLabelText("Email")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+  });
+
   describe("signing in for a learn domain", () => {
     const springo = { organization: { name: "Springo" }, hostname: "learn.springo.app" };
     const url = "https://learn.springo.app/api/session/handoff?code=c1";

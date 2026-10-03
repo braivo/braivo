@@ -4,6 +4,7 @@
 import { requireSession } from "@braivo/auth-client";
 import { Button } from "@braivo/ui/components/button";
 import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { asSessionAuth } from "#lib/auth";
 
@@ -20,20 +21,42 @@ function SignedIn() {
   const { braivo, user } = Route.useRouteContext();
   const router = useRouter();
 
+  const [signingOut, setSigningOut] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   async function signOut() {
-    // This domain's session alone (ADR 0018).
-    await braivo.signOut();
+    if (signingOut) return;
+    setSigningOut(true);
+    setFailed(false);
+    try {
+      // This domain's session alone (ADR 0018).
+      await braivo.signOut();
+    } catch {
+      // Not assumed signed out, so the page stays; clicking again retries.
+      setFailed(true);
+      setSigningOut(false);
+      return;
+    }
     // Runs the check above again, which now sends the learner to sign in.
     await router.invalidate();
   }
 
   return (
     <>
-      <header className="mb-6 flex items-center justify-between">
-        <span>{user.name}</span>
-        <Button variant="link" onClick={signOut}>
-          Sign out
-        </Button>
+      <header className="mb-6">
+        <div className="flex items-center justify-between">
+          <span>{user.name}</span>
+          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+          <Button variant="link" aria-disabled={signingOut} onClick={signOut}>
+            Sign out
+          </Button>
+        </div>
+        {/* Below the row, so that on a narrow screen it cannot push Sign out out of view. */}
+        {failed && (
+          <p role="alert" className="mt-1 text-right text-sm text-destructive">
+            Could not sign out. Try again.
+          </p>
+        )}
       </header>
       <Outlet />
     </>
