@@ -37,9 +37,9 @@ export const learnerHandoff = pgTable(
 
 /**
  * Braivo's own session on a learn domain, never Better Auth's: one user, one
- * organization, accepted only on that organization's domain and only by
- * learner routes (ADR 0018). It grants no membership, which is checked on every
- * request.
+ * organization, accepted only on the domain it was handed to, while that
+ * still serves the organization; only learner routes take it as identity
+ * (ADR 0018). It grants no membership, which is checked on every request.
  */
 export const learnerSession = pgTable(
   "learner_session",
@@ -52,6 +52,11 @@ export const learnerSession = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    /**
+     * The domain it was handed to. The organization's later domains refuse
+     * it, so a token kept by a domain's former operator opens nothing there.
+     */
+    hostname: text("hostname").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   // Expiry for the deletes on each redemption; the others for the cascades

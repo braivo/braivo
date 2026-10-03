@@ -129,6 +129,26 @@ describe.skipIf(!connectionString)("a learn domain's sign-in, handed over", () =
     expect(await resumeLearnerSession({ database, hostname, token, now: at })).toBeUndefined();
   });
 
+  test("refuses a session on the organization's later domain", async () => {
+    const { token } = (await redeem(await issued())) ?? expect.fail("not redeemed");
+    const next = "learner-sessions-test-next.example.com";
+    const move = (from: string, to: string) =>
+      database
+        .update(organizationDomain)
+        .set({ hostname: to })
+        .where(eq(organizationDomain.hostname, from));
+
+    await move(hostname, next);
+    try {
+      // A token kept by the old domain's operator opens nothing on the new one.
+      expect(
+        await resumeLearnerSession({ database, hostname: next, token, now: at }),
+      ).toBeUndefined();
+    } finally {
+      await move(next, hostname);
+    }
+  });
+
   test("returns only within the domain", async () => {
     for (const away of [
       undefined,

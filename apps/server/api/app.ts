@@ -112,8 +112,7 @@ function parseEvidence(body: unknown): Evidence[] | undefined {
  * send an `Origin` it has to be ours. A server-to-server caller sends no
  * `Origin` at all and sets the content type, so neither check touches it.
  * Besides this installation's origin, an organization's domain serves the
- * learn app, and is registered only when the operator controls it (ADR 0004);
- * it writes only to itself.
+ * learn app (ADR 0004); it writes only to itself, as its learner session.
  */
 async function isTrustedWrite(
   context: Context,
@@ -498,9 +497,9 @@ export function createApi(options: ApiOptions) {
   };
 
   // The installation's origin is the console's and its tools': the account's
-  // own credentials — the device flow, a bearer token — the console's API, and
-  // completing a learn domain's sign-in reach nothing on any other host, which
-  // serves one organization's learn app (ADR 0004, ADR 0018, ADR 0022). Before
+  // own credentials — Better Auth, a bearer token — and the console's API reach
+  // nothing on any other host, which serves one organization's learn app and
+  // holds learner sessions alone (ADR 0004, ADR 0018, ADR 0022). Before
   // authentication, so a credential presented elsewhere is refused whatever it
   // could do.
   api.use("/api/*", async (context, next) => {
@@ -509,8 +508,8 @@ export function createApi(options: ApiOptions) {
     context.header("cache-control", "private, no-store");
     if (context.req.header("authorization") !== undefined) return context.body(null, 401);
     const { path } = context.req;
-    const installationOnly = ["/api/organizations", "/api/auth/device", "/api/handoffs"];
-    if (installationOnly.some((prefix) => path.startsWith(prefix))) {
+    const installationOnly = ["/api/organizations", "/api/auth", "/api/handoffs"];
+    if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
     }
     return next();
@@ -566,6 +565,9 @@ export function createApi(options: ApiOptions) {
    * would sign out a client that only ever calls these routes, however active.
    */
   async function sessionFor(context: Context) {
+    // A learn domain holds learner sessions alone (ADR 0018): an account's
+    // cookie there counts for nothing.
+    if (!requestHost(context).installation) return null;
     const { headers, response } = await auth.api.getSession({
       headers: context.req.raw.headers,
       returnHeaders: true,
@@ -581,8 +583,10 @@ export function createApi(options: ApiOptions) {
   }
 
   /**
-   * Who is signed in on this host: on a learn domain, its learner session's
-   * user, renewed as it is used; on the installation's host, the account's.
+   * The learner behind a request to a learner route: on a learn domain, its
+   * learner session's user, renewed as it is used; on the installation's host,
+   * the account's (the console reading a learner's progress; the learn app in
+   * development).
    */
   async function learnerFor(context: Context): Promise<{ id: string; name: string } | undefined> {
     const host = requestHost(context);
@@ -778,12 +782,12 @@ export function createApi(options: ApiOptions) {
     // cache handing one learner another's.
     context.header("cache-control", "private, no-store");
 
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+    const learner = await learnerFor(context);
+    if (!learner) return context.body(null, 401);
 
     const next = await chooseNextObjective({
       database,
-      learnerId: session.user.id,
+      learnerId: learner.id,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),
@@ -812,12 +816,12 @@ export function createApi(options: ApiOptions) {
   api.get("/api/courses", async (context) => {
     context.header("cache-control", "private, no-store");
 
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+    const learner = await learnerFor(context);
+    if (!learner) return context.body(null, 401);
 
     const courses = await listLearnerCourses({
       database,
-      learnerId: session.user.id,
+      learnerId: learner.id,
       host: requestHost(context),
     });
     return context.json({ courses });
@@ -830,13 +834,13 @@ export function createApi(options: ApiOptions) {
   api.get("/api/courses/:courseId/activity", async (context) => {
     context.header("cache-control", "private, no-store");
 
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+    const learner = await learnerFor(context);
+    if (!learner) return context.body(null, 401);
 
     const now = new Date();
     const next = await chooseNextActivity({
       database,
-      learnerId: session.user.id,
+      learnerId: learner.id,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now,
@@ -876,15 +880,15 @@ export function createApi(options: ApiOptions) {
       if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
         return context.body(null, 403);
 
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
+      const learner = await learnerFor(context);
+      if (!learner) return context.body(null, 401);
 
       const attempt = parseAttempt(await context.req.json().catch(() => undefined));
       if (attempt === undefined) return context.body(null, 400);
 
       const submitted = await submitAttempt({
         database,
-        learnerId: session.user.id,
+        learnerId: learner.id,
         courseId: context.req.param("courseId"),
         host: requestHost(context),
         attemptId: attempt.id,
@@ -930,13 +934,19 @@ export function createApi(options: ApiOptions) {
     // depending on who is allowed to read it.
     context.header("cache-control", "private, no-store");
 
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+    const viewer = await learnerFor(context);
+    if (!viewer) return context.body(null, 401);
+    // A learner session is a learner's, reading only its own; an
+    // administrator reads others' on the installation's origin.
+    const learnerId = context.req.param("learnerId");
+    if (!requestHost(context).installation && learnerId !== viewer.id) {
+      return context.body(null, 404);
+    }
 
     const progress = await readLearnerProgress({
       database,
-      viewedBy: session.user.id,
-      learnerId: context.req.param("learnerId"),
+      viewedBy: viewer.id,
+      learnerId,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),

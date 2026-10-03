@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { learnerSession, session } from "@braivo/db/schema";
+import { learnerSession, member, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
@@ -318,7 +318,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(oversized.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  test("signs in by code only from the host's own origin, an organization's domain included", async () => {
+  test("signs in by code only on the installation's origin, and only from it", async () => {
     // Without a cookie Better Auth checks no origin, so another site holding a
     // code for its own address could sign a visitor in to that account.
     const email = `api-test-${crypto.randomUUID()}@example.com`;
@@ -328,7 +328,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         headers: { "content-type": "application/json", ...headers },
         body: JSON.stringify(body),
       });
-    const fromDomain = { origin: organizationOrigin };
+    const ours = { origin: baseUrl };
     const foreign = { origin: "https://evil.example" };
     // A form, which a page elsewhere may post without asking.
     const form = { "content-type": "application/x-www-form-urlencoded" };
@@ -336,22 +336,20 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
     const refusedSends = await Promise.all([
       post(baseUrl, "/email-otp/send-verification-otp", sending, foreign),
-      post(organizationOrigin, "/email-otp/send-verification-otp", sending, { origin: baseUrl }),
       post(baseUrl, "/email-otp/send-verification-otp", sending, form),
+      // A learn domain hands sign-in to the installation's origin (ADR 0018).
+      post(organizationOrigin, "/email-otp/send-verification-otp", sending, {
+        origin: organizationOrigin,
+      }),
     ]);
-    expect(refusedSends.map((answer) => answer.status)).toEqual([403, 403, 403]);
+    expect(refusedSends.map((answer) => answer.status)).toEqual([403, 403, 404]);
     expect(outbox.sent.filter((sent) => sent.to === email)).toEqual([]);
 
-    const sent = await post(
-      organizationOrigin,
-      "/email-otp/send-verification-otp",
-      sending,
-      fromDomain,
-    );
+    const sent = await post(baseUrl, "/email-otp/send-verification-otp", sending, ours);
     expect(sent.status).toBe(200);
     const signingIn = { email, otp: codeSentTo(outbox, email) };
-    const refused = await post(organizationOrigin, "/sign-in/email-otp", signingIn, foreign);
-    const signedIn = await post(organizationOrigin, "/sign-in/email-otp", signingIn, fromDomain);
+    const refused = await post(baseUrl, "/sign-in/email-otp", signingIn, foreign);
+    const signedIn = await post(baseUrl, "/sign-in/email-otp", signingIn, ours);
 
     expect(refused.status).toBe(403);
     expect(refused.headers.get("cache-control")).toBe("private, no-store");
@@ -613,28 +611,56 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("answers a course on its own organization's domain and the installation's, and 404 elsewhere", async () => {
-    const on = (origin: string) =>
+    // A member of both, so only the host can be what refuses.
+    const both = await signUp();
+    await database.insert(member).values(
+      [organizationId, otherOrganizationId].map((id) => ({
+        id: `${id}:${both.id}`,
+        organizationId: id,
+        userId: both.id,
+        role: "member",
+        createdAt: at,
+      })),
+    );
+    const on = async (origin: string) =>
       api.request(`${origin}/api/courses/${courseId}/next`, {
-        headers: { cookie: learner.cookie },
+        headers: { cookie: await learnerSessionOn(origin, both) },
       });
 
-    expect((await on(organizationOrigin)).status).toBe(200);
-    expect((await on(baseUrl)).status).toBe(200);
-    expect((await on(otherOrganizationOrigin)).status).toBe(404);
-    expect((await on("https://api-test-unknown.example.com")).status).toBe(404);
+    try {
+      expect((await on(organizationOrigin)).status).toBe(200);
+      expect((await next(courseId, both.cookie)).status).toBe(200);
+      expect((await on(otherOrganizationOrigin)).status).toBe(404);
+    } finally {
+      // Out of the roster the other tests read, even when one fails.
+      await database.delete(member).where(eq(member.userId, both.id));
+    }
   });
 
-  test("answers a course's overview on the same hosts only", async () => {
-    // It lists the organization's members, so a host it leaks to learns who they are.
-    const on = (origin: string) =>
-      api.request(`${origin}/api/courses/${courseId}/progress`, {
-        headers: { cookie: teacher.cookie },
-      });
+  test("answers a learner on a learn domain by its learner session alone", async () => {
+    const session = await learnerSessionOn(organizationOrigin, learner);
+    const on = (origin: string, cookie: string) =>
+      api.request(`${origin}/api/courses/${courseId}/next`, { headers: { cookie } });
 
-    expect((await on(organizationOrigin)).status).toBe(200);
-    expect((await on(baseUrl)).status).toBe(200);
-    expect((await on(otherOrganizationOrigin)).status).toBe(404);
-    expect((await on("https://api-test-unknown.example.com")).status).toBe(404);
+    expect((await on(organizationOrigin, session)).status).toBe(200);
+    // The account's own cookie, which a learn domain may still hold from
+    // before learner sessions; and a learner session where its organization
+    // is not served, which a browser would not even send.
+    expect((await on(organizationOrigin, learner.cookie)).status).toBe(401);
+    expect((await on(otherOrganizationOrigin, session)).status).toBe(401);
+    expect((await on("https://api-test-unknown.example.com", session)).status).toBe(401);
+    expect((await on(baseUrl, session)).status).toBe(401);
+  });
+
+  test("answers a course's overview on the installation's host only", async () => {
+    // It lists the organization's members, a console's page, not a learner's.
+    const session = await learnerSessionOn(organizationOrigin, teacher);
+    const on = (origin: string, cookie: string) =>
+      api.request(`${origin}/api/courses/${courseId}/progress`, { headers: { cookie } });
+
+    expect((await on(baseUrl, teacher.cookie)).status).toBe(200);
+    expect((await on(organizationOrigin, session)).status).toBe(401);
+    expect((await on(organizationOrigin, teacher.cookie)).status).toBe(401);
   });
 
   test("hands an account over to a learn domain as a learner, back where it started", async () => {
@@ -801,6 +827,38 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(after.status).toBe(401);
   });
 
+  test("lets a learner session read its own progress, and no one else's", async () => {
+    // An administrator's, handed over like anyone's: a learner there.
+    const cookie = await learnerSessionOn(organizationOrigin, teacher);
+    const read = (learnerId: string) =>
+      api.request(`${organizationOrigin}/api/courses/${courseId}/learners/${learnerId}/progress`, {
+        headers: { cookie },
+      });
+
+    expect((await read(teacher.id)).status).toBe(200);
+    expect((await read(learner.id)).status).toBe(404);
+    expect((await progress(courseId, learner.id, teacher.cookie)).status).toBe(200);
+  });
+
+  test("reaches nothing once its member leaves, though the session lasts", async () => {
+    const leaving = await signUp();
+    await database.insert(member).values({
+      id: `${organizationId}:${leaving.id}`,
+      organizationId,
+      userId: leaving.id,
+      role: "member",
+      createdAt: at,
+    });
+    const cookie = await learnerSessionOn(organizationOrigin, leaving);
+    const nextOnDomain = () =>
+      api.request(`${organizationOrigin}/api/courses/${courseId}/next`, { headers: { cookie } });
+    expect((await nextOnDomain()).status).toBe(200);
+
+    await database.delete(member).where(eq(member.userId, leaving.id));
+
+    expect((await nextOnDomain()).status).toBe(404);
+  });
+
   test.each(routes)("refuses a forgeable write to %s", async (route) => {
     const { path, body, accepted } = write(route);
 
@@ -827,18 +885,17 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
     // A learn domain writes only to itself, and only as a learner: the
     // console's API is not there.
-    const fromDomain = (url: string) =>
+    const fromDomain = (url: string, cookie: string) =>
       api.request(url, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: organizationOrigin,
-          cookie: teacher.cookie,
-        },
+        headers: { "content-type": "application/json", origin: organizationOrigin, cookie },
         body: JSON.stringify(body),
       });
-    const sideways = await fromDomain(path);
-    const onDomain = await fromDomain(`${organizationOrigin}${path}`);
+    const sideways = await fromDomain(path, teacher.cookie);
+    const onDomain = await fromDomain(
+      `${organizationOrigin}${path}`,
+      await learnerSessionOn(organizationOrigin, teacher),
+    );
 
     expect([notJson.status, elsewhere.status, ours.status, sideways.status]).toEqual([
       403,
@@ -1476,17 +1533,15 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     ]);
     expect(ids).not.toContain(foreignCourseId);
 
-    // On an organization's domain, that organization's alone; elsewhere, none.
-    const on = async (origin: string) => {
-      const answer = await api.request(`${origin}/api/courses`, {
-        headers: { cookie: learner.cookie },
-      });
-      return ((await answer.json()) as { courses: { id: string }[] }).courses.map(({ id }) => id);
-    };
-    const onDomain = await on(organizationOrigin);
-    expect(onDomain).toContain(courseId);
-    expect(onDomain).not.toContain(secondCourseId);
-    expect(await on("https://api-test-unknown.example.com")).toEqual([]);
+    // On an organization's domain, that organization's alone.
+    const onDomain = await api.request(`${organizationOrigin}/api/courses`, {
+      headers: { cookie: await learnerSessionOn(organizationOrigin, learner) },
+    });
+    const domainIds = ((await onDomain.json()) as { courses: { id: string }[] }).courses.map(
+      ({ id }) => id,
+    );
+    expect(domainIds).toContain(courseId);
+    expect(domainIds).not.toContain(secondCourseId);
 
     const anonymous = await api.request("/api/courses");
     expect(anonymous.status).toBe(401);

@@ -19,6 +19,9 @@ const router = createRouter({
   context: {
     braivo: createClient(),
     auth: createLearnAuth(origin),
+    // Replacing `/login`, which only ever leaves: Back from the installation's
+    // sign-in returns to where the learner was, not to another handoff.
+    visit: (href) => window.location.replace(href),
   },
 });
 

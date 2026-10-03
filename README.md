@@ -7,7 +7,7 @@ Braivo is an open-source platform for educators, schools, training providers, an
 - **Your content, not a generated course.** Braivo sequences and schedules what a content owner already teaches, and keeps the source material authoritative.
 - **Decisions that can be explained.** What comes next follows from recorded evidence and a [specified selection rule](docs/specs/learning-model.md), not from an opaque prompt.
 - **Self-hostable.** This repository is the whole platform: API, learning model, database schema, learner app, and console. Braivo Cloud adds managed-service concerns and nothing here depends on it.
-- **White-label.** An organization runs the learner experience under its own brand and at its own address, with no Braivo branding. For now that is a hostname the operator controls, such as `school.braivo.app`; a domain the organization owns waits on sign-in scoped to that organization ([ADR 0004](docs/adr/0004-one-application-origin.md)).
+- **White-label.** An organization runs the learner experience under its own brand and at its own address, with no Braivo branding. That is a hostname such as `school.braivo.app` or one the organization owns: learners sign in on the installation's origin, which hands that domain a session reaching its organization alone ([ADR 0004](docs/adr/0004-one-application-origin.md), [ADR 0018](docs/adr/0018-sign-in-and-invitations.md)).
 - **An HTTP API.** Anything the apps do, another application can do.
 
 ## Status
@@ -161,7 +161,7 @@ A few things that shape how this behaves:
 
 ## An organization's domain
 
-The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization; Braivo trusts that origin only while the row exists ([ADR 0004](docs/adr/0004-one-application-origin.md)). The operator registers one per organization; DNS, TLS, and routing it to Braivo stay theirs. Register only a hostname you control, in DNS and in what it serves: learners sign in there with their installation-wide account. Locally, a `*.localhost` name stands in for the domain (it resolves to this machine, and the dev server passes `Host` through); plain `localhost` stays the installation's own. Continuing the walkthrough above:
+The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization; Braivo trusts that origin only while the row exists ([ADR 0004](docs/adr/0004-one-application-origin.md)). The operator registers one per organization; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. Locally, a `*.localhost` name stands in for the domain (it resolves to this machine, and the dev server passes `Host` through); plain `localhost` stays the installation's own. Continuing the walkthrough above:
 
 ```bash
 bun apps/server/cli/index.ts organization add-domain \
@@ -172,7 +172,7 @@ curl -s http://example.localhost:3000/api/organization
 # {"name":"Example School"}
 ```
 
-The learn app at `http://example.localhost:5173` now wears that name. There the API serves that organization's courses only, answering 404 for others; a hostname that is neither an organization's nor the installation's gets none. In production the hostname is trusted only over HTTPS.
+The learn app at `http://example.localhost:5173` now wears that name. There the API serves that organization's courses only, answering 404 for others; a hostname that is neither an organization's nor the installation's gets none. Signing in there does not work locally: it goes to `BRAIVO_URL`'s `/login` and back over HTTPS, which needs a proxy this repository does not set up. Sign in to the learn app at `http://localhost:5173` instead.
 
 ## Your materials, a tutor
 

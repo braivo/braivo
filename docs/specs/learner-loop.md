@@ -16,7 +16,7 @@ Every course route below is limited by the host ceiling ([white-label.md](white-
 | `POST /api/courses/:id/attempts`                    | the session's learner | 200 grade; 400; 401; 403 forgeable; 404, also a retired task; 409 conflict or resting; 413                                                        |
 | `POST /api/organizations/:id/learners/:id/evidence` | a content owner       | 204 recorded; 400; 401; 403; 409 conflicting; 413                                                                                                 |
 
-Statuses and shapes in full: `apps/server/api/index.ts`. The learner is always the session's user on the course routes; nothing in the request names one.
+Statuses and shapes in full: `apps/server/api/index.ts`. The learner is always the session's user on the course routes, on a learn domain its learner session's ([access](access.md)); nothing in the request names one.
 
 **Deciding.** On each read, the learner's evidence at the course's organization up to `now` is replayed under the active model, and `selectNext` chooses from the course's objectives in content order ([learning-model.md](learning-model.md)). `/next` is that bare decision, for integrators with their own tasks. `/activity` decides among objectives with a task first, and among those without only when none of those is selectable, answering that decision without a task (no activity); 204 is caught up, as on `/next`.
 

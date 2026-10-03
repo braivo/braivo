@@ -443,9 +443,10 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(stored).toMatchObject({ name: "Renamed School", slug: slugs.renamed });
   });
 
-  test("trusts an organization's own domain as origin, not a foreign one", async () => {
+  test("trusts the installation's origin alone, not even an organization's domain", async () => {
     // Better Auth checks the origin of a request carrying a session; a code
-    // sign-in, which carries none, is the API's to check (`api/app.ts`).
+    // sign-in, which carries none, is the API's to check (`api/app.ts`). A
+    // learn domain holds learner sessions, never the account's (ADR 0018).
     const id = await createOwned(slugs.hasDomain);
     await database
       .insert(organizationDomain)
@@ -453,7 +454,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const rename = (origin: string) =>
       post("/update-user", { name: owner.name }, { cookie: ownerCookie, origin });
 
-    expect((await rename("https://auth-test.example.com")).status).toBe(200);
+    expect((await rename("http://localhost:3000")).status).toBe(200);
+    expect((await rename("https://auth-test.example.com")).status).toBe(403);
     expect((await rename("https://evil.example")).status).toBe(403);
   });
 

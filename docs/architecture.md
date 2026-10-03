@@ -34,7 +34,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 
 - `learning` is plain, deterministic code: no I/O, network, database, clock, or implicit randomness. Callers pass in the state and values a decision needs.
 - `learning` never calls AI. AI may produce evidence, such as a scored answer, that `learning` consumes.
-- `api` mounts `auth`'s handler and resolves the session, then hands `application` plain user IDs; `application` never imports `auth`. `cli` imports it to compose the process and to create organizations. `learning` never sees a learner's identity — evidence and estimates carry objective IDs, and the caller keys them by learner.
+- `api` mounts `auth`'s handler and resolves the session — on a learn domain, Braivo's learner session instead ([ADR 0018](adr/0018-sign-in-and-invitations.md)) — then hands `application` plain user IDs; `application` never imports `auth`. `cli` imports it to compose the process and to create organizations. `learning` never sees a learner's identity — evidence and estimates carry objective IDs, and the caller keys them by learner.
 - Organization context from a request or session is not authorization. A workflow verifies the relevant user's membership or permission before acting on an organization ([ADR 0006](adr/0006-better-auth.md)); passing an `organizationId` explicitly only removes hidden state.
 - `content`, `learning`, and `ai` never import `application`, `persistence`, `api`, `web`, or `cli`. Workflows spanning modules belong in `application`.
 - `api`, `web`, and `cli` never query persistence directly. Browser code reaches Braivo only over HTTP. `packages/ui` is presentation only and imports no other Braivo package.
