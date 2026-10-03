@@ -125,6 +125,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   }
 
   async function switchAccount() {
+    if (pending) return;
     setPending(true);
     setError(undefined);
     const { error } = await auth.signOut().catch(() => ({ error: true }));
@@ -136,8 +137,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     }
   }
 
+  // aria-disabled, not disabled, so that they keep the focus meanwhile.
   const another = (
-    <Button variant="link" disabled={pending} onClick={switchAccount}>
+    <Button variant="link" aria-disabled={pending} onClick={switchAccount}>
       Use another account
     </Button>
   );
@@ -165,9 +167,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
         <div className="flex flex-col items-center gap-2">
           <Button
             className="w-full"
-            disabled={pending}
+            aria-disabled={pending}
             // An account still without a name is named first.
-            onClick={() => (!stale && needsName ? setView("form") : handOver())}
+            onClick={() => !pending && (!stale && needsName ? setView("form") : handOver())}
           >
             {account && !stale ? `Continue as ${account}` : "Continue"}
           </Button>
