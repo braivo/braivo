@@ -77,7 +77,7 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 - One invalid task, or one quote not found in its source, refuses the whole batch, naming it. `apps/server/application/tasks.test.ts`, `apps/server/api/app.test.ts`
 - A stored task body is a valid one of its kind; a blank, NUL-carrying, or malformed text is refused. `apps/server/content/task.test.ts`
 - A title past 500 characters, blank, or not storable is refused, naming the objective or course, before the actor's role is read. `apps/server/application/objectives.test.ts`, `apps/server/application/courses.test.ts`, `apps/server/api/app.test.ts`
-- Task citations follow the sources spec's citation rules (sources-15, sources-16), including at most 10 per task and 200 quotes per request.
+- Task citations follow the sources spec's citation rules (sources-15, sources-16), including at most 10 per task and 200 quotes per request. `apps/server/api/app.test.ts`
 - Tasks from one batch are offered in the order given. `apps/server/application/tasks.test.ts`
 - Generated IDs match the request's order, and two organizations get distinct objectives for the same title. `apps/server/persistence/objective.test.ts`, `apps/server/application/objectives.test.ts`
 - An objective or course sent again under its key answers the same ID; under a key naming something else the request is refused, explained, and stores nothing; keys are per organization, and writers racing on one, in any order, share it without deadlock. `apps/server/persistence/objective.test.ts`, `apps/server/api/app.test.ts` (course keys only through the API)

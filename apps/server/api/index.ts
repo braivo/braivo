@@ -33,8 +33,8 @@
 //   member, possibly forged, or a bearer token, 404 as above.
 // - `GET /api/session/handoff?code=` on the learn domain: with the nonce cookie,
 //   sets the learner session (a week, renewed by use once a day old) and
-//   redirects to the path sign-in began from; 400, as text, for a code spent,
-//   late, or redeemed in another browser.
+//   redirects to the path sign-in began from; otherwise (a code spent, late,
+//   or from another browser) spends nothing and redirects to `/login?failed=1`.
 // - `GET /api/session`: who is signed in on this host, `{ "user": { "id",
 //   "name" } }`, from its learner session on a learn domain or the account's on
 //   `BRAIVO_URL`'s; 401 when no one is.
@@ -47,10 +47,11 @@
 // `{ "name": "…" }`; 404 means the host serves no organization. The host is the
 // request's `Host`, so a router in front forwards it unchanged (ADR 0004).
 //
-// Every `/api/courses/:courseId/…` route below answers 404, as for a course that
-// does not exist, when the request's host may not reach the course: on an
-// organization's domain, another organization's course; on a host that is
-// neither that nor `BRAIVO_URL`'s, any course.
+// On an organization's domain, the learner's `/api/courses/:courseId/…` routes
+// below answer another organization's course 404, as one that does not exist.
+// A host that is neither that nor `BRAIVO_URL`'s holds no session, so these
+// routes answer there as without one (401); so does a course's overview
+// anywhere but `BRAIVO_URL`'s.
 //
 // On `BRAIVO_URL`'s host, a session is the account's: a cookie from a browser,
 // or `Authorization: Bearer <token>` from a content owner's own tools, which
@@ -85,9 +86,9 @@
 //
 // `GET /api/courses` — the courses the signed-in learner may study: every course
 // of every organization they belong to, by title. On an organization's domain,
-// only that organization's; on a host that is neither that nor `BRAIVO_URL`'s,
-// none.
-// 401 without a session; otherwise 200 with
+// only that organization's.
+// 401 without a session, as on any host but an organization's domain or
+// `BRAIVO_URL`'s; otherwise 200 with
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo

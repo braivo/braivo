@@ -9,8 +9,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
 import * as z from "zod";
 
-import type { SendMail } from "../mail/index.ts";
-import { signInCodeMail } from "../mail/sign-in-code.ts";
+import { type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
   claimSignInCode,
   organizationOwnsLearningContent,

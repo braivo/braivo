@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Mail } from "./index.ts";
+import type { Mail } from "./transport.ts";
 
 /** The email carrying a sign-in code. */
 export function signInCodeMail(input: {

@@ -1100,12 +1100,18 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     // Well under 1 MB, so refused on its count rather than its size.
     const tooMany = Array.from({ length: 1001 }, () => ({ ...task, answer: 1 }));
     expect((await post({ tasks: tooMany }, teacher.cookie)).status).toBe(400);
-    // Each quote is a scan of its source, so a request finds at most 200.
-    const quoting = Array.from({ length: 21 }, () => ({
+    // Each quote is a scan of its source, so a request finds at most 200, and
+    // a task cites at most 10. At both, it gets as far as the source, which
+    // does not exist (403).
+    const citing = (count: number) => ({
       ...task,
-      citations: Array.from({ length: 10 }, () => ({ sourceId: "s", quote: "q" })),
-    }));
-    expect((await post({ tasks: quoting }, teacher.cookie)).status).toBe(400);
+      answer: 1,
+      citations: Array.from({ length: count }, () => ({ sourceId: "s", quote: "q" })),
+    });
+    const atLimits = Array.from({ length: 20 }, () => citing(10));
+    expect((await post({ tasks: atLimits }, teacher.cookie)).status).toBe(403);
+    expect((await post({ tasks: [...atLimits, citing(1)] }, teacher.cookie)).status).toBe(400);
+    expect((await post({ tasks: [citing(11)] }, teacher.cookie)).status).toBe(400);
     expect((await post({ tasks: [{ ...task, answer: 1 }] }, learner.cookie)).status).toBe(403);
     expect((await post({ tasks: [{ ...task, answer: 1 }] })).status).toBe(401);
   });
@@ -2564,16 +2570,21 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     });
     const [objectiveId] = ((await defined.json()) as { objectiveIds: string[] }).objectiveIds;
 
-    const cite = (quote: string, cookie = teacher.cookie) =>
+    const cite = (quote: string, cookie = teacher.cookie, times = 1) =>
       api.request(`/api/organizations/${organizationId}/citations`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie },
-        body: JSON.stringify({ citations: [{ objectiveId, sourceId, quote }] }),
+        body: JSON.stringify({
+          citations: Array.from({ length: times }, () => ({ objectiveId, sourceId, quote })),
+        }),
       });
 
     const cited = await cite("uno, dos, tres.");
     const invented = await cite("cuatro, cinco");
     const byLearner = await cite("uno, dos, tres.", learner.cookie);
+    // Each quote is a scan of its source, so a request locates at most 200.
+    const atLimit = await cite("uno, dos, tres.", teacher.cookie, 200);
+    const overLimit = await cite("uno, dos, tres.", teacher.cookie, 201);
     const read = await api.request(
       `/api/organizations/${organizationId}/objectives/${objectiveId}/citations`,
       { headers: { cookie: teacher.cookie } },
@@ -2589,6 +2600,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       error: "Citation 0: the quote does not occur in the source.",
     });
     expect(byLearner.status).toBe(403);
+    expect([atLimit.status, overLimit.status]).toEqual([200, 400]);
     expect(await read.json()).toEqual({
       citations: [{ sourceId, start: 13, end: 28, quote: "uno, dos, tres." }],
     });
