@@ -219,7 +219,14 @@ pdftotext libro.pdf - | braivo sources add - --organization my-school \
 
 `--original` keeps the PDF itself with the text, so whoever reviews the source — or extracts it again, better — has what it came from.
 
-Pages are numbered from the PDF's first sheet; for a book whose printed numbers differ, let your agent send them (below). Any other text is added as it reads. Running the same command again adds nothing: a source Braivo already has, word for word, answers with its ID ([ADR 0024](docs/adr/0024-idempotent-authoring.md)).
+Pages are numbered from 1 at the first page extracted. Where the book numbers it otherwise — after front matter, or for one chapter — give that page's number, even if it is blank:
+
+```sh
+pdftotext -f 40 -l 61 libro.pdf - | braivo sources add - --organization my-school \
+  --title "Capítulo 3" --language es --first-page 28
+```
+
+Any other text is added as it reads. Running the same command again adds nothing: a source Braivo already has, word for word, answers with its ID ([ADR 0024](docs/adr/0024-idempotent-authoring.md)).
 
 The session it keeps in `~/.config/braivo/credentials.json` is yours, with your roles ([ADR 0022](docs/adr/0022-machine-access.md)); `braivo logout` ends it on the server and deletes the file. Objectives and tasks can then cite the source's exact words, which Braivo checks ([ADR 0021](docs/adr/0021-citations.md)).
 

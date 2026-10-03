@@ -36,9 +36,11 @@ Working with one, as yourself:
   logout        Sign out, ending the saved token's session, and forget it.
   sources add <file | -> --organization <slug> [--title <title>]
                 [--url <link>] [--language <tag>] [--original <file>]
+                [--first-page <number>]
                 Add a file's text, or standard input's, as a source;
                 a .vtt or .srt caption file as a timed transcript,
-                and text with form feeds, as pdftotext writes it, by page;
+                and text with form feeds, as pdftotext writes it, by page,
+                numbered from 1, or from the first one's number in the book;
                 --original uploads the file the text is from, kept with it.
   mcp           Serve Braivo as MCP tools over stdio, for a desktop agent.
 `;
@@ -198,6 +200,7 @@ async function main(argv: readonly string[]): Promise<number> {
         url: { type: "string" },
         language: { type: "string" },
         original: { type: "string" },
+        "first-page": { type: "string" },
       },
     });
     const [file] = positionals;
@@ -217,6 +220,7 @@ async function main(argv: readonly string[]): Promise<number> {
       url: values.url,
       language: values.language,
       original: values.original,
+      firstPage: values["first-page"],
       readStdin: () => Bun.stdin.text(),
     });
     // Alone on stdout, so a script or an agent can capture it.

@@ -18,7 +18,9 @@ import { uploadOriginal } from "./originals.ts";
  * a timed transcript and a passage cited from it names the moment of the video
  * it is said at (docs/adr/0025-timed-transcripts.md). Text with form feeds
  * between pages, as `pdftotext` writes it, is sent as pages, so a passage names
- * its page (docs/adr/0026-paged-documents.md).
+ * its page (docs/adr/0026-paged-documents.md). `firstPage`, as typed, is the
+ * book's number of the first page, printed or blank: for a chapter extracted
+ * alone (`pdftotext -f`), or a book not numbered by its sheets.
  *
  * The organization is named by its slug, the one in the console's address: an
  * ID would take an API call to find.
@@ -38,15 +40,17 @@ export async function addSourceFromFile(input: {
   url?: string;
   language?: string;
   original?: string;
+  firstPage?: string;
   readStdin: () => Promise<string>;
 }): Promise<string> {
   const { client, file, url, language } = input;
 
   const title = input.title ?? (file === "-" ? undefined : basename(file, extname(file)));
   if (title === undefined) throw new Error("Text from standard input needs a --title.");
+  const firstPage = firstPageOf(input.firstPage);
 
   const content = file === "-" ? await input.readStdin() : await readFile(file, "utf8");
-  const body = sourceBody(file, content);
+  const body = sourceBody(file, content, firstPage);
   const organizationId = await organizationIdOf(client, input.organizationSlug);
 
   // Only once the text is known to be sendable and the organization found, so
@@ -69,27 +73,49 @@ async function organizationIdOf(client: BraivoClient, slug: string): Promise<str
   throw new Error(`You manage no organization "${slug}"; yours: ${yours}.`);
 }
 
+/** `--first-page` as a number: whole, from 1, at most six digits — more than any book has. */
+function firstPageOf(typed: string | undefined): number | undefined {
+  if (typed === undefined) return undefined;
+  if (!/^[1-9][0-9]{0,5}$/.test(typed)) {
+    throw new Error(
+      "--first-page takes the first page's number in the book, a whole number from 1 to 999999.",
+    );
+  }
+  return Number(typed);
+}
+
 /** What of a source `content` is: captions, pages, or text, by what the file is. */
 function sourceBody(
   file: string,
   content: string,
+  firstPage: number | undefined,
 ):
   | { text: string }
   | { pages: { page: string; text: string }[] }
   | { cues: { at: number; text: string }[] } {
+  const where = file === "-" ? "Standard input" : file;
   const format = file === "-" ? undefined : captionFormat(file);
+  // `--first-page` is refused rather than ignored where there are no pages, so
+  // a page number asked for is never silently lost.
   if (format !== undefined) {
+    if (firstPage !== undefined) {
+      throw new Error(`${file}: --first-page is for pages, not captions.`);
+    }
     const cues = parseCaptions(content, format);
     if (cues instanceof Error) throw new Error(`${file}: ${cues.message}`);
     return { cues };
   }
 
-  const where = file === "-" ? "Standard input" : file;
-  const pages = splitPages(content);
+  const pages = splitPages(content, firstPage);
   if (pages === undefined) {
     // Refused here, as Braivo would, so an original is never uploaded for it.
     if (content.trim() === "" || content.includes("\u0000") || !content.isWellFormed()) {
       throw new Error(`${where}: no text Braivo can store; it is blank, or not text.`);
+    }
+    if (firstPage !== undefined) {
+      throw new Error(
+        `${where}: --first-page needs pages, separated by form feeds as pdftotext writes.`,
+      );
     }
     return { text: content };
   }
@@ -102,14 +128,17 @@ function sourceBody(
 /**
  * A document's pages, when `content` separates them with form feeds as
  * `pdftotext` does, or `undefined` for text that has none. Pages are labelled
- * by position from 1 — a PDF's sheets, which a book's printed numbers need not
- * match; an agent that reads those can send them itself. A page without words,
- * a blank or scanned one, is left out and keeps its number.
+ * by position from `firstPage`, so a page without words, a blank or scanned
+ * one, is left out and keeps its number. Labels other than numbers, `iv`, are
+ * an agent's to send.
  */
-export function splitPages(content: string): { page: string; text: string }[] | undefined {
+export function splitPages(
+  content: string,
+  firstPage = 1,
+): { page: string; text: string }[] | undefined {
   if (!content.includes("\f")) return undefined;
   return content
     .split("\f")
-    .map((text, index) => ({ page: String(index + 1), text }))
+    .map((text, index) => ({ page: String(firstPage + index), text }))
     .filter(({ text }) => text.trim() !== "");
 }

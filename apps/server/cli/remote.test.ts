@@ -411,6 +411,85 @@ describe("adding a file as a source", () => {
     });
   });
 
+  test("numbers the pages from --first-page, the book's number of the first", async () => {
+    const added = await addSourceFromFile({
+      client: client as never,
+      organizationSlug: "school",
+      file: "-",
+      title: "Capítulo 3",
+      firstPage: "28",
+      readStdin: async () => "Hola.\f \fAdiós.\f",
+    });
+
+    expect(JSON.parse(added)).toMatchObject({
+      pages: [
+        { page: "28", text: "Hola." },
+        { page: "30", text: "Adiós." },
+      ],
+    });
+  });
+
+  test("takes --first-page from 1 to 999999", async () => {
+    for (const firstPage of ["1", "999999"]) {
+      const added = await addSourceFromFile({
+        client: client as never,
+        organizationSlug: "school",
+        file: "-",
+        title: "Libro",
+        firstPage,
+        readStdin: async () => "Hola.\f",
+      });
+      expect(JSON.parse(added)).toMatchObject({ pages: [{ page: firstPage, text: "Hola." }] });
+    }
+  });
+
+  test("refuses --first-page that is not a page number, or for text without pages, uploading nothing", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "braivo-"));
+    const pdf = join(directory, "libro.pdf");
+    await writeFile(pdf, "%PDF-1.7");
+    const captions = join(directory, "lesson.vtt");
+    await writeFile(captions, "WEBVTT\n\n00:01.500 --> 00:03.000\nHola.\n");
+    let uploads = 0;
+    let reads = 0;
+    const uploading = {
+      ...client,
+      uploadFile: async () => {
+        uploads += 1;
+        return { fileId: "f".repeat(64) };
+      },
+    };
+    const adding = (firstPage: string, text: string, file = "-") =>
+      addSourceFromFile({
+        client: uploading as never,
+        organizationSlug: "school",
+        file,
+        title: "Libro",
+        original: pdf,
+        firstPage,
+        readStdin: async () => {
+          reads += 1;
+          return text;
+        },
+      });
+
+    // Before standard input is read, so a typo does not wait for the pipe.
+    for (const firstPage of ["0", "-3", "1.5", "iv", "", "1000000"]) {
+      await expect(adding(firstPage, "Hola.\f")).rejects.toThrow(
+        "--first-page takes the first page's number in the book, a whole number from 1 to 999999.",
+      );
+    }
+    expect(reads).toBe(0);
+    await expect(adding("12", "Hola.")).rejects.toThrow(
+      "Standard input: --first-page needs pages, separated by form feeds as pdftotext writes.",
+    );
+    await expect(adding("12", "", captions)).rejects.toThrow(
+      `${captions}: --first-page is for pages, not captions.`,
+    );
+    // What is wrong with the text comes first: here, that there is none.
+    await expect(adding("12", "")).rejects.toThrow("Standard input: no text Braivo can store");
+    expect(uploads).toBe(0);
+  });
+
   test("says so when no page has text, as a scanned PDF's does not", async () => {
     await expect(
       addSourceFromFile({
