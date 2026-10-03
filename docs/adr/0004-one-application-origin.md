@@ -18,6 +18,7 @@ Both applications write through Braivo's API and Better Auth, which must refuse 
 /                                no session: /login (Cloud: www first, below); session: an organization
 /login                           signing in (ADR 0018)
 /invitations/<invitation>        accepting an invitation (ADR 0018)
+/device                          approving a content owner's tool (ADR 0022)
 /organizations                   the organizations someone manages
 /<organization>                  the organization's console
 /<organization>/courses/<course>
@@ -25,7 +26,7 @@ Both applications write through Braivo's API and Better Auth, which must refuse 
 ```
 
 - **The request names the organization, never the session**: the path here, the hostname on a learn domain, with access checked as [ADR 0006](0006-better-auth.md) requires. Better Auth's active organization is unused; opening an organization writes nothing.
-- **The host is a ceiling.** On an organization's domain the API answers another organization's course with 404, even to someone entitled to it, so no domain shows another's material under its brand; on a host that is neither an organization's nor the installation's, it answers every course so, and removing a domain's row revokes what it reaches.
+- **The host is a ceiling.** On an organization's domain the API answers another organization's course with 404, even to someone entitled to it, so no domain shows another's material under its brand; on a host that is neither an organization's nor the installation's, it reaches no course, and removing a domain's row revokes what it reaches.
 - **Signed in, `/` returns to the organization last opened in that browser** — remembered by ID, opened at its current slug, and only while they still manage it — else their only one, else `/organizations`. That page lists the organizations they manage; managing none, it says learners use the learning site their school provides. Organizations are created by the operator ([ADR 0018](0018-sign-in-and-invitations.md)). The last one opened is a browser preference, not session state: switching writes nothing, and a remembered ID grants nothing.
 - **The console's organizations are those someone manages**, as `owner` or `admin` (`GET /api/organizations`). A school someone only studies at, as a `member`, is not one of them.
 - **"Organization" is the one name** in code, docs, and UI. ("Workspace" means the Vite+ workspace here.)
