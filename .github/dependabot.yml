@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 # SPDX-License-Identifier: AGPL-3.0-only
 
-# Keeps the workflows' actions current, which nothing else does: checkout fell
-# two majors behind unnoticed. Monthly, grouped into one pull request, which
-# Check gates like any other.
+# Keeps the workflows' actions current: monthly, grouped into one pull request,
+# which Check gates like any other.
 version: 2
 updates:
   - package-ecosystem: github-actions
