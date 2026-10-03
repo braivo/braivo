@@ -38,9 +38,11 @@ jobs:
           name: cli
           path: dist/braivo-*
           if-no-files-found: error
+          # Only carries the binaries to the release job.
+          retention-days: 1
 
-  # Its own job so the token that can write releases never meets the build's
-  # dependencies.
+  # Its own job, so the token that can write releases never reaches one that
+  # runs project or dependency code.
   release:
     name: release
     needs: build
