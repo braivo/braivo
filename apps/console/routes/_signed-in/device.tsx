@@ -25,7 +25,12 @@ export const Route = createFileRoute("/_signed-in/device")({
     if (deps.userCode === undefined) return { request: undefined };
     // Also what binds the code to this user, which approving requires.
     const { data, error } = await context.auth.device({ query: { user_code: deps.userCode } });
-    return { request: error ? ("unknown" as const) : data };
+    // Better Auth refuses an unknown or expired code with 400 alone. Any other
+    // error says nothing about the code, so the page fails, and Try again
+    // looks it up again rather than sending the owner back to the terminal.
+    if (error?.status === 400) return { request: "unknown" as const };
+    if (error) throw new Error(`Braivo answered ${error.status}.`);
+    return { request: data };
   },
   component: Device,
 });
@@ -96,6 +101,7 @@ function Review({ userCode, clientId }: { userCode: string; clientId?: string | 
     // One decision at a time: Better Auth checks the code is pending, then
     // updates it, so an Approve and a Deny in flight together could both
     // succeed, and this page would report whichever answered last.
+    if (deciding) return;
     setDeciding(true);
     setError(undefined);
     try {
@@ -139,11 +145,12 @@ function Review({ userCode, clientId }: { userCode: string; clientId?: string | 
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      {/* aria-disabled, not disabled, so that they keep the focus meanwhile. */}
       <div className="flex gap-2">
-        <Button disabled={deciding} onClick={() => decide(true)}>
+        <Button aria-disabled={deciding} onClick={() => decide(true)}>
           Approve
         </Button>
-        <Button variant="outline" disabled={deciding} onClick={() => decide(false)}>
+        <Button variant="outline" aria-disabled={deciding} onClick={() => decide(false)}>
           Deny
         </Button>
       </div>

@@ -24,7 +24,8 @@ import { cn } from "#lib/utils";
  *
  * Locked with `aria-disabled` rather than `disabled`: a disabled button drops
  * focus, which would leave a keyboard learner nowhere while the answer is on
- * its way.
+ * its way. Locked options keep full strength, unlike a locked Button: they
+ * show the answer and its grading.
  *
  * Until then, keys 1 to 9 choose the option shown in that place, only while
  * focus is within the question: WCAG 2.1.4 allows character shortcuts active
@@ -85,7 +86,7 @@ export function ChoiceQuestion(props: {
               aria-disabled={locked}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
-                "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:pointer-events-none",
+                "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:opacity-100",
                 correct && "border-primary bg-primary/10",
                 wrong && "border-destructive bg-destructive/10",
               )}

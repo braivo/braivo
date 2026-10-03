@@ -149,7 +149,10 @@ function deviceFlow(status = "pending") {
     vi.fn(async ({ query }: { query: { user_code: string } }) =>
       query.user_code === "ABCD2345"
         ? { data: { user_code: "ABCD2345", status, client_id: "braivo-cli" }, error: null }
-        : { data: null, error: { error: "invalid_request", error_description: "Invalid" } },
+        : {
+            data: null,
+            error: { status: 400, error: "invalid_request", error_description: "Invalid" },
+          },
     ),
     {
       approve: vi.fn(async () => ({ data: { success: true }, error: null })),
@@ -304,6 +307,30 @@ describe("the console", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
       expect(await screen.findByLabelText("Email")).toBeTruthy();
       expect(other.auth.signOut).toHaveBeenCalledOnce();
+    });
+
+    test("switches account once without natively disabling either button", async () => {
+      const completeHandoff = vi.fn(async () => url);
+      const { auth } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => springo, completeHandoff },
+      });
+      const signedOut = Promise.withResolvers<{ error: null }>();
+      auth.signOut.mockReturnValueOnce(signedOut.promise);
+
+      const another = await screen.findByRole("button", { name: "Use another account" });
+      const offered = screen.getByRole("button", { name: "Continue as Olive Owner" });
+      fireEvent.click(another);
+      fireEvent.click(another);
+      fireEvent.click(offered);
+
+      expect(auth.signOut).toHaveBeenCalledOnce();
+      expect(completeHandoff).not.toHaveBeenCalled();
+      for (const button of [another, offered]) {
+        expect(button.getAttribute("aria-disabled")).toBe("true");
+        expect(button.matches(":disabled")).toBe(false);
+      }
+      signedOut.resolve({ error: null });
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
     });
 
     test("says when the account is not a member, offering another", async () => {
@@ -465,7 +492,10 @@ describe("the console", () => {
     renderAt("/device?user_code=ABCD2345", { device });
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
-    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    const deny = screen.getByRole("button", { name: "Deny" });
+    fireEvent.click(deny);
+    expect(deny.getAttribute("aria-disabled")).toBe("true");
+    expect(deny.matches(":disabled")).toBe(false);
     answer();
 
     expect(await screen.findByText("Signed in. You can go back to your terminal.")).toBeTruthy();
@@ -505,6 +535,21 @@ describe("the console", () => {
 
     expect(await screen.findByText(/not valid, or has expired/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  test("lets an owner try again when the code could not be looked up", async () => {
+    const device = deviceFlow();
+    device.mockResolvedValueOnce({
+      data: null,
+      error: { status: 500, error: "server_error", error_description: "" },
+    });
+    renderAt("/device?user_code=ABCD2345", { device });
+
+    // Not "not valid": nothing was said about the code, which may still be good.
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Let a tool act as you?")).toBeTruthy();
+    expect(screen.queryByText(/not valid/)).toBeNull();
   });
 
   test("offers nothing to approve for a code already answered", async () => {
