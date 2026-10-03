@@ -106,7 +106,7 @@ export function SignInForm(props: {
           </InputOTPGroup>
         </InputOTP>
         {/* A status, so a new code's arrival is announced. */}
-        <FieldDescription id={`${id}-sent`} role="status">
+        <FieldDescription id={`${id}-sent`} role="status" className="wrap-break-word">
           {(step.sent ?? 1) > 1 ? "A new code was sent" : "Sent"} to {step.email}. Check your spam
           folder too.
         </FieldDescription>
