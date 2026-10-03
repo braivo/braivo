@@ -203,8 +203,9 @@ braivo login http://localhost:3000
 yt-dlp --skip-download --write-auto-subs --sub-langs es --sub-format vtt -o lesson \
   "https://www.youtube.com/watch?v=…"
 
-# Add the transcript, keeping where it came from and its language.
-braivo sources add lesson.es.vtt --organization <id> \
+# Add the transcript to the organization at …/my-school in the console,
+# keeping where it came from and its language.
+braivo sources add lesson.es.vtt --organization my-school \
   --title "Los saludos" --url "https://www.youtube.com/watch?v=…" --language es
 # prints the new source's ID
 ```
@@ -212,7 +213,7 @@ braivo sources add lesson.es.vtt --organization <id> \
 A `.vtt` or `.srt` file is read into timed lines — markup dropped, and the rolling repeats of auto-generated captions skipped, though a line really said twice is kept — so a passage cited from it opens the video where it is said ([ADR 0025](docs/adr/0025-timed-transcripts.md)). A book's text from `pdftotext`, whose form feeds separate its pages, is added page by page, so a passage names the page to turn to ([ADR 0026](docs/adr/0026-paged-documents.md)):
 
 ```sh
-pdftotext libro.pdf - | braivo sources add - --organization <id> \
+pdftotext libro.pdf - | braivo sources add - --organization my-school \
   --title "Mi primer libro" --language es --original libro.pdf
 ```
 

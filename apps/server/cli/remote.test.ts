@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runMigrations } from "@braivo/db";
-import { session } from "@braivo/db/schema";
+import { organization, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
@@ -37,6 +37,7 @@ const fetch = ((input: string | URL, init?: RequestInit) =>
   api.request(input.toString(), init)) as unknown as typeof globalThis.fetch;
 
 const organizationId = "cli-test-org";
+const organizationSlug = "cli-test-school";
 const at = new Date("2026-06-01T00:00:00.000Z");
 
 let teacher!: { cookie: string; id: string; email: string };
@@ -262,6 +263,10 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
       adminIds: [teacher.id],
       at,
     });
+    await database
+      .update(organization)
+      .set({ slug: organizationSlug })
+      .where(eq(organization.id, organizationId));
   });
 
   test("signs in as the content owner who approved, and adds a source as them", async () => {
@@ -275,7 +280,7 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
 
     const sourceId = await addSourceFromFile({
       client: remoteClient(credentials, fetch),
-      organizationId,
+      organizationSlug,
       file: "-",
       title: "Transcript",
       url: "https://www.youtube.com/watch?v=abc123",
@@ -336,12 +341,15 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
 });
 
 describe("adding a file as a source", () => {
-  const client = { addSource: async (input: object) => JSON.stringify(input) };
+  const client = {
+    listOrganizations: async () => [{ id: "o", name: "School", slug: "school" }],
+    addSource: async (input: object) => JSON.stringify(input),
+  };
 
   test("names it after the file, without its extension", async () => {
     const added = await addSourceFromFile({
       client: client as never,
-      organizationId: "o",
+      organizationSlug: "school",
       file: fileURLToPath(import.meta.url),
       readStdin: async () => "",
     });
@@ -356,7 +364,7 @@ describe("adding a file as a source", () => {
 
     const added = await addSourceFromFile({
       client: client as never,
-      organizationId: "o",
+      organizationSlug: "school",
       file,
       readStdin: async () => "",
     });
@@ -376,7 +384,7 @@ describe("adding a file as a source", () => {
     await expect(
       addSourceFromFile({
         client: client as never,
-        organizationId: "o",
+        organizationSlug: "school",
         file,
         readStdin: async () => "",
       }),
@@ -386,7 +394,7 @@ describe("adding a file as a source", () => {
   test("sends pdftotext's pages as pages, numbered from 1, leaving out blank ones", async () => {
     const added = await addSourceFromFile({
       client: client as never,
-      organizationId: "o",
+      organizationSlug: "school",
       file: "-",
       title: "Libro",
       readStdin: async () => "Portada\f\n \fHola.\n\fAdiós.\n\f",
@@ -407,7 +415,7 @@ describe("adding a file as a source", () => {
     await expect(
       addSourceFromFile({
         client: client as never,
-        organizationId: "o",
+        organizationSlug: "school",
         file: "-",
         title: "Libro",
         readStdin: async () => "\f \f\f",
@@ -430,7 +438,7 @@ describe("adding a file as a source", () => {
 
     const added = await addSourceFromFile({
       client: uploading as never,
-      organizationId: "o",
+      organizationSlug: "school",
       file: "-",
       title: "Libro",
       original: pdf,
@@ -449,7 +457,7 @@ describe("adding a file as a source", () => {
     await expect(
       addSourceFromFile({
         client: uploading as never,
-        organizationId: "o",
+        organizationSlug: "school",
         file: "-",
         title: "Libro",
         original: pdf,
@@ -460,7 +468,7 @@ describe("adding a file as a source", () => {
       await expect(
         addSourceFromFile({
           client: uploading as never,
-          organizationId: "o",
+          organizationSlug: "school",
           file: "-",
           title: "Libro",
           original: pdf,
@@ -471,11 +479,37 @@ describe("adding a file as a source", () => {
     expect(uploads).toHaveLength(1);
   });
 
+  test("refuses a slug of no organization its owner manages, listing theirs, and uploads nothing", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "braivo-"));
+    const pdf = join(directory, "libro.pdf");
+    await writeFile(pdf, "%PDF-1.7");
+    let uploads = 0;
+    const uploading = {
+      ...client,
+      uploadFile: async () => {
+        uploads += 1;
+        return { fileId: "f".repeat(64) };
+      },
+    };
+
+    await expect(
+      addSourceFromFile({
+        client: uploading as never,
+        organizationSlug: "o",
+        file: "-",
+        title: "Libro",
+        original: pdf,
+        readStdin: async () => "Hola.",
+      }),
+    ).rejects.toThrow('You manage no organization "o"; yours: school.');
+    expect(uploads).toBe(0);
+  });
+
   test("needs a title for standard input, which has no name", async () => {
     await expect(
       addSourceFromFile({
         client: client as never,
-        organizationId: "o",
+        organizationSlug: "school",
         file: "-",
         readStdin: async () => "Hola",
       }),
