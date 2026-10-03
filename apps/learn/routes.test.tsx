@@ -169,6 +169,30 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
   });
 
+  test("on its organization's domain, after a failed handoff, hands off again only on a click", async () => {
+    const { visit } = renderAt("/login?failed=1", {
+      signedIn: false,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    const notice = await screen.findByRole("region", { name: "This sign-in did not finish." });
+    expect(document.activeElement).toBe(notice);
+    expect(visit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
+    // Where the failed sign-in was headed is not known here.
+    expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F");
+  });
+
+  test("on its organization's domain, after a failed handoff, sends a learner signed in meanwhile onward", async () => {
+    const { router } = renderAt("/login?failed=1", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Springo" }),
+    });
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.queryByText("This sign-in did not finish.")).toBeNull();
+  });
+
   test("on its organization's domain, leaves only on navigating to sign in, not on a preload", async () => {
     const { router, signOut, visit } = renderAt("/", {
       signedIn: true,

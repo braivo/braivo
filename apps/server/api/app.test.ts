@@ -705,8 +705,17 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const { url } = (await completed.json()) as { url: string };
     expect(url).toMatch(`${organizationOrigin}/api/session/handoff?code=`);
 
-    // Only in the browser that started it, and once.
-    expect((await api.request(url)).status).toBe(400);
+    // Only in the browser that started it, and once; a failure goes back to
+    // the learn app's sign-in, with no session.
+    const failed = (response: Response) => {
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/login?failed=1");
+      expect(response.headers.getSetCookie()).toEqual([]);
+      // The URL it was asked for holds the code.
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    };
+    failed(await api.request(url));
     const redeemed = await api.request(url, { headers: { cookie: nonce } });
     expect(redeemed.status).toBe(302);
     expect(redeemed.headers.get("location")).toBe("/courses/c1");
@@ -715,7 +724,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       .getSetCookie()
       .find((set) => set.startsWith("__Host-braivo-learner="));
     expect(sessionCookie).toMatch(/; Path=\/; Expires=.+; HttpOnly; Secure; SameSite=Lax$/);
-    expect((await api.request(url, { headers: { cookie: nonce } })).status).toBe(400);
+    failed(await api.request(url, { headers: { cookie: nonce } }));
 
     const signedIn = await api.request(`${organizationOrigin}/api/session`, {
       headers: { cookie: sessionCookie!.split(";", 1)[0]! },
@@ -739,7 +748,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const second = await start();
 
     const stale = await api.request(first.url, { headers: { cookie: second.nonce } });
-    expect(stale.status).toBe(400);
+    expect(stale.headers.get("location")).toBe("/login?failed=1");
     expect(stale.headers.getSetCookie()).toEqual([]);
     const latest = await api.request(second.url, { headers: { cookie: second.nonce } });
     expect(latest.status).toBe(302);

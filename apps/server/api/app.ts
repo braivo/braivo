@@ -654,13 +654,9 @@ export function createApi(options: ApiOptions) {
             now: new Date(),
           })
         : undefined;
-    // Plain text: a person followed a redirect here, and a bare status shows nothing.
-    if (!redeemed) {
-      return context.text(
-        "This sign-in expired or began in another browser. Go back and sign in again.",
-        400,
-      );
-    }
+    // A person followed a redirect here. The learn app says it failed and
+    // offers to sign in again; Back would only reach the spent handoff.
+    if (!redeemed) return context.redirect("/login?failed=1");
 
     // Only once spent: after a failure, it may be a later sign-in's, begun in
     // another tab, that one cookie holds.

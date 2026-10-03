@@ -3,11 +3,18 @@
 
 import { EmailSignIn, needsName, safeRedirect } from "@braivo/auth-client";
 import { Heading } from "@braivo/ui";
+import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 
+import { Notice } from "#components/notice";
+
 export const Route = createFileRoute("/login")({
-  validateSearch: (search): { redirect?: string } => ({ redirect: safeRedirect(search.redirect) }),
+  // `failed`: the handoff came back unredeemable (`/api/session/handoff`).
+  validateSearch: (search): { redirect?: string; failed?: true } => ({
+    redirect: safeRedirect(search.redirect),
+    failed: search.failed ? true : undefined,
+  }),
   beforeLoad: async ({ context, search, preload }) => {
     // An organization's domain signs in on the installation's origin, which
     // hands a learner session back here (ADR 0018). A host serving no
@@ -18,30 +25,41 @@ export const Route = createFileRoute("/login")({
       // hands off again, where the console asks for the name.
       const user = await context.braivo.session();
       if (user?.name.trim()) throw redirect({ href: search.redirect ?? "/" });
+      // After a failure, only a click hands off again: one that fails each
+      // time (cookies blocked) must not cycle unseen.
+      if (search.failed) return { view: "failed" as const };
       // A preload only looks ahead: leaving the app is the navigation's.
-      if (!preload) {
-        const back = encodeURIComponent(search.redirect ?? "/");
-        context.visit(`/api/session/sign-in?redirect=${back}`);
-      }
-      return { handingOff: true, needsName: false };
+      if (!preload) context.visit(signInUrl(search.redirect));
+      return { view: "handoff" as const };
     }
-    return { handingOff: false, needsName: await needsName(context.auth) };
+    return { view: "form" as const, needsName: await needsName(context.auth) };
   },
   component: SignIn,
 });
 
+function signInUrl(redirect = "/") {
+  return `/api/session/sign-in?redirect=${encodeURIComponent(redirect)}`;
+}
+
 function SignIn() {
-  const { auth, handingOff, needsName } = Route.useRouteContext();
+  const context = Route.useRouteContext();
   const { redirect } = Route.useSearch();
   const router = useRouter();
 
-  if (handingOff) return <Spinner aria-label="Signing in" />;
+  if (context.view === "handoff") return <Spinner aria-label="Signing in" />;
+  if (context.view === "failed") {
+    return (
+      <Notice title="This sign-in did not finish." description="It may have expired.">
+        <Button onClick={() => context.visit(signInUrl(redirect))}>Sign in again</Button>
+      </Notice>
+    );
+  }
   return (
     <>
       <Heading>Sign in</Heading>
       <EmailSignIn
-        auth={auth}
-        needsName={needsName}
+        auth={context.auth}
+        needsName={context.needsName}
         onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
       />
     </>
