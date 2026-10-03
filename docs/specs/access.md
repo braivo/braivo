@@ -89,7 +89,7 @@ flowchart TD
 - A `member` never authors or records evidence. `apps/server/api/app.test.ts`, `apps/server/application/record-evidence.test.ts`
 - The learner is the session's user, never a value from the request. `apps/server/api/app.test.ts`
 - A learner route answers a course outside the learner's organizations as `404`, like a missing one. `apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`
-- Roles are split, never compared whole. `apps/server/persistence/membership.test.ts`
+- Braivo's role checks split roles, never compare them whole: a `member` who also holds `admin` administers. `apps/server/persistence/membership.test.ts`, `apps/server/application/permission.test.ts`
 - One member record per user and organization. `apps/server/persistence/membership.test.ts`
 - Better Auth answers its invitation endpoints `404`, even requests they would carry out; a stored invitation stays pending and admits no one. `apps/server/auth/auth.test.ts`
 - Only an `owner` or `admin` lists an organization's members, and never with emails; Better Auth answers its own member listings, removal, and role changes `404`, even to an owner. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
