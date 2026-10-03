@@ -8,7 +8,9 @@ import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+
+const expiredTitle = "This sign-in has expired";
 
 /**
  * Signing in on the installation's origin: to the console, or, with
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/login")({
             {
               title: loaderData.handoff
                 ? `Sign in to ${loaderData.handoff.organization.name}`
-                : "This sign-in has expired",
+                : expiredTitle,
             },
           ],
         },
@@ -92,7 +94,8 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
-  if (!handoff || view === "expired") return <Expired />;
+  if (!handoff) return <Expired />;
+  if (view === "expired") return <Expired hostname={handoff.hostname} />;
   const { name } = handoff.organization;
 
   /** From the account offered, or one just signed in to; failing, back to the former. */
@@ -183,12 +186,30 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   );
 }
 
-/** An alert, since it may replace the page mid-sign-in, where focus was. */
-function Expired() {
+/**
+ * Titled here, as `head` still holds what the loader found. Mid-sign-in the
+ * domain is known: the heading takes focus from the button that is gone (on
+ * load there is none, and focusing would only draw a ring), and the domain's
+ * `/login` starts a new handoff, as only it can set the nonce cookie.
+ */
+function Expired({ hostname }: { hostname?: string }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    document.title = expiredTitle;
+    if (hostname) heading.current?.focus();
+  }, [hostname]);
   return (
-    <div role="alert">
-      <Heading>This sign-in has expired</Heading>
-      <MutedText>Go back to the site you came from and sign in again.</MutedText>
-    </div>
+    <>
+      <Heading ref={heading} tabIndex={-1}>
+        {expiredTitle}
+      </Heading>
+      {hostname ? (
+        <Button asChild className="mt-6 w-full">
+          <a href={`https://${hostname}/login`}>Sign in again</a>
+        </Button>
+      ) : (
+        <MutedText>Go back to the site you came from and sign in again.</MutedText>
+      )}
+    </>
   );
 }
