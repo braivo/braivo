@@ -5,7 +5,13 @@
 // Braivo like any other, not a part of the server they happen to ship with.
 import { type BraivoClient, createClient } from "@braivo/server/client";
 
-import { type Credentials, readServer } from "./credentials.ts";
+import {
+  type Credentials,
+  deleteCredentials,
+  loadCredentials,
+  readServer,
+  saveCredentials,
+} from "./credentials.ts";
 
 // The commands that address a remote Braivo installation over HTTP, as the
 // content owner who signed in: what a desktop agent preparing material, or a
@@ -89,18 +95,82 @@ export async function signIn(server: string, io: Io): Promise<string> {
   }
 }
 
+/**
+ * Signs in to the installation at `address` and saves the token at `path`.
+ * Refuses while one is saved: replacing it would leave that session live and
+ * out of `logout`'s reach, where a running `braivo mcp` may still use it.
+ */
+export async function login(path: string, address: string, io: Io): Promise<Credentials> {
+  const server = readServer(address);
+  const saved = await loadCredentials(path);
+  if (saved) throw new Error(`Already signed in to ${saved.server}. Run \`braivo logout\` first.`);
+
+  const credentials = { server, token: await signIn(server, io) };
+  await saveCredentials(path, credentials);
+  return credentials;
+}
+
+/**
+ * Signs the saved token's session out on the server, then deletes the file.
+ * Resolves to the installation signed out of, or `undefined` when nothing was
+ * saved; a session already ended counts as signed out. The file goes only once
+ * the server confirms: forgetting a live token leaves every copy of it working.
+ */
+export async function logout(
+  path: string,
+  fetch: typeof globalThis.fetch,
+): Promise<string | undefined> {
+  const credentials = await loadCredentials(path);
+  if (!credentials) return undefined;
+
+  try {
+    const response = await fetch(`${readServer(credentials.server)}/api/auth/sign-out`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${credentials.token}` },
+    });
+    if (!response.ok) throw new Error(`Braivo answered ${response.status} signing out.`);
+    // Better Auth answers success even when deleting the session failed, so
+    // only a token that no longer signs in proves it.
+    if (await whoAmI(credentials, fetch)) throw new Error("The session is still signed in.");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Could not sign out of ${credentials.server}: ${reason}\nThe token may still work. Run \`braivo logout\` again, or delete ${path} to forget it on this machine only.`,
+    );
+  }
+
+  try {
+    await deleteCredentials(path);
+  } catch (error) {
+    // `login` refuses while the file is here, so say the session is already over.
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Signed out of ${credentials.server}, but could not delete ${path}: ${reason}\nDelete it before signing in again.`,
+    );
+  }
+  return credentials.server;
+}
+
 /** The account a token signs in as, or `undefined` when it has expired or been signed out. */
 export async function whoAmI(
   credentials: Credentials,
   fetch: typeof globalThis.fetch,
 ): Promise<{ email: string } | undefined> {
-  const response = await fetch(`${readServer(credentials.server)}/api/auth/get-session`, {
-    headers: { authorization: `Bearer ${credentials.token}` },
-  });
+  // Never renews: probing a sign-out that failed would extend the session.
+  const response = await fetch(
+    `${readServer(credentials.server)}/api/auth/get-session?disableRefresh=true`,
+    {
+      headers: { authorization: `Bearer ${credentials.token}` },
+    },
+  );
   if (!response.ok) throw new Error(`Braivo answered ${response.status} checking the session.`);
 
-  const session = (await response.json()) as { user: { email: string } } | null;
-  return session?.user && { email: session.user.email };
+  // Only `null` is signed out: `logout` deletes the token on it.
+  const session = (await response.json()) as { user?: { email?: unknown } } | null;
+  if (session === null) return undefined;
+  const email = session.user?.email;
+  if (typeof email !== "string") throw new Error("Braivo answered an unexpected session.");
+  return { email };
 }
 
 /**

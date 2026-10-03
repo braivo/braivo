@@ -1,21 +1,23 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runMigrations } from "@braivo/db";
+import { session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
 import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { readSource } from "../persistence/index.ts";
-import { readServer } from "./credentials.ts";
-import { remoteClient, signIn, whoAmI } from "./remote.ts";
+import { loadCredentials, readServer, saveCredentials } from "./credentials.ts";
+import { login, logout, remoteClient, signIn, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -65,6 +67,10 @@ async function answer(link: string, decision: "approve" | "deny") {
   });
 }
 
+/** Where a test keeps its credentials: a fresh file, never the real one. */
+const credentialsFile = async () =>
+  join(await mkdtemp(join(tmpdir(), "braivo-credentials-")), "credentials.json");
+
 /**
  * Signs in as the CLI does, with the content owner answering in their browser
  * while it waits. The first wait is where they answer; waits are otherwise
@@ -73,7 +79,8 @@ async function answer(link: string, decision: "approve" | "deny") {
 async function signInAnswering(decision: "approve" | "deny") {
   const printed: string[] = [];
   const waits: number[] = [];
-  const token = signIn(server, {
+  const path = await credentialsFile();
+  const credentials = login(path, server, {
     fetch,
     print: (line) => printed.push(line),
     sleep: async (milliseconds) => {
@@ -81,7 +88,8 @@ async function signInAnswering(decision: "approve" | "deny") {
       if (waits.length === 1) await answer(printed[0]!.replace(/^Open /, ""), decision);
     },
   });
-  return { token: await token, printed, waits };
+  const { token } = await credentials;
+  return { token, path, printed, waits };
 }
 
 describe("where the CLI may send a token", () => {
@@ -110,6 +118,71 @@ describe("where the CLI may send a token", () => {
       /https/,
     );
     expect(fetched).toBe(false);
+  });
+});
+
+describe("the saved token", () => {
+  test("is never replaced by signing in again", async () => {
+    const path = await credentialsFile();
+    const saved = { server, token: "t" };
+    await saveCredentials(path, saved);
+    const unreachable = (() => {
+      throw new Error("Contacted the server.");
+    }) as unknown as typeof globalThis.fetch;
+
+    await expect(
+      login(path, "https://another.example.com", {
+        fetch: unreachable,
+        print: () => {},
+        sleep: async () => {},
+      }),
+    ).rejects.toThrow(`Already signed in to ${server}. Run \`braivo logout\` first.`);
+    expect(await loadCredentials(path)).toEqual(saved);
+  });
+
+  test("keeps the token while it still signs in, whatever sign-out answered", async () => {
+    // Better Auth answers success even when deleting the session failed.
+    const stillSignedIn = (async (input: string | URL) =>
+      input.toString().endsWith("/sign-out")
+        ? Response.json({ success: true })
+        : Response.json({ user: { email: "teacher@example.com" } })) as typeof globalThis.fetch;
+    const path = await credentialsFile();
+    const credentials = { server, token: "t" };
+    await saveCredentials(path, credentials);
+
+    await expect(logout(path, stillSignedIn)).rejects.toThrow(/may still work/);
+    expect(await loadCredentials(path)).toEqual(credentials);
+  });
+
+  test("keeps the token when the server's answer is not a session or null", async () => {
+    const malformed = (async (input: string | URL) =>
+      input.toString().endsWith("/sign-out")
+        ? Response.json({ success: true })
+        : Response.json({})) as typeof globalThis.fetch;
+    const path = await credentialsFile();
+    const credentials = { server, token: "t" };
+    await saveCredentials(path, credentials);
+
+    await expect(logout(path, malformed)).rejects.toThrow(/unexpected session/);
+    expect(await loadCredentials(path)).toEqual(credentials);
+  });
+
+  test("says the session is over when the file cannot be deleted", async () => {
+    const signedOut = (async (input: string | URL) =>
+      input.toString().endsWith("/sign-out")
+        ? Response.json({ success: true })
+        : Response.json(null)) as typeof globalThis.fetch;
+    const path = await credentialsFile();
+    await saveCredentials(path, { server, token: "t" });
+    await chmod(dirname(path), 0o500);
+
+    try {
+      await expect(logout(path, signedOut)).rejects.toThrow(
+        `Signed out of ${server}, but could not delete`,
+      );
+    } finally {
+      await chmod(dirname(path), 0o700);
+    }
   });
 });
 
@@ -220,6 +293,41 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
 
   test("gives up, saying so, when the content owner denies", async () => {
     await expect(signInAnswering("deny")).rejects.toThrow("Sign-in was denied in the browser.");
+  });
+
+  test("logs out, so the token no longer signs in, and forgets it", async () => {
+    const { token, path } = await signInAnswering("approve");
+    const credentials = { server, token };
+    expect(await loadCredentials(path)).toEqual(credentials);
+
+    expect(await logout(path, fetch)).toBe(server);
+
+    expect(await whoAmI(credentials, fetch)).toBeUndefined();
+    expect(await loadCredentials(path)).toBeUndefined();
+    expect(await logout(path, fetch)).toBeUndefined();
+
+    // A token whose session already ended is forgotten too.
+    await saveCredentials(path, credentials);
+    expect(await logout(path, fetch)).toBe(server);
+    expect(await loadCredentials(path)).toBeUndefined();
+  });
+
+  test("asks who a token is without renewing its session", async () => {
+    // Otherwise checking a sign-out that failed would extend the session.
+    const { token } = await signInAnswering("approve");
+    const dueForRenewal = new Date(Date.now() + 60 * 60 * 1000);
+    await database
+      .update(session)
+      .set({ expiresAt: dueForRenewal })
+      .where(eq(session.token, token));
+
+    expect(await whoAmI({ server, token }, fetch)).toEqual({ email: teacher.email });
+
+    const [stored] = await database
+      .select({ expiresAt: session.expiresAt })
+      .from(session)
+      .where(eq(session.token, token));
+    expect(stored?.expiresAt).toEqual(dueForRenewal);
   });
 
   test("reads a token that no longer signs anyone in as nobody", async () => {

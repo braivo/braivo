@@ -13,8 +13,8 @@ import { createAuth, createOrganization } from "../auth/index.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
-import { credentialsPath, loadCredentials, readServer, saveCredentials } from "./credentials.ts";
-import { listOrganizations, remoteClient, signIn, whoAmI } from "./remote.ts";
+import { credentialsPath, loadCredentials } from "./credentials.ts";
+import { listOrganizations, login, logout, remoteClient, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
 
 /** For the operator's commands, which make no one sign in. */
@@ -33,6 +33,7 @@ Running an installation:
 
 Working with one, as yourself:
   login <url>   Sign in to the Braivo at <url>, approving in your browser.
+  logout        Sign out, ending the saved token's session, and forget it.
   sources add <file | -> --organization <id> [--title <title>]
                 [--url <link>] [--language <tag>] [--original <file>]
                 Add a file's text, or standard input's, as a source;
@@ -151,17 +152,20 @@ async function main(argv: readonly string[]): Promise<number> {
   }
 
   if (argv.length === 2 && argv[0] === "login") {
-    const server = readServer(argv[1]!);
-    const token = await signIn(server, {
+    const credentials = await login(credentialsPath(process.env), argv[1]!, {
       fetch,
       print: (line) => console.log(line),
       sleep: (milliseconds) => Bun.sleep(milliseconds),
     });
-    const credentials = { server, token };
-    await saveCredentials(credentialsPath(process.env), credentials);
 
     const user = await whoAmI(credentials, fetch);
-    console.log(`Signed in to ${server} as ${user?.email ?? "an unknown account"}.`);
+    console.log(`Signed in to ${credentials.server} as ${user?.email ?? "an unknown account"}.`);
+    return 0;
+  }
+
+  if (argv.length === 1 && argv[0] === "logout") {
+    const server = await logout(credentialsPath(process.env), fetch);
+    console.log(server ? `Signed out of ${server}.` : "Not signed in.");
     return 0;
   }
 

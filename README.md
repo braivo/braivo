@@ -220,7 +220,7 @@ pdftotext libro.pdf - | braivo sources add - --organization <id> \
 
 Pages are numbered from the PDF's first sheet; for a book whose printed numbers differ, let your agent send them (below). Any other text is added as it reads. Running the same command again adds nothing: a source Braivo already has, word for word, answers with its ID ([ADR 0024](docs/adr/0024-idempotent-authoring.md)).
 
-The session it keeps in `~/.config/braivo/credentials.json` is yours, with your roles ([ADR 0022](docs/adr/0022-machine-access.md)). Objectives and tasks can then cite the source's exact words, which Braivo checks ([ADR 0021](docs/adr/0021-citations.md)).
+The session it keeps in `~/.config/braivo/credentials.json` is yours, with your roles ([ADR 0022](docs/adr/0022-machine-access.md)); `braivo logout` ends it on the server and deletes the file. Objectives and tasks can then cite the source's exact words, which Braivo checks ([ADR 0021](docs/adr/0021-citations.md)).
 
 ### Let your desktop agent build the course
 
