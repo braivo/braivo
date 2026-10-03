@@ -335,7 +335,7 @@ describe("the console", () => {
       expect(screen.getByLabelText("Email")).toBeTruthy();
     });
 
-    test("announces expiry reached while signing in", async () => {
+    test("leads back to the domain from expiry reached while signing in", async () => {
       renderAt("/login?handoff=h1", {
         braivo: {
           handoff: async () => springo,
@@ -347,7 +347,14 @@ describe("the console", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
 
-      expect((await screen.findByRole("alert")).textContent).toContain("This sign-in has expired");
+      // Focused, as the button pressed is gone.
+      const heading = await screen.findByRole("heading", { name: "This sign-in has expired" });
+      expect(document.activeElement).toBe(heading);
+      expect(document.title).toBe("This sign-in has expired");
+      // The domain is known by then: a new sign-in is one click away.
+      expect(screen.getByRole("link", { name: "Sign in again" }).getAttribute("href")).toBe(
+        "https://learn.springo.app/login",
+      );
     });
 
     test("names no account it did not read, when continuing must be tried again", async () => {
@@ -385,8 +392,12 @@ describe("the console", () => {
     test("says when it has expired", async () => {
       renderAt("/login?handoff=gone", { braivo: { handoff: async () => undefined } });
 
-      expect(await screen.findByRole("heading", { name: "This sign-in has expired" })).toBeTruthy();
+      const heading = await screen.findByRole("heading", { name: "This sign-in has expired" });
+      // Nothing was focused to move from.
+      expect(document.activeElement).not.toBe(heading);
       expect(screen.queryByLabelText("Email")).toBeNull();
+      // Nothing says where it came from.
+      expect(screen.queryByRole("link", { name: "Sign in again" })).toBeNull();
       // Not Braivo's name, on the way back to an organization's site.
       await vi.waitFor(() => expect(document.title).toBe("This sign-in has expired"));
     });
