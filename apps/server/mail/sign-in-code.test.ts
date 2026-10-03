@@ -18,7 +18,7 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
     "Enter this code to sign in:",
     "123456",
     "This code expires in 10 minutes and can be used once.",
-    "ignore this email",
+    "If you did not ask for it, ignore this email: nothing happens without the code.",
   ]) {
     expect(mail.html).toContain(part);
   }
