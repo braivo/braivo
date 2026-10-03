@@ -10,7 +10,7 @@ import {
 } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
 import { createLearnRouter } from "./router.tsx";
@@ -423,6 +423,10 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
 
     const passages = await screen.findByRole("region", { name: "From your lessons" });
+    // Titled on screen too, not only for a screen reader.
+    expect(
+      within(passages).getByRole("heading", { level: 2, name: "From your lessons" }),
+    ).toBeTruthy();
     expect(passages.textContent).toContain("Hablé con mi madre.");
     expect(screen.getByRole("link", { name: "El pretérito" }).getAttribute("href")).toBe(
       "https://www.youtube.com/watch?v=abc",
@@ -564,6 +568,26 @@ describe("the learn app", () => {
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
+  });
+
+  // From 10:00:00: never early, nor a minute late on the minute itself.
+  test.each([
+    [340, "10:06"],
+    [300, "10:05"],
+  ])("says when practice continues, %is on, as %s", async (retryAfter, shown) => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-06-01T10:00:00.000Z"));
+    onTestFinished(() => now.mockRestore());
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => ({ objective: activity.objective, retryAfter }),
+    });
+
+    const notice = await screen.findByRole("region", { name: "Take a short break" });
+    const when = new Date(`2026-06-01T${shown}:00.000Z`).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    expect(notice.textContent).toContain(`Practice continues at ${when},`);
   });
 
   test("asks a returning task afresh, in the order it comes back in", async () => {

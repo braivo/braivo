@@ -154,16 +154,17 @@ function CaughtUp({ report }: { report: LearnerProgressReport | undefined }) {
   );
 }
 
-/**
- * `dueAt` rounded up to the minute: shown to the minute, an earlier one would
- * bring the learner back too soon.
- */
 function dueOn(dueAt: string): string {
-  const minute = 60_000;
-  return new Date(Math.ceil(Date.parse(dueAt) / minute) * minute).toLocaleString([], {
+  return roundUpToMinute(Date.parse(dueAt)).toLocaleString([], {
     dateStyle: "full",
     timeStyle: "short",
   });
+}
+
+/** For a time shown to the minute: an earlier one would bring the learner back too soon. */
+function roundUpToMinute(time: number): Date {
+  const minute = 60_000;
+  return new Date(Math.ceil(time / minute) * minute);
 }
 
 /**
@@ -197,7 +198,7 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
   return (
     <Notice
       title="Take a short break"
-      description={`You practised ${objectiveTitle} recently. Practice continues at ${new Date(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+      description={`You practised ${objectiveTitle} recently. Practice continues at ${roundUpToMinute(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
     />
   );
 }
@@ -250,6 +251,7 @@ function Practice({
   const focused = useFocusOnMount<HTMLDivElement>();
   // Describes the question, so the focus landing on it reads this too.
   const contextId = useId();
+  const passagesId = useId();
   const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
@@ -347,7 +349,11 @@ function Practice({
             {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
           </Alert>
           {grade.passages && (
-            <section aria-label="From your lessons" className="flex flex-col gap-3">
+            // Titled, so a learner reads the quotes as where the answer comes from.
+            <section aria-labelledby={passagesId} className="flex flex-col gap-3">
+              <Heading level={2} id={passagesId} className="mb-0">
+                From your lessons
+              </Heading>
               {grade.passages.map((passage, index) => (
                 <SourcePassage
                   // Stable for this grade: passages never change once graded.
