@@ -6,6 +6,8 @@ import type { Database } from "@braivo/db";
 import {
   activeModel,
   assessKnowledge,
+  type Evidence,
+  inReplayOrder,
   type KnowledgeReport,
   type ObjectiveStanding,
 } from "../learning/index.ts";
@@ -58,6 +60,7 @@ export async function readLearnerProgress(input: {
   });
   // Named here rather than in `learning`, which knows objectives only as IDs.
   const titles = await readObjectiveTitles(database, learner.objectiveIds);
+  const byObjective = Map.groupBy(learner.evidence, ({ objectiveId }) => objectiveId);
 
   return {
     kind: "assessed",
@@ -68,15 +71,31 @@ export async function readLearnerProgress(input: {
         // Never missing: the course references it, with deletes restricted.
         if (title === undefined)
           throw new Error(`Objective ${standing.objectiveId} of course ${courseId} is missing`);
-        return { ...standing, title };
+        // Replay's order, not the database's, whose collation may order tied IDs
+        // otherwise: the list must end on the outcome that stands.
+        const evidence = inReplayOrder(byObjective.get(standing.objectiveId) ?? []);
+        return {
+          ...standing,
+          title,
+          evidence: evidence.map(({ outcome, at }) => ({ outcome, at })),
+        };
       }),
     },
   };
 }
 
-/** A knowledge report whose standings name their objectives, for people to read. */
+/**
+ * A knowledge report for people to read: each standing names its objective and
+ * carries the evidence it was replayed from, oldest first and ties in replay's
+ * order, so a reader can see why it stands where it does ("Explainable
+ * decisions"). Outcome and time only: an evidence ID is the grader's, and
+ * explains nothing.
+ */
 export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
-  objectives: (ObjectiveStanding & { title: string })[];
+  objectives: (ObjectiveStanding & {
+    title: string;
+    evidence: Pick<Evidence, "outcome" | "at">[];
+  })[];
 };
 
 /**

@@ -127,6 +127,52 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     });
   });
 
+  test("lists the evidence behind each standing, oldest first, outcome and time alone", async () => {
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      // Recorded out of order, and one after the moment the report describes.
+      evidence({ id: "second", outcome: "success", at: daysAgo(2) }),
+      evidence({ id: "first", outcome: "failure", at: daysAgo(3) }),
+      evidence({ id: "fraction", objectiveId: fractions, outcome: "failure", at: daysAgo(1) }),
+      evidence({ id: "later", at: new Date(now.getTime() + 1000) }),
+    ]);
+
+    const read = await progress();
+
+    expect(read.kind === "assessed" && read.report.objectives.map((each) => each.evidence)).toEqual(
+      [
+        [
+          { outcome: "failure", at: daysAgo(3) },
+          { outcome: "success", at: daysAgo(2) },
+        ],
+        [{ outcome: "failure", at: daysAgo(1) }],
+      ],
+    );
+  });
+
+  test("lists evidence at one moment in replay's order, ending on the outcome that stands", async () => {
+    // Replay orders IDs by UTF-16 code unit, which puts U+10000 before U+E000;
+    // a bytewise collation, such as the test database's "C", puts it after.
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "\u{10000}", outcome: "success", at: daysAgo(1) }),
+      evidence({ id: "\uE000", outcome: "failure", at: daysAgo(1) }),
+    ]);
+
+    expect(await progress()).toMatchObject({
+      report: {
+        objectives: [
+          {
+            phase: "acquiring",
+            evidence: [
+              { outcome: "success", at: daysAgo(1) },
+              { outcome: "failure", at: daysAgo(1) },
+            ],
+          },
+          { phase: "unseen" },
+        ],
+      },
+    });
+  });
+
   test("describes a learner the way the decision about them does", async () => {
     // The report is built from the same replay as the decision, so whatever is
     // chosen must be visible in it as the reason for choosing it.
@@ -191,7 +237,14 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
 
     expect(await progress()).toMatchObject({
       report: {
-        objectives: [{ objectiveId: pastTense, phase: "retaining" }, { phase: "unseen" }],
+        objectives: [
+          {
+            objectiveId: pastTense,
+            phase: "retaining",
+            evidence: [{ outcome: "success", at: daysAgo(10) }],
+          },
+          { phase: "unseen", evidence: [] },
+        ],
       },
     });
     expect(await progress({ courseId: foreignCourse, viewedBy: otherTeacher })).toMatchObject({

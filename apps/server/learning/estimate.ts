@@ -233,13 +233,21 @@ export function replay(
   assertValidModel(model);
 
   const estimates = new Map<string, KnowledgeEstimate>();
-  for (const record of [...evidence].sort(byEvidenceOrder)) {
+  for (const record of inReplayOrder(evidence)) {
     estimates.set(
       record.objectiveId,
       updateEstimate(estimates.get(record.objectiveId), record, model),
     );
   }
   return estimates;
+}
+
+/**
+ * Evidence in the order `replay` folds it, for a reader who shows it beside the
+ * estimates: a database's collation may order tied IDs otherwise.
+ */
+export function inReplayOrder(evidence: readonly Evidence[]): Evidence[] {
+  return evidence.toSorted(byEvidenceOrder);
 }
 
 /**
