@@ -3,20 +3,27 @@
 
 import { createTransport } from "nodemailer";
 
-/** One plain-text message to one address. */
-export type Mail = { to: string; subject: string; text: string };
+/** One message to one address, with equivalent plain-text and HTML bodies. */
+export type Mail = { to: string; subject: string; text: string; html: string };
 
-/** Delivers a message, or throws. */
+/** Hands a message to the mail transport, or throws if that fails. */
 export type SendMail = (mail: Mail) => Promise<void>;
 
 /**
- * Through an SMTP server, which every mail provider offers and a self-hosted
- * machine can run, so an installation needs no particular vendor.
+ * Through an SMTP server, which nearly every mail provider offers and a
+ * self-hosted machine can run, so an installation needs no particular vendor.
  */
 export function smtpMail(options: { url: string; from: string }): SendMail {
   const transport = createTransport(options.url);
   return async (mail) => {
-    await transport.sendMail({ from: options.from, ...mail });
+    // Field by field, so a `Mail` carrying more (a `from`, say) cannot reach Nodemailer.
+    await transport.sendMail({
+      from: options.from,
+      to: mail.to,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    });
   };
 }
 

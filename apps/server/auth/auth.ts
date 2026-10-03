@@ -10,6 +10,7 @@ import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth
 import * as z from "zod";
 
 import type { SendMail } from "../mail/index.ts";
+import { signInCodeMail } from "../mail/sign-in-code.ts";
 import {
   claimSignInCode,
   organizationOwnsLearningContent,
@@ -32,7 +33,7 @@ type AuthOptions = {
   secret: string;
   /** Public origin this installation is served from, used to build callback URLs. */
   baseURL: string;
-  /** Delivers sign-in codes. */
+  /** Sends sign-in codes. */
   sendMail: SendMail;
 };
 
@@ -129,11 +130,9 @@ export function createAuth(options: AuthOptions) {
         // per-address minute above is what protects an inbox.
         rateLimit: { window: 60, max: 10 },
         sendVerificationOTP: async ({ email, otp }) => {
-          await options.sendMail({
-            to: email,
-            subject: `${otp} is your sign-in code`,
-            text: `Enter ${otp} to sign in. It works once, for ${SIGN_IN_CODE.seconds / 60} minutes.\n\nIf you did not ask for it, ignore this email: nothing happens without the code.`,
-          });
+          await options.sendMail(
+            signInCodeMail({ to: email, code: otp, expiresInMinutes: SIGN_IN_CODE.seconds / 60 }),
+          );
         },
       }),
       // An organization owns content, and its members may learn from it;
