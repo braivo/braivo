@@ -28,8 +28,9 @@ const CODE_DIGITS = 6;
 /**
  * Signing in with a code sent by email, then, for a new account, a name.
  * Presentation only: the caller sends and checks codes, and moves between
- * steps; `pending` and `error` describe its request. From the code, `onResend`
- * asks for another and `onChangeEmail` goes back to the email.
+ * steps; `pending` and `error` describe its request, and while `pending` the
+ * form calls none of its callbacks. From the code, `onResend` asks for
+ * another and `onChangeEmail` goes back to the email.
  */
 export function SignInForm(props: {
   step: SignInStep;
@@ -52,6 +53,8 @@ export function SignInForm(props: {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // aria-disabled does not stop Enter in a field from submitting the form.
+    if (props.pending) return;
     // Every field here is a text input, and a text input's value is a string.
     const value = (name: string) => new FormData(event.currentTarget).get(name) as string;
     if (step.step === "email") props.onSubmit({ step: "email", email: value("email") });
@@ -131,8 +134,9 @@ export function SignInForm(props: {
             <AlertDescription>{props.error}</AlertDescription>
           </Alert>
         )}
+        {/* aria-disabled, not disabled, so that they keep the focus meanwhile. */}
         <Field>
-          <Button type="submit" disabled={props.pending}>
+          <Button type="submit" aria-disabled={props.pending}>
             {props.pending && <Spinner data-icon="inline-start" />}
             {action}
           </Button>
@@ -143,8 +147,8 @@ export function SignInForm(props: {
                 <Button
                   type="button"
                   variant="link"
-                  disabled={props.pending}
-                  onClick={props.onResend}
+                  aria-disabled={props.pending}
+                  onClick={() => !props.pending && props.onResend?.()}
                 >
                   Send a new code
                 </Button>
@@ -153,8 +157,8 @@ export function SignInForm(props: {
                 <Button
                   type="button"
                   variant="link"
-                  disabled={props.pending}
-                  onClick={props.onChangeEmail}
+                  aria-disabled={props.pending}
+                  onClick={() => !props.pending && props.onChangeEmail?.()}
                 >
                   Use another email
                 </Button>
