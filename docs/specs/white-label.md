@@ -1,6 +1,6 @@
 # White-label
 
-Status: living; checked against the code on 2026-10-02.
+Status: living; checked against the code on 2026-10-03.
 
 Each organization's learners use the learn app on the organization's own hostname, which wears its name and serves its courses alone; its content owners manage it in one console at `braivo.app/<slug>` (product.md, core job 6). Which hostname serves which organization is a database row, not configuration.
 
@@ -29,13 +29,14 @@ flowchart LR
   I -->|yes| A["Any organization"]
   I -->|no| D{"organization_domain<br/>row for host?"}
   D -->|"yes, this course's<br/>organization"| O["That organization only"]
-  D -->|"another's, or none"| N["404"]
+  D -->|"another's"| N["404"]
+  D -->|none| X["Nothing"]
   A --> M["Authorization:<br/>member, or content owner?"]
   O --> M
 ```
 
-- Every course route applies it: the learner's `next`, `activity` and `attempts`, and the progress routes, a learner's report and a course's overview. The organization routes (`/api/organizations/…`) do not: they serve the console, on the installation's host. `GET /api/courses` applies it as a filter: on a domain, that organization's courses; on any other host but the installation's, none.
-- An unknown host reaches nothing, so deleting a domain's row revokes access rather than widening it.
+- Every course route applies it: the learner's `next`, `activity` and `attempts`, and the progress routes, a learner's report and a course's overview, which is read on the installation's host alone ([progress](progress.md), progress-12). The organization routes (`/api/organizations/…`) do not: they serve the console, on the installation's host. `GET /api/courses` applies it as a filter: on a domain, that organization's courses alone.
+- A host that is neither an organization's domain nor `BRAIVO_URL`'s reaches nothing, so deleting a domain's row revokes access rather than widening it. No session holds there either ([access](access.md)); what each route answers is in `apps/server/api/index.ts`.
 
 ### Trusted origins
 
@@ -51,6 +52,7 @@ The learn app reads `GET /api/organization` before sign-in, once per visit: the 
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`                                                           | Signed in: the organization last opened in this browser, while still managed, else the only one managed, else `/organizations`. Anonymous: `/login` |
 | `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead                                                       |
+| `/device`                                                     | Approving a content owner's tool, by the code it showed ([access](access.md))                                                                       |
 | `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                                                          |
 | `/login`                                                      | Sign-in ([access](access.md))                                                                                                                       |
 
@@ -59,13 +61,13 @@ The URL names the organization, never the session: Better Auth's active organiza
 ### Slugs
 
 - Lowercase letters, digits and single hyphens, at most 63 characters, checked in Better Auth's create hook.
-- Reserved: the console's root paths, `api`, `assets`, `invitations`, `login`, `organizations`.
+- Reserved, since `/<slug>` would shadow them: `api`, `assets`, `device`, `invitations`, `login`, `organizations`.
 - Never changed: the update hook refuses a different slug and accepts the current one resent.
 
 ## Invariants
 
 - A domain never serves another organization's course or course list (`apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`, `apps/server/application/activity.test.ts`).
-- A host serving no organization reaches no course (`apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`).
+- A host that is neither an organization's domain nor `BRAIVO_URL`'s reaches no course (`apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`).
 - An origin is trusted only while its domain row exists, and only over HTTPS (`apps/server/auth/origin.test.ts`, `apps/server/auth/auth.test.ts`).
 - Every root-level console route is a reserved slug (`apps/server/auth/slug.test.ts`).
 - A slug is never changed, and a reserved or malformed one never created (`apps/server/auth/auth.test.ts`).
