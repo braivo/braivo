@@ -22,6 +22,8 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
   ]) {
     expect(mail.html).toContain(part);
   }
+  // White-label: the installation's organization, not Braivo, is who people think they sign in to.
+  expect(mail.html).not.toContain("Braivo");
 });
 
 test("refuses a code that is not digits, which goes into the HTML as is", () => {
