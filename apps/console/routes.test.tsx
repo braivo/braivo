@@ -1097,6 +1097,52 @@ describe("the console", () => {
     expect(screen.getAllByRole("link", { name: "Annex" })).toHaveLength(1);
   });
 
+  test("titles an organization's pages so tabs tell apart pages and organizations", async () => {
+    const braivo = {
+      listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+      listSources: async () => [saludos],
+      getSource: async () => saludos,
+      readCourse,
+      learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
+    };
+    const titles = {
+      "/example": "Courses · Example School",
+      "/example/sources": "Sources · Example School",
+      "/example/sources/s1": "Saludos · Source · Example School",
+      "/example/courses/course-1": "Beginners · Example School",
+      "/example/courses/course-1/learners/u2": "Lee Learner · Beginners · Example School",
+      // Nothing found to name: the console's own.
+      "/example/courses/elsewhere": "Braivo Console",
+    };
+
+    for (const [path, title] of Object.entries(titles)) {
+      renderAt(path, { braivo });
+      await vi.waitFor(() => expect(document.title).toBe(title));
+      cleanup();
+    }
+  });
+
+  test("stops naming a course in its tab once a reload finds it gone", async () => {
+    let gone = false;
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => {
+          if (gone) throw new BraivoError(404, "Braivo answered 404.");
+          return readCourse(input);
+        },
+      },
+    });
+    await vi.waitFor(() => expect(document.title).toBe("Beginners · Example School"));
+
+    gone = true;
+    await router.invalidate();
+
+    expect(
+      await screen.findByText("This course does not exist, or you do not manage it."),
+    ).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Braivo Console"));
+  });
+
   test("tells someone who manages no organization where to go, and who they are", async () => {
     renderAt("/organizations", { organizations: [] });
 

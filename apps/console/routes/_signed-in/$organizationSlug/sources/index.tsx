@@ -22,6 +22,7 @@ import { type FormEvent, useId, useRef, useState } from "react";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
 import { orNotFound } from "#lib/refusals";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
   loader: async ({ context, abortController }) => ({
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
       context.braivo.listSources(context.organization.id, { signal: abortController.signal }),
     ),
   }),
+  head: (head) => pageHead(head, "Sources"),
   component: Sources,
   notFoundComponent: () => <p>This organization does not exist, or you do not manage it.</p>,
 });

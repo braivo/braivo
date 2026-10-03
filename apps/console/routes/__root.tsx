@@ -6,8 +6,8 @@ import { createRootRouteWithContext, HeadContent, Outlet } from "@tanstack/react
 import type { AppContext } from "#lib/context";
 
 export const Route = createRootRouteWithContext<AppContext>()({
-  // The title's one owner, so a page signing in to an organization's learn
-  // domain can wear its name instead (`login.tsx`).
+  // The title, unless a page names itself: an organization's pages
+  // (`#lib/title`), and signing in to its learn domain (`login.tsx`).
   head: () => ({ meta: [{ title: "Braivo Console" }] }),
   component: () => (
     <>
