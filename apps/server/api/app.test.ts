@@ -2396,6 +2396,11 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         headers: { authorization: `Bearer ${access_token}` },
       });
       expect(found.status).toBe(200);
+      // Not even its memberships: a tool's list is Braivo's `/api/organizations`.
+      const memberships = await api.request("/api/auth/organization/list", {
+        headers: { authorization: `Bearer ${access_token}` },
+      });
+      expect(memberships.status).toBe(403);
       const another = await requestCode();
       const approving = await api.request("/api/auth/device/approve", {
         method: "POST",
