@@ -2412,10 +2412,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         access_token: string;
       };
       // Due for renewal, as after a day in use.
-      await database
-        .update(session)
-        .set({ expiresAt: new Date(Date.now() + 60 * 60 * 1000) })
-        .where(eq(session.token, access_token));
+      const due = new Date(Date.now() + 60 * 60 * 1000);
+      await database.update(session).set({ expiresAt: due }).where(eq(session.token, access_token));
       const bearer = { authorization: `Bearer ${access_token}` };
 
       const found = await api.request("/api/auth/get-session", { headers: bearer });
@@ -2427,6 +2425,35 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       expect(found.headers.getSetCookie()).toEqual([]);
       expect(found.headers.get("set-auth-token")).toBeNull();
       expect(listed.headers.getSetCookie()).toEqual([]);
+      const [renewed] = await database
+        .select({ expiresAt: session.expiresAt })
+        .from(session)
+        .where(eq(session.token, access_token));
+      expect(renewed!.expiresAt.getTime()).toBeGreaterThan(due.getTime());
+    });
+
+    test("signs its own session out, and only that one", async () => {
+      // `braivo logout`: without it, a token left on a shared machine stays
+      // good until it expires.
+      const { device_code, user_code } = await requestCode();
+      await approve(user_code);
+      const { access_token } = (await (await token(device_code)).json()) as {
+        access_token: string;
+      };
+      const bearer = { authorization: `Bearer ${access_token}` };
+
+      const signedOut = await api.request("/api/auth/sign-out", {
+        method: "POST",
+        headers: bearer,
+      });
+      const again = await api.request("/api/auth/sign-out", { method: "POST", headers: bearer });
+      const sources = `/api/organizations/${organizationId}/sources`;
+
+      expect([signedOut.status, again.status]).toEqual([200, 200]);
+      expect((await api.request(sources, { headers: bearer })).status).toBe(401);
+      expect((await api.request(sources, { headers: { cookie: teacher.cookie } })).status).toBe(
+        200,
+      );
     });
 
     test("carries the approver's roles, not more", async () => {

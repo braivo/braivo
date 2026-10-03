@@ -7,8 +7,8 @@ import { dirname, join } from "node:path";
 
 /**
  * The installation `braivo` signed in to, and the session token the device
- * flow gave it (docs/adr/0022-machine-access.md). One at a time: signing in to
- * another replaces it.
+ * flow gave it (docs/adr/0022-machine-access.md). One at a time: signing in
+ * again takes `braivo logout` first.
  */
 export type Credentials = { server: string; token: string };
 
@@ -68,7 +68,12 @@ export async function saveCredentials(path: string, credentials: Credentials): P
   }
 }
 
-/** The saved credentials, or `undefined` when `braivo login` has not been run. */
+/** Forgets the saved credentials; nothing to forget is not an error. */
+export async function deleteCredentials(path: string): Promise<void> {
+  await rm(path, { force: true });
+}
+
+/** The saved credentials, or `undefined` when none are saved. */
 export async function loadCredentials(path: string): Promise<Credentials | undefined> {
   let raw: string;
   try {
@@ -78,9 +83,17 @@ export async function loadCredentials(path: string): Promise<Credentials | undef
     throw error;
   }
 
-  const { server, token } = JSON.parse(raw) as Partial<Credentials>;
-  if (typeof server !== "string" || typeof token !== "string") {
-    throw new Error(`${path} is not a Braivo credentials file. Run \`braivo login\` again.`);
+  // Deleting it is the way out: `braivo login` refuses while a file is here.
+  const notCredentials = new Error(
+    `${path} is not a Braivo credentials file. Delete it to sign in.`,
+  );
+  let parsed: Partial<Credentials> | null;
+  try {
+    parsed = JSON.parse(raw) as Partial<Credentials> | null;
+  } catch {
+    throw notCredentials;
   }
+  const { server, token } = parsed ?? {};
+  if (typeof server !== "string" || typeof token !== "string") throw notCredentials;
   return { server: readServer(server), token };
 }

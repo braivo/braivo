@@ -32,9 +32,9 @@
 // under `/api/auth/device/*` as client `braivo-cli` (ADR 0022). Every route
 // below treats the two alike: "no session" means neither was sent, or it has
 // expired. A JSON write needs `application/json`, and an `Origin`, if sent,
-// must be the host's own. Of `/api/auth/*`, a token reaches only `get-session`
-// and `organization/list`, anything else answering 403, and its responses
-// carry no `set-cookie` or `set-auth-token`.
+// must be the host's own. Of `/api/auth/*`, a token reaches only `get-session`,
+// `organization/list`, and `sign-out`, which ends its own session; anything else
+// answers 403, and its responses carry no `set-cookie` or `set-auth-token`.
 //
 // `GET /api/courses/:courseId/next` — what the signed-in learner should do next
 // in a course. The learner is the session's user; the request never names one.

@@ -7,7 +7,12 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { credentialsPath, loadCredentials, saveCredentials } from "./credentials.ts";
+import {
+  credentialsPath,
+  deleteCredentials,
+  loadCredentials,
+  saveCredentials,
+} from "./credentials.ts";
 
 const scratch = () => mkdtemp(join(tmpdir(), "braivo-credentials-"));
 
@@ -45,6 +50,16 @@ describe("credentials", () => {
     expect((await stat(directory)).mode & 0o777).toBe(0o700);
   });
 
+  test("are forgotten, whether saved or not", async () => {
+    const path = join(await scratch(), "credentials.json");
+    await saveCredentials(path, { server: "https://braivo.example.com", token: "secret" });
+
+    await deleteCredentials(path);
+
+    expect(await loadCredentials(path)).toBeUndefined();
+    await expect(deleteCredentials(path)).resolves.toBeUndefined();
+  });
+
   test("refuse a saved address a token may not be sent to", async () => {
     const path = join(await scratch(), "credentials.json");
     await writeFile(path, JSON.stringify({ server: "http://braivo.example.com", token: "t" }));
@@ -55,9 +70,12 @@ describe("credentials", () => {
   test("are absent before signing in, and refused when not credentials", async () => {
     const directory = await scratch();
     const stray = join(directory, "stray.json");
+    const truncated = join(directory, "truncated.json");
     await writeFile(stray, '{"hello":"world"}');
+    await writeFile(truncated, '{"server":');
 
     expect(await loadCredentials(join(directory, "missing.json"))).toBeUndefined();
-    await expect(loadCredentials(stray)).rejects.toThrow(/braivo login/);
+    await expect(loadCredentials(stray)).rejects.toThrow(/not a Braivo credentials file/);
+    await expect(loadCredentials(truncated)).rejects.toThrow(/not a Braivo credentials file/);
   });
 });
