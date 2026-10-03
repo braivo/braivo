@@ -45,6 +45,21 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
 /** Enough to recognise the material by; a source may run to megabytes. */
 const SHOWN_CHARACTERS = 20_000;
 
+/**
+ * What the server would refuse in a title, said of `subject` ("the course",
+ * "objective 2"), checked before sending since what is sent is then locked in.
+ */
+function titleProblem(title: string, subject: string): string | undefined {
+  const trimmed = title.trim();
+  if (trimmed === "") return `Give ${subject} a title.`;
+  if (trimmed.length > MAX_TITLE) {
+    return `Keep the title of ${subject} to ${MAX_TITLE} characters.`;
+  }
+  if (trimmed.includes("\u0000") || !trimmed.isWellFormed()) {
+    return `Remove the characters in the title of ${subject} that are not text.`;
+  }
+}
+
 /** Braivo's words when it gave any, or `fallback`. */
 function reasonOf(thrown: unknown, fallback: string): string {
   return (thrown instanceof BraivoError && thrown.reason) || fallback;
@@ -166,7 +181,8 @@ function DraftCourse(props: { source: Source }) {
 
 /**
  * A draft under review: every objective and task kept by default, each one
- * dropped by unticking it, and what Braivo already left out listed.
+ * dropped by unticking it, objectives' titles and tasks correctable, and what
+ * Braivo already left out listed.
  */
 function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => void }) {
   const { source, draft, onDiscard } = props;
@@ -175,6 +191,9 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
   const navigate = useNavigate();
   // Dropped rather than kept, so the default is everything: "o:<i>", "t:<i>:<j>".
   const [dropped, setDropped] = useState<ReadonlySet<string>>(new Set());
+  // Objectives' titles as the owner left them, by index; a draft's own until typed in.
+  const [titles, setTitles] = useState<ReadonlyMap<number, string>>(new Map());
+  const titleOf = (index: number) => titles.get(index) ?? draft.objectives[index]!.title;
   // The owner's corrections, by "<i>:<j>", and the one open, if any.
   const [edited, setEdited] = useState<ReadonlyMap<string, EditableTask>>(new Map());
   const [editing, setEditing] = useState<string>();
@@ -214,6 +233,7 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       : [
           {
             ...objective,
+            title: titleOf(index).trim(),
             tasks: objective.tasks.flatMap((_, task) =>
               dropped.has(`t:${index}:${task}`) ? [] : [current(index, task)],
             ),
@@ -236,13 +256,28 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       title: (new FormData(event.currentTarget).get("title") as string).trim(),
       objectives: kept,
     };
-    // Checked before anything is sent, since what is sent is then locked in.
-    if (sending.title === "") return setError("Give the course a title.");
-    if (sending.title.length > MAX_TITLE) {
-      return setError(`Keep the course title to ${MAX_TITLE} characters.`);
-    }
-    if (sending.title.includes("\u0000") || !sending.title.isWellFormed()) {
-      return setError("Remove the characters in the course title that are not text.");
+    // In page order, focusing the first to fix: the alert sits below a long review.
+    const titled = [
+      ...draft.objectives.flatMap((_, index) =>
+        dropped.has(`o:${index}`)
+          ? []
+          : [
+              {
+                title: titleOf(index),
+                subject: `objective ${index + 1}`,
+                field: `${id}-o${index}`,
+              },
+            ],
+      ),
+      { title: sending.title, subject: "the course", field: `${id}-title` },
+    ];
+    for (const { title, subject, field } of titled) {
+      const problem = titleProblem(title, subject);
+      if (problem !== undefined) {
+        setError(problem);
+        document.getElementById(field)?.focus();
+        return;
+      }
     }
 
     setSubmitted(sending);
@@ -264,7 +299,7 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       setError(
         reasonOf(
           thrown,
-          "The course could not be created. Trying again finishes it as reviewed; retire what you would drop on the course page afterwards.",
+          "The course could not be created. Try again to finish it as reviewed; retire what you would drop on the course page afterwards.",
         ),
       );
       setCreating(false);
@@ -278,13 +313,20 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
     ));
 
   return (
-    <form onSubmit={create} aria-labelledby={`${id}-heading`} className="flex flex-col gap-6">
+    // `noValidate`: `create` checks every title, as the server would, and says
+    // what to fix; the browser would check only `required`, in its own words.
+    <form
+      onSubmit={create}
+      noValidate
+      aria-labelledby={`${id}-heading`}
+      className="flex flex-col gap-6"
+    >
       <Heading level={2} id={`${id}-heading`}>
         Review the draft
       </Heading>
       <MutedText>
-        Untick what is wrong, or edit a task's words and answer. Nothing is stored until you create
-        the course.
+        Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing
+        is stored until you create the course.
       </MutedText>
       {draft.refused.length > 0 && (
         <Alert>
@@ -303,21 +345,33 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       <FieldSet disabled={creating || submitted !== undefined}>
         {draft.objectives.map((objective, index) => {
           const keptObjective = !dropped.has(`o:${index}`);
+          const title = titleOf(index);
           return (
             <article
               key={objective.key}
-              aria-labelledby={`${id}-o${index}`}
+              // Numbered, since titles may repeat, and titled for navigating by
+              // article; set here, since implementations disagree on naming one
+              // by a textbox.
+              aria-label={[`Objective ${index + 1}`, title.trim()].filter(Boolean).join(": ")}
               className="flex flex-col gap-3"
             >
               <Field orientation="horizontal">
                 <Checkbox
-                  id={`${id}-o${index}`}
+                  aria-label={`Keep objective ${index + 1}`}
                   checked={keptObjective}
                   onCheckedChange={(checked) => toggle(`o:${index}`, checked === true)}
                 />
-                <FieldLabel htmlFor={`${id}-o${index}`}>
-                  {index + 1}. {objective.title}
+                <FieldLabel htmlFor={`${id}-o${index}`} className="whitespace-nowrap">
+                  Objective {index + 1}
                 </FieldLabel>
+                <Input
+                  id={`${id}-o${index}`}
+                  maxLength={MAX_TITLE}
+                  value={title}
+                  required={keptObjective}
+                  disabled={!keptObjective}
+                  onChange={(event) => setTitles(new Map(titles).set(index, event.target.value))}
+                />
               </Field>
               {keptObjective && (
                 <>

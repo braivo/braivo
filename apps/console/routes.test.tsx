@@ -677,7 +677,7 @@ describe("the console", () => {
       { signal: expect.any(AbortSignal) },
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Keep “Hi?”" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "2. Say goodbye" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 2" }));
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
     await vi.waitFor(() =>
@@ -719,8 +719,8 @@ describe("the console", () => {
     );
     // An edit left open on an objective then dropped closes with it.
     fireEvent.click(screen.getByRole("button", { name: "Edit “Hi?”" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "1. Say hello" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "1. Say hello" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 1" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 1" }));
     expect(screen.queryByLabelText("Question")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
@@ -735,6 +735,47 @@ describe("the console", () => {
       answer: 1,
       explanation: "Adiós is goodbye.",
       citations: [hello],
+    });
+  });
+
+  test("creates a course with the owner's correction to an objective's title", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    const title = await screen.findByRole("textbox", { name: "Objective 1" });
+    expect((title as HTMLInputElement).required).toBe(true);
+    fireEvent.change(title, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    // Checked like the course's title, before anything is locked in, with
+    // focus taken to it from the button at the bottom.
+    expect(await screen.findByText("Give objective 1 a title.")).toBeTruthy();
+    expect(document.activeElement).toBe(title);
+    expect(screen.getByRole("article", { name: "Objective 1" })).toBeTruthy();
+    expect(braivo.acceptDraft).not.toHaveBeenCalled();
+
+    // The first to fix in page order, even with the course title also blank.
+    fireEvent.change(screen.getByLabelText("Course title"), { target: { value: "" } });
+    screen.getByRole("button", { name: "Create course" }).focus();
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(document.activeElement).toBe(title));
+    fireEvent.change(screen.getByLabelText("Course title"), { target: { value: "Saludos" } });
+
+    fireEvent.change(title, { target: { value: " Greet someone " } });
+    expect(screen.getByRole("article", { name: "Objective 1: Greet someone" })).toBeTruthy();
+    // A dropped objective's title is not sent, so it is not checked either.
+    fireEvent.change(screen.getByRole("textbox", { name: "Objective 2" }), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    expect(braivo.acceptDraft).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      sourceId: "s1",
+      title: "Saludos",
+      objectives: [{ ...drafted.objectives[0], title: "Greet someone" }],
     });
   });
 
@@ -793,10 +834,27 @@ describe("the console", () => {
     fireEvent.change(await screen.findByLabelText("Course title"), {
       target: { value: "C".repeat(501) },
     });
-    // Submitted directly: a browser's own check on `maxLength` would stop the click first.
-    fireEvent.submit(screen.getByRole("button", { name: "Create course" }).closest("form")!);
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
-    expect(await screen.findByText("Keep the course title to 500 characters.")).toBeTruthy();
+    expect(await screen.findByText("Keep the title of the course to 500 characters.")).toBeTruthy();
+    expect(braivo.acceptDraft).not.toHaveBeenCalled();
+  });
+
+  test("refuses a title Braivo cannot store as text before sending anything", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.change(await screen.findByLabelText("Course title"), {
+      target: { value: "Saludos\u0000" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+
+    expect(
+      await screen.findByText(
+        "Remove the characters in the title of the course that are not text.",
+      ),
+    ).toBeTruthy();
     expect(braivo.acceptDraft).not.toHaveBeenCalled();
   });
 
@@ -809,6 +867,7 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
     expect(await screen.findByText("Give the course a title.")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText("Course title"));
     expect(braivo.acceptDraft).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Course title").closest("fieldset")?.disabled).toBe(false);
   });
