@@ -29,6 +29,27 @@ describe("editing a proposed task", () => {
     expect(onSave).toHaveBeenCalledWith({ prompt: "¿Rojo?", options: ["red", "azul"], answer: 0 });
   });
 
+  test("counts options that differ only in spacing as repeated, as the server does", () => {
+    const { onSave } = edit();
+
+    fireEvent.change(screen.getByLabelText("Option A"), { target: { value: "dark  red" } });
+    fireEvent.change(screen.getByLabelText("Option B"), { target: { value: "dark red" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText("Every option must differ.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  test("keeps a form feed, which a page shows, as the server does", () => {
+    const { onSave } = edit();
+
+    fireEvent.change(screen.getByLabelText("Option A"), { target: { value: "a\f!" } });
+    fireEvent.change(screen.getByLabelText("Option B"), { target: { value: "a !" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith({ ...task, prompt: "¿Rojo?", options: ["a\f!", "a !"] });
+  });
+
   test.each([
     ["a blank question", "Question", "", "Write the question."],
     ["a blank option", "Option A", " ", "Fill in every option."],
