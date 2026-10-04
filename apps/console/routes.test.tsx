@@ -173,6 +173,13 @@ function expectProxyTimeoutExplained(alert: HTMLElement) {
   expect(alert.textContent).not.toMatch(/Try again/);
 }
 
+/** A pending action's button: locked, but never disabled, which would drop the focus. */
+function expectLockedInFocus(button: HTMLElement) {
+  expect(button.getAttribute("aria-disabled")).toBe("true");
+  expect(button.matches(":disabled")).toBe(false);
+  expect(document.activeElement).toBe(button);
+}
+
 describe("the console", () => {
   test.each([
     ["their only organization", [school], "/example"],
@@ -685,28 +692,31 @@ describe("the console", () => {
     });
   });
 
-  test("keeps the form still while it is sent, so nothing typed meanwhile is lost", async () => {
-    let answer!: () => void;
-    const addSource = vi.fn(
-      () =>
-        new Promise<string>((resolve) => {
-          answer = () => resolve("s1");
-        }),
-    );
+  test("holds the form still while it is sent, the focus kept where it was", async () => {
+    const adding = Promise.withResolvers<string>();
+    const addSource = vi.fn(() => adding.promise);
     renderAt("/example/sources", {
       braivo: { ...added, addSource },
     });
     await screen.findByText("No material yet");
+    const button = screen.getByRole("button", { name: "Add material" });
+    button.focus();
 
     addMaterial({ title: "Unidad 1", text: "Hola." });
 
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
-    // The fieldset disables every field in it, as browsers do; the test DOM does not apply it.
-    expect(screen.getByLabelText("Title").closest("fieldset")?.disabled).toBe(true);
-    expect(
-      (screen.getByRole("button", { name: "Add material" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    answer();
+    expectLockedInFocus(button);
+    // Enter in a field submits however the button is marked.
+    fireEvent.submit(button.closest("form")!);
+    // Nothing typed meanwhile, which would not be what was added.
+    for (const label of ["Title", "Text", "Link", "Language"]) {
+      expect((screen.getByLabelText(label) as HTMLInputElement).readOnly).toBe(true);
+    }
+    expect((screen.getByLabelText("Original file") as HTMLInputElement).disabled).toBe(true);
+    // A disabled fieldset would disable the button too; the test DOM does not apply it.
+    expect(button.closest("fieldset")?.disabled).toBe(false);
+    expect(addSource).toHaveBeenCalledTimes(1);
+    adding.resolve("s1");
     expect(await screen.findByRole("heading", { name: "Unidad 1" })).toBeTruthy();
   });
 
@@ -1044,6 +1054,73 @@ describe("the console", () => {
       title: "Saludos",
       objectives: [{ ...drafted.objectives[0], tasks: [drafted.objectives[0]!.tasks[0]] }],
     });
+  });
+
+  test("holds drafting still while it runs, the focus kept on its button", async () => {
+    const drafting = Promise.withResolvers<typeof drafted>();
+    const braivo = { ...authoring(), draftCourse: vi.fn(() => drafting.promise) };
+    renderAt("/example/sources/s1", { braivo });
+    const button = await screen.findByRole("button", { name: "Draft a course" });
+    button.focus();
+
+    fireEvent.click(button);
+
+    await vi.waitFor(() => expect(braivo.draftCourse).toHaveBeenCalled());
+    expectLockedInFocus(button);
+    // Enter in a field submits however the button is marked.
+    fireEvent.submit(button.closest("form")!);
+    expect((screen.getByLabelText("Learners") as HTMLInputElement).readOnly).toBe(true);
+    expect(braivo.draftCourse).toHaveBeenCalledTimes(1);
+    drafting.resolve(drafted);
+    // The button is gone: the review shown in its place takes the focus, and
+    // gives it back when discarded.
+    const review = await screen.findByRole("heading", { name: "Review the draft" });
+    expect(document.activeElement).toBe(review);
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Draft a course" }));
+  });
+
+  test("leaves the focus alone once it left the form while drafting", async () => {
+    const drafting = Promise.withResolvers<typeof drafted>();
+    const braivo = { ...authoring(), draftCourse: vi.fn(() => drafting.promise) };
+    renderAt("/example/sources/s1", { braivo });
+    const button = await screen.findByRole("button", { name: "Draft a course" });
+    button.focus();
+    fireEvent.click(button);
+    // As clicking the source's text does: the focus goes to the page.
+    button.blur();
+
+    drafting.resolve(drafted);
+
+    expect(await screen.findByRole("heading", { name: "Review the draft" })).toBeTruthy();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  test("holds a review still while the course is created, the focus kept on its button", async () => {
+    const creating = Promise.withResolvers<string>();
+    const braivo = authoring();
+    braivo.acceptDraft.mockImplementation(() => creating.promise);
+    const { router } = renderAt("/example/sources/s1", { braivo });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    const button = await screen.findByRole("button", { name: "Create course" });
+    // Enter in the title, which the review then locks.
+    screen.getByLabelText("Course title").focus();
+
+    fireEvent.submit(button.closest("form")!);
+
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    expectLockedInFocus(button);
+    // Enter in a field submits however the button is marked.
+    fireEvent.submit(button.closest("form")!);
+    const discard = screen.getByRole("button", { name: "Discard draft" });
+    fireEvent.click(discard);
+    expect(discard.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByRole("button", { name: "Create course" })).toBe(button);
+    expect(braivo.acceptDraft).toHaveBeenCalledTimes(1);
+    creating.resolve("course-1");
+    await vi.waitFor(() =>
+      expect(router.history.location.pathname).toBe("/example/courses/course-1"),
+    );
   });
 
   test("says a proxy cut off drafting, rather than to try again", async () => {

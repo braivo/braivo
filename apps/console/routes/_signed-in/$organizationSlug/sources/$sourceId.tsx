@@ -23,7 +23,7 @@ import {
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
@@ -119,26 +119,39 @@ function DraftCourse(props: { source: Source }) {
   const organizationId = organization.id;
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<Draft>();
+  // The review replaces this form, so it takes the focus if the form held it.
+  const [focusReview, setFocusReview] = useState(false);
   const [error, setError] = useState<string>();
   const id = useId();
   const abortOnUnmount = useAbortOnUnmount();
+  // Back from a discarded review, the button that drafted it takes the focus.
+  const draftButton = useRef<HTMLButtonElement>(null);
+  const [discarded, setDiscarded] = useState(false);
+  useLayoutEffect(() => {
+    if (!discarded) return;
+    draftButton.current?.focus();
+    setDiscarded(false);
+  }, [discarded]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const audience = (new FormData(event.currentTarget).get("audience") as string).trim();
+    // aria-disabled does not stop Enter in the field from submitting the form.
+    if (drafting) return;
+    const form = event.currentTarget;
+    const audience = (new FormData(form).get("audience") as string).trim();
     const signal = abortOnUnmount();
 
     setDrafting(true);
     setError(undefined);
     try {
-      setDraft(
-        await explainAiProxyTimeout(
-          braivo.draftCourse(
-            { organizationId, sourceId: source.id, audience: audience || undefined },
-            { signal },
-          ),
+      const drafted = await explainAiProxyTimeout(
+        braivo.draftCourse(
+          { organizationId, sourceId: source.id, audience: audience || undefined },
+          { signal },
         ),
       );
+      setFocusReview(form.contains(document.activeElement));
+      setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
       setError(reasonOf(thrown, "The course could not be drafted. Try again."));
@@ -148,7 +161,17 @@ function DraftCourse(props: { source: Source }) {
   }
 
   if (draft) {
-    return <ReviewDraft source={source} draft={draft} onDiscard={() => setDraft(undefined)} />;
+    return (
+      <ReviewDraft
+        source={source}
+        draft={draft}
+        takeFocus={focusReview}
+        onDiscard={() => {
+          setDraft(undefined);
+          setDiscarded(true);
+        }}
+      />
+    );
   }
 
   return (
@@ -163,6 +186,7 @@ function DraftCourse(props: { source: Source }) {
             id={`${id}-audience`}
             name="audience"
             maxLength={200}
+            readOnly={drafting}
             placeholder="Grade 2, English speakers learning Spanish"
             aria-describedby={`${id}-audience-hint`}
           />
@@ -177,7 +201,8 @@ function DraftCourse(props: { source: Source }) {
           </Alert>
         )}
         <Field>
-          <Button type="submit" disabled={drafting}>
+          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+          <Button type="submit" ref={draftButton} aria-disabled={drafting}>
             {drafting ? "Drafting…" : "Draft a course"}
           </Button>
         </Field>
@@ -191,8 +216,14 @@ function DraftCourse(props: { source: Source }) {
  * dropped by unticking it, objectives' titles and tasks correctable, and what
  * Braivo already left out listed.
  */
-function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => void }) {
-  const { source, draft, onDiscard } = props;
+function ReviewDraft(props: {
+  source: Source;
+  draft: Draft;
+  /** Whether the heading takes the focus once shown. */
+  takeFocus: boolean;
+  onDiscard: () => void;
+}) {
+  const { source, draft, takeFocus, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
   const router = useRouter();
@@ -224,6 +255,11 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
   const [submitted, setSubmitted] = useState<{ title: string; objectives: typeof kept }>();
   const [error, setError] = useState<string>();
   const id = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (takeFocus) heading.current?.focus();
+  }, [takeFocus]);
+  const createButton = useRef<HTMLButtonElement>(null);
 
   /** The task as the owner last left it: the draft's, or their correction of it. */
   function current(index: number, taskIndex: number) {
@@ -260,6 +296,8 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // aria-disabled does not stop Enter in the title from submitting the form.
+    if (creating) return;
     const sending = submitted ?? {
       title: (new FormData(event.currentTarget).get("title") as string).trim(),
       objectives: kept,
@@ -288,6 +326,9 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       }
     }
 
+    // Sent by Enter in a title, which locks with the review below: the button
+    // takes the focus rather than the page.
+    createButton.current?.focus();
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
     const from = router.latestLocation.pathname;
@@ -338,7 +379,7 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
       aria-labelledby={`${id}-heading`}
       className="flex flex-col gap-6"
     >
-      <Heading level={2} id={`${id}-heading`}>
+      <Heading level={2} id={`${id}-heading`} ref={heading} tabIndex={-1}>
         Review the draft
       </Heading>
       <MutedText>
@@ -467,11 +508,22 @@ function ReviewDraft(props: { source: Source; draft: Draft; onDiscard: () => voi
           </Alert>
         )}
         <Field orientation="horizontal">
-          {/* Not while a task is open: its unsaved edit would be left out. */}
-          <Button type="submit" disabled={creating || kept.length === 0 || editing !== undefined}>
+          {/* Not while a task is open: its unsaved edit would be left out.
+              While sending, aria-disabled, so that it keeps the focus. */}
+          <Button
+            type="submit"
+            ref={createButton}
+            disabled={kept.length === 0 || editing !== undefined}
+            aria-disabled={creating}
+          >
             {submitted && !creating ? "Try again" : "Create course"}
           </Button>
-          <Button type="button" variant="outline" disabled={creating} onClick={onDiscard}>
+          <Button
+            type="button"
+            variant="outline"
+            aria-disabled={creating}
+            onClick={() => !creating && onDiscard()}
+          >
             Discard draft
           </Button>
         </Field>

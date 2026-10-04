@@ -109,8 +109,9 @@ function AddSource() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
+    // aria-disabled does not stop Enter in a field from submitting the form.
+    if (adding) return;
+    const data = new FormData(event.currentTarget);
     // Left out when blank: Braivo refuses an empty link or language.
     const optional = (name: string) => (data.get(name) as string).trim() || undefined;
     const file = original.current?.files?.[0];
@@ -183,12 +184,19 @@ function AddSource() {
       <Heading level={2} id={`${id}-heading`}>
         Add material
       </Heading>
-      {/* Disabled while sending: what is typed meanwhile would not be what was added. */}
-      <FieldSet disabled={adding}>
+      {/* Read-only while sending, as what is typed meanwhile would not be what
+          was added; not disabled, which drops the focus. */}
+      <FieldSet>
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor={`${id}-title`}>Title</FieldLabel>
-            <Input id={`${id}-title`} name="title" required maxLength={MAX_TITLE} />
+            <Input
+              id={`${id}-title`}
+              name="title"
+              required
+              maxLength={MAX_TITLE}
+              readOnly={adding}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor={`${id}-text`}>Text</FieldLabel>
@@ -196,6 +204,7 @@ function AddSource() {
               id={`${id}-text`}
               name="text"
               rows={10}
+              readOnly={adding}
               aria-describedby={`${id}-text-hint`}
             />
             <FieldDescription id={`${id}-text-hint`}>
@@ -206,14 +215,25 @@ function AddSource() {
           </Field>
           <Field>
             <FieldLabel htmlFor={`${id}-url`}>Link</FieldLabel>
-            <Input id={`${id}-url`} name="url" type="url" aria-describedby={`${id}-url-hint`} />
+            <Input
+              id={`${id}-url`}
+              name="url"
+              type="url"
+              readOnly={adding}
+              aria-describedby={`${id}-url-hint`}
+            />
             <FieldDescription id={`${id}-url-hint`}>
               Where it is online, such as a YouTube video. Optional.
             </FieldDescription>
           </Field>
           <Field>
             <FieldLabel htmlFor={`${id}-language`}>Language</FieldLabel>
-            <Input id={`${id}-language`} name="language" aria-describedby={`${id}-language-hint`} />
+            <Input
+              id={`${id}-language`}
+              name="language"
+              readOnly={adding}
+              aria-describedby={`${id}-language-hint`}
+            />
             <FieldDescription id={`${id}-language-hint`}>
               A language tag, such as es or en-US. Optional.
             </FieldDescription>
@@ -224,6 +244,8 @@ function AddSource() {
               id={`${id}-original`}
               ref={original}
               type="file"
+              // A file input cannot be read-only.
+              disabled={adding}
               accept="application/pdf,image/*,audio/*,video/*,.docx,.pptx,.odt,.odp,.epub"
               aria-describedby={`${id}-original-hint`}
             />
@@ -237,7 +259,7 @@ function AddSource() {
             </Alert>
           )}
           <Field>
-            <Button type="submit" disabled={adding}>
+            <Button type="submit" aria-disabled={adding}>
               Add material
             </Button>
           </Field>
