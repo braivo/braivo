@@ -94,17 +94,55 @@ function SourcePage() {
           </a>
         )}
       </p>
-      <pre className="mb-6 max-h-64 overflow-auto rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap">
-        {source.text.slice(0, SHOWN_CHARACTERS)}
-      </pre>
-      {source.text.length > SHOWN_CHARACTERS && (
-        <MutedText>
-          The first {SHOWN_CHARACTERS.toLocaleString()} of {source.text.length.toLocaleString()}{" "}
-          characters.
-        </MutedText>
-      )}
+      <SourceText text={source.text} />
       <DraftCourse source={source} />
     </>
+  );
+}
+
+/**
+ * A source's text, the first part of a long one until asked for all of it,
+ * so the owner can check the whole material before drafting from it.
+ */
+function SourceText({ text }: { text: string }) {
+  const [all, setAll] = useState(false);
+  const box = useRef<HTMLPreElement>(null);
+  const cut = !all && text.length > SHOWN_CHARACTERS;
+
+  return (
+    <div className="mb-6">
+      <pre
+        ref={box}
+        // A tab stop, so the keyboard scrolls it; also where "Show all text", which
+        // then goes away, leaves the focus. Named, so a screen reader says what
+        // it is on arrival (a plain <pre> cannot be named).
+        role="region"
+        aria-label="Source text"
+        tabIndex={0}
+        className="max-h-64 overflow-auto rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap"
+      >
+        {cut ? text.slice(0, SHOWN_CHARACTERS) : text}
+      </pre>
+      {cut && (
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+          <MutedText>
+            The first {SHOWN_CHARACTERS.toLocaleString()} of {text.length.toLocaleString()}{" "}
+            characters.
+          </MutedText>
+          <Button
+            variant="link"
+            // Inline with the sentence it ends, without a button's padding.
+            className="h-auto p-0"
+            onClick={() => {
+              setAll(true);
+              box.current?.focus();
+            }}
+          >
+            Show all text
+          </Button>
+        </p>
+      )}
+    </div>
   );
 }
 

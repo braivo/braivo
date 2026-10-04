@@ -1098,7 +1098,7 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Where it is from" }).getAttribute("href")).toBe(url);
   });
 
-  test("shows a source's first 20,000 characters, saying its full length when it is longer", async () => {
+  test("shows a source's first 20,000 characters, and all of a longer one on request", async () => {
     const shown = "a".repeat(19_999) + "b";
     const view = (text: string) =>
       renderAt("/example/sources/s1", {
@@ -1106,8 +1106,12 @@ describe("the console", () => {
       });
 
     view(shown);
-    expect(await screen.findByText(shown)).toBeTruthy();
+    // Reachable by Tab, so the keyboard can scroll it, and named for whoever arrives there.
+    const box = await screen.findByRole("region", { name: "Source text" });
+    expect(box.textContent).toBe(shown);
+    expect(box.tabIndex).toBe(0);
     expect(screen.queryByText(/^The first/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show all text" })).toBeNull();
     cleanup();
 
     view(`${shown}c`);
@@ -1116,6 +1120,14 @@ describe("the console", () => {
     expect(screen.getByText(/^The first/).textContent).toBe(
       `The first ${(20_000).toLocaleString()} of ${(20_001).toLocaleString()} characters.`,
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all text" }));
+    const text = screen.getByRole("region", { name: "Source text" });
+    expect(text.textContent).toBe(`${shown}c`);
+    // The button is gone, so the text it revealed takes the focus.
+    expect(document.activeElement).toBe(text);
+    expect(screen.queryByText(/^The first/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show all text" })).toBeNull();
   });
 
   test("drafts a course from a source, keeps what the owner keeps, and creates it", async () => {
