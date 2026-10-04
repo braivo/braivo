@@ -97,6 +97,7 @@ function ObjectiveProgress({ objectives }: { objectives: CourseProgressOverview[
         Progress by objective
       </Heading>
       <StandingsTable
+        labelledBy="by-objective"
         rowHeader="Objective"
         rows={objectives.map(({ objectiveId, title, standings }) => ({
           key: objectiveId,
@@ -121,6 +122,7 @@ function Learners({ learners }: { learners: CourseProgressOverview["learners"] }
         Learners
       </Heading>
       <StandingsTable
+        labelledBy="learners"
         rowHeader="Learner"
         rows={learners.map(({ userId, name, roles, standings }) => ({
           key: userId,
@@ -147,8 +149,13 @@ function Learners({ learners }: { learners: CourseProgressOverview["learners"] }
   );
 }
 
-/** Rows counted by standing, labelled as the learner's own report labels them. */
+/**
+ * Rows counted by standing, labelled as the learner's own report labels them.
+ * Named by its section's heading, so a screen reader's list of tables tells the
+ * page's two apart.
+ */
 function StandingsTable(props: {
+  labelledBy: string;
   rowHeader: string;
   rows: {
     key: string;
@@ -157,7 +164,7 @@ function StandingsTable(props: {
   }[];
 }) {
   return (
-    <Table>
+    <Table aria-labelledby={props.labelledBy}>
       <TableHeader>
         <TableRow>
           <TableHead>{props.rowHeader}</TableHead>

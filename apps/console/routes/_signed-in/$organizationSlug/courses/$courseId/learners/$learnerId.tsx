@@ -66,12 +66,12 @@ function Progress() {
       >
         {courseTitle}
       </Link>
-      <Heading>{learnerName}</Heading>
+      <Heading id="learner">{learnerName}</Heading>
       {/* A course is open to learners even before it has objectives. */}
       {report.objectives.length === 0 ? (
         <MutedText>This course has no objectives yet, so there is no progress to report.</MutedText>
       ) : (
-        <Table>
+        <Table aria-labelledby="learner">
           <TableHeader>
             <TableRow>
               <TableHead>Objective</TableHead>

@@ -1716,7 +1716,7 @@ describe("the console", () => {
   test("counts each learner's objectives by standing, linking to their progress", async () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse } });
 
-    const learners = await screen.findByRole("region", { name: "Learners" });
+    const learners = await screen.findByRole("table", { name: "Learners" });
     const [header, ...rows] = within(learners).getAllByRole("row");
     expect(
       within(header!)
@@ -1747,7 +1747,7 @@ describe("the console", () => {
   test("counts each objective's learners by standing, in content order", async () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse } });
 
-    const objectives = await screen.findByRole("region", { name: "Progress by objective" });
+    const objectives = await screen.findByRole("table", { name: "Progress by objective" });
     const [header, ...rows] = within(objectives).getAllByRole("row");
     expect(
       within(header!)
@@ -1802,7 +1802,8 @@ describe("the console", () => {
       "/example/courses/course-1",
     );
     expect(screen.queryByText(/no objectives yet/i)).toBeNull();
-    const [header, greetings, numbers] = screen.getAllByRole("row");
+    const table = screen.getByRole("table", { name: "Lee Learner" });
+    const [header, greetings, numbers] = within(table).getAllByRole("row");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
     expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
     expect(within(greetings!).getByRole("rowheader", { name: "Greetings" })).toBeTruthy();
