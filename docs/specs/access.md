@@ -36,7 +36,7 @@ An organization's domain never holds the account's session or takes its credenti
 
 - An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` (`bun apps/server/cli/index.ts organization create …` from a checkout) calls `createOrganization`, which needs an account that has already signed in and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
 - Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md), white-label-8) and refuse deleting an organization that still owns objectives, courses, sources, or files with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
-- A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `0001_member_uniqueness.sql` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
+- A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `member_uniqueness` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
 - Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md)).
 - Better Auth's invitations are off until ADR 0018 guards them with a verified email and a learn-domain check: its seven invitation endpoints are `disabledPaths`, which Better Auth answers `404` on every host. Unguarded, whoever signs up with an invited email joins. `addMember` has no HTTP path, so nothing over HTTP adds a member.
 
@@ -119,7 +119,7 @@ flowchart TD
 | Handoff and learner session                                | `apps/server/application/learner-sessions.ts`, `apps/server/persistence/learner-session.ts`, `packages/db/schema/learner-session.ts` |
 | Role checks                                                | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                                  |
 | Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                              |
-| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/0001_member_uniqueness.sql`                                                    |
+| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/*_member_uniqueness/migration.sql`                                             |
 | Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                              |
 | Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/cli/config.ts`                                          |
 | Console pages                                              | `apps/console/routes/login.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts`        |

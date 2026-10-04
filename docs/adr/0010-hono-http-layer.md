@@ -14,7 +14,7 @@ This ADR is late — the layer was built first — so it records what was chosen
 
 Use **Hono**. `createApi({ auth, database, baseUrl })` returns a Hono app, and `braivo serve` hands its `fetch` to `Bun.serve`.
 
-Hono is a router over Web-standard `Request` and `Response`, which is exactly the shape Better Auth's handler already has, so mounting it is an ordinary route rather than an adapter. The same shape lets tests drive `app.request()` without binding a port, and keeps the HTTP boundary portable: what Braivo exposes there is a fetch handler and nothing more. The boundary only — persistence uses Bun's SQL client and the package ships a Bun CLI, so leaving Bun would be a larger change than swapping what serves the routes.
+Hono is a router over Web-standard `Request` and `Response`, which is exactly the shape Better Auth's handler already has, so mounting it is an ordinary route rather than an adapter. The same shape lets tests drive `app.request()` without binding a port, and keeps the HTTP boundary portable: what Braivo exposes there is a fetch handler and nothing more. The boundary only — the package ships a Bun CLI, and the request path still uses some of Bun's APIs ([ADR 0034](0034-node-postgres.md)), so leaving Bun would be a larger change than swapping what serves the routes.
 
 Decided alongside it, and equally part of the contract:
 
@@ -34,7 +34,7 @@ Decided alongside it, and equally part of the contract:
 
 - Hono is a runtime dependency of the server. It is small and has no transitive dependencies, which is much of why it is acceptable.
 - The API is testable without a socket, so its tests run in the same suite as everything else and need no lifecycle of their own.
-- What serves the routes stays open, because Braivo exposes a fetch handler and `Bun.serve` is merely the first thing to call it. The runtime does not: persistence talks to PostgreSQL through Bun's SQL client, so leaving Bun is a separate, larger question.
+- What serves the routes stays open, because Braivo exposes a fetch handler and `Bun.serve` is merely the first thing to call it. The runtime is a separate, larger question: persistence runs on Workers too ([ADR 0034](0034-node-postgres.md)), but the rest of the request path does not yet.
 - Hono's default for an unhandled throw is a plain `500 Internal Server Error` with no detail, so no custom error handler was added. It answers with `c.text()`, which keeps the headers already set on the context — which is what makes setting `Cache-Control` first sufficient, and is pinned by a test rather than assumed. A 500 carries no learner data either way.
 - A course is authorized in its use case, not its route: a route runs no queries, so `chooseNextObjective` resolves the course's organization and checks membership itself.
 - Forged writes are refused rather than left open: a write must be `application/json`, which a browser cannot send cross-origin without a preflight this server does not answer, and any `Origin` it does send must be the host's own: this installation's, or an organization's domain writing to itself ([ADR 0004](0004-one-application-origin.md)). A server-to-server caller sends no `Origin` and sets the content type, so neither check touches it. Every Braivo write is body-limited too. The Better Auth mount is supplied Braivo's body limit and cache policy rather than trusted to have its own, but keeps its own origin validation: it knows which of its endpoints a browser is allowed to reach and Braivo does not.

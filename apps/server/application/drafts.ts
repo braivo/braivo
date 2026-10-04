@@ -25,6 +25,8 @@ const MAX_AUDIENCE = 200;
  */
 export async function draftFromSource(input: {
   database: Database;
+  /** For the source itself, which never changes; access is checked fresh. */
+  cachedDatabase: Database;
   ai: Ai | undefined;
   organizationId: string;
   actingAs: string;
@@ -35,7 +37,7 @@ export async function draftFromSource(input: {
   /** The request's: the model is not kept answering someone who left. */
   signal?: AbortSignal;
 }): Promise<Draft | undefined> {
-  const { database, ai, organizationId, actingAs, sourceId } = input;
+  const { database, cachedDatabase, ai, organizationId, actingAs, sourceId } = input;
 
   const audience = input.audience?.trim() || undefined;
   if (audience !== undefined && (audience.length > MAX_AUDIENCE || audience.includes("\u0000"))) {
@@ -46,7 +48,7 @@ export async function draftFromSource(input: {
 
   const { model, charge } = await modelFor(database, ai, { organizationId, actingAs });
 
-  const source = await readSource(database, organizationId, sourceId);
+  const source = await readSource(cachedDatabase, organizationId, sourceId);
   if (!source) return undefined;
   if (source.text.length > MAX_CHARACTERS) {
     throw new InvalidAiRequest(

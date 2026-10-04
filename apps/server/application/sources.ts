@@ -164,13 +164,15 @@ export async function listSources(input: {
 /** One of an organization's sources, text included, or `undefined` when it has no such source. */
 export async function getSource(input: {
   database: Database;
+  /** For the source itself, which never changes; access is checked fresh. */
+  cachedDatabase: Database;
   organizationId: string;
   actingAs: string;
   sourceId: string;
 }): Promise<Source | undefined> {
-  const { database, organizationId, actingAs, sourceId } = input;
+  const { database, cachedDatabase, organizationId, actingAs, sourceId } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
-  return readSource(database, organizationId, sourceId);
+  return readSource(cachedDatabase, organizationId, sourceId);
 }

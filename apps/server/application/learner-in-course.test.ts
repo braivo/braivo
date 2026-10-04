@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Database, runMigrations } from "@braivo/db";
+import { runMigrations } from "@braivo/db";
 import { organizationDomain } from "@braivo/db/schema";
 import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
-import { drizzle } from "drizzle-orm/bun-sql";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Evidence } from "../learning/index.ts";
@@ -21,11 +20,7 @@ const database = testing.sharedDatabase(connectionString ?? "");
  * `undefined` either way — so the statements are the only place to see it.
  */
 const statements: string[] = [];
-const recording: Database = drizzle({
-  connection: connectionString ?? "",
-  schema: authTables,
-  logger: { logQuery: (query) => void statements.push(query) },
-});
+const recording = testing.recordingDatabase(connectionString ?? "", statements);
 
 const organizationId = "learner-in-course-test-org";
 const otherOrganizationId = "learner-in-course-test-other-org";
@@ -102,7 +97,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
   });
 
   afterAll(async () => {
-    await recording.$client.close();
+    await recording.$client.end();
   });
 
   test("loads the course's objectives in content order and the learner's estimates", async () => {

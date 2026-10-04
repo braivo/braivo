@@ -12,12 +12,14 @@ The domain model is not designed yet. Choosing storage does not require choosing
 
 Use **PostgreSQL** with **Drizzle ORM**. Define the current schema in TypeScript; generate migrations with Drizzle Kit; commit the generated directory in full, including Drizzle's metadata.
 
+Drizzle and Drizzle Kit are 1.0, pinned to a release candidate until 1.0 ships: Braivo is unreleased, and starting on 1.0's migration format and relations spares an upgrade of every installation later. Better Auth's tables come with 1.0 relations from its `relations-v2` adapter.
+
 It all lives in `packages/db` ([ADR 0003](0003-workspace-layout.md)), while the queries stay with the server code that asks them.
 
 ```text
 packages/db/
 ├── drizzle.config.ts
-├── migrations/              # committed in full, including meta/
+├── migrations/              # committed in full: a folder per migration, its SQL and snapshot
 ├── schema/                  # auth.ts is Better Auth's CLI output; the rest is Braivo's
 ├── database.ts
 └── migrate.ts
@@ -40,7 +42,7 @@ A custom or staged migration stays right for a backfill that carries a judgment 
 
 `drizzle-kit push` is not part of the workflow. It changes a database without leaving a committed migration, so Braivo-owned schema in a persistent database changes only through committed migrations applied by `braivo db migrate`.
 
-Applied migrations are recorded in `drizzle.__braivo_migrations`, with both the table and its schema set explicitly rather than left to Drizzle's defaults, so Braivo's history cannot collide with that of another Drizzle application sharing the database — an application Braivo is embedded in, or later Braivo Cloud.
+Applied migrations are recorded by folder name, so a renamed one runs again. They are recorded in `drizzle.__braivo_migrations`, with both the table and its schema set explicitly rather than left to Drizzle's defaults, so Braivo's history cannot collide with that of another Drizzle application sharing the database — an application Braivo is embedded in, or later Braivo Cloud.
 
 `braivo db migrate` resolves its migrations directory from the installed package location, never from the working directory the CLI was invoked in. Keeping the operation behind Braivo's own command leaves room to add compatibility checks or replace the machinery without changing deployment instructions.
 

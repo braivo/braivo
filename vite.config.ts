@@ -26,19 +26,6 @@ export default defineConfig({
     categories: { correctness: "error" },
     rules: {
       "import/no-cycle": "error",
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "drizzle-orm/pg-core",
-              importNames: ["jsonb"],
-              message:
-                "It stores a JSON string under Bun SQL; use a pass-through customType, as packages/db/schema/learning.ts does.",
-            },
-          ],
-        },
-      ],
     },
     env: { builtin: true },
     // `vp check` type-checks too, so it is the one static gate for people and
@@ -89,10 +76,10 @@ export default defineConfig({
           // The database suites share one PostgreSQL database, so one file at
           // a time keeps them from cutting across each other.
           fileParallelism: false,
-          // In this order: the second needs Bun.
           globalSetup: ["../../tooling/require-bun.ts", "../../tooling/test-database.ts"],
         },
       },
+      { test: { name: "db", root: "packages/db" } },
       { test: { name: "tooling", root: "tooling" } },
       { test: { name: "ui", root: "packages/ui", environment: "happy-dom" } },
       { test: { name: "auth-client", root: "packages/auth-client", environment: "happy-dom" } },

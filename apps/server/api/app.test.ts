@@ -38,6 +38,10 @@ const auth = createAuth({
 });
 const baseUrl = "http://localhost:3000";
 const api = createApi({ auth, database, baseUrl });
+/** Stands in for a query cache, recording what is read through it. */
+const cachedStatements: string[] = [];
+const cachedDatabase = testing.recordingDatabase(connectionString ?? "", cachedStatements);
+afterAll(() => cachedDatabase.$client.end());
 
 const organizationId = "api-test-org";
 const otherOrganizationId = "api-test-other-org";
@@ -2128,6 +2132,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const drafting = createApi({
       auth,
       database,
+      cachedDatabase,
       baseUrl,
       ai: { model, organizations: new Set([organizationId]) },
     });
@@ -2138,8 +2143,12 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         body: JSON.stringify(body),
       });
 
+    cachedStatements.length = 0;
     const drafted = await draft(sourceId, teacher.cookie, { audience: "grade 2" });
     expect(drafted.status).toBe(200);
+    // The source alone comes through the cache; who may draft, and the quota
+    // charged, never do.
+    expect(cachedStatements).toEqual([expect.stringMatching(/ from "source" /)]);
     expect(await drafted.json()).toEqual({
       objectives: [
         {
@@ -2178,7 +2187,9 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(timeout).toHaveBeenCalledWith(expect.any(Request), 0);
 
     // Nobody but an administrator spends the installation's model.
+    cachedStatements.length = 0;
     expect((await draft(sourceId, learner.cookie)).status).toBe(403);
+    expect(cachedStatements).toEqual([]);
     expect((await draft(crypto.randomUUID(), teacher.cookie)).status).toBe(404);
     const long = await draft(sourceId, teacher.cookie, { audience: "a".repeat(201) });
     expect(long.status).toBe(400);

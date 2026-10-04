@@ -2,19 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { migrate } from "drizzle-orm/bun-sql/migrator";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 
 import { createDatabase } from "./database.ts";
-
-/**
- * Resolved from this module's location, never from the working directory, so
- * `braivo db migrate` applies the migrations it shipped with rather than
- * whatever happens to sit beside the operator's shell.
- */
-const migrationsFolder = fileURLToPath(new URL("./migrations", import.meta.url));
 
 /**
  * Applies every committed migration that has not run yet. This is the only way
@@ -25,9 +17,14 @@ const migrationsFolder = fileURLToPath(new URL("./migrations", import.meta.url))
  * with that of another Drizzle application sharing the database.
  */
 export async function runMigrations(connectionString: string): Promise<void> {
+  // From this module's location, never the working directory, so `braivo db
+  // migrate` applies the migrations it shipped with rather than whatever sits
+  // beside the operator's shell. On call, not import: a Worker bundling this
+  // package has no module URL to resolve against.
+  const migrationsFolder = fileURLToPath(new URL("./migrations", import.meta.url));
   // The standalone `braivo` is built for content owners and carries no
-  // migrations (docs/adr/0027-standalone-cli.md); say so, not "no journal".
-  if (!existsSync(join(migrationsFolder, "meta", "_journal.json"))) {
+  // migrations (docs/adr/0027-standalone-cli.md); say so, not "no such folder".
+  if (!existsSync(migrationsFolder)) {
     throw new Error(
       "This braivo has no migrations to apply. Run `braivo db migrate` from Braivo's source or container image.",
     );
