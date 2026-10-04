@@ -3,3 +3,24 @@
 
 @import "@braivo/ui/globals.css";
 @source "../../packages/auth-client";
+
+/*
+ * `index.html`'s page before the app renders anything, rather than a blank one
+ * while its script loads: the spinner `PagePending` shows next, in the same
+ * place. If the app still has not rendered after ten seconds, slow or failed
+ * alike, a way out appears, in the status region so it can be announced. CSS,
+ * not script, so it works without the app and under a strict CSP (ADR 0004).
+ */
+#root:not(:empty) + #boot {
+  display: none;
+}
+
+#boot p {
+  animation: boot-help 0s 10s both;
+}
+
+@keyframes boot-help {
+  from {
+    visibility: hidden;
+  }
+}

@@ -6,6 +6,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Shown until the app renders: see styles.css. Boxed as the root's <main>. -->
+    <div id="boot" role="status" aria-atomic="false" class="mx-auto max-w-3xl p-6">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        class="mx-auto my-12 block size-6 animate-spin text-muted-foreground"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M12 3V6M12 18V21M21 12L18 12M6 12L3 12M18.3635 5.63672L16.2422 7.75804M7.75804 16.2422L5.63672 18.3635M18.3635 18.3635L16.2422 16.2422M7.75804 7.75804L5.63672 5.63672"
+        />
+      </svg>
+      <span class="sr-only">Loading</span>
+      <p class="text-center text-sm text-muted-foreground">
+        Still loading? Check your connection, then <a href="" class="underline">reload</a>.
+      </p>
+    </div>
     <script type="module" src="/main.tsx"></script>
   </body>
 </html>
