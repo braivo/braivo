@@ -9,7 +9,7 @@ import { createDatabase, runMigrations } from "@braivo/db";
 import { anthropicModel } from "../ai/index.ts";
 import { createApi } from "../api/index.ts";
 import { registerLearnDomain } from "../application/index.ts";
-import { createAuth, createOrganization } from "../auth/index.ts";
+import { addMember, createAuth, createOrganization } from "../auth/index.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
@@ -26,6 +26,9 @@ Running an installation:
   db migrate    Apply committed database migrations.
   organization create --name <name> --slug <slug> --owner <email>
                 Create an organization owned by an existing account.
+  organization add-member --slug <slug> --email <email> [--role member|admin]
+                Add an existing account as a learner (member, the default)
+                or an administrator (admin).
   organization add-domain --slug <slug> --hostname <hostname>
                 Register <hostname> for the organization's learn app;
                 DNS, TLS, and routing it here are set up outside Braivo.
@@ -83,6 +86,39 @@ async function main(argv: readonly string[]): Promise<number> {
       });
       const created = await createOrganization(auth, { name, slug, ownerEmail: owner });
       console.log(`Created ${created.name}, owned by ${owner}: ${config.baseUrl}/${created.slug}`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
+  if (argv[0] === "organization" && argv[1] === "add-member") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: {
+        slug: { type: "string" },
+        email: { type: "string" },
+        role: { type: "string", default: "member" },
+      },
+    });
+    const { slug, email, role } = values;
+    if (!slug || !email) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const config = readAuthConfig(process.env);
+    const database = createDatabase(config.databaseUrl);
+    try {
+      const auth = createAuth({
+        database,
+        secret: config.secret,
+        baseURL: config.baseUrl,
+        sendMail: sendsNoMail,
+      });
+      const added = await addMember(auth, { slug, email, role });
+      const as = added.role === "admin" ? "an administrator" : "a learner";
+      console.log(`Added ${email} to ${added.organization.name} as ${as}.`);
     } finally {
       await database.$client.end();
     }

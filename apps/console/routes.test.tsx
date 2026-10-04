@@ -333,20 +333,39 @@ describe("the console", () => {
       expect(await screen.findByLabelText("Email")).toBeTruthy();
     });
 
-    test("says when the account is not a member, offering another", async () => {
-      renderAt("/login?handoff=h1", {
+    test("says when the account is not a member, offering another, or to retry once added", async () => {
+      let member = false;
+      const { visit } = renderAt("/login?handoff=h1", {
         braivo: {
           handoff: async () => springo,
           completeHandoff: async () => {
-            throw new BraivoError(403, "Braivo answered 403.");
+            if (!member) throw new BraivoError(403, "Braivo answered 403.");
+            return url;
           },
         },
       });
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
 
-      expect(await screen.findByText("This account is not a member of Springo.")).toBeTruthy();
+      expect(
+        await screen.findByText(
+          "This account is not a member of Springo. Ask to be added, then try again.",
+        ),
+      ).toBeTruthy();
       expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
+      // The pressed button is gone; the focus goes to what comes next.
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Try again" }));
+
+      // Too soon: refused again, the focus back on Try again.
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Try again" })),
+      );
+
+      // The operator adds them meanwhile.
+      member = true;
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
     });
 
     test("asks the next account for its email, after one that had no name", async () => {
