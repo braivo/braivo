@@ -313,6 +313,11 @@ function Practice({
   // No retry, unlike a failed load: this answer would be refused again.
   if (refused) return <Notice title="Something went wrong." />;
 
+  const correctAnswer =
+    grade?.outcome === "failure"
+      ? task.options.find((option) => option.choice === grade.correctChoice)?.text
+      : undefined;
+
   return (
     <section className="flex flex-col gap-6">
       <div id={contextId} className="flex flex-col wrap-break-word">
@@ -348,7 +353,15 @@ function Practice({
               explanation's longest word, such as a link. */}
           <Alert className="wrap-anywhere">
             <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
-            {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
+            {(correctAnswer || grade.explanation) && (
+              <AlertDescription>
+                {/* Named, not only marked, so a learner need not go back to the
+                    options once Continue takes the focus, or a phone scrolls them
+                    away. */}
+                {correctAnswer && <p>The answer: {correctAnswer}</p>}
+                {grade.explanation && <p>{grade.explanation}</p>}
+              </AlertDescription>
+            )}
           </Alert>
           {grade.passages && (
             // Titled, so a learner reads the quotes as where the answer comes from.
