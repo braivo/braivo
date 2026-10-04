@@ -89,6 +89,25 @@ describe("EmailSignIn", () => {
     expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
   });
 
+  test("goes back to the email when the session ended before the name", async () => {
+    const auth = fakeAuth("");
+    // Signed out in another tab: naming would be refused however often tried.
+    auth.updateUser.mockResolvedValue({
+      error: { code: "UNAUTHORIZED", message: "Unauthorized" },
+    });
+    const onSignedIn = vi.fn();
+    render(<EmailSignIn auth={auth} needsName onSignedIn={onSignedIn} />);
+
+    fill("Your name", "Ada");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "You were signed out. Sign in again.",
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText("Email"));
+    expect(onSignedIn).not.toHaveBeenCalled();
+  });
+
   test("says plainly why a code was refused, and stays on it", async () => {
     const onSignedIn = vi.fn();
     const auth = fakeAuth("Ada");
