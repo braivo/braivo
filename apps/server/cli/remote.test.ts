@@ -586,6 +586,45 @@ describe("adding a file as a source", () => {
     expect(uploads).toHaveLength(1);
   });
 
+  test("refuses captions Braivo would refuse before uploading the original, judging the cues", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "braivo-"));
+    const captions = join(directory, "lesson.vtt");
+    await writeFile(captions, "WEBVTT\n\n00:01.000 --> 00:02.000\nHola\u0000\n");
+    const video = join(directory, "lesson.mp4");
+    await writeFile(video, "video");
+    let uploads = 0;
+    const uploading = {
+      ...client,
+      uploadFile: async () => {
+        uploads += 1;
+        return { fileId: "f".repeat(64) };
+      },
+    };
+
+    await expect(
+      addSourceFromFile({
+        client: uploading as never,
+        organizationSlug: "school",
+        file: captions,
+        original: video,
+        readStdin: async () => "",
+      }),
+    ).rejects.toThrow(`${captions}: Cue 0 has no text Braivo can store`);
+    expect(uploads).toBe(0);
+
+    // A NUL in a note, which no cue carries, is no reason to refuse the file.
+    await writeFile(captions, "WEBVTT\n\nNOTE Hola\u0000\n\n00:01.000 --> 00:02.000\nHola.\n");
+    const added = await addSourceFromFile({
+      client: uploading as never,
+      organizationSlug: "school",
+      file: captions,
+      original: video,
+      readStdin: async () => "",
+    });
+    expect(JSON.parse(added)).toMatchObject({ cues: [{ at: 1, text: "Hola." }] });
+    expect(uploads).toBe(1);
+  });
+
   test("refuses a slug of no organization its owner manages, listing theirs, and uploads nothing", async () => {
     const directory = await mkdtemp(join(tmpdir(), "braivo-"));
     const pdf = join(directory, "libro.pdf");

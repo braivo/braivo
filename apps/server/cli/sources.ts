@@ -6,6 +6,7 @@ import { basename, extname } from "node:path";
 
 import type { BraivoClient } from "@braivo/server/client";
 
+import { joinCues } from "../content/index.ts";
 import { captionFormat, parseCaptions } from "./captions.ts";
 import { uploadOriginal } from "./originals.ts";
 
@@ -103,6 +104,9 @@ function sourceBody(
     }
     const cues = parseCaptions(content, format);
     if (cues instanceof Error) throw new Error(`${file}: ${cues.message}`);
+    // Braivo's own check, before uploading the original, since it would refuse these.
+    const joined = joinCues(cues);
+    if ("problem" in joined) throw new Error(`${file}: ${joined.problem}.`);
     return { cues };
   }
 

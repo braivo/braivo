@@ -307,9 +307,15 @@ describe("Anthropic's Messages API", () => {
     ["an error status", replying(529, { error: "overloaded" }), "answered 529"],
     ["an answer cut short", replying(200, { stop_reason: "max_tokens", content: [] }), "cut short"],
     ["no call of the tool", replying(200, { content: [{ type: "text", text: "No." }] }), "shape"],
+    ["no message", replying(200, null), "shape"],
+    ["content that is no list", replying(200, { content: {} }), "shape"],
+    ["a null content block", replying(200, { content: [null] }), "shape"],
   ])("fails as unavailable on %s", async (_label, { fetch }, message) => {
     const model = anthropicModel({ apiKey: "key", model: "claude-sonnet-5", fetch });
 
-    await expect(model.answer(request)).rejects.toThrow(message);
+    // The class, not just the words: only a `ModelUnavailable` becomes the explained 502.
+    const answer = model.answer(request);
+    await expect(answer).rejects.toBeInstanceOf(ModelUnavailable);
+    await expect(answer).rejects.toThrow(message);
   });
 });

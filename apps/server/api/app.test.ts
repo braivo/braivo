@@ -2325,7 +2325,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(((await refused.json()) as { error: string }).error).toMatch(
-      /^This organization has used its 2 AI requests for this month; more from \d{4}-\d{2}-01/,
+      /^This organization has reached its monthly AI limit \(2\)\. You can use Braivo's AI again from \d{4}-\d{2}-01; meanwhile, use your own desktop agent through braivo mcp\.$/,
     );
     expect(asked).toBe(2);
   });
