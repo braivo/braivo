@@ -1397,6 +1397,13 @@ describe("the console", () => {
     await vi.waitFor(() => expect(document.title).toBe("Braivo Console"));
   });
 
+  test("tells an owner an organization has no courses yet, under the page's heading", async () => {
+    renderAt("/example", { braivo: { listCourses: async () => [] } });
+
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Courses" })).toBeTruthy();
+  });
+
   test("tells someone who manages no organization where to go, and who they are", async () => {
     renderAt("/organizations", { organizations: [] });
 
