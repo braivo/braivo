@@ -2,134 +2,79 @@
 
 Status: living; checked against the code on 2026-10-04.
 
-How people sign in, and what they reach once in. Whoever proves an email has an account, and an account alone reaches nothing: what a person may see or do in an organization follows from their membership in it and the organization roles it carries. The server decides every request from the session's user and the member record, never from what the request names.
+How people sign in, and what they reach once in: learners, content owners, and content owners' own tools. Every core job needs it, and signing in on an organization's own domain is part of core job 6 ([product.md](../product.md)). Whoever proves an email has an account, and an account alone reaches nothing: what a person may see or do in an organization follows from their membership in it and the organization roles it carries. Who a request acts for comes from its session or token; what they may reach in an organization comes from their membership there, never from a user or organization the request names.
 
-## How it works
+## Rules
 
-### Accounts and sessions
+A status named below is that rule's refusal, not a route's whole status contract; `apps/server/api/index.ts` lists each route's statuses. Where several refusals apply, which one answers is left unspecified.
 
-- Better Auth ([ADR 0006](../adr/0006-better-auth.md)) serves `/api/auth/*`. An account is made, and signed in to, only with a code sent to its email (Better Auth's `emailOTP`, [ADR 0018](../adr/0018-sign-in-and-invitations.md)): six digits, stored hashed, good once, for ten minutes and five guesses. Every address gets a code, so asking says nothing of whether an account exists; the first sign-in makes it, verified, named by the request's `name`. No passwords: none is taken, set, or reset.
-- Only sign-in codes are sent; the plugin's endpoints for verifying an email, resetting a password, or changing an email are `disabledPaths`. An address gets one code a minute, whoever asks (`claimSignInCode`: its own `verification` row, claimed in one statement, which spending the code's guesses does not reset). Per client, Better Auth allows ten code requests and ten sign-in attempts a minute, in production only, keyed on `X-Forwarded-For` (README, Deployment).
-- Codes go out through the `sendMail` the host passes to `createServer`; `braivo serve` sends them over SMTP, or into its log while listening on loopback alone ([ADR 0033](../adr/0033-email-over-smtp.md)).
-- Asking for a code and redeeming it pass `isTrustedWrite` (below): Better Auth checks the origin only of a request carrying a cookie, so otherwise another site could sign a visitor in to an account whose code it holds.
-- The console's `/login` renders `EmailSignIn` from `packages/auth-client`: an email, the code sent to it, then, for an account without a name, a name. After sign-in it goes to the `redirect` search parameter if `safeRedirect` keeps it within the origin, else `/`.
-- On any host but `BRAIVO_URL`'s, before authentication, the server answers `401` to a request carrying `Authorization`, and `404` to Better Auth (`/api/auth/*`), the handoff's installation end (`/api/handoffs*`), and the console's `/api/organizations*`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)).
-- A content owner's tools — the `braivo` CLI and its MCP server — get a session token through the device flow, approved at the console's `/device` (which calls a code invalid or expired only when Better Auth refuses it, and on any other failure offers to try again), and send it as `Authorization: Bearer` ([ADR 0022](../adr/0022-machine-access.md)). Of `/api/auth/*`, a token reaches `get-session` and `sign-out` (its own session, for `braivo logout`) only; anything else answers `403`. A tool finds the organizations it may work in at `GET /api/organizations`: those the person manages. No answer to a token sets a cookie, its session's renewal included.
+### Accounts and sign-in
+
+- **access-1:** An account is made, and signed in to, only with a code sent to its email ([ADR 0018](../adr/0018-sign-in-and-invitations.md)): six digits, stored hashed, good once, for ten minutes and five guesses. Every address gets a code, so asking says nothing of whether an account exists; the first sign-in makes the account, verified, named by the request's `name` if it sends one (the console names it just after, access-5), and every later one signs in to the same account. No password makes or opens an account: none is taken, set, or reset. `apps/server/auth/auth.test.ts`
+- **access-2:** Only sign-in codes are sent: Better Auth's endpoints for verifying an email, resetting a password, or changing an email answer `404`. An address gets at most one code a minute, whoever asks and however many ask at once, and spending a code's guesses does not reset the minute. In production, Better Auth's limiter is configured for ten code requests and ten sign-in attempts a minute per `X-Forwarded-For` value, not a limit coordinated across the installation (README, Deployment; untested). `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
+- **access-3:** Codes go out through the `sendMail` the host passes to `createServer`; `braivo serve` sends them over SMTP, or into its log while listening on loopback alone (`serve`'s wiring of either untested), and does not start without SMTP unless `BRAIVO_URL` is loopback ([ADR 0033](../adr/0033-email-over-smtp.md)). `apps/server/server.test.ts`, `apps/server/config.test.ts`
+- **access-4:** A code is asked for and redeemed only as JSON on the installation's host, with its own `Origin` if one is sent (access-28): Better Auth checks the origin only of a request carrying a cookie, so otherwise another site could sign a visitor in to an account whose code it holds. `apps/server/api/app.test.ts`
+- **access-5:** The console's `/login` asks for an email, the code sent to it, then, for an account without a name, a name; a name of spaces alone is refused before it is sent. Naming an account whose session has ended goes back to the email, saying so. After sign-in it goes to the `redirect` search parameter if that stays within the origin, else `/`. `packages/auth-client/email-sign-in.test.tsx`, `packages/ui/ui.test.tsx`, `packages/auth-client/redirect.test.ts`, `apps/console/routes.test.tsx`
+- **access-6:** Each app's signed-in pages check the session before showing anything, fetching nothing else first, and again on each navigation (untested): a signed-out visitor, or an account without a name, goes to `/login?redirect=<href>`, starting at the name step for the latter, so no account without a name reaches a signed-in page. A session that cannot be checked signs no one out: the page says something went wrong and offers Try again. A failed Sign out keeps the page and says it could not sign out; clicking again retries. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`, `apps/learn/routes.test.tsx`
+- **access-7:** On `BRAIVO_URL`'s host, every `/api/auth/*` answer carries `Cache-Control: private, no-store`, and a body over 1 MB answers `413`. `apps/server/api/app.test.ts`
+- **access-8:** On any host but `BRAIVO_URL`'s, the server answers `401` to a request carrying `Authorization`, whatever it carries, a valid bearer token included; without one, Better Auth (`/api/auth/*`), the handoff's installation end (`/api/handoffs*`), and the console's `/api/organizations*` answer `404`: an organization's domain serves its learn app and nothing else ([ADR 0004](../adr/0004-one-application-origin.md)). `apps/server/api/app.test.ts`
+
+### Content owners' tools
+
+- **access-9:** A content owner's tools, the `braivo` CLI and its MCP server, get a session token through the device flow and send it as `Authorization: Bearer`, acting as the person who approved them, with that person's roles and no more ([ADR 0022](../adr/0022-machine-access.md)). Braivo answers only its own client, and a token it never issued opens nothing. `apps/server/api/app.test.ts`
+- **access-10:** Of `/api/auth/*`, a token reaches `get-session` and `sign-out` alone, the latter ending its own session only (`braivo logout`); anything else answers `403`. No answer to a token sets a cookie, its session's renewal included; an account's cookie session, by contrast, is renewed through Braivo's own routes as through Better Auth's (untested). `apps/server/api/app.test.ts`
+- **access-11:** The console's `/device` names the tool and the code, and lets the person signed in approve or deny the tool's request, one decision at a time. It calls a code invalid or expired only when Better Auth refuses it, and on any other failure offers to try again; a code already answered offers nothing to approve. Someone signed out returns to the code once signed in. `apps/console/routes.test.tsx`
 
 ### Learn domains: handoff and learner session
 
-An organization's domain never holds the account's session or takes its credentials: it holds a learner session, Braivo's own, handed over from the installation's origin ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). The flow is OAuth's authorization code flow in miniature.
+An organization's domain never holds the account's session or takes its credentials: it holds a learner session, Braivo's own, handed over from the installation's origin ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). The flow is OAuth's authorization code flow in miniature: the domain starts it, the installation's console completes it, and the domain redeems it.
 
-1. The learn app's `/login`, on a host serving an organization, loads the domain's `/api/session/sign-in?redirect=<path>`. It records a handoff (`learner_handoff`: the organization and hostname from the request's host, the path if it stays on the domain, else `/`, the nonce's hash, 15 minutes), sets the nonce in `__Host-braivo-handoff`, and redirects to `BRAIVO_URL/login?handoff=<id>`.
-2. There the console names the organization and the domain (`GET /api/handoffs/:id`; the tab's title too), not Braivo. With an account already signed in, it offers "Continue as <name>" (its email while it has none, to be named first) or "Use another account", which signs that one out; otherwise it signs in by code, name step included. A session found ended meanwhile goes back to signing in. Then `POST /api/handoffs/:id`, a trusted write, checks that the account is a member of the organization, then issues a code that expires with the handoff, within 60 seconds, replacing any issued before without extending the handoff. The page navigates to `https://<hostname>/api/session/handoff?code=…`. A POST from a click, never a navigation, so no link hands a signed-in visitor over unasked. An account that is not a member is told to ask the organization to add it, and may try again while the handoff lasts, or use another account. A handoff no longer available reads as expired, without Braivo's name; when that happens mid-sign-in, the page links to `https://<hostname>/login`, where the domain, while it serves the organization, starts another.
-3. That route redeems the code in one transaction, only with the nonce cookie, on the hostname the handoff began on, before it expires, and while that hostname still serves its organization. It sets `__Host-braivo-learner` (a week, renewed by use once a day old) and redirects to the stored path, `Referrer-Policy: no-referrer`. Anything else spends nothing and redirects to `/login?failed=1`, where the learn app, unless the learner is signed in already, says the sign-in did not finish and offers it again, on a click only: a handoff failing every time (cookies blocked) cannot cycle unseen.
-
-- Every secret is random, 256 bits, and stored only as its SHA-256. Both cookies are `__Host-`: `Secure`, `HttpOnly`, `SameSite=Lax`, on that host alone. Expired handoffs and sessions are deleted as new ones are written.
-- A learner session fixes a user, an organization, and the domain it was handed to, and grants nothing: it is read only on that domain while it still serves that organization (a token kept by a domain's former operator opens nothing on the organization's next domain), by the learner routes alone (`learnerFor`: `/api/courses`, `…/next`, `…/activity`, `…/attempts`, `…/learners/:learnerId/progress`, its own only), which check membership on every request as before. Elsewhere on a learn domain, `sessionFor` answers no session, so an account cookie there counts for nothing.
-- `GET /api/session` answers who is signed in on the host asked, and `POST /api/session/sign-out` ends that host's session: on a learn domain its learner session alone, on the installation's the account's. The learn app's guard and sign-out use them.
-- On the installation's host, which serves the learn app only in development, learner routes take the account's session, and the learn app's `/login` signs in by code there.
-- Every `/api/auth/*` answer is `Cache-Control: private, no-store`, and bodies over 1 MB answer `413`.
-- `_signed-in/route.tsx` in each app calls `requireSession` in `beforeLoad`: it asks for the session on every navigation (the console Better Auth, the learn app `GET /api/session`), redirects a signed-out visitor, or an account without a name, to `/login?redirect=<href>`, where `needsName` starts sign-in at the name, and throws rather than signing out when the session cannot be checked, so the page says something went wrong and offers Try again. Its Sign out, when it fails, keeps the page and says it could not sign out; clicking again retries.
-- On the server, a route resolves the session itself — `sessionFor`, the account's, forwarding Better Auth's renewal cookie; or `learnerFor` on learner routes, above — and hands `application` plain user IDs. `application` never imports `auth`.
+- **access-12:** The learn app's `/login`, on a host serving an organization, leaves only on navigating to sign in, never on a preload, through the domain's `GET /api/session/sign-in?redirect=<path>`. That records a handoff for the organization and hostname the request's host serves, for 15 minutes, with the path if it stays on the domain, else `/`; sets its nonce in the `__Host-braivo-handoff` cookie; and redirects to `BRAIVO_URL/login?handoff=<id>`. Once another handoff is begun in the same browser on the same domain, an earlier one not yet finished can no longer finish. `apps/learn/routes.test.tsx`, `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
+- **access-13:** At `BRAIVO_URL/login?handoff=<id>`, the console names the organization and the domain, in the tab's title too, never Braivo. An account already signed in is offered, never used unasked: "Continue as <name>" (its email while it has none, to be named first), or "Use another account", which signs the current account out; otherwise it signs in by code, name step included. A session found ended meanwhile goes back to signing in. `apps/console/routes.test.tsx`
+- **access-14:** Continuing is a trusted write (access-28) from a click, never a navigation, so no link hands a signed-in visitor over unasked: `POST /api/handoffs/:id` checks the account is a member of the organization, then issues a code that expires with the handoff, within 60 seconds; issuing again replaces the code without extending the handoff. The page then navigates to `https://<hostname>/api/session/handoff?code=…`. An account that is not a member is told to ask the organization to add it, and may try again while the handoff lasts, or use another account. A handoff no longer available reads as expired, without Braivo's name; when it expires mid-sign-in, the page links to `https://<hostname>/login`, where the domain, while it serves the organization, starts another. `apps/server/application/learner-sessions.test.ts`, `apps/server/api/app.test.ts`, `apps/console/routes.test.tsx`
+- **access-15:** The domain redeems the code once, only with the nonce cookie, on the hostname the handoff began on, before it expires, and while that hostname still serves its organization. It sets `__Host-braivo-learner`, lasting a week and renewed by use once a day old, and redirects to the stored path with `Referrer-Policy: no-referrer`. Anything else spends nothing and redirects to `/login?failed=1`, where the learn app, unless the learner is signed in already, says the sign-in did not finish and offers it again on a click only, so a handoff failing every time (cookies blocked) cannot cycle unseen. `apps/server/application/learner-sessions.test.ts`, `apps/server/api/app.test.ts`, `apps/learn/routes.test.tsx`
+- **access-16:** A handoff's nonce and code, and a learner session's token, are random, 256 bits (untested), and stored only as their SHA-256 (untested). The `__Host-braivo-handoff` and `__Host-braivo-learner` cookies are `Secure`, `HttpOnly`, `SameSite=Lax`, on that host alone. Expired learner sessions are deleted as new ones are written, and expired handoffs likewise (untested). `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
+- **access-17:** A learner session fixes a user, an organization, and the domain it was handed to, and grants nothing by itself: it is read only on that domain while it still serves that organization, so a token kept by a domain's former operator opens nothing on the organization's next domain, and authorizes only the learner routes, `GET /api/courses`, a course's `…/next`, `…/activity`, and `…/attempts`, and the learner's own progress report; those routes recheck membership on every request. Who is signed in, and signing out, are access-18. An account's cookie on a learn domain counts for nothing. `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
+- **access-18:** `GET /api/session` answers who is signed in on the host asked, and `POST /api/session/sign-out` ends that host's session: on a learn domain its learner session alone, on the installation's host the account's, signed in or not. The learn app's sign-out returns to sign-in. `apps/server/api/app.test.ts`, `apps/learn/routes.test.tsx`
+- **access-19:** On the installation's host, which serves the learn app only in development, learner routes take the account's session, and the learn app's `/login` signs in by code there. `apps/server/api/app.test.ts`, `apps/learn/routes.test.tsx`
 
 ### Organizations, members, and roles
 
-- An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` (`bun apps/server/cli/index.ts organization create …` from a checkout) calls `createOrganization`, which needs an account that has already signed in and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
-- Until invitations, the operator adds members the same way: `braivo organization add-member --slug --email [--role member|admin]` calls `addMember` for an account that has already signed in, as `member` (the default: a learner) or `admin`, never `owner`. An account already a member is refused rather than given another role. The learner, once added, signs in on the organization's learn domain.
-- Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md), white-label-8) and refuse deleting an organization that still owns objectives, courses, sources, or files with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
-- A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `member_uniqueness` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
-- Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md)).
-- Better Auth's invitations are off until ADR 0018 guards them with a verified email and a learn-domain check: its seven invitation endpoints are `disabledPaths`, which Better Auth answers `404` on every host. Unguarded, whoever signs up with an invited email joins. Better Auth's `addMember` has no HTTP path, so nothing over HTTP adds a member.
+- **access-20:** Only the operator creates an organization: `braivo organization create --name --slug --owner <email>` makes it, for an account that has already signed in, its `owner`. No session creates one, and an HTTP request cannot create one by naming a `userId` in place of a session. `apps/server/auth/auth.test.ts`
+- **access-21:** Until invitations, only the operator adds members: `braivo organization add-member --slug --email [--role member|admin]` adds an account that has already signed in, as `member` (the default, untested: a learner) or `admin`, never `owner`, and refuses one that is already a member rather than giving it another role. Nothing over HTTP adds a member (untested; invitations are access-27). The learner, once added, signs in on the organization's learn domain. `apps/server/auth/auth.test.ts`, `apps/server/cli/build.test.ts`
+- **access-22:** An organization that still owns objectives, courses, sources, or files is not deleted (`409`; courses, sources, and files untested), and a refused delete keeps its members; one that owns none of those is deleted. Its slug follows white-label-8 ([white-label](white-label.md)). `apps/server/auth/auth.test.ts`
+- **access-23:** A user has at most one member record per organization, carrying one or more organization roles. Roles are checked one by one, never compared whole: a `member` who also holds `admin` administers. Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md), learner-loop-2 and 3). `apps/server/persistence/membership.test.ts`, `apps/server/application/permission.test.ts`
+- **access-24:** A request naming an organization authorizes nothing: on every route that acts on a named organization and reads or writes anything, the actor is the session's user and their role there is checked (an empty evidence batch does neither): it answers `401` without a session, and `403` to a session without the role there. Roles grant what the table says; a `member` never authors or records evidence. `apps/server/api/app.test.ts`, `apps/server/application/objectives.test.ts`, `apps/server/application/tasks.test.ts`, `apps/server/application/courses.test.ts`, `apps/server/application/record-evidence.test.ts`, `apps/server/auth/auth.test.ts`
 
-```mermaid
-flowchart TD
-  R[Request] --> W{Write?}
-  W -- yes --> T{isTrustedWrite, or isTrustedUpload for a file}
-  T -- no --> F403[403]
-  T -- yes --> S
-  W -- no --> S{Session?}
-  S -- no --> F401[401]
-  S -- yes --> K{Route kind}
-  K -- course route --> H{hostAdmits the course's organization?}
-  H -- no --> N404[404]
-  H -- yes --> M{Allowed this course operation? See the table}
-  M -- no --> N404
-  M -- yes --> OK[Allowed]
-  K -- organization route --> A{owner or admin there?}
-  A -- no --> D[403]
-  A -- yes --> OK
-```
+| Ability                                                | `owner` | `admin`        | `member`              |
+| ------------------------------------------------------ | ------- | -------------- | --------------------- |
+| List and study the organization's courses              | yes     | yes            | yes                   |
+| Author objectives, tasks, courses; record evidence     | yes     | yes            | no                    |
+| Read a learner's progress                              | yes     | yes            | own only (progress-1) |
+| Read a course's overview of every member (progress-12) | yes     | yes            | no                    |
+| Appear in `GET /api/organizations` and the console     | yes     | yes            | no                    |
+| List the organization's members                        | yes     | yes            | no                    |
+| Rename the organization                                | yes     | yes (untested) | no (untested)         |
+| Delete the organization                                | yes     | no (untested)  | no (untested)         |
+| Create an organization                                 | no      | no             | no                    |
 
-| Ability                                                  | `owner` | `admin` | `member` | Checked by                             |
-| -------------------------------------------------------- | ------- | ------- | -------- | -------------------------------------- |
-| List and study the organization's courses                | yes     | yes     | yes      | `isMember`, `hostAdmits`               |
-| Author objectives, tasks, courses; record evidence       | yes     | yes     | no       | `assertMayAdminister`                  |
-| Read a learner's progress                                | yes     | yes     | own only | progress-1 ([progress](progress.md))   |
-| Read a course's overview of every member                 | yes     | yes     | no       | progress-12                            |
-| Appear in `GET /api/organizations` and the console       | yes     | yes     | no       | `listManagedOrganizations`             |
-| Rename the organization                                  | yes     | yes     | no       | Better Auth's default access control   |
-| Delete the organization                                  | yes     | no      | no       | Better Auth's default access control   |
-| List the organization's members (user IDs, names, roles) | yes     | yes     | no       | `assertMayAdminister`                  |
-| Create an organization (operator's command only)         | no      | no      | no       | `allowUserToCreateOrganization: false` |
+Renaming and deleting are Better Auth's default access control; an owner's rename and delete are tested.
 
-- `GET /api/organizations` answers the organizations the session's user manages, by name; the console resolves `/<slug>` among them ([white-label](white-label.md), white-label-7).
-- The console's learner page reads members through `GET /api/organizations/:organizationId/members`, and its course page through the course's overview (progress-11): user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding a member takes the operator's command (above); removing one or changing a role, the database.
+- **access-25:** `GET /api/organizations` answers the organizations the session's user manages, by name, only to a session, never cached; the console resolves `/<slug>` among them (white-label-7). `apps/server/api/app.test.ts`
+- **access-26:** Only an `owner` or `admin` lists an organization's members, at `GET /api/organizations/:organizationId/members` or in a course's overview (progress-11): user IDs, names, and every role, with no cap (untested; listing past 100 is tested), and never emails. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` answer `404`, even to an owner; removing a member or changing a role takes the database. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`, `apps/server/persistence/membership.test.ts`
+- **access-27:** Better Auth's invitations are off: its invitation endpoints answer `404` on every host, even to requests they would carry out, and a stored invitation stays pending and admits no one. `apps/server/auth/auth.test.ts`
 
 ### Write origins
 
-- Braivo's own writes except an upload, whose check sources-11 owns ([sources](sources.md)), pass `isTrustedWrite` before the session is resolved: the media type must be `application/json`, and an `Origin`, if sent, must be the host's own: `BRAIVO_URL`'s on the installation's host, and on an organization's domain that domain, while it is one (`isOrganizationOrigin`: HTTPS, default port, looked up per request). A learn domain cannot write through the console's session.
-- Better Auth runs its own origin check with `disableOriginCheck: false`, so tests see it too. It trusts `BRAIVO_URL`'s origin alone, never an organization's domain.
+- **access-28:** Braivo's own writes, except an upload, whose check sources-11 owns ([sources](sources.md)), are refused `403`, recording nothing, with or without a session (without one untested), unless their media type is `application/json` and their `Origin`, if sent, is the host's own: `BRAIVO_URL`'s on the installation's host, and on a hostname currently serving an organization, that hostname's HTTPS origin on the default port. A learn domain cannot write through the console's session. `apps/server/api/app.test.ts`, `apps/server/auth/origin.test.ts`
+- **access-29:** Better Auth checks the `Origin` of a request carrying a cookie, trusting `BRAIVO_URL`'s origin alone, never an organization's domain: such a write from a foreign origin is refused. Better Auth does not check the `Origin` of a request without a cookie, which is why sign-in codes pass access-28 too (access-4). `apps/server/auth/auth.test.ts`
 
-### Planned (ADR 0018)
+## Boundaries
 
-[ADR 0018](../adr/0018-sign-in-and-invitations.md) still turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`, and adds Google to `/login`. Built so far: the operator's commands, email codes in place of passwords, and learner sessions handed over to learn domains; see Gaps.
-
-## Invariants
-
-- A request naming an organization authorizes nothing; the actor's role there is checked on every organization route that reads or writes anything (an empty evidence batch does neither). `apps/server/api/app.test.ts`, `apps/server/application/objectives.test.ts`, `apps/server/application/tasks.test.ts`, `apps/server/application/courses.test.ts`
-- A `member` never authors or records evidence. `apps/server/api/app.test.ts`, `apps/server/application/record-evidence.test.ts`
-- The learner is the session's user, never a value from the request. `apps/server/api/app.test.ts`
-- A learner route answers a course outside the learner's organizations as `404`, like a missing one. `apps/server/api/app.test.ts`, `apps/server/application/learner-in-course.test.ts`
-- Braivo's role checks split roles, never compare them whole: a `member` who also holds `admin` administers. `apps/server/persistence/membership.test.ts`, `apps/server/application/permission.test.ts`
-- One member record per user and organization. `apps/server/persistence/membership.test.ts`
-- Better Auth answers its invitation endpoints `404`, even requests they would carry out; a stored invitation stays pending and admits no one. `apps/server/auth/auth.test.ts`
-- Only an `owner` or `admin` lists an organization's members, and never with emails; Better Auth answers its own member listings, removal, and role changes `404`, even to an owner. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
-- No session creates an organization; the operator's command does, for an existing account only. `apps/server/auth/auth.test.ts`
-- The operator adds an existing account as `member` or `admin`, never `owner`, and not one that is a member already. `apps/server/auth/auth.test.ts`
-- An organization owning learning content is not deleted, and a refused delete keeps its members. `apps/server/auth/auth.test.ts`
-- No password makes or opens an account; only an emailed code does, which is stored hashed and good once. `apps/server/auth/auth.test.ts`
-- An address gets one code a minute, however its guesses were spent and however many ask at once; only sign-in codes are sent. `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
-- A code is asked for and redeemed only as JSON from the host's own origin. `apps/server/api/app.test.ts`
-- Naming an account whose session has ended goes back to the email, saying so. `packages/auth-client/email-sign-in.test.tsx`
-- An account without a name reaches no signed-in page. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`
-- The sign-in form refuses a name of spaces alone before sending it. `packages/ui/ui.test.tsx`
-- `braivo serve` does not start without SMTP unless `BRAIVO_URL` is loopback. `apps/server/config.test.ts`
-- A bearer token, Better Auth, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
-- A learn domain's learner routes accept its learner session alone, one handed to that domain, and only while it serves the session's organization; it reads its own progress only, and reaches nothing once its user stops being a member. `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
-- A handoff's code is issued only after a membership check, and opens a learner session once, only in the browser that began it, on the domain it began on, within a minute; a mismatch spends nothing; it returns only within that domain. (Membership lost in that minute is caught by the learner routes, which recheck it.) `apps/server/application/learner-sessions.test.ts`, `apps/server/api/app.test.ts`
-- An account already signed in is offered, never used unasked, when signing in for a learn domain. `apps/console/routes.test.tsx`
-- A forgeable write is refused before it records anything; a foreign origin is refused by Braivo and by Better Auth. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
-- An organization's domain is trusted, for Braivo's own writes only, while it maps to an organization. `apps/server/auth/origin.test.ts`, `apps/server/auth/auth.test.ts`
-- `GET /api/organizations` lists only managed organizations, only to a session, never cached. `apps/server/api/app.test.ts`
-- A signed-out visitor reaches `/login` with a way back, and nothing is fetched first; a redirect never leaves the origin. `packages/auth-client/require-session.test.ts`, `packages/auth-client/redirect.test.ts`, `apps/learn/routes.test.tsx`, `apps/console/routes.test.tsx`
-
-## Code map
-
-| Concern                                                    | Where                                                                                                                                |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Better Auth config, organization hooks, trusted origins    | `apps/server/auth/auth.ts`, `apps/server/auth/origin.ts`, `apps/server/auth/slug.ts`                                                 |
-| Operator creates an organization, adds members             | `apps/server/cli/index.ts`, `apps/server/auth/organization.ts`                                                                       |
-| Mount, host gate, bearer limits, session, `isTrustedWrite` | `apps/server/api/app.ts`; contract in `apps/server/api/index.ts`                                                                     |
-| Handoff and learner session                                | `apps/server/application/learner-sessions.ts`, `apps/server/persistence/learner-session.ts`, `packages/db/schema/learner-session.ts` |
-| Role checks                                                | `apps/server/application/permission.ts`, `apps/server/application/organizations.ts`                                                  |
-| Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                              |
-| Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/*_member_uniqueness/migration.sql`                                             |
-| Browser client, form, guard, redirect                      | `packages/auth-client/`, `packages/ui/compositions/sign-in-form.tsx`                                                                 |
-| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/server.ts`, `apps/server/config.ts`                     |
-| Console pages                                              | `apps/console/routes/login.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts`        |
-| Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`, `apps/learn/lib/auth.ts`                                    |
-| Approving a tool's device code                             | `apps/console/routes/_signed-in/device.tsx`                                                                                          |
-| Signing in for a learn domain                              | `apps/console/routes/login.tsx`                                                                                                      |
+- Which hostname serves which organization, and the course routes' host ceiling: [white-label](white-label.md), white-label-4. The ceiling grants nothing by itself; this spec decides what a person reaches within it.
+- What a learner's routes answer, a course outside their organizations included (learner-loop-3): [learner loop](learner-loop.md); who reads a report or an overview: [progress](progress.md), progress-1 and 12.
+- Identity reaches use cases as plain user IDs, resolved by the route: [architecture](../architecture.md).
+- Not here yet: ADR 0018's invitations to an organization as `member` or `admin`, Google sign-in, and a console UI for members, roles, and settings (see Gaps).
 
 ## Decisions
 
@@ -140,15 +85,20 @@ flowchart TD
 - [ADR 0011](../adr/0011-ui-and-auth-client-packages.md): browser sign-in lives in `packages/auth-client`.
 - [ADR 0016](../adr/0016-route-files.md): `_signed-in/route.tsx` guards signed-in pages.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): email-code sign-in, invitations, learner sessions handed over to each learn domain; operator-created organizations.
-- [ADR 0033](../adr/0033-email-over-smtp.md): email over SMTP, or to the log of a loopback installation.
 - [ADR 0022](../adr/0022-machine-access.md): content owners' tools sign in by the device flow and act as them, on the installation's host only.
+- [ADR 0033](../adr/0033-email-over-smtp.md): email over SMTP, or to the log of a loopback installation.
 
 ## Gaps
 
 | Gap                                                                                                                              | Impact                                                                                   | Next step                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | Only the operator adds members, one command each, for accounts that signed in once.                                              | A school sends its list to the operator, and each learner signs in before being added.   | ADR 0018 invitations, or a class code, after the pilot.    |
+| Sign-in is by emailed code only; ADR 0018's Google sign-in is not built.                                                         | Someone who would rather use their Google account must wait for a code.                  | ADR 0018's Google sign-in.                                 |
 | Better Auth's default `membershipLimit` of 100 applies to the members it adds; no schema caps them.                              | `organization add-member` stops at 100 members, staff included.                          | Set `membershipLimit` deliberately.                        |
 | Whether a member may leave is undecided: Better Auth's `organization/leave` lets any member but an organization's sole owner.    | A learner can end their own enrollment.                                                  | Maintainer decides; then a rule and a test, or disable it. |
 | Signing in for a learn domain cannot run locally: it needs the domain over HTTPS and a separate console origin serving `/login`. | The handoff is proven by the API's tests and the console's route tests only.             | A local HTTPS proxy setup, when someone needs it.          |
 | No console UI to change members, roles, or the organization's settings.                                                          | Removing a member takes the database; renaming the organization, a raw Better Auth call. | Follows invitations; scope with ADR 0018 step 3.           |
+
+## Entry points
+
+`apps/server/auth/auth.ts` (Better Auth's configuration, disabled paths, and organization hooks), `apps/server/api/app.ts` (the host gate, bearer limits, sessions, and `isTrustedWrite`), `apps/server/application/learner-sessions.ts` (the handoff and learner sessions), `apps/server/application/permission.ts` (role checks), `apps/server/auth/organization.ts` (the operator's commands), `packages/auth-client/` (sign-in and the session guard), `apps/console/routes/login.tsx` (signing in, for the console or a learn domain).
