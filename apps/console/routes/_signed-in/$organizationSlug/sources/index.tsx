@@ -98,7 +98,9 @@ function AddSource() {
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
   const router = useRouter();
-  const [adding, setAdding] = useState(false);
+  // The step under way while adding: reading a file can take a few minutes.
+  const [status, setStatus] = useState<string>();
+  const adding = status !== undefined;
   const [error, setError] = useState<string>();
   const id = useId();
   const original = useRef<HTMLInputElement>(null);
@@ -132,7 +134,7 @@ function AddSource() {
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
     const from = router.latestLocation.pathname;
-    setAdding(true);
+    setStatus(file ? "Uploading the file…" : "Adding…");
     setError(undefined);
     try {
       // The file first, so the source can name it; the same file again is stored once.
@@ -148,18 +150,21 @@ function AddSource() {
         original: fileId,
       };
       // No text pasted: the file's own, read page by page, so passages name their pages.
-      let sourceId: string;
+      let pages: { page: string; text: string }[] | undefined;
       if (fileId && text.trim() === "") {
         if (read.current?.fileId !== fileId) {
-          const pages = await explainAiProxyTimeout(
-            braivo.readFileText({ organizationId, fileId }, { signal }),
-          );
-          read.current = { fileId, pages };
+          setStatus("Braivo's AI is reading the file, which can take a few minutes…");
+          read.current = {
+            fileId,
+            pages: await explainAiProxyTimeout(
+              braivo.readFileText({ organizationId, fileId }, { signal }),
+            ),
+          };
         }
-        sourceId = await braivo.addSource({ ...source, pages: read.current.pages });
-      } else {
-        sourceId = await braivo.addSource({ ...source, text });
+        pages = read.current.pages;
       }
+      setStatus("Adding…");
+      const sourceId = await braivo.addSource(pages ? { ...source, pages } : { ...source, text });
       // To the source's page, where a course is drafted from it, unless the
       // owner left meanwhile: added anyway, it is listed.
       if (signal?.aborted || router.latestLocation.pathname !== from) return;
@@ -175,7 +180,7 @@ function AddSource() {
           "The material could not be added. Try again.",
       );
     } finally {
-      setAdding(false);
+      setStatus(undefined);
     }
   }
 
@@ -210,7 +215,7 @@ function AddSource() {
             <FieldDescription id={`${id}-text-hint`}>
               The material's words as they read: what questions will quote. Paste them, or leave
               this empty and attach the PDF or a photo below for Braivo's AI to read — which can
-              take a minute.
+              take a few minutes.
             </FieldDescription>
           </Field>
           <Field>
@@ -265,7 +270,11 @@ function AddSource() {
           </Field>
         </FieldGroup>
       </FieldSet>
-      <MutedText>Adding the same material again adds nothing.</MutedText>
+      {/* One line: the step under way while adding, in a live region present
+          from the start so the change is announced. */}
+      <MutedText role="status">
+        {status ?? "Adding the same material again adds nothing."}
+      </MutedText>
     </form>
   );
 }

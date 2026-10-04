@@ -831,6 +831,37 @@ describe("the console", () => {
     );
   });
 
+  test("says which step is under way while material is added", async () => {
+    const uploading = Promise.withResolvers<{ fileId: string }>();
+    const reading = Promise.withResolvers<{ page: string; text: string }[]>();
+    const adding = Promise.withResolvers<string>();
+    renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        uploadFile: () => uploading.promise,
+        readFileText: () => reading.promise,
+        addSource: () => adding.promise,
+      },
+    });
+    await screen.findByText("No material yet");
+    // Present from the start, so what it says next is announced.
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Adding the same material again adds nothing.");
+
+    addMaterial({
+      title: "Mi libro",
+      text: "",
+      file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
+    });
+    await vi.waitFor(() => expect(status.textContent).toBe("Uploading the file…"));
+    uploading.resolve({ fileId: "f".repeat(64) });
+    await vi.waitFor(() => expect(status.textContent).toMatch(/reading the file.*a few minutes/));
+    reading.resolve([{ page: "1", text: "Hola." }]);
+    await vi.waitFor(() => expect(status.textContent).toBe("Adding…"));
+    adding.resolve("s1");
+    expect(await screen.findByRole("heading", { name: "Unidad 1" })).toBeTruthy();
+  });
+
   test("says a proxy cut off reading a file, and not an upload", async () => {
     const cutOff = new BraivoError(504, "Braivo answered 504 reading a file's text.");
     const uploadFile = vi
