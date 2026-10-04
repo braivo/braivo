@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { type FormEvent, type ReactNode, useId, useState } from "react";
+import { type FormEvent, type ReactNode, useId } from "react";
 
 import { Alert, AlertDescription } from "#components/alert";
 import { Button } from "#components/button";
@@ -14,8 +14,12 @@ import { Spinner } from "#components/spinner";
 /** Where signing in is: asking for a code, entering it, or naming a new account. */
 export type SignInStep =
   | { step: "email"; email?: string }
-  /** `sent`: codes sent to `email` so far, 1 if omitted. */
-  | { step: "code"; email: string; sent?: number }
+  /**
+   * `sent`: codes sent to `email` so far, 1 if omitted; `refused`: refusals
+   * of the code typed since the last was sent, 0 if omitted. A change in
+   * either clears the code typed.
+   */
+  | { step: "code"; email: string; sent?: number; refused?: number }
   | { step: "name" };
 
 export type SignInValues =
@@ -42,14 +46,6 @@ export function SignInForm(props: {
 }) {
   const { step } = props;
   const id = useId();
-  // A refused or superseded code is cleared and focused by remounting its
-  // input, so the next is typed into empty slots, not past a full set.
-  const [refusal, setRefusal] = useState(props.error);
-  const [codeAttempt, setCodeAttempt] = useState(0);
-  if (props.error !== refusal) {
-    setRefusal(props.error);
-    if (props.error) setCodeAttempt(codeAttempt + 1);
-  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -95,7 +91,10 @@ export function SignInForm(props: {
       <Field>
         <FieldLabel htmlFor={`${id}-code`}>Code</FieldLabel>
         <InputOTP
-          key={`${step.sent ?? 1}-${codeAttempt}`}
+          // A refused or superseded code is cleared and focused by remounting
+          // its input, so the next is typed into empty slots, not past a full
+          // set. Only then: after any other error the code may still be good.
+          key={`${step.sent ?? 1}-${step.refused ?? 0}`}
           id={`${id}-code`}
           name="code"
           // `pattern` filters each keystroke, so a short code is caught by

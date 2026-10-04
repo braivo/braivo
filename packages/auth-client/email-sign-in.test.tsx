@@ -122,7 +122,13 @@ describe("EmailSignIn", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(
       "That code has expired. Send a new one.",
     );
-    expect(screen.getByLabelText("Code")).toBeTruthy();
+    // Cleared, so the next is typed afresh, after each refusal.
+    expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("");
+    fill("Code", "654321");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() =>
+      expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe(""),
+    );
     expect(onSignedIn).not.toHaveBeenCalled();
 
     // Back to the email, still filled in, to send a new one.
@@ -139,6 +145,7 @@ describe("EmailSignIn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
     await screen.findByLabelText("Code");
 
+    fill("Code", "123");
     auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({
       error: {
         message: "A code was just sent to this address. Wait a minute before asking again.",
@@ -146,7 +153,8 @@ describe("EmailSignIn", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/^A code was just sent/);
-    // The first code still works.
+    // The first code still works, so what was typed of it is kept.
+    expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123");
     fill("Code", "123456");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
@@ -195,5 +203,25 @@ describe("EmailSignIn", () => {
       "Could not connect. Check your connection and try again.",
     );
     expect(screen.getByRole("button", { name: "Send code" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  test("keeps a code whose check got no answer, or another refusal, to try again", async () => {
+    const auth = fakeAuth("Ada");
+    auth.signIn.emailOtp
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ data: null, error: { message: "Too many requests." } });
+    const onSignedIn = vi.fn();
+    render(<EmailSignIn auth={auth} onSignedIn={onSignedIn} />);
+    const code = () => (screen.getByLabelText("Code") as HTMLInputElement).value;
+
+    await enterCode();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/^Could not connect/);
+    expect(code()).toBe("123456");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByText("Too many requests.");
+    expect(code()).toBe("123456");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 });
