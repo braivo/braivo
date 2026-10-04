@@ -46,8 +46,9 @@ const slugs = {
   roster: "auth-test-roster",
   enrolls: "auth-test-enrolls",
   adminAdded: "auth-test-admin-added",
-  // Listed so a regression that lets it through is cleaned up after itself.
+  // Listed so a regression that lets them through is cleaned up after itself.
   reserved: "login",
+  malformed: "Auth-Test-Capitals",
 };
 
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -469,12 +470,11 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(await statuses()).toEqual(Array(5).fill(404));
   });
 
-  test("refuses a reserved slug", async () => {
-    const created = createOrganization(auth, {
-      name: "Login",
-      slug: slugs.reserved,
-      ownerEmail: owner.email,
-    });
+  test.each([
+    ["a reserved slug", slugs.reserved],
+    ["a malformed slug", slugs.malformed],
+  ])("refuses %s", async (_case, slug) => {
+    const created = createOrganization(auth, { name: "Refused", slug, ownerEmail: owner.email });
 
     await expect(created).rejects.toMatchObject({
       body: { code: "ORGANIZATION_SLUG_NOT_ALLOWED" },
