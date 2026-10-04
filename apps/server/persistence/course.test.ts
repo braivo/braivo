@@ -103,7 +103,7 @@ describe.skipIf(!connectionString)("courses", () => {
       objectiveIds: [alpha!, alpha!],
     }).catch((thrown: unknown) => thrown);
 
-    expect(violatedConstraint(error)).toBe("course_objective_course_id_objective_id_pk");
+    expect(violatedConstraint(error)).toBe("course_objective_pkey");
   });
 
   test("refuses to arrange another organization's objective", async () => {
@@ -185,7 +185,7 @@ describe.skipIf(!connectionString)("courses", () => {
       .where(eq(organization.id, organizationId))
       .catch((thrown: unknown) => thrown);
 
-    expect(violatedConstraint(error)).toBe("course_organization_id_organization_id_fk");
+    expect(violatedConstraint(error)).toBe("course_organization_id_organization_id_fkey");
   });
 
   test("rolls the course back when its objectives cannot be attached", async () => {

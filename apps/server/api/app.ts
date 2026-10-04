@@ -155,6 +155,12 @@ function isTrustedUpload(context: Context, origin: string): boolean {
 export type ApiOptions = {
   auth: Auth;
   database: Database;
+  /**
+   * For reads that cannot go stale, such as a source, which never changes:
+   * a query cache in front of it, like Hyperdrive's, serves them without
+   * asking the database, and is never told of a write. Defaults to `database`.
+   */
+  cachedDatabase?: Database;
   /** The public origin this installation is served from, used to judge writes. */
   baseUrl: string;
   /** Where uploaded files are kept; without one, the file routes answer 501. */
@@ -485,7 +491,7 @@ const cookieOptions = (expiresAt: Date) =>
  * Endpoints and statuses: `index.ts`. Why any of it: ADR 0010.
  */
 export function createApi(options: ApiOptions) {
-  const { auth, database, files, ai } = options;
+  const { auth, database, cachedDatabase = database, files, ai } = options;
   const origin = new URL(options.baseUrl).origin;
   const installationHostname = new URL(options.baseUrl).hostname;
   const api = new Hono();
@@ -1456,6 +1462,7 @@ export function createApi(options: ApiOptions) {
       try {
         const draft = await draftFromSource({
           database,
+          cachedDatabase,
           ai,
           organizationId: context.req.param("organizationId"),
           actingAs: session.user.id,
@@ -1480,6 +1487,7 @@ export function createApi(options: ApiOptions) {
     try {
       const source = await getSource({
         database,
+        cachedDatabase,
         organizationId: context.req.param("organizationId"),
         actingAs: session.user.id,
         sourceId: context.req.param("sourceId"),

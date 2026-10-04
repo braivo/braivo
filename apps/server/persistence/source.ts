@@ -108,6 +108,9 @@ export async function readSources(
  * One source, or `undefined` when this organization has none by that ID —
  * including when another organization does, since from here that is the same
  * answer.
+ *
+ * Safe to read from a cache: a source never changes, and its ID is generated
+ * here, so nobody asks for it before it exists.
  */
 export async function readSource(
   database: Database,

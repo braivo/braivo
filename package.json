@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "typescript": "^7.0.2",
     "vite-plus": "0.3.2"
   },

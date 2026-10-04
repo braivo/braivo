@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { asc, eq, inArray } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 
 import { createDatabase, type Database } from "./database.ts";
+import { authRelations } from "./schema/auth.ts";
 import {
   aiRequest,
   attempt,
@@ -50,6 +52,18 @@ let shared: Database | undefined;
 export function sharedDatabase(connectionString: string): Database {
   shared ??= createDatabase(connectionString);
   return shared;
+}
+
+/**
+ * A pool of its own that records every statement it runs, for a suite to see
+ * which database a query went through, or in what order. The suite closes it.
+ */
+export function recordingDatabase(connectionString: string, statements: string[]): Database {
+  return drizzle({
+    connection: { connectionString },
+    relations: authRelations,
+    logger: { logQuery: (query) => void statements.push(query) },
+  });
 }
 
 /**

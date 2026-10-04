@@ -506,7 +506,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
 
     // Named, not merely thrown: a mistyped model would also reject and roll back.
     expect(testing.violatedConstraint(refused)).toBe(
-      "objective_organization_id_organization_id_fk",
+      "objective_organization_id_organization_id_fkey",
     );
     expect(before).toHaveLength(1);
     expect(await membersOf(id)).toEqual(before);

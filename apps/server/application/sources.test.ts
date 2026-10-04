@@ -3,7 +3,7 @@
 
 import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
-import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { createSource } from "../persistence/index.ts";
 import { NotPermitted } from "./permission.ts";
@@ -11,6 +11,10 @@ import { addSource, getSource, InvalidSource, listSources } from "./sources.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
+
+/** Stands in for a query cache, recording what is read through it. */
+const cachedStatements: string[] = [];
+const cachedDatabase = testing.recordingDatabase(connectionString ?? "", cachedStatements);
 
 const organizationId = "sources-test-org";
 const otherOrganizationId = "sources-test-other-org";
@@ -30,13 +34,17 @@ function add(
 }
 
 function get(sourceId: string, actingAs = author) {
-  return getSource({ database, organizationId, actingAs, sourceId });
+  return getSource({ database, cachedDatabase, organizationId, actingAs, sourceId });
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
 describe.skipIf(!connectionString)("adding sources", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
+  });
+
+  afterAll(async () => {
+    await cachedDatabase.$client.end();
   });
 
   beforeEach(async () => {
@@ -148,5 +156,16 @@ describe.skipIf(!connectionString)("adding sources", () => {
 
     expect(await get(theirs)).toBeUndefined();
     expect(await get("no-such-source")).toBeUndefined();
+  });
+
+  test("reads a source through the cache, but who may read it never", async () => {
+    const id = await add("Unidad 1", "Hola");
+    cachedStatements.length = 0;
+
+    await expect(get(id, learner)).rejects.toBeInstanceOf(NotPermitted);
+    expect(cachedStatements).toEqual([]);
+
+    expect((await get(id))?.text).toBe("Hola");
+    expect(cachedStatements).toEqual([expect.stringMatching(/ from "source" /)]);
   });
 });

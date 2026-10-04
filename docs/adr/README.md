@@ -38,6 +38,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0031: Each AI request is recorded, and an operator may set an organization's monthly quota](0031-ai-limits.md)
 - [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
 - [0033: Email goes out over SMTP, or to the log of an installation only its machine reaches](0033-email-over-smtp.md)
+- [0034: node-postgres, so the server reaches PostgreSQL from Bun or from Workers through Hyperdrive](0034-node-postgres.md)
 
 ## Web
 

@@ -1,20 +1,33 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { drizzle } from "drizzle-orm/bun-sql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
-import * as authSchema from "./schema/auth.ts";
+import { authRelations } from "./schema/auth.ts";
 
 /**
- * Bun's built-in SQL client, so PostgreSQL access costs no driver dependency:
- * Braivo runs on Bun everywhere, so a portable driver would buy nothing.
+ * node-postgres, the driver both Bun and Cloudflare Workers (through
+ * Hyperdrive) run, so the server is not tied to Bun's own client
+ * ([ADR 0034](../../docs/adr/0034-node-postgres.md)).
  *
  * The connection string is an argument rather than an environment read, so that
- * tests and the CLI open their own databases without a module-level singleton
- * deciding for them.
+ * tests, the CLI, and a Worker's per-request Hyperdrive binding each open their
+ * own database without a module-level singleton deciding for them. The pool
+ * opens connections only when a query needs one.
  */
 export function createDatabase(connectionString: string) {
-  return drizzle({ connection: connectionString, schema: authSchema });
+  // pg waits forever on a server that accepts the connection and never
+  // answers; Bun's client gave up after 30 seconds, and so does this.
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 30_000 });
+  // A dropped idle connection, PostgreSQL restarting or the network cut, is
+  // reported here rather than to a query, and with no listener it ends the
+  // process; the pool discards that connection and opens another when needed.
+  // Ignored once the pool is ending: Workers report its own closing this way.
+  pool.on("error", (error) => {
+    if (!pool.ending) console.error("A database connection was lost:", error.message);
+  });
+  return drizzle({ client: pool, relations: authRelations });
 }
 
 export type Database = ReturnType<typeof createDatabase>;

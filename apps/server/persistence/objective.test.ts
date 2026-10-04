@@ -90,7 +90,7 @@ describe.skipIf(!connectionString)("objectives", () => {
       (thrown: unknown) => thrown,
     );
 
-    expect(violatedConstraint(error)).toBe("objective_organization_id_organization_id_fk");
+    expect(violatedConstraint(error)).toBe("objective_organization_id_organization_id_fkey");
   });
 
   test("refuses to delete an organization that still owns objectives", async () => {
@@ -101,7 +101,7 @@ describe.skipIf(!connectionString)("objectives", () => {
       .where(eq(organization.id, organizationId))
       .catch((thrown: unknown) => thrown);
 
-    expect(violatedConstraint(error)).toBe("objective_organization_id_organization_id_fk");
+    expect(violatedConstraint(error)).toBe("objective_organization_id_organization_id_fkey");
   });
 
   describe("under the caller's keys", () => {

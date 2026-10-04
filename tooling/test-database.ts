@@ -10,6 +10,8 @@
 import { execFileSync } from "node:child_process";
 import { basename } from "node:path";
 
+import { Client } from "pg";
+
 /** PostgreSQL's identifier limit, in bytes; longer names are silently cut. */
 const MAX_NAME = 63;
 
@@ -71,12 +73,13 @@ function withoutRepositoryVariables(): NodeJS.ProcessEnv {
  * concurrent run may create it first, raising any error here: the recheck tells.
  */
 async function createDatabase(configured: string, name: string): Promise<void> {
-  const sql = new Bun.SQL(configured);
+  const client = new Client(configured);
   const exists = async () =>
-    (await sql`select 1 from pg_database where datname = ${name}`).length > 0;
+    (await client.query("select 1 from pg_database where datname = $1", [name])).rowCount! > 0;
+  await client.connect();
   try {
     if (await exists()) return;
-    await sql.unsafe(`create database "${name.replaceAll('"', '""')}"`);
+    await client.query(`create database "${name.replaceAll('"', '""')}"`);
   } catch (error) {
     if (!(await exists())) {
       throw new Error(`Could not create this worktree's test database "${name}".`, {
@@ -84,6 +87,6 @@ async function createDatabase(configured: string, name: string): Promise<void> {
       });
     }
   } finally {
-    await sql.close();
+    await client.end();
   }
 }
