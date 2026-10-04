@@ -830,9 +830,12 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       });
 
     expect((await signOut()).status).toBe(204);
-    // A form another site could post, and a tool's token, which manages no account.
-    const form = { "content-type": "application/x-www-form-urlencoded", cookie: account.cookie };
+    // What another site could post, signed in or not, and a tool's token, which
+    // manages no account.
+    const form = { "content-type": "application/x-www-form-urlencoded" };
     expect((await signOut(form)).status).toBe(403);
+    expect((await signOut({ origin: "https://evil.example" })).status).toBe(403);
+    expect((await signOut({ ...form, cookie: account.cookie })).status).toBe(403);
     expect((await signOut({ authorization: `Bearer ${account.token}` })).status).toBe(403);
     expect((await signOut({ cookie: account.cookie })).status).toBe(204);
     const after = await api.request(`${baseUrl}/api/session`, {

@@ -84,9 +84,22 @@ const api = createApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-materials-"))),
   ai: { model, organizations: new Set([organizationId]) },
 });
+
+/**
+ * What each JSON write answered forged as `text/plain`, which a page elsewhere
+ * may post unasked, before it is sent as it was.
+ */
+const forged: string[] = [];
 const client = createClient({
-  fetch: ((path: string, init?: RequestInit) =>
-    api.request(path, init)) as unknown as typeof globalThis.fetch,
+  fetch: (async (path: string, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if (headers.get("content-type") === "application/json") {
+      headers.set("content-type", "text/plain");
+      const answer = await api.request(path, { ...init, headers });
+      forged.push(`${answer.status} ${path.split("/").at(-1)}`);
+    }
+    return api.request(path, init);
+  }) as unknown as typeof globalThis.fetch,
 });
 
 async function signUp(): Promise<{ headers: { cookie: string }; id: string }> {
@@ -167,5 +180,13 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
         { quote: "Hola significa hello.", page: "12", source: { title: "Mi primer libro" } },
       ],
     });
+    // Refused, while the same write as JSON went on to do all of the above.
+    expect(new Set(forged)).toEqual(
+      new Set(
+        ["text", "sources", "draft", "objectives", "citations", "tasks", "courses", "attempts"].map(
+          (route) => `403 ${route}`,
+        ),
+      ),
+    );
   });
 });
