@@ -78,6 +78,12 @@ export function EmailSignIn(props: {
       else setStep({ step: "name" });
     } else if (values.step === "name") {
       const { error } = await auth.updateUser({ name: values.name });
+      // The session ended (signed out in another tab, say): naming would be
+      // refused every time, so sign in again.
+      if (error?.code === "UNAUTHORIZED") {
+        setStep({ step: "email" });
+        return "You were signed out. Sign in again.";
+      }
       if (error) return refusal(error);
       props.onSignedIn();
     }

@@ -100,6 +100,7 @@ flowchart TD
 - No password makes or opens an account; only an emailed code does, which is stored hashed and good once. `apps/server/auth/auth.test.ts`
 - An address gets one code a minute, however its guesses were spent and however many ask at once; only sign-in codes are sent. `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
 - A code is asked for and redeemed only as JSON from the host's own origin. `apps/server/api/app.test.ts`
+- Naming an account whose session has ended goes back to the email, saying so. `packages/auth-client/email-sign-in.test.tsx`
 - An account without a name reaches no signed-in page. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`
 - The sign-in form refuses a name of spaces alone before sending it. `packages/ui/ui.test.tsx`
 - An installation others reach does not start without a way to send email. `apps/server/cli/config.test.ts`
