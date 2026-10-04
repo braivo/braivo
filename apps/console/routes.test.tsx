@@ -1775,6 +1775,7 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Beginners" }).getAttribute("href")).toBe(
       "/example/courses/course-1",
     );
+    expect(screen.queryByText(/no objectives yet/i)).toBeNull();
     const [header, greetings, numbers] = screen.getAllByRole("row");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
     expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
@@ -1832,5 +1833,19 @@ describe("the console", () => {
     expect(
       await screen.findByText("This learner's progress is not yours to see, or does not exist."),
     ).toBeTruthy();
+  });
+
+  test("says a course without objectives has nothing to report, rather than an empty table", async () => {
+    renderAt("/example/courses/course-1/learners/u2", {
+      braivo: {
+        learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
+        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listMembers: async () => members,
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+    expect(screen.getByText(/no objectives yet/i)).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
   });
 });
