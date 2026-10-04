@@ -66,10 +66,12 @@ describe("Braivo's components", () => {
     expect(onChangeEmail).toHaveBeenCalledOnce();
 
     rerender(<SignInForm step={{ step: "name" }} onSubmit={onSubmit} />);
+    const name = screen.getByLabelText("Your name") as HTMLInputElement;
+    const hint = screen.getByText("How others in your organizations see you.");
+    expect(name.getAttribute("aria-describedby")).toBe(hint.id);
     // Spaces alone pass `required`, but would leave the account unnamed;
     // set without an input event, as a browser restoring the form would.
     onSubmit.mockClear();
-    const name = screen.getByLabelText("Your name") as HTMLInputElement;
     name.value = "   ";
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(onSubmit).not.toHaveBeenCalled();

@@ -131,10 +131,13 @@ export function SignInForm(props: {
           required
           autoFocus
           autoComplete="name"
+          aria-describedby={`${id}-name-hint`}
           // A blank name `submit` refused stays refused until edited.
           onChange={(event) => event.currentTarget.setCustomValidity("")}
         />
-        <FieldDescription>How others in your organizations see you.</FieldDescription>
+        <FieldDescription id={`${id}-name-hint`}>
+          How others in your organizations see you.
+        </FieldDescription>
       </Field>
     );
   }
