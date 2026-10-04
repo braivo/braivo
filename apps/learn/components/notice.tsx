@@ -43,7 +43,9 @@ export function Notice({
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
     >
-      <EmptyHeader>
+      {/* `wrap-anywhere`: centred, so as wide as its longest word otherwise, and a
+          description may name an objective holding a link. */}
+      <EmptyHeader className="wrap-anywhere">
         <EmptyTitle id={titleId}>{title}</EmptyTitle>
         {description && <EmptyDescription id={descriptionId}>{description}</EmptyDescription>}
       </EmptyHeader>

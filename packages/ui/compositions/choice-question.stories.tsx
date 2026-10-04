@@ -41,3 +41,24 @@ export const Unconfirmed: Story = { args: { chosen: 1 } };
 export const Right: Story = { args: { chosen: 1, correctChoice: 1 } };
 
 export const Wrong: Story = { args: { chosen: 2, correctChoice: 1 } };
+
+/** At a phone's width, a word too long for the line, such as a link, wraps. */
+export const LongWords: Story = {
+  args: {
+    prompt: "Which page lists the conjugations of https://example.com/verbos/hablar/conjugacion?",
+    options: [
+      { choice: 0, text: "https://example.com/verbos/hablar/conjugacion/preterito-indefinido" },
+      { choice: 1, text: "hablé" },
+    ],
+    // Wrong, so the long option carries the wider of the two labels.
+    chosen: 0,
+    correctChoice: 1,
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-72">
+        <Story />
+      </div>
+    ),
+  ],
+};
