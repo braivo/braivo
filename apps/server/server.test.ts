@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { type AddressInfo, createServer as createTcpServer, type Socket } from "node:net";
+import { createInterface } from "node:readline";
+
 import { type Database, runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 // Through the package's own name: the entry a Worker imports.
-import { createServer, type FileStore, readServerConfig } from "@braivo/server";
+import { createServer, type FileStore, readServerConfig, smtpMail } from "@braivo/server";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { codeSentTo, createOutbox, signInWithCode } from "./auth/testing.ts";
@@ -120,4 +123,61 @@ describe.skipIf(!connectionString)("createServer", () => {
     expect((await asAdmin(testServer(), "POST", "/sources/none/draft")).status).toBe(501);
     expect((await asAdmin(notEntitled, "POST", "/sources/none/draft")).status).toBe(403);
   });
+});
+
+test("smtpMail sends a message through SMTP, as the configured sender", async () => {
+  // Just enough of a server for Nodemailer to deliver one message to; anything
+  // else gets a 500, so a changed dialogue fails at once rather than timing out.
+  const transcript: string[] = [];
+  let connection: Socket | undefined;
+  const server = createTcpServer((socket) => {
+    connection = socket;
+    let inData = false;
+    socket.write("220 test\r\n");
+    // Whole lines, however TCP splits them.
+    createInterface({ input: socket, crlfDelay: Infinity }).on("line", (line) => {
+      transcript.push(line);
+      if (inData) {
+        if (line === ".") {
+          inData = false;
+          socket.write("250 ok\r\n");
+        }
+      } else if (line === "DATA") {
+        inData = true;
+        socket.write("354 go\r\n");
+      } else if (line === "QUIT") socket.end("221 bye\r\n");
+      else if (/^(EHLO |MAIL FROM:|RCPT TO:)/.test(line)) {
+        socket.write("250 ok\r\n");
+      } else socket.write("500 unexpected\r\n");
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const sendMail = smtpMail({
+      url: `smtp://127.0.0.1:${port}`,
+      from: "Braivo <codes@example.com>",
+    });
+    await sendMail({
+      to: "ada@example.com",
+      subject: "Your code",
+      text: "text-123456",
+      html: "<p>html-123456</p>",
+    });
+  } finally {
+    // Closing the server leaves an open connection, as a failed send would.
+    connection?.destroy();
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  expect(transcript).toEqual(
+    expect.arrayContaining([
+      "MAIL FROM:<codes@example.com>",
+      "RCPT TO:<ada@example.com>",
+      "From: Braivo <codes@example.com>",
+      "Subject: Your code",
+      "text-123456",
+      "<p>html-123456</p>",
+    ]),
+  );
 });
