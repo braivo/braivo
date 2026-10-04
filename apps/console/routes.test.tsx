@@ -1324,6 +1324,38 @@ describe("the console", () => {
     });
   });
 
+  test("refuses an objective kept without a task, which learners would wait on", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Bye?”" }));
+    // An objective's title comes first, as it does on the page.
+    const title = screen.getByRole("textbox", { name: "Objective 2" });
+    fireEvent.change(title, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    expect(await screen.findByText("Give objective 2 a title.")).toBeTruthy();
+    expect(document.activeElement).toBe(title);
+    fireEvent.change(title, { target: { value: "Say goodbye" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+
+    expect(
+      await screen.findByText(
+        "Keep a task of objective 2, or untick the objective: learners would wait on it with nothing to practise.",
+      ),
+    ).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: "Keep objective 2" }));
+    expect(braivo.acceptDraft).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    await vi.waitFor(() =>
+      expect(braivo.acceptDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ objectives: [drafted.objectives[0]] }),
+      ),
+    );
+  });
+
   test("says why a course could not be drafted, or created", async () => {
     const braivo = {
       ...authoring(),

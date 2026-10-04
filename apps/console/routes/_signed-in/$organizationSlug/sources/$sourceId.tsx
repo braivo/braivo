@@ -309,22 +309,28 @@ function ReviewDraft(props: {
       objectives: kept,
     };
     // In page order, focusing the first to fix: the alert sits below a long review.
-    const titled = [
-      ...draft.objectives.flatMap((_, index) =>
+    const problems = [
+      ...draft.objectives.flatMap(({ tasks }, index) =>
         dropped.has(`o:${index}`)
           ? []
           : [
               {
-                title: titleOf(index),
-                subject: `objective ${index + 1}`,
+                problem: titleProblem(titleOf(index), `objective ${index + 1}`),
                 field: `${id}-o${index}`,
+              },
+              {
+                // A draft never offers one (generation-4); learners would get
+                // "nothing to practise" from it, never caught up (learner-loop-5).
+                problem: tasks.every((_, task) => dropped.has(`t:${index}:${task}`))
+                  ? `Keep a task of objective ${index + 1}, or untick the objective: learners would wait on it with nothing to practise.`
+                  : undefined,
+                field: `${id}-o${index}-keep`,
               },
             ],
       ),
-      { title: sending.title, subject: "the course", field: `${id}-title` },
+      { problem: titleProblem(sending.title, "the course"), field: `${id}-title` },
     ];
-    for (const { title, subject, field } of titled) {
-      const problem = titleProblem(title, subject);
+    for (const { problem, field } of problems) {
       if (problem !== undefined) {
         setError(problem);
         document.getElementById(field)?.focus();
@@ -426,6 +432,7 @@ function ReviewDraft(props: {
             >
               <Field orientation="horizontal">
                 <Checkbox
+                  id={`${id}-o${index}-keep`}
                   aria-label={`Keep objective ${index + 1}`}
                   checked={keptObjective}
                   onCheckedChange={(checked) => toggle(`o:${index}`, checked === true)}
