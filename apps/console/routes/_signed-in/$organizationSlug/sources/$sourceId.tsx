@@ -393,12 +393,17 @@ function ReviewDraft(props: {
         is stored until you create the course.
       </MutedText>
       {draft.refused.length > 0 && (
-        <Alert>
-          <AlertTitle>Left out: what Braivo could not check against the source</AlertTitle>
+        // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
+        // longest word a reason quotes, such as a link.
+        <Alert className="wrap-anywhere">
+          {/* Not only what Braivo could not find in the source: also invalid tasks,
+              and what is past a cap. Each reason says which. */}
+          <AlertTitle>Left out of the draft</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-4">
-              {draft.refused.map((reason) => (
-                <li key={reason}>{reason}</li>
+              {/* Two reasons may read the same, such as one quote given twice. */}
+              {draft.refused.map((reason, index) => (
+                <li key={index}>{reason}</li>
               ))}
             </ul>
           </AlertDescription>

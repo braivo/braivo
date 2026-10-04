@@ -428,7 +428,9 @@
 //       "citations": [{ "sourceId": "…", "quote": "…" }],
 //       "tasks": [{ "kind": "choice", "prompt": "…", "options": [...], "answer": 0,
 //                   "citations": [...] }] }],
-//     "refused": ["Objective 0, task 1, quote 0: the quote does not occur in the source."] }
+//     "refused": [
+//       "Objective “Say hello”, task “Hola?”: the quote “Hola, amigo.” does not occur in the source."
+//     ] }
 //
 // in the shapes the objective, citation, and task routes take, so accepting it
 // is sending them. Every objective and task kept cites a passage found in the

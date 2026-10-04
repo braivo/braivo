@@ -81,13 +81,14 @@ describe("drafting a course from a source", () => {
           quotes: ["Rojo significa rojo.", "Rojo", "Rojo significa red."],
           tasks: [
             task("¿Rojo?", 5, ["Rojo significa red."]),
+            task(" ", 0, ["Rojo significa red."]),
             task("¿Azul?", 1, ["Azul es azul."]),
             task("¿Red?", 0, ["Rojo significa red."]),
           ],
         },
         { title: "  ", quotes: ["Rojo y azul."], tasks: [task("¿Y?", 0, ["Rojo y azul."])] },
         { title: "Blue", quotes: ["Azul significa blue."], tasks: [] },
-        { title: "Both", quotes: ["Azul y rojo."], tasks: [task("¿Y?", 0, ["Rojo y azul."])] },
+        { title: "Both", quotes: ["Azul y\n  rojo."], tasks: [task("¿Y?", 0, ["Rojo y azul."])] },
       ],
     });
 
@@ -100,16 +101,18 @@ describe("drafting a course from a source", () => {
         tasks: [{ prompt: "¿Red?", citations: [{ quote: "Rojo significa red." }] }],
       },
     ]);
+    // By name, not place: the owner reviews only what was kept, numbered anew.
     expect(draft.refused).toEqual([
-      "Objective 0, task 0: the task needs its answer to be the index of the correct option, a whole number from 0 to 1.",
-      "Objective 0, task 1, quote 0: the quote does not occur in the source.",
-      "Objective 0, task 1: none of its quotes was found in the source.",
-      "Objective 0, quote 0: the quote does not occur in the source.",
-      "Objective 0, quote 1: the quote occurs more than once in the source; quote more of it.",
-      "Objective 1: its title is blank or over 500 characters.",
-      "Objective 2: none of its tasks was kept.",
-      "Objective 3, quote 0: the quote does not occur in the source.",
-      "Objective 3: none of its quotes was found in the source.",
+      "Objective “Red”, task “¿Rojo?”: the task needs its answer to be the index of the correct option, a whole number from 0 to 1.",
+      "Objective “Red”, a task without a question: the task needs a prompt of 1 to 2000 characters.",
+      "Objective “Red”, task “¿Azul?”: the quote “Azul es azul.” does not occur in the source.",
+      "Objective “Red”, task “¿Azul?”: none of its quotes was found in the source.",
+      "Objective “Red”: the quote “Rojo significa rojo.” does not occur in the source.",
+      "Objective “Red”: the quote “Rojo” occurs more than once in the source; quote more of it.",
+      "An untitled objective: its title is blank or over 500 characters.",
+      "Objective “Blue”: none of its tasks was kept.",
+      "Objective “Both”: the quote “Azul y rojo.” does not occur in the source.",
+      "Objective “Both”: none of its quotes was found in the source.",
     ]);
   });
 
@@ -135,7 +138,11 @@ describe("drafting a course from a source", () => {
       quotes: lines,
       tasks: Array.from({ length: 6 }, (_, index) => task(`¿Línea ${index}?`, 0, lines)),
     };
-    const { model } = answering({ objectives: Array.from({ length: 14 }, () => objective) });
+    const { model } = answering({
+      objectives: Array.from({ length: 14 }, (_, index) =>
+        index < 12 ? objective : { ...objective, title: `Lines ${index + 1}` },
+      ),
+    });
 
     const draft = await draftCourse(model, { ...source, text: lines.join("\n") });
 
@@ -145,15 +152,24 @@ describe("drafting a course from a source", () => {
     expect(draft.objectives).toHaveLength(12);
     expect(draft.objectives.flatMap((kept) => kept.citations).length).toBeLessThanOrEqual(200);
     expect(tasks.flatMap((kept) => kept.citations).length).toBeLessThanOrEqual(200);
-    expect(draft.refused).toContain("Objective 0: only its first 5 quotes are read.");
-    expect(draft.refused).toContain("Objective 0, task 0: only its first 3 quotes are read.");
+    expect(draft.refused).toContain("Objective “Lines”: only its first 5 quotes are read.");
+    expect(draft.refused).toContain(
+      "Objective “Lines”, task “¿Línea 0?”: only its first 3 quotes are read.",
+    );
+    // Each past the cap, by its own title.
+    expect(draft.refused).toContain("Objective “Lines 13”: more than 12 objectives were drafted.");
+    expect(draft.refused).toContain("Objective “Lines 14”: more than 12 objectives were drafted.");
+    expect(draft.refused).toContain(
+      "Objective “Lines”, task “¿Línea 5?”: more than 5 tasks were drafted.",
+    );
   });
 
   test("refuses a title the objective endpoint would", async () => {
     const { model } = answering({
       objectives: [
         {
-          title: "T".repeat(501),
+          // Over 500, with an emoji as the 79th code point, which a cut by UTF-16 units would split.
+          title: `${"T".repeat(78)}😀${"T".repeat(422)}`,
           quotes: ["Rojo y azul."],
           tasks: [task("¿Y?", 0, ["Rojo y azul."])],
         },
@@ -163,7 +179,10 @@ describe("drafting a course from a source", () => {
     const draft = await draftCourse(model, source);
 
     expect(draft.objectives).toEqual([]);
-    expect(draft.refused).toEqual(["Objective 0: its title is blank or over 500 characters."]);
+    // Named, cut short, as the owner never saw it.
+    expect(draft.refused).toEqual([
+      `Objective “${"T".repeat(78)}😀…”: its title is blank or over 500 characters.`,
+    ]);
   });
 
   test("says the model failed when it answers in another shape", async () => {
