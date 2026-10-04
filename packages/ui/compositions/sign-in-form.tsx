@@ -59,7 +59,16 @@ export function SignInForm(props: {
     const value = (name: string) => new FormData(event.currentTarget).get(name) as string;
     if (step.step === "email") props.onSubmit({ step: "email", email: value("email") });
     else if (step.step === "code") props.onSubmit({ step: "code", code: value("code") });
-    else props.onSubmit({ step: "name", name: value("name").trim() });
+    else {
+      // Spaces alone satisfy `required` but trim to no name, which would only
+      // send the account back here. Checked here, not as typed, so a value
+      // the browser filled in without an event is caught too.
+      const name = value("name").trim();
+      if (name) return props.onSubmit({ step: "name", name });
+      const input = event.currentTarget.elements.namedItem("name") as HTMLInputElement;
+      input.setCustomValidity("Enter your name.");
+      input.reportValidity();
+    }
   }
 
   let field: ReactNode;
@@ -117,7 +126,15 @@ export function SignInForm(props: {
     field = (
       <Field>
         <FieldLabel htmlFor={`${id}-name`}>Your name</FieldLabel>
-        <Input id={`${id}-name`} name="name" required autoFocus autoComplete="name" />
+        <Input
+          id={`${id}-name`}
+          name="name"
+          required
+          autoFocus
+          autoComplete="name"
+          // A blank name `submit` refused stays refused until edited.
+          onChange={(event) => event.currentTarget.setCustomValidity("")}
+        />
         <FieldDescription>How others in your organizations see you.</FieldDescription>
       </Field>
     );
