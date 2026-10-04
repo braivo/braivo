@@ -6,13 +6,12 @@ import { parseArgs } from "node:util";
 
 import { createDatabase, runMigrations } from "@braivo/db";
 
-import { anthropicModel } from "../ai/index.ts";
-import { createApi } from "../api/index.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { addMember, createAuth, createOrganization } from "../auth/index.ts";
+import { readAuthConfig, readDatabaseUrl, readServeConfig } from "../config.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
+import { createServer } from "../server.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
-import { readAuthConfig, readDatabaseUrl, readServeConfig } from "./config.ts";
 import { credentialsPath, loadCredentials } from "./credentials.ts";
 import { login, logout, remoteClient, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
@@ -157,26 +156,16 @@ async function main(argv: readonly string[]): Promise<number> {
     const config = readServeConfig(process.env);
     const database = createDatabase(config.databaseUrl);
     const { files } = config;
-    const api = createApi({
+    const api = createServer({
+      config,
       database,
-      baseUrl: config.baseUrl,
       files:
         files === undefined
           ? undefined
           : "bucket" in files
             ? bucketStore(new Bun.S3Client({ bucket: files.bucket }))
             : directoryStore(files.directory),
-      ai: config.ai && {
-        model: anthropicModel(config.ai),
-        organizations: config.ai.organizations,
-        monthlyLimit: config.ai.monthlyLimit,
-      },
-      auth: createAuth({
-        database,
-        secret: config.secret,
-        baseURL: config.baseUrl,
-        sendMail: config.mail === "log" ? logMail : smtpMail(config.mail),
-      }),
+      sendMail: config.mail === "log" ? logMail : smtpMail(config.mail),
     });
 
     const server = Bun.serve({ port: config.port, hostname: config.hostname, fetch: api.fetch });

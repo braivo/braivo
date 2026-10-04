@@ -103,7 +103,7 @@ flowchart TD
 - Naming an account whose session has ended goes back to the email, saying so. `packages/auth-client/email-sign-in.test.tsx`
 - An account without a name reaches no signed-in page. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`
 - The sign-in form refuses a name of spaces alone before sending it. `packages/ui/ui.test.tsx`
-- An installation others reach does not start without a way to send email. `apps/server/cli/config.test.ts`
+- An installation others reach does not start without a way to send email. `apps/server/config.test.ts`
 - A bearer token, Better Auth, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
 - A learn domain's learner routes accept its learner session alone, one handed to that domain, and only while it serves the session's organization; it reads its own progress only, and reaches nothing once its user stops being a member. `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
 - A handoff's code is issued only after a membership check, and opens a learner session once, only in the browser that began it, on the domain it began on, within a minute; a mismatch spends nothing; it returns only within that domain. (Membership lost in that minute is caught by the learner routes, which recheck it.) `apps/server/application/learner-sessions.test.ts`, `apps/server/api/app.test.ts`
@@ -125,7 +125,7 @@ flowchart TD
 | Membership queries                                         | `apps/server/persistence/membership.ts`                                                                                              |
 | Tables, member uniqueness                                  | `packages/db/schema/auth.ts`, `packages/db/migrations/*_member_uniqueness/migration.sql`                                             |
 | Browser client, form, guard, redirect                      | `packages/auth-client/`                                                                                                              |
-| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/cli/config.ts`                                          |
+| Sign-in codes: limit per address, mail                     | `apps/server/persistence/sign-in-code.ts`, `apps/server/mail/`, `apps/server/config.ts`                                              |
 | Console pages                                              | `apps/console/routes/login.tsx`, `_signed-in/route.tsx`, `_signed-in/$organizationSlug/route.tsx`, `apps/console/lib/auth.ts`        |
 | Learn app pages                                            | `apps/learn/routes/login.tsx`, `apps/learn/routes/_signed-in/route.tsx`, `apps/learn/lib/auth.ts`                                    |
 | Signing in for a learn domain                              | `apps/console/routes/login.tsx`                                                                                                      |

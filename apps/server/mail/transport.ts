@@ -29,7 +29,7 @@ export function smtpMail(options: { url: string; from: string }): SendMail {
 
 /**
  * Into the server's log instead, which only an installation no one else can
- * reach may do: what it sends are sign-in codes (`cli/config.ts`).
+ * reach may do: what it sends are sign-in codes (`../config.ts`).
  */
 export const logMail: SendMail = async (mail) => {
   console.log(`Mail to ${mail.to}: ${mail.subject}\n${mail.text}`);

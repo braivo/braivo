@@ -2,21 +2,31 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
- * Everything the process entry point reads from the environment, and every rule
- * about what those values may be.
+ * Everything the server reads from the environment, and every rule about what
+ * those values may be. Every host reads `readServerConfig`'s part; `serve` the
+ * rest too.
  *
- * Taken as a plain record rather than from `process.env`, so the rules are
- * testable without a subprocess. Each failure names its variable, and refusing
+ * Passed in rather than read from `process.env`, so the rules are testable
+ * without a subprocess. Each failure names its variable, and refusing
  * to start beats starting quietly wrong: an empty `PORT` coerced to 0 serves on
  * a random free port and announces a URL nobody can reach it at.
  */
-export type AuthConfig = {
-  databaseUrl: string;
+
+/** What the server needs from any host; databases, files, and mail are the host's own. */
+export type ServerConfig = {
   secret: string;
   baseUrl: string;
+  /** The model that reads files and drafts courses, or none: content owners' own agents can instead. */
+  ai?: {
+    apiKey: string;
+    model: string;
+    organizations: "all" | ReadonlySet<string>;
+    monthlyLimit?: number;
+  };
 };
 
-export type ServeConfig = AuthConfig & {
+export type ServeConfig = ServerConfig & {
+  databaseUrl: string;
   port: number;
   /**
    * The one address to listen on, or every one. A server logging sign-in codes
@@ -27,16 +37,9 @@ export type ServeConfig = AuthConfig & {
   mail: { url: string; from: string } | "log";
   /** Where uploaded files are kept, or nowhere: an installation may do without them. */
   files?: FilesConfig;
-  /** The model that drafts courses, or none: content owners' own agents can draft instead. */
-  ai?: {
-    apiKey: string;
-    model: string;
-    organizations: "all" | ReadonlySet<string>;
-    monthlyLimit?: number;
-  };
 };
 
-/** Anthropic's balance of quality and cost for drafting; `BRAIVO_AI_MODEL` overrides it. */
+/** Anthropic's balance of quality and cost for the server's AI; `BRAIVO_AI_MODEL` overrides it. */
 const DEFAULT_MODEL = "claude-sonnet-5";
 
 /**
@@ -52,11 +55,34 @@ const DEFAULT_PORT = 3000;
 /** Better Auth's own stated minimum. */
 const MINIMUM_SECRET_LENGTH = 32;
 
-type Environment = Record<string, string | undefined>;
+/** The variables Braivo reads. */
+type VariableName =
+  | "DATABASE_URL"
+  | "BETTER_AUTH_SECRET"
+  | "BRAIVO_URL"
+  | "PORT"
+  | "BRAIVO_SMTP_URL"
+  | "BRAIVO_MAIL_FROM"
+  | "BRAIVO_FILES"
+  | "ANTHROPIC_API_KEY"
+  | "BRAIVO_AI_MODEL"
+  | "BRAIVO_AI_ORGANIZATIONS"
+  | "BRAIVO_AI_MONTHLY_LIMIT";
+
+/**
+ * A Worker's `env`, bindings beside the variables, or `process.env`, which
+ * TypeScript takes only as the record: Bun declares none of these variables.
+ */
+type Environment =
+  | Readonly<Record<string, string | undefined>>
+  | { readonly [Name in VariableName]?: string | undefined };
 
 export function readDatabaseUrl(environment: Environment): string {
   return required(environment, "DATABASE_URL");
 }
+
+/** For the operator's commands, which need the database and Better Auth but serve nothing. */
+export type AuthConfig = { databaseUrl: string; secret: string; baseUrl: string };
 
 export function readAuthConfig(environment: Environment): AuthConfig {
   return {
@@ -66,17 +92,26 @@ export function readAuthConfig(environment: Environment): AuthConfig {
   };
 }
 
-export function readServeConfig(environment: Environment): ServeConfig {
-  const auth = readAuthConfig(environment);
-  const mail = readMail(environment, auth.baseUrl);
+export function readServerConfig(environment: Environment): ServerConfig {
   return {
-    ...auth,
+    secret: readSecret(environment, "BETTER_AUTH_SECRET"),
+    baseUrl: readUrl(environment, "BRAIVO_URL"),
+    ...readAi(environment),
+  };
+}
+
+export function readServeConfig(environment: Environment): ServeConfig {
+  const databaseUrl = readDatabaseUrl(environment);
+  const server = readServerConfig(environment);
+  const mail = readMail(environment, server.baseUrl);
+  return {
+    ...server,
+    databaseUrl,
     port: readPort(environment, "PORT"),
     // `[::1]` is a URL's spelling; a socket takes `::1`.
-    ...(mail === "log" && { hostname: new URL(auth.baseUrl).hostname.replace(/^\[|\]$/g, "") }),
+    ...(mail === "log" && { hostname: new URL(server.baseUrl).hostname.replace(/^\[|\]$/g, "") }),
     mail,
     ...readFiles(environment, "BRAIVO_FILES"),
-    ...readAi(environment),
   };
 }
 
@@ -133,7 +168,7 @@ function readAiOrganizations(value: string | undefined): "all" | ReadonlySet<str
  * An Anthropic key turns server-side drafting on (docs/adr/0029-server-drafting.md);
  * without one, drafting answers 501 and content owners draft with their own agents.
  */
-function readAi(environment: Environment): { ai?: ServeConfig["ai"] } {
+function readAi(environment: Environment): { ai?: ServerConfig["ai"] } {
   const apiKey = environment.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) return {};
   const model = environment.BRAIVO_AI_MODEL?.trim() || DEFAULT_MODEL;
@@ -155,7 +190,7 @@ function readAi(environment: Environment): { ai?: ServeConfig["ai"] } {
  * files wherever the process happened to start, and move them when it started
  * somewhere else. Unset or blank stores no files.
  */
-function readFiles(environment: Environment, name: string): { files?: FilesConfig } {
+function readFiles(environment: Environment, name: VariableName): { files?: FilesConfig } {
   const value = environment[name]?.trim();
   if (value === undefined || value === "") return {};
 
@@ -179,7 +214,7 @@ function readFiles(environment: Environment, name: string): { files?: FilesConfi
  * blank. Without it the secret passes outright, thirty-two spaces being
  * thirty-two characters.
  */
-function required(environment: Environment, name: string): string {
+function required(environment: Environment, name: VariableName): string {
   const value = environment[name];
   if (value === undefined || value.trim() === "") throw new Error(`${name} is not set.`);
   return value;
@@ -193,7 +228,7 @@ function required(environment: Environment, name: string): string {
  * A length, not a strength: thirty-one random characters are fine and
  * thirty-two repeated ones are not, and nothing here can tell them apart.
  */
-function readSecret(environment: Environment, name: string): string {
+function readSecret(environment: Environment, name: VariableName): string {
   const value = required(environment, name);
   if (value.length < MINIMUM_SECRET_LENGTH) {
     throw new Error(
@@ -207,7 +242,7 @@ function readSecret(environment: Environment, name: string): string {
  * Validated here rather than left to fail inside Better Auth, which throws only
  * after the server has already announced itself as listening.
  */
-function readUrl(environment: Environment, name: string): string {
+function readUrl(environment: Environment, name: VariableName): string {
   const value = required(environment, name);
 
   let parsed: URL;
@@ -248,7 +283,7 @@ function readUrl(environment: Environment, name: string): string {
  * turns `""` into 0 and `"80.5"` into a non-integer, both of which Bun accepts
  * in its own way and neither of which the operator meant.
  */
-function readPort(environment: Environment, name: string): number {
+function readPort(environment: Environment, name: VariableName): number {
   const value = environment[name];
   if (value === undefined || value.trim() === "") return DEFAULT_PORT;
 
