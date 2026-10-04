@@ -71,7 +71,7 @@ export function ChoiceQuestion(props: {
       onKeyDown={onKeyDown}
       className="flex flex-col gap-4"
     >
-      <p id={promptId} className="font-heading text-lg font-semibold text-pretty">
+      <p id={promptId} className="font-heading text-lg font-semibold text-pretty wrap-break-word">
         {prompt}
       </p>
       <div className="flex flex-col gap-2">
@@ -91,7 +91,9 @@ export function ChoiceQuestion(props: {
                 wrong && "border-destructive bg-destructive/10",
               )}
             >
-              <span className="flex items-center gap-3">
+              {/* `wrap-anywhere` lets a link shrink this flex item and wrap; the
+                  labels beside it keep their width (`shrink-0`). */}
+              <span className="flex items-center gap-3 wrap-anywhere">
                 {/* Hidden from the accessible name. Not `aria-keyshortcuts`, which
                     names physical keys: a digit takes Shift on AZERTY, not on QWERTY.
                     Kept in place once locked, so the text does not shift. */}
@@ -102,13 +104,17 @@ export function ChoiceQuestion(props: {
                 )}
                 {text}
               </span>
-              {correct && <span className="text-xs font-semibold text-primary">Correct</span>}
-              {wrong && <span className="text-xs font-semibold text-destructive">Your answer</span>}
+              {correct && (
+                <span className="shrink-0 text-xs font-semibold text-primary">Correct</span>
+              )}
+              {wrong && (
+                <span className="shrink-0 text-xs font-semibold text-destructive">Your answer</span>
+              )}
               {ungraded &&
                 (pending ? (
                   <Spinner />
                 ) : (
-                  <span className="text-xs font-semibold">Your answer</span>
+                  <span className="shrink-0 text-xs font-semibold">Your answer</span>
                 ))}
             </Button>
           );

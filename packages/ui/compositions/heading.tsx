@@ -23,5 +23,7 @@ export function Heading({
   ...props
 }: ComponentProps<"h1"> & { level?: keyof typeof levels }) {
   const Tag = tags[level];
-  return <Tag className={cn("font-heading", levels[level], className)} {...props} />;
+  return (
+    <Tag className={cn("font-heading wrap-break-word", levels[level], className)} {...props} />
+  );
 }

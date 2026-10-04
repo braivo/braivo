@@ -34,7 +34,7 @@ export function SourcePassage(props: {
         : title;
 
   return (
-    <figure className={cn("flex flex-col gap-1", className)}>
+    <figure className={cn("flex flex-col gap-1 wrap-break-word", className)}>
       <blockquote className="border-l-2 pl-3 whitespace-pre-line italic">{quote}</blockquote>
       <figcaption className="pl-3 text-sm text-muted-foreground">
         {url === undefined ? (

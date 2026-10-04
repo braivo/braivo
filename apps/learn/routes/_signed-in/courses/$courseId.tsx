@@ -118,7 +118,7 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
   if (!line) return null;
 
   return (
-    <details className="mb-6 text-sm text-muted-foreground">
+    <details className="mb-6 text-sm wrap-break-word text-muted-foreground">
       <summary className="cursor-pointer">{line}</summary>
       <ul className="mt-2 flex flex-col gap-1">
         {report.objectives.map((standing) => (
@@ -315,7 +315,7 @@ function Practice({
 
   return (
     <section className="flex flex-col gap-6">
-      <div id={contextId} className="flex flex-col">
+      <div id={contextId} className="flex flex-col wrap-break-word">
         <MutedText>
           {INTENT_LABELS[decision.intent]} · {objective.title}
         </MutedText>
@@ -344,7 +344,9 @@ function Practice({
       )}
       {grade && (
         <>
-          <Alert>
+          {/* `wrap-anywhere`: a grid, whose column is otherwise as wide as the
+              explanation's longest word, such as a link. */}
+          <Alert className="wrap-anywhere">
             <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
             {grade.explanation && <AlertDescription>{grade.explanation}</AlertDescription>}
           </Alert>
