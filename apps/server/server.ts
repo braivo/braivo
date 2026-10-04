@@ -16,7 +16,7 @@ import type { SendMail } from "./mail/index.ts";
 import type { FileStore } from "./storage/index.ts";
 
 export { readServerConfig } from "./config.ts";
-export type { SendMail } from "./mail/index.ts";
+export { type SendMail, smtpMail } from "./mail/index.ts";
 export type { FileStore } from "./storage/index.ts";
 
 export function createServer(options: {
