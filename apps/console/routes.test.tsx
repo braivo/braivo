@@ -1126,19 +1126,27 @@ describe("the console", () => {
     });
   });
 
-  test("holds drafting still while it runs, the focus kept on its button", async () => {
+  test("holds drafting still while it runs, says so, and keeps the focus on its button", async () => {
     const drafting = Promise.withResolvers<typeof drafted>();
     const braivo = { ...authoring(), draftCourse: vi.fn(() => drafting.promise) };
     renderAt("/example/sources/s1", { braivo });
     const button = await screen.findByRole("button", { name: "Draft a course" });
+    const form = button.closest("form")!;
+    // Present from the start, so what it says next is announced.
+    const status = within(form).getByRole("status");
+    expect(status.textContent).toBe("You review the draft before learners see any of it.");
+    expect(within(form).getByText(/reads the whole source.*a few minutes/)).toBeTruthy();
     button.focus();
 
     fireEvent.click(button);
 
     await vi.waitFor(() => expect(braivo.draftCourse).toHaveBeenCalled());
+    expect(status.textContent).toMatch(/drafting the course.*a few minutes/);
+    // Named as before, as a focused button's new name may go unannounced.
+    expect(within(form).getByRole("button", { name: "Draft a course" })).toBe(button);
     expectLockedInFocus(button);
     // Enter in a field submits however the button is marked.
-    fireEvent.submit(button.closest("form")!);
+    fireEvent.submit(form);
     expect((screen.getByLabelText("Learners") as HTMLInputElement).readOnly).toBe(true);
     expect(braivo.draftCourse).toHaveBeenCalledTimes(1);
     drafting.resolve(drafted);

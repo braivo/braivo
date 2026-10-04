@@ -191,8 +191,7 @@ function DraftCourse(props: { source: Source }) {
             aria-describedby={`${id}-audience-hint`}
           />
           <FieldDescription id={`${id}-audience-hint`}>
-            Who the course is for. Braivo's AI reads the whole source, which can take a minute; you
-            review everything it proposes before learners see any of it.
+            Who the course is for. Braivo's AI reads the whole source, which can take a few minutes.
           </FieldDescription>
         </Field>
         {error && (
@@ -203,10 +202,17 @@ function DraftCourse(props: { source: Source }) {
         <Field>
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
           <Button type="submit" ref={draftButton} aria-disabled={drafting}>
-            {drafting ? "Drafting…" : "Draft a course"}
+            Draft a course
           </Button>
         </Field>
       </FieldGroup>
+      {/* One line: whether drafting is under way, in a live region present from
+          the start so the change is announced. */}
+      <MutedText role="status">
+        {drafting
+          ? "Braivo's AI is drafting the course, which can take a few minutes…"
+          : "You review the draft before learners see any of it."}
+      </MutedText>
     </form>
   );
 }
