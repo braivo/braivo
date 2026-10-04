@@ -51,6 +51,17 @@ const MAX_TASKS = 5;
 const MAX_TASK_CITATIONS = 3;
 const MAX_OBJECTIVE_CITATIONS = 5;
 
+/**
+ * A drafted text as `refused` names it: the owner reviews only what was kept,
+ * numbered anew, so the model's positions would point nowhere. Cut short, as
+ * an over-long title is one reason to refuse it.
+ */
+function named(text: string): string {
+  const characters = Array.from(text.trim().replace(/\s+/g, " "));
+  const shown = characters.length > 80 ? [...characters.slice(0, 79), "…"] : characters;
+  return `“${shown.join("")}”`;
+}
+
 /** What the model is asked to answer, and the only shape Braivo reads from it. */
 const Answer = z.object({
   objectives: z
@@ -123,17 +134,19 @@ export async function draftCourse(
   // and the model's answer is not what bounds how many it sends.
   const cite = (quotes: string[], where: string, limit: number): DraftQuote[] => {
     if (quotes.length > limit) refused.push(`${where}: only its first ${limit} quotes are read.`);
-    return quotes.slice(0, limit).flatMap((quote, index) => {
+    return quotes.slice(0, limit).flatMap((quote) => {
       const location = locateQuote(source.text, quote);
       if (location.kind === "located") return [{ sourceId: source.id, quote }];
-      refused.push(`${where}, quote ${index}: the quote ${QUOTE_REFUSALS[location.kind]}.`);
+      refused.push(`${where}: the quote ${named(quote)} ${QUOTE_REFUSALS[location.kind]}.`);
       return [];
     });
   };
 
   const objectives: Draft["objectives"] = [];
   for (const [index, objective] of parsed.data.objectives.entries()) {
-    const where = `Objective ${index}`;
+    const where = objective.title.trim()
+      ? `Objective ${named(objective.title)}`
+      : "An untitled objective";
     if (index >= MAX_OBJECTIVES) {
       refused.push(`${where}: more than ${MAX_OBJECTIVES} objectives were drafted.`);
       continue;
@@ -146,7 +159,7 @@ export async function draftCourse(
 
     const tasks: Draft["objectives"][number]["tasks"] = [];
     for (const [taskIndex, task] of objective.tasks.entries()) {
-      const at = `${where}, task ${taskIndex}`;
+      const at = `${where}, ${task.prompt.trim() ? `task ${named(task.prompt)}` : "a task without a question"}`;
       if (taskIndex >= MAX_TASKS) {
         refused.push(`${at}: more than ${MAX_TASKS} tasks were drafted.`);
         continue;

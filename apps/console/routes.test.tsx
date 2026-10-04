@@ -1063,7 +1063,9 @@ describe("the console", () => {
         ],
       },
     ],
-    refused: ["Objective 0, task 2, quote 0: the quote does not occur in the source."],
+    refused: [
+      "Objective “Greetings”, task “¿Adiós?”: the quote “Adiós.” does not occur in the source.",
+    ],
   };
 
   function authoring() {

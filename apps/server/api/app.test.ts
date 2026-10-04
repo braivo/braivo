@@ -2168,8 +2168,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         },
       ],
       refused: [
-        "Objective 0, task 1, quote 0: the quote does not occur in the source.",
-        "Objective 0, task 1: none of its quotes was found in the source.",
+        "Objective “Say hello”, task “Hola?”: the quote “Hola significa hola.” does not occur in the source.",
+        "Objective “Say hello”, task “Hola?”: none of its quotes was found in the source.",
       ],
     });
     expect(asked[0]).toContain("Learners: grade 2.");
