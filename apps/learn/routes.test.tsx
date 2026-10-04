@@ -451,6 +451,8 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(failure)
       .mockReturnValueOnce(new Promise((resolve) => (graded = resolve)));
     renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
@@ -473,6 +475,18 @@ describe("the learn app", () => {
 
     const retry = screen.getByRole("button", { name: "Send again" });
     expect(document.activeElement).toBe(retry);
+
+    // Every further failure replaces the alert, not only the second; Send
+    // again keeps its node and focus.
+    for (let resends = 1; resends <= 2; resends++) {
+      const alert = screen.getByRole("alert");
+      fireEvent.click(retry);
+      await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(alert));
+      expect(screen.getByRole("alert").textContent).toBe("Your answer could not be confirmed.");
+      expect(retry.textContent).toBe("Send again");
+      expect(document.activeElement).toBe(retry);
+    }
+
     fireEvent.click(retry);
     fireEvent.click(retry);
     // Held while the resend is on its way, and focused still.
@@ -480,7 +494,7 @@ describe("the learn app", () => {
     expect(retry.getAttribute("aria-disabled")).toBe("true");
     expect(retry.matches(":disabled")).toBe(false);
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
-    expect(submitAttempt).toHaveBeenCalledTimes(2);
+    expect(submitAttempt).toHaveBeenCalledTimes(4);
 
     graded({ outcome: "success", correctChoice: 0 });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
@@ -488,8 +502,8 @@ describe("the learn app", () => {
 
     // The same attempt and answer, so Braivo records it once and answers its
     // grade if the first one arrived.
-    const [first, second] = submitAttempt.mock.calls;
-    expect(second![0]).toEqual(first![0]);
+    const [first, ...resends] = submitAttempt.mock.calls;
+    for (const resend of resends) expect(resend[0]).toEqual(first![0]);
   });
 
   test("holds Continue while the next activity loads, so a second press does not restart it", async () => {
