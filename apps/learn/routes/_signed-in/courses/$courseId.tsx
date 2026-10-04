@@ -242,7 +242,8 @@ function Practice({
   const router = useRouter();
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
-  const [failed, setFailed] = useState(false);
+  // Counted, not flagged, so that each answer left unconfirmed gets a new alert (below).
+  const [unconfirmedCount, setUnconfirmedCount] = useState(0);
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
@@ -274,7 +275,7 @@ function Practice({
         { signal },
       );
       setGrade(answered);
-      setFailed(false);
+      setUnconfirmedCount(0);
     } catch (error) {
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
@@ -296,7 +297,7 @@ function Practice({
       // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
       // recorded. Only the same answer may be resent: under the same attempt it
       // is recorded once, or fetches its grade; another choice would conflict.
-      setFailed(true);
+      setUnconfirmedCount((count) => count + 1);
     } finally {
       setSending(false);
     }
@@ -336,9 +337,11 @@ function Practice({
         ref={focused}
         aria-describedby={contextId}
       />
-      {failed && chosen !== undefined && (
+      {unconfirmedCount > 0 && chosen !== undefined && (
         <>
-          <Alert variant="destructive">
+          {/* Only the alert is keyed, so failing again mounts a new one, not the
+              same one unchanged, while Send again keeps its node and focus. */}
+          <Alert key={unconfirmedCount} variant="destructive">
             <AlertDescription>Your answer could not be confirmed.</AlertDescription>
           </Alert>
           {/* aria-disabled while resending, so that it keeps the focus. */}
