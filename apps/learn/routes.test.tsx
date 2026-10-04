@@ -923,6 +923,22 @@ describe("the learn app", () => {
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
+  test("shows that a page slow to load is on its way, under the header", async () => {
+    const loading = Promise.withResolvers<Activity | undefined>();
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      nextActivity: () => loading.promise,
+    });
+    fireEvent.click(await screen.findByRole("link", { name: "Spanish" }));
+
+    expect(await screen.findByRole("status", { name: "Loading" }, { timeout: 2000 })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    loading.resolve(activity);
+    expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 2000 })).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
+  });
+
   test("sends one answer, however many options are tapped while it is on its way", async () => {
     let graded!: (grade: Grade) => void;
     const submitAttempt = vi.fn<BraivoClient["submitAttempt"]>(

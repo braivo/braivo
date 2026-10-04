@@ -3,6 +3,7 @@
 
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { Spinner } from "@braivo/ui/components/spinner";
 import { createRouter, type RouterHistory, useRouter } from "@tanstack/react-router";
 import { useId, useLayoutEffect, useRef } from "react";
 
@@ -24,6 +25,11 @@ export function createConsoleRouter({
     // A boundary on every route, so a page that fails replaces only itself,
     // not the layouts around it.
     defaultErrorComponent: PageError,
+    // In place of a page still loading after `pendingMs` (a second), so a slow
+    // connection shows a page on its way rather than a blank or unchanged one.
+    // Not while a layout already shown reruns a slow `beforeLoad` (the session
+    // check, say): the old page stays meanwhile.
+    defaultPendingComponent: PagePending,
   });
 }
 
@@ -54,4 +60,8 @@ function PageError() {
       </EmptyContent>
     </Empty>
   );
+}
+
+function PagePending() {
+  return <Spinner className="mx-auto my-12 block size-6 text-muted-foreground" />;
 }

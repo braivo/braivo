@@ -1531,6 +1531,19 @@ describe("the console", () => {
     expect(screen.queryByText("Something went wrong.")).toBeNull();
   });
 
+  test("shows that a slow first visit is on its way, before any of the page", async () => {
+    const loading = Promise.withResolvers<(typeof school)[]>();
+    renderAt("/example", {
+      braivo: { listOrganizations: () => loading.promise, listCourses: async () => [beginners] },
+    });
+
+    expect(await screen.findByRole("status", { name: "Loading" }, { timeout: 2000 })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Example School" })).toBeNull();
+    loading.resolve([school]);
+    expect(await screen.findByRole("link", { name: "Beginners" }, { timeout: 2000 })).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();
+  });
+
   test("reads an organization Braivo refuses as not found", async () => {
     renderAt("/example", {
       braivo: {
