@@ -196,7 +196,8 @@ chmod +x braivo && mv braivo /usr/local/bin/
 Builds exist for `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, and `windows-x64` (`braivo-windows-x64.exe`). From a clone, `bun apps/server/cli/index.ts` is the same command, and `bun run build` builds it as `apps/server/dist/braivo`.
 
 ```sh
-# Sign in: open the link it prints, check the code, approve.
+# Sign in: open the link it prints, check the code, approve. Under `bun run dev`,
+# change its port from 3000 to the console's, 5174: the API serves no pages.
 braivo login http://localhost:3000
 
 # Fetch a video's Spanish captions.
