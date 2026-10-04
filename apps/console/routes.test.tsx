@@ -3,7 +3,7 @@
 
 import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
@@ -143,12 +143,12 @@ async function readCourse({ courseId }: { courseId: string }) {
   throw new BraivoError(404, "Braivo answered 404.");
 }
 
-/** A device-flow stub: `pending` for a known code, an error for any other. */
+/** A device-flow stub: `status` for a known code, an error for any other. */
 function deviceFlow(status = "pending") {
   const device = Object.assign(
     vi.fn(async ({ query }: { query: { user_code: string } }) =>
-      query.user_code === "ABCD2345"
-        ? { data: { user_code: "ABCD2345", status, client_id: "braivo-cli" }, error: null }
+      ["ABCD2345", "EFGH6789"].includes(query.user_code)
+        ? { data: { user_code: query.user_code, status, client_id: "braivo-cli" }, error: null }
         : {
             data: null,
             error: { status: 400, error: "invalid_request", error_description: "Invalid" },
@@ -561,6 +561,101 @@ describe("the console", () => {
 
     expect(await screen.findByText(/not valid, or has expired/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  test("never shows one code's decision on another, even one answered late", async () => {
+    const device = deviceFlow();
+    let answer!: () => void;
+    device.approve.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ data: { success: true }, error: null });
+        }),
+    );
+    const { router } = renderAt("/device?user_code=ABCD2345", { device });
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    // Back in history, or a second terminal's link: another code, still pending.
+    await router.navigate({ to: "/device", search: { user_code: "EFGH6789" } });
+    expect(await screen.findByText("EFGH6789")).toBeTruthy();
+    const approve = screen.getByRole("button", { name: "Approve" });
+    expect(approve.getAttribute("aria-disabled")).toBe("false");
+    // The first code's approval answers now, and must not land on this one.
+    await act(async () => answer());
+
+    expect(screen.getByText("Let a tool act as you?")).toBeTruthy();
+    expect(screen.queryByText(/Signed in/)).toBeNull();
+  });
+
+  test("leaves one code's failed answer off another", async () => {
+    const device = deviceFlow();
+    device.approve.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const { router } = renderAt("/device?user_code=ABCD2345", { device });
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await screen.findByText(/could not record your answer/);
+
+    await router.navigate({ to: "/device", search: { user_code: "EFGH6789" } });
+
+    expect(await screen.findByText("EFGH6789")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  test("says each wrong code typed in is wrong, once Braivo has refused it", async () => {
+    const device = deviceFlow();
+    renderAt("/device", { device });
+    const input = (await screen.findByLabelText("Code shown in your terminal")) as HTMLInputElement;
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+
+    let previous: HTMLElement | null = null;
+    for (const code of ["WRONG111", "WRONG222", "WRONG333"]) {
+      let answer!: () => void;
+      device.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answer = () =>
+              resolve({
+                data: null,
+                error: { status: 400, error: "invalid_request", error_description: "Invalid" },
+              });
+          }),
+      );
+      fireEvent.change(input, { target: { value: code } });
+      fireEvent.click(continueButton);
+      await vi.waitFor(() =>
+        expect(device).toHaveBeenLastCalledWith({ query: { user_code: code } }),
+      );
+      // Nothing is said about a code before Braivo answers.
+      expect(screen.queryByRole("alert")).toBe(previous);
+      answer();
+
+      // A new alert each time, so it can be announced again; an unchanged one gives no new alert.
+      const alert = await vi.waitFor(() => {
+        const current = screen.getByRole("alert");
+        expect(current).not.toBe(previous);
+        return current;
+      });
+      expect(alert.textContent).toMatch(/not valid, or has expired/);
+      previous = alert;
+    }
+  });
+
+  test("refuses a code of only spaces without navigating", async () => {
+    // Already at a refused code, so leaving it would show.
+    const { router } = renderAt("/device?user_code=WRONG999", { device: deviceFlow() });
+    const input = (await screen.findByLabelText("Code shown in your terminal")) as HTMLInputElement;
+    await screen.findByRole("alert");
+
+    // Set without an input event, as a browser restoring the form would.
+    input.value = "   ";
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(input.validationMessage).toBe("Enter the code.");
+    expect(router.history.location.search).toBe("?user_code=WRONG999");
+    expect(screen.getByRole("alert").textContent).toMatch(/not valid/);
+    fireEvent.change(input, { target: { value: " ABCD2345 " } });
+    expect(input.validationMessage).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Let a tool act as you?")).toBeTruthy();
   });
 
   test("lets an owner try again when the code could not be looked up", async () => {
