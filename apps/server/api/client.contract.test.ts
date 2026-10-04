@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createHash } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -625,7 +626,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     const uploaded = await client.uploadFile({ organizationId, file: pdf }, as);
     expect(uploaded).toEqual({
-      fileId: new Bun.CryptoHasher("sha256").update("%PDF-1.7 Unidad 2").digest("hex"),
+      fileId: createHash("sha256").update("%PDF-1.7 Unidad 2").digest("hex"),
       contentType: "application/pdf",
       size: 17,
     });

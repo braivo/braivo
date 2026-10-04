@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createHash } from "node:crypto";
+
 import type { Pagination } from "./pages.ts";
 import type { Timing } from "./transcript.ts";
 
@@ -46,7 +48,7 @@ export function sourceDigest(source: {
   original?: string;
 }): string {
   const separator = new Uint8Array([0]);
-  const hasher = new Bun.CryptoHasher("sha256");
+  const hasher = createHash("sha256");
   const fields = [source.title, source.text, source.url ?? "", source.language ?? ""];
   const located = source.timing ?? source.pagination;
   if (located !== undefined) fields.push(JSON.stringify(located));

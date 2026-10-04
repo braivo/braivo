@@ -16,6 +16,24 @@ const shadcnOutput = [
 const beside = ["!packages/ui/components/**/*.stories.tsx"];
 
 /**
+ * Server and database code, kept off Bun's own APIs so the server can run on
+ * Workers too (ADR 0034). `node:` modules stay allowed, since node-postgres needs
+ * Workers' Node compatibility anyway; whether workerd runs a given one is for a
+ * deployment to prove.
+ */
+const bunFree = ["apps/server/**/*.ts", "packages/db/**/*.ts"];
+const bunFreeMessage =
+  "A Bun-only API, kept out of server and database code: see bunFree in vite.config.ts.";
+
+/** Exempt, as only the Bun process runs them: the CLI, the file stores it builds, and tests. */
+const bunOnly = [
+  "apps/server/cli/**",
+  "apps/server/storage/bucket.ts",
+  "apps/server/storage/directory.ts",
+  "**/*.test.ts",
+];
+
+/**
  * Workspace policy: how every package is linted, formatted, type-checked,
  * tested, and gated on commit. Each app's own `vite.config.ts` says only how
  * that app is served and built. See docs/adr/0003-workspace-layout.md.
@@ -36,6 +54,27 @@ export default defineConfig({
       {
         files: ["**/*.tsx"],
         plugins: ["react"],
+      },
+      {
+        files: bunFree,
+        excludeFiles: bunOnly,
+        rules: {
+          "no-restricted-globals": [
+            "error",
+            {
+              globals: [{ name: "Bun", message: bunFreeMessage }],
+              checkGlobalObject: true,
+              // Beside the defaults, `globalThis`, `self`, and `window`.
+              globalObjects: ["global"],
+            },
+          ],
+          "no-restricted-imports": [
+            "error",
+            { patterns: [{ regex: "^bun(:|$)", message: bunFreeMessage }] },
+          ],
+          // Banned, so `require("bun")` cannot slip past the import rule.
+          "typescript/no-require-imports": "error",
+        },
       },
       {
         // shadcn's code, held to the rules that find bugs rather than to this
