@@ -27,7 +27,10 @@ export type EmailAuth = {
   updateUser(input: { name: string }): Promise<AuthResult>;
 };
 
-/** Better Auth's refusals of a code, said so the next step is plain. */
+/**
+ * Better Auth's refusals of a code, said so the next step is plain. Only these
+ * clear the code typed.
+ */
 const CODE_REFUSALS: Partial<Record<string, string>> = {
   INVALID_OTP: "That code is not right. Check it, or send a new one.",
   OTP_EXPIRED: "That code has expired. Send a new one.",
@@ -73,6 +76,9 @@ export function EmailSignIn(props: {
       });
     } else if (values.step === "code" && step.step === "code") {
       const { data, error } = await auth.signIn.emailOtp({ email: step.email, otp: values.code });
+      // Only a refused code clears what was typed: after a rate limit, say, it
+      // may still be good.
+      if (CODE_REFUSALS[error?.code ?? ""]) setStep({ ...step, refused: (step.refused ?? 0) + 1 });
       if (error) return refusal(error);
       if (data?.user.name.trim()) props.onSignedIn();
       else setStep({ step: "name" });

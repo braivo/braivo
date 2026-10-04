@@ -91,10 +91,16 @@ describe("Braivo's components", () => {
     const code = () => screen.getByLabelText("Code") as HTMLInputElement;
     fireEvent.change(code(), { target: { value: "000000" } });
 
-    // As a caller does: the error cleared while the code is checked, then set.
-    rerender(<SignInForm step={step} pending onSubmit={() => {}} />);
+    // An error alone, a refused resend say, leaves a code that may still be good.
+    rerender(<SignInForm step={step} error="Wait a minute." onSubmit={() => {}} />);
     expect(code().value).toBe("000000");
-    rerender(<SignInForm step={step} error="That code is not right." onSubmit={() => {}} />);
+    rerender(
+      <SignInForm
+        step={{ ...step, refused: 1 }}
+        error="That code is not right."
+        onSubmit={() => {}}
+      />,
+    );
 
     expect(code().value).toBe("");
     expect(document.activeElement).toBe(code());
