@@ -101,6 +101,7 @@ flowchart TD
 - An address gets one code a minute, however its guesses were spent and however many ask at once; only sign-in codes are sent. `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
 - A code is asked for and redeemed only as JSON from the host's own origin. `apps/server/api/app.test.ts`
 - An account without a name reaches no signed-in page. `packages/auth-client/require-session.test.ts`, `apps/console/routes.test.tsx`
+- The sign-in form refuses a name of spaces alone before sending it. `packages/ui/ui.test.tsx`
 - An installation others reach does not start without a way to send email. `apps/server/cli/config.test.ts`
 - A bearer token, Better Auth, and the console's API reach nothing on a learn domain, and a token manages no account. `apps/server/api/app.test.ts`
 - A learn domain's learner routes accept its learner session alone, one handed to that domain, and only while it serves the session's organization; it reads its own progress only, and reaches nothing once its user stops being a member. `apps/server/api/app.test.ts`, `apps/server/application/learner-sessions.test.ts`
