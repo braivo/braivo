@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { LearnerProgressStanding } from "@braivo/server/client";
-import { Heading } from "@braivo/ui";
+import { Heading, MutedText } from "@braivo/ui";
 import {
   Table,
   TableBody,
@@ -67,40 +67,45 @@ function Progress() {
         {courseTitle}
       </Link>
       <Heading>{learnerName}</Heading>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Objective</TableHead>
-            <TableHead>Standing</TableHead>
-            <TableHead>Last evidence</TableHead>
-            <TableHead>Evidence</TableHead>
-            <TableHead>Review due</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {report.objectives.map((standing) => (
-            <TableRow key={standing.objectiveId}>
-              {/* A row header, so each value is announced with its objective. */}
-              <TableHead scope="row" className="font-normal">
-                {standing.title}
-              </TableHead>
-              <TableCell>{describe(standing)}</TableCell>
-              <TableCell>
-                {standing.phase === "unseen"
-                  ? "—"
-                  : new Date(standing.lastEvidenceAt).toLocaleString()}
-              </TableCell>
-              <TableCell>
-                <Evidence objective={standing.title} evidence={standing.evidence} />
-              </TableCell>
-              {/* Only what is retained falls due; what is learning comes back first. */}
-              <TableCell>
-                {standing.phase === "retaining" ? new Date(standing.dueAt).toLocaleString() : "—"}
-              </TableCell>
+      {/* A course is open to learners even before it has objectives. */}
+      {report.objectives.length === 0 ? (
+        <MutedText>This course has no objectives yet, so there is no progress to report.</MutedText>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Objective</TableHead>
+              <TableHead>Standing</TableHead>
+              <TableHead>Last evidence</TableHead>
+              <TableHead>Evidence</TableHead>
+              <TableHead>Review due</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {report.objectives.map((standing) => (
+              <TableRow key={standing.objectiveId}>
+                {/* A row header, so each value is announced with its objective. */}
+                <TableHead scope="row" className="font-normal">
+                  {standing.title}
+                </TableHead>
+                <TableCell>{describe(standing)}</TableCell>
+                <TableCell>
+                  {standing.phase === "unseen"
+                    ? "—"
+                    : new Date(standing.lastEvidenceAt).toLocaleString()}
+                </TableCell>
+                <TableCell>
+                  <Evidence objective={standing.title} evidence={standing.evidence} />
+                </TableCell>
+                {/* Only what is retained falls due; what is learning comes back first. */}
+                <TableCell>
+                  {standing.phase === "retaining" ? new Date(standing.dueAt).toLocaleString() : "—"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
     </>
   );
 }
