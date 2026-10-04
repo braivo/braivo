@@ -345,10 +345,11 @@ describe("the learn app", () => {
     expect(router.state.location.pathname).toBe("/courses/c1");
   });
 
-  test("tells a learner with no courses so", async () => {
+  test("tells a learner with no courses so, under the page's heading", async () => {
     renderAt("/", { signedIn: true });
 
     expect(await screen.findByText("No courses yet")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Your courses" })).toBeTruthy();
   });
 
   test("leads from a path that names nothing back to the courses", async () => {

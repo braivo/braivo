@@ -23,19 +23,16 @@ function Courses() {
   const { courses } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
 
-  // Where a course starts: the material it is written from.
-  const sources = (
-    <p className="mb-4">
-      <Link to="/$organizationSlug/sources" params={{ organizationSlug }} className="underline">
-        Sources
-      </Link>
-    </p>
-  );
-
-  if (courses.length === 0) {
-    return (
-      <>
-        {sources}
+  return (
+    <>
+      {/* Where a course starts: the material it is written from. */}
+      <p className="mb-4">
+        <Link to="/$organizationSlug/sources" params={{ organizationSlug }} className="underline">
+          Sources
+        </Link>
+      </p>
+      <Heading>Courses</Heading>
+      {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No courses published yet</EmptyTitle>
@@ -45,27 +42,21 @@ function Courses() {
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
-      </>
-    );
-  }
-
-  return (
-    <>
-      {sources}
-      <Heading>Courses</Heading>
-      <ul className="list-disc pl-6">
-        {courses.map((course) => (
-          <li key={course.id}>
-            <Link
-              to="/$organizationSlug/courses/$courseId"
-              params={{ organizationSlug, courseId: course.id }}
-              className="underline"
-            >
-              {course.title}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      ) : (
+        <ul className="list-disc pl-6">
+          {courses.map((course) => (
+            <li key={course.id}>
+              <Link
+                to="/$organizationSlug/courses/$courseId"
+                params={{ organizationSlug, courseId: course.id }}
+                className="underline"
+              >
+                {course.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }
