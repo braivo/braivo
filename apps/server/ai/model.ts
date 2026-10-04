@@ -89,17 +89,26 @@ export function anthropicModel(options: {
         await response.body?.cancel();
         throw new ModelUnavailable(`The model answered ${response.status}.`);
       }
-      const message = (await response.json().catch(() => ({}))) as {
-        stop_reason?: string;
-        content?: { type: string; name?: string; input?: unknown }[];
+      // Its fields read as unknown: any answer but the expected one is the model failing (generation-12),
+      // never a TypeError that would surface as a bare 500.
+      const message = ((await response.json().catch(() => null)) ?? {}) as {
+        stop_reason?: unknown;
+        content?: unknown;
       };
       if (message.stop_reason === "max_tokens") {
         throw new ModelUnavailable(
           "The model's answer was cut short; send less at once — a chapter, not a book.",
         );
       }
-      const call = message.content?.find(
-        (block) => block.type === "tool_use" && block.name === name,
+      const blocks: unknown[] = Array.isArray(message.content) ? message.content : [];
+      const call = blocks.find(
+        (block): block is { input?: unknown } =>
+          typeof block === "object" &&
+          block !== null &&
+          "type" in block &&
+          block.type === "tool_use" &&
+          "name" in block &&
+          block.name === name,
       );
       if (!call) throw new ModelUnavailable("The model answered without the shape asked for.");
       return call.input;

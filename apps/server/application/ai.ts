@@ -25,8 +25,9 @@ export class AiLimitReached extends Error {
     limit: number,
     readonly renewsAt: Date,
   ) {
+    // The count in parentheses, so a limit of 1 reads right and a translation needs no plural.
     super(
-      `This organization has used its ${limit} AI requests for this month; more from ${renewsAt.toISOString().slice(0, 10)}, or use your own desktop agent through braivo mcp.`,
+      `This organization has reached its monthly AI limit (${limit}). You can use Braivo's AI again from ${renewsAt.toISOString().slice(0, 10)}; meanwhile, use your own desktop agent through braivo mcp.`,
     );
     this.name = "AiLimitReached";
   }
