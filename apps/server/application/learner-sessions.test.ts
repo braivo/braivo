@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createHash } from "node:crypto";
+
 import { runMigrations } from "@braivo/db";
-import { learnerSession, organizationDomain } from "@braivo/db/schema";
+import { learnerHandoff, learnerSession, organizationDomain } from "@braivo/db/schema";
 import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { and, eq, lte } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -147,6 +149,44 @@ describe.skipIf(!connectionString)("a learn domain's sign-in, handed over", () =
     } finally {
       await move(next, hostname);
     }
+  });
+
+  test("keeps only each secret's SHA-256, which redeems nothing itself", async () => {
+    const sha256 = (value: string) => createHash("sha256").update(value).digest("base64url");
+    const { handoffId, nonce, code } = await issued();
+    const [handoff] = await database
+      .select()
+      .from(learnerHandoff)
+      .where(eq(learnerHandoff.id, handoffId));
+    expect(handoff).toMatchObject({ nonceHash: sha256(nonce), codeHash: sha256(code) });
+    expect(JSON.stringify(handoff)).not.toContain(nonce);
+    expect(JSON.stringify(handoff)).not.toContain(code);
+    expect(await redeem({ code: handoff!.codeHash!, nonce: handoff!.nonceHash })).toBeUndefined();
+
+    const { token } = (await redeem({ code, nonce })) ?? expect.fail("not redeemed");
+    const [session] = await database
+      .select()
+      .from(learnerSession)
+      .where(eq(learnerSession.tokenHash, sha256(token)));
+    expect(JSON.stringify(session)).not.toContain(token);
+    expect(
+      await resumeLearnerSession({ database, hostname, token: session!.tokenHash, now: at }),
+    ).toBeUndefined();
+
+    // URL-safe as they are, in a URL and a cookie, and long enough for 256 bits.
+    for (const value of [nonce, code, token]) expect(value).toMatch(/^[\w-]{43}$/);
+  });
+
+  test("forgets a handoff once expired, as the next one starts", async () => {
+    const { handoffId } =
+      (await startHandoff({ database, hostname, returnPath: "/", now: at })) ??
+      expect.fail("not started");
+    const kept = () => database.$count(learnerHandoff, eq(learnerHandoff.id, handoffId));
+
+    await startHandoff({ database, hostname, returnPath: "/", now: after(15 * 60 - 1) });
+    expect(await kept()).toBe(1);
+    await startHandoff({ database, hostname, returnPath: "/", now: after(15 * 60) });
+    expect(await kept()).toBe(0);
   });
 
   test("returns only within the domain", async () => {
