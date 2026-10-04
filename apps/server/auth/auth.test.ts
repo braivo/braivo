@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { createObjectives } from "../persistence/index.ts";
 import { createAuth } from "./auth.ts";
-import { createOrganization } from "./organization.ts";
+import { addMember, createOrganization } from "./organization.ts";
 import { codeSentTo, createOutbox, signInWithCode } from "./testing.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -21,6 +21,8 @@ const owner = { email: "auth-test-owner@example.com", name: "Owner" };
 const newcomer = "auth-test-newcomer@example.com";
 /** Signed in by the test that tries to answer invitations. */
 const invitee = { email: "auth-test-invitee@example.com", name: "Invitee" };
+/** Signed in by the test that adds members, as the operator does. */
+const learner = { email: "auth-test-learner@example.com", name: "Learner" };
 /** Asked for codes by the tests that check their limits. */
 const asking = [
   "auth-test-asks@example.com",
@@ -42,6 +44,8 @@ const slugs = {
   taken: "auth-test-taken",
   invites: "auth-test-invites",
   roster: "auth-test-roster",
+  enrolls: "auth-test-enrolls",
+  adminAdded: "auth-test-admin-added",
   // Listed so a regression that lets it through is cleaned up after itself.
   reserved: "login",
 };
@@ -93,7 +97,7 @@ async function clearFixtures(): Promise<void> {
   const leftovers = await database.select({ id: organization.id }).from(organization).where(ours);
   for (const { id } of leftovers) await testing.clearLearningData(database, id);
   await database.delete(organization).where(ours);
-  const emails = [owner.email, newcomer, invitee.email, ...asking];
+  const emails = [owner.email, newcomer, invitee.email, learner.email, ...asking];
   await database.delete(user).where(inArray(user.email, emails));
   await database.delete(verification).where(
     inArray(
@@ -283,6 +287,57 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     });
 
     await expect(created).rejects.toThrow("No account uses auth-test-nobody@example.com");
+  });
+
+  test("the operator adds an existing account as a learner or an administrator, never owner nor twice", async () => {
+    // Named apart from its slug, so the lookup is shown to be by slug, and
+    // the messages to name the organization.
+    const { id } = await createOrganization(auth, {
+      name: "Enrollment School",
+      slug: slugs.enrolls,
+      ownerEmail: owner.email,
+    });
+    const learnerCookie = await signIn(learner);
+
+    // Better Auth would store any role; only these two are given.
+    for (const role of ["owner", "teacher"]) {
+      await expect(
+        addMember(auth, { slug: slugs.enrolls, email: learner.email, role }),
+      ).rejects.toThrow(`The role must be member or admin, not "${role}".`);
+    }
+    await expect(
+      addMember(auth, {
+        slug: slugs.enrolls,
+        email: "auth-test-nobody@example.com",
+        role: "member",
+      }),
+    ).rejects.toThrow("No account uses auth-test-nobody@example.com");
+    await expect(
+      addMember(auth, { slug: "auth-test-no-such-school", email: learner.email, role: "member" }),
+    ).rejects.toThrow('No organization has the slug "auth-test-no-such-school".');
+
+    const added = await addMember(auth, {
+      slug: slugs.enrolls,
+      email: learner.email.toUpperCase(),
+      role: "member",
+    });
+    expect(added).toEqual({
+      organization: { name: "Enrollment School", slug: slugs.enrolls },
+      role: "member",
+    });
+    // The learner's own session now lists the organization.
+    const listed = await call("/organization/list", { headers: { cookie: learnerCookie } });
+    expect(await listed.json()).toMatchObject([{ slug: slugs.enrolls }]);
+
+    // A second membership would leave the role as it was, so it is refused.
+    await expect(
+      addMember(auth, { slug: slugs.enrolls, email: learner.email, role: "admin" }),
+    ).rejects.toThrow(`${learner.email} is already a member of Enrollment School.`);
+    expect((await membersOf(id)).map(({ role }) => role).toSorted()).toEqual(["member", "owner"]);
+
+    const other = await createOwned(slugs.adminAdded);
+    await addMember(auth, { slug: slugs.adminAdded, email: learner.email, role: "admin" });
+    expect((await membersOf(other)).map(({ role }) => role).toSorted()).toEqual(["admin", "owner"]);
   });
 
   test("refuses creating an organization from a browser session", async () => {

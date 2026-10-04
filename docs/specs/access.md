@@ -1,6 +1,6 @@
 # Access
 
-Status: living; checked against the code on 2026-10-02.
+Status: living; checked against the code on 2026-10-04.
 
 How people sign in, and what they reach once in. Whoever proves an email has an account, and an account alone reaches nothing: what a person may see or do in an organization follows from their membership in it and the organization roles it carries. The server decides every request from the session's user and the member record, never from what the request names.
 
@@ -21,7 +21,7 @@ How people sign in, and what they reach once in. Whoever proves an email has an 
 An organization's domain never holds the account's session or takes its credentials: it holds a learner session, Braivo's own, handed over from the installation's origin ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). The flow is OAuth's authorization code flow in miniature.
 
 1. The learn app's `/login`, on a host serving an organization, loads the domain's `/api/session/sign-in?redirect=<path>`. It records a handoff (`learner_handoff`: the organization and hostname from the request's host, the path if it stays on the domain, else `/`, the nonce's hash, 15 minutes), sets the nonce in `__Host-braivo-handoff`, and redirects to `BRAIVO_URL/login?handoff=<id>`.
-2. There the console names the organization and the domain (`GET /api/handoffs/:id`; the tab's title too), not Braivo. With an account already signed in, it offers "Continue as <name>" (its email while it has none, to be named first) or "Use another account", which signs that one out; otherwise it signs in by code, name step included. A session found ended meanwhile goes back to signing in. Then `POST /api/handoffs/:id`, a trusted write, checks that the account is a member of the organization, then issues a code good for 60 seconds but never past the handoff's 15 minutes, replacing any issued before, and the page navigates to `https://<hostname>/api/session/handoff?code=…`. A POST from a click, never a navigation, so no link hands a signed-in visitor over unasked. A handoff no longer available reads as expired, without Braivo's name; when that happens mid-sign-in, the page links to `https://<hostname>/login`, where the domain, while it serves the organization, starts another.
+2. There the console names the organization and the domain (`GET /api/handoffs/:id`; the tab's title too), not Braivo. With an account already signed in, it offers "Continue as <name>" (its email while it has none, to be named first) or "Use another account", which signs that one out; otherwise it signs in by code, name step included. A session found ended meanwhile goes back to signing in. Then `POST /api/handoffs/:id`, a trusted write, checks that the account is a member of the organization, then issues a code good for 60 seconds but never past the handoff's 15 minutes, replacing any issued before, and the page navigates to `https://<hostname>/api/session/handoff?code=…`. A POST from a click, never a navigation, so no link hands a signed-in visitor over unasked. An account that is not a member is told to ask the organization to add it, and may try again while the handoff lasts, or use another account. A handoff no longer available reads as expired, without Braivo's name; when that happens mid-sign-in, the page links to `https://<hostname>/login`, where the domain, while it serves the organization, starts another.
 3. That route redeems the code in one transaction, only with the nonce cookie, on the hostname the handoff began on, before it expires, and while that hostname still serves its organization. It sets `__Host-braivo-learner` (a week, renewed by use once a day old) and redirects to the stored path, `Referrer-Policy: no-referrer`. Anything else spends nothing and redirects to `/login?failed=1`, where the learn app, unless the learner is signed in already, says the sign-in did not finish and offers it again, on a click only: a handoff failing every time (cookies blocked) cannot cycle unseen.
 
 - Every secret is random, 256 bits, and stored only as its SHA-256. Both cookies are `__Host-`: `Secure`, `HttpOnly`, `SameSite=Lax`, on that host alone. Expired handoffs and sessions are deleted as new ones are written.
@@ -35,10 +35,11 @@ An organization's domain never holds the account's session or takes its credenti
 ### Organizations, members, and roles
 
 - An organization is created only by the operator: `braivo organization create --name --slug --owner <email>` (`bun apps/server/cli/index.ts organization create …` from a checkout) calls `createOrganization`, which needs an account that has already signed in and makes it the `owner`. `allowUserToCreateOrganization: false` refuses every session; Better Auth refuses an HTTP request naming a `userId` without one.
+- Until invitations, the operator adds members the same way: `braivo organization add-member --slug --email [--role member|admin]` calls `addMember` for an account that has already signed in, as `member` (the default: a learner) or `admin`, never `owner`. An account already a member is refused rather than given another role. The learner, once added, signs in on the organization's learn domain.
 - Organization hooks in `apps/server/auth/auth.ts` enforce the slug rules ([white-label](white-label.md), white-label-8) and refuse deleting an organization that still owns objectives, courses, sources, or files with `409`. The adapter runs with `transaction: true`, so a refused delete keeps its members.
 - A member record carries one or more organization roles, comma-separated. `readOrganizationRoles` splits them; migration `member_uniqueness` allows one member record per user and organization, so a removed administrator cannot survive in a duplicate row.
 - Membership is enrollment: a member in any role reaches every course of its organization ([learner loop](learner-loop.md)).
-- Better Auth's invitations are off until ADR 0018 guards them with a verified email and a learn-domain check: its seven invitation endpoints are `disabledPaths`, which Better Auth answers `404` on every host. Unguarded, whoever signs up with an invited email joins. `addMember` has no HTTP path, so nothing over HTTP adds a member.
+- Better Auth's invitations are off until ADR 0018 guards them with a verified email and a learn-domain check: its seven invitation endpoints are `disabledPaths`, which Better Auth answers `404` on every host. Unguarded, whoever signs up with an invited email joins. Better Auth's `addMember` has no HTTP path, so nothing over HTTP adds a member.
 
 ```mermaid
 flowchart TD
@@ -72,7 +73,7 @@ flowchart TD
 | Create an organization (operator's command only)         | no      | no      | no       | `allowUserToCreateOrganization: false` |
 
 - `GET /api/organizations` answers the organizations the session's user manages, by name; the console resolves `/<slug>` among them ([white-label](white-label.md), white-label-7).
-- The console's learner page reads members through `GET /api/organizations/:organizationId/members`, and its course page through the course's overview (progress-11): user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding, removing, or changing the role of another member takes the database.
+- The console's learner page reads members through `GET /api/organizations/:organizationId/members`, and its course page through the course's overview (progress-11): user IDs, names, and every role; no emails, no cap. Better Auth's `list-members`, `get-full-organization`, `get-active-member-role`, `remove-member`, and `update-member-role` are `disabledPaths` too, since each serves or leaks to any member (why: `apps/server/auth/auth.ts`). Adding a member takes the operator's command (above); removing one or changing a role, the database.
 
 ### Write origins
 
@@ -81,7 +82,7 @@ flowchart TD
 
 ### Planned (ADR 0018)
 
-[ADR 0018](../adr/0018-sign-in-and-invitations.md) still turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`, and adds Google to `/login`. Built so far: the operator command, email codes in place of passwords, and learner sessions handed over to learn domains; see Gaps.
+[ADR 0018](../adr/0018-sign-in-and-invitations.md) still turns Better Auth's invitation endpoints, refused today, into Braivo's invitation flow to an organization as `member` or `admin`, and adds Google to `/login`. Built so far: the operator's commands, email codes in place of passwords, and learner sessions handed over to learn domains; see Gaps.
 
 ## Invariants
 
@@ -94,6 +95,7 @@ flowchart TD
 - Better Auth answers its invitation endpoints `404`, even requests they would carry out; a stored invitation stays pending and admits no one. `apps/server/auth/auth.test.ts`
 - Only an `owner` or `admin` lists an organization's members, and never with emails; Better Auth answers its own member listings, removal, and role changes `404`, even to an owner. `apps/server/api/app.test.ts`, `apps/server/auth/auth.test.ts`
 - No session creates an organization; the operator's command does, for an existing account only. `apps/server/auth/auth.test.ts`
+- The operator adds an existing account as `member` or `admin`, never `owner`, and not one that is a member already. `apps/server/auth/auth.test.ts`
 - An organization owning learning content is not deleted, and a refused delete keeps its members. `apps/server/auth/auth.test.ts`
 - No password makes or opens an account; only an emailed code does, which is stored hashed and good once. `apps/server/auth/auth.test.ts`
 - An address gets one code a minute, however its guesses were spent and however many ask at once; only sign-in codes are sent. `apps/server/auth/auth.test.ts`, `apps/server/persistence/sign-in-code.test.ts`
@@ -140,10 +142,10 @@ flowchart TD
 
 ## Gaps
 
-| Gap                                                                                                                              | Impact                                                                                         | Next step                                                  |
-| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| No Braivo way to add a learner or admin to an organization.                                                                      | Learners get in only by seeding the database.                                                  | Build ADR 0018 invitations (after email code and handoff). |
-| Better Auth's default `membershipLimit` of 100 applies to the members it adds; no schema caps them.                              | Its member-adding flows stop at 100 members.                                                   | Set `membershipLimit` deliberately.                        |
-| Whether a member may leave is undecided: Better Auth's `organization/leave` lets any member but an organization's sole owner.    | A learner can end their own enrollment.                                                        | Maintainer decides; then a rule and a test, or disable it. |
-| Signing in for a learn domain cannot run locally: it needs the domain over HTTPS and a separate console origin serving `/login`. | The handoff is proven by the API's tests and the console's route tests only.                   | A local HTTPS proxy setup, when someone needs it.          |
-| No console UI to change members, roles, or the organization's settings.                                                          | Changing another member takes the database; renaming the organization, a raw Better Auth call. | Follows invitations; scope with ADR 0018 step 3.           |
+| Gap                                                                                                                              | Impact                                                                                   | Next step                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Only the operator adds members, one command each, for accounts that signed in once.                                              | A school sends its list to the operator, and each learner signs in before being added.   | ADR 0018 invitations, or a class code, after the pilot.    |
+| Better Auth's default `membershipLimit` of 100 applies to the members it adds; no schema caps them.                              | `organization add-member` stops at 100 members, staff included.                          | Set `membershipLimit` deliberately.                        |
+| Whether a member may leave is undecided: Better Auth's `organization/leave` lets any member but an organization's sole owner.    | A learner can end their own enrollment.                                                  | Maintainer decides; then a rule and a test, or disable it. |
+| Signing in for a learn domain cannot run locally: it needs the domain over HTTPS and a separate console origin serving `/login`. | The handoff is proven by the API's tests and the console's route tests only.             | A local HTTPS proxy setup, when someone needs it.          |
+| No console UI to change members, roles, or the organization's settings.                                                          | Removing a member takes the database; renaming the organization, a raw Better Auth call. | Follows invitations; scope with ADR 0018 step 3.           |

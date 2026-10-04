@@ -93,6 +93,12 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const [stale, setStale] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  // The pressed button is gone by the time a refusal shows, so the focus
+  // moves to what comes next, after every refusal, a retried one too.
+  const retry = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (view === "refused") retry.current?.focus();
+  }, [view]);
 
   if (!handoff) return <Expired />;
   if (view === "expired") return <Expired hostname={handoff.hostname} />;
@@ -182,9 +188,21 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
       )}
       {view === "refused" && (
         <div className="flex flex-col items-center gap-2">
+          {/* Until invitations, the operator adds members by email: the
+              learner asks, then retries here while the handoff lasts. */}
           <Alert variant="destructive">
-            <AlertDescription>This account is not a member of {name}.</AlertDescription>
+            <AlertDescription>
+              This account is not a member of {name}. Ask to be added, then try again.
+            </AlertDescription>
           </Alert>
+          <Button
+            ref={retry}
+            className="w-full"
+            aria-disabled={pending}
+            onClick={() => !pending && handOver()}
+          >
+            Try again
+          </Button>
           {another}
         </div>
       )}
