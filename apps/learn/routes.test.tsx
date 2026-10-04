@@ -383,7 +383,11 @@ describe("the learn app", () => {
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
 
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(screen.getByText("Preterite.")).toBeTruthy();
+    // Named in the alert too, so a learner need not go back to the option
+    // marked correct once Continue takes the focus.
+    const alert = screen.getByRole("alert");
+    expect(within(alert).getByText("The answer: hablé")).toBeTruthy();
+    expect(within(alert).getByText("Preterite.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledWith(
       { courseId: "c1", id: expect.any(String), taskId: "t1", response: { choice: 1 } },
@@ -424,6 +428,8 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
 
     const passages = await screen.findByRole("region", { name: "From your lessons" });
+    // With no explanation, the answer is still named.
+    expect(screen.getByRole("alert").textContent).toBe("Not quiteThe answer: hablé");
     // Titled on screen too, not only for a screen reader.
     expect(
       within(passages).getByRole("heading", { level: 2, name: "From your lessons" }),
