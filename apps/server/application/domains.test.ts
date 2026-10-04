@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { organizationDomain } from "@braivo/db/schema";
+import { organization, organizationDomain } from "@braivo/db/schema";
 import { seedOrganization, sharedDatabase, violatedConstraint } from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -138,6 +138,14 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
     expect(await refusal(register("learn.domains-test.example"))).toBe(
       `learn.domains-test.example already serves ${otherSchool} (${otherSchool}).`,
     );
+  });
+
+  test("frees a hostname once its organization is deleted", async () => {
+    await register("learn.domains-test.example", otherSchool);
+
+    await database.delete(organization).where(eq(organization.id, otherSchool));
+
+    expect((await register("learn.domains-test.example")).organization.id).toBe(school);
   });
 
   test("refuses a second domain for one organization, naming the first", async () => {

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { isDeepStrictEqual } from "node:util";
+
 import { runMigrations } from "@braivo/db";
 import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
@@ -58,6 +60,7 @@ let foreignTask!: string;
 let foreignCourseId!: string;
 /** A course of one task with six options: enough that orders rarely coincide. */
 let shuffleCourseId!: string;
+let letters!: string;
 let shuffleTask!: string;
 const sixOptions: TaskBody = {
   kind: "choice",
@@ -146,15 +149,15 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       await task(fractions, "Second fraction?", later(1)),
     ];
 
-    const [letters] = await createObjectives(database, organizationId, ["Letters"]);
+    [letters] = (await createObjectives(database, organizationId, ["Letters"])) as [string];
     shuffleCourseId = await createCourse(database, {
       organizationId,
       title: "Shuffle",
-      objectiveIds: [letters!],
+      objectiveIds: [letters],
     });
     shuffleTask = await testing.createTask(database, {
       organizationId,
-      objectiveId: letters!,
+      objectiveId: letters,
       body: sixOptions,
       createdAt: start,
     });
@@ -255,6 +258,34 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     // A resend records nothing, so it is not a new asking either.
     await answer("s1", shuffleTask, 1, later(16), { course: shuffleCourseId });
     expect(await shown(later(17))).toEqual(order(later(5)));
+  });
+
+  test("neither rests a task nor reseeds its order for evidence graded elsewhere", async () => {
+    const seededBy = (lastAttemptAt: Date) =>
+      presentTask(sixOptions, JSON.stringify([learner, shuffleTask, lastAttemptAt.getTime()]))
+        .options;
+    await answer("s1", shuffleTask, 1, later(5), { course: shuffleCourseId });
+    // Were the evidence an attempt at any of these minutes, the ten-minute rest
+    // would hold the task at minute 21, and reseed its order. The task ID is
+    // random, so take a minute whose order differs, or a reseed could go unseen.
+    const at = [12, 13, 14, 15, 16, 17, 18, 19, 20]
+      .map(later)
+      .find((minute) => !isDeepStrictEqual(seededBy(minute), seededBy(later(5))));
+    if (at === undefined) throw new Error("No minute reorders the options.");
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      { id: "elsewhere", objectiveId: letters, outcome: "failure", at },
+    ]);
+    expect(await stored()).toContainEqual({
+      id: "elsewhere",
+      objectiveId: letters,
+      outcome: "failure",
+      at,
+    });
+
+    expect(await activity(later(21), learner, shuffleCourseId)).toMatchObject({
+      kind: "decided",
+      task: { id: shuffleTask, options: seededBy(later(5)) },
+    });
   });
 
   test("shows the passages a grounded task was written from, once it is graded", async () => {
