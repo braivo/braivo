@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createHash } from "node:crypto";
+
 import type { Database } from "@braivo/db";
 
 import { extractPages } from "../ai/index.ts";
@@ -64,7 +66,7 @@ export async function uploadFile(input: {
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
-  const sha256 = new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
   // Bytes before the record, which promises they are there. Written even when
   // already stored, so uploading again repairs a store that lost them.
   await files.put(keyOf(organizationId, sha256), bytes, contentType);

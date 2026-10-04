@@ -20,6 +20,20 @@ describe("what makes two sources the same", () => {
     );
   });
 
+  test("matches the digests already stored", () => {
+    // A source added again is found by its stored digest: computing it
+    // differently would store it twice.
+    expect(
+      sourceDigest({
+        title: lesson.title,
+        text: "¿Qué tal? 👋",
+        url: lesson.url,
+        pagination: [{ start: 0, page: "1" }],
+        original: "a".repeat(64),
+      }),
+    ).toBe("32138fca80635eb8372163055923ee5423efb02014720bb2ed8d35b928a54b38");
+  });
+
   test("counts the original file, whatever else the source has", () => {
     const original = "a".repeat(64);
     const kept = sourceDigest({ ...lesson, original });
