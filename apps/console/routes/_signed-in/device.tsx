@@ -42,28 +42,32 @@ const CLIENT_NAMES: Record<string, string> = {
 
 function Device() {
   const { request } = Route.useLoaderData();
+  const { user_code } = Route.useSearch();
 
   if (request === undefined) return <EnterCode />;
-  if (request === "unknown") {
-    return (
-      <EnterCode problem="That code is not valid, or has expired. Start again in your terminal." />
-    );
-  }
+  if (request === "unknown") return <EnterCode refusedCode={user_code} />;
   if (request.status !== "pending") {
     return <Heading>This code was already {request.status}.</Heading>;
   }
-  return <Review userCode={request.user_code} clientId={request.client_id} />;
+  // Keyed, so neither state nor a late answer from one code can reach another.
+  return (
+    <Review key={request.user_code} userCode={request.user_code} clientId={request.client_id} />
+  );
 }
 
 /** For a code typed from the terminal, when the link was not followed. */
-function EnterCode({ problem }: { problem?: string }) {
+function EnterCode({ refusedCode }: { refusedCode?: string }) {
   const navigate = useNavigate({ from: Route.fullPath });
   const id = useId();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const code = new FormData(event.currentTarget).get("code") as string;
-    void navigate({ search: { user_code: code } });
+    // Trimmed here, not as typed, so a value the browser restored is caught too.
+    const input = event.currentTarget.elements.namedItem("code") as HTMLInputElement;
+    const code = input.value.trim();
+    if (code) return void navigate({ search: { user_code: code } });
+    input.setCustomValidity("Enter the code.");
+    input.reportValidity();
   }
 
   return (
@@ -73,11 +77,21 @@ function EnterCode({ problem }: { problem?: string }) {
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor={`${id}-code`}>Code shown in your terminal</FieldLabel>
-            <Input id={`${id}-code`} name="code" required autoComplete="off" />
+            <Input
+              id={`${id}-code`}
+              name="code"
+              required
+              autoComplete="off"
+              // A custom validity persists until cleared: clear it once the code is edited.
+              onChange={(event) => event.currentTarget.setCustomValidity("")}
+            />
           </Field>
-          {problem && (
-            <Alert variant="destructive">
-              <AlertDescription>{problem}</AlertDescription>
+          {/* Remounted for each code refused, so assistive tech can announce it. */}
+          {refusedCode && (
+            <Alert key={refusedCode} variant="destructive">
+              <AlertDescription>
+                That code is not valid, or has expired. Start again in your terminal.
+              </AlertDescription>
             </Alert>
           )}
           <Field>
