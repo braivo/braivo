@@ -1,0 +1,25 @@
+// Needs Zed's tsgo extension, whose server is typescript-ls: TypeScript 7
+// ships no tsserver, so vtsls and typescript-language-server would fall back
+// to their own older TypeScript. Linting is oxlint (`vp check`), not ESLint.
+{
+  "languages": {
+    "TypeScript": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "!eslint",
+        "..."
+      ]
+    },
+    "TSX": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "!eslint",
+        "..."
+      ]
+    }
+  }
+}
