@@ -652,9 +652,18 @@ describe("the console", () => {
   });
 
   /** Fills the add form; `file` goes in as the original. */
-  function addMaterial(fields: { title: string; text: string; language?: string; file?: File }) {
+  function addMaterial(fields: {
+    title: string;
+    text: string;
+    url?: string;
+    language?: string;
+    file?: File;
+  }) {
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: fields.title } });
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: fields.text } });
+    if (fields.url) {
+      fireEvent.change(screen.getByLabelText("Link"), { target: { value: fields.url } });
+    }
     if (fields.language) {
       fireEvent.change(screen.getByLabelText("Language"), { target: { value: fields.language } });
     }
@@ -672,21 +681,26 @@ describe("the console", () => {
     getSource: async () => ({ id: "s1", title: "Unidad 1", text: "Hola.", createdAt: "…" }),
   };
 
-  test("adds pasted text as a source, leaving out what was left blank, and opens it", async () => {
+  test("adds pasted text as a source with its link and language, and opens it", async () => {
     const addSource = vi.fn(async () => "s1");
     const { router } = renderAt("/example/sources", {
       braivo: { ...added, addSource },
     });
     await screen.findByText("No material yet");
 
-    addMaterial({ title: "Unidad 1", text: "Hola.", language: "es" });
+    addMaterial({
+      title: "Unidad 1",
+      text: "Hola.",
+      url: "https://example.com/unidad-1",
+      language: "es",
+    });
 
     await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
     expect(addSource).toHaveBeenCalledWith({
       organizationId: "org-1",
       title: "Unidad 1",
       text: "Hola.",
-      url: undefined,
+      url: "https://example.com/unidad-1",
       language: "es",
       original: undefined,
     });
@@ -892,7 +906,7 @@ describe("the console", () => {
     expect(addSource).not.toHaveBeenCalled();
   });
 
-  test("uploads the original first, and adds the source naming it", async () => {
+  test("uploads the original first, and adds the source naming it, leaving out what was left blank", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
     const addSource = vi.fn(async () => "s1");
     renderAt("/example/sources", {
@@ -901,14 +915,16 @@ describe("the console", () => {
     await screen.findByText("No material yet");
     const pdf = new File(["%PDF-1.7"], "libro.pdf", { type: "application/pdf" });
 
-    addMaterial({ title: "Mi libro", text: "Hola.", file: pdf });
+    addMaterial({ title: "Mi libro", text: "Hola.", url: " ", language: " ", file: pdf });
 
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
     expect(uploadFile).toHaveBeenCalledWith(
       { organizationId: "org-1", file: pdf },
       { signal: expect.any(AbortSignal) },
     );
-    expect(addSource).toHaveBeenCalledWith(expect.objectContaining({ original: "f".repeat(64) }));
+    expect(addSource).toHaveBeenCalledWith(
+      expect.objectContaining({ url: undefined, language: undefined, original: "f".repeat(64) }),
+    );
   });
 
   test("says what Braivo refused, and what it could not send", async () => {
@@ -944,6 +960,27 @@ describe("the console", () => {
       ).toBeTruthy();
     }
     expect(addSource).not.toHaveBeenCalled();
+  });
+
+  test("refuses a file over 50 MB before sending anything, and takes exactly 50 MB", async () => {
+    const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
+    const addSource = vi.fn(async () => "s1");
+    renderAt("/example/sources", { braivo: { ...added, uploadFile, addSource } });
+    await screen.findByText("No material yet");
+    /** A PDF claiming `size` bytes, so none are allocated. */
+    const pdfOf = (size: number) =>
+      Object.defineProperty(new File(["%PDF"], "libro.pdf", { type: "application/pdf" }), "size", {
+        value: size,
+      });
+
+    addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_001) });
+    expect(await screen.findByText("The original file is larger than 50 MB.")).toBeTruthy();
+    expect(uploadFile).not.toHaveBeenCalled();
+    expect(addSource).not.toHaveBeenCalled();
+
+    addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_000) });
+    await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
+    expect(uploadFile).toHaveBeenCalledTimes(1);
   });
 
   const saludos = {
@@ -1017,13 +1054,15 @@ describe("the console", () => {
     );
   });
 
-  test("offers the original a source was extracted from, to compare against", async () => {
+  test("offers where a source is from, and the original it was extracted from", async () => {
+    const url = "https://example.com/saludos";
     renderAt("/example/sources/s1", {
-      braivo: { ...authoring(), getSource: async () => ({ ...saludos, original: "ab12" }) },
+      braivo: { ...authoring(), getSource: async () => ({ ...saludos, url, original: "ab12" }) },
     });
 
-    const link = await screen.findByRole("link", { name: "Download the original" });
-    expect(link.getAttribute("href")).toBe("/api/organizations/org-1/files/ab12");
+    const original = await screen.findByRole("link", { name: "Download the original" });
+    expect(original.getAttribute("href")).toBe("/api/organizations/org-1/files/ab12");
+    expect(screen.getByRole("link", { name: "Where it is from" }).getAttribute("href")).toBe(url);
   });
 
   test("drafts a course from a source, keeps what the owner keeps, and creates it", async () => {
