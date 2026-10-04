@@ -1096,6 +1096,26 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Where it is from" }).getAttribute("href")).toBe(url);
   });
 
+  test("shows a source's first 20,000 characters, saying its full length when it is longer", async () => {
+    const shown = "a".repeat(19_999) + "b";
+    const view = (text: string) =>
+      renderAt("/example/sources/s1", {
+        braivo: { ...authoring(), getSource: async () => ({ ...saludos, text }) },
+      });
+
+    view(shown);
+    expect(await screen.findByText(shown)).toBeTruthy();
+    expect(screen.queryByText(/^The first/)).toBeNull();
+    cleanup();
+
+    view(`${shown}c`);
+    expect(await screen.findByText(shown)).toBeTruthy();
+    // Compared raw: a locale's grouping space, such as fr-FR's, is no plain space.
+    expect(screen.getByText(/^The first/).textContent).toBe(
+      `The first ${(20_000).toLocaleString()} of ${(20_001).toLocaleString()} characters.`,
+    );
+  });
+
   test("drafts a course from a source, keeps what the owner keeps, and creates it", async () => {
     const braivo = authoring();
     const { router } = renderAt("/example/sources/s1", { braivo });
