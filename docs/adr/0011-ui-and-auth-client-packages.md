@@ -6,7 +6,7 @@ Status: accepted (2026-09-16)
 
 Both apps render the same components and sign people in the same way. Shared browser code needs a home, and a package for whatever both apps share becomes wherever shared browser code lands, design and session logic alike.
 
-The product promises that others can run Braivo under their own brand ([product.md](../product.md)), so nothing an app renders may hard-code Braivo's colours.
+The product promises that others can run Braivo under their own brand ([product.md](../product.md)), so nothing the learn app or a shared component renders may hard-code Braivo's colours. The console is Braivo's own ([ADR 0004](0004-one-application-origin.md)) and wears them, except on the sign-in it serves for a learn domain ([ADR 0018](0018-sign-in-and-invitations.md)).
 
 A component's states and variants should be visible without finding a screen that happens to use them, or reading its source.
 

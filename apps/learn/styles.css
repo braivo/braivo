@@ -5,6 +5,18 @@
 @source "../../packages/auth-client";
 
 /*
+ * The console's design, larger, for reading and touch: text, spacing, and
+ * controls are in rem, so one root size scales them all. A percentage, so the
+ * browser's font size setting still counts. No Braivo colours: an
+ * organization's domain wears its own brand (ADR 0011).
+ */
+@layer base {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+/*
  * `index.html`'s page before the app renders anything, rather than a blank one
  * while its script loads: the spinner `PagePending` shows next, in the same
  * place. If the app still has not rendered after ten seconds, slow or failed

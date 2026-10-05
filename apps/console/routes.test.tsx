@@ -282,7 +282,9 @@ describe("the console", () => {
         braivo: { handoff: async () => springo, completeHandoff },
       });
 
-      expect(await screen.findByRole("heading", { name: "Sign in to Springo" })).toBeTruthy();
+      const heading = await screen.findByRole("heading", { name: "Sign in to Springo" });
+      // Without the console's colours (`__root.tsx`).
+      expect(heading.closest("[data-learn-domain]")).toBeTruthy();
       expect(screen.getByText(/learn\.springo\.app/)).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("Sign in to Springo"));
       expect(screen.queryByText(/Braivo/)).toBeNull();
@@ -486,8 +488,26 @@ describe("the console", () => {
       expect(screen.queryByLabelText("Email")).toBeNull();
       // Nothing says where it came from.
       expect(screen.queryByRole("link", { name: "Sign in again" })).toBeNull();
-      // Not Braivo's name, on the way back to an organization's site.
+      // Not Braivo's name or colours, on the way back to an organization's site.
+      expect(heading.closest("[data-learn-domain]")).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("This sign-in has expired"));
+    });
+
+    test("keeps Braivo's colours off when it fails to load, unlike the console's own sign-in", async () => {
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => {
+            throw new Error("down");
+          },
+        },
+      });
+      const failure = await screen.findByRole("region", { name: "Something went wrong." });
+      expect(failure.closest("[data-learn-domain]")).toBeTruthy();
+      cleanup();
+
+      renderAt("/login", { signedIn: false });
+      const heading = await screen.findByRole("heading", { name: "Braivo Console" });
+      expect(heading.closest("[data-learn-domain]")).toBeNull();
     });
   });
 
