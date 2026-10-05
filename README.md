@@ -300,7 +300,7 @@ bun run db:generate                       # schema diff -> packages/db/migration
 
 Read the generated SQL before committing it, and commit schema and migration together ([ADR 0005](docs/adr/0005-postgresql-drizzle.md)).
 
-The design system is a shadcn/ui project, generated from a [shadcn preset](https://ui.shadcn.com/create?pointer=true&base=radix&preset=b4aRK5K0fb) ([ADR 0012](docs/adr/0012-shadcn-preset.md)). Run the shadcn CLI from `packages/ui`, where `components.json` is; `AGENTS.md` has the update workflow and the rule that keeps Braivo's marked edits through an upstream change.
+The design system is a shadcn/ui project, generated from a [shadcn preset](https://ui.shadcn.com/create?pointer=true&base=radix&preset=b27GcrRo) ([ADR 0012](docs/adr/0012-shadcn-preset.md)). Run the shadcn CLI from `packages/ui`, where `components.json` is; `AGENTS.md` has the update workflow, and Braivo's changes to the components live in `styles/globals.css`, so a refresh keeps them.
 
 ## Docs
 
