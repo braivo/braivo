@@ -5,6 +5,20 @@
 @source "../../packages/auth-client";
 
 /*
+ * The console is Braivo's own app, so it wears Braivo Purple (ADR 0011). The
+ * primary is a deeper shade, so white text keeps 4.5:1 under the button's
+ * translucent hover too; the logo's purple marks focus. On the root, so that
+ * dialogs and popovers rendered outside `<main>` wear it as well, but not on a
+ * learn domain's sign-in, which wears no Braivo branding (ADR 0018). Dark mode,
+ * once there is one, needs its own values.
+ */
+:root:not(:has([data-learn-domain])) {
+  --primary: oklch(0.45 0.2 286);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.55 0.19 286);
+}
+
+/*
  * `index.html`'s page before the app renders anything, rather than a blank one
  * while its script loads: the spinner `PagePending` shows next, in the same
  * place. If the app still has not rendered after ten seconds, slow or failed

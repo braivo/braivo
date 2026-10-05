@@ -16,7 +16,7 @@ The components have to be generated from it, upstream improvements pulled in at 
 
 - **`packages/ui` is a shadcn project**, driven by the CLI directly; its layout is [ADR 0011](0011-ui-and-auth-client-packages.md)'s. `components.json`, `styles/globals.css`, `components/`, `hooks/`, and `lib/` are what the CLI writes. The package has an empty `vite.config.ts` of its own, which is what lets `shadcn init` and `shadcn apply` recognize it.
 - **The preset is recorded by what it generated**, not by a script. `components.json` holds the style (which names the base, `radix-rhea`), colors, icons, and menu settings, and `styles/globals.css` the theme, fonts, and the pointer cursor; `shadcn preset resolve` reads the preset code back. The package was created once with `shadcn init --base radix --preset <code> --pointer --no-monorepo` and `shadcn add --all`.
-- **Generated files stay exactly as the CLI writes them.** What Braivo changes lives where the CLI keeps it: a section of `styles/globals.css` marked `Braivo:`, which `shadcn apply` and `shadcn add` leave in place, or a composition of Braivo's own that wraps a component. CSS there selects a component by its `data-slot`, and a variable set there, after the theme's, overrides it.
+- **Generated files stay exactly as the CLI writes them.** What Braivo changes lives where the CLI keeps it: a section of `styles/globals.css` marked `Braivo:`, which `shadcn apply` and `shadcn add` leave in place, or a composition of Braivo's own that wraps a component. CSS there selects a component by its `data-slot`, and a variable set there, after the theme's, overrides it. What one app alone changes, such as its colours or root font size, goes the same way in that app's `styles.css`, after its import of `@braivo/ui/globals.css`, a file the CLI never writes.
 - **So every refresh is the CLI overwriting, and a review of `git diff`:**
 
   ```bash
@@ -41,4 +41,5 @@ The components have to be generated from it, upstream improvements pulled in at 
 
 - Updating or replacing the design is one CLI command; `git diff` shows all of what changed.
 - A Braivo change to a component's look is CSS beside the theme, keyed on `data-slot`, rather than in its classes, so it is the one place to look. It goes in `@layer components`, where a caller's utilities still win, unless it must override the component's own utilities, which only unlayered CSS does.
+- Storybook shows the shared theme, not an app's; an app's look is checked in the app.
 - The apps' stylesheets carry every generated component's classes, about 27 kB gzipped, because Tailwind cannot know which components an app imports.

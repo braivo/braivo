@@ -345,7 +345,12 @@ function Practice({
             <AlertDescription>Your answer could not be confirmed.</AlertDescription>
           </Alert>
           {/* aria-disabled while resending, so that it keeps the focus. */}
-          <Button autoFocus aria-disabled={sending} onClick={() => !sending && submit(chosen)}>
+          <Button
+            size="lg"
+            autoFocus
+            aria-disabled={sending}
+            onClick={() => !sending && submit(chosen)}
+          >
             {sending ? "Sending…" : "Send again"}
           </Button>
         </>
@@ -386,7 +391,7 @@ function Practice({
             </section>
           )}
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-          <Button autoFocus aria-disabled={continuing} onClick={next}>
+          <Button size="lg" autoFocus aria-disabled={continuing} onClick={next}>
             {continuing ? "Loading…" : "Continue"}
           </Button>
         </>
