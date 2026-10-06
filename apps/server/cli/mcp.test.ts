@@ -38,7 +38,7 @@ const fetch = ((input: string | URL, init?: RequestInit) =>
   api.request(input.toString(), init)) as unknown as typeof globalThis.fetch;
 
 const organizationId = "mcp-test-org";
-/** One the content owner only learns in, where every other tool would be refused. */
+/** One the content owner only learns in, which list_organizations leaves out. */
 const learningOrganizationId = "mcp-test-learning-org";
 /** Made-up learners and a course they study, which the progress tools read. */
 const progressOrganizationId = "mcp-test-progress-org";
@@ -125,17 +125,18 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       objectiveIds: [greetings, numbers],
     });
     await recordEvidence(database, { learnerId, organizationId: progressOrganizationId }, [
-      { id: "mcp-test-evidence-1", objectiveId: greetings, outcome: "success", at },
+      { id: "mcp-test-evidence-1", objectiveId: greetings, outcome: "failure", at },
     ]);
     learnerAgent = await connect(learner.token);
   });
 
-  test("tells the agent the workflow, and that every quote is checked", () => {
+  test("tells the agent the workflows, and that every quote is checked", () => {
     expect(agent.getInstructions()).toContain("Braivo checks every quote against the source.");
     expect(agent.getInstructions()).toContain("course_progress, then learner_progress");
+    expect(agent.getInstructions()).toContain("names, roles, standings, and learning history");
   });
 
-  test("offers the tools a course is built with", async () => {
+  test("offers the authoring and progress tools", async () => {
     const { tools } = await agent.listTools();
 
     expect(tools.map((tool) => tool.name).toSorted()).toEqual([
@@ -159,6 +160,15 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     ]);
   });
 
+  test("says in each progress tool's description that what it reads goes to the AI", async () => {
+    const { tools } = await agent.listTools();
+
+    for (const name of ["course_progress", "learner_progress"]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.description, name).toContain("to the AI you are using");
+    }
+  });
+
   test("gives every tool a title and all four hints, so a client need not assume the worst", async () => {
     const { tools } = await agent.listTools();
 
@@ -177,39 +187,38 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     }
   });
 
-  test("reads a course's progress as its administrator, learners named", async () => {
+  test("reads a course's progress as its administrator, every member named", async () => {
     const overview = await json<{
-      learners: { userId: string; name: string; standings: Record<string, number> }[];
-      objectives: { title: string; standings: Record<string, number> }[];
+      learners: { userId: string; name: string; roles: string[]; standings: object }[];
+      objectives: { title: string; standings: object }[];
     }>("course_progress", { courseId: progressCourseId });
 
-    const standingOf = (userId: string) =>
-      overview.learners.find((learner) => learner.userId === userId);
-    // Greetings was answered once, long ago, so it is due; Numbers was never seen.
-    expect(standingOf(learnerId)).toMatchObject({
+    // A failure leaves Greetings acquiring whenever the test runs; Numbers was never seen.
+    expect(overview.learners).toHaveLength(3); // Ana, the other learner, and the administrator
+    expect(overview.learners.find((learner) => learner.userId === learnerId)).toMatchObject({
       name: "Ana",
-      standings: { unseen: 1, acquiring: 0, retained: 0, due: 1 },
+      roles: ["member"],
+      standings: { unseen: 1, acquiring: 1, retained: 0, due: 0 },
     });
-    expect(standingOf(otherLearnerId)?.standings).toEqual({
-      unseen: 2,
-      acquiring: 0,
-      retained: 0,
-      due: 0,
-    });
-    expect(overview.objectives.map((objective) => objective.title)).toEqual([
-      "Greetings",
-      "Numbers",
+    expect(overview.objectives).toMatchObject([
+      { title: "Greetings", standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 } },
+      { title: "Numbers", standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 } },
     ]);
   });
 
   test("reads one learner's standing on each objective, with the evidence behind it", async () => {
     const report = await json<{
-      objectives: { title: string; evidence: { outcome: string; at: string }[] }[];
+      objectives: { title: string; phase: string; evidence: object[] }[];
     }>("learner_progress", { courseId: progressCourseId, learnerId });
 
-    expect(report.objectives.map((objective) => objective.title)).toEqual(["Greetings", "Numbers"]);
-    expect(report.objectives[0]!.evidence).toEqual([{ outcome: "success", at: at.toISOString() }]);
-    expect(report.objectives[1]!.evidence).toEqual([]);
+    expect(report.objectives).toMatchObject([
+      {
+        title: "Greetings",
+        phase: "acquiring",
+        evidence: [{ outcome: "failure", at: at.toISOString() }],
+      },
+      { title: "Numbers", phase: "unseen", evidence: [] },
+    ]);
   });
 
   test("hands a learner Braivo's refusal, not a crash, when they ask for the course overview", async () => {
@@ -245,7 +254,6 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     const organizations =
       await json<{ id: string; name: string; slug: string }[]>("list_organizations");
 
-    // Not learningOrganizationId: the content owner only studies there.
     expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: organizationId, name: organizationId, slug: organizationId },
       { id: progressOrganizationId, name: progressOrganizationId, slug: progressOrganizationId },

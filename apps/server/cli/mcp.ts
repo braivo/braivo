@@ -39,7 +39,9 @@ author_tasks with replaces, one task a call, writes a wrong one's correction
 and retires it in one step, and retire_tasks withdraws one.
 
 To see how a course is going, course_progress, then learner_progress for one
-learner: the userId from the first is the learnerId of the second.
+learner: the userId from the first is the learnerId of the second. They send
+you learners' names, roles, standings, and learning history, so call them only
+when asked.
 
 Braivo checks every quote against the source. Copy quotes verbatim; line breaks
 and spacing may differ, nothing else. A quote must occur exactly once: if Braivo
@@ -468,7 +470,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
     {
       title: "Read a course's progress",
       description:
-        "How a course is going: every member of its organization by name, with their objectives counted by standing (unseen, acquiring, retained, due), and each objective with its learners counted the same way. This sends learners' names and standings to the AI you are using. Needs an owner or admin of the course's organization.",
+        "How a course is going: every member of its organization by name, with their objectives counted by standing (unseen, acquiring, retained, due), and each objective with its learners counted the same way. This sends learners' names, roles, and standings to the AI you are using. Needs an owner or admin of the course's organization.",
       inputSchema: { courseId: z.string().min(1).describe("The course's ID, from list_courses.") },
       annotations: READ_ONLY,
     },
@@ -480,7 +482,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
     {
       title: "Read a learner's progress",
       description:
-        "One learner's standing on each objective of a course, in course order, with the dated evidence behind it. This sends the learner's standings and dated learning history to the AI you are using. Needs an owner or admin of the course's organization, or the learner themselves.",
+        "One learner's standing on each objective of a course, in course order, with the dated evidence behind it. This sends the learner's standings and dated learning history to the AI you are using. Needs an owner or admin of the course's organization, except for a learner reading their own.",
       inputSchema: {
         courseId: z.string().min(1).describe("The course's ID, from list_courses."),
         learnerId: z.string().min(1).describe("The learner's userId, from course_progress."),
