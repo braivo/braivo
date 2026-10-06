@@ -5,6 +5,7 @@ import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { Item, ItemContent, ItemGroup, ItemTitle } from "@braivo/ui/components/item";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
@@ -20,9 +21,12 @@ export const Route = createFileRoute("/_signed-in/")({
 /** A list that may only have failed to load for now. Trying again reloads it. */
 function CoursesError() {
   const router = useRouter();
+  const { t } = useLingui();
   return (
-    <Notice title="Your courses could not be loaded.">
-      <Button onClick={() => router.invalidate()}>Try again</Button>
+    <Notice title={t`Your courses could not be loaded.`}>
+      <Button onClick={() => router.invalidate()}>
+        <Trans>Try again</Trans>
+      </Button>
     </Notice>
   );
 }
@@ -32,13 +36,17 @@ function Courses() {
 
   return (
     <section>
-      <Heading>Your courses</Heading>
+      <Heading>
+        <Trans>Your courses</Trans>
+      </Heading>
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No courses yet</EmptyTitle>
+            <EmptyTitle>
+              <Trans>No courses yet</Trans>
+            </EmptyTitle>
             <EmptyDescription>
-              Courses will appear here when they're available to you.
+              <Trans>Courses will appear here when they're available to you.</Trans>
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

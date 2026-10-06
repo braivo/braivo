@@ -7,6 +7,30 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: pl\n"
 
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "{count, plural, one {# due for review} other {# due for review}}"
+msgstr "{count, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
+
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "{count, plural, one {# learning} other {# learning}}"
+msgstr "{count, plural, one {# w trakcie nauki} few {# w trakcie nauki} many {# w trakcie nauki} other {# w trakcie nauki}}"
+
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "{count, plural, one {# not started} other {# not started}}"
+msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# nierozpoczętych} other {# nierozpoczętego}}"
+
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "{count, plural, one {# retained} other {# retained}}"
+msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "{objectiveTitle} comes next, but there's no practice for it yet."
+msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A new code was sent to {email}. Check your spam folder too."
 msgstr "Nowy kod został wysłany na adres {email}. Sprawdź też folder ze spamem."
@@ -17,6 +41,7 @@ msgid "Code"
 msgstr "Kod"
 
 #: apps/console/routes/login.tsx
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue"
 msgstr "Dalej"
@@ -29,6 +54,15 @@ msgstr "Kontynuuj jako {account}"
 msgid "Continue with Google"
 msgstr "Kontynuuj z Google"
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Correct"
+msgstr "Dobrze"
+
+#: packages/ui/compositions/choice-question.tsx
+msgctxt "Marks the correct option"
+msgid "Correct"
+msgstr "Poprawna"
+
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
@@ -39,8 +73,22 @@ msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem."
 
 #: apps/console/routes/login.tsx
+#: apps/learn/routes/_signed-in/route.tsx
 msgid "Could not sign out. Try again."
 msgstr "Nie udało się wylogować. Spróbuj ponownie."
+
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "Courses will appear here when they're available to you."
+msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
+
+#. After an objective's title: a form fitting any
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "due for review"
+msgstr "do powtórki"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Due for review: about {percent}% likely to recall now."
+msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypomnisz."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email"
@@ -49,6 +97,10 @@ msgstr "E-mail"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Enter your name."
 msgstr "Wpisz swoje imię i nazwisko."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "From your lessons"
+msgstr "Z Twoich lekcji"
 
 #: apps/console/routes/login.tsx
 msgid "Go back to the site you came from and sign in again."
@@ -62,27 +114,90 @@ msgstr "Tak widzą Cię inni w Twoich organizacjach."
 msgid "It may have expired."
 msgstr "Mogło wygasnąć."
 
+#. After an objective's title: a form fitting any
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "learning"
+msgstr "w trakcie nauki"
+
 #: apps/learn/routes/__root.tsx
 msgid "Learning"
 msgstr "Nauka"
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
+#: packages/ui/compositions/choice-question.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Loading"
 msgstr "Ładowanie"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Loading…"
+msgstr "Ładowanie…"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgctxt "Why a question comes now"
+msgid "New"
+msgstr "Nowy temat"
+
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "No courses yet"
+msgstr "Nie masz jeszcze kursów"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Not quite"
+msgstr "Nie tym razem"
+
+#. After an objective's title: a form fitting any
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "not started"
+msgstr "nie rozpoczęto"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Nothing is due right now."
+msgstr "Na razie nic nie czeka na powtórkę."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgstr "Na razie nic nie czeka na powtórkę. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Nothing to practise right now"
+msgstr "Na razie nie ma nic do ćwiczenia"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "or"
 msgstr "lub"
 
+#. A page of a book
+#: packages/ui/compositions/source-passage.tsx
+msgid "p. {page}"
+msgstr "s. {page}"
+
+#. After an objective's title: a form fitting any
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "retained"
+msgstr "utrwalono"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgctxt "Why a question comes now"
+msgid "Review"
+msgstr "Powtórka"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send a new code"
 msgstr "Wyślij nowy kod"
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Send again"
+msgstr "Wyślij ponownie"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send code"
 msgstr "Wyślij kod"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Sending…"
+msgstr "Wysyłanie…"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sent to {email}. Check your spam folder too."
@@ -102,6 +217,10 @@ msgstr "Zaloguj się ponownie"
 msgid "Sign in to {organizationName}"
 msgstr "Logowanie: {organizationName}"
 
+#: apps/learn/routes/_signed-in/route.tsx
+msgid "Sign out"
+msgstr "Wyloguj się"
+
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
 msgid "Signing in"
@@ -109,12 +228,17 @@ msgstr "Logowanie"
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Something went wrong."
 msgstr "Coś poszło nie tak."
 
 #: apps/console/routes/login.tsx
 msgid "Something went wrong. Try again."
 msgstr "Coś poszło nie tak. Spróbuj ponownie."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Take a short break"
+msgstr "Zrób krótką przerwę"
 
 #: packages/auth-client/sign-in.tsx
 msgid "That code has expired. Send a new one."
@@ -132,13 +256,25 @@ msgstr "Ten kod wpisano zbyt wiele razy. Wyślij nowy."
 msgid "That did not work. Try again."
 msgstr "Nie udało się. Spróbuj ponownie."
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "The answer: {correctAnswer}"
+msgstr "Poprawna odpowiedź: {correctAnswer}"
+
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."
 msgstr "Nie udało się wysłać kodu. Spróbuj ponownie za minutę."
 
+#: apps/learn/routes/__root.tsx
+msgid "There is nothing here."
+msgstr "Nic tu nie ma."
+
 #: apps/console/routes/login.tsx
 msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
 msgstr "To konto nie należy do organizacji „{organizationName}”. Poproś o dodanie, a potem spróbuj ponownie."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "This course does not exist, or is not one of yours."
+msgstr "Ten kurs nie istnieje albo nie masz do niego dostępu."
 
 #: apps/learn/routes/login.tsx
 msgid "This sign-in did not finish."
@@ -155,8 +291,15 @@ msgstr "Zbyt wiele prób. Poczekaj minutę i spróbuj ponownie."
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "Try again"
 msgstr "Spróbuj ponownie"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgctxt "Why a question comes now"
+msgid "Try again"
+msgstr "Jeszcze raz"
 
 #: apps/console/routes/login.tsx
 msgid "Use another account"
@@ -170,6 +313,14 @@ msgstr "Użyj innego adresu e-mail"
 msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You missed this last time."
+msgstr "Ostatnim razem się nie udało."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
+msgstr "Temat „{objectiveTitle}” był niedawno ćwiczony. Ćwiczenia wznowią się o {continuesAt}, aby kolejna próba pokazała, co pamiętasz."
+
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "You were signed out. Sign in again."
@@ -178,6 +329,28 @@ msgstr "Wylogowano Cię. Zaloguj się ponownie."
 #: apps/console/routes/login.tsx
 msgid "You will continue at {hostname}."
 msgstr "Potem przejdziesz na stronę {hostname}."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You're caught up"
+msgstr "Jesteś na bieżąco"
+
+#: packages/ui/compositions/choice-question.tsx
+msgid "Your answer"
+msgstr "Twoja odpowiedź"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Your answer could not be confirmed."
+msgstr "Nie udało się potwierdzić Twojej odpowiedzi."
+
+#: apps/learn/routes/__root.tsx
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "Your courses"
+msgstr "Twoje kursy"
+
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "Your courses could not be loaded."
+msgstr "Nie udało się wczytać Twoich kursów."
 
 #: packages/auth-client/sign-in.tsx
 msgid "Your Google account's email is not verified. Sign in with a code instead."

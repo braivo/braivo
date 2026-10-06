@@ -3,6 +3,7 @@
 
 import { requireSession } from "@braivo/auth-client";
 import { Button } from "@braivo/ui/components/button";
+import { Trans } from "@lingui/react/macro";
 import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -48,13 +49,13 @@ function SignedIn() {
           <span>{user.name}</span>
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
           <Button variant="link" aria-disabled={signingOut} onClick={signOut}>
-            Sign out
+            <Trans>Sign out</Trans>
           </Button>
         </div>
         {/* Below the row, so that on a narrow screen it cannot push Sign out out of view. */}
         {failed && (
           <p role="alert" className="mt-1 text-right text-sm text-destructive">
-            Could not sign out. Try again.
+            <Trans>Could not sign out. Try again.</Trans>
           </p>
         )}
       </header>
