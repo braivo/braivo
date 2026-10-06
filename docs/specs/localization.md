@@ -18,7 +18,7 @@ A learner should not need English to sign in and learn, in any language Braivo s
 
 ## Decisions
 
-- [ADR 0035](../adr/0035-lingui-localization.md) (proposed): Lingui, the language chosen once from the browser's, complete catalogs, failures worded from what the server answers, never its prose, the mail's language from its request.
+- [ADR 0035](../adr/0035-lingui-localization.md): Lingui, the language chosen once from the browser's, complete catalogs, failures worded from what the server answers, never its prose, the mail's language from its request.
 
 ## Gaps
 
