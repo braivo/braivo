@@ -1,6 +1,6 @@
 # 0033: Email goes out over SMTP, or to the log of an installation only its machine reaches
 
-Status: proposed (2026-10-02)
+Status: accepted (2026-10-06)
 
 ## Context
 

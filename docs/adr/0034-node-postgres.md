@@ -1,6 +1,6 @@
 # 0034: node-postgres, so the server reaches PostgreSQL from Bun or from Workers through Hyperdrive
 
-Status: proposed (2026-10-04)
+Status: accepted (2026-10-06)
 
 ## Context
 

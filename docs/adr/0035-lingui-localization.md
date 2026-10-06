@@ -1,6 +1,6 @@
 # 0035: Lingui for learner-facing localization
 
-Status: proposed (2026-10-06)
+Status: accepted (2026-10-06)
 
 ## Context
 
