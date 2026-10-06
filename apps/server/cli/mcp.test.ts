@@ -10,7 +10,12 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
 import { createOutbox, signInWithCode } from "../auth/testing.ts";
-import { readCourseObjectives } from "../persistence/index.ts";
+import {
+  createCourse,
+  createObjectives,
+  readCourseObjectives,
+  recordEvidence,
+} from "../persistence/index.ts";
 import { createMcpServer } from "./mcp.ts";
 import { remoteClient } from "./remote.ts";
 
@@ -33,17 +38,33 @@ const fetch = ((input: string | URL, init?: RequestInit) =>
   api.request(input.toString(), init)) as unknown as typeof globalThis.fetch;
 
 const organizationId = "mcp-test-org";
-/** One the content owner only learns in, where every other tool would be refused. */
+/** One the content owner only learns in, which list_organizations leaves out. */
 const learningOrganizationId = "mcp-test-learning-org";
+/** Made-up learners and a course they study, which the progress tools read. */
+const progressOrganizationId = "mcp-test-progress-org";
+const otherLearnerId = "mcp-test-other-learner";
 const at = new Date("2026-06-01T00:00:00.000Z");
 
 /** An agent, connected to `braivo mcp` as a desktop app would be, signed in as a content owner. */
 let agent!: Client;
+/** An agent signed in as a learner of the progress organization, who may read only their own report. */
+let learnerAgent!: Client;
+let progressCourseId!: string;
+let learnerId!: string;
 
 type ToolResult = { isError?: boolean; content: { type: string; text: string }[] };
 
-async function call(name: string, args: Record<string, unknown> = {}) {
-  const result = (await agent.callTool({ name, arguments: args })) as ToolResult;
+/** An agent connected to `braivo mcp` with `token`'s session. */
+async function connect(token: string): Promise<Client> {
+  const mcp = createMcpServer(remoteClient({ server, token }, fetch));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-agent", version: "0" });
+  await Promise.all([mcp.connect(serverSide), client.connect(clientSide)]);
+  return client;
+}
+
+async function call(name: string, args: Record<string, unknown> = {}, as: Client = agent) {
+  const result = (await as.callTool({ name, arguments: args })) as ToolResult;
   return { isError: result.isError ?? false, text: result.content[0]!.text };
 }
 
@@ -78,17 +99,44 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       at,
     });
 
-    const mcp = createMcpServer(remoteClient({ server, token }, fetch));
-    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-    agent = new Client({ name: "test-agent", version: "0" });
-    await Promise.all([mcp.connect(serverSide), agent.connect(clientSide)]);
+    agent = await connect(token);
+
+    // A learner of an organization the content owner administers, and another
+    // the content owner reads about but who has no session here.
+    const learner = await signInWithCode(
+      (path, init) => api.request(`/api/auth${path}`, init),
+      outbox,
+      { email: `mcp-test-${crypto.randomUUID()}@example.com`, name: "Ana" },
+    );
+    learnerId = learner.id;
+    await testing.seedOrganization(database, {
+      organizationId: progressOrganizationId,
+      learnerIds: [learnerId, otherLearnerId],
+      adminIds: [id],
+      at,
+    });
+    const [greetings, numbers] = (await createObjectives(database, progressOrganizationId, [
+      "Greetings",
+      "Numbers",
+    ])) as [string, string];
+    progressCourseId = await createCourse(database, {
+      organizationId: progressOrganizationId,
+      title: "Beginners",
+      objectiveIds: [greetings, numbers],
+    });
+    await recordEvidence(database, { learnerId, organizationId: progressOrganizationId }, [
+      { id: "mcp-test-evidence-1", objectiveId: greetings, outcome: "failure", at },
+    ]);
+    learnerAgent = await connect(learner.token);
   });
 
-  test("tells the agent the workflow, and that every quote is checked", () => {
+  test("tells the agent the workflows, and that every quote is checked", () => {
     expect(agent.getInstructions()).toContain("Braivo checks every quote against the source.");
+    expect(agent.getInstructions()).toContain("course_progress, then learner_progress");
+    expect(agent.getInstructions()).toContain("names, roles, standings, and learning history");
   });
 
-  test("offers the tools a course is built with", async () => {
+  test("offers the authoring and progress tools", async () => {
     const { tools } = await agent.listTools();
 
     expect(tools.map((tool) => tool.name).toSorted()).toEqual([
@@ -97,8 +145,10 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "add_transcript",
       "author_tasks",
       "cite_sources",
+      "course_progress",
       "create_course",
       "define_objectives",
+      "learner_progress",
       "list_courses",
       "list_objectives",
       "list_organizations",
@@ -108,6 +158,15 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "read_source",
       "retire_tasks",
     ]);
+  });
+
+  test("says in each progress tool's description that what it reads goes to the AI", async () => {
+    const { tools } = await agent.listTools();
+
+    for (const name of ["course_progress", "learner_progress"]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.description, name).toContain("to the AI you are using");
+    }
   });
 
   test("gives every tool a title and all four hints, so a client need not assume the worst", async () => {
@@ -128,9 +187,76 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     }
   });
 
+  test("reads a course's progress as its administrator, every member named", async () => {
+    const overview = await json<{
+      learners: { userId: string; name: string; roles: string[]; standings: object }[];
+      objectives: { title: string; standings: object }[];
+    }>("course_progress", { courseId: progressCourseId });
+
+    // A failure leaves Greetings acquiring whenever the test runs; Numbers was never seen.
+    expect(overview.learners).toHaveLength(3); // Ana, the other learner, and the administrator
+    expect(overview.learners.find((learner) => learner.userId === learnerId)).toMatchObject({
+      name: "Ana",
+      roles: ["member"],
+      standings: { unseen: 1, acquiring: 1, retained: 0, due: 0 },
+    });
+    expect(overview.objectives).toMatchObject([
+      { title: "Greetings", standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 } },
+      { title: "Numbers", standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 } },
+    ]);
+  });
+
+  test("reads one learner's standing on each objective, with the evidence behind it", async () => {
+    const report = await json<{
+      objectives: { title: string; phase: string; evidence: object[] }[];
+    }>("learner_progress", { courseId: progressCourseId, learnerId });
+
+    expect(report.objectives).toMatchObject([
+      {
+        title: "Greetings",
+        phase: "acquiring",
+        evidence: [{ outcome: "failure", at: at.toISOString() }],
+      },
+      { title: "Numbers", phase: "unseen", evidence: [] },
+    ]);
+  });
+
+  test("hands a learner Braivo's refusal, not a crash, when they ask for the course overview", async () => {
+    const refused = await call("course_progress", { courseId: progressCourseId }, learnerAgent);
+
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("404");
+  });
+
+  test("lets a learner read their own report", async () => {
+    const own = await call(
+      "learner_progress",
+      { courseId: progressCourseId, learnerId },
+      learnerAgent,
+    );
+
+    expect(own.isError).toBe(false);
+    expect(JSON.parse(own.text).objectives).toHaveLength(2);
+  });
+
+  test("refuses a learner another learner's report", async () => {
+    const refused = await call(
+      "learner_progress",
+      { courseId: progressCourseId, learnerId: otherLearnerId },
+      learnerAgent,
+    );
+
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("404");
+  });
+
   test("lists only the organizations the content owner manages", async () => {
-    expect(await json("list_organizations")).toEqual([
+    const organizations =
+      await json<{ id: string; name: string; slug: string }[]>("list_organizations");
+
+    expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: organizationId, name: organizationId, slug: organizationId },
+      { id: progressOrganizationId, name: progressOrganizationId, slug: progressOrganizationId },
     ]);
   });
 
