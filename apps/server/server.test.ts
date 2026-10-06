@@ -25,6 +25,8 @@ interface Env {
   BRAIVO_URL: string;
   ANTHROPIC_API_KEY?: string;
   BRAIVO_AI_ORGANIZATIONS?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   FILES: { get(key: string): Promise<unknown> };
 }
 
@@ -32,6 +34,7 @@ interface Env {
 function testServer(
   options: {
     ai?: Pick<Env, "ANTHROPIC_API_KEY" | "BRAIVO_AI_ORGANIZATIONS">;
+    google?: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">;
     cachedDatabase?: Database;
     files?: FileStore;
   } = {},
@@ -41,6 +44,7 @@ function testServer(
     BRAIVO_URL: baseUrl,
     FILES: { get: async () => undefined },
     ...options.ai,
+    ...options.google,
   };
   return createServer({
     config: readServerConfig(env),
@@ -77,6 +81,15 @@ describe.skipIf(!connectionString)("createServer", () => {
       at: new Date(),
     });
     cookie = admin.cookie;
+  });
+
+  test("offers Google sign-in when the environment holds Google's client", async () => {
+    const google = { GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "secret" };
+    const methods = async (server: ReturnType<typeof testServer>) =>
+      (await server.request(`${baseUrl}/api/sign-in-methods`)).json();
+
+    expect(await methods(testServer({ google }))).toEqual({ google: true });
+    expect(await methods(testServer())).toEqual({ google: false });
   });
 
   test("sends sign-in codes through the host's mail, on the configured origin alone", async () => {

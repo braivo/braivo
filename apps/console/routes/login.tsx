@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { EmailSignIn, safeRedirect } from "@braivo/auth-client";
+import { safeRedirect, SignIn } from "@braivo/auth-client";
 import { BraivoError } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -17,16 +17,26 @@ const expiredTitle = "This sign-in has expired";
  * `?handoff=`, to the learn domain that sent the person here (ADR 0018).
  */
 export const Route = createFileRoute("/login")({
-  validateSearch: (search): { redirect?: string; handoff?: string } => ({
+  // `error`: why Google's round trip came back here rather than signed in.
+  validateSearch: (search): { redirect?: string; handoff?: string; error?: string } => ({
     redirect: safeRedirect(search.redirect),
     handoff: typeof search.handoff === "string" && search.handoff ? search.handoff : undefined,
+    error: typeof search.error === "string" ? search.error : undefined,
   }),
-  beforeLoad: async ({ context }) => {
-    // One read for both, so they describe the same session. One that cannot be
-    // checked counts as none: signing in is how to find out.
-    const { data } = await context.auth.getSession().catch(() => ({ data: null }));
+  beforeLoad: async ({ context, abortController }) => {
+    const [{ data }, offersGoogle] = await Promise.all([
+      // One read for both, so they describe the same session. One that cannot
+      // be checked counts as none: signing in is how to find out.
+      context.auth.getSession().catch(() => ({ data: null })),
+      // Not knowing still leaves the code, so it is no reason to fail the page.
+      context.braivo.signInMethods({ signal: abortController.signal }).then(
+        (methods) => methods.google,
+        () => false,
+      ),
+    ]);
     const user = data?.user;
     return {
+      offersGoogle,
       needsName: user !== undefined && user.name.trim() === "",
       // Whoever is signed in, for a learn domain's sign-in to offer: by name,
       // or by email while unnamed.
@@ -55,21 +65,38 @@ export const Route = createFileRoute("/login")({
             },
           ],
         },
-  component: SignIn,
+  component: Login,
 });
 
-function SignIn() {
+/**
+ * Google's round trip, when the installation offers it: back to `to` signed
+ * in, or to this page refused. Built from what this page was asked for, never
+ * its current URL, which may hold an earlier refusal.
+ */
+function useGoogleSignIn(to: string) {
+  const { offersGoogle } = Route.useRouteContext();
+  const { redirect, handoff, error } = Route.useSearch();
+  if (!offersGoogle) return undefined;
+  const search = new URLSearchParams(
+    handoff !== undefined ? { handoff } : redirect !== undefined ? { redirect } : {},
+  ).toString();
+  return { callbackURL: to, errorCallbackURL: search ? `/login?${search}` : "/login", error };
+}
+
+function Login() {
   const { auth, needsName } = Route.useRouteContext();
   const { redirect, handoff } = Route.useSearch();
   const router = useRouter();
+  const google = useGoogleSignIn(redirect ?? "/");
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
   return (
     <>
       <Heading>Braivo Console</Heading>
-      <EmailSignIn
+      <SignIn
         auth={auth}
         needsName={needsName}
+        google={google}
         onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
       />
     </>
@@ -85,6 +112,9 @@ function SignIn() {
 function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const { auth, braivo, visit, needsName, account } = Route.useRouteContext();
   const { handoff } = Route.useLoaderData();
+  // Back here signed in, where the account is offered as any open session is:
+  // only a click hands someone over.
+  const google = useGoogleSignIn(`/login?handoff=${encodeURIComponent(handoffId)}`);
   const [view, setView] = useState<"account" | "form" | "leaving" | "refused" | "expired">(
     account ? "account" : "form",
   );
@@ -161,9 +191,10 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
         </Alert>
       )}
       {view === "form" && (
-        <EmailSignIn
+        <SignIn
           auth={auth}
           needsName={!stale && needsName}
+          google={google}
           onSignedIn={() => {
             setStale(true);
             void handOver();

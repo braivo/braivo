@@ -22,6 +22,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Email: Story = {};
 
+export const WithGoogle: Story = { args: { onContinueWithGoogle: () => {} } };
+
 export const Code: Story = { args: { step: { step: "code", email: "ada@example.com" } } };
 
 export const Resent: Story = {

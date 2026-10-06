@@ -30,7 +30,7 @@ Today the console signs people in with email and password at `/login` and `/sign
   This is OAuth's authorization code flow in miniature, and OAuth's rules settle questions it raises: the handoff is a pushed authorization request, `/api/session/handoff` on its stored hostname the registered redirect URI, and the nonce cookie stands in for PKCE's verifier, binding redemption to the browser that began it. Braivo builds it rather than becoming an OAuth provider, since both ends are its own; Better Auth's `oneTimeToken` moves the whole session and binds nothing.
 
 - **Shared devices:** signing out of a learn domain ends its learner session only, and with a session already open `/login` asks "Continue as Ada" or "Use another account" (which signs Ada out first) before handing over. Signing out of the console ends the global session.
-- **Settings chosen, not inherited:** Google only with a Google-verified email; email codes hashed, with a deliberate lifetime and attempt limit; code sending rate limited per address and per client, which works only behind a proxy that sets the client address (README, Deployment).
+- **Settings chosen, not inherited:** Google only with a Google-verified email, and only while it is still the account's (no email changes yet); email codes hashed, with a deliberate lifetime and attempt limit; code sending rate limited per address and per client, which works only behind a proxy that sets the client address (README, Deployment).
 
 ## Alternatives rejected
 
@@ -52,5 +52,6 @@ Today the console signs people in with email and password at `/login` and `/sign
 - To build, in this order:
   1. done: the command that creates an organization for an existing user, with the console's creation form removed; and email-code `/login` with the name step and settings above, replacing `/signup` and every password form;
   2. done: the learner session and handoff, replacing learn-domain sign-in and no longer accepting the account sessions learn domains held, and learn domains dropped from Better Auth's trusted origins; `/login?handoff=` names the organization and the domain it returns to ("Sign in to Acme Learning"), without Braivo's branding. A handoff lasts 15 minutes, its code 60 seconds within them; a learner session a week, renewed by use, as Better Auth's are. In development the learn app runs on the installation's own host, where it signs in by code;
-  3. learner and administrator invitations;
-  4. the pilot, then Google.
+  3. done: Google at `/login`, a learn domain's included, for an installation with an OAuth client; back from Google for a learn domain, the account is offered as any open session is;
+  4. learner and administrator invitations;
+  5. the pilot.

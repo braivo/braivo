@@ -59,6 +59,19 @@ describe("the model that drafts courses", () => {
   });
 });
 
+describe("signing in with Google", () => {
+  test("is offered only with both of the client's halves", () => {
+    expect(readServeConfig(valid).google).toBeUndefined();
+    expect(
+      readServeConfig({ ...valid, GOOGLE_CLIENT_ID: " id ", GOOGLE_CLIENT_SECRET: "secret" })
+        .google,
+    ).toEqual({ clientId: "id", clientSecret: "secret" });
+    for (const half of [{ GOOGLE_CLIENT_ID: "id" }, { GOOGLE_CLIENT_SECRET: "secret" }]) {
+      expect(() => readServeConfig({ ...valid, ...half })).toThrow("go together");
+    }
+  });
+});
+
 describe("where files are kept", () => {
   test("is nowhere unless set", () => {
     expect(readServeConfig(valid).files).toBeUndefined();

@@ -14,7 +14,7 @@ type AuthResult<Data = unknown> = {
  * uses. Structural, so either app's client fits whichever plugins it was built
  * with.
  */
-export type EmailAuth = {
+export type SignInAuth = {
   emailOtp: {
     sendVerificationOtp(input: { email: string; type: "sign-in" }): Promise<AuthResult>;
   };
@@ -23,6 +23,12 @@ export type EmailAuth = {
       email: string;
       otp: string;
     }): Promise<AuthResult<{ user: { name: string } }>>;
+    /** Answered with Google's address, where Better Auth's client then navigates. */
+    social(input: {
+      provider: "google";
+      callbackURL: string;
+      errorCallbackURL: string;
+    }): Promise<AuthResult>;
   };
   updateUser(input: { name: string }): Promise<AuthResult>;
 };
@@ -42,21 +48,60 @@ function refusal(error: { code?: string; message?: string }): string {
 }
 
 /**
+ * A request that got no answer at all, which is worth another try. No product
+ * name: the learn app runs under the organization's brand, not Braivo's
+ * (ADR 0004).
+ */
+const UNANSWERED = "Could not connect. Check your connection and try again.";
+
+/**
+ * Why Google's round trip came back to `errorCallbackURL`, from its `error`.
+ * `access_denied` is not only a cancel: it is also a school's administrator
+ * blocking the app, which must not pass in silence.
+ */
+function googleRefusal(error: string | undefined): string | undefined {
+  if (error === undefined) return undefined;
+  // Better Auth's own code for the same, on reaching an account an emailed
+  // code made.
+  if (error === "email_not_verified" || error === "account_not_linked") {
+    return "Your Google account's email is not verified. Sign in with a code instead.";
+  }
+  if (error === "email_changed") {
+    return "Your Google account's email no longer matches this account. Sign in with a code to the account's email.";
+  }
+  return GOOGLE_FAILED;
+}
+
+const GOOGLE_FAILED = "Could not sign in with Google. Try again, or sign in with a code.";
+
+/** Where Google sends the person back: signed in, or refused with an `error` parameter. */
+type GoogleSignIn = {
+  callbackURL: string;
+  /** Without an `error` parameter, which Better Auth appends rather than replaces. */
+  errorCallbackURL: string;
+  /** The `error` parameter Google's round trip came back with, if it failed. */
+  error?: string;
+};
+
+/**
  * Signing in with a code sent by email, which makes the account if there is
  * none, then naming an account that has no name yet (ADR 0018). Starts at the
  * name when `needsName` says a session is open for such an account. Reports
  * success through `onSignedIn` and leaves where to go next to the caller.
+ * With `google`, offers Google too, which leaves the page and comes back to
+ * its `callbackURL` signed in.
  */
-export function EmailSignIn(props: {
-  auth: EmailAuth;
+export function SignIn(props: {
+  auth: SignInAuth;
   needsName?: boolean;
   onSignedIn: () => void;
+  google?: GoogleSignIn;
 }) {
-  const { auth } = props;
+  const { auth, google } = props;
   const [step, setStep] = useState<SignInStep>(
     props.needsName ? { step: "name" } : { step: "email" },
   );
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState(googleRefusal(google?.error));
   const [pending, setPending] = useState(false);
 
   /** Takes one step, answering why it was refused if it was. */
@@ -102,12 +147,31 @@ export function EmailSignIn(props: {
       setError(await next(values));
     } catch {
       // Refused answers arrive as `error` above; this is a request that got no
-      // answer at all, which is worth another try. No product name: the learn
-      // app runs under the organization's brand, not Braivo's (ADR 0004).
-      setError("Could not connect. Check your connection and try again.");
+      // answer at all.
+      setError(UNANSWERED);
     } finally {
       setPending(false);
     }
+  }
+
+  async function continueWithGoogle(google: GoogleSignIn) {
+    setPending(true);
+    setError(undefined);
+    try {
+      const { error } = await auth.signIn.social({
+        provider: "google",
+        callbackURL: google.callbackURL,
+        errorCallbackURL: google.errorCallbackURL,
+      });
+      // Otherwise the page is leaving for Google, and stays pending until gone.
+      // A refusal here is the installation's, in Better Auth's words, which
+      // help no one signing in.
+      if (!error) return;
+      setError(GOOGLE_FAILED);
+    } catch {
+      setError(UNANSWERED);
+    }
+    setPending(false);
   }
 
   return (
@@ -119,6 +183,7 @@ export function EmailSignIn(props: {
       onResend={
         step.step === "code" ? () => submit({ step: "email", email: step.email }) : undefined
       }
+      onContinueWithGoogle={google && (() => continueWithGoogle(google))}
       onChangeEmail={() => {
         setError(undefined);
         setStep({ step: "email", email: step.step === "code" ? step.email : undefined });

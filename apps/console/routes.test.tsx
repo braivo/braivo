@@ -58,6 +58,8 @@ function renderAt(
     organizations?: (typeof school)[];
     /** Better Auth's device flow: `device(query)`, with `approve` and `deny` on it. */
     device?: object;
+    /** Better Auth's session read, in place of one answering at once. */
+    getSession?: () => Promise<unknown>;
   } = {},
 ) {
   const account = { name: stubs.name ?? "Olive Owner", email: "olive@example.com" };
@@ -70,6 +72,7 @@ function renderAt(
         signedIn = true;
         return { data: { user: { ...account } }, error: null };
       }),
+      social: vi.fn(async () => ({ error: null })),
     },
     updateUser: vi.fn(async ({ name }: { name: string }) => {
       account.name = name;
@@ -80,6 +83,7 @@ function renderAt(
       return { error: null };
     }),
     device: stubs.device,
+    ...(stubs.getSession && { getSession: stubs.getSession }),
   };
   const visit = vi.fn<AppContext["visit"]>();
 
@@ -91,6 +95,7 @@ function renderAt(
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
         courseProgress,
+        signInMethods: async () => ({ google: false }),
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
       visit,
@@ -269,6 +274,84 @@ describe("the console", () => {
     fireEvent.click(signOut);
     expect(await screen.findByLabelText("Email")).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
+  });
+
+  describe("signing in with Google", () => {
+    const withGoogle = { signInMethods: async () => ({ google: true }) };
+
+    test("is offered when the installation has it, and comes back where sign-in was headed", async () => {
+      const { auth } = renderAt("/login?redirect=%2Fdevice", {
+        signedIn: false,
+        braivo: withGoogle,
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+      expect(auth.signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "/device",
+        errorCallbackURL: "/login?redirect=%2Fdevice",
+      });
+    });
+
+    test("is asked about while the session is read, not after", async () => {
+      let answer!: () => void;
+      const signInMethods = vi.fn(async () => ({ google: true }));
+      renderAt("/login", {
+        braivo: { signInMethods },
+        getSession: () =>
+          new Promise((resolve) => {
+            answer = () => resolve({ data: null, error: null });
+          }),
+      });
+
+      await vi.waitFor(() => expect(signInMethods).toHaveBeenCalled());
+      answer();
+      expect(await screen.findByRole("button", { name: "Continue with Google" })).toBeTruthy();
+    });
+
+    test("is not offered when the installation lacks it, or cannot say", async () => {
+      renderAt("/login", { signedIn: false });
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+      cleanup();
+
+      renderAt("/login", {
+        signedIn: false,
+        braivo: { signInMethods: () => Promise.reject(new TypeError("Failed to fetch")) },
+      });
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    });
+
+    test("says why it came back refused, and tries again without the old refusal", async () => {
+      const { auth } = renderAt("/login?error=email_not_verified&redirect=%2Fdevice", {
+        signedIn: false,
+        braivo: withGoogle,
+      });
+
+      expect(await screen.findByText(/Google account's email is not verified/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+      expect(auth.signIn.social).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCallbackURL: "/login?redirect=%2Fdevice" }),
+      );
+    });
+
+    test("for a learn domain, comes back to its sign-in, which offers the account", async () => {
+      const springo = { organization: { name: "Springo" }, hostname: "learn.springo.app" };
+      const { auth } = renderAt("/login?handoff=h1", {
+        signedIn: false,
+        braivo: { ...withGoogle, handoff: async () => springo },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
+
+      expect(auth.signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "/login?handoff=h1",
+        errorCallbackURL: "/login?handoff=h1",
+      });
+    });
   });
 
   describe("signing in for a learn domain", () => {

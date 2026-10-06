@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { EmailSignIn, needsName, safeRedirect } from "@braivo/auth-client";
+import { needsName, safeRedirect, SignIn } from "@braivo/auth-client";
 import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
@@ -34,14 +34,14 @@ export const Route = createFileRoute("/login")({
     }
     return { view: "form" as const, needsName: await needsName(context.auth) };
   },
-  component: SignIn,
+  component: Login,
 });
 
 function signInUrl(redirect = "/") {
   return `/api/session/sign-in?redirect=${encodeURIComponent(redirect)}`;
 }
 
-function SignIn() {
+function Login() {
   const context = Route.useRouteContext();
   const { redirect } = Route.useSearch();
   const router = useRouter();
@@ -57,7 +57,7 @@ function SignIn() {
   return (
     <>
       <Heading>Sign in</Heading>
-      <EmailSignIn
+      <SignIn
         auth={context.auth}
         needsName={context.needsName}
         onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
