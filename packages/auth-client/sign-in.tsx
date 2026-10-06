@@ -59,8 +59,11 @@ const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
 function refusal(error: AuthError): MessageDescriptor {
   const known = CODE_REFUSALS[error.code ?? ""];
   if (known) return known;
-  if (error.code === "SIGN_IN_CODE_JUST_SENT") {
-    return msg`A code was just sent to this address. Wait a minute before asking again.`;
+  if (error.code === "SIGN_IN_CODE_COOLDOWN") {
+    return msg`Wait a minute before asking for a code again.`;
+  }
+  if (error.code === "SIGN_IN_CODE_SEND_FAILED") {
+    return msg`The code could not be sent. Try again in a minute.`;
   }
   if (error.status === 429) return msg`Too many tries. Wait a minute, then try again.`;
   return msg`That did not work. Try again.`;

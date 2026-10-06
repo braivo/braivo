@@ -7,10 +7,6 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: en\n"
 
-#: packages/auth-client/sign-in.tsx
-msgid "A code was just sent to this address. Wait a minute before asking again."
-msgstr "A code was just sent to this address. Wait a minute before asking again."
-
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A new code was sent to {email}. Check your spam folder too."
 msgstr "A new code was sent to {email}. Check your spam folder too."
@@ -136,6 +132,10 @@ msgstr "That code was tried too many times. Send a new one."
 msgid "That did not work. Try again."
 msgstr "That did not work. Try again."
 
+#: packages/auth-client/sign-in.tsx
+msgid "The code could not be sent. Try again in a minute."
+msgstr "The code could not be sent. Try again in a minute."
+
 #: apps/console/routes/login.tsx
 msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
 msgstr "This account is not a member of {organizationName}. Ask to be added, then try again."
@@ -165,6 +165,10 @@ msgstr "Use another account"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Use another email"
 msgstr "Use another email"
+
+#: packages/auth-client/sign-in.tsx
+msgid "Wait a minute before asking for a code again."
+msgstr "Wait a minute before asking for a code again."
 
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx

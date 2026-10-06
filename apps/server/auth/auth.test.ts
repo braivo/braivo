@@ -28,6 +28,9 @@ const asking = [
   "auth-test-asks@example.com",
   "auth-test-asks-at-once@example.com",
   "auth-test-asks-late@example.com",
+  "auth-test-unsent@example.com",
+  "auth-test-unsent-directly@example.com",
+  "auth-test-sent-beside@example.com",
 ];
 /** Every organization this suite creates or tries to, by slug. */
 const slugs = {
@@ -216,7 +219,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const refused = await sendCode(email.toUpperCase());
 
     expect(refused.status).toBe(429);
-    expect(await refused.json()).toMatchObject({ code: "SIGN_IN_CODE_JUST_SENT" });
+    expect(await refused.json()).toMatchObject({ code: "SIGN_IN_CODE_COOLDOWN" });
   });
 
   test("sends one code to requests for the same address at once", async () => {
@@ -228,6 +231,51 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       200, 429, 429,
     ]);
     expect(outbox.sent.filter((sent) => sent.to === email)).toHaveLength(1);
+  });
+
+  test("returns 503 for a failed send without affecting a concurrent send, and keeps the cooldown", async () => {
+    const [unsent, unsentDirectly, sentBeside] = asking.slice(3) as [string, string, string];
+    // The mail server refuses every address but one, and only while that one
+    // is being sent, which then finishes after the refusal: the two overlap.
+    const sending = Promise.withResolvers<void>();
+    const refused = Promise.withResolvers<void>();
+    const failing = createAuth({
+      database,
+      secret: "test-secret-that-is-long-enough-32",
+      baseURL: "http://localhost:3000",
+      sendMail: async (mail) => {
+        if (mail.to !== sentBeside) {
+          await sending.promise;
+          refused.resolve();
+          throw new Error("SMTP refused the message.");
+        }
+        sending.resolve();
+        await refused.promise;
+        await outbox.sendMail(mail);
+      },
+    });
+    const ask = (email: string) =>
+      failing.handler(
+        new Request("http://localhost:3000/api/auth/email-otp/send-verification-otp", {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: "http://localhost:3000" },
+          body: JSON.stringify({ email, type: "sign-in" }),
+        }),
+      );
+
+    const [notSent, sent] = await Promise.all([ask(unsent), ask(sentBeside)]);
+
+    expect(notSent.status).toBe(503);
+    expect(await notSent.json()).toMatchObject({ code: "SIGN_IN_CODE_SEND_FAILED" });
+    // The address still waits its minute: the failure may have been ambiguous.
+    const again = await ask(unsent);
+    expect(again.status).toBe(429);
+    expect(await again.json()).toMatchObject({ code: "SIGN_IN_CODE_COOLDOWN" });
+    expect(sent.status).toBe(200);
+    expect(codeSentTo(outbox, sentBeside)).toMatch(/^\d{6}$/);
+    await expect(
+      failing.api.sendVerificationOTP({ body: { email: unsentDirectly, type: "sign-in" } }),
+    ).rejects.toMatchObject({ statusCode: 503, body: { code: "SIGN_IN_CODE_SEND_FAILED" } });
   });
 
   test("sends sign-in codes only, and answers none of the code's other endpoints", async () => {
