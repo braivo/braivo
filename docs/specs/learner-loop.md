@@ -44,6 +44,7 @@ A learner opens a course and Braivo keeps choosing what to practise next from wh
 
 - Which organization a host reaches, and the course routes' host ceiling: [white-label](white-label.md), white-label-4. The evidence endpoint is an organization route, served on the installation's host alone.
 - Who is a learner in which organization, sign-in, and the write check: [access](access.md). Membership stands in for enrollment.
+- The language the learn app speaks, and how it writes times and counts: [localization](localization.md); the copy quoted here is its English.
 - How objectives, courses, tasks, and their passages are made and retired: [authoring](authoring.md).
 - How evidence becomes estimates and estimates a decision: [learning model](learning-model.md); where a learner stands: [progress](progress.md).
 - Not here yet: task kinds other than `choice`, AI grading, and a machine credential for the evidence endpoint (see Gaps).

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { useLingui } from "@lingui/react/macro";
+
 import { cn } from "#lib/utils";
 
 /**
@@ -26,11 +28,12 @@ export function SourcePassage(props: {
   className?: string;
 }) {
   const { quote, title, url, at, page, className } = props;
+  const { t } = useLingui();
   const label =
     at !== undefined
       ? `${title} · ${clock(at)}`
       : page !== undefined
-        ? `${title} · p. ${page}`
+        ? `${title} · ${t({ message: `p. ${page}`, comment: "A page of a book" })}`
         : title;
 
   return (

@@ -12,6 +12,9 @@ import {
 import { ChoiceQuestion, Heading, MutedText, SourcePassage } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, plural } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -51,15 +54,22 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   },
   head: (head) => pageHead(head, head.loaderData?.title),
   component: NextStep,
-  notFoundComponent: () => (
-    <Notice title="This course does not exist, or is not one of yours.">
-      <Button asChild variant="outline">
-        <Link to="/">Your courses</Link>
-      </Button>
-    </Notice>
-  ),
+  notFoundComponent: CourseNotFound,
   errorComponent: CourseError,
 });
+
+function CourseNotFound() {
+  const { t } = useLingui();
+  return (
+    <Notice title={t`This course does not exist, or is not one of yours.`}>
+      <Button asChild variant="outline">
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
+      </Button>
+    </Notice>
+  );
+}
 
 function NextStep() {
   const { activity, progress, title, attemptId } = Route.useLoaderData();
@@ -67,7 +77,7 @@ function NextStep() {
   return (
     <>
       <Link to="/" className="mb-2 inline-block text-sm text-muted-foreground underline">
-        Your courses
+        <Trans>Your courses</Trans>
       </Link>
       {title && <Heading>{title}</Heading>}
       {progress && <ProgressSummary report={progress} />}
@@ -82,10 +92,7 @@ function NextStep() {
       ) : !("task" in activity) ? (
         // Not "caught up": the objective selected next has nothing to practise it
         // with (glossary: No activity).
-        <Notice
-          title="Nothing to practise right now"
-          description={`${activity.objective.title} comes next, but there's no practice for it yet.`}
-        />
+        <NoPractice objectiveTitle={activity.objective.title} />
       ) : (
         // Keyed, so the next activity starts unanswered.
         <Practice key={attemptId} activity={activity} attemptId={attemptId} />
@@ -94,26 +101,69 @@ function NextStep() {
   );
 }
 
-const LABELS = ["retained", "due for review", "learning", "not started"] as const;
-type Label = (typeof LABELS)[number];
+/**
+ * In the summary's order, each alone, beside an objective's title, and
+ * counted: a count's words agree with it, in three forms in Polish.
+ */
+const PROGRESS_LABELS = {
+  retained: {
+    alone: msg({ message: "retained", comment: "After an objective's title: a form fitting any" }),
+    counted: (count: number) =>
+      msg({
+        message: plural(count, { one: "# retained", other: "# retained" }),
+        comment: "A count of objectives, the noun implied (Polish: temat)",
+      }),
+  },
+  dueForReview: {
+    alone: msg({
+      message: "due for review",
+      comment: "After an objective's title: a form fitting any",
+    }),
+    counted: (count: number) =>
+      msg({
+        message: plural(count, { one: "# due for review", other: "# due for review" }),
+        comment: "A count of objectives, the noun implied (Polish: temat)",
+      }),
+  },
+  learning: {
+    alone: msg({ message: "learning", comment: "After an objective's title: a form fitting any" }),
+    counted: (count: number) =>
+      msg({
+        message: plural(count, { one: "# learning", other: "# learning" }),
+        comment: "A count of objectives, the noun implied (Polish: temat)",
+      }),
+  },
+  notStarted: {
+    alone: msg({
+      message: "not started",
+      comment: "After an objective's title: a form fitting any",
+    }),
+    counted: (count: number) =>
+      msg({
+        message: plural(count, { one: "# not started", other: "# not started" }),
+        comment: "A count of objectives, the noun implied (Polish: temat)",
+      }),
+  },
+};
+type ProgressLabel = keyof typeof PROGRESS_LABELS;
 
 /**
  * The model's phases, with `due` splitting retaining, so the summary claims no
  * more than the model does: "retained", not "mastered", which Braivo does not define.
  */
-function labelOf(standing: LearnerProgressStanding): Label {
-  if (standing.phase === "unseen") return "not started";
+function labelOf(standing: LearnerProgressStanding): ProgressLabel {
+  if (standing.phase === "unseen") return "notStarted";
   if (standing.phase === "acquiring") return "learning";
-  return standing.due ? "due for review" : "retained";
+  return standing.due ? "dueForReview" : "retained";
 }
 
 function ProgressSummary({ report }: { report: LearnerProgressReport }) {
+  const { t } = useLingui();
   const labels = report.objectives.map(labelOf);
-  const line = LABELS.map(
-    (label) => [label, labels.filter((each) => each === label).length] as const,
-  )
+  const line = (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
+    .map((label) => [label, labels.filter((each) => each === label).length] as const)
     .filter(([, count]) => count > 0)
-    .map(([label, count]) => `${count} ${label}`)
+    .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)))
     .join(" · ");
   if (!line) return null;
 
@@ -123,7 +173,7 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
       <ul className="mt-2 flex flex-col gap-1">
         {report.objectives.map((standing) => (
           <li key={standing.objectiveId}>
-            {standing.title}: {labelOf(standing)}
+            {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
           </li>
         ))}
       </ul>
@@ -137,28 +187,32 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
  * no task. A label, since a title may be a phrase ("Greet someone").
  */
 function CaughtUp({ report }: { report: LearnerProgressReport | undefined }) {
+  const { t, i18n } = useLingui();
   // Read moments apart from the activity, the report may already count one due,
   // whose time has passed.
   const next = report?.objectives
     .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
     .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
-  return (
-    <Notice
-      title="You're caught up"
-      description={
-        next
-          ? `Nothing is due right now. Next review due: ${next.title}, on ${dueOn(next.dueAt)}.`
-          : "Nothing is due right now."
-      }
-    />
-  );
+  let description = t`Nothing is due right now.`;
+  if (next) {
+    const objectiveTitle = next.title;
+    const nextReviewAt = new Intl.DateTimeFormat(i18n.locale, {
+      dateStyle: "full",
+      timeStyle: "short",
+    }).format(roundUpToMinute(Date.parse(next.dueAt)));
+    description = t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
+  }
+  return <Notice title={t`You're caught up`} description={description} />;
 }
 
-function dueOn(dueAt: string): string {
-  return roundUpToMinute(Date.parse(dueAt)).toLocaleString([], {
-    dateStyle: "full",
-    timeStyle: "short",
-  });
+function NoPractice({ objectiveTitle }: { objectiveTitle: string }) {
+  const { t } = useLingui();
+  return (
+    <Notice
+      title={t`Nothing to practise right now`}
+      description={t`${objectiveTitle} comes next, but there's no practice for it yet.`}
+    />
+  );
 }
 
 /** For a time shown to the minute: an earlier one would bring the learner back too soon. */
@@ -173,11 +227,16 @@ function roundUpToMinute(time: number): Date {
  */
 function CourseError() {
   const router = useRouter();
+  const { t } = useLingui();
   return (
-    <Notice title="Something went wrong.">
-      <Button onClick={() => router.invalidate()}>Try again</Button>
+    <Notice title={t`Something went wrong.`}>
+      <Button onClick={() => router.invalidate()}>
+        <Trans>Try again</Trans>
+      </Button>
       <Button asChild variant="outline">
-        <Link to="/">Your courses</Link>
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
       </Button>
     </Notice>
   );
@@ -186,6 +245,7 @@ function CourseError() {
 /** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
 function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retryAfter: number }) {
   const router = useRouter();
+  const { t, i18n } = useLingui();
   const delay = retryAfter * 1000;
   // Display only: the timer waits out the duration, so the device's clock cannot move it.
   const [retryAt] = useState(() => Date.now() + delay);
@@ -195,10 +255,15 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
     return () => clearTimeout(timer);
   }, [delay, router]);
 
+  const continuesAt = new Intl.DateTimeFormat(i18n.locale, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(roundUpToMinute(retryAt));
+
   return (
     <Notice
-      title="Take a short break"
-      description={`You practised ${objectiveTitle} recently. Practice continues at ${roundUpToMinute(retryAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, so the next try shows what you remember.`}
+      title={t`Take a short break`}
+      description={t`You practised ${objectiveTitle} recently. Practice continues at ${continuesAt}, so the next try shows what you remember.`}
     />
   );
 }
@@ -212,22 +277,29 @@ function Reason({ decision }: { decision: LearningDecision }) {
     case "introduce":
       return null;
     case "reteach":
-      return <MutedText>You missed this last time.</MutedText>;
-    case "review":
       return (
         <MutedText>
-          Due for review: about {Math.round(decision.retrievability * 100)}% likely to recall now.
+          <Trans>You missed this last time.</Trans>
         </MutedText>
       );
+    case "review": {
+      const percent = Math.round(decision.retrievability * 100);
+      return (
+        <MutedText>
+          <Trans>Due for review: about {percent}% likely to recall now.</Trans>
+        </MutedText>
+      );
+    }
     default:
       return decision satisfies never;
   }
 }
 
-const INTENT_LABELS: Record<LearningDecision["intent"], string> = {
-  introduce: "New",
-  reteach: "Try again",
-  review: "Review",
+/** In context, as each reads unlike the same English elsewhere ("Try again", the button). */
+const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
+  introduce: msg({ message: "New", context: "Why a question comes now" }),
+  reteach: msg({ message: "Try again", context: "Why a question comes now" }),
+  review: msg({ message: "Review", context: "Why a question comes now" }),
 };
 
 function Practice({
@@ -240,6 +312,7 @@ function Practice({
   const { braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
   const router = useRouter();
+  const { t } = useLingui();
   const [chosen, setChosen] = useState<number>();
   const [grade, setGrade] = useState<Grade>();
   // Counted, not flagged, so that each answer left unconfirmed gets a new alert (below).
@@ -312,7 +385,7 @@ function Practice({
   }
 
   // No retry, unlike a failed load: this answer would be refused again.
-  if (refused) return <Notice title="Something went wrong." />;
+  if (refused) return <Notice title={t`Something went wrong.`} />;
 
   const correctAnswer =
     grade?.outcome === "failure"
@@ -323,7 +396,7 @@ function Practice({
     <section className="flex flex-col gap-6">
       <div id={contextId} className="flex flex-col wrap-break-word">
         <MutedText>
-          {INTENT_LABELS[decision.intent]} · {objective.title}
+          {t(INTENT_LABELS[decision.intent])} · {objective.title}
         </MutedText>
         <Reason decision={decision} />
       </div>
@@ -342,7 +415,9 @@ function Practice({
           {/* Only the alert is keyed, so failing again mounts a new one, not the
               same one unchanged, while Send again keeps its node and focus. */}
           <Alert key={unconfirmedCount} variant="destructive">
-            <AlertDescription>Your answer could not be confirmed.</AlertDescription>
+            <AlertDescription>
+              <Trans>Your answer could not be confirmed.</Trans>
+            </AlertDescription>
           </Alert>
           {/* aria-disabled while resending, so that it keeps the focus. */}
           <Button
@@ -351,7 +426,7 @@ function Practice({
             aria-disabled={sending}
             onClick={() => !sending && submit(chosen)}
           >
-            {sending ? "Sending…" : "Send again"}
+            {sending ? t`Sending…` : t`Send again`}
           </Button>
         </>
       )}
@@ -360,13 +435,17 @@ function Practice({
           {/* `wrap-anywhere`: a grid, whose column is otherwise as wide as the
               explanation's longest word, such as a link. */}
           <Alert className="wrap-anywhere">
-            <AlertTitle>{grade.outcome === "success" ? "Correct" : "Not quite"}</AlertTitle>
+            <AlertTitle>{grade.outcome === "success" ? t`Correct` : t`Not quite`}</AlertTitle>
             {(correctAnswer || grade.explanation) && (
               <AlertDescription>
                 {/* Named, not only marked, so a learner need not go back to the
                     options once Continue takes the focus, or a phone scrolls them
                     away. */}
-                {correctAnswer && <p>The answer: {correctAnswer}</p>}
+                {correctAnswer && (
+                  <p>
+                    <Trans>The answer: {correctAnswer}</Trans>
+                  </p>
+                )}
                 {grade.explanation && <p>{grade.explanation}</p>}
               </AlertDescription>
             )}
@@ -375,7 +454,7 @@ function Practice({
             // Titled, so a learner reads the quotes as where the answer comes from.
             <section aria-labelledby={passagesId} className="flex flex-col gap-3">
               <Heading level={2} id={passagesId} className="mb-0">
-                From your lessons
+                <Trans>From your lessons</Trans>
               </Heading>
               {grade.passages.map((passage, index) => (
                 <SourcePassage
@@ -392,7 +471,7 @@ function Practice({
           )}
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
           <Button size="lg" autoFocus aria-disabled={continuing} onClick={next}>
-            {continuing ? "Loading…" : "Continue"}
+            {continuing ? t`Loading…` : t`Continue`}
           </Button>
         </>
       )}

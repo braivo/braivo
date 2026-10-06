@@ -3,6 +3,7 @@
 
 import { Button } from "@braivo/ui/components/button";
 import { t } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
@@ -22,14 +23,21 @@ export const Route = createRootRouteWithContext<AppContext>()({
     meta: [{ title: loaderData?.organization?.name ?? t`Learning` }],
   }),
   component: Root,
-  notFoundComponent: () => (
-    <Notice title="There is nothing here.">
+  notFoundComponent: NotFound,
+});
+
+function NotFound() {
+  const { t } = useLingui();
+  return (
+    <Notice title={t`There is nothing here.`}>
       <Button asChild variant="outline">
-        <Link to="/">Your courses</Link>
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
       </Button>
     </Notice>
-  ),
-});
+  );
+}
 
 function Root() {
   const { organization } = Route.useLoaderData();

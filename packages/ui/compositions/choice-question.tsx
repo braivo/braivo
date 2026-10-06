@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { Trans, useLingui } from "@lingui/react/macro";
 import { type KeyboardEvent, type Ref, useId } from "react";
 
 import { Button } from "#components/button";
@@ -47,6 +48,7 @@ export function ChoiceQuestion(props: {
 }) {
   const { prompt, options, chosen, correctChoice, pending, onChoose, ref } = props;
   const describedBy = props["aria-describedby"];
+  const { t } = useLingui();
   const promptId = useId();
   const graded = correctChoice !== undefined;
   const locked = graded || chosen !== undefined;
@@ -105,16 +107,22 @@ export function ChoiceQuestion(props: {
                 {text}
               </span>
               {correct && (
-                <span className="shrink-0 text-xs font-semibold text-primary">Correct</span>
+                <span className="shrink-0 text-xs font-semibold text-primary">
+                  <Trans context="Marks the correct option">Correct</Trans>
+                </span>
               )}
               {wrong && (
-                <span className="shrink-0 text-xs font-semibold text-destructive">Your answer</span>
+                <span className="shrink-0 text-xs font-semibold text-destructive">
+                  <Trans>Your answer</Trans>
+                </span>
               )}
               {ungraded &&
                 (pending ? (
-                  <Spinner />
+                  <Spinner aria-label={t`Loading`} />
                 ) : (
-                  <span className="shrink-0 text-xs font-semibold">Your answer</span>
+                  <span className="shrink-0 text-xs font-semibold">
+                    <Trans>Your answer</Trans>
+                  </span>
                 ))}
             </Button>
           );

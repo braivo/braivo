@@ -1,12 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { i18n } from "@lingui/core";
+import { I18nProvider } from "@lingui/react";
+import { cleanup, render as renderBare, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { SourcePassage } from "./source-passage.tsx";
 
 afterEach(cleanup);
+
+/** Under the provider the apps put around marked copy, with the setup's English active. */
+const render = (ui: ReactNode) =>
+  renderBare(ui, {
+    wrapper: ({ children }) => <I18nProvider i18n={i18n}>{children}</I18nProvider>,
+  });
 
 describe("a passage from a book", () => {
   test("says which page it is on, and links to the book as it is", () => {
