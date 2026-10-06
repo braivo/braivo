@@ -110,6 +110,24 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     ]);
   });
 
+  test("gives every tool a title and all four hints, so a client need not assume the worst", async () => {
+    const { tools } = await agent.listTools();
+
+    for (const tool of tools) {
+      expect(tool.title?.trim(), `${tool.name} has no title`).toBeTruthy();
+      for (const hint of [
+        "readOnlyHint",
+        "destructiveHint",
+        "idempotentHint",
+        "openWorldHint",
+      ] as const) {
+        expect(typeof tool.annotations?.[hint], `${tool.name} does not declare ${hint}`).toBe(
+          "boolean",
+        );
+      }
+    }
+  });
+
   test("lists only the organizations the content owner manages", async () => {
     expect(await json("list_organizations")).toEqual([
       { id: organizationId, name: organizationId, slug: organizationId },
