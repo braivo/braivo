@@ -99,6 +99,14 @@ const taskText = text(2000);
 /** How many quotes one call may ask Braivo to find, each a scan of its source. */
 const MAX_QUOTES = 200;
 
+/** What every tool that only reads declares: it changes nothing, so repeating it is safe. */
+const READ_ONLY = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+} as const;
+
 export { StdioServerTransport };
 
 /** Braivo's tools, reaching it through `client` as the signed-in content owner. */
@@ -111,9 +119,10 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "list_organizations",
     {
+      title: "List organizations",
       description:
         "The organizations the signed-in content owner manages: where the other tools work.",
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     () => answer(client.listOrganizations()),
   );
@@ -121,9 +130,10 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "list_sources",
     {
+      title: "List sources",
       description: "An organization's sources, by title, without their text.",
       inputSchema: { organizationId },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     ({ organizationId }) => answer(client.listSources(organizationId)),
   );
@@ -131,9 +141,10 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "read_source",
     {
+      title: "Read a source",
       description: "One source with its full text: what quotes are cited from.",
       inputSchema: { organizationId, sourceId: z.string().min(1) },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     (input) => answer(client.getSource(input)),
   );
@@ -141,6 +152,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "add_source",
     {
+      title: "Add a source",
       description:
         "Adds material as plain text and returns its ID. A source is never edited: a revised document is a new source. Adding one already there returns its ID, so retrying is safe.",
       inputSchema: {
@@ -156,6 +168,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
           .optional()
           .describe("The text's main language, as a BCP 47 tag: es, en-US."),
       },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => answer({ sourceId: await client.addSource(input) }),
   );
@@ -163,6 +181,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "add_transcript",
     {
+      title: "Add a transcript",
       description:
         "Adds a recording's transcript — a video's captions — as a source, and returns its ID. Braivo joins the cues into the text, one per line, and keeps when each is said, so a passage cited from it takes a learner to that moment of the video. Adding one already there returns its ID.",
       inputSchema: {
@@ -188,6 +207,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
           .optional()
           .describe("The language spoken, as a BCP 47 tag: es, en-US."),
       },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => answer({ sourceId: await client.addSource(input) }),
   );
@@ -195,6 +220,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "add_document",
     {
+      title: "Add a document",
       description:
         "Adds a document — a textbook, a worksheet, slides — page by page as a source, and returns its ID. Braivo joins the pages into the text and keeps where each begins, so a passage cited from it tells a learner which page of their book to turn to. Adding one already there returns its ID.",
       inputSchema: {
@@ -225,6 +251,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
           .optional()
           .describe("The text's main language, as a BCP 47 tag: es, en-US."),
       },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => answer({ sourceId: await client.addSource(input) }),
   );
@@ -232,10 +264,11 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "list_objectives",
     {
+      title: "List objectives",
       description:
         "An organization's objectives, by title. Reuse one rather than defining it again.",
       inputSchema: { organizationId },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     ({ organizationId }) => answer(client.listObjectives(organizationId)),
   );
@@ -243,11 +276,18 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "define_objectives",
     {
+      title: "Define objectives",
       description:
         "Defines learning targets — stable, assessable, one each — and returns their IDs in the order given. Give each a key; defining it again under that key returns it.",
       inputSchema: {
         organizationId,
         objectives: z.array(z.object({ title, key })).min(1).max(1000),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     },
     async (input) => answer({ objectiveIds: await client.defineObjectives(input) }),
@@ -256,6 +296,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "cite_sources",
     {
+      title: "Cite sources",
       description:
         "Links objectives to the passages of sources that teach them. Braivo locates each quote and refuses the whole batch over one it cannot find once.",
       inputSchema: {
@@ -266,7 +307,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
           .max(MAX_QUOTES)
           .describe(`At most ${MAX_QUOTES}; send more in several calls.`),
       },
-      annotations: { idempotentHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => answer({ citations: await client.citeSources(input) }),
   );
@@ -274,6 +320,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "author_tasks",
     {
+      title: "Author tasks",
       description:
         "Adds multiple-choice tasks, each practising one objective and citing the passages it was written from. Returns their IDs; a task already there returns its ID, so retrying is safe. Tasks are never edited: one task sent alone with replaces corrects an existing one.",
       inputSchema: {
@@ -323,6 +370,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
           )
           .describe(`Citing at most ${MAX_QUOTES} quotes in all; send more in several calls.`),
       },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => answer({ taskIds: await client.defineTasks(input) }),
   );
@@ -330,10 +383,11 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "list_tasks",
     {
+      title: "List tasks",
       description:
         "An objective's tasks learners are offered, oldest first, each with its ID, answer, and the passages it cites. Read them before writing more, to review a course or to avoid near-duplicates.",
       inputSchema: { organizationId, objectiveId: z.string().min(1) },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     (input) => answer(client.listTasks(input)),
   );
@@ -341,13 +395,19 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "retire_tasks",
     {
+      title: "Retire tasks",
       description:
         "Withdraws tasks from practice: learners are never asked them again, and what they answered stays. To correct a task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
       inputSchema: {
         organizationId,
         taskIds: z.array(z.string().min(1)).min(1).max(1000),
       },
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (input) => {
       await client.retireTasks(input);
@@ -358,9 +418,10 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "list_courses",
     {
+      title: "List courses",
       description: "An organization's courses, by title.",
       inputSchema: { organizationId },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     ({ organizationId }) => answer(client.listCourses(organizationId)),
   );
@@ -368,10 +429,11 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "read_course",
     {
+      title: "Read a course",
       description:
         "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. Read it to review a whole course at once.",
       inputSchema: { organizationId, courseId: z.string().min(1) },
-      annotations: { readOnlyHint: true },
+      annotations: READ_ONLY,
     },
     (input) => answer(client.readCourse(input)),
   );
@@ -379,6 +441,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
   server.registerTool(
     "create_course",
     {
+      title: "Create a course",
       description:
         "Creates a course over existing objectives, in the order learners meet them. Learners are then taught and reviewed adaptively. Give it a key; creating it again under that key returns it.",
       inputSchema: {
@@ -386,6 +449,12 @@ export function createMcpServer(client: BraivoClient): McpServer {
         title,
         objectiveIds: z.array(z.string().min(1)).max(1000),
         key,
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     },
     async (input) => answer({ courseId: await client.defineCourse(input) }),
