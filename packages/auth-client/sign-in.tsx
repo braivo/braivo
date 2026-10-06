@@ -2,12 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { SignInForm, type SignInStep, type SignInValues } from "@braivo/ui";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
-type AuthResult<Data = unknown> = {
-  data?: Data | null;
-  error: { code?: string; message?: string } | null;
-};
+/**
+ * A refusal as Better Auth's client answers it. `message` is the server's
+ * English and never shown: a refusal is worded here, from `code` or `status`
+ * (ADR 0035).
+ */
+type AuthError = { code?: string; status?: number; message?: string };
+
+type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null };
 
 /**
  * The part of a Better Auth client, with its email code plugin, that signing in
@@ -35,16 +42,28 @@ export type SignInAuth = {
 
 /**
  * Better Auth's refusals of a code, said so the next step is plain. Only these
- * clear the code typed.
+ * clear the code typed. Better Auth's codes, not Braivo's: recheck them on
+ * upgrading it.
  */
-const CODE_REFUSALS: Partial<Record<string, string>> = {
-  INVALID_OTP: "That code is not right. Check it, or send a new one.",
-  OTP_EXPIRED: "That code has expired. Send a new one.",
-  TOO_MANY_ATTEMPTS: "That code was tried too many times. Send a new one.",
+const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
+  INVALID_OTP: msg`That code is not right. Check it, or send a new one.`,
+  OTP_EXPIRED: msg`That code has expired. Send a new one.`,
+  TOO_MANY_ATTEMPTS: msg`That code was tried too many times. Send a new one.`,
 };
 
-function refusal(error: { code?: string; message?: string }): string {
-  return CODE_REFUSALS[error.code ?? ""] ?? (error.message || "That did not work. Try again.");
+/**
+ * Why a step was refused: a code's refusal, Braivo's own (`apps/server/auth`),
+ * a rate limit, which Better Auth's limiter answers with no code, or else a
+ * generic line.
+ */
+function refusal(error: AuthError): MessageDescriptor {
+  const known = CODE_REFUSALS[error.code ?? ""];
+  if (known) return known;
+  if (error.code === "SIGN_IN_CODE_JUST_SENT") {
+    return msg`A code was just sent to this address. Wait a minute before asking again.`;
+  }
+  if (error.status === 429) return msg`Too many tries. Wait a minute, then try again.`;
+  return msg`That did not work. Try again.`;
 }
 
 /**
@@ -52,27 +71,27 @@ function refusal(error: { code?: string; message?: string }): string {
  * name: the learn app runs under the organization's brand, not Braivo's
  * (ADR 0004).
  */
-const UNANSWERED = "Could not connect. Check your connection and try again.";
+const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
 
 /**
  * Why Google's round trip came back to `errorCallbackURL`, from its `error`.
  * `access_denied` is not only a cancel: it is also a school's administrator
  * blocking the app, which must not pass in silence.
  */
-function googleRefusal(error: string | undefined): string | undefined {
+function googleRefusal(error: string | undefined): MessageDescriptor | undefined {
   if (error === undefined) return undefined;
   // Better Auth's own code for the same, on reaching an account an emailed
   // code made.
   if (error === "email_not_verified" || error === "account_not_linked") {
-    return "Your Google account's email is not verified. Sign in with a code instead.";
+    return msg`Your Google account's email is not verified. Sign in with a code instead.`;
   }
   if (error === "email_changed") {
-    return "Your Google account's email no longer matches this account. Sign in with a code to the account's email.";
+    return msg`Your Google account's email no longer matches this account. Sign in with a code to the account's email.`;
   }
   return GOOGLE_FAILED;
 }
 
-const GOOGLE_FAILED = "Could not sign in with Google. Try again, or sign in with a code.";
+const GOOGLE_FAILED = msg`Could not sign in with Google. Try again, or sign in with a code.`;
 
 /** Where Google sends the person back: signed in, or refused with an `error` parameter. */
 type GoogleSignIn = {
@@ -98,6 +117,7 @@ export function SignIn(props: {
   google?: GoogleSignIn;
 }) {
   const { auth, google } = props;
+  const { t } = useLingui();
   const [step, setStep] = useState<SignInStep>(
     props.needsName ? { step: "name" } : { step: "email" },
   );
@@ -105,7 +125,7 @@ export function SignIn(props: {
   const [pending, setPending] = useState(false);
 
   /** Takes one step, answering why it was refused if it was. */
-  async function next(values: SignInValues): Promise<string | undefined> {
+  async function next(values: SignInValues): Promise<MessageDescriptor | undefined> {
     if (values.step === "email") {
       const { error } = await auth.emailOtp.sendVerificationOtp({
         email: values.email,
@@ -133,7 +153,7 @@ export function SignIn(props: {
       // refused every time, so sign in again.
       if (error?.code === "UNAUTHORIZED") {
         setStep({ step: "email" });
-        return "You were signed out. Sign in again.";
+        return msg`You were signed out. Sign in again.`;
       }
       if (error) return refusal(error);
       props.onSignedIn();
@@ -178,7 +198,7 @@ export function SignIn(props: {
     <SignInForm
       step={step}
       pending={pending}
-      error={error}
+      error={error && t(error)}
       onSubmit={submit}
       onResend={
         step.step === "code" ? () => submit({ step: "email", email: step.email }) : undefined

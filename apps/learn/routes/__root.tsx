@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Button } from "@braivo/ui/components/button";
+import { t } from "@lingui/core/macro";
 import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
@@ -18,7 +19,7 @@ export const Route = createRootRouteWithContext<AppContext>()({
   staleTime: Infinity,
   // The title, unless a page names itself (`#lib/title`); `index.html` has none.
   head: ({ loaderData }) => ({
-    meta: [{ title: loaderData?.organization?.name ?? "Learning" }],
+    meta: [{ title: loaderData?.organization?.name ?? t`Learning` }],
   }),
   component: Root,
   notFoundComponent: () => (

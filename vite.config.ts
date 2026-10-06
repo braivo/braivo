@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { lingui } from "@lingui/vite-plugin";
 import { defineConfig } from "vite-plus";
 
 /** What the shadcn CLI generates into `packages/ui` (ADR 0011, ADR 0012). */
@@ -32,6 +33,20 @@ const bunOnly = [
   "apps/server/storage/directory.ts",
   "**/*.test.ts",
 ];
+
+/**
+ * For a test project rendering marked copy (ADR 0035): its macros compiled and
+ * catalogs loaded as in the apps, and English active.
+ */
+const localized = (name: string, root: string) => ({
+  plugins: [lingui({ macroTransform: true })],
+  test: {
+    name,
+    root,
+    environment: "happy-dom",
+    setupFiles: ["../../packages/i18n/test-setup.ts"],
+  },
+});
 
 /**
  * Workspace policy: how every package is linted, formatted, type-checked,
@@ -120,10 +135,11 @@ export default defineConfig({
       },
       { test: { name: "db", root: "packages/db" } },
       { test: { name: "tooling", root: "tooling" } },
-      { test: { name: "ui", root: "packages/ui", environment: "happy-dom" } },
-      { test: { name: "auth-client", root: "packages/auth-client", environment: "happy-dom" } },
-      { test: { name: "learn", root: "apps/learn", environment: "happy-dom" } },
-      { test: { name: "console", root: "apps/console", environment: "happy-dom" } },
+      localized("i18n", "packages/i18n"),
+      localized("ui", "packages/ui"),
+      localized("auth-client", "packages/auth-client"),
+      localized("learn", "apps/learn"),
+      localized("console", "apps/console"),
     ],
   },
 });

@@ -54,6 +54,30 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test
 
+  # Every app builds: a translation missing or malformed fails it (ADR 0035), as
+  # does what only the bundler sees.
+  build:
+    name: bun run build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+  # Every supported language's catalog is complete and in step with the marked
+  # copy (ADR 0035).
+  i18n:
+    name: bun run i18n:check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run i18n:check
+
   # Every file Braivo writes declares its license (ADR 0002).
   license:
     name: bun run license:check

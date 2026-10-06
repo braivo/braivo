@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { activateLocale, chooseLocale, LocalizationProvider } from "@braivo/i18n";
+import { cleanup, fireEvent, render as renderBare, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { SignIn, type SignInAuth } from "./sign-in.tsx";
 
 afterEach(cleanup);
+
+/** Under the provider the apps put around marked copy, with the setup's English active. */
+const render = (ui: ReactNode) => renderBare(ui, { wrapper: LocalizationProvider });
 
 /** A client accepting every step, for an account named `name`. */
 function fakeAuth(name: string) {
@@ -26,6 +31,13 @@ function fakeAuth(name: string) {
     updateUser: vi.fn<SignInAuth["updateUser"]>(async () => ({ error: null })),
   };
 }
+
+/** Braivo's refusal of a second code within a minute (`apps/server/auth`). */
+const justSent = {
+  code: "SIGN_IN_CODE_JUST_SENT",
+  status: 429,
+  message: "A code was just sent to this address. Wait a minute before asking again.",
+};
 
 const google = { callbackURL: "/courses", errorCallbackURL: "/login?redirect=%2Fcourses" };
 
@@ -149,11 +161,7 @@ describe("SignIn", () => {
     await screen.findByLabelText("Code");
 
     fill("Code", "123");
-    auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({
-      error: {
-        message: "A code was just sent to this address. Wait a minute before asking again.",
-      },
-    });
+    auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({ error: justSent });
     fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/^A code was just sent/);
     // The first code still works, so what was typed of it is kept.
@@ -178,20 +186,28 @@ describe("SignIn", () => {
     });
   });
 
-  test("shows the server's reason for a refusal it has no wording for", async () => {
+  test("words a refusal from its code or status, never in the server's words", async () => {
     const auth = fakeAuth("Ada");
-    auth.emailOtp.sendVerificationOtp.mockResolvedValue({
-      error: {
-        message: "A code was just sent to this address. Wait a minute before asking again.",
-      },
-    });
-    render(<SignIn auth={auth} onSignedIn={vi.fn()} />);
+    const shown = async (error: { code?: string; status: number; message: string }) => {
+      auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({ error });
+      render(<SignIn auth={auth} onSignedIn={vi.fn()} />);
+      fill("Email", "learner@example.com");
+      fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+      const alert = (await screen.findByRole("alert")).textContent;
+      // Still at the email, to ask again.
+      expect(screen.getByLabelText("Email")).toBeTruthy();
+      cleanup();
+      return alert;
+    };
 
-    fill("Email", "learner@example.com");
-    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
-
-    expect((await screen.findByRole("alert")).textContent).toMatch(/^A code was just sent/);
-    expect(screen.getByLabelText("Email")).toBeTruthy();
+    expect(await shown(justSent)).toMatch(/^A code was just sent/);
+    // Better Auth's own rate limit answers with no code.
+    expect(
+      await shown({ status: 429, message: "Too many requests. Please try again later." }),
+    ).toBe("Too many tries. Wait a minute, then try again.");
+    expect(await shown({ code: "SOMETHING_NEW", status: 400, message: "Something new." })).toBe(
+      "That did not work. Try again.",
+    );
   });
 
   test("lets the learner try again after a request that got no answer", async () => {
@@ -212,7 +228,10 @@ describe("SignIn", () => {
     const auth = fakeAuth("Ada");
     auth.signIn.emailOtp
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValueOnce({ data: null, error: { message: "Too many requests." } });
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: "SOMETHING_NEW", status: 400, message: "Something new." },
+      });
     const onSignedIn = vi.fn();
     render(<SignIn auth={auth} onSignedIn={onSignedIn} />);
     const code = () => (screen.getByLabelText("Code") as HTMLInputElement).value;
@@ -221,7 +240,7 @@ describe("SignIn", () => {
     expect((await screen.findByRole("alert")).textContent).toMatch(/^Could not connect/);
     expect(code()).toBe("123456");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await screen.findByText("Too many requests.");
+    await screen.findByText("That did not work. Try again.");
     expect(code()).toBe("123456");
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -284,6 +303,46 @@ describe("SignIn", () => {
     expect(shown("invalid_code")).toBe(
       "Could not sign in with Google. Try again, or sign in with a code.",
     );
+  });
+
+  test("speaks the browser's language at every step, refusals included", async () => {
+    onTestFinished(() => activateLocale("en"));
+    await activateLocale(chooseLocale(["pl-PL", "en"]));
+    const auth = fakeAuth("");
+    auth.signIn.emailOtp.mockResolvedValueOnce({
+      data: null,
+      error: { code: "INVALID_OTP", status: 400, message: "Invalid OTP" },
+    });
+    render(<SignIn auth={auth} onSignedIn={() => {}} google={google} />);
+
+    expect(screen.getByRole("button", { name: "Kontynuuj z Google" })).toBeTruthy();
+    expect(screen.getByText("lub")).toBeTruthy();
+    fill("E-mail", "learner@example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Wyślij kod" }));
+    expect(
+      await screen.findByText(
+        "Wysłano na adres learner@example.com. Sprawdź też folder ze spamem.",
+      ),
+    ).toBeTruthy();
+    fill("Kod", "123456");
+    fireEvent.click(screen.getByRole("button", { name: "Zaloguj się" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Ten kod jest nieprawidłowy. Sprawdź go lub wyślij nowy.",
+    );
+    expect(screen.getByRole("button", { name: "Wyślij nowy kod" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Użyj innego adresu e-mail" })).toBeTruthy();
+
+    // Pending, the button's spinner is named too.
+    const checked = Promise.withResolvers<{ data: { user: { name: string } }; error: null }>();
+    auth.signIn.emailOtp.mockReturnValueOnce(checked.promise);
+    fill("Kod", "654321");
+    fireEvent.click(screen.getByRole("button", { name: "Zaloguj się" }));
+    expect(await screen.findByRole("status", { name: "Ładowanie" })).toBeTruthy();
+    checked.resolve({ data: { user: { name: "" } }, error: null });
+
+    expect(await screen.findByLabelText("Imię i nazwisko")).toBeTruthy();
+    expect(screen.getByText("Tak widzą Cię inni w Twoich organizacjach.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dalej" })).toBeTruthy();
   });
 
   test("lets the person try Google again after it was refused or got no answer", async () => {

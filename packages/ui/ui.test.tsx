@@ -6,12 +6,21 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { i18n } from "@lingui/core";
+import { I18nProvider } from "@lingui/react";
+import { cleanup, fireEvent, render as renderBare, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { Heading, MutedText, SignInForm } from "./index.ts";
 
 afterEach(cleanup);
+
+/** Under the provider the apps put around marked copy, with the setup's English active. */
+const render = (ui: ReactNode) =>
+  renderBare(ui, {
+    wrapper: ({ children }) => <I18nProvider i18n={i18n}>{children}</I18nProvider>,
+  });
 
 describe("Braivo's components", () => {
   test("render headings at the level asked for, in the heading font", () => {

@@ -11,6 +11,7 @@ path = [
   "**/*.md",
   "**/*.json",
   "**/*.html",
+  "**/*.po",
   ".gitignore",
   ".worktreeinclude",
   "bun.lock",

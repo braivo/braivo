@@ -45,3 +45,4 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0011: `packages/ui` for presentation, `packages/auth-client` for signing in, and Storybook as an app](0011-ui-and-auth-client-packages.md)
 - [0012: shadcn/ui from a preset, updated with shadcn's own CLI](0012-shadcn-preset.md)
 - [0016: Route files mirror the URL, and a guard lives in its folder](0016-route-files.md)
+- [0035: Lingui for learner-facing localization](0035-lingui-localization.md)

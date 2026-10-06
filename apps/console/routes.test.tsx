@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { activateLocale, chooseLocale } from "@braivo/i18n";
 import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
 import { createConsoleRouter } from "./router.tsx";
@@ -528,6 +529,59 @@ describe("the console", () => {
       expect(screen.getByRole("link", { name: "Sign in again" }).getAttribute("href")).toBe(
         "https://learn.springo.app/login",
       );
+    });
+
+    test("speaks the browser's language, under the organization's name", async () => {
+      onTestFinished(() => activateLocale("en"));
+      await activateLocale(chooseLocale(["pl-PL", "en"]));
+      renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => springo,
+          completeHandoff: async () => {
+            throw new BraivoError(403, "Braivo answered 403.");
+          },
+        },
+      });
+
+      expect(await screen.findByRole("heading", { name: "Logowanie: Springo" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Logowanie: Springo"));
+      expect(screen.getByText("Potem przejdziesz na stronę learn.springo.app.")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Użyj innego konta" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Kontynuuj jako Olive Owner" }));
+      expect(
+        await screen.findByText(
+          "To konto nie należy do organizacji „Springo”. Poproś o dodanie, a potem spróbuj ponownie.",
+        ),
+      ).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
+      cleanup();
+
+      renderAt("/login?handoff=h2", { braivo: { handoff: async () => null } });
+      expect(await screen.findByRole("heading", { name: "To logowanie wygasło" })).toBeTruthy();
+      expect(screen.getByText("Wróć do poprzedniej strony i zaloguj się ponownie.")).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("To logowanie wygasło"));
+      cleanup();
+
+      renderAt("/login?handoff=h3", {
+        braivo: {
+          handoff: async () => {
+            throw new BraivoError(500, "Braivo answered 500.");
+          },
+        },
+      });
+      expect(await screen.findByRole("region", { name: "Coś poszło nie tak." })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
+      cleanup();
+
+      // The console's own sign-in, still loading after a second, then shown.
+      const methods = Promise.withResolvers<{ google: boolean }>();
+      renderAt("/login", { signedIn: false, braivo: { signInMethods: () => methods.promise } });
+      expect(
+        await screen.findByRole("status", { name: "Ładowanie" }, { timeout: 2000 }),
+      ).toBeTruthy();
+      methods.resolve({ google: false });
+      expect(await screen.findByLabelText("E-mail")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Wyślij kod" })).toBeTruthy();
     });
 
     test("names no account it did not read, when continuing must be tried again", async () => {

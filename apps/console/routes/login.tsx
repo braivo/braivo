@@ -7,10 +7,13 @@ import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 
-const expiredTitle = "This sign-in has expired";
+const expiredTitle = msg`This sign-in has expired`;
 
 /**
  * Signing in on the installation's origin: to the console, or, with
@@ -53,18 +56,13 @@ export const Route = createFileRoute("/login")({
           null),
   }),
   // A learn domain's sign-in never wears Braivo's name, expired included.
-  head: ({ loaderData }) =>
-    loaderData?.handoff === undefined
-      ? {}
-      : {
-          meta: [
-            {
-              title: loaderData.handoff
-                ? `Sign in to ${loaderData.handoff.organization.name}`
-                : expiredTitle,
-            },
-          ],
-        },
+  head: ({ loaderData }) => {
+    if (loaderData?.handoff === undefined) return {};
+    const organizationName = loaderData.handoff?.organization.name;
+    return {
+      meta: [{ title: organizationName ? t`Sign in to ${organizationName}` : t(expiredTitle) }],
+    };
+  },
   component: Login,
 });
 
@@ -112,6 +110,7 @@ function Login() {
 function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const { auth, braivo, visit, needsName, account } = Route.useRouteContext();
   const { handoff } = Route.useLoaderData();
+  const { t } = useLingui();
   // Back here signed in, where the account is offered as any open session is:
   // only a click hands someone over.
   const google = useGoogleSignIn(`/login?handoff=${encodeURIComponent(handoffId)}`);
@@ -122,7 +121,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   // signed out, what was read about it no longer holds.
   const [stale, setStale] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<MessageDescriptor>();
   // The pressed button is gone by the time a refusal shows, so the focus
   // moves to what comes next, after every refusal, a retried one too.
   const retry = useRef<HTMLButtonElement>(null);
@@ -132,7 +131,8 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
 
   if (!handoff) return <Expired />;
   if (view === "expired") return <Expired hostname={handoff.hostname} />;
-  const { name } = handoff.organization;
+  const { name: organizationName } = handoff.organization;
+  const { hostname } = handoff;
 
   /** From the account offered, or one just signed in to; failing, back to the former. */
   async function handOver() {
@@ -148,13 +148,13 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
       else if (status === 401) {
         setStale(true);
         setView("form");
-        setError("You were signed out. Sign in again.");
+        setError(msg`You were signed out. Sign in again.`);
       } else {
         setView("account");
         setError(
           thrown instanceof BraivoError
-            ? "Something went wrong. Try again."
-            : "Could not connect. Check your connection and try again.",
+            ? msg`Something went wrong. Try again.`
+            : msg`Could not connect. Check your connection and try again.`,
         );
       }
     }
@@ -166,7 +166,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     setError(undefined);
     const { error } = await auth.signOut().catch(() => ({ error: true }));
     setPending(false);
-    if (error) setError("Could not sign out. Try again.");
+    if (error) setError(msg`Could not sign out. Try again.`);
     else {
       setStale(true);
       setView("form");
@@ -176,18 +176,20 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   // aria-disabled, not disabled, so that they keep the focus meanwhile.
   const another = (
     <Button variant="link" aria-disabled={pending} onClick={switchAccount}>
-      Use another account
+      <Trans>Use another account</Trans>
     </Button>
   );
   return (
     <>
-      <Heading>Sign in to {name}</Heading>
+      <Heading>
+        <Trans>Sign in to {organizationName}</Trans>
+      </Heading>
       <MutedText className="mb-6 block wrap-break-word">
-        You will continue at {handoff.hostname}.
+        <Trans>You will continue at {hostname}.</Trans>
       </MutedText>
       {error && (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{t(error)}</AlertDescription>
         </Alert>
       )}
       {view === "form" && (
@@ -201,7 +203,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
           }}
         />
       )}
-      {view === "leaving" && <Spinner aria-label="Signing in" />}
+      {view === "leaving" && <Spinner aria-label={t`Signing in`} />}
       {view === "account" && (
         <div className="flex flex-col items-center gap-2">
           {/* Wrapped whole, an unbroken email too: the account is what tells
@@ -212,7 +214,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
             // An account still without a name is named first.
             onClick={() => !pending && (!stale && needsName ? setView("form") : handOver())}
           >
-            {account && !stale ? `Continue as ${account}` : "Continue"}
+            {account && !stale ? t`Continue as ${account}` : t`Continue`}
           </Button>
           {another}
         </div>
@@ -223,7 +225,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
               learner asks, then retries here while the handoff lasts. */}
           <Alert variant="destructive">
             <AlertDescription>
-              This account is not a member of {name}. Ask to be added, then try again.
+              <Trans>
+                This account is not a member of {organizationName}. Ask to be added, then try again.
+              </Trans>
             </AlertDescription>
           </Alert>
           <Button
@@ -232,7 +236,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
             aria-disabled={pending}
             onClick={() => !pending && handOver()}
           >
-            Try again
+            <Trans>Try again</Trans>
           </Button>
           {another}
         </div>
@@ -248,22 +252,28 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
  * `/login` starts a new handoff, as only it can set the nonce cookie.
  */
 function Expired({ hostname }: { hostname?: string }) {
+  const { t } = useLingui();
   const heading = useRef<HTMLHeadingElement>(null);
+  const title = t(expiredTitle);
   useLayoutEffect(() => {
-    document.title = expiredTitle;
+    document.title = title;
     if (hostname) heading.current?.focus();
-  }, [hostname]);
+  }, [title, hostname]);
   return (
     <>
       <Heading ref={heading} tabIndex={-1}>
-        {expiredTitle}
+        {title}
       </Heading>
       {hostname ? (
         <Button asChild className="mt-6 w-full">
-          <a href={`https://${hostname}/login`}>Sign in again</a>
+          <a href={`https://${hostname}/login`}>
+            <Trans>Sign in again</Trans>
+          </a>
         </Button>
       ) : (
-        <MutedText>Go back to the site you came from and sign in again.</MutedText>
+        <MutedText>
+          <Trans>Go back to the site you came from and sign in again.</Trans>
+        </MutedText>
       )}
     </>
   );

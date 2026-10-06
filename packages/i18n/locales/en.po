@@ -1,0 +1,188 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-10-06 10:35+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+
+#: packages/auth-client/sign-in.tsx
+msgid "A code was just sent to this address. Wait a minute before asking again."
+msgstr "A code was just sent to this address. Wait a minute before asking again."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "A new code was sent to {email}. Check your spam folder too."
+msgstr "A new code was sent to {email}. Check your spam folder too."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgctxt "The sign-in code sent by email"
+msgid "Code"
+msgstr "Code"
+
+#: apps/console/routes/login.tsx
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Continue"
+msgstr "Continue"
+
+#: apps/console/routes/login.tsx
+msgid "Continue as {account}"
+msgstr "Continue as {account}"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Continue with Google"
+msgstr "Continue with Google"
+
+#: apps/console/routes/login.tsx
+#: packages/auth-client/sign-in.tsx
+msgid "Could not connect. Check your connection and try again."
+msgstr "Could not connect. Check your connection and try again."
+
+#: packages/auth-client/sign-in.tsx
+msgid "Could not sign in with Google. Try again, or sign in with a code."
+msgstr "Could not sign in with Google. Try again, or sign in with a code."
+
+#: apps/console/routes/login.tsx
+msgid "Could not sign out. Try again."
+msgstr "Could not sign out. Try again."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Email"
+msgstr "Email"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Enter your name."
+msgstr "Enter your name."
+
+#: apps/console/routes/login.tsx
+msgid "Go back to the site you came from and sign in again."
+msgstr "Go back to the site you came from and sign in again."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "How others in your organizations see you."
+msgstr "How others in your organizations see you."
+
+#: apps/learn/routes/login.tsx
+msgid "It may have expired."
+msgstr "It may have expired."
+
+#: apps/learn/routes/__root.tsx
+msgid "Learning"
+msgstr "Learning"
+
+#: apps/console/router.tsx
+#: apps/learn/router.tsx
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Loading"
+msgstr "Loading"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "or"
+msgstr "or"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Send a new code"
+msgstr "Send a new code"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Send code"
+msgstr "Send code"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Sent to {email}. Check your spam folder too."
+msgstr "Sent to {email}. Check your spam folder too."
+
+#: apps/learn/routes/login.tsx
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Sign in"
+msgstr "Sign in"
+
+#: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
+msgid "Sign in again"
+msgstr "Sign in again"
+
+#: apps/console/routes/login.tsx
+msgid "Sign in to {organizationName}"
+msgstr "Sign in to {organizationName}"
+
+#: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
+msgid "Signing in"
+msgstr "Signing in"
+
+#: apps/console/router.tsx
+#: apps/learn/router.tsx
+msgid "Something went wrong."
+msgstr "Something went wrong."
+
+#: apps/console/routes/login.tsx
+msgid "Something went wrong. Try again."
+msgstr "Something went wrong. Try again."
+
+#: packages/auth-client/sign-in.tsx
+msgid "That code has expired. Send a new one."
+msgstr "That code has expired. Send a new one."
+
+#: packages/auth-client/sign-in.tsx
+msgid "That code is not right. Check it, or send a new one."
+msgstr "That code is not right. Check it, or send a new one."
+
+#: packages/auth-client/sign-in.tsx
+msgid "That code was tried too many times. Send a new one."
+msgstr "That code was tried too many times. Send a new one."
+
+#: packages/auth-client/sign-in.tsx
+msgid "That did not work. Try again."
+msgstr "That did not work. Try again."
+
+#: apps/console/routes/login.tsx
+msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
+msgstr "This account is not a member of {organizationName}. Ask to be added, then try again."
+
+#: apps/learn/routes/login.tsx
+msgid "This sign-in did not finish."
+msgstr "This sign-in did not finish."
+
+#: apps/console/routes/login.tsx
+msgid "This sign-in has expired"
+msgstr "This sign-in has expired"
+
+#: packages/auth-client/sign-in.tsx
+msgid "Too many tries. Wait a minute, then try again."
+msgstr "Too many tries. Wait a minute, then try again."
+
+#: apps/console/router.tsx
+#: apps/console/routes/login.tsx
+#: apps/learn/router.tsx
+msgid "Try again"
+msgstr "Try again"
+
+#: apps/console/routes/login.tsx
+msgid "Use another account"
+msgstr "Use another account"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Use another email"
+msgstr "Use another email"
+
+#: apps/console/routes/login.tsx
+#: packages/auth-client/sign-in.tsx
+msgid "You were signed out. Sign in again."
+msgstr "You were signed out. Sign in again."
+
+#: apps/console/routes/login.tsx
+msgid "You will continue at {hostname}."
+msgstr "You will continue at {hostname}."
+
+#: packages/auth-client/sign-in.tsx
+msgid "Your Google account's email is not verified. Sign in with a code instead."
+msgstr "Your Google account's email is not verified. Sign in with a code instead."
+
+#: packages/auth-client/sign-in.tsx
+msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
+msgstr "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Your name"
+msgstr "Your name"

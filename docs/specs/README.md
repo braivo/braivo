@@ -58,6 +58,7 @@ Grouped by primary concern. Start with the group's specs, and follow their links
 
 - [Access](access.md): sign-in, accounts, organizations, roles, and what each reaches, including enrollment.
 - [White-label](white-label.md): organization domains, the host ceiling, branding, and console addressing.
+- [Localization](localization.md): the language of Braivo's learner-facing copy and sign-in mail.
 
 Split an area out of its spec when it outgrows it, not before: grading from the learner loop once AI grades answers, enrollment from access once a course needs its own ([ADR 0018](../adr/0018-sign-in-and-invitations.md)), publishing from authoring once content has a draft state. Data export and retention, integrations, and notifications get a spec when their first feature does.
 

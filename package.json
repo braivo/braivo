@@ -16,9 +16,15 @@
     "db:migrate": "bun apps/server/cli/index.ts db migrate",
     "serve": "bun apps/server/cli/index.ts serve",
     "prepare": "vp config --no-agent",
+    "i18n:extract": "lingui extract --clean",
+    "i18n:check": "lingui check sync --clean && lingui check missing --mode catalog",
     "license:check": "uvx --from 'reuse[charset-normalizer]' reuse lint"
   },
   "devDependencies": {
+    "@lingui/cli": "6.9.0",
+    "@lingui/conf": "6.9.0",
+    "@lingui/format-po": "6.9.0",
+    "@lingui/vite-plugin": "6.9.0",
     "@types/bun": "latest",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.1",
