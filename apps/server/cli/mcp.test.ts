@@ -10,7 +10,12 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
 import { createOutbox, signInWithCode } from "../auth/testing.ts";
-import { readCourseObjectives } from "../persistence/index.ts";
+import {
+  createCourse,
+  createObjectives,
+  readCourseObjectives,
+  recordEvidence,
+} from "../persistence/index.ts";
 import { createMcpServer } from "./mcp.ts";
 import { remoteClient } from "./remote.ts";
 
@@ -35,15 +40,31 @@ const fetch = ((input: string | URL, init?: RequestInit) =>
 const organizationId = "mcp-test-org";
 /** One the content owner only learns in, where every other tool would be refused. */
 const learningOrganizationId = "mcp-test-learning-org";
+/** Made-up learners and a course they study, which the progress tools read. */
+const progressOrganizationId = "mcp-test-progress-org";
+const otherLearnerId = "mcp-test-other-learner";
 const at = new Date("2026-06-01T00:00:00.000Z");
 
 /** An agent, connected to `braivo mcp` as a desktop app would be, signed in as a content owner. */
 let agent!: Client;
+/** An agent signed in as a learner of the progress organization, who may read only their own report. */
+let learnerAgent!: Client;
+let progressCourseId!: string;
+let learnerId!: string;
 
 type ToolResult = { isError?: boolean; content: { type: string; text: string }[] };
 
-async function call(name: string, args: Record<string, unknown> = {}) {
-  const result = (await agent.callTool({ name, arguments: args })) as ToolResult;
+/** An agent connected to `braivo mcp` with `token`'s session. */
+async function connect(token: string): Promise<Client> {
+  const mcp = createMcpServer(remoteClient({ server, token }, fetch));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-agent", version: "0" });
+  await Promise.all([mcp.connect(serverSide), client.connect(clientSide)]);
+  return client;
+}
+
+async function call(name: string, args: Record<string, unknown> = {}, as: Client = agent) {
+  const result = (await as.callTool({ name, arguments: args })) as ToolResult;
   return { isError: result.isError ?? false, text: result.content[0]!.text };
 }
 
@@ -78,14 +99,40 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       at,
     });
 
-    const mcp = createMcpServer(remoteClient({ server, token }, fetch));
-    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-    agent = new Client({ name: "test-agent", version: "0" });
-    await Promise.all([mcp.connect(serverSide), agent.connect(clientSide)]);
+    agent = await connect(token);
+
+    // A learner of an organization the content owner administers, and another
+    // the content owner reads about but who has no session here.
+    const learner = await signInWithCode(
+      (path, init) => api.request(`/api/auth${path}`, init),
+      outbox,
+      { email: `mcp-test-${crypto.randomUUID()}@example.com`, name: "Ana" },
+    );
+    learnerId = learner.id;
+    await testing.seedOrganization(database, {
+      organizationId: progressOrganizationId,
+      learnerIds: [learnerId, otherLearnerId],
+      adminIds: [id],
+      at,
+    });
+    const [greetings, numbers] = (await createObjectives(database, progressOrganizationId, [
+      "Greetings",
+      "Numbers",
+    ])) as [string, string];
+    progressCourseId = await createCourse(database, {
+      organizationId: progressOrganizationId,
+      title: "Beginners",
+      objectiveIds: [greetings, numbers],
+    });
+    await recordEvidence(database, { learnerId, organizationId: progressOrganizationId }, [
+      { id: "mcp-test-evidence-1", objectiveId: greetings, outcome: "success", at },
+    ]);
+    learnerAgent = await connect(learner.token);
   });
 
   test("tells the agent the workflow, and that every quote is checked", () => {
     expect(agent.getInstructions()).toContain("Braivo checks every quote against the source.");
+    expect(agent.getInstructions()).toContain("course_progress, then learner_progress");
   });
 
   test("offers the tools a course is built with", async () => {
@@ -97,8 +144,10 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "add_transcript",
       "author_tasks",
       "cite_sources",
+      "course_progress",
       "create_course",
       "define_objectives",
+      "learner_progress",
       "list_courses",
       "list_objectives",
       "list_organizations",
@@ -128,9 +177,78 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     }
   });
 
+  test("reads a course's progress as its administrator, learners named", async () => {
+    const overview = await json<{
+      learners: { userId: string; name: string; standings: Record<string, number> }[];
+      objectives: { title: string; standings: Record<string, number> }[];
+    }>("course_progress", { courseId: progressCourseId });
+
+    const standingOf = (userId: string) =>
+      overview.learners.find((learner) => learner.userId === userId);
+    // Greetings was answered once, long ago, so it is due; Numbers was never seen.
+    expect(standingOf(learnerId)).toMatchObject({
+      name: "Ana",
+      standings: { unseen: 1, acquiring: 0, retained: 0, due: 1 },
+    });
+    expect(standingOf(otherLearnerId)?.standings).toEqual({
+      unseen: 2,
+      acquiring: 0,
+      retained: 0,
+      due: 0,
+    });
+    expect(overview.objectives.map((objective) => objective.title)).toEqual([
+      "Greetings",
+      "Numbers",
+    ]);
+  });
+
+  test("reads one learner's standing on each objective, with the evidence behind it", async () => {
+    const report = await json<{
+      objectives: { title: string; evidence: { outcome: string; at: string }[] }[];
+    }>("learner_progress", { courseId: progressCourseId, learnerId });
+
+    expect(report.objectives.map((objective) => objective.title)).toEqual(["Greetings", "Numbers"]);
+    expect(report.objectives[0]!.evidence).toEqual([{ outcome: "success", at: at.toISOString() }]);
+    expect(report.objectives[1]!.evidence).toEqual([]);
+  });
+
+  test("hands a learner Braivo's refusal, not a crash, when they ask for the course overview", async () => {
+    const refused = await call("course_progress", { courseId: progressCourseId }, learnerAgent);
+
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("404");
+  });
+
+  test("lets a learner read their own report", async () => {
+    const own = await call(
+      "learner_progress",
+      { courseId: progressCourseId, learnerId },
+      learnerAgent,
+    );
+
+    expect(own.isError).toBe(false);
+    expect(JSON.parse(own.text).objectives).toHaveLength(2);
+  });
+
+  test("refuses a learner another learner's report", async () => {
+    const refused = await call(
+      "learner_progress",
+      { courseId: progressCourseId, learnerId: otherLearnerId },
+      learnerAgent,
+    );
+
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("404");
+  });
+
   test("lists only the organizations the content owner manages", async () => {
-    expect(await json("list_organizations")).toEqual([
+    const organizations =
+      await json<{ id: string; name: string; slug: string }[]>("list_organizations");
+
+    // Not learningOrganizationId: the content owner only studies there.
+    expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
       { id: organizationId, name: organizationId, slug: organizationId },
+      { id: progressOrganizationId, name: progressOrganizationId, slug: progressOrganizationId },
     ]);
   });
 
