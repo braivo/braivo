@@ -8,6 +8,7 @@
     "build": "storybook build --output-dir dist"
   },
   "dependencies": {
+    "@braivo/i18n": "workspace:*",
     "@braivo/ui": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

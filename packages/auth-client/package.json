@@ -7,9 +7,12 @@
     ".": "./index.ts"
   },
   "dependencies": {
-    "@braivo/ui": "workspace:*"
+    "@braivo/ui": "workspace:*",
+    "@lingui/core": "6.9.0",
+    "@lingui/react": "6.9.0"
   },
   "devDependencies": {
+    "@braivo/i18n": "workspace:*",
     "@tanstack/react-router": "^1.170.36",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",

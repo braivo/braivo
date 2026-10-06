@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { LocalizationProvider } from "@braivo/i18n";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { Spinner } from "@braivo/ui/components/spinner";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createRouter, type RouterHistory, useRouter } from "@tanstack/react-router";
 import { useId, useLayoutEffect, useRef } from "react";
 
@@ -30,6 +32,8 @@ export function createConsoleRouter({
     // Not while a layout already shown reruns a slow `beforeLoad` (the session
     // check, say): the old page stays meanwhile.
     defaultPendingComponent: PagePending,
+    // Marked copy's provider, here so that tests rendering the router get it too.
+    Wrap: LocalizationProvider,
   });
 }
 
@@ -53,15 +57,22 @@ function PageError() {
   return (
     <Empty ref={focused} tabIndex={-1} role="region" aria-labelledby={titleId}>
       <EmptyHeader>
-        <EmptyTitle id={titleId}>Something went wrong.</EmptyTitle>
+        <EmptyTitle id={titleId}>
+          <Trans>Something went wrong.</Trans>
+        </EmptyTitle>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={() => router.invalidate()}>Try again</Button>
+        <Button onClick={() => router.invalidate()}>
+          <Trans>Try again</Trans>
+        </Button>
       </EmptyContent>
     </Empty>
   );
 }
 
 function PagePending() {
-  return <Spinner className="mx-auto my-12 block size-6 text-muted-foreground" />;
+  const { t } = useLingui();
+  return (
+    <Spinner aria-label={t`Loading`} className="mx-auto my-12 block size-6 text-muted-foreground" />
+  );
 }

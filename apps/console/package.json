@@ -13,8 +13,11 @@
   },
   "dependencies": {
     "@braivo/auth-client": "workspace:*",
+    "@braivo/i18n": "workspace:*",
     "@braivo/server": "workspace:*",
     "@braivo/ui": "workspace:*",
+    "@lingui/core": "6.9.0",
+    "@lingui/react": "6.9.0",
     "@tanstack/react-router": "^1.170.36",
     "better-auth": "1.7.5",
     "react": "^19.3.0",

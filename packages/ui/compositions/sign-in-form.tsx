@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { Trans, useLingui } from "@lingui/react/macro";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 
@@ -47,6 +48,7 @@ export function SignInForm(props: {
   onContinueWithGoogle?: () => void;
 }) {
   const { step } = props;
+  const { t } = useLingui();
   const id = useId();
   // Which button the pending request is from, to show its spinner there.
   const [viaGoogle, setViaGoogle] = useState(false);
@@ -67,7 +69,7 @@ export function SignInForm(props: {
       const name = value("name").trim();
       if (name) return props.onSubmit({ step: "name", name });
       const input = event.currentTarget.elements.namedItem("name") as HTMLInputElement;
-      input.setCustomValidity("Enter your name.");
+      input.setCustomValidity(t`Enter your name.`);
       input.reportValidity();
     }
   }
@@ -75,10 +77,12 @@ export function SignInForm(props: {
   let field: ReactNode;
   let action: string;
   if (step.step === "email") {
-    action = "Send code";
+    action = t`Send code`;
     field = (
       <Field>
-        <FieldLabel htmlFor={`${id}-email`}>Email</FieldLabel>
+        <FieldLabel htmlFor={`${id}-email`}>
+          <Trans>Email</Trans>
+        </FieldLabel>
         <Input
           id={`${id}-email`}
           name="email"
@@ -91,10 +95,13 @@ export function SignInForm(props: {
       </Field>
     );
   } else if (step.step === "code") {
-    action = "Sign in";
+    const { email } = step;
+    action = t`Sign in`;
     field = (
       <Field>
-        <FieldLabel htmlFor={`${id}-code`}>Code</FieldLabel>
+        <FieldLabel htmlFor={`${id}-code`}>
+          <Trans context="The sign-in code sent by email">Code</Trans>
+        </FieldLabel>
         <InputOTP
           // A refused or superseded code is cleared and focused by remounting
           // its input, so the next is typed into empty slots, not past a full
@@ -120,16 +127,21 @@ export function SignInForm(props: {
         </InputOTP>
         {/* A status, so a new code's arrival is announced. */}
         <FieldDescription id={`${id}-sent`} role="status" className="wrap-break-word">
-          {(step.sent ?? 1) > 1 ? "A new code was sent" : "Sent"} to {step.email}. Check your spam
-          folder too.
+          {(step.sent ?? 1) > 1 ? (
+            <Trans>A new code was sent to {email}. Check your spam folder too.</Trans>
+          ) : (
+            <Trans>Sent to {email}. Check your spam folder too.</Trans>
+          )}
         </FieldDescription>
       </Field>
     );
   } else {
-    action = "Continue";
+    action = t`Continue`;
     field = (
       <Field>
-        <FieldLabel htmlFor={`${id}-name`}>Your name</FieldLabel>
+        <FieldLabel htmlFor={`${id}-name`}>
+          <Trans>Your name</Trans>
+        </FieldLabel>
         <Input
           id={`${id}-name`}
           name="name"
@@ -141,7 +153,7 @@ export function SignInForm(props: {
           onChange={(event) => event.currentTarget.setCustomValidity("")}
         />
         <FieldDescription id={`${id}-name-hint`}>
-          How others in your organizations see you.
+          <Trans>How others in your organizations see you.</Trans>
         </FieldDescription>
       </Field>
     );
@@ -165,14 +177,16 @@ export function SignInForm(props: {
                 }}
               >
                 {props.pending && viaGoogle ? (
-                  <Spinner data-icon="inline-start" />
+                  <Spinner data-icon="inline-start" aria-label={t`Loading`} />
                 ) : (
                   <GoogleMark data-icon="inline-start" />
                 )}
-                Continue with Google
+                <Trans>Continue with Google</Trans>
               </Button>
             </Field>
-            <FieldSeparator>or</FieldSeparator>
+            <FieldSeparator>
+              <Trans>or</Trans>
+            </FieldSeparator>
           </>
         )}
         {field}
@@ -185,7 +199,9 @@ export function SignInForm(props: {
         {/* aria-disabled, not disabled, so that they keep the focus meanwhile. */}
         <Field>
           <Button type="submit" aria-disabled={props.pending}>
-            {props.pending && !viaGoogle && <Spinner data-icon="inline-start" />}
+            {props.pending && !viaGoogle && (
+              <Spinner data-icon="inline-start" aria-label={t`Loading`} />
+            )}
             {action}
           </Button>
           {/* Not while a code is checked: its answer would sign in the address left behind. */}
@@ -198,7 +214,7 @@ export function SignInForm(props: {
                   aria-disabled={props.pending}
                   onClick={() => !props.pending && props.onResend?.()}
                 >
-                  Send a new code
+                  <Trans>Send a new code</Trans>
                 </Button>
               )}
               {props.onChangeEmail && (
@@ -208,7 +224,7 @@ export function SignInForm(props: {
                   aria-disabled={props.pending}
                   onClick={() => !props.pending && props.onChangeEmail?.()}
                 >
-                  Use another email
+                  <Trans>Use another email</Trans>
                 </Button>
               )}
             </div>

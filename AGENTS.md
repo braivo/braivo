@@ -15,7 +15,7 @@ Work too large for one reviewable commit goes as ordered checkpoints in its plan
 
 Ask the maintainer before deciding or changing behavior or architecture no spec or ADR settles, and before running anything destructive or hard to undo on data worth keeping; implementing what is settled needs no approval. Only the maintainer grants approval, for what they approved: writing it in the plan records it, never creates it, and a batch approval skips the stops between its checkpoints, not a decision found along the way.
 
-After the last checkpoint, a context that did not write the change reviews its whole diff; resolve its material findings, then run the final gates on the result: `bun run test` (skipped only for a documentation-only change, as the report says), `bunx vp check`, and `bun run license:check`. The change is done when the applicable specs describe the resulting behavior and each material decision follows an accepted ADR or is recorded as `docs/adr/README.md` says. A correction the maintainer repeats because this guidance is missing or unclear goes into the narrowest lasting place, not the next prompt: here, `docs/architecture.md`, a spec, a test, or an ADR.
+After the last checkpoint, a context that did not write the change reviews its whole diff; resolve its material findings, then run the final gates on the result: `bun run test` (skipped only for a documentation-only change, as the report says), `bunx vp check`, `bun run build`, `bun run i18n:check`, and `bun run license:check`. The change is done when the applicable specs describe the resulting behavior and each material decision follows an accepted ADR or is recorded as `docs/adr/README.md` says. A correction the maintainer repeats because this guidance is missing or unclear goes into the narrowest lasting place, not the next prompt: here, `docs/architecture.md`, a spec, a test, or an ADR.
 
 ## Where things live
 
@@ -34,6 +34,7 @@ apps/storybook         catalog of @braivo/ui
 packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
+packages/i18n          the language an app speaks: catalogs, choosing one at startup
 tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup
 docs/                  product, architecture, glossary, adr/, specs/
 ```
@@ -54,4 +55,5 @@ One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`
   - Leave generated files as the CLI writes them. Change a component's look in the `Braivo:` section of `styles/globals.css` (CSS keyed on its `data-slot`, or a variable overriding the theme's), or wrap it in a composition; one app's own changes go the same way in its `styles.css`. The CLI keeps both, so overwriting is safe; an edit nothing else can make gets a `// Braivo:` comment saying why, and is restored after each refresh.
   - To update from upstream: `bunx shadcn add --all --overwrite --yes`, then review `git diff` and run the gates.
   - To change the design: `bunx shadcn apply <preset> --yes` (`--only theme,font` keeps the components; `init --force --reinstall` changes the base or the pointer). Then remove what the old preset left behind: font imports the theme no longer names, and dependencies nothing imports. Ask the maintainer before changing the preset.
+- Learner-facing copy is marked where it is rendered, with Lingui's macros (`docs/adr/0035-lingui-localization.md`): `<Trans>` and `useLingui`'s `t` in a component; `msg` for copy kept outside one, translated where shown; `@lingui/core/macro`'s `t` only in code running after the app starts (a route's `head`), never at a module's top level, which runs before the language is chosen. After changing marked copy, `bun run i18n:extract`, then translate each new entry in `packages/i18n/locales/` (an accessible name or title counts); `bun run i18n:check` fails until every catalog is complete.
 - A source file Braivo writes (`.ts`, `.tsx`, `.css`, shell) starts with the two-line SPDX header in `docs/adr/0002-agpl-only.md`; never add or change one in shadcn's files under `packages/ui`. `bun run license:check` fails on a missing one.

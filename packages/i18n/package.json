@@ -1,0 +1,21 @@
+{
+  "name": "@braivo/i18n",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./index.tsx"
+  },
+  "dependencies": {
+    "@lingui/core": "6.9.0",
+    "@lingui/react": "6.9.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "happy-dom": "^20.14.5",
+    "react": "^19.3.0"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  }
+}

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { activateLocale, chooseLocale } from "@braivo/i18n";
 import {
   type Activity,
   BraivoError,
@@ -202,6 +203,41 @@ describe("the learn app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
     // Where the failed sign-in was headed is not known here.
     expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F");
+  });
+
+  test("signs in in the browser's language, on every view of the way", async () => {
+    onTestFinished(() => activateLocale("en"));
+    await activateLocale(chooseLocale(["pl-PL", "en"]));
+    const springo = async () => ({ name: "Springo" });
+
+    renderAt("/login", { signedIn: false });
+    expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Nauka"));
+    expect(screen.getByLabelText("E-mail")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wyślij kod" })).toBeTruthy();
+    cleanup();
+
+    renderAt("/login", { signedIn: false, hostOrganization: springo });
+    expect(await screen.findByRole("status", { name: "Logowanie" })).toBeTruthy();
+    cleanup();
+
+    renderAt("/login?failed=1", { signedIn: false, hostOrganization: springo });
+    expect(
+      await screen.findByRole("region", { name: "To logowanie nie zostało dokończone." }),
+    ).toBeTruthy();
+    expect(screen.getByText("Mogło wygasnąć.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zaloguj się ponownie" })).toBeTruthy();
+    cleanup();
+
+    renderAt("/login", {
+      signedIn: false,
+      hostOrganization: async () => {
+        throw new BraivoError(500, "down");
+      },
+    });
+    expect(await screen.findByRole("region", { name: "Coś poszło nie tak." })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
+    expect(document.documentElement.lang).toBe("pl");
   });
 
   test("on its organization's domain, after a failed handoff, sends a learner signed in meanwhile onward", async () => {

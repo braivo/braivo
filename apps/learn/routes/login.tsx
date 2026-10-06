@@ -5,6 +5,7 @@ import { needsName, safeRedirect, SignIn } from "@braivo/auth-client";
 import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
@@ -45,18 +46,23 @@ function Login() {
   const context = Route.useRouteContext();
   const { redirect } = Route.useSearch();
   const router = useRouter();
+  const { t } = useLingui();
 
-  if (context.view === "handoff") return <Spinner aria-label="Signing in" />;
+  if (context.view === "handoff") return <Spinner aria-label={t`Signing in`} />;
   if (context.view === "failed") {
     return (
-      <Notice title="This sign-in did not finish." description="It may have expired.">
-        <Button onClick={() => context.visit(signInUrl(redirect))}>Sign in again</Button>
+      <Notice title={t`This sign-in did not finish.`} description={t`It may have expired.`}>
+        <Button onClick={() => context.visit(signInUrl(redirect))}>
+          <Trans>Sign in again</Trans>
+        </Button>
       </Notice>
     );
   }
   return (
     <>
-      <Heading>Sign in</Heading>
+      <Heading>
+        <Trans>Sign in</Trans>
+      </Heading>
       <SignIn
         auth={context.auth}
         needsName={context.needsName}
