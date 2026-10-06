@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { type FormEvent, type ReactNode, useId } from "react";
+import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { Alert, AlertDescription } from "#components/alert";
 import { Button } from "#components/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "#components/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "#components/field";
 import { Input } from "#components/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "#components/input-otp";
 import { Spinner } from "#components/spinner";
@@ -34,7 +34,8 @@ const CODE_DIGITS = 6;
  * Presentation only: the caller sends and checks codes, and moves between
  * steps; `pending` and `error` describe its request, and while `pending` the
  * form calls none of its callbacks. From the code, `onResend` asks for
- * another and `onChangeEmail` goes back to the email.
+ * another and `onChangeEmail` goes back to the email. With
+ * `onContinueWithGoogle`, the email step offers Google first.
  */
 export function SignInForm(props: {
   step: SignInStep;
@@ -43,14 +44,18 @@ export function SignInForm(props: {
   onSubmit: (values: SignInValues) => void;
   onResend?: () => void;
   onChangeEmail?: () => void;
+  onContinueWithGoogle?: () => void;
 }) {
   const { step } = props;
   const id = useId();
+  // Which button the pending request is from, to show its spinner there.
+  const [viaGoogle, setViaGoogle] = useState(false);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // aria-disabled does not stop Enter in a field from submitting the form.
     if (props.pending) return;
+    setViaGoogle(false);
     // Every field here is a text input, and a text input's value is a string.
     const value = (name: string) => new FormData(event.currentTarget).get(name) as string;
     if (step.step === "email") props.onSubmit({ step: "email", email: value("email") });
@@ -146,6 +151,30 @@ export function SignInForm(props: {
     // Keyed by step, so each starts empty rather than keeping the last one's input.
     <form key={step.step} onSubmit={submit}>
       <FieldGroup>
+        {step.step === "email" && props.onContinueWithGoogle && (
+          <>
+            <Field>
+              <Button
+                type="button"
+                variant="outline"
+                aria-disabled={props.pending}
+                onClick={() => {
+                  if (props.pending) return;
+                  setViaGoogle(true);
+                  props.onContinueWithGoogle?.();
+                }}
+              >
+                {props.pending && viaGoogle ? (
+                  <Spinner data-icon="inline-start" />
+                ) : (
+                  <GoogleMark data-icon="inline-start" />
+                )}
+                Continue with Google
+              </Button>
+            </Field>
+            <FieldSeparator>or</FieldSeparator>
+          </>
+        )}
         {field}
         {/* The whole request was refused, not one field, so this is a callout. */}
         {props.error && (
@@ -156,7 +185,7 @@ export function SignInForm(props: {
         {/* aria-disabled, not disabled, so that they keep the focus meanwhile. */}
         <Field>
           <Button type="submit" aria-disabled={props.pending}>
-            {props.pending && <Spinner data-icon="inline-start" />}
+            {props.pending && !viaGoogle && <Spinner data-icon="inline-start" />}
             {action}
           </Button>
           {/* Not while a code is checked: its answer would sign in the address left behind. */}
@@ -187,5 +216,29 @@ export function SignInForm(props: {
         </Field>
       </FieldGroup>
     </form>
+  );
+}
+
+/** Google's "G", in its own colours, as Google's sign-in branding asks. */
+function GoogleMark(props: ComponentProps<"svg">) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path
+        fill="#4285F4"
+        d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.46a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.58-5.17 3.58-8.81Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.94-2.9l-3.88-3.02c-1.07.72-2.45 1.15-4.06 1.15-3.13 0-5.78-2.11-6.72-4.95H1.27v3.11A12 12 0 0 0 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.28a7.2 7.2 0 0 1 0-4.56V6.61H1.27a12 12 0 0 0 0 10.78l4.01-3.11Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.77c1.76 0 3.34.61 4.59 1.8l3.44-3.44A11.94 11.94 0 0 0 12 0 12 12 0 0 0 1.27 6.61l4.01 3.11C6.22 6.88 8.87 4.77 12 4.77Z"
+      />
+    </svg>
   );
 }

@@ -96,6 +96,9 @@ export type HostOrganization = { name: string };
 /** Who is signed in on the host asked (`GET /api/session`). */
 export type SessionUser = { id: string; name: string };
 
+/** How `/login` may sign people in besides an emailed code (`GET /api/sign-in-methods`). */
+export type SignInMethods = { google: boolean };
+
 /** What a learn domain's sign-in signs in to, for the installation's `/login` to say. */
 export type Handoff = { organization: { name: string }; hostname: string };
 

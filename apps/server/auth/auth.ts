@@ -33,6 +33,8 @@ type AuthOptions = {
   baseURL: string;
   /** Sends sign-in codes. */
   sendMail: SendMail;
+  /** Google's OAuth client, offering sign-in with Google; without one, codes alone. */
+  google?: { clientId: string; clientSecret: string };
 };
 
 /**
@@ -76,6 +78,52 @@ export function createAuth(options: AuthOptions) {
     // No passwords: an account is made, and signed in to, by proving its email
     // (ADR 0018).
     emailAndPassword: { enabled: false },
+
+    // Google's callback is `<baseURL>/api/auth/callback/google`, the redirect
+    // URI its OAuth client must list. Asked to choose an account every time,
+    // since on a shared device the one Google remembers may be someone else's;
+    // by redirect alone, as nothing of Braivo's signs in with a Google ID
+    // token directly.
+    socialProviders: options.google && {
+      google: { ...options.google, prompt: "select_account", disableIdTokenSignIn: true },
+    },
+    // Braivo calls no Google API, so the access and refresh tokens kept are
+    // encrypted: a database leak then yields none that works. The ID token,
+    // kept as is, signs in nowhere, ID-token sign-in being off.
+    account: { encryptOAuthTokens: true },
+    // A Google sign-in whose saved state is gone, and with it where to return
+    // on failure, comes back to `/login` with an error, rather than to Better
+    // Auth's own error page.
+    onAPIError: options.google && { errorURL: "/login" },
+    user: {
+      // Only a provider-verified email (ADR 0018): an unverified one could make
+      // or reach the account of whoever owns the address. Checked on every
+      // sign-in, as Google answers afresh each time, and for every OAuth
+      // provider, Google's being the one today, so one added later fails closed.
+      validateUserInfo: async ({ user, source }, context) => {
+        if (source.method !== "oauth") return undefined;
+        if (user.emailVerified !== true) {
+          return {
+            error: "email_not_verified",
+            errorDescription: "The sign-in provider has not verified this email.",
+          };
+        }
+        // An account is whoever controls its email (ADR 0018): a provider
+        // account now under another address, as after a school renames one,
+        // no longer proves it. Changing an account's email waits for a flow
+        // of its own.
+        if (source.action === "sign-in" && user.id !== undefined) {
+          const stored = await context.context.internalAdapter.findUserById(user.id);
+          if (stored && stored.email !== user.email) {
+            return {
+              error: "email_changed",
+              errorDescription: "This account's email differs from the sign-in provider's.",
+            };
+          }
+        }
+        return undefined;
+      },
+    },
 
     hooks: {
       before: createAuthMiddleware(async (context) => {
@@ -196,6 +244,9 @@ export function createAuth(options: AuthOptions) {
     // Off where the plugin has no switch of its own. Direct `auth.api` calls
     // bypass it; Braivo makes none to these.
     disabledPaths: [
+      // Google signs in, making or finding the account by its email; nothing
+      // links a provider to an account by hand.
+      "/link-social",
       // Email codes sign in and nothing else: resetting a password would give
       // an account made by code a password, and the rest serve flows Braivo
       // does not offer.

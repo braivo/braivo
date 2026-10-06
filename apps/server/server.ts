@@ -45,6 +45,7 @@ export function createServer(options: {
       secret: config.secret,
       baseURL: config.baseUrl,
       sendMail: options.sendMail,
+      google: config.google,
     }),
   });
 }

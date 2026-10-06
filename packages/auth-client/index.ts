@@ -8,6 +8,6 @@
 // See docs/adr/0011-ui-and-auth-client-packages.md.
 
 export { createBrowserAuth } from "./client.ts";
-export { type EmailAuth, EmailSignIn } from "./email-sign-in.tsx";
+export { SignIn } from "./sign-in.tsx";
 export { safeRedirect } from "./redirect.ts";
 export { needsName, requireSession, type SessionAuth } from "./require-session.ts";

@@ -9,10 +9,19 @@
 // is made or signed in to by an email code: `POST /api/auth/email-otp/send-verification-otp`
 // `{ "email", "type": "sign-in" }` mails one (429 if one went to that address
 // within the minute), and `POST /api/auth/sign-in/email-otp` `{ "email", "otp",
-// "name"? }` redeems it, `name` naming a new account (ADR 0018).
+// "name"? }` redeems it, `name` naming a new account (ADR 0018). With Google's
+// OAuth client configured, `POST /api/auth/sign-in/social` `{ "provider":
+// "google", "callbackURL", "errorCallbackURL" }`, a JSON write, answers Google's
+// address; Google returns to `/api/auth/callback/google`, which redirects to
+// `callbackURL` signed in, or to `errorCallbackURL` with an `error` query
+// parameter (to `/login` when it cannot tell where the sign-in began).
+//
+// `GET /api/sign-in-methods` — `{ "google": boolean }`: whether `/login` offers
+// Google besides email codes. No session needed.
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
-// organization's learn domain — `/api/auth/*`, `/api/handoffs/*`, and every
+// organization's learn domain — `/api/auth/*`, `/api/handoffs/*`,
+// `/api/sign-in-methods`, and every
 // `/api/organizations…` route answer 404, and any request carrying
 // `Authorization` 401 (ADR 0004, ADR 0022).
 //

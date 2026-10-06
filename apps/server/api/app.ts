@@ -456,13 +456,14 @@ const BEARER_AUTH_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Signing in by an emailed code, which Better Auth origin-checks only for a
- * request carrying a cookie: without `isTrustedWrite`, another site could sign
- * a visitor in to an account whose code it holds.
+ * Signing in, which Better Auth origin-checks only for a request carrying a
+ * cookie: without `isTrustedWrite`, another site could sign a visitor in to an
+ * account whose code it holds, or start Google's sign-in in their browser.
  */
-const SIGN_IN_CODE_PATHS: ReadonlySet<string> = new Set([
+const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/email-otp/send-verification-otp",
   "/api/auth/sign-in/email-otp",
+  "/api/auth/sign-in/social",
 ]);
 
 /**
@@ -514,7 +515,12 @@ export function createApi(options: ApiOptions) {
     context.header("cache-control", "private, no-store");
     if (context.req.header("authorization") !== undefined) return context.body(null, 401);
     const { path } = context.req;
-    const installationOnly = ["/api/organizations", "/api/auth", "/api/handoffs"];
+    const installationOnly = [
+      "/api/organizations",
+      "/api/auth",
+      "/api/handoffs",
+      "/api/sign-in-methods",
+    ];
     if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
     }
@@ -544,7 +550,7 @@ export function createApi(options: ApiOptions) {
       const bearer = context.req.header("authorization") !== undefined;
       if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
       if (
-        SIGN_IN_CODE_PATHS.has(context.req.path) &&
+        SIGN_IN_PATHS.has(context.req.path) &&
         !(await isTrustedWrite(context, origin, database, requestHost(context)))
       ) {
         return context.body(null, 403);
@@ -614,6 +620,15 @@ export function createApi(options: ApiOptions) {
     }
     return found?.user;
   }
+
+  /**
+   * How `/login` may sign people in besides an emailed code, which is always
+   * offered: with Google, when the installation has an OAuth client for it.
+   * The console is built once for any installation, so it asks.
+   */
+  api.get("/api/sign-in-methods", (context) =>
+    context.json({ google: auth.options.socialProviders?.google !== undefined }),
+  );
 
   /**
    * Starts a learn domain's sign-in (ADR 0018): records where it began, gives

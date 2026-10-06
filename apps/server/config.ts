@@ -23,6 +23,8 @@ export type ServerConfig = {
     organizations: "all" | ReadonlySet<string>;
     monthlyLimit?: number;
   };
+  /** Google's OAuth client, offering "Continue with Google", or none: email codes alone. */
+  google?: { clientId: string; clientSecret: string };
 };
 
 export type ServeConfig = ServerConfig & {
@@ -67,7 +69,9 @@ type VariableName =
   | "ANTHROPIC_API_KEY"
   | "BRAIVO_AI_MODEL"
   | "BRAIVO_AI_ORGANIZATIONS"
-  | "BRAIVO_AI_MONTHLY_LIMIT";
+  | "BRAIVO_AI_MONTHLY_LIMIT"
+  | "GOOGLE_CLIENT_ID"
+  | "GOOGLE_CLIENT_SECRET";
 
 /**
  * A Worker's `env`, bindings beside the variables, or `process.env`, which
@@ -97,6 +101,7 @@ export function readServerConfig(environment: Environment): ServerConfig {
     secret: readSecret(environment, "BETTER_AUTH_SECRET"),
     baseUrl: readUrl(environment, "BRAIVO_URL"),
     ...readAi(environment),
+    ...readGoogle(environment),
   };
 }
 
@@ -183,6 +188,22 @@ function readAi(environment: Environment): { ai?: ServerConfig["ai"] } {
     );
   }
   return { ai: { apiKey, model, organizations, monthlyLimit } };
+}
+
+/**
+ * `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` offer signing in with Google
+ * (ADR 0018): both or neither, since one alone is a deployment half done.
+ */
+function readGoogle(environment: Environment): { google?: ServerConfig["google"] } {
+  const clientId = environment.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = environment.GOOGLE_CLIENT_SECRET?.trim();
+  if (!clientId && !clientSecret) return {};
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET go together: set both to offer Google sign-in, or neither.",
+    );
+  }
+  return { google: { clientId, clientSecret } };
 }
 
 /**
