@@ -15,23 +15,23 @@ import { codeSentTo, createOutbox } from "../auth/testing.ts";
 import { type Api, createApi } from "./index.ts";
 
 /**
- * Runs the walkthrough in the repository README against a real server, exactly
+ * Runs the walkthrough in docs/guides/api.md against a real server, exactly
  * as written there — the one document here that can be made to fail rather than
  * drifting silently, and the only test that exercises a socket, a cookie jar,
  * and the commands a person would actually type.
  *
  * Extracted rather than transcribed: commands copied into this file would drift
- * from the README exactly as the README drifts from the code.
+ * from the guide exactly as the guide drifts from the code.
  */
 const connectionString = process.env.TEST_DATABASE_URL;
 
 // `fileURLToPath` rather than `.pathname`, which leaves `%20` in place and would
 // look for a file that does not exist on a checkout path containing spaces.
-const readmePath = fileURLToPath(new URL("../../../README.md", import.meta.url));
+const guidePath = fileURLToPath(new URL("../../../docs/guides/api.md", import.meta.url));
 const cliPath = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
 const secret = "quickstart-secret-long-enough-32ch";
 
-/** The tools the README tells a reader to use. Without them there is nothing to check. */
+/** The tools the guide tells a reader to use. Without them there is nothing to check. */
 const hasShell = Bun.which("curl") !== null && Bun.which("bash") !== null;
 
 let server: ReturnType<typeof Bun.serve> | undefined;
@@ -42,10 +42,10 @@ let baseUrl!: string;
 let workspace!: string;
 
 /**
- * Substitutes what the README cannot say for itself — where the server is
+ * Substitutes what the guide cannot say for itself — where the server is
  * listening, and identities unique per run so a second run neither finds the
  * account made nor waits out its address's minute between codes — and makes
- * failures legible, which the README deliberately does not:
+ * failures legible, which the guide deliberately does not:
  * it keeps the plainer command that shows a reader an error instead of stopping
  * on it.
  *
@@ -75,7 +75,7 @@ function runnable(block: string): string {
     .replaceAll("example-school", `example-school-${unique}`);
 }
 
-describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => {
+describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
 
@@ -114,8 +114,8 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
   });
 
   test("still runs, and still answers what it says it answers", async () => {
-    const readme = await Bun.file(readmePath).text();
-    const block = readme.split("## The API, end to end")[1]?.match(/```bash\n([\s\S]*?)```/)?.[1];
+    const guide = await Bun.file(guidePath).text();
+    const block = guide.split("## The walkthrough")[1]?.match(/```bash\n([\s\S]*?)```/)?.[1];
 
     // Guards the guard: a rename of that heading would otherwise skip silently.
     expect(block).toBeTypeOf("string");
@@ -144,7 +144,7 @@ describe.skipIf(!connectionString || !hasShell)("the README walkthrough", () => 
     ]);
 
     expect({ exitCode, errors }).toEqual({ exitCode: 0, errors: "" });
-    // The README prints these answers as comments. A walkthrough that ran but no
+    // The guide prints these answers as comments. A walkthrough that ran but no
     // longer taught anything would pass on the exit code alone.
     expect(output).toContain('"intent":"introduce"');
     expect(output).toContain('"outcome":"failure"');
