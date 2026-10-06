@@ -12,6 +12,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0004: Application origins and organization addressing](0004-one-application-origin.md)
 - [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
 - [0019: Local notes shared by every worktree through one link](0019-shared-local-notes.md)
+- [0036: Contributions come under a license CLA, signed by a file in the contributor's pull request](0036-contributor-license-agreement.md)
 
 ## Server
 

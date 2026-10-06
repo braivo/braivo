@@ -1,0 +1,42 @@
+# 0036: Contributions come under a license CLA, signed by a file in the contributor's pull request
+
+Status: proposed (2026-10-06)
+
+## Context
+
+Braivo is AGPL-3.0-only, and Konstantin Tarkus sells commercial licenses and builds the closed Braivo Cloud on the same code ([ADR 0002](0002-agpl-only.md)). Both need the right to relicense every contribution; third-party code stays under its own license. An outside contribution under the AGPL alone does not grant it, and a DCO only certifies that the contributor may submit under the project's license. So the right has to be granted before the first outside pull request is merged. There is one maintainer and, so far, no outside contributor, and the GitHub action most projects used to collect signatures was archived in March 2026.
+
+## Decision
+
+- **A license, not an assignment.** Contributors keep whatever copyright they own; material they identify as someone else's is not licensed by them, and comes under its own license. They grant Konstantin Tarkus, and whoever he transfers Braivo's rights to, a perpetual, irrevocable, sublicensable copyright license to ship their contribution under any terms, including proprietary ones, and a patent license for what the contribution necessarily infringes. As a condition, whatever else a contribution is licensed under, it is also licensed under the license Braivo used when it was submitted, AGPL-3.0-only for v1. The grants and representations follow the Apache Individual CLA, the most widely reviewed. The relicensing right, the condition, the reserved rights, and the moral-rights waiver follow Harmony's Individual agreement with Option Five, with its CC BY attribution. The text is `docs/cla/v1.md`. It covers `braivo/braivo` alone, wherever it moves, and every past and future contribution to it, so each person signs a version once. Another repository that takes contributions is a decision of its own.
+- **Versioned and immutable.** Once anyone has signed v1, its text never changes. A material change is `docs/cla/v2.md`, which binds only those who sign it. A version takes effect when its text, the check, its tests, and CONTRIBUTING.md change together, since the check knows only v1; grants already made stay under their own version. The check refuses any change to an agreement or to a signature given, whoever opens it.
+- **Signed in the repository.** In their first pull request, a contributor adds `docs/cla/v1/<GitHub user ID>.md` holding one exact line that names them, their login, and their ID. The pull request is opened from their authenticated account, and the signature merges with it, so main's history keeps who agreed to which text, and when. A numeric ID survives a renamed login, and one file per signer means two first contributions never conflict. A company that owns its employee's work signs an agreement of its own, written when the first one asks.
+- **Withdrawal moves the signature.** A signer who withdraws, as v1 allows for future contributions, has their file moved unchanged to `docs/cla/v1/withdrawn/`, which keeps the record. The check then refuses their pull requests until they sign again, even one whose commits predate the notice: stricter than the agreement, which keeps those licensed, so the check need not know when a commit was submitted. Only an administrator, Konstantin Tarkus or `braivo[bot]`, may add a version or record a withdrawal; nothing removes or edits a signature.
+- **A required check, `bun run cla:check`.** It runs `tooling/cla.ts` on `pull_request_target` for pull requests into `main`, so the workflow and the script come from the default branch and a pull request cannot change its own check. It has a read-only token, and it reads the pull request through the API without checking out or running its code. It passes when the opener and every commit's GitHub-attributed author have signed, either on the base branch as it is now, so a rerun sees a signature merged since, or, for the opener only, by adding their own signature in this pull request. It fails, saying why and, for an unsigned opener, the file and line to add, for:
+  - anyone unsigned;
+  - a commit whose email is linked to no GitHub account;
+  - any other change under `docs/cla/`, but an administrator's new version or withdrawal;
+  - a pull request too large for the API to list whole;
+  - a head, or a base branch, that changed since the event, checked before reading and again before passing.
+- **Who is exempt.** Konstantin Tarkus, `braivo[bot]`, and Dependabot need not sign, by numeric ID, each for their own work only: a pull request one of them opens still needs every other author's signature, since vouching for someone's work grants no rights in it. Dependabot is exempt but no administrator. `braivo[bot]` is both because it is the identity that opens his pull requests, so its credentials guard the record as his do; a bot that acts on others' triggers must not be either.
+- **Copyright lines name the copyright holder,** not the author, as REUSE has them. A file a contributor creates and owns carries their name, and one they substantially change may add their line. The license line stays `AGPL-3.0-only`: the right to relicense comes from the agreement, not from the header.
+
+## Alternatives rejected
+
+- **Copyright assignment.** It is harder to ask of a contributor and grants nothing more that dual licensing needs.
+- **A DCO, alone or beside the CLA.** It grants no right to relicense, and a CLA already makes its representations, so it would only add a `-s` to every commit.
+- **Signing by a comment, through `contributor-license/cla-action`.** That is the familiar flow, but it is a young community fork of the archived action. It needs write access under `pull_request_target`, so it would hold the base repository's write token while handling untrusted pull requests. It also needs a signature branch kept unprotected, and it keeps the record in a JSON file a bot rewrites.
+- **CLA Assistant, hosted.** It needs no code, but the signatures would live in a third party's database, outside the repository and its history.
+- **No check, the maintainer verifying by hand.** That is simplest today, but a required check is what makes forgetting impossible on the one merge that cannot be undone.
+
+## Consequences
+
+- An outside contributor's first pull request carries one extra file, and the failing check tells them which. Another commit author signs in a pull request of their own, then the check is rerun. Signers' names are public, as their commits' usually are.
+- Before the first outside pull request is merged:
+  - counsel reviews `docs/cla/v1.md`, which may still change because nobody has signed it; the check refuses those edits, so they merge before it is required;
+  - an Actions event policy allows `pull_request_target` for `.github/workflows/cla.yml` alone, since GitHub blocks it in public repositories by default (from 2026-11-02);
+  - a ruleset on `main` requires a pull request and the `bun run cla:check` check from GitHub Actions, blocks force pushes and deletion, since its history is the record of who signed, and allows no bypass;
+  - one pull request from a fork proves the check passes and fails as it should.
+- Open, for counsel: the governing law and the contracting party; whether adding a signature file in an authenticated pull request is sufficient electronic assent under that law, and how a minor contributes; whether to keep this short form or take Harmony's full text, with its entire-agreement, severability, and waiver clauses; and whether a public full name is needed, or the GitHub account, ID, and history suffice. The agreement names a person, and it lets him transfer his rights, so a later company takes them over without asking anyone to sign again.
+- The check trusts GitHub's attribution, which follows a commit's email and can be set by whoever writes the commit. `Co-authored-by` trailers are not checked at all. Review is the backstop for both, as it is for third-party code that a contributor must identify.
+- Exempting a bot asserts nothing about the rights in what it writes. What Dependabot writes is version bumps, and what `braivo[bot]` writes is Konstantin Tarkus's own work.

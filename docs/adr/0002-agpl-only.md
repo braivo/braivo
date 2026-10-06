@@ -15,8 +15,8 @@ Status: accepted (2026-09-16). Supersedes [ADR 0001](0001-licensing.md).
 ## Decision
 
 - Every file Braivo writes is **AGPL-3.0-only**; code taken from shadcn/ui keeps its MIT license ([ADR 0012](0012-shadcn-preset.md)). The license texts are in `LICENSE`, and in `LICENSES/` for [REUSE](https://reuse.software).
-- **The copyright holder is Konstantin Tarkus**, stated as `2026 Konstantin Tarkus`. The year is when a file was first written, and is not bumped on later edits.
-- A **commercial license** is available from the copyright holder (hello@braivo.app) for anyone who cannot comply with the AGPL. It is a separate agreement rather than a grant made by these files, so the SPDX expression is `AGPL-3.0-only` and not a dual-license `OR`.
+- **Konstantin Tarkus holds the copyright in the code he writes**, stated as `2026 Konstantin Tarkus`. The year on each holder's line is when they first contributed to the file, and is not bumped on later edits. A contributor keeps the copyright in their contribution, unless their employer owns it: a file they create names its holder instead, and one they substantially change may add their line ([ADR 0036](0036-contributor-license-agreement.md)).
+- A **commercial license** is available from Konstantin Tarkus (hello@braivo.app) for anyone who cannot comply with the AGPL. It is a separate agreement rather than a grant made by these files, so the SPDX expression is `AGPL-3.0-only` and not a dual-license `OR`.
 - **Braivo's source files carry their license** as a two-line header, so it stays attached to a file that is copied elsewhere:
 
   ```ts
@@ -38,5 +38,5 @@ Status: accepted (2026-09-16). Supersedes [ADR 0001](0001-licensing.md).
 - A separate application does not become subject to Braivo's AGPL solely because it communicates with Braivo over its HTTP API. Copying, modifying, or embedding Braivo's code is another matter: that takes the AGPL, or a commercial license.
 - There is no client package for outside developers. If one is wanted, it is a new decision, including its license.
 - The CLI is still called `braivo`, but it is run through `bun run serve` and `bun run db:migrate` rather than installed.
-- Selling commercial licenses requires the copyright holder to hold the rights to all of the code. An outside contribution under the AGPL alone does not grant the right to relicense it, and a DCO does not either. How contributions will grant that right — a CLA, an assignment, or something else — is a decision of its own, to make before accepting any. SPDX headers say what a file is licensed under, not who may relicense it.
-- Braivo Cloud's own code is not published, and uses `braivo`'s code under the copyright holder's rights rather than the AGPL grant. Code by anyone else — third-party code, or a future contributor's — stays under its own license unless those rights are obtained.
+- Selling commercial licenses requires Konstantin Tarkus to hold sufficient rights in all of Braivo's own code; third-party code stays under its own license. An outside contribution under the AGPL alone does not grant the right to relicense it, and a DCO does not either. Contributions grant it through the CLA in [ADR 0036](0036-contributor-license-agreement.md). SPDX headers say what a file is licensed under, not who may relicense it.
+- Braivo Cloud's own code is not published, and uses `braivo`'s code under Konstantin Tarkus's rights rather than the AGPL grant. Code by anyone else — third-party code, or a future contributor's — stays under its own license unless those rights are obtained.

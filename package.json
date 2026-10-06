@@ -18,7 +18,8 @@
     "prepare": "vp config --no-agent",
     "i18n:extract": "lingui extract --clean",
     "i18n:check": "lingui check sync --clean && lingui check missing --mode catalog",
-    "license:check": "uvx --from 'reuse[charset-normalizer]' reuse lint"
+    "license:check": "uvx --from 'reuse[charset-normalizer]' reuse lint",
+    "cla:check": "bun tooling/cla.ts"
   },
   "devDependencies": {
     "@lingui/cli": "6.9.0",

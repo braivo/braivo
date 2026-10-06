@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# A pull request's opener and its commits' authors have signed the CLA (ADR
+# 0036). pull_request_target runs this file and the check as the default
+# branch has them, so a pull request cannot change its own check. It reads
+# the pull request through the API with a read-only token and never checks
+# out, or runs, the code under review: keep it that way.
+#
+# GitHub blocks pull_request_target in public repositories by default (from
+# 2026-11-02), so this runs only where an Actions event policy allows it, for
+# this file alone.
+#
+# No concurrency group: a run for a replaced head fails on its own, and in a
+# group, rerunning it would cancel the current head's run.
+name: CLA
+
+# `edited` covers a new base, which changes the commits under review. Every
+# edit runs: a job skipped by an `if` would count as passing.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cla:
+    name: bun run cla:check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Pinned: this runs with the base repository's token. Dependabot moves
+      # the pins.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      # No `bun install`: the check imports nothing.
+      - run: bun run cla:check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
