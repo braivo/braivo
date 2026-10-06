@@ -1,6 +1,6 @@
 # 0036: Contributions come under a license CLA, signed by a file in the contributor's pull request
 
-Status: proposed (2026-10-06)
+Status: accepted (2026-10-06)
 
 ## Context
 
@@ -32,11 +32,7 @@ Braivo is AGPL-3.0-only, and Konstantin Tarkus sells commercial licenses and bui
 ## Consequences
 
 - An outside contributor's first pull request carries one extra file, and the failing check tells them which. Another commit author signs in a pull request of their own, then the check is rerun. Signers' names are public, as their commits' usually are.
-- Before the first outside pull request is merged:
-  - counsel reviews `docs/cla/v1.md`, which may still change because nobody has signed it; the check refuses those edits, so they merge before it is required;
-  - an Actions event policy allows `pull_request_target` for `.github/workflows/cla.yml` alone, since GitHub blocks it in public repositories by default (from 2026-11-02);
-  - a ruleset on `main` requires a pull request and the `bun run cla:check` check from GitHub Actions, blocks force pushes and deletion, since its history is the record of who signed, and allows no bypass;
-  - one pull request from a fork proves the check passes and fails as it should.
-- Open, for counsel: the governing law and the contracting party; whether adding a signature file in an authenticated pull request is sufficient electronic assent under that law, and how a minor contributes; whether to keep this short form or take Harmony's full text, with its entire-agreement, severability, and waiver clauses; and whether a public full name is needed, or the GitHub account, ID, and history suffice. The agreement names a person, and it lets him transfer his rights, so a later company takes them over without asking anyone to sign again.
+- The check depends on two repository settings: an Actions event policy that allows `pull_request_target` for `.github/workflows/cla.yml` alone, since GitHub blocks it in public repositories by default (from 2026-11-02), and a ruleset on `main` that requires a pull request and the `bun run cla:check` check from GitHub Actions, blocks force pushes and deletion, since its history is the record of who signed, and allows no bypass.
+- v1 was signed before counsel reviewed it, so a change counsel asks for is v2. Open, for counsel: the governing law and the contracting party; whether adding a signature file in an authenticated pull request is sufficient electronic assent under that law, and how a minor contributes; whether to keep this short form or take Harmony's full text, with its entire-agreement, severability, and waiver clauses; and whether a public full name is needed, or the GitHub account, ID, and history suffice. The agreement names a person, and it lets him transfer his rights, so a later company takes them over without asking anyone to sign again.
 - The check trusts GitHub's attribution, which follows a commit's email and can be set by whoever writes the commit. `Co-authored-by` trailers are not checked at all. Review is the backstop for both, as it is for third-party code that a contributor must identify.
 - Exempting a bot asserts nothing about the rights in what it writes. What Dependabot writes is version bumps, and what `braivo[bot]` writes is Konstantin Tarkus's own work.
