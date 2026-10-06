@@ -33,10 +33,10 @@ function fakeAuth(name: string) {
 }
 
 /** Braivo's refusal of a second code within a minute (`apps/server/auth`). */
-const justSent = {
-  code: "SIGN_IN_CODE_JUST_SENT",
+const cooldown = {
+  code: "SIGN_IN_CODE_COOLDOWN",
   status: 429,
-  message: "A code was just sent to this address. Wait a minute before asking again.",
+  message: "Wait a minute before asking for a code again.",
 };
 
 const google = { callbackURL: "/courses", errorCallbackURL: "/login?redirect=%2Fcourses" };
@@ -161,9 +161,11 @@ describe("SignIn", () => {
     await screen.findByLabelText("Code");
 
     fill("Code", "123");
-    auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({ error: justSent });
+    auth.emailOtp.sendVerificationOtp.mockResolvedValueOnce({ error: cooldown });
     fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/^A code was just sent/);
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Wait a minute before asking for a code again.",
+    );
     // The first code still works, so what was typed of it is kept.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123");
     fill("Code", "123456");
@@ -200,7 +202,11 @@ describe("SignIn", () => {
       return alert;
     };
 
-    expect(await shown(justSent)).toMatch(/^A code was just sent/);
+    expect(await shown(cooldown)).toBe("Wait a minute before asking for a code again.");
+    // Braivo's, when the mail server refused the code.
+    expect(
+      await shown({ code: "SIGN_IN_CODE_SEND_FAILED", status: 503, message: "Not sent." }),
+    ).toBe("The code could not be sent. Try again in a minute.");
     // Better Auth's own rate limit answers with no code.
     expect(
       await shown({ status: 429, message: "Too many requests. Please try again later." }),

@@ -13,6 +13,7 @@
     "auth:generate": "bun --bun better-auth generate --config better-auth.config.ts --output ../../packages/db/schema/auth.ts -y"
   },
   "dependencies": {
+    "@better-auth/core": "1.7.5",
     "@better-auth/drizzle-adapter": "1.7.5",
     "@braivo/db": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.30.1",

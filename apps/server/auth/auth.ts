@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import type { Database } from "@braivo/db";
 import * as authTables from "@braivo/db/schema/auth";
@@ -44,6 +45,14 @@ type AuthOptions = {
  * address's minute between codes bounds how many codes they get.
  */
 const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
+
+/**
+ * Carries a failed send to the after hook, which refuses the request: Better
+ * Auth only logs a throw from `sendVerificationOTP` and answers that the code
+ * was sent (ADR 0033). Per request, as requests run at once. Holds while the
+ * send is awaited, that is while `advanced.backgroundTasks` is unset.
+ */
+const signInCodeSendFailed = defineRequestState(() => false);
 
 /** Refuses a slug that cannot address an organization, as a 400 carrying the reason. */
 function assertSlugAllowed(slug: string): void {
@@ -149,8 +158,18 @@ export function createAuth(options: AuthOptions) {
         });
         if (!claimed) {
           throw new APIError("TOO_MANY_REQUESTS", {
-            code: "SIGN_IN_CODE_JUST_SENT",
-            message: "A code was just sent to this address. Wait a minute before asking again.",
+            code: "SIGN_IN_CODE_COOLDOWN",
+            message: "Wait a minute before asking for a code again.",
+          });
+        }
+      }),
+      after: createAuthMiddleware(async (context) => {
+        if (context.path !== "/email-otp/send-verification-otp") return;
+        // The address still waits its minute: hence "in a minute".
+        if (await signInCodeSendFailed.get()) {
+          throw new APIError("SERVICE_UNAVAILABLE", {
+            code: "SIGN_IN_CODE_SEND_FAILED",
+            message: "The code could not be sent. Try again in a minute.",
           });
         }
       }),
@@ -170,9 +189,15 @@ export function createAuth(options: AuthOptions) {
         // per-address minute above is what protects an inbox.
         rateLimit: { window: 60, max: 10 },
         sendVerificationOTP: async ({ email, otp }) => {
-          await options.sendMail(
-            signInCodeMail({ to: email, code: otp, expiresInMinutes: SIGN_IN_CODE.seconds / 60 }),
-          );
+          try {
+            await options.sendMail(
+              signInCodeMail({ to: email, code: otp, expiresInMinutes: SIGN_IN_CODE.seconds / 60 }),
+            );
+          } catch (error) {
+            await signInCodeSendFailed.set(true);
+            // Rethrown for Better Auth to log.
+            throw error;
+          }
         },
       }),
       // An organization owns content, and its members may learn from it;
