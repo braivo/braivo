@@ -17,24 +17,13 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { type Model, ModelUnavailable } from "../ai/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
+import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
-const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
-const outbox = createOutbox();
-const auth = createAuth({
-  database,
-  secret: "materials-test-secret-long-enough-32",
-  baseURL: "http://localhost:3000",
-  sendMail: outbox.sendMail,
-});
-const baseUrl = "http://localhost:3000";
-/** No file store and no model: what each route answers without them. */
-const api = createApi({ auth, database, baseUrl });
+/** `api` has no file store and no model: what each route answers without them. */
+const { database, auth, api, signUp } = createTestApi();
 /** Stands in for a query cache, recording what is read through it. */
 const cachedStatements: string[] = [];
 const cachedDatabase = testing.recordingDatabase(connectionString ?? "", cachedStatements);
@@ -44,15 +33,9 @@ const organizationId = "materials-test-org";
 const at = new Date("2026-06-01T00:00:00.000Z");
 
 /** A member who administers nothing. */
-let learner!: Awaited<ReturnType<typeof signUp>>;
+let learner!: Signed;
 /** An admin of the organization. */
-let teacher!: Awaited<ReturnType<typeof signUp>>;
-
-/** A new account, signed in through the mounted Better Auth handler. */
-async function signUp() {
-  const email = `materials-test-${crypto.randomUUID()}@example.com`;
-  return signInWithCode((path, init) => api.request(`/api/auth${path}`, init), outbox, { email });
-}
+let teacher!: Signed;
 
 /** A learner's answer, which carries the passages its task cites. */
 function postAttempt(courseId: string, body: unknown, cookie: string) {

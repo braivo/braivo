@@ -4,7 +4,51 @@
 // Test support for the API's suites. Nothing here is part of the server's
 // behaviour.
 
-import type { Api } from "./app.ts";
+import * as testing from "@braivo/db/testing";
+
+import { createAuth } from "../auth/index.ts";
+import { createOutbox, signInWithCode } from "../auth/testing.ts";
+import { type Api, createApi } from "./app.ts";
+
+/** The test database; a suite needing it is skipped without one. */
+export const connectionString = process.env.TEST_DATABASE_URL;
+export const baseUrl = "http://localhost:3000";
+
+/** Named apart from its email, so an answer naming the wrong one fails. */
+export type Signed = { cookie: string; token: string; id: string; email: string; name: string };
+
+/**
+ * An API on the test database, with what every suite repeats: Better Auth
+ * mailing its codes to `outbox`, and `signUp`. A suite seeds its own
+ * organizations and courses.
+ */
+export function createTestApi() {
+  const database = testing.sharedDatabase(connectionString ?? "");
+  const outbox = createOutbox();
+  const auth = createAuth({
+    database,
+    secret: "api-test-secret-that-is-long-enough-32",
+    baseURL: baseUrl,
+    sendMail: outbox.sendMail,
+  });
+  const api = createApi({ auth, database, baseUrl });
+
+  /**
+   * Makes a new account and signs it in by code through the mounted Better
+   * Auth handler, so a suite holds a real session rather than a seeded one. A
+   * fresh email each call, so a rerun never collides with a leftover account
+   * or its address's minute between codes.
+   */
+  async function signUp(): Promise<Signed> {
+    const id = crypto.randomUUID();
+    const email = `api-test-${id}@example.com`;
+    const name = `Learner ${id.slice(0, 8)}`;
+    const request = (path: string, init: RequestInit) => api.request(`/api/auth${path}`, init);
+    return { ...(await signInWithCode(request, outbox, { email, name })), email, name };
+  }
+
+  return { database, outbox, auth, api, signUp };
+}
 
 /**
  * Hands the account signed in by `accountCookie` over to a learn domain as a learner,
