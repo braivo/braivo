@@ -12,6 +12,8 @@ import { basename } from "node:path";
 
 import { Client } from "pg";
 
+import { withoutRepositoryVariables } from "./git-env.ts";
+
 /** PostgreSQL's identifier limit, in bytes; longer names are silently cut. */
 const MAX_NAME = 63;
 
@@ -56,16 +58,6 @@ function linkedWorktree(cwd: string): string | undefined {
     .trim()
     .split("\n");
   return gitDir === commonDir ? undefined : basename(gitDir!);
-}
-
-/**
- * Without the variables naming another repository (`git rebase --exec` exports
- * `GIT_DIR`), keeping the rest, such as `GIT_CONFIG_*`.
- */
-function withoutRepositoryVariables(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"]) delete env[name];
-  return env;
 }
 
 /**

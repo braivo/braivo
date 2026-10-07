@@ -25,6 +25,8 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
 
+import { withoutRepositoryVariables } from "./git-env.ts";
+
 export type Install = (root: string) => void;
 
 /** The gitignored directory of notes every worktree shares (docs/adr/0019-shared-local-notes.md). */
@@ -37,6 +39,7 @@ const NOTES = "local";
 const bunInstall: Install = (root) => {
   execFileSync(process.execPath, ["install", "--frozen-lockfile"], {
     cwd: root,
+    env: withoutRepositoryVariables(),
     stdio: ["ignore", 2, 2],
   });
 };
@@ -143,7 +146,10 @@ function sameFile(a: string, b: string): boolean {
 /** Against the worktree's own ignore rules, as Claude Code checks. */
 function isIgnored(root: string, path: string): boolean {
   try {
-    execFileSync("git", ["check-ignore", "-q", "--", path], { cwd: root });
+    execFileSync("git", ["check-ignore", "-q", "--", path], {
+      cwd: root,
+      env: withoutRepositoryVariables(),
+    });
     return true;
   } catch (error) {
     if ((error as { status?: number }).status === 1) return false;
@@ -152,7 +158,11 @@ function isIgnored(root: string, path: string): boolean {
 }
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    env: withoutRepositoryVariables(),
+  }).trim();
 }
 
 if (import.meta.main) {
