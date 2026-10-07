@@ -13,7 +13,7 @@ import {
   startHandoff,
 } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
-import { cookieOptions, type Guards, HANDOFF_COOKIE, LEARNER_COOKIE, noStore } from "./guards.ts";
+import { cookieOptions, type Guards, HANDOFF_COOKIE, LEARNER_COOKIE } from "./guards.ts";
 
 type SessionOptions = {
   auth: Auth;
@@ -48,7 +48,7 @@ export function sessionRoutes(
    * the browser the nonce that alone may redeem the code, and sends it to the
    * installation's `/login`. A navigation, so it answers redirects.
    */
-  routes.get("/api/session/sign-in", noStore, async (context) => {
+  routes.get("/api/session/sign-in", async (context) => {
     const host = requestHost(context);
     if (host.installation) return context.body(null, 404);
 
@@ -69,7 +69,7 @@ export function sessionRoutes(
    * issued, with the nonce cookie its browser kept, as a learner session, and
    * goes where the learner started, so no page loads with the code in its URL.
    */
-  routes.get("/api/session/handoff", noStore, async (context) => {
+  routes.get("/api/session/handoff", async (context) => {
     context.header("referrer-policy", "no-referrer");
     const host = requestHost(context);
     if (host.installation) return context.body(null, 404);
@@ -98,7 +98,7 @@ export function sessionRoutes(
   });
 
   /** Who is signed in, as the learn app asks: the learner session's user, or the account's. */
-  routes.get("/api/session", noStore, requireLearner, (context) =>
+  routes.get("/api/session", requireLearner, (context) =>
     context.json({ user: context.var.learner }),
   );
 
@@ -131,7 +131,7 @@ export function sessionRoutes(
    * What a learn domain's sign-in signs in to, for the installation's `/login`
    * to say: the organization's name and the domain it returns to.
    */
-  routes.get("/api/handoffs/:handoffId", noStore, async (context) => {
+  routes.get("/api/handoffs/:handoffId", async (context) => {
     const found = await describeHandoff({
       database,
       handoffId: context.req.param("handoffId"),
@@ -146,7 +146,7 @@ export function sessionRoutes(
    * `/login`, never a navigation, so no link hands someone over unasked; and
    * a browser's, since a tool's token manages no account (ADR 0022).
    */
-  routes.post("/api/handoffs/:handoffId", noStore, async (context) => {
+  routes.post("/api/handoffs/:handoffId", async (context) => {
     if (context.req.header("authorization") !== undefined) return context.body(null, 403);
     if (!(await isTrustedWrite(context))) return context.body(null, 403);
 

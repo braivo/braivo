@@ -21,7 +21,7 @@ import {
   retireTasks,
 } from "../application/index.ts";
 import type { Evidence } from "../learning/index.ts";
-import { type Guards, jsonBody, noStore } from "./guards.ts";
+import { type Guards, jsonBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 
 /**
@@ -367,7 +367,7 @@ export function authoringRoutes(
   );
 
   /** The organizations the session's user manages. */
-  routes.get("/api/organizations", noStore, requireAccount, async (context) => {
+  routes.get("/api/organizations", requireAccount, async (context) => {
     const organizations = await listManagedOrganizations({
       database,
       actingAs: context.var.userId,
@@ -376,24 +376,19 @@ export function authoringRoutes(
   });
 
   /** Every member of an organization, for whoever administers it. */
-  routes.get(
-    "/api/organizations/:organizationId/members",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const members = await listMembers({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-        });
+  routes.get("/api/organizations/:organizationId/members", requireAccount, async (context) => {
+    try {
+      const members = await listMembers({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+      });
 
-        return context.json({ members });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
+      return context.json({ members });
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
 
   /**
    * One course as authored — objectives in order, each with its passages and
@@ -401,7 +396,6 @@ export function authoringRoutes(
    */
   routes.get(
     "/api/organizations/:organizationId/courses/:courseId",
-    noStore,
     requireAccount,
     async (context) => {
       try {
@@ -428,44 +422,34 @@ export function authoringRoutes(
   );
 
   /** Every course an organization has, for whoever administers it. */
-  routes.get(
-    "/api/organizations/:organizationId/courses",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const courses = await listCourses({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-        });
+  routes.get("/api/organizations/:organizationId/courses", requireAccount, async (context) => {
+    try {
+      const courses = await listCourses({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+      });
 
-        return context.json({ courses });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
+      return context.json({ courses });
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
 
   /** Every objective an organization has defined, for whoever administers it. */
-  routes.get(
-    "/api/organizations/:organizationId/objectives",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const objectives = await listObjectives({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-        });
+  routes.get("/api/organizations/:organizationId/objectives", requireAccount, async (context) => {
+    try {
+      const objectives = await listObjectives({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+      });
 
-        return context.json({ objectives });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
+      return context.json({ objectives });
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
 
   /**
    * Links objectives to the passages of sources that teach them. Braivo, not
@@ -498,7 +482,6 @@ export function authoringRoutes(
   /** The passages an objective cites, for whoever administers its organization. */
   routes.get(
     "/api/organizations/:organizationId/objectives/:objectiveId/citations",
-    noStore,
     requireAccount,
     async (context) => {
       try {
@@ -523,7 +506,6 @@ export function authoringRoutes(
    */
   routes.get(
     "/api/organizations/:organizationId/objectives/:objectiveId/tasks",
-    noStore,
     requireAccount,
     async (context) => {
       try {

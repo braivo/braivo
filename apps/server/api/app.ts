@@ -3,12 +3,13 @@
 
 import type { Database } from "@braivo/db";
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 
 import { type Ai, readHostOrganization } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
-import { createGuards, limitBody, MAX_BODY_BYTES, noStore } from "./guards.ts";
+import { createGuards, limitBody, MAX_BODY_BYTES } from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { sessionRoutes } from "./session.ts";
@@ -52,6 +53,19 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * `Cache-Control: private, no-store`, on every answer under `/api`. Set on the
+ * answer once there is one, so it reaches a `Response` a handler builds itself
+ * and the 500 Hono makes of an uncaught `Error`, a failed session lookup's
+ * included. One URL, a different answer per cookie, and a `Cookie` request
+ * header does not by itself stop a shared cache handing one learner another's
+ * (ADR 0010).
+ */
+const noStore = createMiddleware(async (context, next) => {
+  await next();
+  context.header("cache-control", "private, no-store");
+});
+
+/**
  * The HTTP entry point to `application`. A route resolves who is asking, hands
  * the work to one use case, or to Better Auth for the account's own session,
  * and turns the answer into a status; anything it had to look up for itself
@@ -68,6 +82,10 @@ export function createApi(options: ApiOptions) {
   const guards = createGuards(options);
   const { requestHost, isTrustedWrite } = guards;
 
+  // First, so it reaches every answer under `/api`, the refusals below and
+  // Hono's 404 included: none is meant for a shared cache (ADR 0010).
+  api.use("/api/*", noStore);
+
   // The installation's origin is the console's and its tools': the account's
   // own credentials — Better Auth, a bearer token — and the console's API reach
   // nothing on any other host, which serves one organization's learn app and
@@ -76,8 +94,6 @@ export function createApi(options: ApiOptions) {
   // could do.
   api.use("/api/*", async (context, next) => {
     if (requestHost(context).installation) return next();
-    // A refusal here depends on the host, so no shared cache may keep one.
-    context.header("cache-control", "private, no-store");
     if (context.req.header("authorization") !== undefined) return context.body(null, 401);
     const { path } = context.req;
     const installationOnly = [
@@ -95,51 +111,39 @@ export function createApi(options: ApiOptions) {
   // Better Auth owns the routing below this path (ADR 0006); Braivo still owes
   // it the protections. Unguarded, `sign-in/email-otp` accepts a megabytes-long
   // name unauthenticated, and `organization/list` answers with one caller's
-  // organizations under no cache header at all.
-  api.on(
-    ["GET", "POST"],
-    "/api/auth/*",
-    // Set on every answer, Braivo's own refusals below included, not only the
-    // ones Better Auth leaves bare: nothing under this mount is public with the
-    // plugins in use, and exempting a header that already said `no-store` only
-    // ever skipped this same value.
-    async (context, next) => {
-      await next();
-      context.res.headers.set("cache-control", "private, no-store");
-    },
-    limitBody(MAX_BODY_BYTES),
-    async (context) => {
-      // A tool's token is for Braivo's API and for finding its way there, not
-      // for managing the account — approving another device, changing an
-      // email — which takes the person in their browser.
-      const bearer = context.req.header("authorization") !== undefined;
-      if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
-      if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
-        return context.body(null, 403);
-      }
+  // organizations under no cache header at all. `noStore` above replaces
+  // whatever header Better Auth set: nothing here is public with its plugins.
+  api.on(["GET", "POST"], "/api/auth/*", limitBody(MAX_BODY_BYTES), async (context) => {
+    // A tool's token is for Braivo's API and for finding its way there, not
+    // for managing the account — approving another device, changing an
+    // email — which takes the person in their browser.
+    const bearer = context.req.header("authorization") !== undefined;
+    if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
+    if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
+      return context.body(null, 403);
+    }
 
-      // Copied, since a library's response may carry immutable headers.
-      const answered = await auth.handler(context.req.raw);
-      const response = new Response(answered.body, answered);
-      // A renewed session comes back as a signed cookie, which the bearer
-      // plugin also copies into `set-auth-token`: either would carry a token's
-      // session past every limit set on bearers here.
-      if (bearer) {
-        response.headers.delete("set-cookie");
-        response.headers.delete("set-auth-token");
-      }
-      return response;
-    },
-  );
+    // Copied, since a library's response may carry immutable headers.
+    const answered = await auth.handler(context.req.raw);
+    const response = new Response(answered.body, answered);
+    // A renewed session comes back as a signed cookie, which the bearer
+    // plugin also copies into `set-auth-token`: either would carry a token's
+    // session past every limit set on bearers here.
+    if (bearer) {
+      response.headers.delete("set-cookie");
+      response.headers.delete("set-auth-token");
+    }
+    return response;
+  });
 
   /**
    * The organization this request's host serves, which a learn app on that
    * domain is branded as. No session: the domain is public and so is its name.
    * The host is the request URL's, so a router in front must forward `Host`.
-   * Still `noStore`: the same URL names a different organization on every
-   * domain, and a rename should show on the next load.
+   * Uncacheable all the same: the same URL names a different organization on
+   * every domain, and a rename should show on the next load.
    */
-  api.get("/api/organization", noStore, async (context) => {
+  api.get("/api/organization", async (context) => {
     const found = await readHostOrganization({
       database,
       hostname: new URL(context.req.url).hostname,

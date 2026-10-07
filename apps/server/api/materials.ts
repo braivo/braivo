@@ -15,7 +15,7 @@ import {
   uploadFile,
 } from "../application/index.ts";
 import type { FileStore } from "../storage/index.ts";
-import { type Guards, jsonBody, limitBody, noStore } from "./guards.ts";
+import { type Guards, jsonBody, limitBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 
 /**
@@ -157,29 +157,23 @@ export function materialsRoutes(
   );
 
   /** Every source an organization has, without their text, for whoever administers it. */
-  routes.get(
-    "/api/organizations/:organizationId/sources",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const sources = await listSources({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-        });
+  routes.get("/api/organizations/:organizationId/sources", requireAccount, async (context) => {
+    try {
+      const sources = await listSources({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+      });
 
-        return context.json({ sources });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
+      return context.json({ sources });
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
 
   /** One source, text included, for whoever administers its organization. */
   routes.get(
     "/api/organizations/:organizationId/sources/:sourceId",
-    noStore,
     requireAccount,
     async (context) => {
       try {
@@ -301,7 +295,6 @@ export function materialsRoutes(
    */
   routes.get(
     "/api/organizations/:organizationId/files/:fileId",
-    noStore,
     requireAccount,
     async (context) => {
       try {
