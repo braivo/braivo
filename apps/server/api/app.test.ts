@@ -1732,6 +1732,27 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(await downloaded.text()).toBe(pdf);
   });
 
+  test("carries a renewed session's cookie on a download", async () => {
+    // A download builds its own answer, which could leave the cookie out.
+    const pdf = "%PDF-1.7 Renovado";
+    const headers = { "content-type": "application/pdf", cookie: teacher.cookie };
+    const { fileId } = (await (await postFile(pdf, headers)).json()) as { fileId: string };
+    // Due for renewal, after the upload, so the download is what renews it.
+    await database
+      .update(session)
+      .set({ expiresAt: new Date(Date.now() + 60 * 60 * 1000) })
+      .where(eq(session.token, teacher.token));
+
+    const downloaded = await getFile(fileId, teacher.cookie);
+
+    expect(await downloaded.text()).toBe(pdf);
+    const sent = teacher.cookie
+      .split("; ")
+      .find((pair) => pair.startsWith("better-auth.session_token="));
+    const renewed = downloaded.headers.getSetCookie().map((set) => set.split(";", 1)[0]);
+    expect(renewed).toContain(sent);
+  });
+
   test("puts back bytes a store lost when the same file is uploaded again", async () => {
     const pdf = "%PDF-1.7 Perdido";
     const headers = { "content-type": "application/pdf", cookie: teacher.cookie };
