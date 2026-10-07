@@ -91,7 +91,7 @@
 //
 //        Dates are ISO 8601 strings. The shape is the serialization of
 //        `LearningDecision`, so a rename inside `learning` reshapes the
-//        response; `app.test.ts` pins it so that cannot happen quietly.
+//        response; `learning.test.ts` pins it so that cannot happen quietly.
 //
 // `GET /api/courses` — the courses the signed-in learner may study: every course
 // of every organization they belong to, by title. On an organization's domain,

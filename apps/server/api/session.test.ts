@@ -139,7 +139,7 @@ describe.skipIf(!connectionString)("the session routes", () => {
   });
 
   test("starts sign-in on a learn domain only, and completes it on the installation's host only", async () => {
-    const unknown = "https://api-test-unknown.example.com";
+    const unknown = "https://session-test-unknown.example.com";
 
     expect((await api.request(`${baseUrl}/api/session/sign-in`)).status).toBe(404);
     expect((await api.request(`${unknown}/api/session/sign-in`)).status).toBe(404);
