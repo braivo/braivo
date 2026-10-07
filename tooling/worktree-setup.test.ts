@@ -7,6 +7,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -16,8 +17,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { withoutRepositoryVariables } from "./git-env.ts";
 import { setUpWorktree } from "./worktree-setup.ts";
 
 let dir: string;
@@ -29,7 +31,11 @@ const install = (root: string) => void installs.push(root);
 
 /** Hooks off: this exercises the script, not whichever hooks the machine has. */
 function git(cwd: string, ...args: string[]): void {
-  execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd, stdio: "ignore" });
+  execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+    cwd,
+    env: withoutRepositoryVariables(),
+    stdio: "ignore",
+  });
 }
 
 beforeEach(() => {
@@ -116,6 +122,23 @@ describe("worktree setup", () => {
     expect(() => setUpWorktree(linked, install)).toThrow("/local is not gitignored");
     expect(existsSync(join(linked, "local"))).toBe(false);
     expect(installs).toEqual([linked]);
+  });
+
+  test("sets up the worktree it is in, whichever repository Git's variables name", () => {
+    // As under `git rebase --exec` in another repository, which exports these.
+    const other = join(dir, "other");
+    mkdirSync(other);
+    git(other, "init", "-q");
+    vi.stubEnv("GIT_DIR", join(other, ".git"));
+    vi.stubEnv("GIT_WORK_TREE", other);
+    vi.stubEnv("GIT_INDEX_FILE", join(other, ".git/index"));
+    try {
+      expect(setUpWorktree(linked, install)).toContain("copied .env");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(readdirSync(other)).toEqual([".git"]);
+    expect(existsSync(join(other, ".git/worktrees"))).toBe(false);
   });
 
   test("does nothing in the main checkout", () => {

@@ -4,6 +4,8 @@ Adaptive learning powered by AI: Braivo turns existing educational content into 
 
 Before making product or feature decisions, read `docs/product.md` in the `braivo` repository. It defines users, principles, non-goals, and the repository boundary. Shared terms are defined in `docs/glossary.md`. Before changing an area, read its spec in `docs/specs/` and, if there is one, its plan, `local/plans/<area>.md`, gitignored. Update the spec in the same change when behavior, rules, boundaries, or gaps change, not for a refactor; the plan as work goes on. How to write each: `docs/specs/README.md`.
 
+If `local/AGENTS.md` exists, read it before starting (in a worktree not yet set up, once setup links `local/`): the maintainer's preferences and workflow, gitignored. It never overrides a spec, an ADR, or this file ([ADR 0019](docs/adr/0019-shared-local-notes.md)).
+
 ## Working in checkpoints
 
 Work too large for one reviewable commit goes as ordered checkpoints in its plan (format: `docs/specs/README.md`, Plans), one at a time, so the maintainer reviews each before the next builds on it. Each leaves the repository valid and makes one observable thing true: a slice through the layers it needs, not a layer (schema, then API, then UI). The maintainer's instruction for a task overrides these defaults.
@@ -36,7 +38,7 @@ packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
 tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup
-docs/                  product, architecture, glossary, adr/, specs/
+docs/                  product, architecture, apps, glossary, adr/, specs/
 ```
 
 ## Workspace
@@ -45,7 +47,8 @@ One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`
 
 - Zed worktrees, and linked worktrees where a new Claude Code session starts, are bootstrapped automatically (`docs/adr/0014-worktree-setup.md`). In any other linked worktree, run `bun tooling/worktree-setup.ts` before development commands.
 - `bunx vp check --fix` formats, lints, and type-checks everything. Run it before finishing a change.
-- `bun run test` runs every test. Not `vp test`: the server needs Bun, and `vp test` starts Node.
+- `bun run test` runs every test. Not `vp test`: the server needs Bun, and `vp test` starts Node. One file: `bun run test <file>`, never plain `bun test`, which skips pointing the server's tests at the worktree's own database (`docs/adr/0014-worktree-setup.md`).
+- A schema change or a migration follows `docs/adr/0005-postgresql-drizzle.md`, including when migrations may be regenerated.
 - Lint, format, and test settings live only in the root `vite.config.ts`.
 - App routes mirror the URL in folders, and signed-in pages go under `routes/_signed-in/`, whose `route.tsx` is the guard (`docs/adr/0016-route-files.md`). A new route file needs its app's `routeTree.gen.ts` regenerated (`bunx vp build` in the app), or `vp check` fails.
 - `packages/ui` is a shadcn/ui project (`docs/adr/0012-shadcn-preset.md`, layout in `docs/adr/0011-ui-and-auth-client-packages.md`). For UI work, load the shadcn skill (`npx skills use https://github.com/shadcn-ui/ui --skill shadcn`) and follow its rules, with these differences for this repository:
@@ -56,4 +59,5 @@ One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`
   - To update from upstream: `bunx shadcn add --all --overwrite --yes`, then review `git diff` and run the gates.
   - To change the design: `bunx shadcn apply <preset> --yes` (`--only theme,font` keeps the components; `init --force --reinstall` changes the base or the pointer). Then remove what the old preset left behind: font imports the theme no longer names, and dependencies nothing imports. Ask the maintainer before changing the preset.
 - Learner-facing copy is marked where it is rendered, with Lingui's macros (`docs/adr/0035-lingui-localization.md`): `<Trans>` and `useLingui`'s `t` in a component; `msg` for copy kept outside one, translated where shown; `@lingui/core/macro`'s `t` only in code running after the app starts (a route's `head`), never at a module's top level, which runs before the language is chosen. After changing marked copy, `bun run i18n:extract`, then translate each new entry in `packages/i18n/locales/` (an accessible name or title counts); `bun run i18n:check` fails until every catalog is complete.
+- A page in `apps/console` or `apps/learn` follows `docs/apps.md`: titles, pending and failed actions, long words, and testing it.
 - A source file Braivo writes (`.ts`, `.tsx`, `.css`, shell) starts with the two-line SPDX header in `docs/adr/0002-agpl-only.md`; never add or change one in shadcn's files under `packages/ui`. `bun run license:check` fails on a missing one.
