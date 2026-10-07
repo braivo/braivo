@@ -156,10 +156,10 @@ function graded(overrides: Record<string, unknown> = {}) {
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
 /**
  * Outside the database gate below, because it needs none: the session lookup
- * throws before the course ID or the database can matter. Why the cache header
- * is each read's first statement, and the whole of why no custom error handler
- * was added — Hono's default 500 keeps the headers already on the context, a
- * claim ADR 0010 makes and this is the only thing that checks.
+ * throws before the course ID or the database can matter. The whole of why no
+ * custom error handler was added: Hono makes its default 500 inside the
+ * middleware chain, so `noStore` still sets the cache header on it, a claim
+ * ADR 0010 makes and this is the only thing that checks.
  */
 test("carries the cache header even when the session lookup throws", async () => {
   const broken = createApi({
@@ -521,11 +521,10 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   /**
-   * Every Braivo write installs `bodyLimit` and calls `isTrustedWrite` for
-   * itself. Explicit calls are simpler than a middleware that would have
-   * to exempt the Better Auth mount, which does its own origin check — but
-   * duplicated protection needs duplicated coverage, or deleting one of them
-   * leaves the suite green.
+   * Every JSON write below lists its own guards (`trustedJsonWrite`), rather
+   * than one middleware on every write, which would have to exempt the Better
+   * Auth mount and its own origin check — so each route needs its own
+   * coverage, or dropping the guards from one leaves the suite green.
    *
    * Resolved inside each test rather than in the table, since the learner and
    * the organization only exist once `beforeAll` has run.

@@ -23,6 +23,6 @@ Braivo Cloud may serve the API from Cloudflare Workers, which reach PostgreSQL t
 
 - `pg` is a dependency of `@braivo/db`. A raw `execute` answers `{ rows }`, not an array.
 - This repository ships no Worker; whoever deploys to Workers writes the entry. One run through local Hyperdrive bindings queried, read in a transaction, and served the API with Better Auth per request; routes reaching hashing or the file stores were not exercised.
-- The request path keeps off Bun's own APIs, which a lint rule refuses (`bunFree` in `vite.config.ts`); hashing is `node:crypto`'s. Bun stays in the CLI, the tests, and both file stores (`Bun.file`, `S3Client`), which `serve` builds; a Worker passes its own `FileStore`. That workerd runs the rest, `node:` modules and dependencies included, is for a deployment to prove.
+- The request path keeps off Bun's own APIs, which a lint rule refuses (`bunFree` in `vite.config.ts`), save lifting `Bun.serve`'s idle timeout for a slow model call through Hono's `env`, which elsewhere does nothing; hashing is `node:crypto`'s. Bun stays in the CLI, the tests, and both file stores (`Bun.file`, `S3Client`), which `serve` builds; a Worker passes its own `FileStore`. That workerd runs the rest, `node:` modules and dependencies included, is for a deployment to prove.
 - Built per request, a Worker pays for the route table and Better Auth's setup on every request; measure before caching either.
 - A read moves to `cachedDatabase` only with a reason in its doc comment that a cached answer equals a fresh one.
