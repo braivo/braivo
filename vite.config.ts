@@ -92,6 +92,31 @@ export default defineConfig({
         },
       },
       {
+        // The HTTP layer reaches other modules through their `index.ts`, and
+        // never `persistence`: a route calls a use case. Its tests seed through
+        // `persistence`. Restates bunFree's pattern, which this rule replaces.
+        files: ["apps/server/api/**/*.ts"],
+        excludeFiles: ["**/*.test.ts"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                { regex: "^bun(:|$)", message: bunFreeMessage },
+                {
+                  regex: "^\\.\\./persistence(/|$)",
+                  message: "A route calls a use case in `application`, not `persistence`.",
+                },
+                {
+                  group: ["../*/**", "!../*/index.ts"],
+                  message: "Another module's API is its `index.ts`.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // shadcn's code, held to the rules that find bugs rather than to this
         // repository's taste; a local fix here is a patch to carry on every update.
         files: [...shadcnOutput, ...beside],

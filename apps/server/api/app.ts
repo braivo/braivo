@@ -2,38 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { type Context, Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
+import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { createMiddleware } from "hono/factory";
 
 import {
-  addSource,
   chooseNextActivity,
   citeSources,
   chooseNextObjective,
   completeHandoff,
-  ConflictingEvidence,
-  ConflictingKey,
   defineCourse,
   defineObjectives,
   defineTasks,
   describeHandoff,
   endLearnerSession,
   type Ai,
-  AiLimitReached,
-  AiNotEntitled,
-  AiUnavailable,
-  draftFromSource,
-  FilesUnavailable,
-  getSource,
-  InvalidCitation,
-  InvalidAiRequest,
-  InvalidEvidence,
-  InvalidFile,
-  InvalidDefinition,
-  InvalidSource,
-  InvalidTask,
   listCourses,
   listLearnerCourses,
   listManagedOrganizations,
@@ -41,29 +23,32 @@ import {
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
-  listSources,
-  ModelUnavailable,
-  NotPermitted,
-  openFile,
   readHostOrganization,
   readAuthoredCourse,
-  resumeLearnerSession,
-  readFileText,
   readCourseProgress,
   readLearnerProgress,
   recordGradedEvidence,
   redeemHandoff,
   type QuotedCitation,
-  StaleCorrection,
   retireTasks,
   startHandoff,
   submitAttempt,
-  type RequestHost,
-  uploadFile,
 } from "../application/index.ts";
-import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
+import type { Auth } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import type { FileStore } from "../storage/index.ts";
+import {
+  cookieOptions,
+  createGuards,
+  HANDOFF_COOKIE,
+  jsonBody,
+  LEARNER_COOKIE,
+  limitBody,
+  MAX_BODY_BYTES,
+  noStore,
+} from "./guards.ts";
+import { materialsRoutes } from "./materials.ts";
+import { organizationRefusal, secondsUntil } from "./refusals.ts";
 
 /**
  * Reads evidence out of a request body, or nothing when the body is not
@@ -103,57 +88,7 @@ function parseEvidence(body: unknown): Evidence[] | undefined {
   return parsed;
 }
 
-/**
- * Whether a state-changing request came from somewhere allowed to make it.
- *
- * The session cookie is `SameSite=Lax`, which stops a cross-site POST from
- * carrying it but not a same-site one — and a sibling subdomain is same-site.
- * Two cheap checks close that gap. A browser cannot set `application/json`
- * cross-origin without a preflight this server never answers, and when it does
- * send an `Origin` it has to be ours. A server-to-server caller sends no
- * `Origin` at all and sets the content type, so neither check touches it.
- * Besides this installation's origin, an organization's domain serves the
- * learn app (ADR 0004); it writes only to itself, as its learner session.
- */
-async function isTrustedWrite(
-  context: Context,
-  origin: string,
-  database: Database,
-  host: RequestHost,
-): Promise<boolean> {
-  // The media type alone, so that `application/json; charset=utf-8` is accepted
-  // and `application/jsonp` is not — a prefix test would take both.
-  const mediaType = (context.req.header("content-type") ?? "").split(";")[0] ?? "";
-  if (mediaType.trim().toLowerCase() !== "application/json") return false;
-
-  // Each app calls its own origin's API, so a write comes from the host it is
-  // sent to: a learn domain cannot write through the console's session.
-  const requestOrigin = context.req.header("origin");
-  if (requestOrigin === undefined) return true;
-  if (host.installation) return requestOrigin === origin;
-  return (
-    URL.canParse(requestOrigin) &&
-    new URL(requestOrigin).hostname === host.hostname &&
-    isOrganizationOrigin(database, requestOrigin)
-  );
-}
-
-/**
- * `isTrustedWrite` for a body that is a file rather than JSON. What a browser
- * sends cross-site without a preflight is a form's content type or none, so
- * an upload must name another; `text/plain` falls to that rule, which costs
- * nothing, since text is sent as a source rather than kept as a file.
- */
-function isTrustedUpload(context: Context, origin: string): boolean {
-  const mediaType = (context.req.header("content-type") ?? "").split(";")[0] ?? "";
-  const simple = ["", "application/x-www-form-urlencoded", "multipart/form-data", "text/plain"];
-  if (simple.includes(mediaType.trim().toLowerCase())) return false;
-
-  const requestOrigin = context.req.header("origin");
-  return requestOrigin === undefined || requestOrigin === origin;
-}
-
-export type ApiOptions = {
+type ApiOptions = {
   auth: Auth;
   database: Database;
   /**
@@ -192,49 +127,6 @@ function parseObjectives(body: unknown): { title: string; key?: string }[] | und
     parsed.push(key === undefined ? { title } : { title, key });
   }
   return parsed;
-}
-
-/**
- * How a route under `/api/organizations` answers its use case's refusals,
- * alike on every one; anything else is rethrown. Its caller named the
- * organization, so `NotPermitted` is a bare 403, not a 404: it tells them
- * nothing they did not assert. Its caller is often an agent that can fix what
- * it sent ("quote more of it"), so the rest come explained, each saying whose
- * fix it is: the caller's for 400 and 409, the operator's for 501 and an AI
- * 403, the calendar's for 429, nobody's but a retry's for 502. Never for a
- * learner route, whose result's union says how it refuses.
- */
-function organizationRefusal(context: Context, error: unknown): Response {
-  // A grader's, bare: a malformed body is 400 either way, and nothing was
-  // recorded. 409, not 400, when evidence disagrees with what is stored, or
-  // a grader would look at its format rather than at how it builds IDs.
-  if (error instanceof InvalidEvidence) return context.body(null, 400);
-  if (error instanceof ConflictingEvidence) return context.body(null, 409);
-
-  if (
-    error instanceof InvalidDefinition ||
-    error instanceof InvalidTask ||
-    error instanceof InvalidCitation ||
-    error instanceof InvalidSource ||
-    error instanceof InvalidFile ||
-    error instanceof InvalidAiRequest
-  ) {
-    return context.json({ error: error.message }, 400);
-  }
-  if (error instanceof ConflictingKey || error instanceof StaleCorrection) {
-    return context.json({ error: error.message }, 409);
-  }
-  if (error instanceof AiUnavailable || error instanceof FilesUnavailable) {
-    return context.json({ error: error.message }, 501);
-  }
-  if (error instanceof AiNotEntitled) return context.json({ error: error.message }, 403);
-  if (error instanceof AiLimitReached) {
-    context.header("retry-after", String(secondsUntil(error.renewsAt, new Date())));
-    return context.json({ error: error.message }, 429);
-  }
-  if (error instanceof ModelUnavailable) return context.json({ error: error.message }, 502);
-  if (error instanceof NotPermitted) return context.body(null, 403);
-  throw error;
 }
 
 /**
@@ -357,67 +249,6 @@ type ParsedTask = {
  */
 const MAX_CITATIONS_PER_TASK = 10;
 
-/**
- * Whole seconds until `when`, rounded up so a client waiting that long is never
- * early. A duration, not a date: the client's clock may disagree with this one.
- */
-function secondsUntil(when: Date, now: Date): number {
-  return Math.ceil((when.getTime() - now.getTime()) / 1000);
-}
-
-/**
- * Reads a source out of a request body: a title, and exactly one of `text`, a
- * recording's `cues`, or a document's `pages`. Only the types: what makes each
- * value valid is `content`'s rule, applied by the use case. `url`, `language`,
- * and `original` are optional, and absent is the only way to leave one out.
- */
-function parseSource(
-  body: unknown,
-):
-  | ({ title: string; url?: string; language?: string; original?: string } & (
-      | { text: string }
-      | { cues: { at: number; text: string }[] }
-      | { pages: { page: string; text: string }[] }
-    ))
-  | undefined {
-  if (typeof body !== "object" || body === null) return undefined;
-
-  const { title, text, cues, pages, url, language, original } = body as Record<string, unknown>;
-  if (typeof title !== "string") return undefined;
-  if (url !== undefined && typeof url !== "string") return undefined;
-  if (language !== undefined && typeof language !== "string") return undefined;
-  if (original !== undefined && typeof original !== "string") return undefined;
-  const common = { title, url, language, original };
-
-  const sent = [text, cues, pages].filter((value) => value !== undefined);
-  if (sent.length !== 1) return undefined;
-  if (typeof text === "string") return { ...common, text };
-
-  if (Array.isArray(cues)) {
-    const parsed: { at: number; text: string }[] = [];
-    for (const cue of cues) {
-      if (typeof cue !== "object" || cue === null) return undefined;
-      const { at, text: said } = cue as Record<string, unknown>;
-      if (typeof at !== "number" || typeof said !== "string") return undefined;
-      parsed.push({ at, text: said });
-    }
-    return { ...common, cues: parsed };
-  }
-
-  if (Array.isArray(pages)) {
-    const parsed: { page: string; text: string }[] = [];
-    for (const each of pages) {
-      if (typeof each !== "object" || each === null) return undefined;
-      const { page, text: written } = each as Record<string, unknown>;
-      if (typeof page !== "string" || typeof written !== "string") return undefined;
-      parsed.push({ page, text: written });
-    }
-    return { ...common, pages: parsed };
-  }
-
-  return undefined;
-}
-
 /** Reads citations out of a request body: only their types, as for a source. */
 function parseCitations(body: unknown): QuotedCitation[] | undefined {
   if (typeof body !== "object" || body === null) return undefined;
@@ -438,57 +269,6 @@ function parseCitations(body: unknown): QuotedCitation[] | undefined {
     parsed.push({ objectiveId, sourceId, quote });
   }
   return parsed;
-}
-
-/** Enough for that many records, and far less than a body worth buffering. */
-const MAX_BODY_BYTES = 1_000_000;
-
-/**
- * A file is buffered whole, to be hashed before it is stored: a textbook's
- * PDF, a worksheet's scan, a slide deck. Video, larger, needs a direct
- * upload to the store instead (ADR 0028).
- */
-const MAX_FILE_BYTES = 50_000_000;
-
-/**
- * A source is one document's text, and a textbook's runs to a few megabytes.
- * Larger material is split into several sources, which is also the grain a
- * citation is easiest to review at.
- */
-const MAX_SOURCE_BYTES = 10_000_000;
-
-/** 413 past `maxSize` bytes, declared or sent. */
-const limitBody = (maxSize: number) =>
-  bodyLimit({ maxSize, onError: (context) => context.body(null, 413) });
-
-/**
- * `Cache-Control: private, no-store` on whatever the route answers. Set on the
- * answer once there is one, so it reaches a `Response` a handler builds itself
- * and the 500 Hono makes of a throw, a failed session lookup's included. One
- * URL, a different answer per cookie, and a `Cookie` request header does not
- * by itself stop a shared cache handing one learner another's (ADR 0010).
- */
-const noStore = createMiddleware(async (context, next) => {
-  await next();
-  context.header("cache-control", "private, no-store");
-});
-
-/** The request's JSON body, or `undefined` when it is not JSON, for a parser to refuse. */
-const jsonBody = (context: Context): Promise<unknown> => context.req.json().catch(() => undefined);
-
-/**
- * Lifts Bun's idle timeout from this request, for a call to the installation's
- * model. Bun, Hono's `env` here, closes a connection idle for ten seconds, and
- * a model reading a chapter takes longer: the request waits instead for as long
- * as the model may take (`ai`'s own timeout). Last before the use case, once
- * the request is known valid. Elsewhere `env` is something else, such as a
- * Worker's bindings, so `timeout` is called only if callable: a binding is a
- * value or a resource object, never a bare function. Not `typeof Bun`, which
- * `bunFree` refuses here.
- */
-function disableBunIdleTimeout(context: Context): void {
-  const server = context.env as { timeout?: unknown } | undefined;
-  if (typeof server?.timeout === "function") server.timeout(context.req.raw, 0);
 }
 
 /**
@@ -513,21 +293,6 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * A learn domain's cookies (ADR 0018), each `__Host-`: Secure, on that host
- * alone, for every path. `Lax`, since the handoff arrives by a navigation from
- * the installation's origin.
- */
-const LEARNER_COOKIE = "braivo-learner";
-const HANDOFF_COOKIE = "braivo-handoff";
-const cookieOptions = (expiresAt: Date) =>
-  ({
-    prefix: "host",
-    httpOnly: true,
-    sameSite: "Lax",
-    expires: expiresAt,
-  }) as const;
-
-/**
  * The HTTP entry point to `application`. A route resolves who is asking, calls
  * one use case, and turns its result into a status; anything it had to look up
  * for itself would be a workflow, and workflows belong to `application`.
@@ -540,14 +305,16 @@ const cookieOptions = (expiresAt: Date) =>
 export function createApi(options: ApiOptions) {
   const { auth, database, cachedDatabase = database, files, ai } = options;
   const origin = new URL(options.baseUrl).origin;
-  const installationHostname = new URL(options.baseUrl).hostname;
   const api = new Hono();
-
-  /** The host a request was sent to, which `hostAdmits` limits routes by. */
-  const requestHost = (context: Context): RequestHost => {
-    const { hostname } = new URL(context.req.url);
-    return { hostname, installation: hostname === installationHostname };
-  };
+  const guards = createGuards(options);
+  const {
+    requestHost,
+    sessionFor,
+    isTrustedWrite,
+    trustedJsonWrite,
+    requireAccount,
+    requireLearner,
+  } = guards;
 
   // The installation's origin is the console's and its tools': the account's
   // own credentials — Better Auth, a bearer token — and the console's API reach
@@ -595,10 +362,7 @@ export function createApi(options: ApiOptions) {
       // email — which takes the person in their browser.
       const bearer = context.req.header("authorization") !== undefined;
       if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
-      if (
-        SIGN_IN_PATHS.has(context.req.path) &&
-        !(await isTrustedWrite(context, origin, database, requestHost(context)))
-      ) {
+      if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
         return context.body(null, 403);
       }
 
@@ -615,103 +379,6 @@ export function createApi(options: ApiOptions) {
       return response;
     },
   );
-
-  /**
-   * The session behind a request, with Better Auth's renewal cookies forwarded.
-   * It renews past the update interval and answers with a replacement cookie;
-   * calling its API directly means that header arrives here, and dropping it
-   * would sign out a client that only ever calls these routes, however active.
-   */
-  async function sessionFor(context: Context) {
-    // A learn domain holds learner sessions alone (ADR 0018): an account's
-    // cookie there counts for nothing.
-    if (!requestHost(context).installation) return null;
-    const { headers, response } = await auth.api.getSession({
-      headers: context.req.raw.headers,
-      returnHeaders: true,
-    });
-
-    // Not to a bearer, which renews by being used, and must not be handed a
-    // cookie it could carry where tokens are refused.
-    if (context.req.header("authorization") !== undefined) return response;
-    for (const cookie of headers.getSetCookie()) {
-      context.header("set-cookie", cookie, { append: true });
-    }
-    return response;
-  }
-
-  /**
-   * The learner behind a request to a learner route: on a learn domain, its
-   * learner session's user, renewed as it is used; on the installation's host,
-   * the account's (the console reading a learner's progress; the learn app in
-   * development).
-   */
-  async function learnerFor(context: Context): Promise<{ id: string; name: string } | undefined> {
-    const host = requestHost(context);
-    if (host.installation) {
-      const user = (await sessionFor(context))?.user;
-      return user && { id: user.id, name: user.name };
-    }
-
-    const token = getCookie(context, LEARNER_COOKIE, "host");
-    if (token === undefined) return undefined;
-    const found = await resumeLearnerSession({
-      database,
-      hostname: host.hostname,
-      token,
-      now: new Date(),
-    });
-    if (found?.renewedUntil) {
-      setCookie(context, LEARNER_COOKIE, token, cookieOptions(found.renewedUntil));
-    }
-    return found?.user;
-  }
-
-  // What a route admits, named once and listed in the order it runs: a limit,
-  // then the forged-write check, then the session. Before the session is even
-  // resolved, a forged write costs this server nothing, and its refusal does
-  // not depend on who it claims to be.
-
-  /** Refuses a write that may be forged: `isTrustedWrite`, 403. */
-  const trustedWrite = createMiddleware(async (context, next) => {
-    if (!(await isTrustedWrite(context, origin, database, requestHost(context)))) {
-      return context.body(null, 403);
-    }
-    await next();
-  });
-
-  /** A JSON write from a browser or a tool: limited, then refused if possibly forged. */
-  const trustedJsonWrite = (maxSize = MAX_BODY_BYTES) =>
-    [limitBody(maxSize), trustedWrite] as const;
-
-  /** As `trustedWrite`, for a body that is a file: `isTrustedUpload`, 403. */
-  const trustedUpload = createMiddleware(async (context, next) => {
-    if (!isTrustedUpload(context, origin)) return context.body(null, 403);
-    await next();
-  });
-
-  /**
-   * An account's session on the installation's host, cookie or token
-   * (`sessionFor`); 401 without one. Its user is `userId`.
-   */
-  const requireAccount = createMiddleware<{ Variables: { userId: string } }>(
-    async (context, next) => {
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-      context.set("userId", session.user.id);
-      await next();
-    },
-  );
-
-  /** A learner, as `learnerFor` finds one; 401 without one. */
-  const requireLearner = createMiddleware<{
-    Variables: { learner: { id: string; name: string } };
-  }>(async (context, next) => {
-    const learner = await learnerFor(context);
-    if (!learner) return context.body(null, 401);
-    context.set("learner", learner);
-    await next();
-  });
 
   /**
    * How `/login` may sign people in besides an emailed code, which is always
@@ -787,8 +454,7 @@ export function createApi(options: ApiOptions) {
    */
   api.post("/api/session/sign-out", async (context) => {
     if (context.req.header("authorization") !== undefined) return context.body(null, 403);
-    if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-      return context.body(null, 403);
+    if (!(await isTrustedWrite(context))) return context.body(null, 403);
 
     if (requestHost(context).installation) {
       const { headers } = await auth.api.signOut({
@@ -828,8 +494,7 @@ export function createApi(options: ApiOptions) {
    */
   api.post("/api/handoffs/:handoffId", noStore, async (context) => {
     if (context.req.header("authorization") !== undefined) return context.body(null, 403);
-    if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-      return context.body(null, 403);
+    if (!(await isTrustedWrite(context))) return context.body(null, 403);
 
     const session = await sessionFor(context);
     if (!session) return context.body(null, 401);
@@ -1307,55 +972,6 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * Adds material a content owner provides, as text. Extracting that text from
-   * a file is the caller's business, which is what lets a content owner's own
-   * tools do it (ADR 0020).
-   */
-  api.post(
-    "/api/organizations/:organizationId/sources",
-    ...trustedJsonWrite(MAX_SOURCE_BYTES),
-    requireAccount,
-    async (context) => {
-      const source = parseSource(await jsonBody(context));
-      if (source === undefined) return context.body(null, 400);
-
-      try {
-        const sourceId = await addSource({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          ...source,
-          now: new Date(),
-        });
-
-        return context.json({ sourceId }, 201);
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /** Every source an organization has, without their text, for whoever administers it. */
-  api.get(
-    "/api/organizations/:organizationId/sources",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const sources = await listSources({
-          database,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-        });
-
-        return context.json({ sources });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /**
    * Links objectives to the passages of sources that teach them. Braivo, not
    * the caller, decides where a quote is: that check is what makes derived
    * content grounded rather than merely attributed (ADR 0021).
@@ -1433,157 +1049,8 @@ export function createApi(options: ApiOptions) {
     },
   );
 
-  /**
-   * A course drafted from a source by the installation's own model, checked
-   * against the source and returned for review — never stored (ADR 0029).
-   * Slow: the model reads the whole source.
-   */
-  api.post(
-    "/api/organizations/:organizationId/sources/:sourceId/draft",
-    ...trustedJsonWrite(),
-    requireAccount,
-    async (context) => {
-      const body = await jsonBody(context);
-      if (typeof body !== "object" || body === null) return context.body(null, 400);
-      const { audience } = body as Record<string, unknown>;
-      if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
-
-      disableBunIdleTimeout(context);
-      try {
-        const draft = await draftFromSource({
-          database,
-          cachedDatabase,
-          ai,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          sourceId: context.req.param("sourceId"),
-          audience,
-          now: new Date(),
-          signal: context.req.raw.signal,
-        });
-        return draft ? context.json(draft) : context.body(null, 404);
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /** One source, text included, for whoever administers its organization. */
-  api.get(
-    "/api/organizations/:organizationId/sources/:sourceId",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const source = await getSource({
-          database,
-          cachedDatabase,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          sourceId: context.req.param("sourceId"),
-        });
-
-        // Reached only by an administrator, so a 404 confirms nothing they could
-        // not already list.
-        return source ? context.json(source) : context.body(null, 404);
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /**
-   * Keeps a file a content owner uploads — the original a source's text was
-   * extracted from — as the request's body, typed by its `Content-Type`.
-   */
-  api.post(
-    "/api/organizations/:organizationId/files",
-    limitBody(MAX_FILE_BYTES),
-    trustedUpload,
-    requireAccount,
-    async (context) => {
-      try {
-        const file = await uploadFile({
-          database,
-          files,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          bytes: new Uint8Array(await context.req.arrayBuffer()),
-          contentType: context.req.header("content-type") ?? "",
-          now: new Date(),
-        });
-
-        const { sha256, contentType, size } = file;
-        return context.json({ fileId: sha256, contentType, size }, 201);
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /**
-   * A file's text, page by page, read by the installation's model and returned
-   * for the caller to add as a source (ADR 0030). Slow, as drafting is.
-   */
-  api.post(
-    "/api/organizations/:organizationId/files/:fileId/text",
-    ...trustedJsonWrite(),
-    requireAccount,
-    async (context) => {
-      disableBunIdleTimeout(context);
-      try {
-        const pages = await readFileText({
-          database,
-          ai,
-          files,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          fileId: context.req.param("fileId"),
-          now: new Date(),
-          signal: context.req.raw.signal,
-        });
-        return pages ? context.json({ pages }) : context.body(null, 404);
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
-
-  /**
-   * A file's bytes, for whoever administers its organization. Always a
-   * download, never rendered: an uploaded HTML file served inline from this
-   * origin would run as Braivo.
-   */
-  api.get(
-    "/api/organizations/:organizationId/files/:fileId",
-    noStore,
-    requireAccount,
-    async (context) => {
-      try {
-        const opened = await openFile({
-          database,
-          files,
-          organizationId: context.req.param("organizationId"),
-          actingAs: context.var.userId,
-          fileId: context.req.param("fileId"),
-        });
-        if (!opened) return context.body(null, 404);
-
-        // A stream, not the blob: Bun refuses a bucket's file with response
-        // options. `context.body`, not a `Response`, which would drop the
-        // renewed session's cookie `requireAccount` set on the context.
-        return context.body(opened.bytes.stream(), 200, {
-          "content-type": opened.file.contentType,
-          "content-length": String(opened.file.size),
-          "content-disposition": "attachment",
-          "content-security-policy": "sandbox",
-          "x-content-type-options": "nosniff",
-        });
-      } catch (error) {
-        return organizationRefusal(context, error);
-      }
-    },
-  );
+  // A group's routes, after the host gate: Hono runs what was registered first.
+  api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
 
   return api;
 }
