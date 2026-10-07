@@ -75,4 +75,4 @@ A learner opens a course and Braivo keeps choosing what to practise next from wh
 
 ## Entry points
 
-`apps/server/application/activity.ts` (activities and attempts), `apps/server/application/next-objective.ts` (the bare decision), `apps/server/application/record-evidence.ts` (evidence graded elsewhere), `apps/server/content/task.ts` (presenting, shuffling, and grading a task), `apps/server/persistence/task.ts` (choosing a task, storing an attempt), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (the course page).
+`apps/server/application/activity.ts` (activities and attempts), `apps/server/application/next-objective.ts` (the bare decision), `apps/server/application/record-evidence.ts` (evidence graded elsewhere), `apps/server/content/task.ts` (presenting, shuffling, and grading a task), `apps/server/persistence/task.ts` (choosing a task, storing an attempt), `apps/server/api/learning.ts` (the learner's routes), `apps/server/api/authoring.ts` (graded evidence's route), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (the course page).

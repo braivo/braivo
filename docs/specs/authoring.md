@@ -97,7 +97,7 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 
 | Concern                    | Where                                                                                                                                                             |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routes and body parsing    | `apps/server/api/app.ts` (`parseObjectives`, `parseCourse`, `parseTasks`, `parseTaskIds`), `apps/server/api/refusals.ts` (`organizationRefusal`)                  |
+| Routes and body parsing    | `apps/server/api/authoring.ts` (`parseObjectives`, `parseCourse`, `parseTasks`, `parseTaskIds`), `apps/server/api/refusals.ts` (`organizationRefusal`)            |
 | Public contract            | `apps/server/api/index.ts`                                                                                                                                        |
 | Use cases                  | `apps/server/application/objectives.ts`, `apps/server/application/courses.ts` (`readAuthoredCourse`), `apps/server/application/tasks.ts`                          |
 | Locating a task's passages | `apps/server/application/citations.ts` (`locateCitations`)                                                                                                        |
