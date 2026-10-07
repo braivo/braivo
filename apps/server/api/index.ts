@@ -499,9 +499,9 @@
 // "quote": "…" }] }`, by source and position, or 404 when the organization has
 // no such objective.
 //
-// Every GET above but `sign-in-methods`, the same for everyone, answers
-// `Cache-Control: private, no-store`, since each one answers differently per
-// cookie or per host; so does a 500 out of one.
+// Every answer under `/api`, a refusal, a 404, or a 500 included, carries
+// `Cache-Control: private, no-store`: most answer differently per cookie or per
+// host, and none is meant for a shared cache.
 
 export type { Api } from "./app.ts";
 export { createApi } from "./app.ts";

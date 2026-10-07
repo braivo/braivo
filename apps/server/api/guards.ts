@@ -3,9 +3,8 @@
 
 // Who a request is, and what a route admits: the host, the session, and the
 // middleware a route lists before its handler (its body's limit, the
-// forged-write checks, the cache header), with `jsonBody` to read what a JSON
-// write admitted. Shared by every group of routes; a helper one group uses
-// stays in that group.
+// forged-write checks), with `jsonBody` to read what a JSON write admitted.
+// Shared by every group of routes; a helper one group uses stays in that group.
 
 import type { Database } from "@braivo/db";
 import type { Context } from "hono";
@@ -72,18 +71,6 @@ export const MAX_BODY_BYTES = 1_000_000;
 /** 413 past `maxSize` bytes, declared or sent. */
 export const limitBody = (maxSize: number) =>
   bodyLimit({ maxSize, onError: (context) => context.body(null, 413) });
-
-/**
- * `Cache-Control: private, no-store` on whatever the route answers. Set on the
- * answer once there is one, so it reaches a `Response` a handler builds itself
- * and the 500 Hono makes of a throw, a failed session lookup's included. One
- * URL, a different answer per cookie, and a `Cookie` request header does not
- * by itself stop a shared cache handing one learner another's (ADR 0010).
- */
-export const noStore = createMiddleware(async (context, next) => {
-  await next();
-  context.header("cache-control", "private, no-store");
-});
 
 /** The request's JSON body, or `undefined` when it is not JSON, for a parser to refuse. */
 export const jsonBody = (context: Context): Promise<unknown> =>

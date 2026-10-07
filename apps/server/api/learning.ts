@@ -12,7 +12,7 @@ import {
   readLearnerProgress,
   submitAttempt,
 } from "../application/index.ts";
-import { type Guards, jsonBody, noStore } from "./guards.ts";
+import { type Guards, jsonBody } from "./guards.ts";
 import { secondsUntil } from "./refusals.ts";
 
 /**
@@ -47,7 +47,7 @@ export function learningRoutes(
    * session's user, never a value from the request, so there is nothing to
    * authorize and nothing to get wrong.
    */
-  routes.get("/api/courses/:courseId/next", noStore, requireLearner, async (context) => {
+  routes.get("/api/courses/:courseId/next", requireLearner, async (context) => {
     const next = await chooseNextObjective({
       database,
       learnerId: context.var.learner.id,
@@ -76,7 +76,7 @@ export function learningRoutes(
   });
 
   /** The courses the signed-in learner may study, from the session alone. */
-  routes.get("/api/courses", noStore, requireLearner, async (context) => {
+  routes.get("/api/courses", requireLearner, async (context) => {
     const courses = await listLearnerCourses({
       database,
       learnerId: context.var.learner.id,
@@ -89,7 +89,7 @@ export function learningRoutes(
    * The signed-in learner's next objective, with a task to practise it or, while
    * its tasks rest, when to ask again. Statuses as for the decision route.
    */
-  routes.get("/api/courses/:courseId/activity", noStore, requireLearner, async (context) => {
+  routes.get("/api/courses/:courseId/activity", requireLearner, async (context) => {
     const now = new Date();
     const next = await chooseNextActivity({
       database,
@@ -178,7 +178,6 @@ export function learningRoutes(
    */
   routes.get(
     "/api/courses/:courseId/learners/:learnerId/progress",
-    noStore,
     requireLearner,
     async (context) => {
       const viewer = context.var.learner;
@@ -212,7 +211,7 @@ export function learningRoutes(
   );
 
   /** Where each learner in a course stands, counted, for a content owner. */
-  routes.get("/api/courses/:courseId/progress", noStore, requireAccount, async (context) => {
+  routes.get("/api/courses/:courseId/progress", requireAccount, async (context) => {
     const progress = await readCourseProgress({
       database,
       viewedBy: context.var.userId,
