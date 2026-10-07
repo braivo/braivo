@@ -72,6 +72,15 @@ function parseSource(
 }
 
 /**
+ * A JSON object's fields, or `undefined` for any other body. For a body whose
+ * fields are all optional, which no field's check would refuse.
+ */
+function parseObject(body: unknown): Record<string, unknown> | undefined {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return undefined;
+  return body as Record<string, unknown>;
+}
+
+/**
  * A file is buffered whole, to be hashed before it is stored: a textbook's
  * PDF, a worksheet's scan, a slide deck. Video, larger, needs a direct
  * upload to the store instead (ADR 0028).
@@ -201,9 +210,9 @@ export function materialsRoutes(
     ...trustedJsonWrite(),
     requireAccount,
     async (context) => {
-      const body = await jsonBody(context);
-      if (typeof body !== "object" || body === null) return context.body(null, 400);
-      const { audience } = body as Record<string, unknown>;
+      const body = parseObject(await jsonBody(context));
+      if (body === undefined) return context.body(null, 400);
+      const { audience } = body;
       if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
 
       disableBunIdleTimeout(context);
@@ -264,6 +273,8 @@ export function materialsRoutes(
     ...trustedJsonWrite(),
     requireAccount,
     async (context) => {
+      if (parseObject(await jsonBody(context)) === undefined) return context.body(null, 400);
+
       disableBunIdleTimeout(context);
       try {
         const pages = await readFileText({
