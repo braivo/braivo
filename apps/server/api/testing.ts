@@ -20,9 +20,11 @@ export type Signed = { cookie: string; token: string; id: string; email: string;
 /**
  * An API on the test database, with what every suite repeats: Better Auth
  * mailing its codes to `outbox`, and `signUp`. A suite seeds its own
- * organizations and courses.
+ * organizations and courses, and passes the file store or model it needs.
  */
-export function createTestApi() {
+export function createTestApi(
+  options: Omit<Parameters<typeof createApi>[0], "auth" | "database" | "baseUrl"> = {},
+) {
   const database = testing.sharedDatabase(connectionString ?? "");
   const outbox = createOutbox();
   const auth = createAuth({
@@ -31,7 +33,7 @@ export function createTestApi() {
     baseURL: baseUrl,
     sendMail: outbox.sendMail,
   });
-  const api = createApi({ auth, database, baseUrl });
+  const api = createApi({ ...options, auth, database, baseUrl });
 
   /**
    * Makes a new account and signs it in by code through the mounted Better
