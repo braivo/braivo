@@ -498,10 +498,9 @@
 // "quote": "…" }] }`, by source and position, or 404 when the organization has
 // no such objective.
 //
-// Every GET above answers `Cache-Control: private, no-store`, since each one
-// answers differently per cookie or per host; so does a 500 raised after the
-// route set it, because Hono's default error response keeps the headers already
-// on the context. Braivo's writes set none: nothing caches a POST unasked.
+// Every GET above but `sign-in-methods`, the same for everyone, answers
+// `Cache-Control: private, no-store`, since each one answers differently per
+// cookie or per host; so does a 500 out of one.
 
 export type { Api, ApiOptions } from "./app.ts";
 export { createApi } from "./app.ts";

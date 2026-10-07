@@ -5,6 +5,7 @@ import type { Database } from "@braivo/db";
 import { type Context, Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { createMiddleware } from "hono/factory";
 
 import {
   addSource,
@@ -194,27 +195,38 @@ function parseObjectives(body: unknown): { title: string; key?: string }[] | und
 }
 
 /**
- * The refusals of defining an objective or a course, explained but for 403,
- * since the caller is often an agent that can fix what it sent.
+ * How a route under `/api/organizations` answers its use case's refusals,
+ * alike on every one; anything else is rethrown. Its caller named the
+ * organization, so `NotPermitted` is a bare 403, not a 404: it tells them
+ * nothing they did not assert. Its caller is often an agent that can fix what
+ * it sent ("quote more of it"), so the rest come explained, each saying whose
+ * fix it is: the caller's for 400 and 409, the operator's for 501 and an AI
+ * 403, the calendar's for 429, nobody's but a retry's for 502. Never for a
+ * learner route, whose result's union says how it refuses.
  */
-function definitionRefusal(context: Context, error: unknown): Response {
-  if (error instanceof InvalidDefinition) return context.json({ error: error.message }, 400);
-  if (error instanceof ConflictingKey) return context.json({ error: error.message }, 409);
-  if (error instanceof NotPermitted) return context.body(null, 403);
-  throw error;
-}
+function organizationRefusal(context: Context, error: unknown): Response {
+  // A grader's, bare: a malformed body is 400 either way, and nothing was
+  // recorded. 409, not 400, when evidence disagrees with what is stored, or
+  // a grader would look at its format rather than at how it builds IDs.
+  if (error instanceof InvalidEvidence) return context.body(null, 400);
+  if (error instanceof ConflictingEvidence) return context.body(null, 409);
 
-/**
- * The statuses of a route that asks the installation's model: each refusal
- * explained, since the fix is someone's to make — the operator's for 501 and
- * 403, the caller's for 400, the calendar's for 429, nobody's but a retry's
- * for 502.
- */
-function aiRefusal(context: Context, error: unknown): Response {
+  if (
+    error instanceof InvalidDefinition ||
+    error instanceof InvalidTask ||
+    error instanceof InvalidCitation ||
+    error instanceof InvalidSource ||
+    error instanceof InvalidFile ||
+    error instanceof InvalidAiRequest
+  ) {
+    return context.json({ error: error.message }, 400);
+  }
+  if (error instanceof ConflictingKey || error instanceof StaleCorrection) {
+    return context.json({ error: error.message }, 409);
+  }
   if (error instanceof AiUnavailable || error instanceof FilesUnavailable) {
     return context.json({ error: error.message }, 501);
   }
-  if (error instanceof InvalidAiRequest) return context.json({ error: error.message }, 400);
   if (error instanceof AiNotEntitled) return context.json({ error: error.message }, 403);
   if (error instanceof AiLimitReached) {
     context.header("retry-after", String(secondsUntil(error.renewsAt, new Date())));
@@ -445,6 +457,40 @@ const MAX_FILE_BYTES = 50_000_000;
  */
 const MAX_SOURCE_BYTES = 10_000_000;
 
+/** 413 past `maxSize` bytes, declared or sent. */
+const limitBody = (maxSize: number) =>
+  bodyLimit({ maxSize, onError: (context) => context.body(null, 413) });
+
+/**
+ * `Cache-Control: private, no-store` on whatever the route answers. Set on the
+ * answer once there is one, so it reaches a `Response` a handler builds itself
+ * and the 500 Hono makes of a throw, a failed session lookup's included. One
+ * URL, a different answer per cookie, and a `Cookie` request header does not
+ * by itself stop a shared cache handing one learner another's (ADR 0010).
+ */
+const noStore = createMiddleware(async (context, next) => {
+  await next();
+  context.header("cache-control", "private, no-store");
+});
+
+/** The request's JSON body, or `undefined` when it is not JSON, for a parser to refuse. */
+const jsonBody = (context: Context): Promise<unknown> => context.req.json().catch(() => undefined);
+
+/**
+ * Lifts Bun's idle timeout from this request, for a call to the installation's
+ * model. Bun, Hono's `env` here, closes a connection idle for ten seconds, and
+ * a model reading a chapter takes longer: the request waits instead for as long
+ * as the model may take (`ai`'s own timeout). Last before the use case, once
+ * the request is known valid. Elsewhere `env` is something else, such as a
+ * Worker's bindings, so `timeout` is called only if callable: a binding is a
+ * value or a resource object, never a bare function. Not `typeof Bun`, which
+ * `bunFree` refuses here.
+ */
+function disableBunIdleTimeout(context: Context): void {
+  const server = context.env as { timeout?: unknown } | undefined;
+  if (typeof server?.timeout === "function") server.timeout(context.req.raw, 0);
+}
+
 /**
  * What Better Auth answers a bearer token: who it is, and signing its own
  * session out (`braivo logout`). A tool finds its organizations at Braivo's
@@ -542,7 +588,7 @@ export function createApi(options: ApiOptions) {
       await next();
       context.res.headers.set("cache-control", "private, no-store");
     },
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    limitBody(MAX_BODY_BYTES),
     async (context) => {
       // A tool's token is for Braivo's API and for finding its way there, not
       // for managing the account — approving another device, changing an
@@ -621,6 +667,52 @@ export function createApi(options: ApiOptions) {
     return found?.user;
   }
 
+  // What a route admits, named once and listed in the order it runs: a limit,
+  // then the forged-write check, then the session. Before the session is even
+  // resolved, a forged write costs this server nothing, and its refusal does
+  // not depend on who it claims to be.
+
+  /** Refuses a write that may be forged: `isTrustedWrite`, 403. */
+  const trustedWrite = createMiddleware(async (context, next) => {
+    if (!(await isTrustedWrite(context, origin, database, requestHost(context)))) {
+      return context.body(null, 403);
+    }
+    await next();
+  });
+
+  /** A JSON write from a browser or a tool: limited, then refused if possibly forged. */
+  const trustedJsonWrite = (maxSize = MAX_BODY_BYTES) =>
+    [limitBody(maxSize), trustedWrite] as const;
+
+  /** As `trustedWrite`, for a body that is a file: `isTrustedUpload`, 403. */
+  const trustedUpload = createMiddleware(async (context, next) => {
+    if (!isTrustedUpload(context, origin)) return context.body(null, 403);
+    await next();
+  });
+
+  /**
+   * An account's session on the installation's host, cookie or token
+   * (`sessionFor`); 401 without one. Its user is `userId`.
+   */
+  const requireAccount = createMiddleware<{ Variables: { userId: string } }>(
+    async (context, next) => {
+      const session = await sessionFor(context);
+      if (!session) return context.body(null, 401);
+      context.set("userId", session.user.id);
+      await next();
+    },
+  );
+
+  /** A learner, as `learnerFor` finds one; 401 without one. */
+  const requireLearner = createMiddleware<{
+    Variables: { learner: { id: string; name: string } };
+  }>(async (context, next) => {
+    const learner = await learnerFor(context);
+    if (!learner) return context.body(null, 401);
+    context.set("learner", learner);
+    await next();
+  });
+
   /**
    * How `/login` may sign people in besides an emailed code, which is always
    * offered: with Google, when the installation has an OAuth client for it.
@@ -635,8 +727,7 @@ export function createApi(options: ApiOptions) {
    * the browser the nonce that alone may redeem the code, and sends it to the
    * installation's `/login`. A navigation, so it answers redirects.
    */
-  api.get("/api/session/sign-in", async (context) => {
-    context.header("cache-control", "private, no-store");
+  api.get("/api/session/sign-in", noStore, async (context) => {
     const host = requestHost(context);
     if (host.installation) return context.body(null, 404);
 
@@ -657,8 +748,7 @@ export function createApi(options: ApiOptions) {
    * issued, with the nonce cookie its browser kept, as a learner session, and
    * goes where the learner started, so no page loads with the code in its URL.
    */
-  api.get("/api/session/handoff", async (context) => {
-    context.header("cache-control", "private, no-store");
+  api.get("/api/session/handoff", noStore, async (context) => {
     context.header("referrer-policy", "no-referrer");
     const host = requestHost(context);
     if (host.installation) return context.body(null, 404);
@@ -687,11 +777,9 @@ export function createApi(options: ApiOptions) {
   });
 
   /** Who is signed in, as the learn app asks: the learner session's user, or the account's. */
-  api.get("/api/session", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const learner = await learnerFor(context);
-    return learner ? context.json({ user: learner }) : context.body(null, 401);
-  });
+  api.get("/api/session", noStore, requireLearner, (context) =>
+    context.json({ user: context.var.learner }),
+  );
 
   /**
    * Signs out of the host asked: a learn domain's learner session, or the
@@ -723,8 +811,7 @@ export function createApi(options: ApiOptions) {
    * What a learn domain's sign-in signs in to, for the installation's `/login`
    * to say: the organization's name and the domain it returns to.
    */
-  api.get("/api/handoffs/:handoffId", async (context) => {
-    context.header("cache-control", "private, no-store");
+  api.get("/api/handoffs/:handoffId", noStore, async (context) => {
     const found = await describeHandoff({
       database,
       handoffId: context.req.param("handoffId"),
@@ -739,8 +826,7 @@ export function createApi(options: ApiOptions) {
    * `/login`, never a navigation, so no link hands someone over unasked; and
    * a browser's, since a tool's token manages no account (ADR 0022).
    */
-  api.post("/api/handoffs/:handoffId", async (context) => {
-    context.header("cache-control", "private, no-store");
+  api.post("/api/handoffs/:handoffId", noStore, async (context) => {
     if (context.req.header("authorization") !== undefined) return context.body(null, 403);
     if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
       return context.body(null, 403);
@@ -772,12 +858,10 @@ export function createApi(options: ApiOptions) {
    * The organization this request's host serves, which a learn app on that
    * domain is branded as. No session: the domain is public and so is its name.
    * The host is the request URL's, so a router in front must forward `Host`.
+   * Still `noStore`: the same URL names a different organization on every
+   * domain, and a rename should show on the next load.
    */
-  api.get("/api/organization", async (context) => {
-    // The same URL names a different organization on every domain, and a
-    // rename should show on the next load.
-    context.header("cache-control", "private, no-store");
-
+  api.get("/api/organization", noStore, async (context) => {
     const found = await readHostOrganization({
       database,
       hostname: new URL(context.req.url).hostname,
@@ -792,19 +876,10 @@ export function createApi(options: ApiOptions) {
    * this one has no reason to name somebody else, so there is nothing to
    * authorize and nothing to get wrong.
    */
-  api.get("/api/courses/:courseId/next", async (context) => {
-    // Set before anything can fail, so every answer this route gives carries it,
-    // a 500 out of the session lookup included. One URL, a different answer per
-    // cookie — and a `Cookie` request header does not by itself stop a shared
-    // cache handing one learner another's.
-    context.header("cache-control", "private, no-store");
-
-    const learner = await learnerFor(context);
-    if (!learner) return context.body(null, 401);
-
+  api.get("/api/courses/:courseId/next", noStore, requireLearner, async (context) => {
     const next = await chooseNextObjective({
       database,
-      learnerId: learner.id,
+      learnerId: context.var.learner.id,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),
@@ -830,15 +905,10 @@ export function createApi(options: ApiOptions) {
   });
 
   /** The courses the signed-in learner may study, from the session alone. */
-  api.get("/api/courses", async (context) => {
-    context.header("cache-control", "private, no-store");
-
-    const learner = await learnerFor(context);
-    if (!learner) return context.body(null, 401);
-
+  api.get("/api/courses", noStore, requireLearner, async (context) => {
     const courses = await listLearnerCourses({
       database,
-      learnerId: learner.id,
+      learnerId: context.var.learner.id,
       host: requestHost(context),
     });
     return context.json({ courses });
@@ -848,16 +918,11 @@ export function createApi(options: ApiOptions) {
    * The signed-in learner's next objective, with a task to practise it or, while
    * its tasks rest, when to ask again. Statuses as for the decision route.
    */
-  api.get("/api/courses/:courseId/activity", async (context) => {
-    context.header("cache-control", "private, no-store");
-
-    const learner = await learnerFor(context);
-    if (!learner) return context.body(null, 401);
-
+  api.get("/api/courses/:courseId/activity", noStore, requireLearner, async (context) => {
     const now = new Date();
     const next = await chooseNextActivity({
       database,
-      learnerId: learner.id,
+      learnerId: context.var.learner.id,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now,
@@ -892,20 +957,15 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/courses/:courseId/attempts",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireLearner,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const learner = await learnerFor(context);
-      if (!learner) return context.body(null, 401);
-
-      const attempt = parseAttempt(await context.req.json().catch(() => undefined));
+      const attempt = parseAttempt(await jsonBody(context));
       if (attempt === undefined) return context.body(null, 400);
 
       const submitted = await submitAttempt({
         database,
-        learnerId: learner.id,
+        learnerId: context.var.learner.id,
         courseId: context.req.param("courseId"),
         host: requestHost(context),
         attemptId: attempt.id,
@@ -946,51 +1006,46 @@ export function createApi(options: ApiOptions) {
    * the reader may be someone else. Who that reader is comes from the session
    * and is never named; whether they may read it is decided by the use case.
    */
-  api.get("/api/courses/:courseId/learners/:learnerId/progress", async (context) => {
-    // First, as on the decision route: the same URL answers differently
-    // depending on who is allowed to read it.
-    context.header("cache-control", "private, no-store");
-
-    const viewer = await learnerFor(context);
-    if (!viewer) return context.body(null, 401);
-    // A learner session is a learner's, reading only its own; an
-    // administrator reads others' on the installation's origin.
-    const learnerId = context.req.param("learnerId");
-    if (!requestHost(context).installation && learnerId !== viewer.id) {
-      return context.body(null, 404);
-    }
-
-    const progress = await readLearnerProgress({
-      database,
-      viewedBy: viewer.id,
-      learnerId,
-      courseId: context.req.param("courseId"),
-      host: requestHost(context),
-      now: new Date(),
-    });
-
-    switch (progress.kind) {
-      // Every refusal, and a course that is not there, answer alike; see
-      // `LearnerProgress` for what that keeps from the reader.
-      case "unavailable":
+  api.get(
+    "/api/courses/:courseId/learners/:learnerId/progress",
+    noStore,
+    requireLearner,
+    async (context) => {
+      const viewer = context.var.learner;
+      // A learner session is a learner's, reading only its own; an
+      // administrator reads others' on the installation's origin.
+      const learnerId = context.req.param("learnerId");
+      if (!requestHost(context).installation && learnerId !== viewer.id) {
         return context.body(null, 404);
-      case "assessed":
-        return context.json(progress.report);
-      default:
-        throw new Error(`Unhandled answer: ${JSON.stringify(progress satisfies never)}`);
-    }
-  });
+      }
+
+      const progress = await readLearnerProgress({
+        database,
+        viewedBy: viewer.id,
+        learnerId,
+        courseId: context.req.param("courseId"),
+        host: requestHost(context),
+        now: new Date(),
+      });
+
+      switch (progress.kind) {
+        // Every refusal, and a course that is not there, answer alike; see
+        // `LearnerProgress` for what that keeps from the reader.
+        case "unavailable":
+          return context.body(null, 404);
+        case "assessed":
+          return context.json(progress.report);
+        default:
+          throw new Error(`Unhandled answer: ${JSON.stringify(progress satisfies never)}`);
+      }
+    },
+  );
 
   /** Where each learner in a course stands, counted, for a content owner. */
-  api.get("/api/courses/:courseId/progress", async (context) => {
-    context.header("cache-control", "private, no-store");
-
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
-
+  api.get("/api/courses/:courseId/progress", noStore, requireAccount, async (context) => {
     const progress = await readCourseProgress({
       database,
-      viewedBy: session.user.id,
+      viewedBy: context.var.userId,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),
@@ -1010,46 +1065,28 @@ export function createApi(options: ApiOptions) {
    * Records what a learner did, on behalf of an organization. The organization
    * and the learner are named in the path because they are what is written to;
    * the grader is the session's user, never named, and whether they may grade
-   * here is the use case's decision, not this route's.
+   * here is the use case's decision, not this route's. Its 403 probes nothing:
+   * no learner or objective is looked up until the grader check passes.
    */
   api.post(
     "/api/organizations/:organizationId/learners/:learnerId/evidence",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      // Before the session is even resolved: a forged request should cost this
-      // server nothing, and the answer does not depend on who it claims to be.
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const evidence = parseEvidence(await context.req.json().catch(() => undefined));
+      const evidence = parseEvidence(await jsonBody(context));
       if (evidence === undefined) return context.body(null, 400);
 
       try {
         await recordGradedEvidence({
           database,
           organizationId: context.req.param("organizationId"),
-          gradedBy: session.user.id,
+          gradedBy: context.var.userId,
           learnerId: context.req.param("learnerId"),
           evidence,
           now: new Date(),
         });
       } catch (error) {
-        // The same status as a malformed body: either way the caller has to fix
-        // what they sent, and nothing was recorded.
-        if (error instanceof InvalidEvidence) return context.body(null, 400);
-        // Not 400: the body is fine on its own and only disagrees with what is
-        // already stored, and a grader chasing a 400 would look at its format
-        // rather than at how it builds evidence IDs.
-        if (error instanceof ConflictingEvidence) return context.body(null, 409);
-        // 403 rather than 404: the caller named the organization themselves, and
-        // learning that they may not grade for it tells them nothing they did
-        // not already assert. Nothing past the grader check runs until it
-        // passes, so this cannot be used to probe for learners or objectives.
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
 
       return context.body(null, 204);
@@ -1062,28 +1099,23 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/objectives",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const objectives = parseObjectives(await context.req.json().catch(() => undefined));
+      const objectives = parseObjectives(await jsonBody(context));
       if (objectives === undefined) return context.body(null, 400);
 
       try {
         const objectiveIds = await defineObjectives({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           objectives,
         });
 
         return context.json({ objectiveIds }, 201);
       } catch (error) {
-        return definitionRefusal(context, error);
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1094,37 +1126,24 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/tasks",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const tasks = parseTasks(await context.req.json().catch(() => undefined));
+      const tasks = parseTasks(await jsonBody(context));
       if (tasks === undefined) return context.body(null, 400);
 
       try {
         const taskIds = await defineTasks({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           tasks,
           now: new Date(),
         });
 
         return context.json({ taskIds }, 201);
       } catch (error) {
-        // Explained, as on the citations route, so a drafting model can fix it.
-        if (error instanceof InvalidTask || error instanceof InvalidCitation) {
-          return context.json({ error: error.message }, 400);
-        }
-        if (error instanceof StaleCorrection) {
-          return context.json({ error: error.message }, 409);
-        }
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1135,29 +1154,23 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/tasks/retire",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const taskIds = parseTaskIds(await context.req.json().catch(() => undefined));
+      const taskIds = parseTaskIds(await jsonBody(context));
       if (taskIds === undefined) return context.body(null, 400);
 
       try {
         await retireTasks({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           taskIds,
           now: new Date(),
         });
         return context.body(null, 204);
       } catch (error) {
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1171,133 +1184,127 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/courses",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const course = parseCourse(await context.req.json().catch(() => undefined));
+      const course = parseCourse(await jsonBody(context));
       if (course === undefined) return context.body(null, 400);
 
       try {
         const courseId = await defineCourse({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           ...course,
         });
 
         return context.json({ courseId }, 201);
       } catch (error) {
-        return definitionRefusal(context, error);
+        return organizationRefusal(context, error);
       }
     },
   );
 
   /** The organizations the session's user manages. */
-  api.get("/api/organizations", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
-
-    const organizations = await listManagedOrganizations({ database, actingAs: session.user.id });
+  api.get("/api/organizations", noStore, requireAccount, async (context) => {
+    const organizations = await listManagedOrganizations({
+      database,
+      actingAs: context.var.userId,
+    });
     return context.json({ organizations });
   });
 
   /** Every member of an organization, for whoever administers it. */
-  api.get("/api/organizations/:organizationId/members", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/members",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const members = await listMembers({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+        });
 
-    try {
-      const members = await listMembers({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-      });
-
-      return context.json({ members });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        return context.json({ members });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * One course as authored — objectives in order, each with its passages and
    * tasks, answers included — for whoever administers its organization.
    */
-  api.get("/api/organizations/:organizationId/courses/:courseId", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/courses/:courseId",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const course = await readAuthoredCourse({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseId: context.req.param("courseId"),
+        });
+        if (!course) return context.body(null, 404);
 
-    try {
-      const course = await readAuthoredCourse({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-        courseId: context.req.param("courseId"),
-      });
-      if (!course) return context.body(null, 404);
-
-      return context.json({
-        ...course,
-        objectives: course.objectives.map(({ tasks, ...objective }) => ({
-          ...objective,
-          // As `GET …/objectives/:objectiveId/tasks` answers them.
-          tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
-        })),
-      });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        return context.json({
+          ...course,
+          objectives: course.objectives.map(({ tasks, ...objective }) => ({
+            ...objective,
+            // As `GET …/objectives/:objectiveId/tasks` answers them.
+            tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+          })),
+        });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /** Every course an organization has, for whoever administers it. */
-  api.get("/api/organizations/:organizationId/courses", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/courses",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const courses = await listCourses({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+        });
 
-    try {
-      const courses = await listCourses({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-      });
-
-      return context.json({ courses });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        return context.json({ courses });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /** Every objective an organization has defined, for whoever administers it. */
-  api.get("/api/organizations/:organizationId/objectives", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/objectives",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const objectives = await listObjectives({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+        });
 
-    try {
-      const objectives = await listObjectives({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-      });
-
-      return context.json({ objectives });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        return context.json({ objectives });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * Adds material a content owner provides, as text. Extracting that text from
@@ -1306,54 +1313,47 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/sources",
-    bodyLimit({ maxSize: MAX_SOURCE_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(MAX_SOURCE_BYTES),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const source = parseSource(await context.req.json().catch(() => undefined));
+      const source = parseSource(await jsonBody(context));
       if (source === undefined) return context.body(null, 400);
 
       try {
         const sourceId = await addSource({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           ...source,
           now: new Date(),
         });
 
         return context.json({ sourceId }, 201);
       } catch (error) {
-        if (error instanceof InvalidSource) return context.json({ error: error.message }, 400);
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
 
   /** Every source an organization has, without their text, for whoever administers it. */
-  api.get("/api/organizations/:organizationId/sources", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/sources",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const sources = await listSources({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+        });
 
-    try {
-      const sources = await listSources({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-      });
-
-      return context.json({ sources });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        return context.json({ sources });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * Links objectives to the passages of sources that teach them. Braivo, not
@@ -1362,33 +1362,23 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/citations",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const citations = parseCitations(await context.req.json().catch(() => undefined));
+      const citations = parseCitations(await jsonBody(context));
       if (citations === undefined) return context.body(null, 400);
 
       try {
         const located = await citeSources({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           citations,
         });
 
         return context.json({ citations: located });
       } catch (error) {
-        // Explained: the caller is often a model drafting from a source, and
-        // "quote more of it" is something it can act on where a bare status is
-        // not.
-        if (error instanceof InvalidCitation) return context.json({ error: error.message }, 400);
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1396,23 +1386,20 @@ export function createApi(options: ApiOptions) {
   /** The passages an objective cites, for whoever administers its organization. */
   api.get(
     "/api/organizations/:organizationId/objectives/:objectiveId/citations",
+    noStore,
+    requireAccount,
     async (context) => {
-      context.header("cache-control", "private, no-store");
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
       try {
         const citations = await listObjectiveCitations({
           database,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           objectiveId: context.req.param("objectiveId"),
         });
 
         return citations ? context.json({ citations }) : context.body(null, 404);
       } catch (error) {
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1422,29 +1409,29 @@ export function createApi(options: ApiOptions) {
    * cite, for whoever administers its organization: answers included, so
    * never a learner's.
    */
-  api.get("/api/organizations/:organizationId/objectives/:objectiveId/tasks", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/objectives/:objectiveId/tasks",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const tasks = await listObjectiveTasks({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          objectiveId: context.req.param("objectiveId"),
+        });
+        if (!tasks) return context.body(null, 404);
 
-    try {
-      const tasks = await listObjectiveTasks({
-        database,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-        objectiveId: context.req.param("objectiveId"),
-      });
-      if (!tasks) return context.body(null, 404);
-
-      // The shape a task is authored in, so one read back can be sent again.
-      return context.json({
-        tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
-      });
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        // The shape a task is authored in, so one read back can be sent again.
+        return context.json({
+          tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+        });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * A course drafted from a source by the installation's own model, checked
@@ -1453,34 +1440,22 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/sources/:sourceId/draft",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      const body = (await context.req.json().catch(() => undefined)) as unknown;
+      const body = await jsonBody(context);
       if (typeof body !== "object" || body === null) return context.body(null, 400);
       const { audience } = body as Record<string, unknown>;
-
-      // Bun, Hono's `env` here, closes a connection idle for ten seconds, and a
-      // model reading a chapter takes longer: this request waits instead for as
-      // long as the model may take (`ai`'s own timeout).
-      const server = context.env as
-        | { timeout?: (request: Request, seconds: number) => void }
-        | undefined;
-      server?.timeout?.(context.req.raw, 0);
       if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
 
+      disableBunIdleTimeout(context);
       try {
         const draft = await draftFromSource({
           database,
           cachedDatabase,
           ai,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           sourceId: context.req.param("sourceId"),
           audience,
           now: new Date(),
@@ -1488,34 +1463,34 @@ export function createApi(options: ApiOptions) {
         });
         return draft ? context.json(draft) : context.body(null, 404);
       } catch (error) {
-        return aiRefusal(context, error);
+        return organizationRefusal(context, error);
       }
     },
   );
 
   /** One source, text included, for whoever administers its organization. */
-  api.get("/api/organizations/:organizationId/sources/:sourceId", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/sources/:sourceId",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const source = await getSource({
+          database,
+          cachedDatabase,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          sourceId: context.req.param("sourceId"),
+        });
 
-    try {
-      const source = await getSource({
-        database,
-        cachedDatabase,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-        sourceId: context.req.param("sourceId"),
-      });
-
-      // Reached only by an administrator, so a 404 confirms nothing they could
-      // not already list.
-      return source ? context.json(source) : context.body(null, 404);
-    } catch (error) {
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        // Reached only by an administrator, so a 404 confirms nothing they could
+        // not already list.
+        return source ? context.json(source) : context.body(null, 404);
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * Keeps a file a content owner uploads — the original a source's text was
@@ -1523,19 +1498,16 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/files",
-    bodyLimit({ maxSize: MAX_FILE_BYTES, onError: (context) => context.body(null, 413) }),
+    limitBody(MAX_FILE_BYTES),
+    trustedUpload,
+    requireAccount,
     async (context) => {
-      if (!isTrustedUpload(context, origin)) return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
       try {
         const file = await uploadFile({
           database,
           files,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           bytes: new Uint8Array(await context.req.arrayBuffer()),
           contentType: context.req.header("content-type") ?? "",
           now: new Date(),
@@ -1544,10 +1516,7 @@ export function createApi(options: ApiOptions) {
         const { sha256, contentType, size } = file;
         return context.json({ fileId: sha256, contentType, size }, 201);
       } catch (error) {
-        if (error instanceof FilesUnavailable) return context.json({ error: error.message }, 501);
-        if (error instanceof InvalidFile) return context.json({ error: error.message }, 400);
-        if (error instanceof NotPermitted) return context.body(null, 403);
-        throw error;
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1558,34 +1527,24 @@ export function createApi(options: ApiOptions) {
    */
   api.post(
     "/api/organizations/:organizationId/files/:fileId/text",
-    bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (context) => context.body(null, 413) }),
+    ...trustedJsonWrite(),
+    requireAccount,
     async (context) => {
-      if (!(await isTrustedWrite(context, origin, database, requestHost(context))))
-        return context.body(null, 403);
-
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-
-      // As for drafting: past Bun's ten-second idle timeout, bounded by the model's.
-      const server = context.env as
-        | { timeout?: (request: Request, seconds: number) => void }
-        | undefined;
-      server?.timeout?.(context.req.raw, 0);
-
+      disableBunIdleTimeout(context);
       try {
         const pages = await readFileText({
           database,
           ai,
           files,
           organizationId: context.req.param("organizationId"),
-          actingAs: session.user.id,
+          actingAs: context.var.userId,
           fileId: context.req.param("fileId"),
           now: new Date(),
           signal: context.req.raw.signal,
         });
         return pages ? context.json({ pages }) : context.body(null, 404);
       } catch (error) {
-        return aiRefusal(context, error);
+        return organizationRefusal(context, error);
       }
     },
   );
@@ -1595,38 +1554,36 @@ export function createApi(options: ApiOptions) {
    * download, never rendered: an uploaded HTML file served inline from this
    * origin would run as Braivo.
    */
-  api.get("/api/organizations/:organizationId/files/:fileId", async (context) => {
-    context.header("cache-control", "private, no-store");
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
+  api.get(
+    "/api/organizations/:organizationId/files/:fileId",
+    noStore,
+    requireAccount,
+    async (context) => {
+      try {
+        const opened = await openFile({
+          database,
+          files,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          fileId: context.req.param("fileId"),
+        });
+        if (!opened) return context.body(null, 404);
 
-    try {
-      const opened = await openFile({
-        database,
-        files,
-        organizationId: context.req.param("organizationId"),
-        actingAs: session.user.id,
-        fileId: context.req.param("fileId"),
-      });
-      if (!opened) return context.body(null, 404);
-
-      // A stream, not the blob: Bun refuses a bucket's file with response options.
-      return new Response(opened.bytes.stream(), {
-        headers: {
-          "cache-control": "private, no-store",
-          "content-type": opened.file.contentType,
-          "content-length": String(opened.file.size),
-          "content-disposition": "attachment",
-          "content-security-policy": "sandbox",
-          "x-content-type-options": "nosniff",
-        },
-      });
-    } catch (error) {
-      if (error instanceof FilesUnavailable) return context.json({ error: error.message }, 501);
-      if (error instanceof NotPermitted) return context.body(null, 403);
-      throw error;
-    }
-  });
+        // A stream, not the blob: Bun refuses a bucket's file with response options.
+        return new Response(opened.bytes.stream(), {
+          headers: {
+            "content-type": opened.file.contentType,
+            "content-length": String(opened.file.size),
+            "content-disposition": "attachment",
+            "content-security-policy": "sandbox",
+            "x-content-type-options": "nosniff",
+          },
+        });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   return api;
 }
