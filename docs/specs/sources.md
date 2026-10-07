@@ -58,4 +58,4 @@ A source is the material a content owner brings, kept as the text Braivo teaches
 
 ## Entry points
 
-`apps/server/content/source.ts` (validation and identity), `apps/server/content/citation.ts` (locating a quote), `apps/server/application/sources.ts`, `apps/server/application/files.ts`, `apps/server/application/citations.ts` (use cases), `apps/server/api/materials.ts` (the source and file routes), `apps/server/cli/sources.ts` (`braivo sources add`), `apps/console/routes/_signed-in/$organizationSlug/sources/index.tsx` (library and add form).
+`apps/server/content/source.ts` (validation and identity), `apps/server/content/citation.ts` (locating a quote), `apps/server/application/sources.ts`, `apps/server/application/files.ts`, `apps/server/application/citations.ts` (use cases), `apps/server/api/materials.ts` (the source and file routes), `apps/server/api/authoring.ts` (the citation routes), `apps/server/cli/sources.ts` (`braivo sources add`), `apps/console/routes/_signed-in/$organizationSlug/sources/index.tsx` (library and add form).

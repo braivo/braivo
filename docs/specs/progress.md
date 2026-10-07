@@ -49,4 +49,4 @@ For one learner in one course, Braivo reports where they stand on each objective
 
 ## Entry points
 
-`apps/server/application/learner-progress.ts` (a learner's report), `apps/server/application/learner-in-course.ts` (load shared with selection), `apps/server/application/course-progress.ts` (a course's overview), `apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx` (console overview), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (learner summary), `apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx` (console report).
+`apps/server/application/learner-progress.ts` (a learner's report), `apps/server/application/learner-in-course.ts` (load shared with selection), `apps/server/application/course-progress.ts` (a course's overview), `apps/server/api/learning.ts` (the report's and the overview's routes), `apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx` (console overview), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (learner summary), `apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx` (console report).
