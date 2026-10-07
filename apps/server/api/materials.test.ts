@@ -602,6 +602,8 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     // Nobody but an administrator spends the installation's model.
     cachedStatements.length = 0;
     expect((await draft(sourceId, learner.cookie)).status).toBe(403);
+    // An invalid body is refused before the role: it reveals nothing.
+    expect((await draft(sourceId, learner.cookie, [])).status).toBe(400);
     expect(cachedStatements).toEqual([]);
     expect((await draft(crypto.randomUUID(), teacher.cookie)).status).toBe(404);
     const long = await draft(sourceId, teacher.cookie, { audience: "a".repeat(201) });
@@ -641,17 +643,20 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       );
       return ((await uploaded.json()) as { fileId: string }).fileId;
     };
-    const read = (fileId: string, app = reading) =>
+    const read = (fileId: string, app = reading, cookie = teacher.cookie, body = "{}") =>
       app.request(`/api/organizations/${organizationId}/files/${fileId}/text`, {
         method: "POST",
-        headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        headers: { "content-type": "application/json", cookie },
+        body,
       });
 
     const pdf = await upload("%PDF-1.7 Hola", "application/pdf");
     const answered = await read(pdf);
     expect(answered.status).toBe(200);
     expect(await answered.json()).toEqual({ pages: [{ page: "1", text: "Leído: %PDF-1.7 Hola" }] });
+    expect((await read(pdf, reading, learner.cookie)).status).toBe(403);
+    // An invalid body is refused before the role: it reveals nothing.
+    expect((await read(pdf, reading, learner.cookie, "[]")).status).toBe(400);
 
     const epub = await upload("PK epub", "application/epub+zip");
     const refused = await read(epub);
@@ -722,6 +727,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       });
 
     // Refused before the model is asked, so they cost nothing.
+    expect((await draft(sourceId, [])).status).toBe(400);
     expect((await draft(sourceId, { audience: "a".repeat(201) })).status).toBe(400);
     const long = await draft(await add("a".repeat(200_001)));
     expect(long.status).toBe(400);
@@ -742,7 +748,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(asked).toBe(2);
   });
 
-  test("charges nothing for a file the store failed to give", async () => {
+  test("charges nothing for an invalid body or a file the store failed to give", async () => {
     const readOrganization = "materials-test-read-org";
     await testing.seedOrganization(database, {
       organizationId: readOrganization,
@@ -776,13 +782,17 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       body: "%PDF-1.7 Hola",
     });
     const { fileId } = (await uploaded.json()) as { fileId: string };
-    const read = () =>
+    const read = (body = "{}") =>
       reading.request(`/api/organizations/${readOrganization}/files/${fileId}/text`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        body,
       });
 
+    // Not a JSON object: refused before the model is asked, so it costs nothing.
+    for (const body of ["", "nonsense", "true", "null", "[]"]) {
+      expect((await read(body)).status).toBe(400);
+    }
     failing = true;
     expect((await read()).status).toBe(500);
     failing = false;
