@@ -3,31 +3,15 @@
 
 import type { Database } from "@braivo/db";
 import { Hono } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 
-import {
-  completeHandoff,
-  describeHandoff,
-  endLearnerSession,
-  type Ai,
-  readHostOrganization,
-  redeemHandoff,
-  startHandoff,
-} from "../application/index.ts";
+import { type Ai, readHostOrganization } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
-import {
-  cookieOptions,
-  createGuards,
-  HANDOFF_COOKIE,
-  LEARNER_COOKIE,
-  limitBody,
-  MAX_BODY_BYTES,
-  noStore,
-} from "./guards.ts";
+import { createGuards, limitBody, MAX_BODY_BYTES, noStore } from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
+import { sessionRoutes } from "./session.ts";
 
 type ApiOptions = {
   auth: Auth;
@@ -68,9 +52,10 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The HTTP entry point to `application`. A route resolves who is asking, calls
- * one use case, and turns its result into a status; anything it had to look up
- * for itself would be a workflow, and workflows belong to `application`.
+ * The HTTP entry point to `application`. A route resolves who is asking, hands
+ * the work to one use case, or to Better Auth for the account's own session,
+ * and turns the answer into a status; anything it had to look up for itself
+ * would be a workflow, and workflows belong to `application`.
  *
  * A factory rather than a module-level app, so nothing reads the environment at
  * import time and a test can serve its own database.
@@ -78,11 +63,10 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
  * Endpoints and statuses: `index.ts`. Why any of it: ADR 0010.
  */
 export function createApi(options: ApiOptions) {
-  const { auth, database, cachedDatabase = database, files, ai } = options;
-  const origin = new URL(options.baseUrl).origin;
+  const { auth, database, baseUrl, cachedDatabase = database, files, ai } = options;
   const api = new Hono();
   const guards = createGuards(options);
-  const { requestHost, sessionFor, isTrustedWrite, requireLearner } = guards;
+  const { requestHost, isTrustedWrite } = guards;
 
   // The installation's origin is the console's and its tools': the account's
   // own credentials — Better Auth, a bearer token — and the console's API reach
@@ -149,145 +133,6 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * How `/login` may sign people in besides an emailed code, which is always
-   * offered: with Google, when the installation has an OAuth client for it.
-   * The console is built once for any installation, so it asks.
-   */
-  api.get("/api/sign-in-methods", (context) =>
-    context.json({ google: auth.options.socialProviders?.google !== undefined }),
-  );
-
-  /**
-   * Starts a learn domain's sign-in (ADR 0018): records where it began, gives
-   * the browser the nonce that alone may redeem the code, and sends it to the
-   * installation's `/login`. A navigation, so it answers redirects.
-   */
-  api.get("/api/session/sign-in", noStore, async (context) => {
-    const host = requestHost(context);
-    if (host.installation) return context.body(null, 404);
-
-    const started = await startHandoff({
-      database,
-      hostname: host.hostname,
-      returnPath: context.req.query("redirect"),
-      now: new Date(),
-    });
-    if (!started) return context.body(null, 404);
-
-    setCookie(context, HANDOFF_COOKIE, started.nonce, cookieOptions(started.expiresAt));
-    return context.redirect(`${origin}/login?handoff=${started.handoffId}`);
-  });
-
-  /**
-   * Ends a learn domain's sign-in: redeems the code the installation's origin
-   * issued, with the nonce cookie its browser kept, as a learner session, and
-   * goes where the learner started, so no page loads with the code in its URL.
-   */
-  api.get("/api/session/handoff", noStore, async (context) => {
-    context.header("referrer-policy", "no-referrer");
-    const host = requestHost(context);
-    if (host.installation) return context.body(null, 404);
-
-    const code = context.req.query("code");
-    const nonce = getCookie(context, HANDOFF_COOKIE, "host");
-    const redeemed =
-      code && nonce
-        ? await redeemHandoff({
-            database,
-            hostname: host.hostname,
-            code,
-            nonce,
-            now: new Date(),
-          })
-        : undefined;
-    // A person followed a redirect here. The learn app says it failed and
-    // offers to sign in again; Back would only reach the spent handoff.
-    if (!redeemed) return context.redirect("/login?failed=1");
-
-    // Only once spent: after a failure, it may be a later sign-in's, begun in
-    // another tab, that one cookie holds.
-    deleteCookie(context, HANDOFF_COOKIE, { prefix: "host" });
-    setCookie(context, LEARNER_COOKIE, redeemed.token, cookieOptions(redeemed.expiresAt));
-    return context.redirect(redeemed.returnPath);
-  });
-
-  /** Who is signed in, as the learn app asks: the learner session's user, or the account's. */
-  api.get("/api/session", noStore, requireLearner, (context) =>
-    context.json({ user: context.var.learner }),
-  );
-
-  /**
-   * Signs out of the host asked: a learn domain's learner session, or the
-   * account. A browser's only: a tool's token manages no account (ADR 0022).
-   */
-  api.post("/api/session/sign-out", async (context) => {
-    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
-    if (!(await isTrustedWrite(context))) return context.body(null, 403);
-
-    if (requestHost(context).installation) {
-      const { headers } = await auth.api.signOut({
-        headers: context.req.raw.headers,
-        returnHeaders: true,
-      });
-      for (const cookie of headers.getSetCookie()) {
-        context.header("set-cookie", cookie, { append: true });
-      }
-      return context.body(null, 204);
-    }
-
-    const token = getCookie(context, LEARNER_COOKIE, "host");
-    if (token !== undefined) await endLearnerSession({ database, token });
-    deleteCookie(context, LEARNER_COOKIE, { prefix: "host" });
-    return context.body(null, 204);
-  });
-
-  /**
-   * What a learn domain's sign-in signs in to, for the installation's `/login`
-   * to say: the organization's name and the domain it returns to.
-   */
-  api.get("/api/handoffs/:handoffId", noStore, async (context) => {
-    const found = await describeHandoff({
-      database,
-      handoffId: context.req.param("handoffId"),
-      now: new Date(),
-    });
-    return found ? context.json(found) : context.body(null, 404);
-  });
-
-  /**
-   * Hands the signed-in account over to a learn domain as a learner, if it is
-   * a member there: answers the URL to go to. A write from a click on
-   * `/login`, never a navigation, so no link hands someone over unasked; and
-   * a browser's, since a tool's token manages no account (ADR 0022).
-   */
-  api.post("/api/handoffs/:handoffId", noStore, async (context) => {
-    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
-    if (!(await isTrustedWrite(context))) return context.body(null, 403);
-
-    const session = await sessionFor(context);
-    if (!session) return context.body(null, 401);
-
-    const completed = await completeHandoff({
-      database,
-      handoffId: context.req.param("handoffId"),
-      userId: session.user.id,
-      now: new Date(),
-    });
-    switch (completed.kind) {
-      case "unavailable":
-        return context.body(null, 404);
-      case "not-member":
-        return context.body(null, 403);
-      case "issued":
-        return context.json({
-          url: `https://${completed.hostname}/api/session/handoff?code=${completed.code}`,
-        });
-      default:
-        throw new Error(`Unhandled answer: ${JSON.stringify(completed satisfies never)}`);
-    }
-  });
-
-  /**
    * The organization this request's host serves, which a learn app on that
    * domain is branded as. No session: the domain is public and so is its name.
    * The host is the request URL's, so a router in front must forward `Host`.
@@ -303,7 +148,8 @@ export function createApi(options: ApiOptions) {
     return found ? context.json(found) : context.body(null, 404);
   });
 
-  // A group's routes, after the host gate: Hono runs what was registered first.
+  // After the host gate, which runs only before routes registered after it.
+  api.route("/", sessionRoutes(guards, { auth, database, baseUrl }));
   api.route("/", learningRoutes(guards, { database }));
   api.route("/", authoringRoutes(guards, { database }));
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
