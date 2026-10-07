@@ -1569,15 +1569,15 @@ export function createApi(options: ApiOptions) {
         });
         if (!opened) return context.body(null, 404);
 
-        // A stream, not the blob: Bun refuses a bucket's file with response options.
-        return new Response(opened.bytes.stream(), {
-          headers: {
-            "content-type": opened.file.contentType,
-            "content-length": String(opened.file.size),
-            "content-disposition": "attachment",
-            "content-security-policy": "sandbox",
-            "x-content-type-options": "nosniff",
-          },
+        // A stream, not the blob: Bun refuses a bucket's file with response
+        // options. `context.body`, not a `Response`, which would drop the
+        // renewed session's cookie `requireAccount` set on the context.
+        return context.body(opened.bytes.stream(), 200, {
+          "content-type": opened.file.contentType,
+          "content-length": String(opened.file.size),
+          "content-disposition": "attachment",
+          "content-security-policy": "sandbox",
+          "x-content-type-options": "nosniff",
         });
       } catch (error) {
         return organizationRefusal(context, error);
