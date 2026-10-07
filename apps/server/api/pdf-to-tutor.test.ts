@@ -10,11 +10,9 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { directoryStore } from "../storage/index.ts";
-import { createApi } from "./app.ts";
 import { createClient } from "./client.ts";
+import { connectionString, createTestApi } from "./testing.ts";
 
 // "Upload your existing materials and get a tutor", whole: a PDF uploaded,
 // read into pages, drafted into a course, accepted, and answered by a learner,
@@ -23,9 +21,6 @@ import { createClient } from "./client.ts";
 // step's shape is tested where it is made; this is what holds them together:
 // a draft is only as good as the authoring endpoints' willingness to take it.
 
-const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
-const baseUrl = "http://localhost:3000";
 const organizationId = "pdf-to-tutor-test-org";
 
 const book = "%PDF-1.7 Mi primer libro";
@@ -70,17 +65,11 @@ const model: Model = {
   },
 };
 
-const outbox = createOutbox();
-const auth = createAuth({
+const {
   database,
-  secret: "pdf-to-tutor-test-secret-long-enough",
-  baseURL: baseUrl,
-  sendMail: outbox.sendMail,
-});
-const api = createApi({
-  auth,
-  database,
-  baseUrl,
+  api,
+  signUp: signUpAccount,
+} = createTestApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-pdf-to-tutor-"))),
   ai: { model, organizations: new Set([organizationId]) },
 });
@@ -102,13 +91,9 @@ const client = createClient({
   }) as unknown as typeof globalThis.fetch,
 });
 
+/** A new account, its cookie as the client takes request options. */
 async function signUp(): Promise<{ headers: { cookie: string }; id: string }> {
-  const email = `pdf-to-tutor-${crypto.randomUUID()}@example.com`;
-  const { cookie, id } = await signInWithCode(
-    (path, init) => api.request(`/api/auth${path}`, init),
-    outbox,
-    { email, name: email },
-  );
+  const { cookie, id } = await signUpAccount();
   return { headers: { cookie }, id };
 }
 

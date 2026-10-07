@@ -11,13 +11,11 @@ import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
-import { createApi } from "./app.ts";
 import { BraivoError, createClient } from "./client.ts";
+import { connectionString, createTestApi } from "./testing.ts";
 
 /**
  * The client's types are derived from the server's, which say what the routes
@@ -26,20 +24,7 @@ import { BraivoError, createClient } from "./client.ts";
  * what the client parses fails here, and so does a client that builds a request
  * the routes refuse.
  */
-const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
-const baseUrl = "http://localhost:3000";
-const outbox = createOutbox();
-const auth = createAuth({
-  database,
-  secret: "contract-test-secret-that-is-long-32",
-  baseURL: baseUrl,
-  sendMail: outbox.sendMail,
-});
-const api = createApi({
-  auth,
-  database,
-  baseUrl,
+const { database, api, signUp } = createTestApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-contract-files-"))),
 });
 
@@ -74,14 +59,6 @@ let fractions!: string;
 let decimals!: string;
 /** Three objectives, so a progress report can show every phase at once. */
 let progressCourseId!: string;
-
-function signUp(): Promise<{ cookie: string; id: string }> {
-  const email = `contract-${crypto.randomUUID()}@example.com`;
-  return signInWithCode((path, init) => api.request(`/api/auth${path}`, init), outbox, {
-    email,
-    name: email,
-  });
-}
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
 describe.skipIf(!connectionString)("the client against the real API", () => {
