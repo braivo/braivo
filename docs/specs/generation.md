@@ -56,4 +56,4 @@ A content owner without a desktop agent turns their material into a course with 
 
 ## Entry points
 
-`apps/server/ai/draft.ts` (what a draft keeps and refuses), `apps/server/application/ai.ts` (who may, and the quota), `apps/server/application/drafts.ts`, `apps/server/api/client.ts` (`acceptDraft`), `apps/console/routes/_signed-in/$organizationSlug/sources/$sourceId.tsx` (review).
+`apps/server/ai/draft.ts` (what a draft keeps and refuses), `apps/server/application/ai.ts` (who may, and the quota), `apps/server/application/drafts.ts`, `apps/server/api/materials.ts` (the reading and drafting routes), `apps/server/api/client.ts` (`acceptDraft`), `apps/console/routes/_signed-in/$organizationSlug/sources/$sourceId.tsx` (review).

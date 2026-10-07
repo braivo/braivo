@@ -502,5 +502,5 @@
 // `Cache-Control: private, no-store`, since each one answers differently per
 // cookie or per host; so does a 500 out of one.
 
-export type { Api, ApiOptions } from "./app.ts";
+export type { Api } from "./app.ts";
 export { createApi } from "./app.ts";

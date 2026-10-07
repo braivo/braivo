@@ -40,7 +40,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - `content`, `learning`, and `ai` never import `application`, `persistence`, `api`, `web`, or `cli`. Workflows spanning modules belong in `application`.
 - `api`, `web`, and `cli` never query persistence directly. Browser code reaches Braivo only over HTTP. `packages/ui` is presentation only and imports no other Braivo package.
 - Code that accesses persistence receives its data-access dependencies explicitly, with no global request or tenant state.
-- Modules import each other only through the module's `index.ts`, which lists explicit exports (no `export *`). Files within a module import each other directly.
+- Modules import each other only through the module's `index.ts`, which lists explicit exports (no `export *`). Files within a module import each other directly. For `api`'s code, not its tests (which seed through `persistence`), this and its never reaching `persistence` are linted (`vite.config.ts`).
 - No import cycles, enforced by `import/no-cycle`.
 - `braivo` never depends on Braivo Cloud's code. The managed service builds on this repository; nothing here reaches the other way.
 
