@@ -25,6 +25,7 @@ import {
 } from "../persistence/index.ts";
 import { bucketStore, directoryStore } from "../storage/index.ts";
 import { createApi } from "./app.ts";
+import { learnerSessionOn } from "./testing.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -85,33 +86,6 @@ async function signUp(): Promise<Signed> {
   const request = (path: string, init: RequestInit) => api.request(`/api/auth${path}`, init);
   const name = `Learner ${email.slice(9, 17)}`;
   return { ...(await signInWithCode(request, outbox, { email, name })), email, name };
-}
-
-/**
- * Hands `account` over to a learn domain as a learner, the way a browser is
- * (ADR 0018): started there, completed on the installation's origin, redeemed
- * there with the nonce cookie. Answers the learner session's cookie.
- */
-async function learnerSessionOn(origin: string, account: Signed): Promise<string> {
-  /** The cookie `name` as a browser sends it back. */
-  const pair = (response: Response, name: string) =>
-    response.headers
-      .getSetCookie()
-      .find((set) => set.startsWith(`${name}=`))!
-      .split(";", 1)[0]!;
-
-  const started = await api.request(`${origin}/api/session/sign-in?redirect=/`);
-  const handoffId = new URL(started.headers.get("location")!).searchParams.get("handoff");
-  const completed = await api.request(`${baseUrl}/api/handoffs/${handoffId}`, {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: baseUrl, cookie: account.cookie },
-  });
-  if (!completed.ok) throw new Error(`Completing the handoff answered ${completed.status}.`);
-  const { url } = (await completed.json()) as { url: string };
-  const redeemed = await api.request(url, {
-    headers: { cookie: pair(started, "__Host-braivo-handoff") },
-  });
-  return pair(redeemed, "__Host-braivo-learner");
 }
 
 function next(courseId: string, cookie?: string) {
@@ -629,7 +603,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     );
     const on = async (origin: string) =>
       api.request(`${origin}/api/courses/${courseId}/next`, {
-        headers: { cookie: await learnerSessionOn(origin, both) },
+        headers: { cookie: await learnerSessionOn(api, origin, both.cookie) },
       });
 
     try {
@@ -643,7 +617,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("answers a learner on a learn domain by its learner session alone", async () => {
-    const session = await learnerSessionOn(organizationOrigin, learner);
+    const session = await learnerSessionOn(api, organizationOrigin, learner.cookie);
     const on = (origin: string, cookie: string) =>
       api.request(`${origin}/api/courses/${courseId}/next`, { headers: { cookie } });
 
@@ -659,7 +633,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   test("answers a course's overview on the installation's host only", async () => {
     // It lists the organization's members, a console's page, not a learner's.
-    const session = await learnerSessionOn(organizationOrigin, teacher);
+    const session = await learnerSessionOn(api, organizationOrigin, teacher.cookie);
     const on = (origin: string, cookie: string) =>
       api.request(`${origin}/api/courses/${courseId}/progress`, { headers: { cookie } });
 
@@ -782,7 +756,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("renews a learner session's cookie once it is a day old, and not before", async () => {
-    const cookie = await learnerSessionOn(organizationOrigin, learner);
+    const cookie = await learnerSessionOn(api, organizationOrigin, learner.cookie);
     const ask = () => api.request(`${organizationOrigin}/api/session`, { headers: { cookie } });
     expect((await ask()).headers.getSetCookie()).toEqual([]);
 
@@ -799,7 +773,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
   });
 
   test("signs a learner out of the learn domain alone", async () => {
-    const cookie = await learnerSessionOn(organizationOrigin, learner);
+    const cookie = await learnerSessionOn(api, organizationOrigin, learner.cookie);
     const signOut = (origin: string) =>
       api.request(`${organizationOrigin}/api/session/sign-out`, {
         method: "POST",
@@ -846,7 +820,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
   test("lets a learner session read its own progress, and no one else's", async () => {
     // An administrator's, handed over like anyone's: a learner there.
-    const cookie = await learnerSessionOn(organizationOrigin, teacher);
+    const cookie = await learnerSessionOn(api, organizationOrigin, teacher.cookie);
     const read = (learnerId: string) =>
       api.request(`${organizationOrigin}/api/courses/${courseId}/learners/${learnerId}/progress`, {
         headers: { cookie },
@@ -866,7 +840,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       role: "member",
       createdAt: at,
     });
-    const cookie = await learnerSessionOn(organizationOrigin, leaving);
+    const cookie = await learnerSessionOn(api, organizationOrigin, leaving.cookie);
     const nextOnDomain = () =>
       api.request(`${organizationOrigin}/api/courses/${courseId}/next`, { headers: { cookie } });
     expect((await nextOnDomain()).status).toBe(200);
@@ -911,7 +885,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     const sideways = await fromDomain(path, teacher.cookie);
     const onDomain = await fromDomain(
       `${organizationOrigin}${path}`,
-      await learnerSessionOn(organizationOrigin, teacher),
+      await learnerSessionOn(api, organizationOrigin, teacher.cookie),
     );
 
     expect([notJson.status, elsewhere.status, ours.status, sideways.status]).toEqual([
@@ -1566,7 +1540,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
     // On an organization's domain, that organization's alone.
     const onDomain = await api.request(`${organizationOrigin}/api/courses`, {
-      headers: { cookie: await learnerSessionOn(organizationOrigin, learner) },
+      headers: { cookie: await learnerSessionOn(api, organizationOrigin, learner.cookie) },
     });
     const domainIds = ((await onDomain.json()) as { courses: { id: string }[] }).courses.map(
       ({ id }) => id,
