@@ -7,8 +7,8 @@ import type * as learning from "../learning/index.ts";
 
 // The shapes the HTTP API sends and accepts, as `api/index.ts` documents them.
 // Derived from the domain and use-case types rather than restated, so the client in
-// `client.ts` cannot drift from what the routes serialize; `app.test.ts` pins
-// the JSON itself.
+// `client.ts` cannot drift from what the routes serialize; the API's tests,
+// such as `learning.test.ts`, pin the JSON itself.
 //
 // Type-only: the apps bundle `client.ts`, and nothing here may pull server code
 // in with it (`client.test.ts` checks).
