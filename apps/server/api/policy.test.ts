@@ -6,10 +6,13 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { registerLearnDomain } from "../application/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
-import { createApi } from "./app.ts";
-import { learnerSessionOn } from "./testing.ts";
+import {
+  baseUrl,
+  connectionString,
+  createTestApi,
+  learnerSessionOn,
+  type Signed,
+} from "./testing.ts";
 
 // Every route's admission, in one table per host: what it answers to each
 // credential, to forged writes, and to oversized bodies, and whether that
@@ -24,23 +27,12 @@ import { learnerSessionOn } from "./testing.ts";
 // parameters name nothing, and an admitted request is refused by its parser
 // (400) or its use case (403, 404, 501), which is enough to tell it was let in.
 
-const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
-const baseUrl = "http://localhost:3000";
+const { database, api, signUp } = createTestApi();
 const organizationId = "policy-test-org";
 const siblingOrganizationId = "policy-test-other-org";
 const learnOrigin = "https://policy-test.example.com";
 /** Another organization's learn domain, and a sibling of the first. */
 const siblingOrigin = "https://policy-test-other.example.com";
-
-const outbox = createOutbox();
-const auth = createAuth({
-  database,
-  secret: "policy-test-secret-that-is-long-enough",
-  baseURL: baseUrl,
-  sendMail: outbox.sendMail,
-});
-const api = createApi({ auth, database, baseUrl });
 
 /** Every route `createApi` registers, Better Auth's mount by a few of its own, and a path it does not. */
 const routes = [
@@ -127,12 +119,7 @@ const limits = [
   ["50MB", 50_000_001],
 ] as const;
 
-let member!: Awaited<ReturnType<typeof signUp>>;
-
-async function signUp() {
-  const email = `policy-test-${crypto.randomUUID()}@example.com`;
-  return signInWithCode((path, init) => api.request(`/api/auth${path}`, init), outbox, { email });
-}
+let member!: Signed;
 
 async function credentials(): Promise<Credentials> {
   const account = await signUp();

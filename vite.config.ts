@@ -94,9 +94,10 @@ export default defineConfig({
       {
         // The HTTP layer reaches other modules through their `index.ts`, and
         // never `persistence`: a route calls a use case. Its tests seed through
-        // `persistence`. Restates bunFree's pattern, which this rule replaces.
+        // `persistence`, and their fixture, `testing.ts`, uses other modules'
+        // test support. Restates bunFree's pattern, which this rule replaces.
         files: ["apps/server/api/**/*.ts"],
-        excludeFiles: ["**/*.test.ts"],
+        excludeFiles: ["**/*.test.ts", "apps/server/api/testing.ts"],
         rules: {
           "no-restricted-imports": [
             "error",
