@@ -67,7 +67,7 @@ Renaming and deleting are Better Auth's default access control; an owner's renam
 
 ### Write origins
 
-- **access-28:** Braivo's own writes, except an upload, whose check sources-11 owns ([sources](sources.md)), are refused `403`, recording nothing, with or without a session, unless their media type is `application/json` and their `Origin`, if sent, is the host's own: `BRAIVO_URL`'s on the installation's host, and on a hostname currently serving an organization, that hostname's HTTPS origin on the default port. A learn domain cannot write through the console's session. `apps/server/api/app.test.ts`, `apps/server/api/materials.test.ts`, `apps/server/api/policy.test.ts`, `apps/server/auth/origin.test.ts`
+- **access-28:** Braivo's own writes, except an upload, whose check sources-11 owns ([sources](sources.md)), are refused `403`, recording nothing, with or without a session, unless their media type is `application/json` and their `Origin`, if sent, is the host's own: `BRAIVO_URL`'s on the installation's host, and on a hostname currently serving an organization, that hostname's HTTPS origin on the default port. A learn domain cannot write through the console's session. `apps/server/api/app.test.ts`, `apps/server/api/pdf-to-tutor.test.ts`, `apps/server/api/policy.test.ts`, `apps/server/auth/origin.test.ts`
 - **access-29:** Better Auth checks the `Origin` of a request carrying a cookie, trusting `BRAIVO_URL`'s origin alone, never an organization's domain: such a write from a foreign origin is refused. Better Auth does not check the `Origin` of a request without a cookie, which is why sign-in codes pass access-28 too (access-4). `apps/server/auth/auth.test.ts`
 
 ## Boundaries
