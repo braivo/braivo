@@ -43,7 +43,8 @@
 // - `GET /api/session/handoff?code=` on the learn domain: with the nonce cookie,
 //   sets the learner session (a week, renewed by use once a day old) and
 //   redirects to the path sign-in began from; otherwise (a code spent, late,
-//   or from another browser) spends nothing and redirects to `/login?failed=1`.
+//   or from another browser) spends nothing and redirects to `/login?failed=1`;
+//   404 on `BRAIVO_URL`'s host.
 // - `GET /api/session`: who is signed in on this host, `{ "user": { "id",
 //   "name" } }`, from its learner session on a learn domain or the account's on
 //   `BRAIVO_URL`'s; 401 when no one is.
