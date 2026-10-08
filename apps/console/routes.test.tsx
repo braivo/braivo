@@ -339,10 +339,10 @@ describe("the console", () => {
     });
 
     test("for a learn domain, comes back to its sign-in, which offers the account", async () => {
-      const springo = { organization: { name: "Springo" }, hostname: "learn.springo.app" };
+      const fernwood = { organization: { name: "Fernwood" }, hostname: "learn.fernwood.example" };
       const { auth } = renderAt("/login?handoff=h1", {
         signedIn: false,
-        braivo: { ...withGoogle, handoff: async () => springo },
+        braivo: { ...withGoogle, handoff: async () => fernwood },
       });
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
@@ -356,21 +356,21 @@ describe("the console", () => {
   });
 
   describe("signing in for a learn domain", () => {
-    const springo = { organization: { name: "Springo" }, hostname: "learn.springo.app" };
-    const url = "https://learn.springo.app/api/session/handoff?code=c1";
+    const fernwood = { organization: { name: "Fernwood" }, hostname: "learn.fernwood.example" };
+    const url = "https://learn.fernwood.example/api/session/handoff?code=c1";
 
     test("names the organization and its domain, not Braivo, and hands the account over", async () => {
       const completeHandoff = vi.fn(async () => url);
       const { visit } = renderAt("/login?handoff=h1", {
         signedIn: false,
-        braivo: { handoff: async () => springo, completeHandoff },
+        braivo: { handoff: async () => fernwood, completeHandoff },
       });
 
-      const heading = await screen.findByRole("heading", { name: "Sign in to Springo" });
+      const heading = await screen.findByRole("heading", { name: "Sign in to Fernwood" });
       // Without the console's colours (`__root.tsx`).
       expect(heading.closest("[data-learn-domain]")).toBeTruthy();
-      expect(screen.getByText(/learn\.springo\.app/)).toBeTruthy();
-      await vi.waitFor(() => expect(document.title).toBe("Sign in to Springo"));
+      expect(screen.getByText(/learn\.fernwood\.example/)).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Sign in to Fernwood"));
       expect(screen.queryByText(/Braivo/)).toBeNull();
       await signInWithCode();
 
@@ -381,7 +381,7 @@ describe("the console", () => {
     test("offers the account already signed in, or another", async () => {
       const completeHandoff = vi.fn(async () => url);
       const { auth, visit } = renderAt("/login?handoff=h1", {
-        braivo: { handoff: async () => springo, completeHandoff },
+        braivo: { handoff: async () => fernwood, completeHandoff },
       });
 
       const offered = await screen.findByRole("button", { name: "Continue as Olive Owner" });
@@ -395,7 +395,7 @@ describe("the console", () => {
       cleanup();
 
       const other = renderAt("/login?handoff=h1", {
-        braivo: { handoff: async () => springo, completeHandoff: async () => url },
+        braivo: { handoff: async () => fernwood, completeHandoff: async () => url },
       });
       fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
       expect(await screen.findByLabelText("Email")).toBeTruthy();
@@ -405,7 +405,7 @@ describe("the console", () => {
     test("switches account once without natively disabling either button", async () => {
       const completeHandoff = vi.fn(async () => url);
       const { auth } = renderAt("/login?handoff=h1", {
-        braivo: { handoff: async () => springo, completeHandoff },
+        braivo: { handoff: async () => fernwood, completeHandoff },
       });
       const signedOut = Promise.withResolvers<{ error: null }>();
       auth.signOut.mockReturnValueOnce(signedOut.promise);
@@ -430,7 +430,7 @@ describe("the console", () => {
       let member = false;
       const { visit } = renderAt("/login?handoff=h1", {
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             if (!member) throw new BraivoError(403, "Braivo answered 403.");
             return url;
@@ -442,7 +442,7 @@ describe("the console", () => {
 
       expect(
         await screen.findByText(
-          "This account is not a member of Springo. Ask to be added, then try again.",
+          "This account is not a member of Fernwood. Ask to be added, then try again.",
         ),
       ).toBeTruthy();
       expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
@@ -465,7 +465,7 @@ describe("the console", () => {
       renderAt("/login?handoff=h1", {
         name: "",
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             throw new BraivoError(403, "Braivo answered 403.");
           },
@@ -484,7 +484,7 @@ describe("the console", () => {
     test("lets another person switch from an account left without a name, naming nothing", async () => {
       const { auth } = renderAt("/login?handoff=h1", {
         name: "",
-        braivo: { handoff: async () => springo, completeHandoff: async () => url },
+        braivo: { handoff: async () => fernwood, completeHandoff: async () => url },
       });
 
       fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
@@ -496,7 +496,7 @@ describe("the console", () => {
     test("asks to sign in again when the session ended meanwhile", async () => {
       renderAt("/login?handoff=h1", {
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             throw new BraivoError(401, "Braivo answered 401.");
           },
@@ -512,7 +512,7 @@ describe("the console", () => {
     test("leads back to the domain from expiry reached while signing in", async () => {
       renderAt("/login?handoff=h1", {
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             throw new BraivoError(404, "Braivo answered 404.");
           },
@@ -527,7 +527,7 @@ describe("the console", () => {
       expect(document.title).toBe("This sign-in has expired");
       // The domain is known by then: a new sign-in is one click away.
       expect(screen.getByRole("link", { name: "Sign in again" }).getAttribute("href")).toBe(
-        "https://learn.springo.app/login",
+        "https://learn.fernwood.example/login",
       );
     });
 
@@ -536,21 +536,21 @@ describe("the console", () => {
       await activateLocale(chooseLocale(["pl-PL", "en"]));
       renderAt("/login?handoff=h1", {
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             throw new BraivoError(403, "Braivo answered 403.");
           },
         },
       });
 
-      expect(await screen.findByRole("heading", { name: "Logowanie: Springo" })).toBeTruthy();
-      await vi.waitFor(() => expect(document.title).toBe("Logowanie: Springo"));
-      expect(screen.getByText("Potem przejdziesz na stronę learn.springo.app.")).toBeTruthy();
+      expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Logowanie: Fernwood"));
+      expect(screen.getByText("Potem przejdziesz na stronę learn.fernwood.example.")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Użyj innego konta" })).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Kontynuuj jako Olive Owner" }));
       expect(
         await screen.findByText(
-          "To konto nie należy do organizacji „Springo”. Poproś o dodanie, a potem spróbuj ponownie.",
+          "To konto nie należy do organizacji „Fernwood”. Poproś o dodanie, a potem spróbuj ponownie.",
         ),
       ).toBeTruthy();
       expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
@@ -590,7 +590,7 @@ describe("the console", () => {
         .mockRejectedValueOnce(new TypeError("Failed to fetch"))
         .mockResolvedValue(url);
       const { visit } = renderAt("/login?handoff=h1", {
-        braivo: { handoff: async () => springo, completeHandoff },
+        braivo: { handoff: async () => fernwood, completeHandoff },
       });
 
       fireEvent.click(await screen.findByRole("button", { name: "Use another account" }));
@@ -603,7 +603,7 @@ describe("the console", () => {
     test("tells a server's failure from a lost connection, offering to continue again", async () => {
       renderAt("/login?handoff=h1", {
         braivo: {
-          handoff: async () => springo,
+          handoff: async () => fernwood,
           completeHandoff: async () => {
             throw new BraivoError(500, "Braivo answered 500.");
           },
