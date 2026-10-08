@@ -168,6 +168,10 @@ msgstr "Nothing is due right now. Next review due: {objectiveTitle}, on {nextRev
 msgid "Nothing to practise right now"
 msgstr "Nothing to practise right now"
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
+msgstr "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "or"
 msgstr "or"
