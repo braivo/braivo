@@ -31,6 +31,10 @@ msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych}
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
 
+#: apps/console/routes/login.tsx
+msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
+msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”. Poproś o dodanie tego adresu e-mail, a potem spróbuj ponownie."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A new code was sent to {email}. Check your spam folder too."
 msgstr "Nowy kod został wysłany na adres {email}. Sprawdź też folder ze spamem."

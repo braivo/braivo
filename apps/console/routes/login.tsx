@@ -122,6 +122,11 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const [stale, setStale] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<MessageDescriptor>();
+  // The email to ask the organization to add, what it adds members by
+  // (`organization add-member --email`). Read again at the refusal, as the
+  // session may have changed since the page opened; best effort, as only the
+  // server knows whom it refused.
+  const [refusedEmail, setRefusedEmail] = useState<string>();
   // The pressed button is gone by the time a refusal shows, so the focus
   // moves to what comes next, after every refusal, a retried one too.
   const retry = useRef<HTMLButtonElement>(null);
@@ -144,8 +149,12 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     } catch (thrown) {
       const status = thrown instanceof BraivoError ? thrown.status : undefined;
       if (status === 404) setView("expired");
-      else if (status === 403) setView("refused");
-      else if (status === 401) {
+      else if (status === 403) {
+        // The refusal stands even if the session cannot be read.
+        const { data } = await auth.getSession().catch(() => ({ data: null }));
+        setRefusedEmail(data?.user.email);
+        setView("refused");
+      } else if (status === 401) {
         setStale(true);
         setView("form");
         setError(msg`You were signed out. Sign in again.`);
@@ -224,10 +233,19 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
           {/* Until invitations, the operator adds members by email: the
               learner asks, then retries here while the handoff lasts. */}
           <Alert variant="destructive">
-            <AlertDescription>
-              <Trans>
-                This account is not a member of {organizationName}. Ask to be added, then try again.
-              </Trans>
+            {/* An unbroken email wraps too, in a box centred by its column. */}
+            <AlertDescription className="wrap-anywhere">
+              {refusedEmail ? (
+                <Trans>
+                  {refusedEmail} is not a member of {organizationName}. Ask to be added with this
+                  email, then try again.
+                </Trans>
+              ) : (
+                <Trans>
+                  This account is not a member of {organizationName}. Ask to be added, then try
+                  again.
+                </Trans>
+              )}
             </AlertDescription>
           </Alert>
           <Button

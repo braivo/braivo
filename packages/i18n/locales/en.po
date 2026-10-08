@@ -31,6 +31,10 @@ msgstr "{count, plural, one {# retained} other {# retained}}"
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "{objectiveTitle} comes next, but there's no practice for it yet."
 
+#: apps/console/routes/login.tsx
+msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
+msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A new code was sent to {email}. Check your spam folder too."
 msgstr "A new code was sent to {email}. Check your spam folder too."

@@ -428,7 +428,9 @@ describe("the console", () => {
 
     test("says when the account is not a member, offering another, or to retry once added", async () => {
       let member = false;
+      let email = "olive@example.com";
       const { visit } = renderAt("/login?handoff=h1", {
+        getSession: async () => ({ data: { user: { name: "Olive Owner", email } }, error: null }),
         braivo: {
           handoff: async () => fernwood,
           completeHandoff: async () => {
@@ -440,25 +442,63 @@ describe("the console", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
 
-      expect(
-        await screen.findByText(
-          "This account is not a member of Fernwood. Ask to be added, then try again.",
-        ),
-      ).toBeTruthy();
+      // By the email the school adds members with.
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "olive@example.com is not a member of Fernwood. Ask to be added with this email, then try again.",
+      );
       expect(screen.getByRole("button", { name: "Use another account" })).toBeTruthy();
       // The pressed button is gone; the focus goes to what comes next.
       expect(document.activeElement).toBe(screen.getByRole("button", { name: "Try again" }));
 
-      // Too soon: refused again, the focus back on Try again.
+      // Too soon: refused again, naming the session read after it, the focus
+      // back on Try again.
+      email = "lee@example.com";
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-      await vi.waitFor(() =>
-        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Try again" })),
-      );
+      expect(
+        await screen.findByText(
+          "lee@example.com is not a member of Fernwood. Ask to be added with this email, then try again.",
+        ),
+      ).toBeTruthy();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Try again" }));
 
       // The operator adds them meanwhile.
       member = true;
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+    });
+
+    // Better Auth answers a failed read with an error, or throws when unreachable.
+    test.each([
+      ["answered with an error", async () => ({ data: null, error: { status: 500 } })],
+      [
+        "unreachable",
+        async () => {
+          throw new TypeError("Failed to fetch");
+        },
+      ],
+    ])("still says an account is not a member when the session read is %s", async (_, unread) => {
+      let reads = 0;
+      renderAt("/login?handoff=h1", {
+        // Read once as the page opens, then failing at the refusal.
+        getSession: async () =>
+          reads++ > 0
+            ? unread()
+            : { data: { user: { name: "Olive Owner", email: "olive@example.com" } }, error: null },
+        braivo: {
+          handoff: async () => fernwood,
+          completeHandoff: async () => {
+            throw new BraivoError(403, "Braivo answered 403.");
+          },
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      expect(
+        await screen.findByText(
+          "This account is not a member of Fernwood. Ask to be added, then try again.",
+        ),
+      ).toBeTruthy();
     });
 
     test("asks the next account for its email, after one that had no name", async () => {
@@ -550,7 +590,7 @@ describe("the console", () => {
       fireEvent.click(screen.getByRole("button", { name: "Kontynuuj jako Olive Owner" }));
       expect(
         await screen.findByText(
-          "To konto nie należy do organizacji „Fernwood”. Poproś o dodanie, a potem spróbuj ponownie.",
+          "Konto olive@example.com nie należy do organizacji „Fernwood”. Poproś o dodanie tego adresu e-mail, a potem spróbuj ponownie.",
         ),
       ).toBeTruthy();
       expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
