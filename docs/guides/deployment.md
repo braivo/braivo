@@ -14,7 +14,7 @@ The server mounts Better Auth at `/api/auth/*` and serves the learning API along
 > [!WARNING]
 > Do not expose the server directly. Put it behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend, and set `NODE_ENV=production`.
 
-`NODE_ENV=production` enables Better Auth's rate limiting on its own endpoints. That limit is keyed on `X-Forwarded-For`, and the server does not give Better Auth the connection's address, so with nothing in front of it every caller shares one bucket — ten code requests and ten sign-in attempts a minute across the whole installation — and any caller can sidestep it by sending that header themselves. Braivo's own routes are not rate limited in any environment.
+`NODE_ENV=production` enables Better Auth's rate limiting on its own endpoints. That limit is keyed on `X-Forwarded-For`, and the server does not give Better Auth the connection's address, so with nothing in front of it every caller shares one bucket per endpoint — 120 code requests and 120 sign-in attempts for the whole installation, each until a minute passes without an admitted one — and any caller can sidestep it by sending that header themselves. Braivo's own routes are not rate limited in any environment.
 
 ## The apps
 
