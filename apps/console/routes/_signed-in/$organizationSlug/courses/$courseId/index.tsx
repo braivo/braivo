@@ -39,6 +39,7 @@ import {
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
+import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -65,10 +66,17 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
 
 function Course() {
   const { course, progress } = Route.useLoaderData();
+  const { organization } = Route.useRouteContext();
 
   return (
     <>
       <Heading>{course.title}</Heading>
+      {/* A course has no draft state: open to learners once created, as accepting a draft does, landing here. */}
+      <LearnersSite
+        learnDomain={organization.learnDomain}
+        at={`Open to every learner in ${organization.name} at`}
+        none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
+      />
       <ObjectiveProgress objectives={progress.objectives} />
       <Learners learners={progress.learners} />
       <section aria-labelledby="teaches" className="flex flex-col gap-6">

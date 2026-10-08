@@ -112,14 +112,16 @@ function renderAt(
   return { auth, router, visit };
 }
 
-/** Signs in from `/login` as a person would: an email, then the code mailed to it. */
+/**
+ * Signs in from `/login` as a person would: an email, then the code mailed to
+ * it, whose last digit submits it.
+ */
 async function signInWithCode() {
   fireEvent.change(await screen.findByLabelText("Email"), {
     target: { value: "owner@example.com" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 /** A course as authored, one objective taught by a passage and practised by a task. */
@@ -958,6 +960,46 @@ describe("the console", () => {
     ).toBeTruthy();
   });
 
+  test("copies the learners' address, saying so, or that it could not", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    });
+    renderAt("/example", { braivo: { listCourses: async () => [] } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copy address" }));
+
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("https://example.braivo.app");
+    expect(screen.getByRole("status").textContent).toBe("Address copied.");
+
+    // Refused, as outside a secure context or without permission.
+    writeText.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
+    fireEvent.click(screen.getByRole("button", { name: "Copied" }));
+    const refused = await screen.findByRole("alert");
+    expect(refused.textContent).toBe("Could not copy. Select the address instead.");
+    expect(screen.getByRole("status").textContent).toBe("");
+    // Refused again: a new alert, so it is announced again.
+    writeText.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(refused));
+    // Then copied: the alert goes.
+    fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(writeText).toHaveBeenCalledTimes(4);
+
+    // No clipboard at all, as over plain HTTP: refused before any await.
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    fireEvent.click(screen.getByRole("button", { name: "Copied" }));
+    const missing = await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(missing));
+  });
+
   test("lists an organization's material, saying what each keeps", async () => {
     renderAt("/example/sources", {
       braivo: {
@@ -1537,6 +1579,11 @@ describe("the console", () => {
     await vi.waitFor(() =>
       expect(router.history.location.pathname).toBe("/example/courses/course-1"),
     );
+    // Live once created: the page it lands on says so, and where.
+    const site = await screen.findByRole("link", { name: "example.braivo.app" });
+    expect(site.parentElement?.textContent).toBe(
+      "Open to every learner in Example School at example.braivo.app.",
+    );
     // What was kept, and only that.
     expect(braivo.acceptDraft).toHaveBeenCalledWith({
       organizationId: "org-1",
@@ -1981,6 +2028,15 @@ describe("the console", () => {
       await vi.waitFor(() => expect(document.title).toBe(title));
       cleanup();
     }
+  });
+
+  test("says a course is open to the organization's learners, even before they have a site", async () => {
+    renderAt("/annex/courses/course-1", { organizations: [annex], braivo: { readCourse } });
+
+    expect(
+      await screen.findByText("Open to every learner in Annex, once it has a site to practise on."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
   });
 
   test("stops naming a course in its tab once a reload finds it gone", async () => {

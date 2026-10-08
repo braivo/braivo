@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Heading, MutedText } from "@braivo/ui";
+import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import {
   Empty,
@@ -12,6 +12,7 @@ import {
 } from "@braivo/ui/components/empty";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
+import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -40,19 +41,11 @@ function Courses() {
         </Link>
       </p>
       <Heading>Courses</Heading>
-      {learnDomain ? (
-        <MutedText className="mb-4 block wrap-anywhere">
-          Learners practise at{" "}
-          <a href={`https://${learnDomain}`} target="_blank" rel="noreferrer" className="underline">
-            {learnDomain}
-          </a>
-          .
-        </MutedText>
-      ) : (
-        <MutedText className="mb-4 block wrap-break-word">
-          Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.
-        </MutedText>
-      )}
+      <LearnersSite
+        learnDomain={learnDomain}
+        at="Learners practise at"
+        none="Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
+      />
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>

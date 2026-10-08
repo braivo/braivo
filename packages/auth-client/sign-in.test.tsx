@@ -44,13 +44,12 @@ const google = { callbackURL: "/courses", errorCallbackURL: "/login?redirect=%2F
 const fill = (label: string, value: string) =>
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
-/** Asks for a code for `learner@example.com`, and enters `123456`. */
+/** Asks for a code for `learner@example.com`, and enters `123456`, which submits it. */
 async function enterCode() {
   fill("Email", "learner@example.com");
   fireEvent.click(screen.getByRole("button", { name: "Send code" }));
   await screen.findByLabelText("Code");
   fill("Code", "123456");
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 describe("SignIn", () => {
@@ -62,15 +61,15 @@ describe("SignIn", () => {
     fill("Email", "learner@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
     expect(await screen.findByText(/Sent to learner@example.com/)).toBeTruthy();
+    // Its last digit submits it, with no Sign in pressed.
     fill("Code", "123456");
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
       email: "learner@example.com",
       type: "sign-in",
     });
-    expect(auth.signIn.emailOtp).toHaveBeenCalledWith({
+    expect(auth.signIn.emailOtp).toHaveBeenCalledExactlyOnceWith({
       email: "learner@example.com",
       otp: "123456",
     });
@@ -140,7 +139,6 @@ describe("SignIn", () => {
     // Cleared, so the next is typed afresh, after each refusal.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("");
     fill("Code", "654321");
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await vi.waitFor(() =>
       expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe(""),
     );
@@ -169,7 +167,6 @@ describe("SignIn", () => {
     // The first code still works, so what was typed of it is kept.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123");
     fill("Code", "123456");
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
     cleanup();
 
@@ -177,7 +174,7 @@ describe("SignIn", () => {
     fill("Email", "learner@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
     await screen.findByLabelText("Code");
-    fill("Code", "111111");
+    fill("Code", "111");
     fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
     expect(await screen.findByText(/A new code was sent to learner@example.com/)).toBeTruthy();
     // The old code is gone, so Sign in cannot spend a guess on it.
@@ -245,6 +242,8 @@ describe("SignIn", () => {
     await enterCode();
     expect((await screen.findByRole("alert")).textContent).toMatch(/^Could not connect/);
     expect(code()).toBe("123456");
+    // Not resent by itself: only a change to the code, or Sign in, sends it.
+    expect(auth.signIn.emailOtp).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await screen.findByText("That did not work. Try again.");
     expect(code()).toBe("123456");
@@ -335,8 +334,11 @@ describe("SignIn", () => {
         "Wysłano na adres learner@example.com. Sprawdź też folder ze spamem.",
       ),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Zalogujesz się, gdy tylko wpiszesz wszystkie sześć cyfr."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Zaloguj się" })).toBeTruthy();
     fill("Kod", "123456");
-    fireEvent.click(screen.getByRole("button", { name: "Zaloguj się" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Ten kod jest nieprawidłowy. Sprawdź go lub wyślij nowy.",
     );
@@ -347,7 +349,6 @@ describe("SignIn", () => {
     const checked = Promise.withResolvers<{ data: { user: { name: string } }; error: null }>();
     auth.signIn.emailOtp.mockReturnValueOnce(checked.promise);
     fill("Kod", "654321");
-    fireEvent.click(screen.getByRole("button", { name: "Zaloguj się" }));
     expect(await screen.findByRole("status", { name: "Ładowanie" })).toBeTruthy();
     checked.resolve({ data: { user: { name: "" } }, error: null });
 
