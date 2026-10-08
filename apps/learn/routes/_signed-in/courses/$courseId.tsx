@@ -22,6 +22,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
 import { asSessionAuth } from "#lib/auth";
+import { ANSWER_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { pageHead } from "#lib/title";
 import {
   clearUnfinishedAttempt,
@@ -38,11 +39,13 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   // only a visit shows.
   preload: false,
   loader: async ({ context, params, location, abortController }) => {
-    const signal = abortController.signal;
+    const left = abortController.signal;
     const learnerId = context.user.id;
     try {
       // First, so the summary below counts it.
-      const resumed = await resume(context.braivo, learnerId, params.courseId, signal);
+      const resumed = await resume(context.braivo, learnerId, params.courseId, left);
+      // Timed out, the reads fail the page, whose Try again reloads it.
+      const signal = withDeadline(left, READ_DEADLINE_MS);
       // The title and the summary are optional: a failure leaves them out
       // rather than failing the page. Awaited with the activity so they cannot
       // arrive later and shift the question down.
@@ -68,7 +71,7 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
         resumed,
       };
     } catch (error) {
-      if (signal.aborted) throw error;
+      if (left.aborted) throw error;
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
       // The session ended since the guard checked it: checked again, which
@@ -104,7 +107,7 @@ async function resume(
   braivo: BraivoClient,
   learnerId: string,
   courseId: string,
-  signal: AbortSignal,
+  left: AbortSignal,
 ): Promise<Resumed | undefined> {
   const attempt = unfinishedAttempt(learnerId, courseId);
   if (!attempt) return undefined;
@@ -112,11 +115,11 @@ async function resume(
   try {
     const grade = await braivo.submitAttempt(
       { courseId, id, taskId: activity.task.id, response },
-      { signal },
+      { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
     );
     return { attempt, grade };
   } catch (error) {
-    if (signal.aborted || (error instanceof BraivoError && error.status === 401)) throw error;
+    if (left.aborted || (error instanceof BraivoError && error.status === 401)) throw error;
     if (error instanceof BraivoError && FINAL_REFUSALS.includes(error.status)) {
       clearUnfinishedAttempt(learnerId, courseId);
       return undefined;
@@ -425,7 +428,7 @@ function Practice({
   }, []);
 
   async function submit(choice: number) {
-    const signal = lifetime.current?.signal;
+    const left = lifetime.current?.signal;
     setChosen(choice);
     setSending(true);
     // Before sending, kept until Continue: a reload can land after Braivo
@@ -435,13 +438,14 @@ function Practice({
     try {
       const answered = await braivo.submitAttempt(
         { courseId, id: attemptId, taskId: task.id, response },
-        { signal },
+        { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
       );
       setGrade(answered);
       setUnconfirmedCount(0);
     } catch (error) {
-      // Kept unless refused (below): it may have been recorded.
-      if (signal?.aborted) return;
+      // Kept unless refused (below): it may have been recorded. Left, not timed
+      // out: a timeout is unconfirmed, below.
+      if (left?.aborted) return;
       if (error instanceof BraivoError) {
         if (FINAL_REFUSALS.includes(error.status)) clearUnfinishedAttempt(user.id, courseId);
         // Reloading explains these. 401: the guard sends the learner to sign
@@ -459,7 +463,7 @@ function Practice({
           return;
         }
       }
-      // Anything else (lost, 5xx, an answer not from Braivo) may or may not be
+      // Anything else (lost, timed out, 5xx, an answer not from Braivo) may or may not be
       // recorded. Only the same answer may be resent: under the same attempt it
       // is recorded once, or fetches its grade; another choice would conflict.
       setUnconfirmedCount((count) => count + 1);

@@ -10,13 +10,16 @@ import {
   type LearnerProgressReport,
 } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
+import { ANSWER_DEADLINE_MS, READ_DEADLINE_MS } from "./lib/deadline.ts";
 import { createLearnRouter } from "./router.tsx";
 
 afterEach(() => {
+  // Also for a deadline test that failed before switching back itself.
+  vi.useRealTimers();
   cleanup();
   // Where an unfinished answer is kept across a reload.
   sessionStorage.clear();
@@ -58,6 +61,18 @@ const anotherActivity: Activity = {
 };
 
 const noProgress: LearnerProgressReport = { modelVersion: "v1", objectives: [] };
+
+/** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
+function stall(options?: { signal?: AbortSignal }): Promise<never> {
+  return new Promise((_resolve, reject) =>
+    options?.signal?.addEventListener("abort", () => reject(options.signal!.reason)),
+  );
+}
+
+/** Lets `ms` pass on fake timers, so that a stalled request reaches its deadline. */
+async function waitOut(ms: number) {
+  await act(() => vi.advanceTimersByTimeAsync(ms));
+}
 
 /**
  * The app as a learner reaches it, at `path`, with Braivo and the session
@@ -619,6 +634,103 @@ describe("the learn app", () => {
     expect(screen.getByRole("alert").textContent).toBe("Correct");
     const [first, second] = submitAttempt.mock.calls;
     expect(second![0]).toEqual(first![0]);
+  });
+
+  test("offers to send an answer again when Braivo does not answer in time", async () => {
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockImplementationOnce((_input, options) => stall(options))
+      .mockResolvedValueOnce({ outcome: "success", correctChoice: 0 });
+    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    const option = await screen.findByRole("button", { name: "hablé" });
+
+    vi.useFakeTimers();
+    fireEvent.click(option);
+    await waitOut(ANSWER_DEADLINE_MS - 1);
+    expect(screen.queryByText("Your answer could not be confirmed.")).toBeNull();
+    await waitOut(1);
+    vi.useRealTimers();
+
+    expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Send again" }));
+    expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+    const [first, second] = submitAttempt.mock.calls;
+    expect(second![0]).toEqual(first![0]);
+  });
+
+  test("after a reload, offers to send again an answer whose resend Braivo does not answer in time", async () => {
+    const before = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: () => new Promise(() => {}),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    await vi.waitFor(() => expect(before.submitAttempt).toHaveBeenCalledTimes(1));
+    cleanup();
+
+    vi.useFakeTimers();
+    renderAt("/courses/c1", {
+      signedIn: true,
+      submitAttempt: (_input, options) => stall(options),
+    });
+    await waitOut(ANSWER_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /hablé.*Your answer/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send again" })).toBeTruthy();
+  });
+
+  test("asks the question, unbranded, when Braivo does not answer the brand in time", async () => {
+    vi.useFakeTimers();
+    renderAt("/courses/c1", {
+      signedIn: true,
+      hostOrganization: (options) => stall(options),
+      nextActivity: async () => activity,
+    });
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+  });
+
+  test.each([
+    [
+      "the next question",
+      {
+        nextActivity: vi
+          .fn<BraivoClient["nextActivity"]>()
+          .mockResolvedValueOnce(activity)
+          .mockImplementationOnce((_courseId, options) => stall(options))
+          .mockResolvedValue(anotherActivity),
+      },
+    ],
+    [
+      "the session",
+      {
+        nextActivity: vi
+          .fn<BraivoClient["nextActivity"]>()
+          .mockResolvedValueOnce(activity)
+          .mockResolvedValue(anotherActivity),
+        session: vi
+          .fn<BraivoClient["session"]>()
+          .mockResolvedValueOnce({ id: "ada", name: "Ada Learner" })
+          .mockImplementationOnce((options) => stall(options))
+          .mockResolvedValue({ id: "ada", name: "Ada Learner" }),
+      },
+    ],
+  ])("offers to try again when Braivo does not answer %s in time on Continue", async (_, stubs) => {
+    renderAt("/courses/c1", { signedIn: true, ...stubs });
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    vi.useFakeTimers();
+    fireEvent.click(next);
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
   });
 
   test.each([400, 403, 404, 409, 413])(

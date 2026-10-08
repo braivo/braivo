@@ -5,6 +5,8 @@ import { createBrowserAuth, type SessionAuth } from "@braivo/auth-client";
 import type { BraivoClient, SessionUser } from "@braivo/server/client";
 import { emailOTPClient } from "better-auth/client/plugins";
 
+import { READ_DEADLINE_MS, withDeadline } from "./deadline.ts";
+
 /**
  * Better Auth, signing in by a code sent by email: only on the installation's
  * own host, which is where the learn app runs in development. A learn domain
@@ -18,13 +20,13 @@ export type LearnAuth = ReturnType<typeof createLearnAuth>;
 
 /**
  * Braivo's session for this host, whichever it is, in the shape
- * `requireSession` reads: a request that got no answer is an error, not a
- * sign-out.
+ * `requireSession` reads: a request that got no answer, in time or at all, is
+ * an error, not a sign-out.
  */
 export function asSessionAuth(braivo: BraivoClient): SessionAuth<SessionUser> {
   return {
     getSession: () =>
-      braivo.session().then(
+      braivo.session({ signal: withDeadline(undefined, READ_DEADLINE_MS) }).then(
         (user) => ({ data: user ? { user } : null, error: null }),
         (error: unknown) => ({ data: null, error: { message: String(error) } }),
       ),
