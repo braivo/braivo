@@ -117,6 +117,42 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(oversized.headers.get("cache-control")).toBe("private, no-store");
   });
 
+  test.each([
+    ["string", (text: string) => text],
+    // Without `Content-Length`, the body limit rebuilds the request around a
+    // counted stream, which the copy read here must still see whole.
+    ["streamed", (text: string) => new Blob([text]).stream()],
+  ])("refuses a name Better Auth could not store, in a %s JSON body", async (_label, send) => {
+    const response = await api.request(
+      new Request(`${baseUrl}/api/auth/sign-in/email-otp`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: send(
+          JSON.stringify({
+            email: `unstorable-${crypto.randomUUID()}@example.com`,
+            otp: "000000",
+            name: "A\u0000",
+          }),
+        ),
+        duplex: "half",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error:
+        "name carries a NUL or an unpaired surrogate, which Braivo cannot store; remove the NUL, or send well-formed Unicode.",
+    });
+  });
+
+  test("refuses a query carrying a NUL, which Better Auth would look up, after the host gate", async () => {
+    const installation = await api.request("/api/auth/device?user_code=A%00");
+    // A learn domain serves no `/api/auth`: the host gate's 404, as without the NUL.
+    const learnDomain = await api.request(`${organizationOrigin}/api/auth/device?user_code=A%00`);
+
+    expect([installation.status, learnDomain.status]).toEqual([400, 404]);
+  });
+
   test("signs in by code only on the installation's origin, and only from it", async () => {
     // Without a cookie Better Auth checks no origin, so another site holding a
     // code for its own address could sign a visitor in to that account.

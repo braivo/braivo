@@ -5,14 +5,22 @@
 export const MAX_TITLE = 500;
 
 /**
+ * Whether PostgreSQL stores `text` as sent: well-formed Unicode without NUL.
+ * It refuses a NUL, turning a caller's mistake into a 500, and stores an
+ * unpaired surrogate as U+FFFD, so two IDs could become one.
+ */
+export function isStorable(text: string): boolean {
+  return text.isWellFormed() && !text.includes("\u0000");
+}
+
+/**
  * Whether `value` is text a person wrote that Braivo can store: not blank,
- * well-formed Unicode without NUL — which PostgreSQL refuses, turning a
- * caller's mistake into a 500 — and at most `max` characters, since every
- * title and question also lands in pages, logs, and a model's prompt. Counted
- * trimmed, as Braivo stores it.
+ * `isStorable`, and at most `max` characters, since every title and question
+ * also lands in pages, logs, and a model's prompt. Counted trimmed, as Braivo
+ * stores it.
  */
 export function isStorableText(value: unknown, max: number): value is string {
   if (typeof value !== "string") return false;
   const { length } = value.trim();
-  return length > 0 && length <= max && value.isWellFormed() && !value.includes("\u0000");
+  return length > 0 && length <= max && isStorable(value);
 }

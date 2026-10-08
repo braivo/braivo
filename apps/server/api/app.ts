@@ -9,7 +9,7 @@ import { type Ai, readHostOrganization } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
-import { createGuards, limitBody, MAX_BODY_BYTES } from "./guards.ts";
+import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { sessionRoutes } from "./session.ts";
@@ -108,6 +108,17 @@ export function createApi(options: ApiOptions) {
     return next();
   });
 
+  // A NUL, which PostgreSQL refuses as a 500, reaches a URL only as `%00`,
+  // so it is read before anything decodes it. In the path it names nothing
+  // stored (`isStorable`); in the query, a value no lookup can match, such as
+  // Better Auth's `user_code`. After the host gate, whose refusals come first.
+  api.use("/api/*", async (context, next) => {
+    const { pathname, search } = new URL(context.req.url);
+    if (pathname.includes("%00")) return context.body(null, 404);
+    if (search.includes("%00")) return context.body(null, 400);
+    return next();
+  });
+
   // Better Auth owns the routing below this path (ADR 0006); Braivo still owes
   // it the protections. Unguarded, `sign-in/email-otp` accepts a megabytes-long
   // name unauthenticated, and `organization/list` answers with one caller's
@@ -121,6 +132,16 @@ export function createApi(options: ApiOptions) {
     if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
     if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
       return context.body(null, 403);
+    }
+    // As `storableJson` does for Braivo's routes: a name with a NUL would be a
+    // 500. Read from a copy, since Better Auth reads the request itself.
+    if (context.req.method === "POST") {
+      const body = await context.req.raw
+        .clone()
+        .json()
+        .catch(() => undefined);
+      const refused = refuseUnstorable(context, body);
+      if (refused) return refused;
     }
 
     // Copied, since a library's response may carry immutable headers.

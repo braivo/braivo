@@ -25,6 +25,12 @@
 // `/api/organizations…` route answer 404, and any request carrying
 // `Authorization` 401 (ADR 0004, ADR 0022).
 //
+// What PostgreSQL cannot store as sent, a NUL or an unpaired surrogate, is
+// refused after those host refusals and before any session is read: a path
+// carrying `%00` answers 404, since no ID holds one; a query carrying it, 400;
+// a body read as JSON, Better Auth's included, holding either in any key or
+// string, 400 with `{ "error": "…" }` naming where (`tasks[0].prompt`).
+//
 // A learn domain signs in by handoff from `BRAIVO_URL`'s origin (ADR 0018), and
 // holds a learner session, Braivo's own, in its `__Host-braivo-learner`
 // cookie: the session the learner routes below take there, and the only one.
