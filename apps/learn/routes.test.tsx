@@ -14,7 +14,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
-import { ANSWER_DEADLINE_MS, READ_DEADLINE_MS } from "./lib/deadline.ts";
+import { ANSWER_DEADLINE_MS, OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS } from "./lib/deadline.ts";
 import { createLearnRouter } from "./router.tsx";
 
 afterEach(() => {
@@ -681,14 +681,38 @@ describe("the learn app", () => {
     expect(screen.getByRole("button", { name: "Send again" })).toBeTruthy();
   });
 
-  test("asks the question, unbranded, when Braivo does not answer the brand in time", async () => {
+  test.each([
+    ["the brand", { hostOrganization: (options) => stall(options) }],
+    ["the summary", { learnerProgress: (_input, options) => stall(options) }],
+    ["the title", { learnerCourses: (options) => stall(options) }],
+  ] satisfies [string, Partial<BraivoClient>][])(
+    "asks the question without %s when Braivo does not answer it in time",
+    async (_, stubs) => {
+      vi.useFakeTimers();
+      renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, ...stubs });
+      // Held back meanwhile, so the page does not shift when it arrives.
+      await waitOut(OPTIONAL_READ_DEADLINE_MS - 1);
+      expect(screen.queryByText("Past tense of 'hablar'?")).toBeNull();
+      await waitOut(1);
+      vi.useRealTimers();
+
+      expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    },
+  );
+
+  test("gives the question its own deadline, not the shorter one of what it shows without", async () => {
     vi.useFakeTimers();
     renderAt("/courses/c1", {
       signedIn: true,
-      hostOrganization: (options) => stall(options),
-      nextActivity: async () => activity,
+      learnerProgress: (_input, options) => stall(options),
+      // Slower than the summary's deadline, within its own.
+      nextActivity: (_courseId, options) =>
+        Promise.race([
+          new Promise<Activity>((resolve) => setTimeout(() => resolve(activity), 5_000)),
+          stall(options),
+        ]),
     });
-    await waitOut(READ_DEADLINE_MS);
+    await waitOut(5_000);
     vi.useRealTimers();
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();

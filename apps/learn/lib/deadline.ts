@@ -5,8 +5,14 @@
 // school wifi can stall a request with no error at all. Its body counts: the
 // client reads it under the same signal.
 
-/** A read on the way to a question: the activity, the session, the brand. */
+/** A read a question waits for: the activity, the session. */
 export const READ_DEADLINE_MS = 10_000;
+
+/**
+ * A read the page shows without, the brand, the title, the progress summary:
+ * short, since a question that is ready waits for it to keep the layout still.
+ */
+export const OPTIONAL_READ_DEADLINE_MS = 3_000;
 
 /** An answer, which also records it: longer, since resending costs the learner a press. */
 export const ANSWER_DEADLINE_MS = 20_000;

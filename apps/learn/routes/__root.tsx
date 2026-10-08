@@ -8,15 +8,15 @@ import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack
 
 import { Notice } from "#components/notice";
 import type { AppContext } from "#lib/context";
-import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { OPTIONAL_READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createRootRouteWithContext<AppContext>()({
   // The brand of the organization this domain serves (ADR 0004), loaded before
-  // sign-in and once per visit. A failure, a timeout included, leaves the app
-  // unbranded, not down.
+  // sign-in and kept across pages; Continue and Try again read it again. A
+  // failure, a timeout included, leaves the app unbranded, not down.
   loader: async ({ context, abortController }) => ({
     organization: await context.braivo
-      .hostOrganization({ signal: withDeadline(abortController.signal, READ_DEADLINE_MS) })
+      .hostOrganization({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
       .catch(() => undefined),
   }),
   staleTime: Infinity,

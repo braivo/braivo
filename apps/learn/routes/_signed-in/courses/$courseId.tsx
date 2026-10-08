@@ -22,7 +22,12 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
 import { asSessionAuth } from "#lib/auth";
-import { ANSWER_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import {
+  ANSWER_DEADLINE_MS,
+  OPTIONAL_READ_DEADLINE_MS,
+  READ_DEADLINE_MS,
+  withDeadline,
+} from "#lib/deadline";
 import { pageHead } from "#lib/title";
 import {
   clearUnfinishedAttempt,
@@ -44,20 +49,22 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
     try {
       // First, so the summary below counts it.
       const resumed = await resume(context.braivo, learnerId, params.courseId, left);
-      // Timed out, the reads fail the page, whose Try again reloads it.
+      // Timed out, the activity fails the page, whose Try again reloads it.
       const signal = withDeadline(left, READ_DEADLINE_MS);
-      // The title and the summary are optional: a failure leaves them out
-      // rather than failing the page. Awaited with the activity so they cannot
-      // arrive later and shift the question down.
+      // The title and the summary are optional: a failure or their own shorter
+      // deadline leaves them out rather than failing the page or holding the
+      // question back. Awaited with the activity so they cannot arrive later
+      // and shift the question down.
+      const optional = withDeadline(left, OPTIONAL_READ_DEADLINE_MS);
       const [activity, progress, course] = await Promise.all([
         resumed?.attempt.activity ?? context.braivo.nextActivity(params.courseId, { signal }),
         context.braivo
-          .learnerProgress({ courseId: params.courseId, learnerId }, { signal })
+          .learnerProgress({ courseId: params.courseId, learnerId }, { signal: optional })
           .catch(() => undefined),
         // The title, from the list: one more read per load, sized by the
         // learner's courses, rather than an endpoint for one string.
         context.braivo
-          .learnerCourses({ signal })
+          .learnerCourses({ signal: optional })
           .then((courses) => courses.find(({ id }) => id === params.courseId))
           .catch(() => undefined),
       ]);
