@@ -43,10 +43,23 @@ export async function createCitations(
 ): Promise<void> {
   if (citations.length === 0) return;
 
+  // In primary-key order, whatever order they were sent in, as evidence is: two
+  // writers inserting overlapping citations in different orders could each hold
+  // a row the other waits for, and deadlock.
   await database
     .insert(objectiveCitation)
-    .values(citations.map((citation) => ({ organizationId, ...citation })))
+    .values(citations.toSorted(keyOrder).map((citation) => ({ organizationId, ...citation })))
     .onConflictDoNothing();
+}
+
+function keyOrder(a: Citation, b: Citation): number {
+  const text = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  return (
+    text(a.objectiveId, b.objectiveId) ||
+    text(a.sourceId, b.sourceId) ||
+    a.start - b.start ||
+    a.end - b.end
+  );
 }
 
 /**
