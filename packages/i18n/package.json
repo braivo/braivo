@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./index.tsx",
+    "./boot": "./boot.ts",
     "./locales": "./locales.ts"
   },
   "dependencies": {
