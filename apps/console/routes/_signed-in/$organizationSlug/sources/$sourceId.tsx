@@ -26,7 +26,7 @@ import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
-import { MAX_TITLE } from "#lib/limits";
+import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { explainAiProxyTimeout, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -49,21 +49,6 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
 
 /** Enough to recognise the material by; a source may run to megabytes. */
 const SHOWN_CHARACTERS = 20_000;
-
-/**
- * What the server would refuse in a title, said of `subject` ("the course",
- * "objective 2"), checked before sending since what is sent is then locked in.
- */
-function titleProblem(title: string, subject: string): string | undefined {
-  const trimmed = title.trim();
-  if (trimmed === "") return `Give ${subject} a title.`;
-  if (trimmed.length > MAX_TITLE) {
-    return `Keep the title of ${subject} to ${MAX_TITLE} characters.`;
-  }
-  if (trimmed.includes("\u0000") || !trimmed.isWellFormed()) {
-    return `Remove the characters in the title of ${subject} that are not text.`;
-  }
-}
 
 /** Braivo's words when it gave any, or `fallback`. */
 function reasonOf(thrown: unknown, fallback: string): string {
