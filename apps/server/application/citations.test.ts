@@ -5,7 +5,7 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { createObjectives, createSource } from "../persistence/index.ts";
+import { createCitations, createObjectives, createSource } from "../persistence/index.ts";
 import {
   citeSources,
   InvalidCitation,
@@ -106,6 +106,31 @@ describe.skipIf(!connectionString)("citing sources", () => {
     await cite([citation, citation]);
 
     expect(await list(greetings)).toHaveLength(1);
+  });
+
+  test("stores overlapping batches that arrive at once in opposite orders", async () => {
+    // A retried acceptance racing its original, sent in another order: inserted
+    // as sent, each writer could hold a row the other waits for, and PostgreSQL
+    // would fail one of them with a deadlock.
+    const objectiveIds = await createObjectives(database, organizationId, ["A", "B", "C", "D"]);
+
+    for (let race = 0; race < 10; race++) {
+      const batch = objectiveIds.flatMap((objectiveId) =>
+        Array.from({ length: 40 }, (_unused, start) => ({
+          objectiveId,
+          sourceId: unit,
+          start,
+          end: start + 1 + race,
+        })),
+      );
+
+      await Promise.all([
+        createCitations(database, organizationId, batch),
+        createCitations(database, organizationId, batch.toReversed()),
+      ]);
+    }
+
+    expect(await list(objectiveIds[0]!)).toHaveLength(400);
   });
 
   test("lets one objective cite several sources", async () => {
