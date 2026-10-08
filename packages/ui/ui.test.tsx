@@ -51,6 +51,10 @@ describe("Braivo's components", () => {
     const fill = (label: string, value: string) =>
       fireEvent.change(screen.getByLabelText(label), { target: { value } });
 
+    const emailHint = screen.getByText(
+      "We'll email you a sign-in code. Using it creates an account if you don't have one.",
+    );
+    expect(screen.getByLabelText("Email").getAttribute("aria-describedby")).toBe(emailHint.id);
     fill("Email", "ada@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
     expect(onSubmit).toHaveBeenLastCalledWith({ step: "email", email: "ada@example.com" });

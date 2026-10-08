@@ -91,7 +91,14 @@ export function SignInForm(props: {
           autoFocus
           autoComplete="email"
           defaultValue={step.email}
+          aria-describedby={`${id}-email-hint`}
         />
+        {/* No password, and no sign-up to look for: redeeming a code makes the account. */}
+        <FieldDescription id={`${id}-email-hint`}>
+          <Trans>
+            We'll email you a sign-in code. Using it creates an account if you don't have one.
+          </Trans>
+        </FieldDescription>
       </Field>
     );
   } else if (step.step === "code") {

@@ -323,6 +323,11 @@ describe("SignIn", () => {
 
     expect(screen.getByRole("button", { name: "Kontynuuj z Google" })).toBeTruthy();
     expect(screen.getByText("lub")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Wyślemy Ci kod do logowania. Jeśli nie masz jeszcze konta, użycie kodu je utworzy.",
+      ),
+    ).toBeTruthy();
     fill("E-mail", "learner@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Wyślij kod" }));
     expect(

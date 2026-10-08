@@ -321,6 +321,10 @@ msgstr "Use another email"
 msgid "Wait a minute before asking for a code again."
 msgstr "Wait a minute before asking for a code again."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "We'll email you a sign-in code. Using it creates an account if you don't have one."
+msgstr "We'll email you a sign-in code. Using it creates an account if you don't have one."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You missed this last time."
 msgstr "You missed this last time."
