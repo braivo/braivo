@@ -3,7 +3,14 @@
 
 import { Trans, useLingui } from "@lingui/react/macro";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { type ComponentProps, type FormEvent, type ReactNode, useId, useState } from "react";
+import {
+  type ComponentProps,
+  type FormEvent,
+  type ReactNode,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
 import { Alert, AlertDescription } from "#components/alert";
 import { Button } from "#components/button";
@@ -36,7 +43,8 @@ const CODE_DIGITS = 6;
  * steps; `pending` and `error` describe its request, and while `pending` the
  * form calls none of its callbacks. From the code, `onResend` asks for
  * another and `onChangeEmail` goes back to the email. With
- * `onContinueWithGoogle`, the email step offers Google first.
+ * `onContinueWithGoogle`, the email step offers Google first. A code is
+ * submitted as soon as its last digit is typed or pasted.
  */
 export function SignInForm(props: {
   step: SignInStep;
@@ -50,6 +58,7 @@ export function SignInForm(props: {
   const { step } = props;
   const { t } = useLingui();
   const id = useId();
+  const form = useRef<HTMLFormElement>(null);
   // Which button the pending request is from, to show its spinner there.
   const [viaGoogle, setViaGoogle] = useState(false);
 
@@ -124,7 +133,11 @@ export function SignInForm(props: {
           required
           autoFocus
           autoComplete="one-time-code"
-          aria-describedby={`${id}-sent`}
+          // As if Sign in were pressed, so its checks apply: nothing while
+          // pending. Only on becoming whole, so a code left whole after an
+          // error is not resent until the person edits or presses Sign in.
+          onComplete={() => form.current?.requestSubmit()}
+          aria-describedby={`${id}-sent ${id}-auto`}
         >
           <InputOTPGroup>
             {Array.from({ length: CODE_DIGITS }, (_, index) => (
@@ -139,6 +152,10 @@ export function SignInForm(props: {
           ) : (
             <Trans>Sent to {email}. Check your spam folder too.</Trans>
           )}
+        </FieldDescription>
+        {/* Said before typing, as the last digit changes the page (WCAG 3.2.2). */}
+        <FieldDescription id={`${id}-auto`}>
+          <Trans>You'll be signed in once all six digits are entered.</Trans>
         </FieldDescription>
       </Field>
     );
@@ -168,7 +185,7 @@ export function SignInForm(props: {
 
   return (
     // Keyed by step, so each starts empty rather than keeping the last one's input.
-    <form key={step.step} onSubmit={submit}>
+    <form ref={form} key={step.step} onSubmit={submit}>
       <FieldGroup>
         {step.step === "email" && props.onContinueWithGoogle && (
           <>

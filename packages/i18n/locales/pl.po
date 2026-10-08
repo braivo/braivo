@@ -342,6 +342,10 @@ msgstr "Wylogowano Cię. Zaloguj się ponownie."
 msgid "You will continue at {hostname}."
 msgstr "Potem przejdziesz na stronę {hostname}."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "You'll be signed in once all six digits are entered."
+msgstr "Zalogujesz się, gdy tylko wpiszesz wszystkie sześć cyfr."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You're caught up"
 msgstr "Jesteś na bieżąco"

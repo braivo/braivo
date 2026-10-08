@@ -67,12 +67,21 @@ describe("Braivo's components", () => {
       />,
     );
     expect(screen.queryByLabelText("Email")).toBeNull();
-    // Described by where it went, announced when that changes, and six digits long.
+    // Described by where the code went (announced when that changes) and by
+    // what its last digit does; six digits long.
     const code = screen.getByLabelText("Code");
-    expect(code.getAttribute("aria-describedby")).toBe(screen.getByRole("status").id);
+    const auto = screen.getByText("You'll be signed in once all six digits are entered.");
+    expect(code.getAttribute("aria-describedby")).toBe(
+      `${screen.getByRole("status").id} ${auto.id}`,
+    );
     expect(screen.getByRole("status").textContent).toMatch(/^Sent to ada@example.com/);
     expect(code.getAttribute("minlength")).toBe("6");
+    // Submitted on its last digit, without pressing Sign in, and only then.
+    onSubmit.mockClear();
+    fill("Code", "12345");
+    expect(onSubmit).not.toHaveBeenCalled();
     fill("Code", "123456");
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith({ step: "code", code: "123456" });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(onSubmit).toHaveBeenLastCalledWith({ step: "code", code: "123456" });
     fireEvent.click(screen.getByRole("button", { name: /Use another email/ }));
@@ -141,8 +150,10 @@ describe("Braivo's components", () => {
     const resend = screen.getByRole("button", { name: "Send a new code" });
     const changeEmail = screen.getByRole("button", { name: "Use another email" });
     expect(within(submit).getByRole("status", { name: "Loading" })).toBeTruthy();
-    // Enter in the code submits the form however its button is marked.
+    // Enter in the code submits the form however its button is marked, and
+    // so does completing the code.
     fireEvent.submit(submit.closest("form")!);
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
     for (const button of [submit, resend, changeEmail]) {
       fireEvent.click(button);
       // Locked, but never disabled, which would drop the focus.

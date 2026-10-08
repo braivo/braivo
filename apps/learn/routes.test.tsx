@@ -355,10 +355,11 @@ describe("the learn app", () => {
       target: { value: "ada@example.com" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
-    fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+    const code = await screen.findByLabelText("Code");
     // No link: an emailed code makes the account, so there is nothing to sign up for.
     expect(screen.queryByRole("link")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    // Its last digit signs in.
+    fireEvent.change(code, { target: { value: "123456" } });
 
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/");
