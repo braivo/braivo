@@ -5,7 +5,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import {
   type ComponentProps,
-  type FormEvent,
+  type SubmitEvent,
   type ReactNode,
   useId,
   useRef,
@@ -62,7 +62,7 @@ export function SignInForm(props: {
   // Which button the pending request is from, to show its spinner there.
   const [viaGoogle, setViaGoogle] = useState(false);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // aria-disabled does not stop Enter in a field from submitting the form.
     if (props.pending) return;

@@ -3,7 +3,12 @@
 
 import { activateLocale, chooseLocale } from "@braivo/i18n";
 import { BraivoError, type LearnerProgressReport, type Organization } from "@braivo/server/client";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import {
+  createBrowserHistory,
+  createMemoryHistory,
+  type RouterHistory,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
@@ -66,6 +71,8 @@ function renderAt(
     device?: object;
     /** Better Auth's session read, in place of one answering at once. */
     getSession?: () => Promise<unknown>;
+    /** The browser's, whose Back a blocker can stop, unlike a memory history's; `path` is then ignored. */
+    history?: RouterHistory;
   } = {},
 ) {
   const account = { name: stubs.name ?? "Olive Owner", email: "olive@example.com" };
@@ -94,7 +101,7 @@ function renderAt(
   const visit = vi.fn<AppContext["visit"]>();
 
   const router = createConsoleRouter({
-    history: createMemoryHistory({ initialEntries: [path] }),
+    history: stubs.history ?? createMemoryHistory({ initialEntries: [path] }),
     context: {
       auth: auth as unknown as AppContext["auth"],
       braivo: {
@@ -1505,6 +1512,21 @@ describe("the console", () => {
     };
   }
 
+  const LEAVE_REVIEW =
+    "Leave this page? The draft and your changes to it will be lost, and drafting again uses another of this month's AI requests.";
+  const LEAVE_UNFINISHED =
+    "Leave this page? Some or all of this course may already be saved: leaving does not undo it, and may leave it unfinished.";
+
+  /** The owner's answer when leaving a draft under review asks first; Happy DOM has no `confirm`. */
+  function answerLeaving(leave: boolean) {
+    const confirm = vi.fn((_message?: string) => leave);
+    vi.stubGlobal("confirm", confirm);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    return confirm;
+  }
+
   test("links each source to its own page", async () => {
     renderAt("/example/sources", {
       braivo: { listSources: async () => [saludos] },
@@ -1848,7 +1870,84 @@ describe("the console", () => {
     await vi.waitFor(() => expect(signal?.aborted).toBe(true));
   });
 
+  test("asks before leaving a draft under review, and stays if the owner says so", async () => {
+    const confirm = answerLeaving(false);
+    const { router } = renderAt("/example/sources/s1", {
+      braivo: { ...authoring(), listCourses: async () => [] },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    const create = await screen.findByRole("button", { name: "Create course" });
+
+    // Blocked, the navigation never settles.
+    void router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_REVIEW));
+    expect(router.history.location.pathname).toBe("/example/sources/s1");
+    expect(screen.getByRole("button", { name: "Create course" })).toBe(create);
+
+    // Discarded, nothing is left to lose.
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    expect(router.history.location.pathname).toBe("/example");
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  test("asks before going back from a draft under review", async () => {
+    const confirm = answerLeaving(false);
+    // The browser's Back, which a memory history never blocks.
+    window.history.replaceState(null, "", "/example");
+    const history = createBrowserHistory();
+    onTestFinished(() => {
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    });
+    const { router } = renderAt("/example", {
+      braivo: { ...authoring(), listCourses: async () => [] },
+      history,
+    });
+    await router.navigate({
+      to: "/$organizationSlug/sources/$sourceId",
+      params: { organizationSlug: "example", sourceId: "s1" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await screen.findByRole("button", { name: "Create course" });
+
+    window.history.back();
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_REVIEW));
+    await vi.waitFor(() => expect(window.location.pathname).toBe("/example/sources/s1"));
+    expect(screen.getByRole("button", { name: "Create course" })).toBeTruthy();
+
+    confirm.mockReturnValue(true);
+    window.history.back();
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
+  });
+
+  test("says what may be stored after creating a course failed, and asks nothing once it is created", async () => {
+    const confirm = answerLeaving(false);
+    const braivo = authoring();
+    braivo.acceptDraft.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const { router } = renderAt("/example/sources/s1", { braivo });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+
+    expect(
+      screen.getByText(
+        "Some or all of this course may already be saved: discarding the draft does not undo it.",
+      ),
+    ).toBeTruthy();
+    void router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_UNFINISHED));
+    expect(router.history.location.pathname).toBe("/example/sources/s1");
+
+    fireEvent.click(retry);
+    await vi.waitFor(() =>
+      expect(router.history.location.pathname).toBe("/example/courses/course-1"),
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
   test("reviews no draft on another source's page than the one it was drafted from", async () => {
+    answerLeaving(true);
     const { router } = renderAt("/example/sources/s1", { braivo: authoring() });
 
     fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
@@ -1863,6 +1962,7 @@ describe("the console", () => {
   });
 
   test("leaves a review usable when the course is created while the owner is leaving", async () => {
+    answerLeaving(true);
     const creating = Promise.withResolvers<string>();
     const braivo = {
       ...authoring(),
@@ -1880,6 +1980,8 @@ describe("the console", () => {
       to: "/$organizationSlug/sources/$sourceId",
       params: { organizationSlug: "example", sourceId: "s2" },
     });
+    // Left once the owner answers the question, which comes first.
+    await vi.waitFor(() => expect(router.latestLocation.pathname).toBe("/example/sources/s2"));
     creating.resolve("course-1");
     await creating.promise;
     // Changing their mind before the other source loads.
@@ -1898,6 +2000,7 @@ describe("the console", () => {
   });
 
   test("leaves an owner on the page they returned to when the course they left is created", async () => {
+    answerLeaving(true);
     const creating = Promise.withResolvers<string>();
     const braivo = { ...authoring(), listCourses: async () => [] };
     braivo.acceptDraft.mockImplementation(() => creating.promise);

@@ -7,7 +7,7 @@ import { Button } from "@braivo/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useState } from "react";
 
 /**
  * Where a content owner lets their own tools act as them: the page the CLI's
@@ -60,7 +60,7 @@ function EnterCode({ refusedCode }: { refusedCode?: string }) {
   const navigate = useNavigate({ from: Route.fullPath });
   const id = useId();
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // Trimmed here, not as typed, so a value the browser restored is caught too.
     const input = event.currentTarget.elements.namedItem("code") as HTMLInputElement;

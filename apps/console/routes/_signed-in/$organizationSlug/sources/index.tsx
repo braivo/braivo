@@ -17,7 +17,7 @@ import {
 import { Input } from "@braivo/ui/components/input";
 import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { type SubmitEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
@@ -153,7 +153,7 @@ function AddSource() {
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
   const abortOnUnmount = useAbortOnUnmount();
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // aria-disabled does not stop Enter in a field from submitting the form.
     if (adding) return;
