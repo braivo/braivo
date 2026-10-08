@@ -12,8 +12,8 @@ import { OPTIONAL_READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createRootRouteWithContext<AppContext>()({
   // The brand of the organization this domain serves (ADR 0004), loaded before
-  // sign-in and kept across pages; Continue and Try again read it again. A
-  // failure, a timeout included, leaves the app unbranded, not down.
+  // sign-in and kept across pages, a course's reloads included. A failure, a
+  // timeout included, leaves the app unbranded, not down.
   loader: async ({ context, abortController }) => ({
     organization: await context.braivo
       .hostOrganization({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })

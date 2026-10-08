@@ -305,6 +305,11 @@ function NoPractice({ objectiveTitle }: { objectiveTitle: string }) {
   );
 }
 
+/** Reloads the course, after the guard rechecks the session (access-6); never the root's brand. */
+function reloadCourse(router: ReturnType<typeof useRouter>): Promise<void> {
+  return router.invalidate({ filter: (match) => match.routeId === Route.id });
+}
+
 /** For a time shown to the minute: an earlier one would bring the learner back too soon. */
 function roundUpToMinute(time: number): Date {
   const minute = 60_000;
@@ -320,7 +325,7 @@ function CourseError() {
   const { t } = useLingui();
   return (
     <Notice title={t`Something went wrong.`}>
-      <Button onClick={() => router.invalidate()}>
+      <Button onClick={() => reloadCourse(router)}>
         <Trans>Try again</Trans>
       </Button>
       <Button asChild variant="outline">
@@ -341,7 +346,7 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
   const [retryAt] = useState(() => Date.now() + delay);
 
   useEffect(() => {
-    const timer = setTimeout(() => void router.invalidate(), delay);
+    const timer = setTimeout(() => void reloadCourse(router), delay);
     return () => clearTimeout(timer);
   }, [delay, router]);
 
@@ -461,7 +466,7 @@ function Practice({
         // moments ago elsewhere, another tab say, and the reload says when it
         // may be answered again.
         if ([401, 404, 409].includes(error.status)) {
-          await router.invalidate();
+          await reloadCourse(router);
           return;
         }
         // Refusals that would only repeat: choosing again cannot fix them.
@@ -485,7 +490,7 @@ function Practice({
     if (continuing) return;
     clearUnfinishedAttempt(user.id, courseId);
     setContinuing(true);
-    void router.invalidate();
+    void reloadCourse(router);
   }
 
   // No retry, unlike a failed load: this answer would be refused again.

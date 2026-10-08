@@ -464,6 +464,29 @@ describe("the learn app", () => {
     expect(screen.getByText("You missed this last time.")).toBeTruthy();
   });
 
+  test("on Continue, rechecks the session and reloads the course, not the brand", async () => {
+    const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
+    const session = vi.fn(async () => ({ id: "ada", name: "Ada Learner" }));
+    const { learnerCourses, learnerProgress, nextActivity } = renderAt("/courses/c1", {
+      signedIn: true,
+      hostOrganization,
+      session,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockResolvedValueOnce(anotherActivity),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+    for (const read of [session, nextActivity, learnerProgress, learnerCourses]) {
+      expect(read).toHaveBeenCalledTimes(2);
+    }
+    expect(hostOrganization).toHaveBeenCalledTimes(1);
+  });
+
   test("shows the passages a graded task was written from, linking the ones with a link", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
@@ -728,6 +751,8 @@ describe("the learn app", () => {
           .mockImplementationOnce((_courseId, options) => stall(options))
           .mockResolvedValue(anotherActivity),
       },
+      // The course page's Try again reloads the course alone.
+      1,
     ],
     [
       "the session",
@@ -742,20 +767,27 @@ describe("the learn app", () => {
           .mockImplementationOnce((options) => stall(options))
           .mockResolvedValue({ id: "ada", name: "Ada Learner" }),
       },
+      // The guard's failure is the app's, whose Try again reloads everything.
+      2,
     ],
-  ])("offers to try again when Braivo does not answer %s in time on Continue", async (_, stubs) => {
-    renderAt("/courses/c1", { signedIn: true, ...stubs });
-    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
-    const next = await screen.findByRole("button", { name: "Continue" });
+  ])(
+    "offers to try again when Braivo does not answer %s in time on Continue",
+    async (_, stubs, brandReads) => {
+      const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
+      renderAt("/courses/c1", { signedIn: true, hostOrganization, ...stubs });
+      fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+      const next = await screen.findByRole("button", { name: "Continue" });
 
-    vi.useFakeTimers();
-    fireEvent.click(next);
-    await waitOut(READ_DEADLINE_MS);
-    vi.useRealTimers();
+      vi.useFakeTimers();
+      fireEvent.click(next);
+      await waitOut(READ_DEADLINE_MS);
+      vi.useRealTimers();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-  });
+      fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+      expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+      expect(hostOrganization).toHaveBeenCalledTimes(brandReads);
+    },
+  );
 
   test.each([400, 403, 404, 409, 413])(
     "after a reload, forgets an answer refused with %i and loads the course as usual",
