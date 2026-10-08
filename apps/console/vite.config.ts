@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { bootLanguage } from "@braivo/i18n/boot";
 import { lingui } from "@lingui/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
@@ -34,6 +35,7 @@ export default defineConfig(({ command, mode }) => {
         ...(command === "build" && { failOnMissing: "catalog", failOnCompileError: true }),
       }),
       react(),
+      bootLanguage(),
       tailwindcss(),
     ],
     server: {

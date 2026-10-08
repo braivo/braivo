@@ -6,7 +6,7 @@ A learner should not need English to sign in and learn, in any language Braivo s
 
 ## Rules
 
-- **localization-1:** Each app chooses its language once, when it starts, before its first React render: the first of the browser's preferred languages Braivo supports, matched by its primary subtag (`pl-PL` is Polish), else English. Nothing is stored or carried between hosts, and the document's language is set to it. Supported: English and Polish. `packages/i18n/i18n.test.ts` (the choice and its activation; `main.tsx`'s call untested)
+- **localization-1:** Each app chooses its language once, when it starts, before its first React render: the first of the browser's preferred languages Braivo supports, matched by its primary subtag (`pl-PL` is Polish), else English. Nothing is stored or carried between hosts, and the document's language is set to it. The loading message shown until the app first renders, which also stays when its language fails to load, follows the same choice. Supported: English and Polish. `packages/i18n/i18n.test.ts` (the choice and its activation; `main.tsx`'s call untested), `packages/i18n/boot.test.ts` (the loading message in each app's `index.html`; its plugin in each app's Vite config untested)
 - **localization-2:** Signing in is in the chosen language: the learn app's `/login` in each of its views, with its title; the console's `/login`, and its sign-in for a learn domain with that page's title; and a page there failing or still loading; accessible names included. The console keeps its name, Braivo Console. `packages/auth-client/sign-in.test.tsx`, `apps/learn/routes.test.tsx`, `apps/console/routes.test.tsx`
 - **localization-3:** A refusal while signing in is worded by the app, from its code or status, never in the server's words; one it has no wording for gets a generic line. `packages/auth-client/sign-in.test.tsx`, `apps/console/routes.test.tsx`
 - **localization-4:** Every supported language's catalog is complete and compiles, so English never stands in for a missing translation: an app's build fails on a translation missing or malformed (CI's build; the failure itself untested), and `bun run i18n:check` on marked copy not yet extracted, or extracted and not translated (CI).
@@ -16,7 +16,7 @@ A learner should not need English to sign in and learn, in any language Braivo s
 ## Boundaries
 
 - **Not here:** course content and the language it is authored or generated in ([generation](generation.md)); the browser's own validation messages, such as for a required field left empty, which Braivo does not control. Sign-in and the learn flow keep their rules in [access](access.md) and the [learner loop](learner-loop.md), which point here for language and never restate it.
-- **Not yet:** the static `index.html` loading message shown until an app first renders; the console past its sign-in pages (a shared component it shows, such as a source passage's page, already follows the language); an organization's language, or a learner's own choice.
+- **Not yet:** the console past its sign-in pages (a shared component it shows, such as a source passage's page, already follows the language); an organization's language, or a learner's own choice.
 
 ## Decisions
 
@@ -31,4 +31,4 @@ A learner should not need English to sign in and learn, in any language Braivo s
 
 ## Entry points
 
-`packages/i18n/index.tsx` (choosing and activating the language), `packages/i18n/locales.ts` (the languages, shared with the server), `apps/server/mail/sign-in-code.ts` (the mail's language and its words), `lingui.config.ts` (where copy is extracted from, into `packages/i18n/locales/`), `packages/auth-client/sign-in.tsx` (refusals worded from code or status), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (counts and times).
+`packages/i18n/index.tsx` (choosing and activating the language), `packages/i18n/locales.ts` (the languages, shared with the server), `packages/i18n/boot.ts` (the loading message, before the app starts), `apps/server/mail/sign-in-code.ts` (the mail's language and its words), `lingui.config.ts` (where copy is extracted from, into `packages/i18n/locales/`), `packages/auth-client/sign-in.tsx` (refusals worded from code or status), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (counts and times).
