@@ -20,7 +20,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
-import { MAX_TITLE } from "#lib/limits";
+import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { explainAiProxyTimeout, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -95,6 +95,26 @@ const REFUSED_TYPES = [
 ];
 
 /**
+ * Why Braivo's AI would refuse to read `file`, as the server's `readFileText`
+ * does (generation-2), saying what to do instead. Checked before uploading, so
+ * a file it refuses is not stored for nothing.
+ */
+function readingProblem(file: File): string | undefined {
+  const instead = "or paste its text in the Text field.";
+  if (file.type === "application/pdf") {
+    if (file.size > 24_000_000) {
+      return `Braivo's AI reads a PDF of at most 24 MB: split it, adding a chapter at a time, ${instead}`;
+    }
+  } else if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)) {
+    if (file.size > 7_500_000) {
+      return `Braivo's AI reads an image of at most 7.5 MB: save it smaller, ${instead}`;
+    }
+  } else {
+    return "Braivo's AI reads PDFs and PNG, JPEG, GIF, or WebP images. Paste this file's text or transcript in the Text field to keep the file as its original.";
+  }
+}
+
+/**
  * Suggested for a source's language, as the tag Braivo stores (sources-3) with
  * its name: a teacher knows "Spanish", not `es`.
  */
@@ -161,6 +181,10 @@ function AddSource() {
     // Left out when blank: Braivo refuses an empty link or language.
     const optional = (name: string) => (data.get(name) as string).trim() || undefined;
     const file = original.current?.files?.[0];
+    // `required` lets a blank title through, which Braivo would refuse only
+    // after the upload and the reading.
+    const titled = titleProblem(data.get("title") as string, "the material");
+    if (titled) return setError(titled);
     // Said before sending: Braivo would answer both with a bare status.
     if (file && REFUSED_TYPES.includes(file.type)) {
       return setError(
@@ -174,6 +198,9 @@ function AddSource() {
     if (text.trim() === "" && !file) {
       return setError("Paste the material's text, or attach the file for Braivo's AI to read.");
     }
+    // Only without pasted text: beside it, the file is kept unread.
+    const unreadable = text.trim() === "" && file ? readingProblem(file) : undefined;
+    if (unreadable) return setError(unreadable);
 
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.

@@ -1428,16 +1428,16 @@ describe("the console", () => {
     expect(addSource).not.toHaveBeenCalled();
   });
 
+  /** A file of `type` claiming `size` bytes, so none are allocated. */
+  const fileOf = (type: string, size: number) =>
+    Object.defineProperty(new File(["?"], "libro", { type }), "size", { value: size });
+
   test("refuses a file over 50 MB before sending anything, and takes exactly 50 MB", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
     const addSource = vi.fn(async () => "s1");
     renderAt("/example/sources", { braivo: { ...added, uploadFile, addSource } });
     await screen.findByText("No material yet");
-    /** A PDF claiming `size` bytes, so none are allocated. */
-    const pdfOf = (size: number) =>
-      Object.defineProperty(new File(["%PDF"], "libro.pdf", { type: "application/pdf" }), "size", {
-        value: size,
-      });
+    const pdfOf = (size: number) => fileOf("application/pdf", size);
 
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_001) });
     expect(await screen.findByText("The original file is larger than 50 MB.")).toBeTruthy();
@@ -1447,6 +1447,79 @@ describe("the console", () => {
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_000) });
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
     expect(uploadFile).toHaveBeenCalledTimes(1);
+  });
+
+  const slides = fileOf("application/vnd.oasis.opendocument.presentation", 4);
+
+  test("refuses a file Braivo's AI cannot read before uploading it, saying what to do instead", async () => {
+    const uploadFile = vi.fn();
+    renderAt("/example/sources", { braivo: { ...added, uploadFile } });
+    await screen.findByText("No material yet");
+
+    for (const [file, refusal] of [
+      [
+        slides,
+        "Braivo's AI reads PDFs and PNG, JPEG, GIF, or WebP images. Paste this file's text or transcript in the Text field to keep the file as its original.",
+      ],
+      [
+        fileOf("application/pdf", 24_000_001),
+        "Braivo's AI reads a PDF of at most 24 MB: split it, adding a chapter at a time, or paste its text in the Text field.",
+      ],
+      [
+        fileOf("image/jpeg", 7_500_001),
+        "Braivo's AI reads an image of at most 7.5 MB: save it smaller, or paste its text in the Text field.",
+      ],
+    ] as const) {
+      addMaterial({ title: "Mi libro", text: "", file });
+      await vi.waitFor(() => expect(screen.getByRole("alert").textContent).toBe(refusal));
+    }
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["a file it cannot read, its text pasted, unread", "Hola.", slides, false],
+    [
+      "a PDF over 24 MB, its text pasted, unread",
+      "Hola.",
+      fileOf("application/pdf", 24_000_001),
+      false,
+    ],
+    ["a PDF of exactly 24 MB, and has it read", "", fileOf("application/pdf", 24_000_000), true],
+  ])("uploads %s", async (_label, text, file, read) => {
+    const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
+    const readFileText = vi.fn(async () => [{ page: "1", text: "Leído." }]);
+    const addSource = vi.fn(async () => "s1");
+    renderAt("/example/sources", { braivo: { ...added, uploadFile, readFileText, addSource } });
+    await screen.findByText("No material yet");
+
+    addMaterial({ title: "Mi libro", text, file });
+
+    await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
+    expect(uploadFile).toHaveBeenCalledWith({ organizationId: "org-1", file }, expect.anything());
+    expect(readFileText).toHaveBeenCalledTimes(read ? 1 : 0);
+    expect(addSource).toHaveBeenCalledWith(
+      expect.objectContaining(
+        read
+          ? { pages: [{ page: "1", text: "Leído." }], original: "f".repeat(64) }
+          : { text, original: "f".repeat(64) },
+      ),
+    );
+  });
+
+  test("refuses a blank title before uploading or reading anything", async () => {
+    const uploadFile = vi.fn();
+    renderAt("/example/sources", { braivo: { ...added, uploadFile } });
+    await screen.findByText("No material yet");
+
+    // Choosing the file titles the material from its name; then it is cleared.
+    fireEvent.change(screen.getByLabelText("Original file"), {
+      target: { files: [new File(["%PDF"], "libro.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Add material" }));
+
+    expect(await screen.findByText("Give the material a title.")).toBeTruthy();
+    expect(uploadFile).not.toHaveBeenCalled();
   });
 
   const saludos = {
