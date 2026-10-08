@@ -1036,6 +1036,40 @@ describe("the console", () => {
     expect(title.value).toBe("Greetings");
   });
 
+  test("suggests languages by name, as the tag Braivo stores", async () => {
+    renderAt("/example/sources", { braivo: { listSources: async () => [] } });
+
+    const language = await screen.findByLabelText("Language");
+    const list = document.getElementById(language.getAttribute("list")!)!;
+    expect(list.querySelector('option[value="es"]')?.textContent).toBe("Spanish");
+    expect(list.querySelector('option[value="pl"]')?.textContent).toBe("Polish");
+  });
+
+  test("sends a language named in full as its tag, and any other as typed", async () => {
+    const addSource = vi.fn(async (_source: { language?: string }) => "s1");
+    const sent = async (language: string) => {
+      const { router } = renderAt("/example/sources", { braivo: { ...added, addSource } });
+      await screen.findByText("No material yet");
+      addMaterial({ title: "Unidad 1", text: "Hola.", language });
+      await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
+      cleanup();
+      return addSource.mock.lastCall?.[0].language;
+    };
+
+    // Where a browser shows tags alone (iOS Safari), the name typed in full.
+    expect(await sent(" sPaNiSh ")).toBe("es");
+    expect(await sent("Polish")).toBe("pl");
+    // Any language with a two-letter tag, not only those suggested.
+    expect(await sent("Czech")).toBe("cs");
+    // A name two tags share, one deprecated: the current one.
+    expect(await sent("Romanian")).toBe("ro");
+    // `ak`, never `tw`, which some engines also name Akan.
+    expect(await sent("Akan")).toBe("ak");
+    expect(await sent("es-MX")).toBe("es-MX");
+    // Not one it knows: Braivo's refusal says why.
+    expect(await sent("Klingon")).toBe("Klingon");
+  });
+
   test("holds the form still while it is sent, the focus kept where it was", async () => {
     const adding = Promise.withResolvers<string>();
     const addSource = vi.fn(() => adding.promise);

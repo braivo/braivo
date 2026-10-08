@@ -95,6 +95,37 @@ const REFUSED_TYPES = [
 ];
 
 /**
+ * Suggested for a source's language, as the tag Braivo stores (sources-3) with
+ * its name: a teacher knows "Spanish", not `es`.
+ */
+const LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "pl", "uk", "nl", "sv", "zh", "ja", "ar"];
+const languageNames = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
+
+/**
+ * Every two-letter tag by its English name, lowercase, as this browser names
+ * it. Some list a suggestion's tag alone (iOS Safari), so a name typed in full
+ * must work too, suggested or not. Deprecated tags canonicalize to the current
+ * one (`mo` to `ro`); of two current tags an engine names alike (ICU 78: `ak`
+ * and `tw`, "Akan"), the first, the macrolanguage, is kept.
+ */
+const TAG_BY_NAME = (() => {
+  const letters = "abcdefghijklmnopqrstuvwxyz";
+  const byName = new Map<string, string>();
+  for (const first of letters) {
+    for (const second of letters) {
+      const tag = first + second;
+      const name = languageNames.of(tag)?.toLowerCase();
+      if (name && !byName.has(name)) {
+        byName.set(name, Intl.getCanonicalLocales(tag)[0]!);
+      }
+    }
+  }
+  return byName;
+})();
+/** A language named in full as its tag; anything else as typed, for Braivo to judge. */
+const languageTag = (typed?: string) => typed && (TAG_BY_NAME.get(typed.toLowerCase()) ?? typed);
+
+/**
  * A title from a file's name: without its extension, underscores read as
  * spaces ("Unidad_1.pdf" is "Unidad 1").
  */
@@ -159,7 +190,7 @@ function AddSource() {
         organizationId,
         title: data.get("title") as string,
         url: optional("url"),
-        language: optional("language"),
+        language: languageTag(optional("language")),
         original: fileId,
       };
       // No text pasted: the file's own, read page by page, so passages name their pages.
@@ -253,11 +284,19 @@ function AddSource() {
             <Input
               id={`${id}-language`}
               name="language"
+              list={`${id}-languages`}
               readOnly={adding}
               aria-describedby={`${id}-language-hint`}
             />
+            <datalist id={`${id}-languages`}>
+              {LANGUAGES.map((tag) => (
+                <option key={tag} value={tag}>
+                  {languageNames.of(tag)}
+                </option>
+              ))}
+            </datalist>
             <FieldDescription id={`${id}-language-hint`}>
-              A language tag, such as es or en-US. Optional.
+              Its language, such as Spanish, or a tag such as es or en-US. Optional.
             </FieldDescription>
           </Field>
           <Field>
