@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { member, organization, user } from "@braivo/db/schema";
+import { member, organization, organizationDomain, user } from "@braivo/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 
 /** An organization as the people who manage it find it: by name and slug. */
 export type Organization = { id: string; name: string; slug: string };
+
+/** An organization as listed, with its learn domain: `null` until one is registered (white-label-2). */
+export type ListedOrganization = Organization & { learnDomain: string | null };
 
 /**
  * This user's roles in this organization, or none when they are not a member of
@@ -42,16 +45,19 @@ export async function readOrganizationRoles(
 export async function readMemberships(
   database: Database,
   userId: string,
-): Promise<{ organization: Organization; roles: string[] }[]> {
+): Promise<{ organization: ListedOrganization; roles: string[] }[]> {
   const rows = await database
     .select({
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
+      learnDomain: organizationDomain.hostname,
       role: member.role,
     })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
+    // At most one per organization (its unique index), so no row is repeated.
+    .leftJoin(organizationDomain, eq(organizationDomain.organizationId, organization.id))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name), asc(organization.id));
 

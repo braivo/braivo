@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale, chooseLocale } from "@braivo/i18n";
-import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
+import { BraivoError, type LearnerProgressReport, type Organization } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
@@ -41,8 +41,13 @@ const courseProgress = async () => ({
   ],
 });
 
-const school = { id: "org-1", name: "Example School", slug: "example" };
-const annex = { id: "org-2", name: "Annex", slug: "annex" };
+const school: Organization = {
+  id: "org-1",
+  name: "Example School",
+  slug: "example",
+  learnDomain: "example.braivo.app",
+};
+const annex: Organization = { id: "org-2", name: "Annex", slug: "annex", learnDomain: null };
 
 /**
  * The console as an owner reaches it, with Braivo and Better Auth stubbed. The
@@ -56,7 +61,7 @@ function renderAt(
     /** The account's name, once signed in: none for one an emailed code just made. */
     name?: string;
     braivo?: object;
-    organizations?: (typeof school)[];
+    organizations?: Organization[];
     /** Better Auth's device flow: `device(query)`, with `approve` and `deny` on it. */
     device?: object;
     /** Better Auth's session read, in place of one answering at once. */
@@ -934,6 +939,23 @@ describe("the console", () => {
       "/example/sources",
     );
     expect(screen.queryByRole("link", { name: "Open Sources" })).toBeNull();
+  });
+
+  test("says where an organization's learners practise, or that they have nowhere yet", async () => {
+    renderAt("/example", { braivo: { listCourses: async () => [] } });
+    const site = await screen.findByRole("link", { name: "example.braivo.app" });
+    expect(site.getAttribute("href")).toBe("https://example.braivo.app");
+    expect(site.getAttribute("target")).toBe("_blank");
+    expect(site.getAttribute("rel")).toBe("noreferrer");
+    expect(site.parentElement?.textContent).toBe("Learners practise at example.braivo.app.");
+    cleanup();
+
+    renderAt("/annex", { organizations: [annex], braivo: { listCourses: async () => [] } });
+    expect(
+      await screen.findByText(
+        "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.",
+      ),
+    ).toBeTruthy();
   });
 
   test("lists an organization's material, saying what each keeps", async () => {
@@ -2040,7 +2062,7 @@ describe("the console", () => {
   });
 
   test("shows that a slow first visit is on its way, before any of the page", async () => {
-    const loading = Promise.withResolvers<(typeof school)[]>();
+    const loading = Promise.withResolvers<Organization[]>();
     renderAt("/example", {
       braivo: { listOrganizations: () => loading.promise, listCourses: async () => [beginners] },
     });

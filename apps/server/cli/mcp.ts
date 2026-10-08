@@ -126,7 +126,7 @@ export function createMcpServer(client: BraivoClient): McpServer {
     {
       title: "List organizations",
       description:
-        "The organizations the signed-in content owner manages: where the other tools work.",
+        "The organizations the signed-in content owner manages: where the other tools work, and the hostname each one's learners practise on (learnDomain, null until one is registered).",
       annotations: READ_ONLY,
     },
     () => answer(client.listOrganizations()),

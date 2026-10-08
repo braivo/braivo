@@ -209,7 +209,12 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
   test("lists the organizations a content owner manages, and none a learner is only in", async () => {
     expect(await client.listOrganizations({ headers: { cookie: teacherCookie } })).toEqual([
-      { id: organizationId, name: organizationId, slug: organizationId },
+      {
+        id: organizationId,
+        name: organizationId,
+        slug: organizationId,
+        learnDomain: organizationHost,
+      },
     ]);
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
   });

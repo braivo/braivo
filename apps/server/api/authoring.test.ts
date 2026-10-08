@@ -111,8 +111,10 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const managed = await list(teacher.cookie);
     const anonymous = await list();
 
-    expect(await managed.json()).toMatchObject({
-      organizations: [{ id: organizationId, slug: organizationId, name: organizationId }],
+    expect(await managed.json()).toEqual({
+      organizations: [
+        { id: organizationId, slug: organizationId, name: organizationId, learnDomain: null },
+      ],
     });
     expect(await (await list(learner.cookie)).json()).toEqual({ organizations: [] });
     expect(anonymous.status).toBe(401);

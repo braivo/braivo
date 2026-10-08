@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Heading } from "@braivo/ui";
+import { Heading, MutedText } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import {
   Empty,
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
 function Courses() {
   const { courses } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
+  const { learnDomain } = Route.useRouteContext().organization;
 
   return (
     <>
@@ -39,6 +40,19 @@ function Courses() {
         </Link>
       </p>
       <Heading>Courses</Heading>
+      {learnDomain ? (
+        <MutedText className="mb-4 block wrap-anywhere">
+          Learners practise at{" "}
+          <a href={`https://${learnDomain}`} target="_blank" rel="noreferrer" className="underline">
+            {learnDomain}
+          </a>
+          .
+        </MutedText>
+      ) : (
+        <MutedText className="mb-4 block wrap-break-word">
+          Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.
+        </MutedText>
+      )}
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>

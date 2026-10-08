@@ -7,6 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
+import type { Organization } from "../api/client.ts";
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
 import { createOutbox, signInWithCode } from "../auth/testing.ts";
@@ -251,12 +252,13 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
   });
 
   test("lists only the organizations the content owner manages", async () => {
-    const organizations =
-      await json<{ id: string; name: string; slug: string }[]>("list_organizations");
+    const organizations = await json<Organization[]>("list_organizations");
 
+    // Each with where its learners practise, for the agent to tell the owner.
+    const listed = (id: string) => ({ id, name: id, slug: id, learnDomain: null });
     expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
-      { id: organizationId, name: organizationId, slug: organizationId },
-      { id: progressOrganizationId, name: progressOrganizationId, slug: progressOrganizationId },
+      listed(organizationId),
+      listed(progressOrganizationId),
     ]);
   });
 

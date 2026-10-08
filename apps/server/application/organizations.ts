@@ -4,21 +4,22 @@
 import type { Database } from "@braivo/db";
 
 import {
+  type ListedOrganization,
   type Member,
-  type Organization,
   readMembers,
   readMemberships,
 } from "../persistence/index.ts";
 import { administers, assertMayAdminister } from "./permission.ts";
 
 /**
- * The organizations someone manages (`owner` or `admin`), by name: the
- * console's list. Not every membership, since a learner is a member too.
+ * The organizations someone manages (`owner` or `admin`), by name, each with
+ * where its learners practise: the console's list. Not every membership, since
+ * a learner is a member too.
  */
 export async function listManagedOrganizations(input: {
   database: Database;
   actingAs: string;
-}): Promise<Organization[]> {
+}): Promise<ListedOrganization[]> {
   const memberships = await readMemberships(input.database, input.actingAs);
   return memberships.filter(({ roles }) => administers(roles)).map((m) => m.organization);
 }
