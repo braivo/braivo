@@ -3,7 +3,7 @@
 
 import { APIError } from "better-auth/api";
 
-import type { Auth } from "./auth.ts";
+import { type Auth, MEMBERSHIP_LIMIT } from "./auth.ts";
 
 /**
  * Creates an organization owned by an existing account: the operator's
@@ -70,11 +70,14 @@ export async function addMember(
       body: { userId: found.user.id, organizationId: organization.id, role },
     });
   } catch (error) {
-    if (
-      error instanceof APIError &&
-      error.body?.code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION"
-    ) {
+    const code = error instanceof APIError ? error.body?.code : undefined;
+    if (code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION") {
       throw new Error(`${email} is already a member of ${organization.name}.`);
+    }
+    if (code === "ORGANIZATION_MEMBERSHIP_LIMIT_REACHED") {
+      throw new Error(
+        `${organization.name} already has ${MEMBERSHIP_LIMIT.toLocaleString("en")} members, the most an organization holds.`,
+      );
     }
     throw error;
   }

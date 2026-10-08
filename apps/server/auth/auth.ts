@@ -47,6 +47,13 @@ type AuthOptions = {
 const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
 
 /**
+ * The most members an organization holds, staff included: a guard against
+ * runaway enrollment, not a pricing limit. Better Auth's default, 100, is
+ * below a school's.
+ */
+export const MEMBERSHIP_LIMIT = 1_000;
+
+/**
  * Carries a failed send to the after hook, which refuses the request: Better
  * Auth only logs a throw from `sendVerificationOTP` and answers that the code
  * was sent (ADR 0033). Per request, as requests run at once. Holds while the
@@ -184,10 +191,13 @@ export function createAuth(options: AuthOptions) {
         allowedAttempts: SIGN_IN_CODE.attempts,
         // A database leak then yields no live code.
         storeOTP: "hashed",
-        // Per client, and only in production, as all of Better Auth's limits.
-        // Generous, since a school's classroom shares one address; the
-        // per-address minute above is what protects an inbox.
-        rateLimit: { window: 60, max: 10 },
+        // Code requests and sign-ins, each counted per client address, in
+        // production only, as all of Better Auth's limits. Sized for a
+        // school's classes behind one address; the per-address minute above
+        // protects an inbox. Better Auth restarts the minute at each request
+        // it admits, so this is 120 until a minute passes without one, not
+        // 120 a minute.
+        rateLimit: { window: 60, max: 120 },
         // `ctx` is absent when the server asks itself: English (localization-6).
         sendVerificationOTP: async ({ email, otp }, ctx) => {
           try {
@@ -213,6 +223,7 @@ export function createAuth(options: AuthOptions) {
         // The operator creates organizations (`createOrganization`), not the
         // console, until self-serve onboarding is wanted (ADR 0018).
         allowUserToCreateOrganization: false,
+        membershipLimit: MEMBERSHIP_LIMIT,
         organizationHooks: {
           beforeCreateOrganization: async ({ organization: created }) => {
             // Typed optional although the endpoint requires it; absent fails

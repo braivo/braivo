@@ -6,10 +6,10 @@ import { organizationDomain } from "@braivo/db/schema";
 import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { createObjectives } from "../persistence/index.ts";
-import { createAuth } from "./auth.ts";
+import { createAuth, MEMBERSHIP_LIMIT } from "./auth.ts";
 import { addMember, createOrganization } from "./organization.ts";
 import { codeSentTo, createOutbox, signInWithCode } from "./testing.ts";
 
@@ -41,6 +41,15 @@ const askingIn = {
 };
 /** Asked for a code by the server itself, with no request. */
 const askingDirectly = "auth-test-asks-directly@example.com";
+/** A school's pupils signing in at once from its one address, and one more. */
+const classroom = Array.from({ length: 121 }, (_, n) => `auth-test-pupil-${n}@example.com`);
+/** Guesses at a code it never asked for, one a second. */
+const guessing = "auth-test-guesses@example.com";
+/** Accounts filling an organization to its limit, beside its owner, and one more. */
+const enrolled = Array.from(
+  { length: MEMBERSHIP_LIMIT },
+  (_, n) => `auth-test-enrolled-${n}@example.com`,
+);
 /** Every organization this suite creates or tries to, by slug. */
 const slugs = {
   school: "auth-test-school",
@@ -48,6 +57,7 @@ const slugs = {
   ownsContent: "auth-test-owns-content",
   halfDeleted: "auth-test-half-deleted",
   ownsNothing: "auth-test-owns-nothing",
+  full: "auth-test-full",
   renamed: "auth-test-renamed",
   renamedAgain: "auth-test-renamed-again",
   hasDomain: "auth-test-has-domain",
@@ -118,6 +128,9 @@ async function clearFixtures(): Promise<void> {
     ...asking,
     ...Object.values(askingIn),
     askingDirectly,
+    ...classroom,
+    guessing,
+    ...enrolled,
   ];
   await database.delete(user).where(inArray(user.email, emails));
   await database.delete(verification).where(
@@ -130,6 +143,30 @@ async function clearFixtures(): Promise<void> {
 
 const sendCode = (email: string, type = "sign-in") =>
   post("/email-otp/send-verification-otp", { email, type });
+
+/**
+ * Posts to a server with Better Auth's limits on, as `NODE_ENV=production`
+ * turns them, from a random client address: Better Auth's counts last as long
+ * as the process, a rerun's included.
+ */
+async function limitedClient() {
+  const from = `10.${crypto.getRandomValues(new Uint8Array(3)).join(".")}`;
+  const limited = createAuth({
+    database,
+    secret: "test-secret-that-is-long-enough-32",
+    baseURL: "http://localhost:3000",
+    sendMail: outbox.sendMail,
+  });
+  (await limited.$context).rateLimit.enabled = true;
+  return (path: string, body: unknown) =>
+    limited.handler(
+      new Request(`http://localhost:3000/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": from },
+        body: JSON.stringify(body),
+      }),
+    );
+}
 
 /** Requires TEST_DATABASE_URL: the point is that Better Auth runs on the real schema. */
 describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
@@ -320,6 +357,69 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     ).rejects.toMatchObject({ statusCode: 503, body: { code: "SIGN_IN_CODE_SEND_FAILED" } });
   });
 
+  test("signs a class in at once from one address: 120 code requests and 120 sign-ins", async () => {
+    const school = await limitedClient();
+    const elsewhere = await limitedClient();
+    const pupils = classroom.slice(0, 120);
+    const late = classroom[120]!;
+    const statuses = (answers: Response[]) => answers.map((answer) => answer.status);
+
+    const asked = await Promise.all(
+      pupils.map((email) => school("/email-otp/send-verification-otp", { email, type: "sign-in" })),
+    );
+    const askedLate = await school("/email-otp/send-verification-otp", {
+      email: late,
+      type: "sign-in",
+    });
+
+    expect(statuses(asked)).toEqual(pupils.map(() => 200));
+    // Refused by the limit, not the address's minute: the late pupil never asked.
+    expect(askedLate.status).toBe(429);
+    expect(askedLate.headers.get("x-retry-after")).not.toBeNull();
+    // Another address counts apart.
+    expect(
+      (await elsewhere("/email-otp/send-verification-otp", { email: late, type: "sign-in" }))
+        .status,
+    ).toBe(200);
+
+    const signedIn = await Promise.all(
+      pupils.map((email) =>
+        school("/sign-in/email-otp", { email, otp: codeSentTo(outbox, email) }),
+      ),
+    );
+    const signedInLate = await school("/sign-in/email-otp", {
+      email: late,
+      otp: codeSentTo(outbox, late),
+    });
+
+    expect(statuses(signedIn)).toEqual(pupils.map(() => 200));
+    expect(signedInLate.status).toBe(429);
+  });
+
+  test("keeps counting while requests come less than a minute apart, and starts again after a quiet minute", async () => {
+    const school = await limitedClient();
+    const guess = () => school("/sign-in/email-otp", { email: guessing, otp: "000000" });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const start = Date.now();
+      const statuses = [];
+      // One a second: never more than 60 in any minute.
+      for (let second = 0; second <= 120; second++) {
+        vi.setSystemTime(start + second * 1000);
+        statuses.push((await guess()).status);
+      }
+
+      // Each refused as a wrong code, until the 121st, two minutes in.
+      expect(statuses.slice(0, 120)).toEqual(statuses.slice(0, 120).map(() => 400));
+      expect(statuses[120]).toBe(429);
+      // A minute after the last admitted one.
+      vi.setSystemTime(start + 119_000 + 60_000);
+      expect((await guess()).status).toBe(400);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("sends sign-in codes only, and answers none of the code's other endpoints", async () => {
     // Each would reset a password, verify, or change an email: flows Braivo
     // does not offer, and the first would give an account a password.
@@ -429,6 +529,38 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const other = await createOwned(slugs.adminAdded);
     await addMember(auth, { slug: slugs.adminAdded, email: learner.email, role: "admin" });
     expect((await membersOf(other)).map(({ role }) => role).toSorted()).toEqual(["admin", "owner"]);
+  });
+
+  test(`holds ${MEMBERSHIP_LIMIT} members, staff included, and refuses the next`, async () => {
+    const id = await createOwned(slugs.full);
+    const at = new Date();
+    const accounts = enrolled.map((email, n) => ({
+      id: `auth-test-enrolled-${n}`,
+      name: `Enrolled ${n}`,
+      email,
+      emailVerified: true,
+      createdAt: at,
+      updatedAt: at,
+    }));
+    await database.insert(authTables.user).values(accounts);
+    // Beside the owner, one short of the limit.
+    await database.insert(authTables.member).values(
+      accounts.slice(0, MEMBERSHIP_LIMIT - 2).map((account) => ({
+        id: account.id,
+        organizationId: id,
+        userId: account.id,
+        role: "member",
+        createdAt: at,
+      })),
+    );
+    const [last, next] = enrolled.slice(-2) as [string, string];
+
+    await addMember(auth, { slug: slugs.full, email: last, role: "member" });
+
+    await expect(
+      addMember(auth, { slug: slugs.full, email: next, role: "member" }),
+    ).rejects.toThrow(`${slugs.full} already has 1,000 members, the most an organization holds.`);
+    expect(await membersOf(id)).toHaveLength(MEMBERSHIP_LIMIT);
   });
 
   test("refuses creating an organization from a browser session", async () => {
