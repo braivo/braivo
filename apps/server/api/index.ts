@@ -30,6 +30,9 @@
 // carrying `%00` answers 404, since no ID holds one; a query carrying it, 400;
 // a body read as JSON, Better Auth's included, holding either in any key or
 // string, 400 with `{ "error": "…" }` naming where (`tasks[0].prompt`).
+// A body of Braivo's own routes that is not UTF-8 is not JSON (RFC 8259): a
+// bare 400, when any malformed body is refused, rather than a lenient decode
+// that could make two IDs one.
 //
 // A learn domain signs in by handoff from `BRAIVO_URL`'s origin (ADR 0018), and
 // holds a learner session, Braivo's own, in its `__Host-braivo-learner`

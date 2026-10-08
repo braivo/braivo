@@ -74,9 +74,19 @@ export const MAX_BODY_BYTES = 1_000_000;
 export const limitBody = (maxSize: number) =>
   bodyLimit({ maxSize, onError: (context) => context.body(null, 413) });
 
-/** The request's JSON body, or `undefined` when it is not JSON, for a parser to refuse. */
-export const jsonBody = (context: Context): Promise<unknown> =>
-  context.req.json().catch(() => undefined);
+/**
+ * The request's JSON body, or `undefined` when it is not JSON, for a parser to
+ * refuse. Strict UTF-8, as JSON is (RFC 8259): a lenient decode replaces
+ * invalid bytes with U+FFFD, so two IDs differing only there would be one.
+ */
+export async function jsonBody(context: Context): Promise<unknown> {
+  try {
+    const bytes = await context.req.arrayBuffer();
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Where `value` holds a key or a string Braivo could not store as sent

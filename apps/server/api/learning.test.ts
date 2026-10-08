@@ -663,6 +663,23 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await stored(learner.id)).toEqual([]);
   });
 
+  test("refuses a body that is not UTF-8, recording nothing", async () => {
+    // Decoded leniently, `a<FF>` and `a<FE>` would both be `a\uFFFD`: one attempt.
+    const [before, after] = JSON.stringify({
+      id: "a?",
+      taskId: pastTenseTask,
+      response: { choice: 0 },
+    }).split("?");
+    const response = await api.request(`/api/courses/${courseId}/attempts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: learner.cookie },
+      body: new Blob([before!, new Uint8Array([0xff]), after!]),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await stored(learner.id)).toEqual([]);
+  });
+
   test("answers a path carrying a NUL as naming nothing", async () => {
     const responses = [
       await activity("c%00", learner.cookie),
