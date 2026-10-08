@@ -14,7 +14,7 @@ export { isKey, KEY_RULE } from "./key.ts";
 export type { Page, Pagination } from "./pages.ts";
 export { joinPages, pageOf } from "./pages.ts";
 export { normalizeSourceText, parseLanguageTag, parseSourceUrl, sourceDigest } from "./source.ts";
-export { isStorableText, MAX_TITLE } from "./text.ts";
+export { isStorable, isStorableText, MAX_TITLE } from "./text.ts";
 export type { Cue, Timing } from "./transcript.ts";
 export { joinCues, momentOf } from "./transcript.ts";
 export type { Grade, TaskBody, PresentedTask, TaskResponse } from "./task.ts";

@@ -3,7 +3,8 @@
 
 // Who a request is, and what a route admits: the host, the session, and the
 // middleware a route lists before its handler (its body's limit, the
-// forged-write checks), with `jsonBody` to read what a JSON write admitted.
+// forged-write checks, its text), with `jsonBody` to read what a JSON write
+// admitted.
 // Shared by every group of routes; a helper one group uses stays in that group.
 
 import type { Database } from "@braivo/db";
@@ -14,6 +15,7 @@ import { createMiddleware } from "hono/factory";
 
 import { resumeLearnerSession, type RequestHost } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
+import { isStorable } from "../content/index.ts";
 
 /**
  * Whether a state-changing request came from somewhere allowed to make it.
@@ -75,6 +77,58 @@ export const limitBody = (maxSize: number) =>
 /** The request's JSON body, or `undefined` when it is not JSON, for a parser to refuse. */
 export const jsonBody = (context: Context): Promise<unknown> =>
   context.req.json().catch(() => undefined);
+
+/**
+ * Where `value` holds a key or a string Braivo could not store as sent
+ * (`isStorable`), named for a refusal (`tasks[0].prompt`, `""` for `value`
+ * itself), or `undefined` when it holds none. The first in the parsed value's
+ * order, each key before its value; iterative, since a parsed body can nest
+ * deeper than a call stack.
+ */
+export function unstorableAt(value: unknown): string | undefined {
+  const pending: [unknown, string][] = [[value, ""]];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const [item, path] = next;
+    if (typeof item === "string") {
+      if (!isStorable(item)) return path;
+    } else if (Array.isArray(item)) {
+      for (let index = item.length - 1; index >= 0; index--) {
+        pending.push([item[index], `${path}[${index}]`]);
+      }
+    } else if (typeof item === "object" && item !== null) {
+      for (const [key, child] of Object.entries(item).reverse()) {
+        // Quoted unless a plain name, so a path names one place: JSON escapes
+        // a NUL or an unpaired surrogate in the key itself.
+        const step = /^[A-Za-z_]\w*$/.test(key)
+          ? `${path === "" ? "" : "."}${key}`
+          : `[${JSON.stringify(key)}]`;
+        pending.push([child, `${path}${step}`], [key, `${path}${step}`]);
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A 400 naming where `body` holds text Braivo could not store
+ * (`unstorableAt`), so no route turns it into a 500 or stores two IDs as one;
+ * `undefined` when it holds none, or is not JSON, for its route to refuse.
+ */
+export function refuseUnstorable(context: Context, body: unknown): Response | undefined {
+  const at = unstorableAt(body);
+  if (at === undefined) return undefined;
+  return context.json(
+    {
+      error: `${at === "" ? "The body" : at} carries a NUL or an unpaired surrogate, which Braivo cannot store; remove the NUL, or send well-formed Unicode.`,
+    },
+    400,
+  );
+}
+
+/** `refuseUnstorable`, for a route reading its body with `jsonBody`. */
+const storableJson = createMiddleware(
+  async (context, next) => refuseUnstorable(context, await jsonBody(context)) ?? next(),
+);
 
 /**
  * A learn domain's cookies (ADR 0018), each `__Host-`: Secure, on that host
@@ -159,9 +213,9 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
   }
 
   // What a route admits, named once and listed in the order it runs: a limit,
-  // then the forged-write check, then the session. Before the session is even
-  // resolved, a forged write costs this server nothing, and its refusal does
-  // not depend on who it claims to be.
+  // then the forged-write check, then the body's text, then the session.
+  // Before the session is even resolved, a forged write costs this server
+  // nothing, and neither refusal depends on who the request claims to be.
 
   /** Refuses a write that may be forged: `isTrustedWrite`, 403. */
   const trustedWrite = createMiddleware(async (context, next) => {
@@ -171,9 +225,9 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
     await next();
   });
 
-  /** A JSON write from a browser or a tool: limited, then refused if possibly forged. */
+  /** A JSON write from a browser or a tool: limited, refused if possibly forged, then if unstorable. */
   const trustedJsonWrite = (maxSize = MAX_BODY_BYTES) =>
-    [limitBody(maxSize), trustedWrite] as const;
+    [limitBody(maxSize), trustedWrite, storableJson] as const;
 
   /** As `trustedWrite`, for a body that is a file: `isTrustedUpload`, 403. */
   const trustedUpload = createMiddleware(async (context, next) => {

@@ -168,6 +168,24 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await stored(learner.id)).toEqual([]);
   });
 
+  test.each([
+    ["an ID carrying a NUL", { id: "api-\u0000" }, "evidence[0].id"],
+    // Stored as U+FFFD, it would be the same ID as `api-\udfff`.
+    ["an ID with an unpaired surrogate", { id: "api-\ud800" }, "evidence[0].id"],
+    ["an objective ID carrying a NUL", { objectiveId: "\u0000" }, "evidence[0].objectiveId"],
+  ])(
+    "refuses evidence with %s, naming where, and stores none of it",
+    async (_label, overrides, at) => {
+      const response = await postEvidence(graded(overrides), teacher.cookie);
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: `${at} carries a NUL or an unpaired surrogate, which Braivo cannot store; remove the NUL, or send well-formed Unicode.`,
+      });
+      expect(await stored(learner.id)).toEqual([]);
+    },
+  );
+
   test("refuses a forgeable write before it can record anything", async () => {
     // `policy.test.ts` pins the status for every write; this checks the refusal
     // comes first, so a forged request never reaches the table.
@@ -448,15 +466,14 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
   const refusedTitle =
     "has a title that is blank, over 500 characters, or carries a NUL or an unpaired surrogate, which Braivo cannot store as text.";
+  /** Refused by `storableJson`, before any route's parser reads the body. */
+  const unstorable = (at: string) =>
+    `${at} carries a NUL or an unpaired surrogate, which Braivo cannot store; remove the NUL, or send well-formed Unicode.`;
 
   test.each([
     ["no title", { objectiveIds: [] }, undefined],
     ["a blank title", { title: "  ", objectiveIds: [] }, `The course ${refusedTitle}`],
-    [
-      "a title carrying a NUL",
-      { title: "Course\u0000", objectiveIds: [] },
-      `The course ${refusedTitle}`,
-    ],
+    ["a title carrying a NUL", { title: "Course\u0000", objectiveIds: [] }, unstorable("title")],
     [
       "a title past 500 characters",
       { title: "C".repeat(501), objectiveIds: [] },
@@ -552,7 +569,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     [
       "a title with an unpaired surrogate",
       { objectives: [{ title: "Present" }, { title: "Past \ud800" }] },
-      `Objective 1 ${refusedTitle}`,
+      unstorable("objectives[1].title"),
     ],
     [
       "a title past 500 characters",

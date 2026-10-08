@@ -644,10 +644,34 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       await postAttempt(courseId, { ...attempt, id: "x".repeat(129) }, learner.cookie),
       await postAttempt(courseId, { ...attempt, response: { choice: 5 } }, learner.cookie),
       await postAttempt(foreignCourseId, attempt, learner.cookie),
+      // What PostgreSQL cannot store as sent (`storableJson`): a NUL, or an
+      // unpaired surrogate, which would make `a\ud800` the same ID as `a\udfff`.
+      await postAttempt(courseId, { ...attempt, id: "a\u0000" }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, id: "a\ud800" }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, taskId: "\u0000" }, learner.cookie),
+      await postAttempt(
+        courseId,
+        { ...attempt, response: { "\u0000": 1, choice: 0 } },
+        learner.cookie,
+      ),
+      await postAttempt("c%00", attempt, learner.cookie),
     ];
 
-    expect(refusals.map((response) => response.status)).toEqual([401, 403, 400, 400, 400, 404]);
+    expect(refusals.map((response) => response.status)).toEqual([
+      401, 403, 400, 400, 400, 404, 400, 400, 400, 400, 404,
+    ]);
     expect(await stored(learner.id)).toEqual([]);
+  });
+
+  test("answers a path carrying a NUL as naming nothing", async () => {
+    const responses = [
+      await activity("c%00", learner.cookie),
+      await progress(courseId, "l%00", teacher.cookie),
+      // Decoded by Hono to a NUL after the malformed escape.
+      await activity("%ZZ%00", learner.cookie),
+    ];
+
+    expect(responses.map((response) => response.status)).toEqual([404, 404, 404]);
   });
 
   test("grades an attempt sent on a learn domain by its learner session", async () => {
