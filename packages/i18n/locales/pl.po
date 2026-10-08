@@ -321,6 +321,10 @@ msgstr "Użyj innego adresu e-mail"
 msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "We'll email you a sign-in code. Using it creates an account if you don't have one."
+msgstr "Wyślemy Ci kod do logowania. Jeśli nie masz jeszcze konta, użycie kodu je utworzy."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You missed this last time."
 msgstr "Ostatnim razem się nie udało."
