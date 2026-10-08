@@ -22,8 +22,8 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
+import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE } from "#lib/limits";
@@ -171,7 +171,7 @@ function DraftCourse(props: { source: Source }) {
     setDiscarded(false);
   }, [discarded]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
@@ -305,6 +305,19 @@ function ReviewDraft(props: {
   }, [takeFocus]);
   const createButton = useRef<HTMLButtonElement>(null);
 
+  // The review lives only here (generation's Gaps: no stored draft), so leaving
+  // for another page asks first; a changed hash or query is no leaving.
+  // Reloading or closing the tab asks too, where the browser allows.
+  useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      current.pathname !== next.pathname &&
+      !window.confirm(
+        submitted
+          ? "Leave this page? Some or all of this course may already be saved: leaving does not undo it, and may leave it unfinished."
+          : "Leave this page? The draft and your changes to it will be lost, and drafting again uses another of this month's AI requests.",
+      ),
+  });
+
   /** The task as the owner last left it: the draft's, or their correction of it. */
   function current(index: number, taskIndex: number) {
     const task = draft.objectives[index]!.tasks[taskIndex]!;
@@ -338,7 +351,7 @@ function ReviewDraft(props: {
     if (!keep && editing?.startsWith(`${key.slice("o:".length)}:`)) setEditing(undefined);
   }
 
-  async function create(event: FormEvent<HTMLFormElement>) {
+  async function create(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     // aria-disabled does not stop Enter in the title from submitting the form.
     if (creating) return;
@@ -397,9 +410,11 @@ function ReviewDraft(props: {
         setCreating(false);
         return;
       }
+      // Created, so nothing is lost by leaving.
       await router.navigate({
         to: "/$organizationSlug/courses/$courseId",
         params: { organizationSlug: organization.slug, courseId },
+        ignoreBlocker: true,
       });
     } catch (thrown) {
       // Braivo's refusal says what to fix; anything else — the network, say —
@@ -583,6 +598,11 @@ function ReviewDraft(props: {
             Discard draft
           </Button>
         </Field>
+        {submitted && !creating && (
+          <MutedText>
+            Some or all of this course may already be saved: discarding the draft does not undo it.
+          </MutedText>
+        )}
       </FieldGroup>
     </form>
   );
