@@ -1014,6 +1014,28 @@ describe("the console", () => {
     });
   });
 
+  test("titles material from its file's name, never over a title typed", async () => {
+    renderAt("/example/sources", { braivo: { listSources: async () => [] } });
+    const title = (await screen.findByLabelText("Title")) as HTMLInputElement;
+    const attach = (name: string) =>
+      fireEvent.change(screen.getByLabelText("Original file"), {
+        target: { files: [new File(["%PDF"], name, { type: "application/pdf" })] },
+      });
+
+    attach("Unidad_1_Saludos.pdf");
+    expect(title.value).toBe("Unidad 1 Saludos");
+    // Another file, the title untouched: replaced.
+    attach("Unidad_2.final.pdf");
+    expect(title.value).toBe("Unidad 2.final");
+    // Typed, even to the same value: the person's now, kept.
+    fireEvent.input(title, { target: { value: "Unidad 2.final" } });
+    attach("Unidad_3.pdf");
+    expect(title.value).toBe("Unidad 2.final");
+    fireEvent.input(title, { target: { value: "Greetings" } });
+    attach("Unidad_4.pdf");
+    expect(title.value).toBe("Greetings");
+  });
+
   test("holds the form still while it is sent, the focus kept where it was", async () => {
     const adding = Promise.withResolvers<string>();
     const addSource = vi.fn(() => adding.promise);

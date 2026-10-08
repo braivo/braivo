@@ -94,6 +94,15 @@ const REFUSED_TYPES = [
   "application/x-www-form-urlencoded",
 ];
 
+/**
+ * A title from a file's name: without its extension, underscores read as
+ * spaces ("Unidad_1.pdf" is "Unidad 1").
+ */
+function titleOf(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]+$/, "") || fileName;
+  return stem.replaceAll("_", " ").replace(/\s+/g, " ").trim();
+}
+
 function AddSource() {
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
@@ -104,6 +113,10 @@ function AddSource() {
   const [error, setError] = useState<string>();
   const id = useId();
   const original = useRef<HTMLInputElement>(null);
+  const title = useRef<HTMLInputElement>(null);
+  // Whether the title was filled in from a file's name and not edited since,
+  // so the next file's may replace it; one typed is never replaced.
+  const titleFromFile = useRef(false);
   // The last file read and its pages: correcting a refused title or language
   // and sending again does not pay for reading the same file twice.
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
@@ -197,7 +210,11 @@ function AddSource() {
             <FieldLabel htmlFor={`${id}-title`}>Title</FieldLabel>
             <Input
               id={`${id}-title`}
+              ref={title}
               name="title"
+              // `onInput`, not `onChange`, which React skips when what is typed
+              // equals the value a file's name set.
+              onInput={() => (titleFromFile.current = false)}
               required
               maxLength={MAX_TITLE}
               readOnly={adding}
@@ -251,6 +268,14 @@ function AddSource() {
               type="file"
               // A file input cannot be read-only.
               disabled={adding}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                const field = title.current;
+                if (!file || !field) return;
+                if (field.value.trim() !== "" && !titleFromFile.current) return;
+                field.value = titleOf(file.name);
+                titleFromFile.current = true;
+              }}
               accept="application/pdf,image/*,audio/*,video/*,.docx,.pptx,.odt,.odp,.epub"
               aria-describedby={`${id}-original-hint`}
             />
