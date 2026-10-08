@@ -153,12 +153,12 @@ describe("the learn app", () => {
   test("on its organization's domain, leaves to sign in on the installation's origin, to come back here", async () => {
     const { visit } = renderAt("/courses/c1?tab=next", {
       signedIn: false,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     // Wearing the organization's brand meanwhile, and taking no code here.
-    expect(await screen.findByText("Springo")).toBeTruthy();
-    await vi.waitFor(() => expect(document.title).toBe("Springo"));
+    expect(await screen.findByText("Fernwood")).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Fernwood"));
     expect(visit).toHaveBeenCalledWith(
       `/api/session/sign-in?redirect=${encodeURIComponent("/courses/c1?tab=next")}`,
     );
@@ -168,7 +168,7 @@ describe("the learn app", () => {
   test("on its organization's domain, sends a learner already signed in onward, without a second handoff", async () => {
     const { router, visit } = renderAt("/login?redirect=%2Fcourses%2Fc1", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
@@ -185,7 +185,7 @@ describe("the learn app", () => {
     const { visit } = renderAt("/login", {
       signedIn: true,
       user: { id: "ada", name: "" },
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
@@ -194,7 +194,7 @@ describe("the learn app", () => {
   test("on its organization's domain, after a failed handoff, hands off again only on a click", async () => {
     const { visit } = renderAt("/login?failed=1", {
       signedIn: false,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     const notice = await screen.findByRole("region", { name: "This sign-in did not finish." });
@@ -208,7 +208,7 @@ describe("the learn app", () => {
   test("signs in in the browser's language, on every view of the way", async () => {
     onTestFinished(() => activateLocale("en"));
     await activateLocale(chooseLocale(["pl-PL", "en"]));
-    const springo = async () => ({ name: "Springo" });
+    const fernwood = async () => ({ name: "Fernwood" });
 
     renderAt("/login", { signedIn: false });
     expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
@@ -217,11 +217,11 @@ describe("the learn app", () => {
     expect(screen.getByRole("button", { name: "Wyślij kod" })).toBeTruthy();
     cleanup();
 
-    renderAt("/login", { signedIn: false, hostOrganization: springo });
+    renderAt("/login", { signedIn: false, hostOrganization: fernwood });
     expect(await screen.findByRole("status", { name: "Logowanie" })).toBeTruthy();
     cleanup();
 
-    renderAt("/login?failed=1", { signedIn: false, hostOrganization: springo });
+    renderAt("/login?failed=1", { signedIn: false, hostOrganization: fernwood });
     expect(
       await screen.findByRole("region", { name: "To logowanie nie zostało dokończone." }),
     ).toBeTruthy();
@@ -243,7 +243,7 @@ describe("the learn app", () => {
   test("on its organization's domain, after a failed handoff, sends a learner signed in meanwhile onward", async () => {
     const { router } = renderAt("/login?failed=1", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
@@ -253,7 +253,7 @@ describe("the learn app", () => {
   test("on its organization's domain, leaves only on navigating to sign in, not on a preload", async () => {
     const { router, signOut, visit } = renderAt("/", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
     expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
     // Signed out behind the page's back, so `/login` would hand off.
@@ -269,7 +269,7 @@ describe("the learn app", () => {
   test("signs a learner out of this domain, then back to sign in", async () => {
     const { signOut, visit } = renderAt("/", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
@@ -306,7 +306,7 @@ describe("the learn app", () => {
     renderAt("/login", { signedIn: false });
 
     expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
-    expect(screen.queryByText("Springo")).toBeNull();
+    expect(screen.queryByText("Fernwood")).toBeNull();
     await vi.waitFor(() => expect(document.title).toBe("Learning"));
   });
 
@@ -330,7 +330,7 @@ describe("the learn app", () => {
       signedIn: false,
       hostOrganization: async () => {
         if (down) throw new BraivoError(500, "down");
-        return { name: "Springo" };
+        return { name: "Fernwood" };
       },
     });
 
@@ -925,7 +925,7 @@ describe("the learn app", () => {
   test("names the course, in its tab too, and leads back to the list", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
       learnerCourses: async () => [
         { id: "c0", title: "French" },
         { id: "c1", title: "Spanish" },
@@ -934,11 +934,11 @@ describe("the learn app", () => {
     });
 
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Spanish");
-    await vi.waitFor(() => expect(document.title).toBe("Spanish · Springo"));
+    await vi.waitFor(() => expect(document.title).toBe("Spanish · Fernwood"));
     fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
 
     expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
-    await vi.waitFor(() => expect(document.title).toBe("Springo"));
+    await vi.waitFor(() => expect(document.title).toBe("Fernwood"));
   });
 
   test("names the course alone in its tab on a domain that serves no organization", async () => {
@@ -1093,7 +1093,7 @@ describe("the learn app", () => {
     let gone = false;
     renderAt("/courses/c1", {
       signedIn: true,
-      hostOrganization: async () => ({ name: "Springo" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
       learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
       nextActivity: async () => {
         if (gone) throw new BraivoError(404, "not found");
@@ -1104,14 +1104,14 @@ describe("the learn app", () => {
         throw new BraivoError(404, "not found");
       },
     });
-    await vi.waitFor(() => expect(document.title).toBe("Spanish · Springo"));
+    await vi.waitFor(() => expect(document.title).toBe("Spanish · Fernwood"));
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
     expect(
       await screen.findByText("This course does not exist, or is not one of yours."),
     ).toBeTruthy();
-    await vi.waitFor(() => expect(document.title).toBe("Springo"));
+    await vi.waitFor(() => expect(document.title).toBe("Fernwood"));
   });
 });
 
