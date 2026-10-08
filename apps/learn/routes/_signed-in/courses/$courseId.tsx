@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { requireSession } from "@braivo/auth-client";
 import {
   type Activity,
   BraivoError,
+  type BraivoClient,
   type Grade,
   type LearnerProgressReport,
   type LearningDecision,
@@ -19,22 +21,35 @@ import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-rout
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
+import { asSessionAuth } from "#lib/auth";
 import { pageHead } from "#lib/title";
+import {
+  clearUnfinishedAttempt,
+  type UnfinishedAttempt,
+  unfinishedAttempt,
+  saveUnfinishedAttempt,
+} from "#lib/unfinished-attempt";
 
 export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   // Dropped on leaving: what comes next depends on every answer since, and a
   // kept activity would show again, unanswered, while the next one loads.
   gcTime: 0,
-  loader: async ({ context, params, abortController }) => {
+  // Never preloaded: loading may resend an unfinished answer, whose feedback
+  // only a visit shows.
+  preload: false,
+  loader: async ({ context, params, location, abortController }) => {
+    const signal = abortController.signal;
+    const learnerId = context.user.id;
     try {
-      const signal = abortController.signal;
+      // First, so the summary below counts it.
+      const resumed = await resume(context.braivo, learnerId, params.courseId, signal);
       // The title and the summary are optional: a failure leaves them out
       // rather than failing the page. Awaited with the activity so they cannot
       // arrive later and shift the question down.
       const [activity, progress, course] = await Promise.all([
-        context.braivo.nextActivity(params.courseId, { signal }),
+        resumed?.attempt.activity ?? context.braivo.nextActivity(params.courseId, { signal }),
         context.braivo
-          .learnerProgress({ courseId: params.courseId, learnerId: context.user.id }, { signal })
+          .learnerProgress({ courseId: params.courseId, learnerId }, { signal })
           .catch(() => undefined),
         // The title, from the list: one more read per load, sized by the
         // learner's courses, rather than an endpoint for one string.
@@ -43,12 +58,24 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
           .then((courses) => courses.find(({ id }) => id === params.courseId))
           .catch(() => undefined),
       ]);
-      // One attempt per activity shown, so a resend after a lost answer is
-      // recorded once.
-      return { activity, progress, title: course?.title, attemptId: crypto.randomUUID() };
+      return {
+        activity,
+        progress,
+        title: course?.title,
+        // One attempt per activity shown, so a resend after a lost answer is
+        // recorded once.
+        attemptId: resumed?.attempt.id ?? crypto.randomUUID(),
+        resumed,
+      };
     } catch (error) {
+      if (signal.aborted) throw error;
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
+      // The session ended since the guard checked it: checked again, which
+      // sends the learner to sign in and back here, any answer still kept.
+      if (error instanceof BraivoError && error.status === 401) {
+        await requireSession(asSessionAuth(context.braivo), location);
+      }
       throw error;
     }
   },
@@ -57,6 +84,46 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
   notFoundComponent: CourseNotFound,
   errorComponent: CourseError,
 });
+
+/**
+ * Refusals after which an answer is forgotten, never resent: none records it,
+ * and a 409 is not retried once the rest ends (ADR 0017).
+ */
+const FINAL_REFUSALS = [400, 403, 404, 409, 413];
+
+/** An answer this tab left unfinished, resent: graded, or still unconfirmed. */
+type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
+
+/**
+ * Resends the answer this tab left unfinished in the course, if any, so a
+ * reload before Continue still shows its feedback; its ID records it at most
+ * once (learner-loop-11). Refused, it is forgotten and the course loads as
+ * usual, showing the rest or what is there now.
+ */
+async function resume(
+  braivo: BraivoClient,
+  learnerId: string,
+  courseId: string,
+  signal: AbortSignal,
+): Promise<Resumed | undefined> {
+  const attempt = unfinishedAttempt(learnerId, courseId);
+  if (!attempt) return undefined;
+  const { id, activity, response } = attempt;
+  try {
+    const grade = await braivo.submitAttempt(
+      { courseId, id, taskId: activity.task.id, response },
+      { signal },
+    );
+    return { attempt, grade };
+  } catch (error) {
+    if (signal.aborted || (error instanceof BraivoError && error.status === 401)) throw error;
+    if (error instanceof BraivoError && FINAL_REFUSALS.includes(error.status)) {
+      clearUnfinishedAttempt(learnerId, courseId);
+      return undefined;
+    }
+    return { attempt };
+  }
+}
 
 function CourseNotFound() {
   const { t } = useLingui();
@@ -72,7 +139,7 @@ function CourseNotFound() {
 }
 
 function NextStep() {
-  const { activity, progress, title, attemptId } = Route.useLoaderData();
+  const { activity, progress, title, attemptId, resumed } = Route.useLoaderData();
 
   return (
     <>
@@ -94,11 +161,13 @@ function NextStep() {
         // with (glossary: No activity).
         <NoPractice objectiveTitle={activity.objective.title} />
       ) : (
-        // Keyed, so the next activity starts unanswered.
+        // Keyed, so the next activity starts unanswered, and what a reload's
+        // resend found replaces what was on screen.
         <Practice
-          key={attemptId}
+          key={`${attemptId}:${resumed?.grade ? "graded" : resumed ? "unconfirmed" : "new"}`}
           activity={activity}
           attemptId={attemptId}
+          resumed={resumed}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -316,21 +385,24 @@ const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
 function Practice({
   activity,
   attemptId,
+  resumed,
   nothingStarted,
 }: {
   activity: Extract<Activity, { task: unknown }>;
   attemptId: string;
+  /** The answer a reload resent, shown graded or unconfirmed. */
+  resumed?: Resumed;
   /** No objective started yet: says how practice goes. */
   nothingStarted: boolean;
 }) {
-  const { braivo } = Route.useRouteContext();
+  const { braivo, user } = Route.useRouteContext();
   const { courseId } = Route.useParams();
   const router = useRouter();
   const { t } = useLingui();
-  const [chosen, setChosen] = useState<number>();
-  const [grade, setGrade] = useState<Grade>();
+  const [chosen, setChosen] = useState(resumed?.attempt.response.choice);
+  const [grade, setGrade] = useState(resumed?.grade);
   // Counted, not flagged, so that each answer left unconfirmed gets a new alert (below).
-  const [unconfirmedCount, setUnconfirmedCount] = useState(0);
+  const [unconfirmedCount, setUnconfirmedCount] = useState(resumed && !resumed.grade ? 1 : 0);
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
@@ -356,16 +428,22 @@ function Practice({
     const signal = lifetime.current?.signal;
     setChosen(choice);
     setSending(true);
+    // Before sending, kept until Continue: a reload can land after Braivo
+    // records it and before its grade arrives, or before it is read.
+    const response = { choice };
+    saveUnfinishedAttempt(user.id, courseId, { id: attemptId, activity, response });
     try {
       const answered = await braivo.submitAttempt(
-        { courseId, id: attemptId, taskId: task.id, response: { choice } },
+        { courseId, id: attemptId, taskId: task.id, response },
         { signal },
       );
       setGrade(answered);
       setUnconfirmedCount(0);
     } catch (error) {
+      // Kept unless refused (below): it may have been recorded.
       if (signal?.aborted) return;
       if (error instanceof BraivoError) {
+        if (FINAL_REFUSALS.includes(error.status)) clearUnfinishedAttempt(user.id, courseId);
         // Reloading explains these. 401: the guard sends the learner to sign
         // in. 404: the course is gone, or the task was retired while on screen;
         // the reload offers what is there now. 409: the task was answered
@@ -394,6 +472,7 @@ function Practice({
     // Held until the next activity replaces this one: the reload keeps this one
     // on screen while it runs, and a second press would restart it.
     if (continuing) return;
+    clearUnfinishedAttempt(user.id, courseId);
     setContinuing(true);
     void router.invalidate();
   }
@@ -430,7 +509,8 @@ function Practice({
         correctChoice={grade?.correctChoice}
         pending={sending}
         onChoose={submit}
-        ref={focused}
+        // Resumed, the focus is on Send again or Continue, as when answered here.
+        ref={resumed ? undefined : focused}
         aria-describedby={contextId}
       />
       {unconfirmedCount > 0 && chosen !== undefined && (
