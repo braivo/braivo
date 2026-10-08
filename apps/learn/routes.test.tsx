@@ -778,6 +778,62 @@ describe("the learn app", () => {
     expect(await screen.findByText("2 not started")).toBeTruthy();
   });
 
+  test("says how practice goes until an objective starts", async () => {
+    const hint =
+      "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it.";
+    type Standing = LearnerProgressReport["objectives"][number];
+    const pastTense: Standing = {
+      objectiveId: "o1",
+      title: "Past tense",
+      phase: "unseen",
+      evidence: [],
+    };
+    const greetings: Standing = { ...pastTense, objectiveId: "o2", title: "Greetings" };
+    let reported: Standing[] = [pastTense, greetings];
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockResolvedValueOnce(anotherActivity),
+      learnerProgress: async () => ({ modelVersion: "v1", objectives: reported }),
+      submitAttempt: async () => ({ outcome: "failure", correctChoice: 0 }),
+    });
+
+    // Read with the question, which takes the focus.
+    expect(
+      await screen.findByRole("group", {
+        name: "Past tense of 'hablar'?",
+        description: `New · Past tense ${hint}`,
+      }),
+    ).toBeTruthy();
+
+    // A wrong answer starts the objective; once Continue reloads progress, the line goes.
+    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
+    reported = [
+      {
+        ...pastTense,
+        phase: "acquiring",
+        lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+        evidence: [{ outcome: "failure", at: "2026-06-01T00:00:00.000Z" }],
+      },
+      greetings,
+    ];
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+    expect(screen.queryByText(hint)).toBeNull();
+    cleanup();
+
+    // No objectives reported: nothing to say.
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      learnerProgress: async () => noProgress,
+    });
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.queryByText(hint)).toBeNull();
+  });
+
   test("still asks the question when where they stand cannot be read", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
@@ -788,6 +844,7 @@ describe("the learn app", () => {
     });
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.queryByText(/^One question at a time/)).toBeNull();
   });
 
   test("answers from the keyboard, by the place an option is shown in", async () => {

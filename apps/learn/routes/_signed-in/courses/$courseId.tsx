@@ -95,7 +95,18 @@ function NextStep() {
         <NoPractice objectiveTitle={activity.objective.title} />
       ) : (
         // Keyed, so the next activity starts unanswered.
-        <Practice key={attemptId} activity={activity} attemptId={attemptId} />
+        <Practice
+          key={attemptId}
+          activity={activity}
+          attemptId={attemptId}
+          // Until an answer starts an objective and Continue reloads progress;
+          // unknown progress says nothing.
+          nothingStarted={
+            progress !== undefined &&
+            progress.objectives.length > 0 &&
+            progress.objectives.every(({ phase }) => phase === "unseen")
+          }
+        />
       )}
     </>
   );
@@ -305,9 +316,12 @@ const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
 function Practice({
   activity,
   attemptId,
+  nothingStarted,
 }: {
   activity: Extract<Activity, { task: unknown }>;
   attemptId: string;
+  /** No objective started yet: says how practice goes. */
+  nothingStarted: boolean;
 }) {
   const { braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
@@ -399,6 +413,15 @@ function Practice({
           {t(INTENT_LABELS[decision.intent])} · {objective.title}
         </MutedText>
         <Reason decision={decision} />
+        {/* In the question's description, so it is read as the focus lands there. */}
+        {nothingStarted && (
+          <MutedText className="mt-2">
+            <Trans>
+              One question at a time. What you get wrong comes back soon; what you get right returns
+              for review before you're likely to forget it.
+            </Trans>
+          </MutedText>
+        )}
       </div>
       <ChoiceQuestion
         prompt={task.prompt}
