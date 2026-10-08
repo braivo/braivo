@@ -32,6 +32,15 @@ const asking = [
   "auth-test-unsent-directly@example.com",
   "auth-test-sent-beside@example.com",
 ];
+/** Asked for a code each, under the `Accept-Language` it names. */
+const askingIn = {
+  "pl-PL,pl;q=0.9": "auth-test-asks-pl@example.com",
+  "en;q=0.5, pl;q=0.8": "auth-test-asks-weighted@example.com",
+  de: "auth-test-asks-de@example.com",
+  "": "auth-test-asks-unsaid@example.com",
+};
+/** Asked for a code by the server itself, with no request. */
+const askingDirectly = "auth-test-asks-directly@example.com";
 /** Every organization this suite creates or tries to, by slug. */
 const slugs = {
   school: "auth-test-school",
@@ -101,7 +110,15 @@ async function clearFixtures(): Promise<void> {
   const leftovers = await database.select({ id: organization.id }).from(organization).where(ours);
   for (const { id } of leftovers) await testing.clearLearningData(database, id);
   await database.delete(organization).where(ours);
-  const emails = [owner.email, newcomer, invitee.email, learner.email, ...asking];
+  const emails = [
+    owner.email,
+    newcomer,
+    invitee.email,
+    learner.email,
+    ...asking,
+    ...Object.values(askingIn),
+    askingDirectly,
+  ];
   await database.delete(user).where(inArray(user.email, emails));
   await database.delete(verification).where(
     inArray(
@@ -152,6 +169,31 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
 
     const again = await post("/sign-in/email-otp", { email: newcomer, otp: code });
     expect(again.status).toBe(400);
+  });
+
+  test("writes the code's mail in the language its request asks for (localization-6)", async () => {
+    for (const [acceptLanguage, email] of Object.entries(askingIn)) {
+      const headers: Record<string, string> = acceptLanguage
+        ? { "accept-language": acceptLanguage }
+        : {};
+      const response = await post(
+        "/email-otp/send-verification-otp",
+        { email, type: "sign-in" },
+        headers,
+      );
+      expect(response.status).toBe(200);
+    }
+    await auth.api.sendVerificationOTP({ body: { email: askingDirectly, type: "sign-in" } });
+
+    const subject = (email: string) => {
+      const code = codeSentTo(outbox, email);
+      return outbox.sent.findLast((sent) => sent.to === email)?.subject.replace(code, "<code>");
+    };
+    expect(subject(askingIn["pl-PL,pl;q=0.9"])).toBe("<code> to Twój kod logowania");
+    expect(subject(askingIn["en;q=0.5, pl;q=0.8"])).toBe("<code> to Twój kod logowania");
+    expect(subject(askingIn.de)).toBe("<code> is your sign-in code");
+    expect(subject(askingIn[""])).toBe("<code> is your sign-in code");
+    expect(subject(askingDirectly)).toBe("<code> is your sign-in code");
   });
 
   test("a code lasts ten minutes", async () => {

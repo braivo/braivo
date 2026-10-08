@@ -1,8 +1,8 @@
 # Localization
 
-Status: living; checked against the code on 2026-10-06.
+Status: living; checked against the code on 2026-10-08.
 
-A learner should not need English to sign in and learn, in any language Braivo supports. English is the source language and the fallback. Today signing in and learning are localized; the sign-in mail is English (see Gaps).
+A learner should not need English to sign in and learn, in any language Braivo supports. English is the source language and the fallback. Signing in, the sign-in mail, and learning are localized.
 
 ## Rules
 
@@ -11,6 +11,7 @@ A learner should not need English to sign in and learn, in any language Braivo s
 - **localization-3:** A refusal while signing in is worded by the app, from its code or status, never in the server's words; one it has no wording for gets a generic line. `packages/auth-client/sign-in.test.tsx`, `apps/console/routes.test.tsx`
 - **localization-4:** Every supported language's catalog is complete and compiles, so English never stands in for a missing translation: an app's build fails on a translation missing or malformed (CI's build; the failure itself untested), and `bun run i18n:check` on marked copy not yet extracted, or extracted and not translated (CI).
 - **localization-5:** After sign-in, the learn app's own copy is in the chosen language: the course list, empty or failed; signing out, and its failure; the course page in each of its states (a question and its grading, an answer not yet confirmed, a rest, caught up, nothing to practise, a course not found, a failure); and the screen for an address that names nothing, with its title. Times are written as the language writes them, in the browser's time zone, and counts in its plural forms. `apps/learn/routes.test.tsx`
+- **localization-6:** The sign-in mail is in the supported language its code request's `Accept-Language` weighs highest, matched by primary subtag, else English, as when the server asks itself, with no header: equal weights go by the header's order, and a range weighted `q=0`, `*`, or a malformed range picks nothing. Its subject, text, and HTML are in that language, the HTML marked with it; counts take the language's plural forms. Supported: English and Polish. `apps/server/mail/sign-in-code.test.ts`, `apps/server/auth/auth.test.ts`
 
 ## Boundaries
 
@@ -25,10 +26,9 @@ A learner should not need English to sign in and learn, in any language Braivo s
 
 | Gap                                                                                        | Impact                                                                | Next step                                                            |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| The sign-in mail is English.                                                               | A Polish learner's code arrives in English.                           | The mail in the language its request asks for (plan, L3).            |
-| The Polish has not been read by a native speaker.                                          | Wording may be stilted, or wrong.                                     | A Polish speaker reads the catalog before a pilot (plan, L4).        |
+| The Polish has not been read by a native speaker.                                          | Wording may be stilted, or wrong.                                     | A Polish speaker reads the catalog and the mail before a pilot.      |
 | An organization cannot have its learners see its language whatever their browser asks for. | A Polish school's learner whose browser prefers English sees English. | Decide when a school asks: the organization's language chosen first. |
 
 ## Entry points
 
-`packages/i18n/index.tsx` (choosing and activating the language), `lingui.config.ts` (where copy is extracted from, into `packages/i18n/locales/`), `packages/auth-client/sign-in.tsx` (refusals worded from code or status), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (counts and times).
+`packages/i18n/index.tsx` (choosing and activating the language), `packages/i18n/locales.ts` (the languages, shared with the server), `apps/server/mail/sign-in-code.ts` (the mail's language and its words), `lingui.config.ts` (where copy is extracted from, into `packages/i18n/locales/`), `packages/auth-client/sign-in.tsx` (refusals worded from code or status), `apps/learn/routes/_signed-in/courses/$courseId.tsx` (counts and times).

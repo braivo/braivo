@@ -9,7 +9,7 @@ import { i18n, type Messages } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import type { ReactNode } from "react";
 
-import { type Locale, LOCALES } from "./locales.ts";
+import { type Locale, LOCALES, supportedLocale } from "./locales.ts";
 import { messages as english } from "./locales/en.po";
 
 export { type Locale, LOCALES };
@@ -26,8 +26,7 @@ const catalogs: Record<Locale, () => Promise<{ messages: Messages }>> = {
  */
 export function chooseLocale(languages: readonly string[]): Locale {
   for (const language of languages) {
-    const primary = language.split("-")[0]!.toLowerCase();
-    const locale = LOCALES.find((supported) => supported === primary);
+    const locale = supportedLocale(language);
     if (locale) return locale;
   }
   return "en";

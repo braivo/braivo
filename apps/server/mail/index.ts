@@ -3,5 +3,5 @@
 
 // The email Braivo sends, and the transports it leaves by.
 
-export { signInCodeMail } from "./sign-in-code.ts";
+export { mailLocale, signInCodeMail } from "./sign-in-code.ts";
 export { logMail, type Mail, type SendMail, smtpMail } from "./transport.ts";
