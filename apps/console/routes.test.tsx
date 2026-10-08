@@ -878,6 +878,22 @@ describe("the console", () => {
     expect((await screen.findByRole("link", { name: "Sources" })).getAttribute("href")).toBe(
       "/example/sources",
     );
+    // With no course yet, the empty list offers them too.
+    expect(screen.getByRole("link", { name: "Open Sources" }).getAttribute("href")).toBe(
+      "/example/sources",
+    );
+  });
+
+  test("keeps the Sources link but offers no button once an organization has a course", async () => {
+    renderAt("/example", {
+      braivo: { listCourses: async () => [{ id: "c1", title: "Spanish" }] },
+    });
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Sources" }).getAttribute("href")).toBe(
+      "/example/sources",
+    );
+    expect(screen.queryByRole("link", { name: "Open Sources" })).toBeNull();
   });
 
   test("lists an organization's material, saying what each keeps", async () => {

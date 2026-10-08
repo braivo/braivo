@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Heading } from "@braivo/ui";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { Button } from "@braivo/ui/components/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@braivo/ui/components/empty";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { orNotFound } from "#lib/refusals";
@@ -41,6 +48,13 @@ function Courses() {
               agent through braivo mcp.
             </EmptyDescription>
           </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link to="/$organizationSlug/sources" params={{ organizationSlug }}>
+                Open Sources
+              </Link>
+            </Button>
+          </EmptyContent>
         </Empty>
       ) : (
         <ul className="list-disc pl-6">
