@@ -10,7 +10,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
 import * as z from "zod";
 
-import { type SendMail, signInCodeMail } from "../mail/index.ts";
+import { mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
   claimSignInCode,
   organizationOwnsLearningContent,
@@ -188,10 +188,16 @@ export function createAuth(options: AuthOptions) {
         // Generous, since a school's classroom shares one address; the
         // per-address minute above is what protects an inbox.
         rateLimit: { window: 60, max: 10 },
-        sendVerificationOTP: async ({ email, otp }) => {
+        // `ctx` is absent when the server asks itself: English (localization-6).
+        sendVerificationOTP: async ({ email, otp }, ctx) => {
           try {
             await options.sendMail(
-              signInCodeMail({ to: email, code: otp, expiresInMinutes: SIGN_IN_CODE.seconds / 60 }),
+              signInCodeMail({
+                to: email,
+                code: otp,
+                expiresInMinutes: SIGN_IN_CODE.seconds / 60,
+                locale: mailLocale(ctx?.headers?.get("accept-language")),
+              }),
             );
           } catch (error) {
             await signInCodeSendFailed.set(true);

@@ -17,14 +17,14 @@ const shadcnOutput = [
 const beside = ["!packages/ui/components/**/*.stories.tsx"];
 
 /**
- * Server and database code, kept off Bun's own APIs so the server can run on
- * Workers too (ADR 0034). `node:` modules stay allowed, since node-postgres needs
+ * Server and database code, and what the server imports from other packages,
+ * kept off Bun's own APIs so the server can run on Workers too (ADR 0034). `node:` modules stay allowed, since node-postgres needs
  * Workers' Node compatibility anyway; whether workerd runs a given one is for a
  * deployment to prove.
  */
-const bunFree = ["apps/server/**/*.ts", "packages/db/**/*.ts"];
+const bunFree = ["apps/server/**/*.ts", "packages/db/**/*.ts", "packages/i18n/locales.ts"];
 const bunFreeMessage =
-  "A Bun-only API, kept out of server and database code: see bunFree in vite.config.ts.";
+  "A Bun-only API, kept out of code the server runs: see bunFree in vite.config.ts.";
 
 /** Exempt, as only the Bun process runs them: the CLI, the file stores it builds, and tests. */
 const bunOnly = [
