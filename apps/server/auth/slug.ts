@@ -25,11 +25,14 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 63;
 
+/** Whether `slug` is one of the console's root paths, which no organization may take. */
+export const isReservedSlug = (slug: string): boolean => RESERVED_SLUGS.has(slug);
+
 /** Why a slug cannot name an organization, or `undefined` when it can. */
 export function slugProblem(slug: string): string | undefined {
   if (slug.length > MAX_SLUG_LENGTH || !SLUG_PATTERN.test(slug)) {
     return `An organization slug is up to ${MAX_SLUG_LENGTH} lowercase letters, digits, and single hyphens between them.`;
   }
-  if (RESERVED_SLUGS.has(slug)) return `"${slug}" is reserved and cannot name an organization.`;
+  if (isReservedSlug(slug)) return `"${slug}" is reserved and cannot name an organization.`;
   return undefined;
 }

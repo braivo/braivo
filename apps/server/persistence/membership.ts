@@ -82,3 +82,11 @@ export async function readMembers(database: Database, organizationId: string): P
 function splitRoles(role: string): string[] {
   return role.split(",").map((each) => each.trim());
 }
+
+/**
+ * Deletes an organization made a moment ago, before anything but its members
+ * refers to it (they go with it): self-serve setup's undo (ADR 0018).
+ */
+export async function deleteNewOrganization(database: Database, id: string): Promise<void> {
+  await database.delete(organization).where(eq(organization.id, id));
+}

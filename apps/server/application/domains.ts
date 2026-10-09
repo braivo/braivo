@@ -31,7 +31,7 @@ const MAX_HOSTNAME_LENGTH = 253;
  * any other spelling would be stored and never match. Public DNS is not
  * required: a self-hosted operator may serve `training` from internal DNS.
  */
-function readHostname(input: string): string {
+export function readLearnHostname(input: string): string {
   // Before lowercasing, which turns some non-ASCII letters into ASCII ones:
   // the Kelvin sign into `k`.
   if (/\P{ASCII}/u.test(input)) {
@@ -75,7 +75,7 @@ export async function registerLearnDomain(input: {
   hostname: string;
 }): Promise<{ organization: Organization; hostname: string }> {
   const { database } = input;
-  const hostname = readHostname(input.hostname);
+  const hostname = readLearnHostname(input.hostname);
   if (hostname === new URL(input.baseUrl).hostname) {
     throw new DomainRefused(
       `${hostname} is this installation's own hostname, which serves every organization.`,

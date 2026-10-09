@@ -13,6 +13,42 @@ const valid = {
   BRAIVO_MAIL_FROM: "Braivo <signin@example.com>",
 };
 
+describe("self-serve onboarding", () => {
+  test("is off unless a domain is set, which is read as a hostname", () => {
+    expect(readServeConfig(valid).selfServeDomain).toBeUndefined();
+    expect(readServeConfig({ ...valid, BRAIVO_SELF_SERVE_DOMAIN: " " }).selfServeDomain).toBe(
+      undefined,
+    );
+    expect(
+      readServeConfig({ ...valid, BRAIVO_SELF_SERVE_DOMAIN: " Braivo.App " }).selfServeDomain,
+    ).toBe("braivo.app");
+    // Each organization at `<slug>.localhost`, as the API guide's learn domains are.
+    expect(
+      readServeConfig({ ...valid, BRAIVO_SELF_SERVE_DOMAIN: "localhost" }).selfServeDomain,
+    ).toBe("localhost");
+    for (const value of [
+      "https://braivo.app",
+      "braivo.app/",
+      "*.braivo.app",
+      "127.0.0.1",
+      // Labels that fit, but leave no room for `<slug>.` within 253.
+      `${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(60)}`,
+    ]) {
+      expect(() => readServeConfig({ ...valid, BRAIVO_SELF_SERVE_DOMAIN: value })).toThrow(
+        "BRAIVO_SELF_SERVE_DOMAIN must be a hostname",
+      );
+    }
+  });
+
+  test("needs the organizations that may spend an AI key listed", () => {
+    const selfServe = { ...valid, BRAIVO_SELF_SERVE_DOMAIN: "braivo.app", ANTHROPIC_API_KEY: "k" };
+    expect(() => readServeConfig(selfServe)).toThrow("BRAIVO_AI_ORGANIZATIONS is not set");
+    expect(
+      readServeConfig({ ...selfServe, BRAIVO_AI_ORGANIZATIONS: "org-1" }).ai?.organizations,
+    ).toEqual(new Set(["org-1"]));
+  });
+});
+
 describe("the model that drafts courses", () => {
   test("is none without a key, and Anthropic's default with one", () => {
     const all = { ANTHROPIC_API_KEY: " key " };

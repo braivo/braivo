@@ -19,7 +19,10 @@ import {
   recordGradedEvidence,
   type QuotedCitation,
   retireTasks,
+  SetUpRefused,
+  setUpOrganization,
 } from "../application/index.ts";
+import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import { type Guards, jsonBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
@@ -98,6 +101,16 @@ const MAX_ITEMS_PER_REQUEST = 1000;
  * up to `MAX_SOURCE_BYTES`. A unit's worth; more goes in several requests.
  */
 const MAX_QUOTES_PER_REQUEST = 200;
+
+/** Reads an organization's setup out of a request body: only the types. */
+function parseSetup(body: unknown): { name: string; slug: string } | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+
+  const { name, slug } = body as Record<string, unknown>;
+  if (typeof name !== "string" || typeof slug !== "string") return undefined;
+
+  return { name, slug };
+}
 
 /** Reads a course out of a request body: only the types, as for objectives. */
 function parseCourse(
@@ -218,7 +231,12 @@ function parseCitations(body: unknown): QuotedCitation[] | undefined {
  */
 export function authoringRoutes(
   { trustedJsonWrite, requireAccount }: Guards,
-  { database }: { database: Database },
+  {
+    auth,
+    database,
+    baseUrl,
+    selfServeDomain,
+  }: { auth: Auth; database: Database; baseUrl: string; selfServeDomain?: string },
 ) {
   const routes = new Hono();
 
@@ -373,6 +391,36 @@ export function authoringRoutes(
       actingAs: context.var.userId,
     });
     return context.json({ organizations });
+  });
+
+  /**
+   * Where an organization set up here would be served, for the console to
+   * offer setting one up: `null` where the operator creates them (ADR 0018).
+   */
+  routes.get("/api/organization-setup", requireAccount, (context) =>
+    context.json({ domain: selfServeDomain ?? null }),
+  );
+
+  /** Sets up an organization the session's user owns (ADR 0018). */
+  routes.post("/api/organization-setup", ...trustedJsonWrite(), requireAccount, async (context) => {
+    if (selfServeDomain === undefined) return context.body(null, 404);
+    const setup = parseSetup(await jsonBody(context));
+    if (!setup) return context.body(null, 400);
+
+    try {
+      const organization = await setUpOrganization({
+        database,
+        baseUrl,
+        selfServeDomain,
+        actingAs: context.var.userId,
+        ...setup,
+        create: (organization) => createOwnedOrganization(auth, organization),
+      });
+      return context.json({ organization }, 201);
+    } catch (error) {
+      if (!(error instanceof SetUpRefused)) throw error;
+      return context.json({ error: error.message }, error.reason === "conflict" ? 409 : 400);
+    }
   });
 
   /** Every member of an organization, for whoever administers it. */

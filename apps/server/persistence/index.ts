@@ -36,7 +36,12 @@ export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
 export { ConflictingKey } from "./key.ts";
 export type { ListedOrganization, Member, Organization } from "./membership.ts";
-export { readMembers, readMemberships, readOrganizationRoles } from "./membership.ts";
+export {
+  deleteNewOrganization,
+  readMembers,
+  readMemberships,
+  readOrganizationRoles,
+} from "./membership.ts";
 export type { Objective } from "./objective.ts";
 export {
   createObjectives,

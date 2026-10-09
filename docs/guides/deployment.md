@@ -22,7 +22,7 @@ Each app is served at the root of an origin that also serves `/api` from this se
 
 ## Organizations
 
-The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none ([ADR 0018](../adr/0018-sign-in-and-invitations.md)):
+The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none unless self-serve is on, below ([ADR 0018](../adr/0018-sign-in-and-invitations.md)):
 
 ```bash
 bun apps/server/cli/index.ts organization create --name "My School" --slug my-school --owner owner@example.com
@@ -30,6 +30,8 @@ bun apps/server/cli/index.ts organization add-member --slug my-school --email le
 ```
 
 `add-member` adds someone who has signed in once; `--role admin` makes them a content owner too.
+
+**Self-serve.** `BRAIVO_SELF_SERVE_DOMAIN`, a domain such as `braivo.app`, lets anyone signed in who owns no organization set one up in the console, served at `<slug>.<domain>`; one each. Serve the learn app on every subdomain first: wildcard DNS, a wildcard certificate, and a proxy passing `Host`. With it, an AI key needs `BRAIVO_AI_ORGANIZATIONS`, or the server refuses to start. Unset, only the operator creates organizations. Locally, `localhost` serves each at `<slug>.localhost`, as in [the API guide](api.md#an-organizations-domain-locally).
 
 ### An organization's domain
 
@@ -53,7 +55,7 @@ Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `lo
 
 - `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own agents through `braivo mcp`.
 - `BRAIVO_AI_MODEL`: the model, `claude-sonnet-5` by default.
-- `BRAIVO_AI_ORGANIZATIONS`: comma-separated organization IDs allowed to use the key. Unset means every organization; an empty value or `*` is invalid, and the server refuses to start.
+- `BRAIVO_AI_ORGANIZATIONS`: comma-separated organization IDs allowed to use the key. Unset means every organization, and is refused with `BRAIVO_SELF_SERVE_DOMAIN`; an empty value or `*` is invalid, and the server refuses to start.
 - `BRAIVO_AI_MONTHLY_LIMIT`: how many AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another. Every request is recorded in `ai_request` either way.
 
 AI requests may run for up to five minutes, so configure the proxy for that; nginx's `proxy_read_timeout`, for one, defaults to 60 seconds. A request the proxy cuts off may still count toward the organization's limit.

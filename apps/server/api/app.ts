@@ -29,6 +29,8 @@ type ApiOptions = {
   files?: FileStore;
   /** The installation's model, and who may use it; without one, AI routes answer 501. */
   ai?: Ai;
+  /** Where anyone signed in may set up an organization (ADR 0018); without one, nobody may. */
+  selfServeDomain?: string;
 };
 
 /**
@@ -77,7 +79,15 @@ const noStore = createMiddleware(async (context, next) => {
  * Endpoints and statuses: `index.ts`. Why any of it: ADR 0010.
  */
 export function createApi(options: ApiOptions) {
-  const { auth, database, baseUrl, cachedDatabase = database, files, ai } = options;
+  const {
+    auth,
+    database,
+    baseUrl,
+    cachedDatabase = database,
+    files,
+    ai,
+    selfServeDomain,
+  } = options;
   const api = new Hono();
   const guards = createGuards(options);
   const { requestHost, isTrustedWrite } = guards;
@@ -98,6 +108,7 @@ export function createApi(options: ApiOptions) {
     const { path } = context.req;
     const installationOnly = [
       "/api/organizations",
+      "/api/organization-setup",
       "/api/auth",
       "/api/handoffs",
       "/api/sign-in-methods",
@@ -176,7 +187,7 @@ export function createApi(options: ApiOptions) {
   // After the host gate, which runs only before routes registered after it.
   api.route("/", sessionRoutes(guards, { auth, database, baseUrl }));
   api.route("/", learningRoutes(guards, { database }));
-  api.route("/", authoringRoutes(guards, { database }));
+  api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain }));
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
 
   return api;
