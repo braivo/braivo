@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale, chooseLocale } from "@braivo/i18n";
-import { BraivoError, type LearnerProgressReport, type Organization } from "@braivo/server/client";
+import {
+  type BraivoClient,
+  BraivoError,
+  type LearnerProgressReport,
+  type Organization,
+} from "@braivo/server/client";
 import {
   createBrowserHistory,
   createMemoryHistory,
@@ -13,12 +18,29 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
+import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS } from "./lib/deadline.ts";
 import { createConsoleRouter } from "./router.tsx";
 
 afterEach(() => {
+  // First: a test failing on fake timers would leave them to the cleanup, and the next test.
+  vi.useRealTimers();
   cleanup();
   localStorage.clear();
 });
+
+/** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
+function stall(options?: { signal?: AbortSignal }): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const signal = options?.signal;
+    if (signal?.aborted) return reject(signal.reason);
+    signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
+}
+
+/** Lets `ms` pass on fake timers, so that a stalled request reaches its deadline. */
+async function waitOut(ms: number) {
+  await act(() => vi.advanceTimersByTimeAsync(ms));
+}
 
 const members = [
   { userId: "u1", name: "Olive Owner", roles: ["owner"] },
@@ -291,6 +313,44 @@ describe("the console", () => {
     expect(router.state.location.pathname).toBe("/login");
   });
 
+  test("keeps the page when signing out does not finish in time, saying so", async () => {
+    const { auth, router } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+    auth.signOut.mockImplementationOnce((options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+      stall(options?.fetchOptions),
+    );
+    const signOut = await screen.findByRole("button", { name: "Sign out" });
+
+    vi.useFakeTimers();
+    fireEvent.click(signOut);
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    expect(signOut.getAttribute("aria-disabled")).toBe("false");
+    expect(router.state.location.pathname).toBe("/example");
+  });
+
+  test("offers to try again when the session cannot be checked in time", async () => {
+    let answering = false;
+    vi.useFakeTimers();
+    renderAt("/example", {
+      braivo: { listCourses: async () => [] },
+      getSession: (options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+        answering
+          ? Promise.resolve({
+              data: { user: { name: "Olive Owner", email: "o@example.com" } },
+              error: null,
+            })
+          : stall(options?.fetchOptions),
+    });
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    answering = true;
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
+  });
+
   describe("signing in with Google", () => {
     const withGoogle = { signInMethods: async () => ({ google: true }) };
 
@@ -337,6 +397,33 @@ describe("the console", () => {
       });
       expect(await screen.findByLabelText("Email")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    });
+
+    test("offers codes alone when the installation does not say in time", async () => {
+      vi.useFakeTimers();
+      renderAt("/login", {
+        signedIn: false,
+        braivo: { signInMethods: (options?: { signal?: AbortSignal }) => stall(options) },
+      });
+      await waitOut(OPTIONAL_READ_DEADLINE_MS - 1);
+      expect(screen.queryByLabelText("Email")).toBeNull();
+      await waitOut(1);
+      vi.useRealTimers();
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    });
+
+    test("signs in afresh when the session cannot be read in time", async () => {
+      vi.useFakeTimers();
+      renderAt("/login", {
+        getSession: (options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+          stall(options?.fetchOptions),
+      });
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
     });
 
     test("says why it came back refused, and tries again without the old refusal", async () => {
@@ -389,7 +476,7 @@ describe("the console", () => {
       await signInWithCode();
 
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
-      expect(completeHandoff).toHaveBeenCalledWith("h1");
+      expect(completeHandoff).toHaveBeenCalledWith("h1", expect.anything());
     });
 
     test("offers the account already signed in, or another", async () => {
@@ -438,6 +525,25 @@ describe("the console", () => {
       }
       signedOut.resolve({ error: null });
       expect(await screen.findByLabelText("Email")).toBeTruthy();
+    });
+
+    test("keeps the account offered when signing out of it does not finish in time", async () => {
+      const { auth } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => fernwood },
+      });
+      auth.signOut.mockImplementationOnce((options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+        stall(options?.fetchOptions),
+      );
+      const another = await screen.findByRole("button", { name: "Use another account" });
+
+      vi.useFakeTimers();
+      fireEvent.click(another);
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect(await screen.findByText("Could not sign out. Try again.")).toBeTruthy();
+      expect(another.getAttribute("aria-disabled")).toBe("false");
+      expect(screen.getByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
     });
 
     test("says when the account is not a member, offering another, or to retry once added", async () => {
@@ -651,6 +757,43 @@ describe("the console", () => {
       await signInWithCode();
       fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+    });
+
+    test("offers to try again when the handoff cannot be read in time", async () => {
+      const handoff = vi
+        .fn<BraivoClient["handoff"]>()
+        .mockImplementationOnce((_id, options) => stall(options))
+        .mockResolvedValue(fernwood);
+      vi.useFakeTimers();
+      renderAt("/login?handoff=h1", { braivo: { handoff } });
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+      expect(await screen.findByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
+    });
+
+    test("offers to continue again when Braivo does not answer in time", async () => {
+      const completeHandoff = vi
+        .fn<BraivoClient["completeHandoff"]>()
+        .mockImplementationOnce((_id, options) => stall(options))
+        .mockResolvedValue(url);
+      const { visit } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => fernwood, completeHandoff },
+      });
+      const offered = await screen.findByRole("button", { name: "Continue as Olive Owner" });
+
+      vi.useFakeTimers();
+      fireEvent.click(offered);
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      // Continuing again is safe: it replaces a code issued meanwhile (access-14).
+      expect(
+        await screen.findByText("Could not connect. Check your connection and try again."),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Continue as Olive Owner" }));
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
     });
 

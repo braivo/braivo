@@ -6,12 +6,24 @@ import { Button } from "@braivo/ui/components/button";
 import { createFileRoute, Link, Outlet, useMatch, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+
 /**
  * Everything a content owner sees once signed in. Checked before any child
  * loads, so no page asks Braivo anything on behalf of nobody.
  */
 export const Route = createFileRoute("/_signed-in")({
-  beforeLoad: ({ context, location }) => requireSession(context.auth, location),
+  // Unanswered in time, as unanswered at all, the page fails and offers Try again.
+  beforeLoad: ({ context, location, abortController }) =>
+    requireSession(
+      {
+        getSession: () =>
+          context.auth.getSession({
+            fetchOptions: { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) },
+          }),
+      },
+      location,
+    ),
   component: SignedIn,
 });
 
@@ -29,8 +41,10 @@ function SignedIn() {
     if (signingOut) return;
     setSigningOut(true);
     setFailed(false);
-    // Better Auth answers a refusal as `error`, and throws only when unreachable.
-    const { error } = await auth.signOut().catch(() => ({ error: true }));
+    // Better Auth answers a refusal as `error`, and throws when unreachable or out of time.
+    const { error } = await auth
+      .signOut({ fetchOptions: { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) } })
+      .catch(() => ({ error: true }));
     if (error) {
       // Not assumed signed out, so the page stays; clicking again retries.
       setFailed(true);

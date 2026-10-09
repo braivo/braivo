@@ -64,9 +64,11 @@ const noProgress: LearnerProgressReport = { modelVersion: "v1", objectives: [] }
 
 /** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
 function stall(options?: { signal?: AbortSignal }): Promise<never> {
-  return new Promise((_resolve, reject) =>
-    options?.signal?.addEventListener("abort", () => reject(options.signal!.reason)),
-  );
+  return new Promise((_resolve, reject) => {
+    const signal = options?.signal;
+    if (signal?.aborted) return reject(signal.reason);
+    signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
 }
 
 /** Lets `ms` pass on fake timers, so that a stalled request reaches its deadline. */
@@ -92,6 +94,8 @@ function renderAt(
     session?: BraivoClient["session"];
     /** Who is signed in, when `signedIn`. */
     user?: { id: string; name: string };
+    /** Better Auth's answer on the installation's host, in place of `signedIn`'s. */
+    getSession?: (options?: { fetchOptions?: { signal?: AbortSignal } }) => Promise<unknown>;
   },
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
@@ -104,7 +108,8 @@ function renderAt(
   let signedIn = options.signedIn;
   const user = options.user ?? { id: "ada", name: "Ada Learner" };
   const auth = {
-    getSession: async () => ({ data: signedIn ? { user } : null, error: null }),
+    getSession:
+      options.getSession ?? (async () => ({ data: signedIn ? { user } : null, error: null })),
     emailOtp: { sendVerificationOtp: async () => ({ error: null }) },
     signIn: {
       emailOtp: vi.fn(async () => {
@@ -224,6 +229,46 @@ describe("the learn app", () => {
     expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F");
   });
 
+  test.each(["the host's organization", "the session"])(
+    "offers to try again when Braivo does not answer %s in time on sign-in",
+    async (stalled) => {
+      let answering = false;
+      const fernwood = { name: "Fernwood" };
+      vi.useFakeTimers();
+      const { visit } = renderAt("/login", {
+        signedIn: false,
+        hostOrganization: (options) =>
+          answering || stalled !== "the host's organization"
+            ? Promise.resolve(fernwood)
+            : stall(options),
+        session: (options) =>
+          answering || stalled !== "the session" ? Promise.resolve(undefined) : stall(options),
+      });
+      await waitOut(READ_DEADLINE_MS);
+      // The root's brand, read next, stalls as well, and is left out at its own deadline.
+      await waitOut(OPTIONAL_READ_DEADLINE_MS);
+      vi.useRealTimers();
+
+      answering = true;
+      fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+      await vi.waitFor(() =>
+        expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"),
+      );
+    },
+  );
+
+  test("offers the code form on the installation's host when the session cannot be read in time", async () => {
+    vi.useFakeTimers();
+    renderAt("/login", {
+      signedIn: false,
+      getSession: (options) => stall(options?.fetchOptions),
+    });
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+  });
+
   test("signs in in the browser's language, on every view of the way", async () => {
     onTestFinished(() => activateLocale("en"));
     await activateLocale(chooseLocale(["pl-PL", "en"]));
@@ -295,6 +340,22 @@ describe("the learn app", () => {
 
     await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
     expect(signOut).toHaveBeenCalledOnce();
+  });
+
+  test("lets a learner try signing out again when Braivo does not answer in time", async () => {
+    const { router, signOut } = renderAt("/", { signedIn: true });
+    signOut.mockImplementationOnce((options?: { signal?: AbortSignal }) => stall(options));
+    const button = await screen.findByRole("button", { name: "Sign out" });
+
+    vi.useFakeTimers();
+    fireEvent.click(button);
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    // Never shown as signed out, since it may not be: the account stays, and so does the page.
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    expect(button.getAttribute("aria-disabled")).toBe("false");
+    expect(router.state.location.pathname).toBe("/");
   });
 
   test("says when a learner could not be signed out, and lets them try again", async () => {
