@@ -38,6 +38,13 @@ precedence = "override"
 SPDX-FileCopyrightText = "2023 shadcn"
 SPDX-License-Identifier = "MIT"
 
+# shadcn's agent skill, as `npx skills` installs it (pinned by skills-lock.json).
+[[annotations]]
+path = ".agents/skills/shadcn/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2023 shadcn"
+SPDX-License-Identifier = "MIT"
+
 # Braivo's stories, beside the shadcn components they show, are excluded from
 # the MIT entry above. This entry, the last to match, supplies no licensing, so
 # a story's own SPDX header must, and one without it fails the check.
