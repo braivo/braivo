@@ -1341,9 +1341,17 @@ describe("the console", () => {
 
   test("leaves an owner on the page they returned to when the source they left is added", async () => {
     const adding = Promise.withResolvers<string>();
-    const addSource = vi.fn(() => adding.promise);
+    let stored = false;
+    const addSource = vi.fn(async () => {
+      const sourceId = await adding.promise;
+      stored = true;
+      return sourceId;
+    });
+    // Braivo lists the source once it is stored.
+    const listSources = async () =>
+      stored ? [{ id: "s1", title: "Unidad 1", createdAt: "…" }] : [];
     const { router } = renderAt("/example/sources", {
-      braivo: { ...added, addSource, listCourses: async () => [] },
+      braivo: { ...added, listSources, addSource, listCourses: async () => [] },
     });
     await screen.findByText("No material yet");
 
@@ -1358,6 +1366,8 @@ describe("the console", () => {
     await adding.promise;
 
     expect(router.history.location.pathname).toBe("/example/sources");
+    // Read before it was stored, the list is read again.
+    expect(await screen.findByRole("link", { name: "Unidad 1" })).toBeTruthy();
   });
 
   test("stops uploading and reading a file nobody is waiting for once the owner leaves", async () => {
@@ -2221,6 +2231,32 @@ describe("the console", () => {
     expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
   });
 
+  test("lists a course created after the owner went to the course list", async () => {
+    answerLeaving(true);
+    const creating = Promise.withResolvers<string>();
+    let created = false;
+    const braivo = {
+      ...authoring(),
+      listCourses: async () => (created ? [{ id: "course-1", title: "Beginners" }] : []),
+    };
+    braivo.acceptDraft.mockImplementation(async () => {
+      const courseId = await creating.promise;
+      created = true;
+      return courseId;
+    });
+    const { router } = renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await screen.findByText(/No courses/);
+    creating.resolve("course-1");
+
+    expect(await screen.findByRole("link", { name: "Beginners" })).toBeTruthy();
+    expect(router.history.location.pathname).toBe("/example");
+  });
+
   test("leaves a review usable when the course is created while the owner is leaving", async () => {
     answerLeaving(true);
     const creating = Promise.withResolvers<string>();
@@ -2613,6 +2649,38 @@ describe("the console", () => {
     );
   });
 
+  test("moves the focus from a retired task only once the course is read without it", async () => {
+    let retired = false;
+    const reloaded = Promise.withResolvers<void>();
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      if (!retired) return course;
+      await reloaded.promise;
+      const [greetings, ...rest] = course.objectives;
+      return { ...course, objectives: [{ ...greetings!, tasks: [] }, ...rest] };
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        retireTasks: async () => {
+          retired = true;
+        },
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+    );
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    const heading = screen.getByRole("heading", { name: "1. Greetings" });
+    expect(document.activeElement).not.toBe(heading);
+
+    reloaded.resolve();
+    await vi.waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(screen.queryByRole("button", { name: "Retire" })).toBeNull();
+  });
+
   test("says so when a task could not be retired", async () => {
     renderAt("/example/courses/course-1", {
       braivo: {
@@ -2691,6 +2759,87 @@ describe("the console", () => {
     );
   });
 
+  test("keeps a correction's editor locked until the corrected course is read", async () => {
+    let corrected = false;
+    const reloaded = Promise.withResolvers<void>();
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      if (!corrected) return course;
+      await reloaded.promise;
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      return {
+        ...course,
+        objectives: [{ ...greetings!, tasks: [{ ...task!, id: "t2", answer: 1 }] }, ...rest],
+      };
+    });
+    const defineTasks = vi.fn(async () => {
+      corrected = true;
+      return ["t2"];
+    });
+    renderAt("/example/courses/course-1", { braivo: { readCourse: reading, defineTasks } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+
+    // Stored, but the course not read again yet: the old task is never offered to edit.
+    expect(screen.getByRole("button", { name: "Cancel" }).closest("fieldset")?.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Edit “Hello, in Spanish?”" })).toBeNull();
+
+    reloaded.resolve();
+    await vi.waitFor(() =>
+      expect(screen.getByText("Correct answer").closest("li")?.textContent).toBe(
+        "Adiós Correct answer",
+      ),
+    );
+  });
+
+  test("offers to try again when the corrected course cannot be read in time", async () => {
+    let corrected = false;
+    let stalled = true;
+    const reading = vi.fn(
+      async (input: { courseId: string }, options?: { signal?: AbortSignal }) => {
+        if (corrected && stalled) return stall(options);
+        const course = await readCourse(input);
+        if (!corrected) return course;
+        const [greetings, ...rest] = course.objectives;
+        const [task] = greetings!.tasks;
+        return {
+          ...course,
+          objectives: [{ ...greetings!, tasks: [{ ...task!, id: "t2", answer: 1 }] }, ...rest],
+        };
+      },
+    );
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        defineTasks: async () => {
+          corrected = true;
+          return ["t2"];
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    // Stored, so never said to have failed: the page offers to read it again.
+    expect(screen.queryByText("The task could not be corrected. Try again.")).toBeNull();
+    stalled = false;
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(screen.getByText("Correct answer").closest("li")?.textContent).toBe(
+        "Adiós Correct answer",
+      ),
+    );
+  });
+
   test("leaves a task as it was when its edit is cancelled, or fails", async () => {
     const defineTasks = vi
       .fn()
@@ -2723,6 +2872,40 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reload the course" }));
     await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" }));
+  });
+
+  test("reloads a course once, keeping the edit until it is read, however often asked", async () => {
+    const reloaded = Promise.withResolvers<void>();
+    let calls = 0;
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      calls += 1;
+      if (calls > 1) await reloaded.promise;
+      return readCourse(input);
+    });
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        defineTasks: async () => {
+          throw new BraivoError(409, "Braivo answered 409.", "Task 0 replaces…");
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const reload = await screen.findByRole("button", { name: "Reload the course" });
+    const invalidate = vi.spyOn(router, "invalidate");
+    fireEvent.click(reload);
+    fireEvent.click(reload);
+    expect(reload.getAttribute("aria-disabled")).toBe("true");
+    expect(invalidate).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    // Open until the course is read again, not closed onto the one read before.
+    expect(screen.getByLabelText("Question")).toBeTruthy();
+
+    reloaded.resolve();
+    await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
+    expect(reading).toHaveBeenCalledTimes(2);
   });
 
   test("closes an edit whose task a reload no longer lists", async () => {

@@ -246,8 +246,12 @@ function AddSource() {
       setStatus("Adding…");
       const sourceId = await braivo.addSource(pages ? { ...source, pages } : { ...source, text });
       // To the source's page, where a course is drafted from it, unless the
-      // owner left meanwhile: added anyway, it is listed.
-      if (signal?.aborted || router.latestLocation.pathname !== from) return;
+      // owner left meanwhile: the page they are on is read again, since it may
+      // have been read before the source was stored.
+      if (signal?.aborted || router.latestLocation.pathname !== from) {
+        void router.invalidate();
+        return;
+      }
       await router.navigate({
         to: "/$organizationSlug/sources/$sourceId",
         params: { organizationSlug: organization.slug, sourceId },

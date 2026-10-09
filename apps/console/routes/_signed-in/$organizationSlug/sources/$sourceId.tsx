@@ -392,10 +392,12 @@ function ReviewDraft(props: {
         sourceId: source.id,
         ...sending,
       });
-      // Unless the owner left meanwhile. A review still shown can be sent
-      // again, which finishes the course already created and opens it.
+      // Unless the owner left meanwhile: the page they are on is read again,
+      // which may list the course. A review still shown can be sent again,
+      // which finishes the course already created and opens it.
       if (signal?.aborted || router.latestLocation.pathname !== from) {
         setCreating(false);
+        void router.invalidate();
         return;
       }
       // Created, so nothing is lost by leaving.

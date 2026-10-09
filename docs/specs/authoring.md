@@ -90,7 +90,7 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 - A retired task is never offered, accepts no new attempt, and retiring twice keeps the first date; only an `owner` or `admin` retires, and only the organization's own tasks. `apps/server/application/tasks.test.ts`, `apps/server/persistence/task.test.ts`
 - The console retires a task only once the owner confirms. `apps/console/routes.test.tsx`
 - A correction, sent alone for its own objective and the organization's own task, stores and retires in one transaction: resent, it answers the same while its correction is offered; unchanged, it keeps the task; stale, it stores nothing unless what it asks for is offered; and of two different corrections racing on one task, one is refused. `apps/server/application/tasks.test.ts`, `apps/server/api/client.contract.test.ts`
-- The console corrects a task with its passages and option order, its editor disabled while sending. `apps/console/routes.test.tsx`
+- The console corrects a task with its passages and option order, its editor disabled while sending and until the course is read again, so the old task is never offered to edit; a reload unanswered within 10 seconds fails the page, offering Try again rather than calling the correction failed. `apps/console/routes.test.tsx`
 - `braivo mcp` offers the authoring tools and returns Braivo's refusal reason to the agent. `apps/server/cli/mcp.test.ts`
 
 ## Code map
