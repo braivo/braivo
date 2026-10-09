@@ -145,6 +145,15 @@
  */
 
 /*
+ * Corners: below the preset's smallest radius, so controls are softly rounded
+ * rectangles (about 7px at 32px tall), not Rhea's pills. Every radius scales
+ * from it. Unlayered and after the theme, so it wins over the preset's.
+ */
+:root {
+  --radius: 0.25rem;
+}
+
+/*
  * A pending action's button is locked with `aria-disabled`, since `disabled`
  * drops focus. A layer below utilities, so a caller's classes still win.
  */
