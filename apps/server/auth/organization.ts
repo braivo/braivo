@@ -4,12 +4,11 @@
 import { APIError } from "better-auth/api";
 
 import { type Auth, MEMBERSHIP_LIMIT } from "./auth.ts";
+import { isReservedSlug, slugProblem } from "./slug.ts";
 
 /**
  * Creates an organization owned by an existing account: the operator's
- * command, since browsers may not create one (ADR 0018). Better Auth lets a
- * call without a session through when it names the user, and runs the same
- * hooks, so the slug rules still apply.
+ * command, since browsers may not create one through Better Auth (ADR 0018).
  */
 export async function createOrganization(
   auth: Auth,
@@ -22,13 +21,40 @@ export async function createOrganization(
     throw new Error(`No account uses ${input.ownerEmail}. They sign in once, then run this again.`);
   }
   const { name, slug } = input;
+  const created = await createOwnedOrganization(auth, { name, slug, ownerId: owner.user.id });
+  if (created === "slug taken") throw new Error(`An organization already has the slug "${slug}".`);
+  if (created === "slug reserved" || created === "slug malformed") {
+    throw new Error(slugProblem(slug));
+  }
+  return created;
+}
+
+/**
+ * Creates an organization owned by `ownerId`, for the operator's command or
+ * self-serve onboarding (ADR 0018). Better Auth lets a call without a session
+ * through when it names the user, and runs the same hooks, so the slug rules
+ * still apply.
+ */
+export async function createOwnedOrganization(
+  auth: Auth,
+  input: { name: string; slug: string; ownerId: string },
+): Promise<
+  { id: string; name: string; slug: string } | "slug taken" | "slug reserved" | "slug malformed"
+> {
+  const { name, slug, ownerId } = input;
   try {
-    return await auth.api.createOrganization({ body: { name, slug, userId: owner.user.id } });
+    // Picked, since Better Auth's answer carries its members too.
+    const created = await auth.api.createOrganization({ body: { name, slug, userId: ownerId } });
+    return { id: created.id, name: created.name, slug: created.slug };
   } catch (error) {
     // Better Auth says "Organization already exists", which reads as though
     // this one had been created before; only the slug is known to clash.
     if (error instanceof APIError && error.body?.code === "ORGANIZATION_ALREADY_EXISTS") {
-      throw new Error(`An organization already has the slug "${slug}".`);
+      return "slug taken";
+    }
+    if (error instanceof APIError && error.body?.code === "ORGANIZATION_SLUG_NOT_ALLOWED") {
+      // Told apart, so that someone choosing an address hears which to fix.
+      return isReservedSlug(slug) ? "slug reserved" : "slug malformed";
     }
     throw error;
   }

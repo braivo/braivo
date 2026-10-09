@@ -131,6 +131,7 @@ function renderAt(
         listMembers: async () => members,
         courseProgress,
         signInMethods: async () => ({ google: false }),
+        organizationSetupDomain: async () => null,
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
       visit,
@@ -2386,11 +2387,15 @@ describe("the console", () => {
     expect(JSON.stringify(first)).not.toContain("Hi?");
   });
 
-  test("lists the organizations the owner is in", async () => {
-    renderAt("/organizations");
+  test("lists the organizations the owner is in, never asking onboarding's endpoint", async () => {
+    const organizationSetupDomain = vi.fn(async () => {
+      throw new Error("unreachable");
+    });
+    renderAt("/organizations", { braivo: { organizationSetupDomain } });
 
     const link = await screen.findByRole("link", { name: "Example School" });
     expect(link.getAttribute("href")).toBe("/example");
+    expect(organizationSetupDomain).not.toHaveBeenCalled();
   });
 
   test("names the organization in view on its pages, and nowhere else", async () => {
@@ -2472,6 +2477,172 @@ describe("the console", () => {
     expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
     expect(screen.getByText(/Open the site your school/)).toBeTruthy();
     expect(screen.getByText("Signed in as olive@example.com.")).toBeTruthy();
+  });
+
+  test("sets up an organization for someone new, at the address its name makes or one edited", async () => {
+    const organizations: Organization[] = [];
+    const setUpOrganization = vi.fn(async ({ name, slug }: { name: string; slug: string }) => {
+      const created = { id: "org-new", name, slug, learnDomain: `${slug}.braivo.app` };
+      organizations.push(created);
+      return created;
+    });
+    renderAt("/organizations", {
+      organizations,
+      braivo: {
+        organizationSetupDomain: async () => "braivo.app",
+        setUpOrganization,
+        listCourses: async () => [],
+      },
+    });
+
+    const name = await screen.findByLabelText("Name");
+    expect(document.activeElement).toBe(name);
+    fireEvent.change(name, { target: { value: "Szkoła Łąka" } });
+    // Shown, not asked.
+    expect(screen.getByText("szkola-laka.braivo.app")).toBeTruthy();
+    expect(screen.queryByLabelText("Learners' address")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit learners' address" }));
+    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    expect(document.activeElement).toBe(address);
+    expect(address.value).toBe("szkola-laka");
+    fireEvent.change(address, { target: { value: "laka" } });
+    fireEvent.change(name, { target: { value: "Szkoła Łąka w Lesie" } });
+    expect(address.value).toBe("laka");
+    expect(screen.getByText(/Where your learners practise: laka\.braivo\.app\./)).toBeTruthy();
+    // A learner who came here is still told where to go.
+    expect(screen.getByText(/Open the site your school/)).toBeTruthy();
+    expect(screen.getByText("Signed in as olive@example.com.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Courses" })).toBeTruthy();
+    expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith({
+      name: "Szkoła Łąka w Lesie",
+      slug: "laka",
+    });
+    expect(screen.getByRole("link", { name: "laka.braivo.app" })).toBeTruthy();
+  });
+
+  test("creates at the address the name makes, unedited", async () => {
+    const setUpOrganization = vi.fn(async ({ name, slug }: { name: string; slug: string }) => ({
+      id: "org-new",
+      name,
+      slug,
+      learnDomain: null,
+    }));
+    renderAt("/organizations", {
+      organizations: [],
+      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+    });
+
+    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Pimsleur" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+
+    await vi.waitFor(() =>
+      expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith({
+        name: "Pimsleur",
+        slug: "pimsleur",
+      }),
+    );
+  });
+
+  test("sends one setup however often it is submitted while pending", async () => {
+    const answered = Promise.withResolvers<Organization>();
+    const setUpOrganization = vi.fn(() => answered.promise);
+    renderAt("/organizations", {
+      organizations: [],
+      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+    });
+    const name = await screen.findByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Pimsleur" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    const pending = await screen.findByRole("button", { name: "Creating…" });
+    expect(pending.getAttribute("aria-disabled")).toBe("true");
+    expect((name as HTMLInputElement).readOnly).toBe(true);
+    const edit = screen.getByRole("button", { name: "Edit learners' address" });
+    expect(edit.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(edit);
+    expect(screen.queryByLabelText("Learners' address")).toBeNull();
+    // Enter in a field submits past aria-disabled.
+    fireEvent.submit(name);
+    fireEvent.click(pending);
+    expect(setUpOrganization).toHaveBeenCalledTimes(1);
+
+    // No answer: it may have been made, so not "try again".
+    answered.reject(new Error("unreachable"));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Could not confirm the organization was created. Reload this page to check before trying again.",
+    );
+    expect(screen.getByRole("button", { name: "Create organization" })).toBeTruthy();
+  });
+
+  test("opens the address when the name makes none, saying what one is", async () => {
+    const setUpOrganization = vi.fn();
+    renderAt("/organizations", {
+      organizations: [],
+      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+    });
+
+    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "東京" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+
+    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    expect(address.validationMessage).toBe(
+      "Enter an address of lowercase letters, digits, and single hyphens.",
+    );
+    expect(setUpOrganization).not.toHaveBeenCalled();
+
+    // A name that makes one makes it good again.
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Tokyo" } });
+    expect(address.value).toBe("tokyo");
+    expect(address.validationMessage).toBe("");
+  });
+
+  test("says why an organization was not set up, each time, opening the address", async () => {
+    const taken = "laka.braivo.app is taken. Choose another address.";
+    const setUpOrganization = vi.fn(async () => {
+      throw new BraivoError(409, "Braivo answered 409", taken);
+    });
+    renderAt("/organizations", {
+      organizations: [],
+      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+    });
+    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Łąka" } });
+    const create = screen.getByRole("button", { name: "Create organization" });
+
+    fireEvent.click(create);
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe(taken);
+    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    expect(address.value).toBe("laka");
+
+    // Editing clears Braivo's refusal; an address it would not take is refused
+    // before sending.
+    fireEvent.change(address, { target: { value: "Łąka" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(create);
+    expect(address.validationMessage).toBe(
+      "Use lowercase letters, digits, and single hyphens between them.",
+    );
+    expect(setUpOrganization).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(address, { target: { value: "laka" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Create organization" }));
+    await vi.waitFor(() => expect(setUpOrganization).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+    expect(address.value).toBe("laka");
+    // A typed address stays as the name changes, and so does its refusal.
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Łąka w Lesie" } });
+    expect(screen.getByRole("alert").textContent).toBe(taken);
+  });
+
+  test("offers no setup where the operator creates organizations", async () => {
+    renderAt("/organizations", { organizations: [] });
+
+    expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
+    expect(screen.queryByLabelText("Name")).toBeNull();
   });
 
   test("reads a slug that is not one of the owner's organizations as not found", async () => {

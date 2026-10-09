@@ -268,9 +268,20 @@
 //        204 says nothing about permission to grade.
 //
 // `GET /api/organizations` — the organizations the signed-in user manages
-// (`owner` or `admin`, not `member`), by name:
-// `{ "organizations": [{ "id": "…", "name": "…", "slug": "…" }] }`. 401 without
+// (`owner` or `admin`, not `member`), by name: `{ "organizations": [{ "id":
+// "…", "name": "…", "slug": "…", "learnDomain": "…" | null }] }`. 401 without
 // a session.
+//
+// `GET /api/organization-setup` — `{ "domain": "…" | null }`: the domain an
+// organization set up below is served under, `null` where only the operator
+// creates them (ADR 0018). 401 without a session.
+//
+// `POST /api/organization-setup` `{ "name", "slug" }`, a JSON write — sets up
+// an organization the session's user owns, at `<slug>.<domain>`: 201
+// `{ "organization" }` as listed above. 400 a malformed body, or `{ "error" }`
+// for a name or slug that cannot be one; 409 `{ "error" }` for an address
+// taken or an organization the user already owns; 404 where only the operator
+// creates them; 401 without a session.
 //
 // The organization routes below share their refusals: 401 without a session,
 // and 403 unless the session holds `owner` or `admin` there — authoring is a

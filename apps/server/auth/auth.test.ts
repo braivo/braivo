@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test"
 import { createObjectives } from "../persistence/index.ts";
 import { createAuth, MEMBERSHIP_LIMIT } from "./auth.ts";
 import { addMember, createOrganization } from "./organization.ts";
+import { slugProblem } from "./slug.ts";
 import { codeSentTo, createOutbox, signInWithCode } from "./testing.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -698,9 +699,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
   ])("refuses %s", async (_case, slug) => {
     const created = createOrganization(auth, { name: "Refused", slug, ownerEmail: owner.email });
 
-    await expect(created).rejects.toMatchObject({
-      body: { code: "ORGANIZATION_SLUG_NOT_ALLOWED" },
-    });
+    // The hook's reason, which the command prints.
+    await expect(created).rejects.toThrow(slugProblem(slug));
   });
 
   test("refuses changing a slug, but not resending it with other changes", async () => {

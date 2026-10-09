@@ -220,8 +220,8 @@ export function createAuth(options: AuthOptions) {
       // membership is what Braivo's authorization rules are built on. A
       // learner's history is kept per learner, not per organization (ADR 0032).
       organization({
-        // The operator creates organizations (`createOrganization`), not the
-        // console, until self-serve onboarding is wanted (ADR 0018).
+        // Refuses sessions only: the operator's command and self-serve setup
+        // call it naming the user (`createOwnedOrganization`, ADR 0018).
         allowUserToCreateOrganization: false,
         membershipLimit: MEMBERSHIP_LIMIT,
         organizationHooks: {

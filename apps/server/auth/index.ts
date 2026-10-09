@@ -7,5 +7,5 @@
 
 export type { Auth } from "./auth.ts";
 export { createAuth } from "./auth.ts";
-export { addMember, createOrganization } from "./organization.ts";
+export { addMember, createOrganization, createOwnedOrganization } from "./organization.ts";
 export { isOrganizationOrigin } from "./origin.ts";

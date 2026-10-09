@@ -24,8 +24,10 @@ import { connectionString, createTestApi } from "./testing.ts";
  * what the client parses fails here, and so does a client that builds a request
  * the routes refuse.
  */
+const selfServeDomain = "contract-self-serve.example";
 const { database, api, signUp } = createTestApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-contract-files-"))),
+  selfServeDomain,
 });
 
 /** The client reaches Braivo over HTTP; here that HTTP is the app itself. */
@@ -217,6 +219,34 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       },
     ]);
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
+  });
+
+  test("sets up an organization in the shape it declares, and says why it refuses one", async () => {
+    const { cookie } = await signUp();
+    const slug = `contract-${crypto.randomUUID().slice(0, 8)}`;
+
+    expect(await client.organizationSetupDomain({ headers: { cookie } })).toBe(selfServeDomain);
+    const organization = await client.setUpOrganization(
+      { name: "Fernwood Academy", slug },
+      { headers: { cookie } },
+    );
+    expect(organization).toEqual({
+      id: expect.any(String),
+      name: "Fernwood Academy",
+      slug,
+      learnDomain: `${slug}.${selfServeDomain}`,
+    });
+    expect(await client.listOrganizations({ headers: { cookie } })).toEqual([organization]);
+
+    const refused = client.setUpOrganization(
+      { name: "Second", slug: `${slug}-2` },
+      { headers: { cookie } },
+    );
+    await expect(refused).rejects.toBeInstanceOf(BraivoError);
+    await expect(refused).rejects.toMatchObject({
+      status: 409,
+      reason: "You already own an organization. Reload this page to open it.",
+    });
   });
 
   test("lists members in the shape it declares, and refuses a learner", async () => {

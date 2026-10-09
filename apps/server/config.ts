@@ -25,6 +25,11 @@ export type ServerConfig = {
   };
   /** Google's OAuth client, offering "Continue with Google", or none: email codes alone. */
   google?: { clientId: string; clientSecret: string };
+  /**
+   * The domain under which anyone signed in may set up an organization, served
+   * at `<slug>.<selfServeDomain>`, or none: the operator creates every one (ADR 0018).
+   */
+  selfServeDomain?: string;
 };
 
 export type ServeConfig = ServerConfig & {
@@ -71,7 +76,8 @@ type VariableName =
   | "BRAIVO_AI_ORGANIZATIONS"
   | "BRAIVO_AI_MONTHLY_LIMIT"
   | "GOOGLE_CLIENT_ID"
-  | "GOOGLE_CLIENT_SECRET";
+  | "GOOGLE_CLIENT_SECRET"
+  | "BRAIVO_SELF_SERVE_DOMAIN";
 
 /**
  * A Worker's `env`, bindings beside the variables, or `process.env`, which
@@ -97,11 +103,20 @@ export function readAuthConfig(environment: Environment): AuthConfig {
 }
 
 export function readServerConfig(environment: Environment): ServerConfig {
+  const selfServe = readSelfServeDomain(environment);
+  const ai = readAi(environment);
+  // Unlisted, anyone's new organization would spend the key.
+  if (selfServe.selfServeDomain && ai.ai?.organizations === "all") {
+    throw new Error(
+      "BRAIVO_AI_ORGANIZATIONS is not set: with BRAIVO_SELF_SERVE_DOMAIN anyone may create an organization, so list the IDs of the organizations that may use ANTHROPIC_API_KEY.",
+    );
+  }
   return {
     secret: readSecret(environment, "BETTER_AUTH_SECRET"),
     baseUrl: readUrl(environment, "BRAIVO_URL"),
-    ...readAi(environment),
+    ...ai,
     ...readGoogle(environment),
+    ...selfServe,
   };
 }
 
@@ -148,9 +163,10 @@ function readMail(environment: Environment, baseUrl: string): ServeConfig["mail"
 }
 
 /**
- * `BRAIVO_AI_ORGANIZATIONS`: unset lets every organization spend the key, since
- * the operator creates every one (docs/adr/0018-sign-in-and-invitations.md);
- * otherwise only the comma-separated IDs it lists. Set but naming none — an
+ * `BRAIVO_AI_ORGANIZATIONS`: unset lets every organization spend the key, safe
+ * while the operator creates every one, so self-serve requires it
+ * (docs/adr/0018-sign-in-and-invitations.md); otherwise only the
+ * comma-separated IDs it lists. Set but naming none — an
  * empty value a deployment template left — is refused rather than read as
  * unset, which would open the operator's credits to every organization; so is
  * `*`, which reads as "all" but would match no ID.
@@ -204,6 +220,31 @@ function readGoogle(environment: Environment): { google?: ServerConfig["google"]
     );
   }
   return { google: { clientId, clientSecret } };
+}
+
+/**
+ * `BRAIVO_SELF_SERVE_DOMAIN`, a hostname such as `braivo.app` whose subdomains
+ * the operator serves the learn app on, wildcard DNS and certificate included
+ * (ADR 0018). Lowercased, as hosts are matched. Unset or blank turns self-serve off.
+ */
+function readSelfServeDomain(environment: Environment): { selfServeDomain?: string } {
+  const value = environment.BRAIVO_SELF_SERVE_DOMAIN?.trim().toLowerCase();
+  if (value === undefined || value === "") return {};
+  // DNS labels, the last not a number, which makes an IP address; a URL's
+  // host would also take `*` and `_`. One label will do: `localhost` serves
+  // `<slug>.localhost` in development. Each hostname is checked in full at setup.
+  const labels = value.split(".");
+  if (
+    // Room for a one-letter slug and its dot within a hostname's 253.
+    value.length > 251 ||
+    /^\d+$/.test(labels.at(-1) ?? "") ||
+    !labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  ) {
+    throw new Error(
+      `BRAIVO_SELF_SERVE_DOMAIN must be a hostname such as braivo.app, got "${value}".`,
+    );
+  }
+  return { selfServeDomain: value };
 }
 
 /**

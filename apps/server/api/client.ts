@@ -199,6 +199,23 @@ export type BraivoClient = {
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
 
   /**
+   * The domain an organization set up here is served under, as
+   * `<slug>.<domain>`, or `null` where the operator creates every one.
+   */
+  organizationSetupDomain(options?: RequestOptions): Promise<string | null>;
+
+  /**
+   * Sets up an organization the session's user owns, served at
+   * `<slug>.<domain>` (ADR 0018). A {@link BraivoError} whose `reason` is
+   * meant for them: 400 a name or address that cannot be one, 409 an address
+   * taken or an organization already owned; 404 where the operator creates them.
+   */
+  setUpOrganization(
+    organization: { name: string; slug: string },
+    options?: RequestOptions,
+  ): Promise<Organization>;
+
+  /**
    * Every member of an organization, by name, without their emails.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
@@ -651,6 +668,24 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { organizations } = await parsed<{ organizations: Organization[] }>(response, doing);
       return organizations;
+    },
+
+    async organizationSetupDomain(requestOptions) {
+      const response = await get("/api/organization-setup", requestOptions);
+
+      const doing = "asking whether an organization may be set up";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ domain: string | null }>(response, doing)).domain;
+    },
+
+    async setUpOrganization(organization, requestOptions) {
+      const response = await post("/api/organization-setup", organization, requestOptions);
+
+      const doing = "setting up an organization";
+      if (response.status !== 201) throw await unexpected(response, doing);
+
+      return (await parsed<{ organization: Organization }>(response, doing)).organization;
     },
 
     async listMembers(organizationId, requestOptions) {

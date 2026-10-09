@@ -1,20 +1,45 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Heading } from "@braivo/ui";
+import { Heading, MutedText } from "@braivo/ui";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
+import { OrganizationSetup } from "#components/organization-setup";
+
 export const Route = createFileRoute("/_signed-in/organizations")({
-  loader: async ({ context, abortController }) => ({
-    organizations: await context.braivo.listOrganizations({ signal: abortController.signal }),
-  }),
+  loader: async ({ context, abortController }) => {
+    const options = { signal: abortController.signal };
+    const organizations = await context.braivo.listOrganizations(options);
+    // Asked only of someone it can concern, so a page of organizations never
+    // waits on, or fails with, onboarding's endpoint.
+    const setupDomain =
+      organizations.length === 0 ? await context.braivo.organizationSetupDomain(options) : null;
+    return { organizations, setupDomain };
+  },
   component: Organizations,
 });
 
 function Organizations() {
-  const { organizations } = Route.useLoaderData();
-  const { user } = Route.useRouteContext();
+  const { organizations, setupDomain } = Route.useLoaderData();
+  const { braivo, user } = Route.useRouteContext();
+
+  // Someone new where anyone may set one up (ADR 0018); a learner who came
+  // here instead of their school's site is still told where to go.
+  if (organizations.length === 0 && setupDomain !== null) {
+    return (
+      <>
+        <OrganizationSetup braivo={braivo} domain={setupDomain} />
+        <div className="mt-8 flex max-w-md flex-col gap-2">
+          <MutedText>Learning? Open the site your school or training provider gave you.</MutedText>
+          <MutedText>
+            Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you.
+          </MutedText>
+          <MutedText className="wrap-anywhere">Signed in as {user.email}.</MutedText>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
