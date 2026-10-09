@@ -33,8 +33,28 @@ describe("reading captions", () => {
     ].join("\r\n");
 
     expect(parseCaptions(vtt, "vtt")).toEqual([
-      { at: 0.5, text: "Hola, amigos." },
+      { at: 0.5, text: "Maestra: Hola, amigos." },
       { at: 3723.25, text: "Tom & Jerry <3 café 🙂" },
+    ]);
+  });
+
+  test("names who speaks, as a dialogue's script does", () => {
+    const vtt = [
+      "WEBVTT",
+      "",
+      "00:00.000 --> 00:02.000",
+      "<v.first Anna Nowak>Dzień dobry.</v>",
+      "<v Tom &amp; Ola>Dzień dobry!",
+      "",
+      "00:02.000 --> 00:03.000",
+      "<v >Bez imienia.",
+      "",
+    ].join("\n");
+
+    expect(parseCaptions(vtt, "vtt")).toEqual([
+      { at: 0, text: "Anna Nowak: Dzień dobry." },
+      { at: 0, text: "Tom & Ola: Dzień dobry!" },
+      { at: 2, text: "Bez imienia." },
     ]);
   });
 
@@ -68,6 +88,28 @@ describe("reading captions", () => {
       { at: 0.16, text: "hola amigos" },
       { at: 2.32, text: "hoy vamos a contar" },
     ]);
+  });
+
+  test("knows a rolling line repeated in another Unicode form, and reads it in NFC", () => {
+    const vtt = [
+      "WEBVTT",
+      "",
+      "00:00:00.000 --> 00:00:02.000",
+      " ",
+      "caf\u00e9<00:00:00.500><c> con</c>",
+      "",
+      "00:00:02.000 --> 00:00:02.010",
+      "cafe\u0301 con",
+      "",
+    ].join("\n");
+
+    expect(parseCaptions(vtt, "vtt")).toEqual([{ at: 0, text: "caf\u00e9 con" }]);
+  });
+
+  test("decodes the direction marks as the characters they name, as typed ones read", () => {
+    const vtt = "WEBVTT\n\n00:00.000 --> 00:01.000\n&lrm;abc&rlm;\n";
+
+    expect(parseCaptions(vtt, "vtt")).toEqual([{ at: 0, text: "\u200eabc\u200f" }]);
   });
 
   test("keeps a line said twice in rolling captions, as the line newly said", () => {
@@ -105,6 +147,27 @@ describe("reading captions", () => {
       { at: 3.01, text: "buongiorno" },
       { at: 8, text: "buongiorno" },
       { at: 8, text: "a tutti" },
+    ]);
+  });
+
+  test("keeps a line said again by a rolling cue that starts inside the one before", () => {
+    // Only a cue starting within an instant of the last one's end rolls a line over.
+    const vtt = [
+      "WEBVTT",
+      "",
+      "00:00.000 --> 00:10.000",
+      "Tak.",
+      "",
+      "00:03.000 --> 00:05.000",
+      "Tak.",
+      "<00:04.000>Dalej.",
+      "",
+    ].join("\n");
+
+    expect(parseCaptions(vtt, "vtt")).toEqual([
+      { at: 0, text: "Tak." },
+      { at: 3, text: "Tak." },
+      { at: 3, text: "Dalej." },
     ]);
   });
 
@@ -152,6 +215,10 @@ dos.
     const srt = '1\n00:00:01,000 --> 00:00:02,000\n<font color="red">If x < 5 and y > 2</font>\n';
 
     expect(parseCaptions(srt, "srt")).toEqual([{ at: 1, text: "If x < 5 and y > 2" }]);
+    // Not a voice, which SRT has none of: its words.
+    expect(parseCaptions("1\n00:00:01,000 --> 00:00:02,000\n<v Anna>Hola\n", "srt")).toEqual([
+      { at: 1, text: "<v Anna>Hola" },
+    ]);
   });
 
   test("reads SRT cues in the order they are said, whatever separates them", () => {
@@ -178,6 +245,18 @@ dos.
     );
     expect(parseCaptions("WEBVTT\n\nNOTE nothing here\n", "vtt")).toEqual(
       new Error("No captions found in this vtt file."),
+    );
+  });
+
+  test("refuses a timing past 59 minutes or seconds, or ending before it starts", () => {
+    expect(parseCaptions("WEBVTT\n\n00:99.000 --> 01:40.000\nHola\n", "vtt")).toEqual(
+      new Error("Line 3: minutes and seconds in a timing run from 00 to 59."),
+    );
+    expect(parseCaptions("1\n00:60:00,000 --> 01:00:01,000\nHola\n", "srt")).toEqual(
+      new Error("Line 2: minutes and seconds in a timing run from 00 to 59."),
+    );
+    expect(parseCaptions("WEBVTT\n\n00:02.000 --> 00:01.000\nHola\n", "vtt")).toEqual(
+      new Error("Line 3: a caption ends before it starts."),
     );
   });
 

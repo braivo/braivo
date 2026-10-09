@@ -93,6 +93,9 @@ function SourceText({ text }: { text: string }) {
   const [all, setAll] = useState(false);
   const box = useRef<HTMLPreElement>(null);
   const cut = !all && text.length > SHOWN_CHARACTERS;
+  const head = text.slice(0, SHOWN_CHARACTERS);
+  // Never half a surrogate pair, such as an emoji's: alone, either is broken text.
+  const shown = !cut ? text : head.isWellFormed() ? head : head.slice(0, -1);
 
   return (
     <div className="mb-6">
@@ -106,7 +109,7 @@ function SourceText({ text }: { text: string }) {
         tabIndex={0}
         className="max-h-64 overflow-auto rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap"
       >
-        {cut ? text.slice(0, SHOWN_CHARACTERS) : text}
+        {shown}
       </pre>
       {cut && (
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2">

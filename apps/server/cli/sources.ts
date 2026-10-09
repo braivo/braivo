@@ -43,6 +43,8 @@ export async function addSourceFromFile(input: {
   original?: string;
   firstPage?: string;
   readStdin: () => Promise<string>;
+  /** Told, once the source is added, what it left out: pages without text. */
+  warn?: (message: string) => void;
 }): Promise<string> {
   const { client, file, url, language } = input;
 
@@ -51,7 +53,7 @@ export async function addSourceFromFile(input: {
   const firstPage = firstPageOf(input.firstPage);
 
   const content = file === "-" ? await input.readStdin() : await readFile(file, "utf8");
-  const body = sourceBody(file, content, firstPage);
+  const { body, warning } = sourceBody(file, content, firstPage);
   const organizationId = await organizationIdOf(client, input.organizationSlug);
 
   // Only once the text is known to be sendable and the organization found, so
@@ -61,7 +63,17 @@ export async function addSourceFromFile(input: {
       ? undefined
       : await uploadOriginal(client, organizationId, input.original);
 
-  return client.addSource({ organizationId, title, url, language, original, ...body });
+  const sourceId = await client.addSource({
+    organizationId,
+    title,
+    url,
+    language,
+    original,
+    ...body,
+  });
+  // After, so that a refused source warns of nothing it did not add.
+  if (warning) input.warn?.(warning);
+  return sourceId;
 }
 
 /** The ID of the organization `slug` names, among those the signed-in person manages. */
@@ -85,15 +97,21 @@ function firstPageOf(typed: string | undefined): number | undefined {
   return Number(typed);
 }
 
-/** What of a source `content` is: captions, pages, or text, by what the file is. */
+/**
+ * What of a source `content` is: captions, pages, or text, by what the file is;
+ * and `warning`, what it leaves out, to tell once it is added.
+ */
 function sourceBody(
   file: string,
   content: string,
   firstPage: number | undefined,
-):
-  | { text: string }
-  | { pages: { page: string; text: string }[] }
-  | { cues: { at: number; text: string }[] } {
+): {
+  body:
+    | { text: string }
+    | { pages: { page: string; text: string }[] }
+    | { cues: { at: number; text: string }[] };
+  warning?: string;
+} {
   const where = file === "-" ? "Standard input" : file;
   const format = file === "-" ? undefined : captionFormat(file);
   // `--first-page` is refused rather than ignored where there are no pages, so
@@ -107,7 +125,7 @@ function sourceBody(
     // Braivo's own check, before uploading the original, since it would refuse these.
     const joined = joinCues(cues);
     if ("problem" in joined) throw new Error(`${file}: ${joined.problem}.`);
-    return { cues };
+    return { body: { cues } };
   }
 
   // Before splitting, since a PDF's bytes can have form feeds too; and before
@@ -117,36 +135,56 @@ function sourceBody(
       `${where}: not text Braivo can store; for a PDF, extract its text with pdftotext first.`,
     );
   }
-  const pages = splitPages(content, firstPage);
-  if (pages === undefined) {
+  const split = splitPages(content, firstPage);
+  if (split === undefined) {
     if (content.trim() === "") throw new Error(`${where}: no text Braivo can store; it is blank.`);
     if (firstPage !== undefined) {
       throw new Error(
         `${where}: --first-page needs pages, separated by form feeds as pdftotext writes.`,
       );
     }
-    return { text: content };
+    return { body: { text: content } };
   }
+  const { pages, withoutText } = split;
   if (pages.length === 0) {
     throw new Error(`${where}: no page has text; a scanned PDF needs OCR first.`);
   }
-  return { pages };
+  // A blank page is often meant; a scanned one among text pages, as a partly
+  // scanned PDF has, is otherwise lost without a word.
+  if (withoutText.length === 0) return { body: { pages } };
+  const listed =
+    withoutText.length > 10
+      ? [...withoutText.slice(0, 10), `${withoutText.length - 10} more`]
+      : withoutText;
+  const named = `${listed.slice(0, -1).join(", ")}${listed.length > 2 ? "," : ""} and ${listed.at(-1)}`;
+  return {
+    body: { pages },
+    warning:
+      withoutText.length === 1
+        ? `${where}: page ${withoutText[0]} has no text and is left out; a scanned page needs OCR first.`
+        : `${where}: pages ${named} have no text and are left out; a scanned page needs OCR first.`,
+  };
 }
 
 /**
  * A document's pages, when `content` separates them with form feeds as
  * `pdftotext` does, or `undefined` for text that has none. Pages are labelled
  * by position from `firstPage`, so a page without words, a blank or scanned
- * one, is left out and keeps its number. Labels other than numbers, `iv`, are
- * an agent's to send.
+ * one, is left out, named in `withoutText`, and keeps its number. Labels other than
+ * numbers, `iv`, are an agent's to send.
  */
-export function splitPages(
+function splitPages(
   content: string,
   firstPage = 1,
-): { page: string; text: string }[] | undefined {
+): { pages: { page: string; text: string }[]; withoutText: string[] } | undefined {
   if (!content.includes("\f")) return undefined;
-  return content
-    .split("\f")
-    .map((text, index) => ({ page: String(firstPage + index), text }))
-    .filter(({ text }) => text.trim() !== "");
+  const all = content.split("\f").map((text, index) => ({ page: String(firstPage + index), text }));
+  // pdftotext ends every page with a form feed, the last one too, and an editor
+  // may add a line break: only spaces after the last one end it, not a page.
+  if (all.at(-1)!.text.trim() === "") all.pop();
+  const hasText = ({ text }: { text: string }) => text.trim() !== "";
+  return {
+    pages: all.filter(hasText),
+    withoutText: all.filter((page) => !hasText(page)).map(({ page }) => page),
+  };
 }

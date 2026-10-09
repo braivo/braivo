@@ -76,18 +76,22 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
     unknown
   >;
   if (kind !== "choice") return { problem: 'has an unknown kind; the only kind is "choice"' };
-  if (!isText(prompt)) return { problem: `needs a prompt of 1 to ${MAX_TEXT} characters` };
+  if (!isText(prompt)) return { problem: `has a prompt that is ${textProblem(prompt)}` };
   if (!Array.isArray(options) || options.length < 2 || options.length > MAX_OPTIONS) {
     return { problem: `needs 2 to ${MAX_OPTIONS} options` };
   }
-  if (!options.every(isText)) {
-    return { problem: `has an option that is blank or over ${MAX_TEXT} characters` };
+  const invalid = options.findIndex((option) => !isText(option));
+  if (invalid !== -1) {
+    return { problem: `has option ${invalid} that is ${textProblem(options[invalid])}` };
   }
-  // Options equal but for spacing would read the same, leaving "which one" unanswerable.
+  // Options equal but for spacing or Unicode form (NFC "ż", or "z" and a combining dot)
+  // would read the same, leaving "which one" unanswerable. Stored collapsed, in
+  // the Unicode form sent.
   const collapsed = options.map(collapseWhitespace);
-  const repeat = collapsed.findIndex((option, index) => collapsed.indexOf(option) !== index);
+  const compared = collapsed.map((option) => option.normalize("NFC"));
+  const repeat = compared.findIndex((option, index) => compared.indexOf(option) !== index);
   if (repeat !== -1) {
-    const first = collapsed.indexOf(collapsed[repeat]!);
+    const first = compared.indexOf(compared[repeat]!);
     return { problem: `repeats option ${first} as option ${repeat}; every option must differ` };
   }
   if (!Number.isInteger(answer) || (answer as number) < 0 || (answer as number) >= options.length) {
@@ -96,8 +100,9 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
     };
   }
   if (explanation !== undefined && !isText(explanation)) {
+    const problem = textProblem(explanation);
     return {
-      problem: `has an explanation that is blank or over ${MAX_TEXT} characters; leave a blank one out`,
+      problem: `has an explanation that is ${problem}${problem === "blank" ? "; leave a blank one out" : ""}`,
     };
   }
   if (keepOrder !== undefined && typeof keepOrder !== "boolean") {
@@ -198,4 +203,14 @@ function collapseWhitespace(text: string): string {
 
 function isText(value: unknown): value is string {
   return isStorableText(value, MAX_TEXT);
+}
+
+/** Why `value`, refused by `isText`, is not a task's text, finishing "… that is". */
+function textProblem(value: unknown): string {
+  if (value === undefined) return "missing";
+  if (typeof value !== "string") return "not text";
+  const { length } = value.trim();
+  if (length === 0) return "blank";
+  if (length > MAX_TEXT) return `over ${MAX_TEXT} characters`;
+  return "not storable: it carries a NUL or an unpaired surrogate";
 }

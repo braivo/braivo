@@ -10,7 +10,7 @@ import { runMigrations } from "@braivo/db";
 import { organization, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
-import { beforeAll, describe, expect, test } from "vite-plus/test";
+import { beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { createApi } from "../api/index.ts";
 import { createAuth } from "../auth/index.ts";
@@ -409,6 +409,58 @@ describe("adding a file as a source", () => {
         { page: "4", text: "Adiós.\n" },
       ],
     });
+  });
+
+  test("names the pages left out without text, which a scan may need OCR for", async () => {
+    const warn = vi.fn();
+    const add = (text: string) =>
+      addSourceFromFile({
+        client: client as never,
+        organizationSlug: "school",
+        file: "-",
+        title: "Libro",
+        readStdin: async () => text,
+        warn,
+      });
+
+    // pdftotext ends every page with a form feed, the last one too: nothing is missing.
+    await add("Hola.\fAdiós.\f");
+    await add("Hola.\fAdiós.\f\n");
+    expect(warn).not.toHaveBeenCalled();
+
+    await add("Portada\f\n \fHola.\f\fAdiós.\f");
+    expect(warn).toHaveBeenCalledWith(
+      "Standard input: pages 2 and 4 have no text and are left out; a scanned page needs OCR first.",
+    );
+
+    await add(`Hola.${"\f".repeat(13)}Adiós.\f`);
+    expect(warn).toHaveBeenLastCalledWith(
+      "Standard input: pages 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, and 2 more have no text and are left out; a scanned page needs OCR first.",
+    );
+
+    await add("Hola.\f\fAdiós.\f");
+    expect(warn).toHaveBeenLastCalledWith(
+      "Standard input: page 2 has no text and is left out; a scanned page needs OCR first.",
+    );
+
+    // Only once added: a refused source left nothing out.
+    warn.mockClear();
+    await expect(
+      addSourceFromFile({
+        client: {
+          ...client,
+          addSource: async () => {
+            throw new Error("Braivo answered 400.");
+          },
+        } as never,
+        organizationSlug: "school",
+        file: "-",
+        title: "Libro",
+        readStdin: async () => "Hola.\f\fAdiós.\f",
+        warn,
+      }),
+    ).rejects.toThrow("Braivo answered 400.");
+    expect(warn).not.toHaveBeenCalled();
   });
 
   test("numbers the pages from --first-page, the book's number of the first", async () => {

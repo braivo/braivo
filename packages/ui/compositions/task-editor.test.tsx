@@ -40,6 +40,30 @@ describe("editing a proposed task", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  test("saves an option in the Unicode form typed, as the server stores it", () => {
+    const { onSave } = edit();
+
+    fireEvent.change(screen.getByLabelText("Option A"), { target: { value: "cafe\u0301" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ options: ["cafe\u0301", "blue"] }),
+    );
+  });
+
+  test("counts options that differ only in Unicode form as repeated, as the server does", () => {
+    const { onSave } = edit();
+
+    fireEvent.change(screen.getByLabelText("Option A"), { target: { value: "żółć" } });
+    fireEvent.change(screen.getByLabelText("Option B"), {
+      target: { value: "żółć".normalize("NFD") },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText("Every option must differ.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   test("keeps a form feed, which a page shows, as the server does", () => {
     const { onSave } = edit();
 

@@ -1421,7 +1421,7 @@ describe("the console", () => {
       addMaterial({ title: "Mi libro", text: "Hola.", file });
       expect(
         await screen.findByText(
-          "The original file must be a PDF, a document, or an image; plain text goes in the Text field.",
+          "This type of file cannot be kept as an original: choose a document, image, audio, or video file, or paste plain text in the Text field.",
         ),
       ).toBeTruthy();
     }
@@ -1432,6 +1432,16 @@ describe("the console", () => {
   const fileOf = (type: string, size: number) =>
     Object.defineProperty(new File(["?"], "libro", { type }), "size", { value: size });
 
+  test("says an original is kept for the organization's managers, never shown to learners", async () => {
+    renderAt("/example/sources", { braivo: added });
+    await screen.findByText("No material yet");
+
+    const hint = screen.getByText(
+      "The PDF, slides, image, or recording the text comes from. Optional, at most 50 MB. Only those who manage the organization can open it; learners never see it.",
+    );
+    expect(screen.getByLabelText("Original file").getAttribute("aria-describedby")).toBe(hint.id);
+  });
+
   test("refuses a file over 50 MB before sending anything, and takes exactly 50 MB", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
     const addSource = vi.fn(async () => "s1");
@@ -1439,10 +1449,34 @@ describe("the console", () => {
     await screen.findByText("No material yet");
     const pdfOf = (size: number) => fileOf("application/pdf", size);
 
+    const emptied = vi.spyOn(
+      screen.getByLabelText("Original file") as HTMLInputElement,
+      "value",
+      "set",
+    );
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_001) });
-    expect(await screen.findByText("The original file is larger than 50 MB.")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "The file is over 50 MB, the most Braivo keeps, so it was removed. Add the material again to keep its text without it.",
+      ),
+    ).toBeTruthy();
     expect(uploadFile).not.toHaveBeenCalled();
     expect(addSource).not.toHaveBeenCalled();
+    // Emptied, so adding again adds the text alone. Asserted on the setter: the
+    // test's chosen file overrides `files`, which a browser empties with `value`.
+    expect(emptied).toHaveBeenCalledWith("");
+
+    // Whatever its type: a type Braivo refuses is no reason to keep it.
+    emptied.mockClear();
+    addMaterial({ title: "Mi libro", text: "Hola.", file: fileOf("text/plain", 50_000_001) });
+    expect(emptied).toHaveBeenCalledWith("");
+
+    addMaterial({ title: "Mi libro", text: "", file: pdfOf(50_000_001) });
+    expect(
+      await screen.findByText(
+        "The file is over 50 MB, the most Braivo keeps, so it was removed. Paste its text in the Text field to add the material without it.",
+      ),
+    ).toBeTruthy();
 
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_000) });
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
@@ -1651,6 +1685,16 @@ describe("the console", () => {
     expect(document.activeElement).toBe(text);
     expect(screen.queryByText(/^The first/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Show all text" })).toBeNull();
+  });
+
+  test("cuts a source's text before a character it would split", async () => {
+    const before = "a".repeat(19_999);
+    renderAt("/example/sources/s1", {
+      braivo: { ...authoring(), getSource: async () => ({ ...saludos, text: `${before}🙂c` }) },
+    });
+
+    const box = await screen.findByRole("region", { name: "Source text" });
+    expect(box.textContent).toBe(before);
   });
 
   test("drafts a course from a source, keeps what the owner keeps, and creates it", async () => {

@@ -24,6 +24,12 @@ describe("parseTaskBody", () => {
     expect(parseTaskBody({ ...choice, prompt: `  ${choice.prompt} ` })).toEqual({ body: choice });
   });
 
+  test("keeps each option in the Unicode form sent, comparing them in NFC", () => {
+    // Stored as sent, so a task resent the same is the same task (ADR 0024).
+    const decomposed = { ...choice, options: ["cafe\u0301", "té"] };
+    expect(parseTaskBody(decomposed)).toEqual({ body: decomposed });
+  });
+
   test("collapses whitespace in the prompt and options, as a page shows them", () => {
     const code = {
       ...choice,
@@ -85,37 +91,44 @@ describe("parseTaskBody", () => {
       { ...choice, kind: "essay" },
       'has an unknown kind; the only kind is "choice"',
     ],
-    ["a blank prompt", { ...choice, prompt: " " }, "needs a prompt of 1 to 2000 characters"],
+    ["a blank prompt", { ...choice, prompt: " " }, "has a prompt that is blank"],
+    ["no prompt", { ...choice, prompt: undefined }, "has a prompt that is missing"],
     [
       "a prompt over 2000 characters",
       { ...choice, prompt: "x".repeat(2001) },
-      "needs a prompt of 1 to 2000 characters",
+      "has a prompt that is over 2000 characters",
     ],
     [
       "a prompt carrying a NUL",
       { ...choice, prompt: "¿\u0000?" },
-      "needs a prompt of 1 to 2000 characters",
+      "has a prompt that is not storable: it carries a NUL or an unpaired surrogate",
     ],
     ["one option", { ...choice, options: ["hablé"] }, "needs 2 to 26 options"],
-    [
-      "a blank option",
-      { ...choice, options: ["hablé", ""] },
-      "has an option that is blank or over 2000 characters",
-    ],
+    ["a blank option", { ...choice, options: ["hablé", ""] }, "has option 1 that is blank"],
     [
       "an option over 2000 characters",
       { ...choice, options: ["hablé", "x".repeat(2001)] },
-      "has an option that is blank or over 2000 characters",
+      "has option 1 that is over 2000 characters",
     ],
     [
       "a malformed option",
       { ...choice, options: ["hablé", "\ud800"] },
-      "has an option that is blank or over 2000 characters",
+      "has option 1 that is not storable: it carries a NUL or an unpaired surrogate",
+    ],
+    [
+      "options that are not text, naming the first",
+      { ...choice, options: ["hablé", 1, ""] },
+      "has option 1 that is not text",
     ],
     [
       "duplicate options",
       { ...choice, options: ["hablé", "hablo", " hablé"] },
       "repeats option 0 as option 2; every option must differ",
+    ],
+    [
+      "options equal but for their Unicode form",
+      { ...choice, options: ["żółć", "żółć".normalize("NFD")] },
+      "repeats option 0 as option 1; every option must differ",
     ],
     [
       "an answer out of range",
@@ -130,12 +143,12 @@ describe("parseTaskBody", () => {
     [
       "a blank explanation",
       { ...choice, explanation: "" },
-      "has an explanation that is blank or over 2000 characters; leave a blank one out",
+      "has an explanation that is blank; leave a blank one out",
     ],
     [
       "an explanation over 2000 characters",
       { ...choice, explanation: "x".repeat(2001) },
-      "has an explanation that is blank or over 2000 characters; leave a blank one out",
+      "has an explanation that is over 2000 characters",
     ],
   ])("refuses %s, saying why", (_, body, problem) => {
     expect(parseTaskBody(body)).toEqual({ problem });
