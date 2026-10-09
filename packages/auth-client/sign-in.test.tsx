@@ -2,13 +2,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale, chooseLocale, LocalizationProvider } from "@braivo/i18n";
-import { cleanup, fireEvent, render as renderBare, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderBare,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { SignIn, type SignInAuth } from "./sign-in.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+  // First: a test failing on fake timers would leave them to the cleanup, and the next test.
+  vi.useRealTimers();
+  cleanup();
+});
 
 /** Under the provider the apps put around marked copy, with the setup's English active. */
 const render = (ui: ReactNode) => renderBare(ui, { wrapper: LocalizationProvider });
@@ -30,6 +41,26 @@ function fakeAuth(name: string) {
     },
     updateUser: vi.fn<SignInAuth["updateUser"]>(async () => ({ error: null })),
   };
+}
+
+/** What every request carries: its deadline's signal. */
+const bounded = { fetchOptions: { signal: expect.any(AbortSignal) } };
+
+/** A request with no answer, rejecting once its signal aborts, as `fetch` does. */
+function stall(input: { fetchOptions?: { signal?: AbortSignal } }): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const signal = input.fetchOptions?.signal;
+    if (signal?.aborted) return reject(signal.reason);
+    signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
+}
+
+/** Starts a request that will stall, and lets access-5's 10 seconds pass on fake timers. */
+async function stalled(start: () => void) {
+  vi.useFakeTimers();
+  start();
+  await act(() => vi.advanceTimersByTimeAsync(10_000));
+  vi.useRealTimers();
 }
 
 /** Braivo's refusal of a second code within a minute (`apps/server/auth`). */
@@ -68,10 +99,12 @@ describe("SignIn", () => {
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
       email: "learner@example.com",
       type: "sign-in",
+      ...bounded,
     });
     expect(auth.signIn.emailOtp).toHaveBeenCalledExactlyOnceWith({
       email: "learner@example.com",
       otp: "123456",
+      ...bounded,
     });
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
@@ -88,7 +121,7 @@ describe("SignIn", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
-    expect(auth.updateUser).toHaveBeenCalledWith({ name: "Ada" });
+    expect(auth.updateUser).toHaveBeenCalledWith({ name: "Ada", ...bounded });
   });
 
   test("starts at the name for a session whose account has none", async () => {
@@ -182,6 +215,7 @@ describe("SignIn", () => {
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenLastCalledWith({
       email: "learner@example.com",
       type: "sign-in",
+      ...bounded,
     });
   });
 
@@ -252,6 +286,46 @@ describe("SignIn", () => {
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 
+  test("lets the person try each step again once it got no answer in time", async () => {
+    const auth = fakeAuth("");
+    auth.signIn.social
+      .mockImplementationOnce(stall)
+      .mockResolvedValueOnce({ error: { message: "Provider not found" } });
+    auth.emailOtp.sendVerificationOtp.mockImplementationOnce(stall);
+    auth.signIn.emailOtp.mockImplementationOnce(stall);
+    auth.updateUser.mockImplementationOnce(stall);
+    const onSignedIn = vi.fn();
+    render(<SignIn auth={auth} onSignedIn={onSignedIn} google={google} />);
+    const alert = async () => (await screen.findByRole("alert")).textContent;
+    const unanswered = "Could not connect. Check your connection and try again.";
+
+    const googleButton = screen.getByRole("button", { name: "Continue with Google" });
+    await stalled(() => fireEvent.click(googleButton));
+    expect(await alert()).toBe(unanswered);
+    fireEvent.click(googleButton);
+    expect(await screen.findByText(/^Could not sign in with Google/)).toBeTruthy();
+    expect(auth.signIn.social).toHaveBeenCalledTimes(2);
+
+    fill("Email", "learner@example.com");
+    await stalled(() => fireEvent.click(screen.getByRole("button", { name: "Send code" })));
+    expect(await alert()).toBe(unanswered);
+    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+
+    await screen.findByLabelText("Code");
+    await stalled(() => fill("Code", "123456"));
+    expect(await alert()).toBe(unanswered);
+    expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123456");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await screen.findByLabelText("Your name");
+    fill("Your name", "Ada");
+    await stalled(() => fireEvent.click(screen.getByRole("button", { name: "Continue" })));
+    expect(await alert()).toBe(unanswered);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
+  });
+
   test("offers Google at the email step alone", async () => {
     render(<SignIn auth={fakeAuth("Ada")} onSignedIn={() => {}} google={google} />);
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeTruthy();
@@ -274,7 +348,11 @@ describe("SignIn", () => {
     fireEvent.click(button);
     fireEvent.click(button);
 
-    expect(auth.signIn.social).toHaveBeenCalledExactlyOnceWith({ provider: "google", ...google });
+    expect(auth.signIn.social).toHaveBeenCalledExactlyOnceWith({
+      provider: "google",
+      ...google,
+      ...bounded,
+    });
     // Leaving for Google: its button spins, and nothing else may start meanwhile.
     await vi.waitFor(() => expect(button.getAttribute("aria-disabled")).toBe("true"));
     expect(within(button).getByRole("status")).toBeTruthy();

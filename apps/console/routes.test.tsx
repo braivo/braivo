@@ -270,7 +270,7 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
-    expect(auth.updateUser).toHaveBeenCalledWith({ name: "Olive" });
+    expect(auth.updateUser).toHaveBeenCalledWith(expect.objectContaining({ name: "Olive" }));
     expect(router.history.location.pathname).toBe("/example");
   });
 
@@ -363,11 +363,13 @@ describe("the console", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
-      expect(auth.signIn.social).toHaveBeenCalledWith({
-        provider: "google",
-        callbackURL: "/device",
-        errorCallbackURL: "/login?redirect=%2Fdevice",
-      });
+      expect(auth.signIn.social).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "google",
+          callbackURL: "/device",
+          errorCallbackURL: "/login?redirect=%2Fdevice",
+        }),
+      );
     });
 
     test("is asked about while the session is read, not after", async () => {
@@ -449,11 +451,13 @@ describe("the console", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
 
-      expect(auth.signIn.social).toHaveBeenCalledWith({
-        provider: "google",
-        callbackURL: "/login?handoff=h1",
-        errorCallbackURL: "/login?handoff=h1",
-      });
+      expect(auth.signIn.social).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "google",
+          callbackURL: "/login?handoff=h1",
+          errorCallbackURL: "/login?handoff=h1",
+        }),
+      );
     });
   });
 
@@ -1058,14 +1062,12 @@ describe("the console", () => {
     await signInWithCode();
 
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
-    expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith({
-      email: "owner@example.com",
-      type: "sign-in",
-    });
-    expect(auth.signIn.emailOtp).toHaveBeenCalledWith({
-      email: "owner@example.com",
-      otp: "123456",
-    });
+    expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "owner@example.com", type: "sign-in" }),
+    );
+    expect(auth.signIn.emailOtp).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "owner@example.com", otp: "123456" }),
+    );
     expect(auth.updateUser).not.toHaveBeenCalled();
     expect(router.history.location.pathname).toBe("/example");
   });
