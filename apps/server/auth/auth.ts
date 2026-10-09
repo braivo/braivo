@@ -10,6 +10,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
 import * as z from "zod";
 
+import { describeLogCall } from "../logging.ts";
 import { mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
   claimSignInCode,
@@ -107,10 +108,23 @@ export function createAuth(options: AuthOptions) {
     // encrypted: a database leak then yields none that works. The ID token,
     // kept as is, signs in nowhere, ID-token sign-in being off.
     account: { encryptOAuthTokens: true },
-    // A Google sign-in whose saved state is gone, and with it where to return
-    // on failure, comes back to `/login` with an error, rather than to Better
-    // Auth's own error page.
-    onAPIError: options.google && { errorURL: "/login" },
+    onAPIError: {
+      // An unexpected error reaches the API's `onError`, which logs it
+      // described, instead of Better Auth logging it whole. Its `APIError`s
+      // still answer as before.
+      throw: true,
+      // A Google sign-in whose saved state is gone, and with it where to
+      // return on failure, comes back to `/login` with an error, rather than
+      // to Better Auth's own error page.
+      ...(options.google && { errorURL: "/login" }),
+    },
+    // Its messages interpolate URLs and errors, which may carry an email or a
+    // token. One bypass remains: its adapter prints a failed fallback join's
+    // error whole, whose only value is the join's key, an ID.
+    logger: {
+      log: (level, message, ...args) =>
+        console[level](`[Better Auth] ${describeLogCall(message, args)}`),
+    },
     user: {
       // Only a provider-verified email (ADR 0018): an unverified one could make
       // or reach the account of whoever owns the address. Checked on every

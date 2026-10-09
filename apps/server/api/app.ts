@@ -4,9 +4,11 @@
 import type { Database } from "@braivo/db";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
+import { HTTPException } from "hono/http-exception";
 
 import { type Ai, readHostOrganization } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
+import { describeError } from "../logging.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
 import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
@@ -91,6 +93,23 @@ export function createApi(options: ApiOptions) {
   const api = new Hono();
   const guards = createGuards(options);
   const { requestHost, isTrustedWrite } = guards;
+
+  // Hono's own logs the whole error, whose message may carry personal data
+  // (`describeError`). An object, whose fields a log service can filter on.
+  api.onError((error, context) => {
+    // As Hono's own, keeping headers set before the throw.
+    if (error instanceof HTTPException) {
+      const response = error.getResponse();
+      return context.newResponse(response.body, response);
+    }
+    console.error({
+      message: "Request failed",
+      method: context.req.method,
+      route: context.req.routePath,
+      error: describeError(error),
+    });
+    return context.text("Internal Server Error", 500);
+  });
 
   // First, so it reaches every answer under `/api`, the refusals below and
   // Hono's 404 included: none is meant for a shared cache (ADR 0010).

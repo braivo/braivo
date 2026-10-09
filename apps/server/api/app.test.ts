@@ -10,6 +10,7 @@ import { runMigrations } from "@braivo/db";
 import { session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
+import { HTTPException } from "hono/http-exception";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { registerLearnDomain } from "../application/index.ts";
@@ -29,10 +30,9 @@ let teacher!: Signed;
 
 /**
  * Outside the database gate below, because it needs none: the session lookup
- * throws before the course ID or the database can matter. The whole of why no
- * custom error handler was added: Hono makes its default 500 inside the
- * middleware chain, so `noStore` still sets the cache header on it, a claim
- * ADR 0010 makes and this is the only thing that checks.
+ * throws before the course ID or the database can matter. The 500 is made
+ * inside the middleware chain, so `noStore` still sets the cache header on it,
+ * a claim ADR 0010 makes and this is the only thing that checks.
  */
 test("carries the cache header even when the session lookup throws", async () => {
   const broken = createApi({
@@ -50,6 +50,20 @@ test("carries the cache header even when the session lookup throws", async () =>
   const response = await broken.request("/api/courses/irrelevant/next");
 
   expect(response.status).toBe(500);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+});
+
+test("answers an HTTPException as Hono does, headers set before it kept", async () => {
+  const app = createApi({ database, baseUrl, auth });
+  app.get("/api/teapot", (context) => {
+    context.header("x-set-before", "kept");
+    throw new HTTPException(418);
+  });
+
+  const response = await app.request("/api/teapot");
+
+  expect(response.status).toBe(418);
+  expect(response.headers.get("x-set-before")).toBe("kept");
   expect(response.headers.get("cache-control")).toBe("private, no-store");
 });
 

@@ -51,6 +51,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - Store enough immutable task context to interpret an attempt after content changes; edits must not rewrite historical evidence.
 - Keep derived content linked to the source material it came from.
 - Persistence schemas are implementation details unless exposed through an explicit public contract.
+- A failed request is logged as its method, route, and errors' classes and codes (`describeError`): never a message, a stack, a request's values, or a raw error, as a database error's message carries the query's values and a mail transport's its recipient. Better Auth's log calls keep only their errors, described; a library's output that bypasses its logger is named where it is configured.
 
 ## AI
 
