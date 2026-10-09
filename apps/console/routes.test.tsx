@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale, chooseLocale } from "@braivo/i18n";
-import { BraivoError, type LearnerProgressReport, type Organization } from "@braivo/server/client";
+import {
+  type BraivoClient,
+  BraivoError,
+  type LearnerProgressReport,
+  type Organization,
+} from "@braivo/server/client";
 import {
   createBrowserHistory,
   createMemoryHistory,
@@ -13,12 +18,29 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
+import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS } from "./lib/deadline.ts";
 import { createConsoleRouter } from "./router.tsx";
 
 afterEach(() => {
+  // First: a test failing on fake timers would leave them to the cleanup, and the next test.
+  vi.useRealTimers();
   cleanup();
   localStorage.clear();
 });
+
+/** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
+function stall(options?: { signal?: AbortSignal }): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const signal = options?.signal;
+    if (signal?.aborted) return reject(signal.reason);
+    signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
+}
+
+/** Lets `ms` pass on fake timers, so that a stalled request reaches its deadline. */
+async function waitOut(ms: number) {
+  await act(() => vi.advanceTimersByTimeAsync(ms));
+}
 
 const members = [
   { userId: "u1", name: "Olive Owner", roles: ["owner"] },
@@ -291,6 +313,44 @@ describe("the console", () => {
     expect(router.state.location.pathname).toBe("/login");
   });
 
+  test("keeps the page when signing out does not finish in time, saying so", async () => {
+    const { auth, router } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+    auth.signOut.mockImplementationOnce((options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+      stall(options?.fetchOptions),
+    );
+    const signOut = await screen.findByRole("button", { name: "Sign out" });
+
+    vi.useFakeTimers();
+    fireEvent.click(signOut);
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    expect(signOut.getAttribute("aria-disabled")).toBe("false");
+    expect(router.state.location.pathname).toBe("/example");
+  });
+
+  test("offers to try again when the session cannot be checked in time", async () => {
+    let answering = false;
+    vi.useFakeTimers();
+    renderAt("/example", {
+      braivo: { listCourses: async () => [] },
+      getSession: (options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+        answering
+          ? Promise.resolve({
+              data: { user: { name: "Olive Owner", email: "o@example.com" } },
+              error: null,
+            })
+          : stall(options?.fetchOptions),
+    });
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    answering = true;
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
+  });
+
   describe("signing in with Google", () => {
     const withGoogle = { signInMethods: async () => ({ google: true }) };
 
@@ -337,6 +397,33 @@ describe("the console", () => {
       });
       expect(await screen.findByLabelText("Email")).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    });
+
+    test("offers codes alone when the installation does not say in time", async () => {
+      vi.useFakeTimers();
+      renderAt("/login", {
+        signedIn: false,
+        braivo: { signInMethods: (options?: { signal?: AbortSignal }) => stall(options) },
+      });
+      await waitOut(OPTIONAL_READ_DEADLINE_MS - 1);
+      expect(screen.queryByLabelText("Email")).toBeNull();
+      await waitOut(1);
+      vi.useRealTimers();
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    });
+
+    test("signs in afresh when the session cannot be read in time", async () => {
+      vi.useFakeTimers();
+      renderAt("/login", {
+        getSession: (options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+          stall(options?.fetchOptions),
+      });
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect(await screen.findByLabelText("Email")).toBeTruthy();
     });
 
     test("says why it came back refused, and tries again without the old refusal", async () => {
@@ -389,7 +476,7 @@ describe("the console", () => {
       await signInWithCode();
 
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
-      expect(completeHandoff).toHaveBeenCalledWith("h1");
+      expect(completeHandoff).toHaveBeenCalledWith("h1", expect.anything());
     });
 
     test("offers the account already signed in, or another", async () => {
@@ -438,6 +525,25 @@ describe("the console", () => {
       }
       signedOut.resolve({ error: null });
       expect(await screen.findByLabelText("Email")).toBeTruthy();
+    });
+
+    test("keeps the account offered when signing out of it does not finish in time", async () => {
+      const { auth } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => fernwood },
+      });
+      auth.signOut.mockImplementationOnce((options?: { fetchOptions?: { signal?: AbortSignal } }) =>
+        stall(options?.fetchOptions),
+      );
+      const another = await screen.findByRole("button", { name: "Use another account" });
+
+      vi.useFakeTimers();
+      fireEvent.click(another);
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect(await screen.findByText("Could not sign out. Try again.")).toBeTruthy();
+      expect(another.getAttribute("aria-disabled")).toBe("false");
+      expect(screen.getByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
     });
 
     test("says when the account is not a member, offering another, or to retry once added", async () => {
@@ -651,6 +757,43 @@ describe("the console", () => {
       await signInWithCode();
       fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+    });
+
+    test("offers to try again when the handoff cannot be read in time", async () => {
+      const handoff = vi
+        .fn<BraivoClient["handoff"]>()
+        .mockImplementationOnce((_id, options) => stall(options))
+        .mockResolvedValue(fernwood);
+      vi.useFakeTimers();
+      renderAt("/login?handoff=h1", { braivo: { handoff } });
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+      expect(await screen.findByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
+    });
+
+    test("offers to continue again when Braivo does not answer in time", async () => {
+      const completeHandoff = vi
+        .fn<BraivoClient["completeHandoff"]>()
+        .mockImplementationOnce((_id, options) => stall(options))
+        .mockResolvedValue(url);
+      const { visit } = renderAt("/login?handoff=h1", {
+        braivo: { handoff: async () => fernwood, completeHandoff },
+      });
+      const offered = await screen.findByRole("button", { name: "Continue as Olive Owner" });
+
+      vi.useFakeTimers();
+      fireEvent.click(offered);
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      // Continuing again is safe: it replaces a code issued meanwhile (access-14).
+      expect(
+        await screen.findByText("Could not connect. Check your connection and try again."),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Continue as Olive Owner" }));
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
     });
 
@@ -1198,9 +1341,17 @@ describe("the console", () => {
 
   test("leaves an owner on the page they returned to when the source they left is added", async () => {
     const adding = Promise.withResolvers<string>();
-    const addSource = vi.fn(() => adding.promise);
+    let stored = false;
+    const addSource = vi.fn(async () => {
+      const sourceId = await adding.promise;
+      stored = true;
+      return sourceId;
+    });
+    // Braivo lists the source once it is stored.
+    const listSources = async () =>
+      stored ? [{ id: "s1", title: "Unidad 1", createdAt: "…" }] : [];
     const { router } = renderAt("/example/sources", {
-      braivo: { ...added, addSource, listCourses: async () => [] },
+      braivo: { ...added, listSources, addSource, listCourses: async () => [] },
     });
     await screen.findByText("No material yet");
 
@@ -1215,6 +1366,8 @@ describe("the console", () => {
     await adding.promise;
 
     expect(router.history.location.pathname).toBe("/example/sources");
+    // Read before it was stored, the list is read again.
+    expect(await screen.findByRole("link", { name: "Unidad 1" })).toBeTruthy();
   });
 
   test("stops uploading and reading a file nobody is waiting for once the owner leaves", async () => {
@@ -1421,7 +1574,7 @@ describe("the console", () => {
       addMaterial({ title: "Mi libro", text: "Hola.", file });
       expect(
         await screen.findByText(
-          "The original file must be a PDF, a document, or an image; plain text goes in the Text field.",
+          "This type of file cannot be kept as an original: choose a document, image, audio, or video file, or paste plain text in the Text field.",
         ),
       ).toBeTruthy();
     }
@@ -1432,6 +1585,16 @@ describe("the console", () => {
   const fileOf = (type: string, size: number) =>
     Object.defineProperty(new File(["?"], "libro", { type }), "size", { value: size });
 
+  test("says an original is kept for the organization's managers, never shown to learners", async () => {
+    renderAt("/example/sources", { braivo: added });
+    await screen.findByText("No material yet");
+
+    const hint = screen.getByText(
+      "The PDF, slides, image, or recording the text comes from. Optional, at most 50 MB. Only those who manage the organization can open it; learners never see it.",
+    );
+    expect(screen.getByLabelText("Original file").getAttribute("aria-describedby")).toBe(hint.id);
+  });
+
   test("refuses a file over 50 MB before sending anything, and takes exactly 50 MB", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
     const addSource = vi.fn(async () => "s1");
@@ -1439,10 +1602,34 @@ describe("the console", () => {
     await screen.findByText("No material yet");
     const pdfOf = (size: number) => fileOf("application/pdf", size);
 
+    const emptied = vi.spyOn(
+      screen.getByLabelText("Original file") as HTMLInputElement,
+      "value",
+      "set",
+    );
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_001) });
-    expect(await screen.findByText("The original file is larger than 50 MB.")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "The file is over 50 MB, the most Braivo keeps, so it was removed. Add the material again to keep its text without it.",
+      ),
+    ).toBeTruthy();
     expect(uploadFile).not.toHaveBeenCalled();
     expect(addSource).not.toHaveBeenCalled();
+    // Emptied, so adding again adds the text alone. Asserted on the setter: the
+    // test's chosen file overrides `files`, which a browser empties with `value`.
+    expect(emptied).toHaveBeenCalledWith("");
+
+    // Whatever its type: a type Braivo refuses is no reason to keep it.
+    emptied.mockClear();
+    addMaterial({ title: "Mi libro", text: "Hola.", file: fileOf("text/plain", 50_000_001) });
+    expect(emptied).toHaveBeenCalledWith("");
+
+    addMaterial({ title: "Mi libro", text: "", file: pdfOf(50_000_001) });
+    expect(
+      await screen.findByText(
+        "The file is over 50 MB, the most Braivo keeps, so it was removed. Paste its text in the Text field to add the material without it.",
+      ),
+    ).toBeTruthy();
 
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdfOf(50_000_000) });
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
@@ -1651,6 +1838,16 @@ describe("the console", () => {
     expect(document.activeElement).toBe(text);
     expect(screen.queryByText(/^The first/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Show all text" })).toBeNull();
+  });
+
+  test("cuts a source's text before a character it would split", async () => {
+    const before = "a".repeat(19_999);
+    renderAt("/example/sources/s1", {
+      braivo: { ...authoring(), getSource: async () => ({ ...saludos, text: `${before}🙂c` }) },
+    });
+
+    const box = await screen.findByRole("region", { name: "Source text" });
+    expect(box.textContent).toBe(before);
   });
 
   test("drafts a course from a source, keeps what the owner keeps, and creates it", async () => {
@@ -2032,6 +2229,32 @@ describe("the console", () => {
 
     expect(await screen.findByRole("button", { name: "Draft a course" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
+  });
+
+  test("lists a course created after the owner went to the course list", async () => {
+    answerLeaving(true);
+    const creating = Promise.withResolvers<string>();
+    let created = false;
+    const braivo = {
+      ...authoring(),
+      listCourses: async () => (created ? [{ id: "course-1", title: "Beginners" }] : []),
+    };
+    braivo.acceptDraft.mockImplementation(async () => {
+      const courseId = await creating.promise;
+      created = true;
+      return courseId;
+    });
+    const { router } = renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await screen.findByText(/No courses/);
+    creating.resolve("course-1");
+
+    expect(await screen.findByRole("link", { name: "Beginners" })).toBeTruthy();
+    expect(router.history.location.pathname).toBe("/example");
   });
 
   test("leaves a review usable when the course is created while the owner is leaving", async () => {
@@ -2426,6 +2649,38 @@ describe("the console", () => {
     );
   });
 
+  test("moves the focus from a retired task only once the course is read without it", async () => {
+    let retired = false;
+    const reloaded = Promise.withResolvers<void>();
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      if (!retired) return course;
+      await reloaded.promise;
+      const [greetings, ...rest] = course.objectives;
+      return { ...course, objectives: [{ ...greetings!, tasks: [] }, ...rest] };
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        retireTasks: async () => {
+          retired = true;
+        },
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+    );
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    const heading = screen.getByRole("heading", { name: "1. Greetings" });
+    expect(document.activeElement).not.toBe(heading);
+
+    reloaded.resolve();
+    await vi.waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(screen.queryByRole("button", { name: "Retire" })).toBeNull();
+  });
+
   test("says so when a task could not be retired", async () => {
     renderAt("/example/courses/course-1", {
       braivo: {
@@ -2504,6 +2759,87 @@ describe("the console", () => {
     );
   });
 
+  test("keeps a correction's editor locked until the corrected course is read", async () => {
+    let corrected = false;
+    const reloaded = Promise.withResolvers<void>();
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      if (!corrected) return course;
+      await reloaded.promise;
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      return {
+        ...course,
+        objectives: [{ ...greetings!, tasks: [{ ...task!, id: "t2", answer: 1 }] }, ...rest],
+      };
+    });
+    const defineTasks = vi.fn(async () => {
+      corrected = true;
+      return ["t2"];
+    });
+    renderAt("/example/courses/course-1", { braivo: { readCourse: reading, defineTasks } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+
+    // Stored, but the course not read again yet: the old task is never offered to edit.
+    expect(screen.getByRole("button", { name: "Cancel" }).closest("fieldset")?.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Edit “Hello, in Spanish?”" })).toBeNull();
+
+    reloaded.resolve();
+    await vi.waitFor(() =>
+      expect(screen.getByText("Correct answer").closest("li")?.textContent).toBe(
+        "Adiós Correct answer",
+      ),
+    );
+  });
+
+  test("offers to try again when the corrected course cannot be read in time", async () => {
+    let corrected = false;
+    let stalled = true;
+    const reading = vi.fn(
+      async (input: { courseId: string }, options?: { signal?: AbortSignal }) => {
+        if (corrected && stalled) return stall(options);
+        const course = await readCourse(input);
+        if (!corrected) return course;
+        const [greetings, ...rest] = course.objectives;
+        const [task] = greetings!.tasks;
+        return {
+          ...course,
+          objectives: [{ ...greetings!, tasks: [{ ...task!, id: "t2", answer: 1 }] }, ...rest],
+        };
+      },
+    );
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        defineTasks: async () => {
+          corrected = true;
+          return ["t2"];
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    // Stored, so never said to have failed: the page offers to read it again.
+    expect(screen.queryByText("The task could not be corrected. Try again.")).toBeNull();
+    stalled = false;
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(screen.getByText("Correct answer").closest("li")?.textContent).toBe(
+        "Adiós Correct answer",
+      ),
+    );
+  });
+
   test("leaves a task as it was when its edit is cancelled, or fails", async () => {
     const defineTasks = vi
       .fn()
@@ -2536,6 +2872,40 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reload the course" }));
     await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" }));
+  });
+
+  test("reloads a course once, keeping the edit until it is read, however often asked", async () => {
+    const reloaded = Promise.withResolvers<void>();
+    let calls = 0;
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      calls += 1;
+      if (calls > 1) await reloaded.promise;
+      return readCourse(input);
+    });
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        defineTasks: async () => {
+          throw new BraivoError(409, "Braivo answered 409.", "Task 0 replaces…");
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const reload = await screen.findByRole("button", { name: "Reload the course" });
+    const invalidate = vi.spyOn(router, "invalidate");
+    fireEvent.click(reload);
+    fireEvent.click(reload);
+    expect(reload.getAttribute("aria-disabled")).toBe("true");
+    expect(invalidate).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    // Open until the course is read again, not closed onto the one read before.
+    expect(screen.getByLabelText("Question")).toBeTruthy();
+
+    reloaded.resolve();
+    await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
+    expect(reading).toHaveBeenCalledTimes(2);
   });
 
   test("closes an edit whose task a reload no longer lists", async () => {

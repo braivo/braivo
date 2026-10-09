@@ -41,7 +41,9 @@ export function joinPages(
   const pagination: Pagination = [];
   let start = 0;
   for (const [index, { page: sent, text: content }] of pages.entries()) {
-    const page = sent.trim();
+    // In NFC, as the text is, so the same label always hashes the same, and
+    // counted so: a letter sent with its accent apart is still one.
+    const page = sent.trim().normalize("NFC");
     if (
       !page.isWellFormed() ||
       page === "" ||
@@ -60,8 +62,7 @@ export function joinPages(
     }
 
     texts.push(text);
-    // In NFC, as the text is, so the same label always hashes the same.
-    pagination.push({ start, page: page.normalize("NFC") });
+    pagination.push({ start, page });
     // The blank line that follows, too.
     start += codePoints(text) + 2;
   }

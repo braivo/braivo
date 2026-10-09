@@ -40,22 +40,21 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { LearnersSite } from "#components/learners-site";
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
+    // Bounded, since a correction or a retirement waits for this reload to
+    // finish: unanswered in time, the page fails, offering Try again.
+    const signal = withDeadline(abortController.signal, REQUEST_DEADLINE_MS);
     // Read through its organization, which Braivo checks owns it.
     const course = await orNotFound(
-      context.braivo.readCourse(
-        { organizationId, courseId: params.courseId },
-        { signal: abortController.signal },
-      ),
+      context.braivo.readCourse({ organizationId, courseId: params.courseId }, { signal }),
     );
-    const progress = await orNotFound(
-      context.braivo.courseProgress(params.courseId, { signal: abortController.signal }),
-    );
+    const progress = await orNotFound(context.braivo.courseProgress(params.courseId, { signal }));
 
     return { course, progress };
   },
@@ -343,7 +342,9 @@ function CorrectTask(props: {
           },
         ],
       });
-      await router.invalidate();
+      // `sync`: resolved once the course is read again, not with the old one
+      // while it reloads in the background, which would offer the old task to edit.
+      await router.invalidate({ sync: true });
       onDone();
     } catch (thrown) {
       setSaving(false);
@@ -356,8 +357,9 @@ function CorrectTask(props: {
   }
 
   async function reload() {
+    if (saving) return;
     setSaving(true);
-    await router.invalidate();
+    await router.invalidate({ sync: true });
     onDone();
   }
 
@@ -371,7 +373,14 @@ function CorrectTask(props: {
         <Alert variant="destructive" ref={alert} tabIndex={-1}>
           <AlertDescription>{error.text}</AlertDescription>
           {error.stale && (
-            <Button variant="outline" size="sm" className="mt-2 w-fit" onClick={reload}>
+            // aria-disabled, not disabled, so that it keeps the focus meanwhile.
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 w-fit"
+              aria-disabled={saving}
+              onClick={reload}
+            >
               Reload the course
             </Button>
           )}
@@ -406,7 +415,8 @@ function RetireTask(props: { taskId: string; prompt: string; onRetired: () => vo
     setError(undefined);
     try {
       await braivo.retireTasks({ organizationId: organization.id, taskIds: [taskId] });
-      await router.invalidate();
+      // Focus moves once the task is gone from the page (`sync`, as a correction's).
+      await router.invalidate({ sync: true });
       onRetired();
     } catch {
       retiring.current = false;

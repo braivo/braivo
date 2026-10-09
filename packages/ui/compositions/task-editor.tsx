@@ -67,7 +67,8 @@ export function TaskEditor(props: {
     const collapsed = options.map(collapseWhitespace);
     if (prompt.trim() === "") return setProblem("Write the question.");
     if (collapsed.some((option) => option === "")) return setProblem("Fill in every option.");
-    if (new Set(collapsed).size !== collapsed.length)
+    // Equal in NFC, two options read the same, as the server compares them.
+    if (new Set(collapsed.map((option) => option.normalize("NFC"))).size !== collapsed.length)
       return setProblem("Every option must differ.");
     const texts = [prompt, ...options, explanation];
     // `maxLength` stops typing past it, not a value set otherwise.

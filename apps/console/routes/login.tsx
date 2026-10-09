@@ -13,6 +13,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+
 const expiredTitle = msg`This sign-in has expired`;
 
 /**
@@ -29,13 +31,20 @@ export const Route = createFileRoute("/login")({
   beforeLoad: async ({ context, abortController }) => {
     const [{ data }, offersGoogle] = await Promise.all([
       // One read for both, so they describe the same session. One that cannot
-      // be checked counts as none: signing in is how to find out.
-      context.auth.getSession().catch(() => ({ data: null })),
-      // Not knowing still leaves the code, so it is no reason to fail the page.
-      context.braivo.signInMethods({ signal: abortController.signal }).then(
-        (methods) => methods.google,
-        () => false,
-      ),
+      // be checked, in time or at all, counts as none: signing in is how to find out.
+      context.auth
+        .getSession({
+          fetchOptions: { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) },
+        })
+        .catch(() => ({ data: null })),
+      // Not knowing still leaves the code, so it is no reason to fail the page,
+      // nor, on stalled wifi, to keep it waiting.
+      context.braivo
+        .signInMethods({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
+        .then(
+          (methods) => methods.google,
+          () => false,
+        ),
     ]);
     const user = data?.user;
     return {
@@ -48,12 +57,14 @@ export const Route = createFileRoute("/login")({
   },
   loaderDeps: ({ search }) => ({ handoff: search.handoff }),
   // `null` for a handoff asked for and gone, `undefined` for none asked for.
+  // Unanswered in time, the page fails, offering Try again.
   loader: async ({ context, deps, abortController }) => ({
     handoff:
       deps.handoff === undefined
         ? undefined
-        : ((await context.braivo.handoff(deps.handoff, { signal: abortController.signal })) ??
-          null),
+        : ((await context.braivo.handoff(deps.handoff, {
+            signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS),
+          })) ?? null),
   }),
   // A learn domain's sign-in never wears Braivo's name, expired included.
   head: ({ loaderData }) => {
@@ -144,14 +155,21 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     setView("leaving");
     setError(undefined);
     try {
-      // Leaving stays shown until the page is gone.
-      visit(await braivo.completeHandoff(handoffId));
+      // Leaving stays shown until the page is gone. Unanswered in time, it is
+      // offered again: continuing replaces a code issued meanwhile (access-14).
+      visit(
+        await braivo.completeHandoff(handoffId, {
+          signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+        }),
+      );
     } catch (thrown) {
       const status = thrown instanceof BraivoError ? thrown.status : undefined;
       if (status === 404) setView("expired");
       else if (status === 403) {
         // The refusal stands even if the session cannot be read.
-        const { data } = await auth.getSession().catch(() => ({ data: null }));
+        const { data } = await auth
+          .getSession({ fetchOptions: { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) } })
+          .catch(() => ({ data: null }));
         setRefusedEmail(data?.user.email);
         setView("refused");
       } else if (status === 401) {
@@ -173,7 +191,10 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     if (pending) return;
     setPending(true);
     setError(undefined);
-    const { error } = await auth.signOut().catch(() => ({ error: true }));
+    // Unfinished in time, it may have signed out or not: the account stays offered.
+    const { error } = await auth
+      .signOut({ fetchOptions: { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) } })
+      .catch(() => ({ error: true }));
     setPending(false);
     if (error) setError(msg`Could not sign out. Try again.`);
     else {

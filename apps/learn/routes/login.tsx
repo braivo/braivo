@@ -9,6 +9,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
+import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createFileRoute("/login")({
   // `failed`: the handoff came back unredeemable (`/api/session/handoff`).
@@ -16,15 +17,18 @@ export const Route = createFileRoute("/login")({
     redirect: safeRedirect(search.redirect),
     failed: search.failed ? true : undefined,
   }),
-  beforeLoad: async ({ context, search, preload }) => {
+  beforeLoad: async ({ context, search, preload, abortController }) => {
+    // These reads decide how to sign in: unanswered in time, the page fails,
+    // offering Try again, rather than stay blank.
+    const signal = withDeadline(abortController.signal, READ_DEADLINE_MS);
     // An organization's domain signs in on the installation's origin, which
     // hands a learner session back here (ADR 0018). A host serving no
     // organization looks like the installation's and gets the code form,
     // which works only there.
-    if (await context.braivo.hostOrganization()) {
+    if (await context.braivo.hostOrganization({ signal })) {
       // Signed in already (Back, a bookmark): no second handoff. Unnamed, it
       // hands off again, where the console asks for the name.
-      const user = await context.braivo.session();
+      const user = await context.braivo.session({ signal });
       if (user?.name.trim()) throw redirect({ href: search.redirect ?? "/" });
       // After a failure, only a click hands off again: one that fails each
       // time (cookies blocked) must not cycle unseen.
@@ -33,7 +37,9 @@ export const Route = createFileRoute("/login")({
       if (!preload) context.visit(signInUrl(search.redirect));
       return { view: "handoff" as const };
     }
-    return { view: "form" as const, needsName: await needsName(context.auth) };
+    // Unread in time, as unread at all, it counts as no session: the form shows.
+    const auth = { getSession: () => context.auth.getSession({ fetchOptions: { signal } }) };
+    return { view: "form" as const, needsName: await needsName(auth) };
   },
   component: Login,
 });

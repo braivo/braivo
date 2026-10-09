@@ -8,6 +8,7 @@ import { createFileRoute, Outlet, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { asSessionAuth } from "#lib/auth";
+import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /**
  * Everything a learner sees once signed in. Checked before any child loads, so
@@ -30,8 +31,9 @@ function SignedIn() {
     setSigningOut(true);
     setFailed(false);
     try {
-      // This domain's session alone (ADR 0018).
-      await braivo.signOut();
+      // This domain's session alone (ADR 0018). On a shared device, never
+      // pending for good with the account still shown.
+      await braivo.signOut({ signal: withDeadline(undefined, READ_DEADLINE_MS) });
     } catch {
       // Not assumed signed out, so the page stays; clicking again retries.
       setFailed(true);

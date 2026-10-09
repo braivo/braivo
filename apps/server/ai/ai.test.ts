@@ -104,7 +104,7 @@ describe("drafting a course from a source", () => {
     // By name, not place: the owner reviews only what was kept, numbered anew.
     expect(draft.refused).toEqual([
       "Objective “Red”, task “¿Rojo?”: the task needs its answer to be the index of the correct option, a whole number from 0 to 1.",
-      "Objective “Red”, a task without a question: the task needs a prompt of 1 to 2000 characters.",
+      "Objective “Red”, a task without a question: the task has a prompt that is blank.",
       "Objective “Red”, task “¿Azul?”: the quote “Azul es azul.” does not occur in the source.",
       "Objective “Red”, task “¿Azul?”: none of its quotes was found in the source.",
       "Objective “Red”: the quote “Rojo significa rojo.” does not occur in the source.",

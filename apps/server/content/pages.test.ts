@@ -25,6 +25,14 @@ describe("joining a document's pages", () => {
     });
   });
 
+  test("counts a label's length in NFC, the form it is kept in", () => {
+    // 16 letters, 32 code points as sent: a letter and its accent each.
+    const label = "é".repeat(16);
+    const joined = joinPages([{ page: label.normalize("NFD"), text: "Hola" }]);
+
+    expect(joined).toEqual({ text: "Hola", pagination: [{ start: 0, page: label }] });
+  });
+
   test("agrees with where a citation finds the words, so a quote names its page", () => {
     const joined = joinPages([
       { page: "11", text: "Hola significa hello." },

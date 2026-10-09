@@ -247,6 +247,7 @@ async function main(argv: readonly string[]): Promise<number> {
       original: values.original,
       firstPage: values["first-page"],
       readStdin: () => Bun.stdin.text(),
+      warn: (message) => console.error(message),
     });
     // Alone on stdout, so a script or an agent can capture it.
     console.log(sourceId);

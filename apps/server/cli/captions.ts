@@ -6,8 +6,7 @@
 // the CLI's, before Braivo — the server takes cues and never a caption format
 // (docs/adr/0020-source-content.md).
 
-/** One caption line and the second it starts at, as `POST …/sources` takes it. */
-export type Cue = { at: number; text: string };
+import type { Cue } from "../content/index.ts";
 
 /** The caption formats read here, by the extension a file of each has. */
 export type CaptionFormat = "vtt" | "srt";
@@ -43,10 +42,11 @@ const INSTANT_SECONDS = 0.05;
 
 /**
  * A caption file's cues, one per line of captions and in order, or an error
- * saying what is wrong. What a viewer reads is kept; what a player reads —
- * styling, positions, speaker tags, word timings — is dropped. A caption it
- * cannot time, or run into another, is refused, naming its line, rather than
- * its words lost or mistimed; a run-in timing is told by its look (`TIMING_LIKE`).
+ * saying what is wrong. What a viewer reads is kept, a WebVTT speaker's name
+ * as a prefix, `Anna: `; what a player reads — styling, positions, word
+ * timings — is dropped. A caption it cannot time, or run into another, is
+ * refused, naming its line, rather than its words lost or mistimed; a run-in
+ * timing is told by its look (`TIMING_LIKE`).
  *
  * Auto-generated captions, the ones timing each word inline, roll: a cue's last
  * line is what is newly said, a line above it carries over the line just kept,
@@ -110,13 +110,15 @@ export function parseCaptions(content: string, format: CaptionFormat): Cue[] | E
       );
     }
 
-    const timing = TIMING.exec(lines[index]!.text)!;
+    const { number, text: timingLine } = lines[index]!;
+    const timing = TIMING.exec(timingLine)!;
     const at = seconds(timing.slice(1, 5));
-    timed.push({
-      at,
-      until: seconds(timing.slice(5, 9)),
-      lines: lines.slice(index + 1).map((line) => line.text),
-    });
+    const until = seconds(timing.slice(5, 9));
+    if (at === undefined || until === undefined) {
+      return new Error(`Line ${number}: minutes and seconds in a timing run from 00 to 59.`);
+    }
+    if (until < at) return new Error(`Line ${number}: a caption ends before it starts.`);
+    timed.push({ at, until, lines: lines.slice(index + 1).map((line) => line.text) });
   }
   // In the order they are said, which an edited file need not be in, and
   // Braivo requires; stable, so cues starting together keep the file's order.
@@ -128,11 +130,11 @@ export function parseCaptions(content: string, format: CaptionFormat): Cue[] | E
   let lastUntil = -Infinity;
   for (const { at, until, lines } of timed) {
     const said = lines.map((line) => spoken(line, format)).filter((line) => line !== "");
-    const follows = at - lastUntil < INSTANT_SECONDS;
+    const adjacent = Math.abs(at - lastUntil) < INSTANT_SECONDS;
     const flash = until - at < INSTANT_SECONDS;
     lastUntil = until;
     for (const [index, line] of said.entries()) {
-      const carried = rolling && follows && (index < said.length - 1 || flash);
+      const carried = rolling && adjacent && (index < said.length - 1 || flash);
       if (carried && line === last) continue;
       cues.push({ at, text: line });
       last = line;
@@ -164,7 +166,11 @@ function blocksOf(text: string, format: CaptionFormat): Line[][] {
   return blocks;
 }
 
-function seconds([hours, minutes, whole, milliseconds]: (string | undefined)[]): number {
+/** A time's seconds, or nothing when its minutes or seconds are past 59. */
+function seconds([hours, minutes, whole, milliseconds]: (string | undefined)[]):
+  | number
+  | undefined {
+  if (Number(minutes) > 59 || Number(whole) > 59) return undefined;
   return (
     Number(hours ?? 0) * 3600 + Number(minutes) * 60 + Number(whole) + Number(milliseconds) / 1000
   );
@@ -177,9 +183,13 @@ const ENTITIES: Record<string, string> = {
   quot: '"',
   apos: "'",
   nbsp: " ",
-  lrm: "",
-  rlm: "",
+  lrm: "\u200e",
+  rlm: "\u200f",
 };
+
+// A WebVTT voice, `<v Anna>` or `<v.loud Anna>`: who speaks, which a dialogue
+// needs, so kept as a script writes it, `Anna: `.
+const VOICE = /<v(?:\.[^\s>]*)?[ \t]+([^>]*)>/g;
 
 // WebVTT escapes a literal `<`, so anything between brackets is markup. SRT
 // escapes nothing: only its own tags go, and `x < 5 and y > 2` stays.
@@ -188,9 +198,17 @@ const TAGS: Record<CaptionFormat, RegExp> = {
   srt: /<\/?(?:i|b|u|font)(?:\s[^<>]*)?>/gi,
 };
 
-/** A caption line as it is read: tags removed, entities decoded, spaces collapsed. */
+/**
+ * A caption line as it is read: tags removed, entities decoded, spaces
+ * collapsed, in NFC, so a rolling repeat in another form is still a repeat.
+ */
 function spoken(line: string, format: CaptionFormat): string {
-  return line
+  // SRT has no voice tags: its `<v Anna>` is words.
+  const voiced =
+    format === "vtt"
+      ? line.replace(VOICE, (_, name: string) => (name.trim() ? `${name.trim()}: ` : ""))
+      : line;
+  return voiced
     .replace(TAGS[format], "")
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
       if (name.startsWith("#")) {
@@ -203,5 +221,6 @@ function spoken(line: string, format: CaptionFormat): string {
       return ENTITIES[name.toLowerCase()] ?? entity;
     })
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .normalize("NFC");
 }

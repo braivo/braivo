@@ -185,16 +185,25 @@ function AddSource() {
     // after the upload and the reading.
     const titled = titleProblem(data.get("title") as string, "the material");
     if (titled) return setError(titled);
-    // Said before sending: Braivo would answer both with a bare status.
-    if (file && REFUSED_TYPES.includes(file.type)) {
+    const text = data.get("text") as string;
+    // Said before sending: Braivo would answer both with a bare status. Size
+    // first, whatever the type, since that file is cleared and the text can go.
+    if (file && file.size > MAX_FILE_BYTES) {
+      // A file input has no other way to empty it.
+      original.current!.value = "";
+      const nextStep =
+        text.trim() === ""
+          ? "Paste its text in the Text field to add the material without it."
+          : "Add the material again to keep its text without it.";
       return setError(
-        "The original file must be a PDF, a document, or an image; plain text goes in the Text field.",
+        `The file is over 50 MB, the most Braivo keeps, so it was removed. ${nextStep}`,
       );
     }
-    if (file && file.size > MAX_FILE_BYTES) {
-      return setError("The original file is larger than 50 MB.");
+    if (file && REFUSED_TYPES.includes(file.type)) {
+      return setError(
+        "This type of file cannot be kept as an original: choose a document, image, audio, or video file, or paste plain text in the Text field.",
+      );
     }
-    const text = data.get("text") as string;
     if (text.trim() === "" && !file) {
       return setError("Paste the material's text, or attach the file for Braivo's AI to read.");
     }
@@ -237,8 +246,12 @@ function AddSource() {
       setStatus("Adding…");
       const sourceId = await braivo.addSource(pages ? { ...source, pages } : { ...source, text });
       // To the source's page, where a course is drafted from it, unless the
-      // owner left meanwhile: added anyway, it is listed.
-      if (signal?.aborted || router.latestLocation.pathname !== from) return;
+      // owner left meanwhile: the page they are on is read again, since it may
+      // have been read before the source was stored.
+      if (signal?.aborted || router.latestLocation.pathname !== from) {
+        void router.invalidate();
+        return;
+      }
       await router.navigate({
         to: "/$organizationSlug/sources/$sourceId",
         params: { organizationSlug: organization.slug, sourceId },
@@ -346,7 +359,8 @@ function AddSource() {
               aria-describedby={`${id}-original-hint`}
             />
             <FieldDescription id={`${id}-original-hint`}>
-              The PDF or slides the text is from, kept with it. Optional; at most 50 MB.
+              The PDF, slides, image, or recording the text comes from. Optional, at most 50 MB.
+              Only those who manage the organization can open it; learners never see it.
             </FieldDescription>
           </Field>
           {error && (
