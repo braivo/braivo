@@ -140,6 +140,9 @@ export default defineConfig({
       // differences rather than every line reformatted.
       ...shadcnOutput,
       ...beside,
+      // Agent skills as `npx skills` writes them, so an update shows only
+      // upstream's changes.
+      ".agents/skills/**",
     ],
   },
 
