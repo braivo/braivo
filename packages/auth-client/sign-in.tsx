@@ -16,6 +16,9 @@ type AuthError = { code?: string; status?: number; message?: string };
 
 type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null };
 
+/** Better Auth's per-request options; signing in sets only the deadline's signal. */
+type Bounded = { fetchOptions?: { signal?: AbortSignal } };
+
 /**
  * The part of a Better Auth client, with its email code plugin, that signing in
  * uses. Structural, so either app's client fits whichever plugins it was built
@@ -23,22 +26,37 @@ type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null 
  */
 export type SignInAuth = {
   emailOtp: {
-    sendVerificationOtp(input: { email: string; type: "sign-in" }): Promise<AuthResult>;
+    sendVerificationOtp(input: { email: string; type: "sign-in" } & Bounded): Promise<AuthResult>;
   };
   signIn: {
-    emailOtp(input: {
-      email: string;
-      otp: string;
-    }): Promise<AuthResult<{ user: { name: string } }>>;
+    emailOtp(
+      input: { email: string; otp: string } & Bounded,
+    ): Promise<AuthResult<{ user: { name: string } }>>;
     /** Answered with Google's address, where Better Auth's client then navigates. */
-    social(input: {
-      provider: "google";
-      callbackURL: string;
-      errorCallbackURL: string;
-    }): Promise<AuthResult>;
+    social(
+      input: { provider: "google"; callbackURL: string; errorCallbackURL: string } & Bounded,
+    ): Promise<AuthResult>;
   };
-  updateUser(input: { name: string }): Promise<AuthResult>;
+  updateUser(input: { name: string } & Bounded): Promise<AuthResult>;
 };
+
+/**
+ * How long a step waits before saying it could not connect: school wifi can
+ * stall a request with no error at all. The body counts: Better Auth's client
+ * reads it under the same signal.
+ */
+const SIGN_IN_DEADLINE_MS = 10_000;
+
+/** A request's options, aborting it after `SIGN_IN_DEADLINE_MS`. */
+function deadline(): Bounded["fetchOptions"] {
+  const controller = new AbortController();
+  // A timer rather than `AbortSignal.timeout`, which test fake timers cannot advance.
+  setTimeout(
+    () => controller.abort(new DOMException("Braivo did not answer.", "TimeoutError")),
+    SIGN_IN_DEADLINE_MS,
+  );
+  return { signal: controller.signal };
+}
 
 /**
  * Better Auth's refusals of a code, said so the next step is plain. Only these
@@ -133,6 +151,7 @@ export function SignIn(props: {
       const { error } = await auth.emailOtp.sendVerificationOtp({
         email: values.email,
         type: "sign-in",
+        fetchOptions: deadline(),
       });
       if (error) return refusal(error);
       // Asked again from the code step, a refusal above keeps it there, so the
@@ -143,7 +162,11 @@ export function SignIn(props: {
         sent: step.step === "code" ? (step.sent ?? 1) + 1 : 1,
       });
     } else if (values.step === "code" && step.step === "code") {
-      const { data, error } = await auth.signIn.emailOtp({ email: step.email, otp: values.code });
+      const { data, error } = await auth.signIn.emailOtp({
+        email: step.email,
+        otp: values.code,
+        fetchOptions: deadline(),
+      });
       // Only a refused code clears what was typed: after a rate limit, say, it
       // may still be good.
       if (CODE_REFUSALS[error?.code ?? ""]) setStep({ ...step, refused: (step.refused ?? 0) + 1 });
@@ -151,7 +174,7 @@ export function SignIn(props: {
       if (data?.user.name.trim()) props.onSignedIn();
       else setStep({ step: "name" });
     } else if (values.step === "name") {
-      const { error } = await auth.updateUser({ name: values.name });
+      const { error } = await auth.updateUser({ name: values.name, fetchOptions: deadline() });
       // The session ended (signed out in another tab, say): naming would be
       // refused every time, so sign in again.
       if (error?.code === "UNAUTHORIZED") {
@@ -170,7 +193,8 @@ export function SignIn(props: {
       setError(await next(values));
     } catch {
       // Refused answers arrive as `error` above; this is a request that got no
-      // answer at all.
+      // answer at all, or none in time. A check out of time may still have
+      // signed in, spending the code: retried, it is refused; a new one works.
       setError(UNANSWERED);
     } finally {
       setPending(false);
@@ -185,6 +209,7 @@ export function SignIn(props: {
         provider: "google",
         callbackURL: google.callbackURL,
         errorCallbackURL: google.errorCallbackURL,
+        fetchOptions: deadline(),
       });
       // Otherwise the page is leaving for Google, and stays pending until gone.
       // A refusal here is the installation's, in Better Auth's words, which
