@@ -43,7 +43,10 @@ const routes = [
   "POST /api/auth/sign-in/social",
   "POST /api/auth/sign-out",
   "GET  /api/sign-in-settings",
+  "POST /api/session/code",
   "GET  /api/session/sign-in",
+  "POST /api/session/sign-in",
+  "POST /api/session/name",
   "GET  /api/session/handoff",
   "GET  /api/session",
   "POST /api/session/sign-out",
@@ -257,7 +260,10 @@ POST /api/auth/sign-in/email-otp                                                
 POST /api/auth/sign-in/social                                                   400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-out                                                         200     200     200     200     403     403     415     415     1MB
 GET  /api/sign-in-settings                                                      200     200     200     200       ·       ·       ·       ·       ·
+POST /api/session/code                                                          404     404     404     404     404     404     404     404     404
 GET  /api/session/sign-in                                                       404     404     404     404       ·       ·       ·       ·       ·
+POST /api/session/sign-in                                                       404     404     404     404     404     404     404     404     404
+POST /api/session/name                                                          404     404     404     404     404     404     404     404     404
 GET  /api/session/handoff                                                       404     404     404     404       ·       ·       ·       ·       ·
 GET  /api/session                                                               401     200     200     401       ·       ·       ·       ·       ·
 POST /api/session/sign-out                                                      204     204     403     204     403     403     403     403     204
@@ -304,8 +310,11 @@ POST /api/auth/email-otp/send-verification-otp                                  
 POST /api/auth/sign-in/email-otp                                                404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-in/social                                                   404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-out                                                         404     404     401     404     404     404     404     404     404
-GET  /api/sign-in-settings                                                      404     404     401     404       ·       ·       ·       ·       ·
+GET  /api/sign-in-settings                                                      200     200     401     200       ·       ·       ·       ·       ·
+POST /api/session/code                                                          400     400     401     400     403     403     403     403     1MB
 GET  /api/session/sign-in                                                       302     302     401     302       ·       ·       ·       ·       ·
+POST /api/session/sign-in                                                       400     400     401     400     403     403     403     403     1MB
+POST /api/session/name                                                          401     401     401     400     403     403     403     403     1MB
 GET  /api/session/handoff                                                       302     302     401     302       ·       ·       ·       ·       ·
 GET  /api/session                                                               401     401     401     200       ·       ·       ·       ·       ·
 POST /api/session/sign-out                                                      204     204     401     204     403     403     403     403     204

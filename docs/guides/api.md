@@ -107,4 +107,4 @@ curl -s http://example.localhost:3000/api/organization
 # {"name":"Example School"}
 ```
 
-The learn app at `http://example.localhost:5173` now shows that organization's name, and the API there serves its courses only, answering 404 for others. Signing in there does not work locally: it goes to `BRAIVO_URL`'s `/login` and back over HTTPS, which needs a proxy this repository does not set up, so sign in at `http://localhost:5173` instead.
+The learn app at `http://example.localhost:5173` now shows that organization's name, and the API there serves its courses only, answering 404 for others. A member signs in there by a code, which `serve` writes to its log without SMTP; with Google it does not work locally, as Google's round trip goes to `BRAIVO_URL`'s `/login` and back over HTTPS, which needs a proxy this repository does not set up.

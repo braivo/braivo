@@ -27,20 +27,20 @@ const HANDOFF_SECONDS = 15 * 60;
 /** A code only crosses one redirect. */
 const CODE_SECONDS = 60;
 /** As Better Auth's own sessions: a week, renewed by use once a day old. */
-const SESSION_SECONDS = 7 * 24 * 60 * 60;
+export const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const RENEW_AFTER_SECONDS = 24 * 60 * 60;
 
 /** 256 random bits, URL-safe. */
-function secret(): string {
+export function randomToken(): string {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
 }
 
 /** Stored in place of a secret, so a database leak redeems nothing. */
-function hash(value: string): string {
+export function hashToken(value: string): string {
   return createHash("sha256").update(value).digest("base64url");
 }
 
-const later = (at: Date, seconds: number) => new Date(at.getTime() + seconds * 1000);
+export const later = (at: Date, seconds: number) => new Date(at.getTime() + seconds * 1000);
 
 /**
  * A path within the domain, or `/`: the handoff ends in a redirect there, and
@@ -69,15 +69,15 @@ export async function startHandoff(input: {
   const served = await readDomainOrganization(input.database, input.hostname);
   if (!served) return undefined;
 
-  const handoffId = secret();
-  const nonce = secret();
+  const handoffId = randomToken();
+  const nonce = randomToken();
   const expiresAt = later(input.now, HANDOFF_SECONDS);
   await insertHandoff(input.database, {
     id: handoffId,
     organizationId: served.id,
     hostname: input.hostname,
     returnPath: returnPath(input.returnPath),
-    nonceHash: hash(nonce),
+    nonceHash: hashToken(nonce),
     expiresAt,
     at: input.now,
   });
@@ -122,11 +122,11 @@ export async function completeHandoff(input: {
     return { kind: "not-member" };
   }
 
-  const code = secret();
+  const code = randomToken();
   const issued = await issueHandoffCode(database, {
     id,
     userId,
-    codeHash: hash(code),
+    codeHash: hashToken(code),
     expiresAt: later(now, CODE_SECONDS),
     at: now,
   });
@@ -145,14 +145,14 @@ export async function redeemHandoff(input: {
   nonce: string;
   now: Date;
 }): Promise<{ token: string; expiresAt: Date; returnPath: string } | undefined> {
-  const token = secret();
+  const token = randomToken();
   const expiresAt = later(input.now, SESSION_SECONDS);
   const redeemed = await spendHandoffCode(input.database, {
-    codeHash: hash(input.code),
-    nonceHash: hash(input.nonce),
+    codeHash: hashToken(input.code),
+    nonceHash: hashToken(input.nonce),
     hostname: input.hostname,
     at: input.now,
-    session: { tokenHash: hash(token), expiresAt },
+    session: { tokenHash: hashToken(token), expiresAt },
   });
   return redeemed && { token, expiresAt, returnPath: redeemed.returnPath };
 }
@@ -170,7 +170,7 @@ export async function resumeLearnerSession(input: {
   now: Date;
 }): Promise<{ user: { id: string; name: string }; renewedUntil?: Date } | undefined> {
   const { database, now } = input;
-  const tokenHash = hash(input.token);
+  const tokenHash = hashToken(input.token);
   const found = await readLearnerSession(database, {
     tokenHash,
     hostname: input.hostname,
@@ -188,5 +188,5 @@ export async function resumeLearnerSession(input: {
 
 /** Ends the learner session `token` names, wherever it was open. */
 export async function endLearnerSession(input: { database: Database; token: string }) {
-  await deleteLearnerSession(input.database, hash(input.token));
+  await deleteLearnerSession(input.database, hashToken(input.token));
 }

@@ -25,7 +25,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0010: Hono for the HTTP layer, and what a route is allowed to do](0010-hono-http-layer.md)
 - [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
 - [0017: A task rests after it is answered](0017-task-rest.md)
-- [0018: One sign-in on Braivo's origin, invitations to organizations, and a learner session per learn domain](0018-sign-in-and-invitations.md)
+- [0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain](0018-sign-in-and-invitations.md)
 - [0020: Source content is an immutable text snapshot, extracted by whoever holds the file](0020-source-content.md)
 - [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)
 - [0022: A content owner's tools sign in through the device flow and act as them](0022-machine-access.md)

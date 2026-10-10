@@ -33,6 +33,8 @@ export {
   startHandoff,
 } from "./learner-sessions.ts";
 export { readLearnerProgress } from "./learner-progress.ts";
+export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
+export { nameNewLearner, sendLearnerSignInCode, signInLearner } from "./learner-sign-in.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";
 export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";

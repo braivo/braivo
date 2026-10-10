@@ -2,73 +2,100 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { needsName, safeRedirect, SignIn } from "@braivo/auth-client";
-import { Button } from "@braivo/ui/components/button";
-import { Spinner } from "@braivo/ui/components/spinner";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { SignInPage } from "@braivo/ui";
+import { Alert, AlertDescription } from "@braivo/ui/components/alert";
+import { t } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 
-import { Notice } from "#components/notice";
-import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { learnDomainAuth } from "#lib/auth";
+import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/login")({
-  // `failed`: the handoff came back unredeemable (`/api/session/handoff`).
+  // `failed`: Google's round trip, by handoff, came back unredeemable
+  // (`/api/session/handoff`).
   validateSearch: (search): { redirect?: string; failed?: true } => ({
     redirect: safeRedirect(search.redirect),
     failed: search.failed ? true : undefined,
   }),
-  beforeLoad: async ({ context, search, preload, abortController }) => {
+  beforeLoad: async ({ context, search, abortController }) => {
     // These reads decide how to sign in: unanswered in time, the page fails,
     // offering Try again, rather than stay blank.
     const signal = withDeadline(abortController.signal, READ_DEADLINE_MS);
-    // An organization's domain signs in on the installation's origin, which
-    // hands a learner session back here (ADR 0018). A host serving no
-    // organization looks like the installation's and gets the code form,
-    // which works only there.
-    if (await context.braivo.hostOrganization({ signal })) {
-      // Signed in already (Back, a bookmark): no second handoff. Unnamed, it
-      // hands off again, where the console asks for the name.
-      const user = await context.braivo.session({ signal });
-      if (user?.name.trim()) throw redirect({ href: search.redirect ?? "/" });
-      // After a failure, only a click hands off again: one that fails each
-      // time (cookies blocked) must not cycle unseen.
-      if (search.failed) return { view: "failed" as const };
-      // A preload only looks ahead: leaving the app is the navigation's.
-      if (!preload) context.visit(signInUrl(search.redirect));
-      return { view: "handoff" as const };
+    // An organization's domain signs in here, by its own codes, under its
+    // name (ADR 0018). A host serving no organization looks like the
+    // installation's and gets Better Auth's code form, which works only there.
+    const organization = await context.braivo.hostOrganization({ signal });
+    if (!organization) {
+      // Unread in time, as unread at all, it counts as no session: the form shows.
+      const auth = { getSession: () => context.auth.getSession({ fetchOptions: { signal } }) };
+      return { organization, needsName: await needsName(auth) };
     }
-    // Unread in time, as unread at all, it counts as no session: the form shows.
-    const auth = { getSession: () => context.auth.getSession({ fetchOptions: { signal } }) };
-    return { view: "form" as const, needsName: await needsName(auth) };
+
+    // Not knowing what else it offers still leaves the code, so no reason to
+    // fail the page, nor to keep it waiting: unread, it offers no Google and
+    // links no legal pages.
+    const settingsRead = context.braivo
+      .signInSettings({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
+      .catch(() => ({ google: false, legal: null }));
+    const user = await context.braivo.session({ signal });
+    // Signed in already (Back, a bookmark): on to where sign-in would lead.
+    if (user?.name.trim()) throw redirect({ href: search.redirect ?? "/" });
+    const settings = await settingsRead;
+    return {
+      organization,
+      // Signed in here, unnamed: the form starts at the name.
+      needsName: user !== undefined,
+      offersGoogle: settings.google,
+      legal: settings.legal ?? undefined,
+    };
   },
+  head: (match) => pageHead(match, t`Sign in`),
   component: Login,
 });
 
-function signInUrl(redirect = "/") {
-  return `/api/session/sign-in?redirect=${encodeURIComponent(redirect)}`;
-}
-
 function Login() {
   const context = Route.useRouteContext();
-  const { redirect } = Route.useSearch();
+  const { redirect = "/", failed } = Route.useSearch();
   const router = useRouter();
   const { t } = useLingui();
+  // In `/login`'s place, so Back does not return to it.
+  const onSignedIn = () => router.navigate({ href: redirect, replace: true });
 
-  if (context.view === "handoff") return <Spinner aria-label={t`Signing in`} />;
-  if (context.view === "failed") {
+  if (!context.organization) {
     return (
-      <Notice title={t`This sign-in did not finish.`} description={t`It may have expired.`}>
-        <Button onClick={() => context.visit(signInUrl(redirect))}>
-          <Trans>Sign in again</Trans>
-        </Button>
-      </Notice>
+      <SignInPage>
+        <SignIn auth={context.auth} needsName={context.needsName} onSignedIn={onSignedIn} />
+      </SignInPage>
     );
   }
+
+  const { name: organizationName } = context.organization;
   return (
-    <SignIn
-      auth={context.auth}
-      needsName={context.needsName}
-      // In `/login`'s place, so Back does not return to it.
-      onSignedIn={() => router.navigate({ href: redirect ?? "/", replace: true })}
-    />
+    // The organization in Braivo's place: no Braivo branding on its domain.
+    <SignInPage brand={<span className="font-semibold wrap-anywhere">{organizationName}</span>}>
+      {/* Apart from the form, which offers Google only while the installation
+          says so: the failure is told even when it no longer does. */}
+      {failed && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>
+            {t`Could not sign in with Google. Try again, or sign in with a code.`}
+          </AlertDescription>
+        </Alert>
+      )}
+      <SignIn
+        auth={learnDomainAuth(context.braivo, context.visit, redirect)}
+        title={t`Sign in to ${organizationName}`}
+        needsName={context.needsName}
+        // Google's round trip is a handoff through the installation's origin,
+        // back to `redirect` (`learnDomainAuth`), so these two go unused.
+        google={
+          context.offersGoogle ? { callbackURL: redirect, errorCallbackURL: "/login" } : undefined
+        }
+        legal={context.legal}
+        onSignedIn={onSignedIn}
+      />
+    </SignInPage>
   );
 }

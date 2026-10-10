@@ -11,6 +11,7 @@ import { organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { codeSentTo } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
@@ -25,7 +26,7 @@ import { connectionString, createTestApi } from "./testing.ts";
  * the routes refuse.
  */
 const selfServeDomain = "contract-self-serve.example";
-const { database, api, signUp } = createTestApi({
+const { database, api, outbox, signUp } = createTestApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-contract-files-"))),
   selfServeDomain,
 });
@@ -49,6 +50,7 @@ const at = new Date("2026-06-01T00:00:00.000Z");
 
 let learnerCookie!: string;
 let learnerId!: string;
+let learnerEmail!: string;
 let teacherCookie!: string;
 let teacherId!: string;
 let courseId!: string;
@@ -71,6 +73,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const teacher = await signUp();
     learnerCookie = learner.cookie;
     learnerId = learner.id;
+    learnerEmail = learner.email;
     teacherCookie = teacher.cookie;
     teacherId = teacher.id;
 
@@ -156,6 +159,30 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
     await onOrganizationDomain.signOut(signedIn);
     expect(await onOrganizationDomain.session(signedIn)).toBeUndefined();
+  });
+
+  test("signs a member in on a learn domain by the code it sends, and says why it refuses", async () => {
+    await onOrganizationDomain.sendSignInCode(learnerEmail);
+    const refused = (thrown: unknown) => thrown instanceof BraivoError && thrown;
+    expect(
+      refused(await onOrganizationDomain.sendSignInCode(learnerEmail).catch((thrown) => thrown)),
+    ).toMatchObject({ status: 429, code: "SIGN_IN_CODE_COOLDOWN" });
+    const code = codeSentTo(outbox, learnerEmail);
+    const wrong = code === "000000" ? "000001" : "000000";
+    expect(
+      refused(
+        await onOrganizationDomain.signInWithCode(learnerEmail, wrong).catch((thrown) => thrown),
+      ),
+    ).toMatchObject({ status: 400, code: "INVALID_OTP" });
+
+    expect(await onOrganizationDomain.signInWithCode(learnerEmail, code)).toEqual({
+      id: learnerId,
+      name: expect.any(String),
+    });
+    // Signed out here, as the client carries no cookie itself.
+    expect(
+      refused(await onOrganizationDomain.nameAccount("Ada").catch((thrown) => thrown)),
+    ).toMatchObject({ status: 401 });
   });
 
   test("parses an activity into the shape it declares", async () => {

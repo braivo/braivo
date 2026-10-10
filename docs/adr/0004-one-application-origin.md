@@ -1,6 +1,6 @@
 # 0004: Application origins and organization addressing
 
-Status: accepted (2026-09-16), partly implemented (2026-09-25; see Consequences)
+Status: accepted (2026-09-16), amended (2026-10-11: several learn domains per organization), partly implemented (2026-09-25; see Consequences)
 
 ## Context
 
@@ -8,7 +8,7 @@ Braivo has two applications with different owners. The learn app is white-label:
 
 One person may belong to several organizations — a school and its test copy, schools they consult for — so each needs a stable, shareable address.
 
-Both applications write through Braivo's API and Better Auth, which must refuse a write that another site's page forges.
+Both applications write through Braivo's API, and the console through Better Auth too; each must refuse a write that another site's page forges.
 
 ## Decision
 
@@ -33,9 +33,9 @@ Both applications write through Braivo's API and Better Auth, which must refuse 
 - **A slug has one spelling, and an `owner` or `admin` may change it.** Lowercase letters, digits, and single hyphens, at most 63 characters, checked wherever a slug is set. Before a change the console warns that existing links break and that the old slug is free for another organization to take. No redirects, aliases, or slug history until someone needs them. A slug change does not touch the learn domain.
 - **Root-level paths are reserved from slugs**, since `/<slug>` would shadow them. The list, in `apps/server/auth/slug.ts`, holds application routes only; a new route joins it before it ships (a test checks the console's), and if an organization already holds the word, the route takes another name or the organization moves.
 - **Marketing lives on `www.braivo.app`; `braivo.app` serves the application alone**, so marketing may use analytics and tag managers without their scripts running on the application's origin, and reserves no slugs. On Braivo Cloud the router in front sends a bare `braivo.app/` without a session cookie to `www`, so a visitor learns what Braivo is while someone signed in lands in their organization; marketing links to `/login`, which the app always serves. A self-hosted installation has no marketing site.
-- **An organization's domain serves its learn app, and nothing else; an organization has at most one.** The hostname identifies the organization, so no slug appears: `fernwood.example/…`. Anything needing the learn domain — an invitation, a session handoff — names the organization and looks it up. The console stays on Braivo's origin: the server resolves hosts, the console resolves slugs, and nothing resolves both.
-- **The learn app serves each organization's learners on its domain**; `demo.braivo.app` is Braivo's own deployment of it. Learners join by invitation and sign in on Braivo's origin, which hands each learn domain a learner session ([ADR 0018](0018-sign-in-and-invitations.md)).
-- **Every origin that serves an app also serves `/api`, and only those origins may write.** Braivo refuses a write whose `Origin` is neither `BRAIVO_URL`'s nor, on a registered hostname, `https://<hostname>`, looked up on each request and failing closed, so trust needs no configured list and ends with the hostname's row; Better Auth, served on `BRAIVO_URL`'s host alone, trusts that origin only. In development `BRAIVO_URL` is the console's dev server, and each Vite server stands in for its site: it proxies `/api` to the server on `PORT` and rewrites the `Origin` of a request same-origin _to itself_ into `BRAIVO_URL`'s (`tooling/dev-proxy.ts`); any other `Origin` is forwarded unchanged, for the server to judge. Whether integrators get an API hostname of their own is decided with their credential.
+- **An organization's domain serves its learn app, and nothing else; an organization may have several, each serving it whole.** The hostname identifies the organization, so no slug appears: `fernwood.example/…`. The latest registered is the one it is named by wherever its learn domain is, the console's address and invitations included; the earlier keep serving, so `fernwood.braivo.app`, given at setup, still works when `learn.fernwood.example` is added and when that one does not. Sessions stay each domain's own. Anything needing the learn domain — an invitation — names the organization and looks it up; a handoff keeps the hostname it began on. The console stays on Braivo's origin: the server resolves hosts, the console resolves slugs, and nothing resolves both.
+- **The learn app serves each organization's learners on its domain**; `demo.braivo.app` is Braivo's own deployment of it. Learners join by invitation and sign in on the learn domain itself, by a code good there alone, or with Google through Braivo's origin, which hands the learn domain a learner session ([ADR 0018](0018-sign-in-and-invitations.md)).
+- **Every origin that serves an app also serves `/api`, and only those origins may write.** Braivo refuses a write whose `Origin` is neither `BRAIVO_URL`'s nor, on a registered hostname, `https://<hostname>`, looked up on each request and failing closed, so trust needs no configured list and ends with the hostname's row; Better Auth, served on `BRAIVO_URL`'s host alone, trusts that origin only. In development `BRAIVO_URL` is the console's dev server, and each Vite server stands in for its site: it proxies `/api` to the server on `PORT` and rewrites the `Origin` of a request same-origin _to itself_ into the deployed site's, `BRAIVO_URL`'s on its host and `https://<hostname>` on an organization's `<slug>.localhost` (`tooling/dev-proxy.ts`); any other `Origin` is forwarded unchanged, for the server to judge. Whether integrators get an API hostname of their own is decided with their credential.
 - **URLs do not dictate deployment.** Marketing, console, and learn app stay separate apps behind a router that dispatches by host and path. On Braivo Cloud the router, the marketing site, and domain provisioning are the managed service's; resolving an organization from its host stays here ([product.md](../product.md)). `organization_domain` records which hostname serves which organization, written by whoever verifies the domain — Braivo Cloud or the operator — never by the organization's members.
 - **A learn domain may be the organization's own.** It holds learner sessions alone, each reaching one organization ([ADR 0018](0018-sign-in-and-invitations.md)), never the account's session or its credentials, so whoever controls the hostname's DNS reaches that organization's learner sessions and nothing else. The operator registers it either way, having checked who asks for it.
 
@@ -65,7 +65,7 @@ Both applications write through Braivo's API and Better Auth, which must refuse 
   - Braivo's writes trust `BRAIVO_URL`'s origin and, on a registered hostname, `https://<hostname>`, failing closed otherwise; Better Auth trusts `BRAIVO_URL`'s alone;
   - the host ceiling on the learner's course routes;
   - the console's API, the device flow, and bearer tokens on the installation's host alone, and writes from a learn domain to that domain alone ([ADR 0022](0022-machine-access.md));
-  - at most one domain per organization;
+  - several domains per organization, named by the latest registered;
   - learner sessions on learn domains, so a domain an organization owns may be registered ([ADR 0018](0018-sign-in-and-invitations.md)).
 - Still open:
   - slug changes by an `owner` or `admin`, with the warning (today refused);

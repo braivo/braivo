@@ -9,6 +9,7 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
   const mail = signInCodeMail({
     to: "a@example.com",
     code: "123456",
+    site: "braivo.example",
     expiresInMinutes: 10,
     locale: "en",
   });
@@ -16,12 +17,12 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
   expect(mail.to).toBe("a@example.com");
   expect(mail.subject).toBe("123456 is your sign-in code");
   expect(mail.text).toBe(
-    "Enter 123456 to sign in. This code expires in 10 minutes and can be used once.\n\n" +
+    "Enter 123456 at braivo.example to sign in. This code expires in 10 minutes and can be used once.\n\n" +
       "If you did not ask for it, ignore this email: nothing happens without the code.",
   );
   for (const part of [
     '<html lang="en">',
-    "Enter this code to sign in:",
+    "Enter this code at braivo.example to sign in:",
     "123456",
     "This code expires in 10 minutes and can be used once.",
     "If you did not ask for it, ignore this email: nothing happens without the code.",
@@ -34,6 +35,7 @@ test("the text and the HTML both carry the code, its lifetime, and the disclaime
   const once = signInCodeMail({
     to: "a@example.com",
     code: "1",
+    site: "braivo.example",
     expiresInMinutes: 1,
     locale: "en",
   });
@@ -44,18 +46,19 @@ test("in Polish, the same mail, its lifetime counted in Polish's plural forms", 
   const mail = signInCodeMail({
     to: "a@example.com",
     code: "123456",
+    site: "braivo.example",
     expiresInMinutes: 10,
     locale: "pl",
   });
 
   expect(mail.subject).toBe("123456 to Twój kod logowania");
   expect(mail.text).toBe(
-    "Wpisz 123456, aby się zalogować. Kod wygasa za 10 minut i można go użyć tylko raz.\n\n" +
+    "Wpisz 123456 na stronie braivo.example, aby się zalogować. Kod wygasa za 10 minut i można go użyć tylko raz.\n\n" +
       "Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość: bez kodu nic się nie stanie.",
   );
   for (const part of [
     '<html lang="pl">',
-    "Wpisz ten kod, aby się zalogować:",
+    "Wpisz ten kod na stronie braivo.example, aby się zalogować:",
     "Kod wygasa za 10 minut i można go użyć tylko raz.",
     "Jeśli to nie Ty prosisz o kod, zignoruj tę wiadomość: bez kodu nic się nie stanie.",
   ]) {
@@ -63,9 +66,13 @@ test("in Polish, the same mail, its lifetime counted in Polish's plural forms", 
   }
 
   const lifetime = (expiresInMinutes: number) =>
-    signInCodeMail({ to: "a@example.com", code: "1", expiresInMinutes, locale: "pl" }).text.match(
-      /za (\d+ \S+)/,
-    )?.[1];
+    signInCodeMail({
+      to: "a@example.com",
+      code: "1",
+      site: "braivo.example",
+      expiresInMinutes,
+      locale: "pl",
+    }).text.match(/za (\d+ \S+)/)?.[1];
   expect([1, 2, 5, 12, 22].map(lifetime)).toEqual([
     "1 minutę",
     "2 minuty",
@@ -77,7 +84,13 @@ test("in Polish, the same mail, its lifetime counted in Polish's plural forms", 
 
 test("refuses a code that is not digits, which goes into the HTML as is", () => {
   expect(() =>
-    signInCodeMail({ to: "a@example.com", code: "12345a", expiresInMinutes: 10, locale: "en" }),
+    signInCodeMail({
+      to: "a@example.com",
+      code: "12345a",
+      site: "braivo.example",
+      expiresInMinutes: 10,
+      locale: "en",
+    }),
   ).toThrow(TypeError);
 });
 
@@ -106,4 +119,24 @@ test.each([
   [undefined, "en"],
 ])("the mail for Accept-Language %j is in %s", (header, locale) => {
   expect(mailLocale(header)).toBe(locale);
+});
+
+test.each(["braivo.example", "localhost:5174", "[::1]:5174", "127.0.0.1:3000"])(
+  "names the site %s, any host `URL#host` gives",
+  (site) => {
+    const mail = signInCodeMail({
+      to: "a@example.com",
+      code: "1",
+      site,
+      expiresInMinutes: 1,
+      locale: "en",
+    });
+    expect(mail.html).toContain(`at ${site} to sign in`);
+  },
+);
+
+test.each(["<b>", "a b", 'x"y'])("refuses a site %j that is not a host", (site) => {
+  expect(() =>
+    signInCodeMail({ to: "a@example.com", code: "1", site, expiresInMinutes: 1, locale: "en" }),
+  ).toThrow(TypeError);
 });

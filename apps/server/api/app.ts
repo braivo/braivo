@@ -9,6 +9,7 @@ import { HTTPException } from "hono/http-exception";
 import { type Ai, readHostOrganization } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import { describeError } from "../logging.ts";
+import type { SendMail } from "../mail/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
 import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
@@ -36,6 +37,11 @@ type ApiOptions = {
   selfServeDomain?: string;
   /** The privacy policy and terms `/login` links, or none. */
   legal?: NonNullable<SignInSettings["legal"]>;
+  /**
+   * Sends a learn domain's sign-in codes (ADR 0018), as `createAuth`'s sends
+   * the installation's; without one, sending them fails.
+   */
+  sendMail?: SendMail;
 };
 
 /**
@@ -93,6 +99,9 @@ export function createApi(options: ApiOptions) {
     ai,
     selfServeDomain,
     legal,
+    sendMail = async () => {
+      throw new Error("No mail transport was given to createApi.");
+    },
   } = options;
   const api = new Hono();
   const guards = createGuards(options);
@@ -134,7 +143,6 @@ export function createApi(options: ApiOptions) {
       "/api/organization-setup",
       "/api/auth",
       "/api/handoffs",
-      "/api/sign-in-settings",
     ];
     if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
@@ -208,7 +216,7 @@ export function createApi(options: ApiOptions) {
   });
 
   // After the host gate, which runs only before routes registered after it.
-  api.route("/", sessionRoutes(guards, { auth, database, baseUrl, legal }));
+  api.route("/", sessionRoutes(guards, { auth, database, baseUrl, legal, sendMail }));
   api.route("/", learningRoutes(guards, { database }));
   api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain }));
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));

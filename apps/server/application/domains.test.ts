@@ -3,10 +3,11 @@
 
 import { runMigrations } from "@braivo/db";
 import { organization, organizationDomain } from "@braivo/db/schema";
-import { seedOrganization, sharedDatabase, violatedConstraint } from "@braivo/db/testing";
+import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { readDomainOrganization, readLearnDomain } from "../persistence/index.ts";
 import { DomainRefused, registerLearnDomain } from "./domains.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -93,7 +94,13 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
       .select()
       .from(organizationDomain)
       .where(inArray(organizationDomain.organizationId, [school]));
-    expect(rows).toEqual([{ hostname: "learn.domains-test.example", organizationId: school }]);
+    expect(rows).toEqual([
+      {
+        hostname: "learn.domains-test.example",
+        organizationId: school,
+        registeredAt: expect.any(Date),
+      },
+    ]);
   });
 
   test("accepts a subdomain of the installation's hostname", async () => {
@@ -148,12 +155,18 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
     expect((await register("learn.domains-test.example")).organization.id).toBe(school);
   });
 
-  test("refuses a second domain for one organization, naming the first", async () => {
+  test("serves an organization at several, named by the latest, the earlier still serving", async () => {
+    // Its self-serve subdomain, then its own domain.
+    await register("school.braivo.example");
     await register("learn.domains-test.example");
 
-    expect(await refusal(register("study.domains-test.example"))).toContain(
-      "already served at learn.domains-test.example",
-    );
+    expect(await readLearnDomain(database, school)).toBe("learn.domains-test.example");
+    for (const hostname of ["school.braivo.example", "learn.domains-test.example"]) {
+      expect((await readDomainOrganization(database, hostname))?.id).toBe(school);
+    }
+    // Confirming an earlier one changes nothing.
+    await register("school.braivo.example");
+    expect(await readLearnDomain(database, school)).toBe("learn.domains-test.example");
   });
 
   test("confirms the same mapping asked for twice at once, keeping one row", async () => {
@@ -171,18 +184,24 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
       .select()
       .from(organizationDomain)
       .where(eq(organizationDomain.hostname, "learn.domains-test.example"));
-    expect(rows).toEqual([{ hostname: "learn.domains-test.example", organizationId: school }]);
+    expect(rows).toEqual([
+      {
+        hostname: "learn.domains-test.example",
+        organizationId: school,
+        registeredAt: expect.any(Date),
+      },
+    ]);
   });
 
-  test("lets one of two concurrent registrations for an organization win", async () => {
-    const outcomes = await Promise.allSettled([
+  test("registers two domains for one organization at once, both serving it", async () => {
+    await Promise.all([
       register("learn.domains-test.example"),
       register("study.domains-test.example"),
     ]);
 
-    expect(outcomes.map(({ status }) => status).sort()).toEqual(["fulfilled", "rejected"]);
-    const [rejected] = outcomes.filter((outcome) => outcome.status === "rejected");
-    expect(rejected?.reason).toBeInstanceOf(DomainRefused);
+    for (const hostname of ["learn.domains-test.example", "study.domains-test.example"]) {
+      expect((await readDomainOrganization(database, hostname))?.id).toBe(school);
+    }
   });
 
   test("lets one of two organizations registering a hostname at once have it", async () => {
@@ -203,16 +222,5 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
       .from(organizationDomain)
       .where(eq(organizationDomain.hostname, "learn.domains-test.example"));
     expect(rows).toEqual([{ organizationId: won?.organization.id }]);
-  });
-
-  test("the database, not only this check, holds an organization to one domain", async () => {
-    await register("learn.domains-test.example");
-
-    const refused = await database
-      .insert(organizationDomain)
-      .values({ hostname: "study.domains-test.example", organizationId: school })
-      .catch((thrown: unknown) => thrown);
-
-    expect(violatedConstraint(refused)).toBe("organization_domain_organization_idx");
   });
 });

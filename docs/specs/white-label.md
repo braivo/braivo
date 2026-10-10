@@ -1,6 +1,6 @@
 # White-label
 
-Status: living; checked against the code on 2026-10-03.
+Status: living; checked against the code on 2026-10-11.
 
 Each organization's learners use the learn app on the organization's own hostname, which wears its name and serves its courses alone; its content owners manage it in one console at `braivo.app/<slug>` (product.md, core job 6). Which hostname serves which organization is a database row, not configuration.
 
@@ -15,9 +15,9 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 
 ## Rules
 
-- **white-label-1:** An organization has at most one learn domain, and a hostname serves at most one organization, both held by the database too, even against concurrent registrations. Deleting an organization deletes its domain: the hostname is no longer trusted, and another organization may register it. `apps/server/application/domains.test.ts`, `apps/server/auth/origin.test.ts`
+- **white-label-1:** A hostname serves at most one organization, held by the database too, even against concurrent registrations; an organization may have several learn domains, each serving its learn app, its sign-in included, with sessions of its own. The latest registered is the one its learn domain is named by (`learnDomain`, access-25); registering an earlier one again changes nothing. So a custom domain added after `<slug>.<self-serve domain>` is named, and the subdomain still serves when the custom one does not. Deleting an organization deletes its domains: the hostname is no longer trusted, and another organization may register it. `apps/server/application/domains.test.ts`, `apps/server/auth/origin.test.ts`
 - **white-label-2:** The operator registers a domain with `braivo organization add-domain --slug <slug> --hostname <hostname>`; self-serve setup registers `<slug>.<BRAIVO_SELF_SERVE_DOMAIN>` alike (access-31). The hostname is stored lowercased and must be what `URL#hostname` gives back, or no request's host would match it: ASCII labels of letters, digits, and inner hyphens, 1 to 63 characters each, 253 in all; no scheme, port, path, trailing dot, or IP address; an internationalized name in its `xn--` form. Public DNS is not required (`training` qualifies). The database refuses a hostname in capitals. `apps/server/application/domains.test.ts`, `apps/server/auth/origin.test.ts`
-- **white-label-3:** Registering refuses `BRAIVO_URL`'s hostname, whatever its case, which reaches every organization whatever its row says; a slug no organization has; a hostname another organization has, naming it; and a second domain for an organization, naming the first. The same mapping again succeeds, at once or later, so provisioning may retry. `apps/server/application/domains.test.ts`
+- **white-label-3:** Registering refuses `BRAIVO_URL`'s hostname, whatever its case, which reaches every organization whatever its row says; a slug no organization has; and a hostname another organization has, naming it. The same mapping again succeeds, at once or later, so provisioning may retry; another hostname for the same organization is added (white-label-1). `apps/server/application/domains.test.ts`
 - **white-label-4:** The host a request was sent to is a ceiling on which organization a course route reaches: on `BRAIVO_URL`'s host, any; on an organization's domain, that organization alone; on any other host, none, so deleting a domain's row revokes access rather than widening it. It grants nothing. When the request has a session, a course outside the ceiling answers exactly as a missing one, 404, so a domain learns nothing about other organizations. The course routes are a course's `…/next`, `…/activity`, and `…/attempts`, and a learner's progress report; a course's overview is read on the installation's host alone (progress-12), and `GET /api/courses` lists a domain's own courses alone (learner-loop-2). On a host that is neither, no session holds either, so what each route answers there is in `apps/server/api/index.ts`. `apps/server/api/learning.test.ts`, `apps/server/application/learner-in-course.test.ts`, `apps/server/application/activity.test.ts`
 - **white-label-5:** `GET /api/organization`, needing no session, answers the name of the organization the request's host serves, or 404 when it serves none, with `Cache-Control: private, no-store`. `apps/server/api/app.test.ts`
 - **white-label-6:** The learn app reads that name before sign-in, shows it, and uses it in the page title. With an organization named `Fernwood`, the title is `Fernwood`, or `Spanish · Fernwood` on a course named Spanish; on a host serving no organization, those titles are `Learning` and `Spanish`. A failure to read the organization leaves the app unbranded rather than down. `apps/learn/routes.test.tsx`
@@ -42,7 +42,7 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 
 ## Decisions
 
-- [ADR 0004](../adr/0004-one-application-origin.md): origins, console at `/<slug>`, the host ceiling, one domain per organization, the organization's own domain allowed, marketing on `www`.
+- [ADR 0004](../adr/0004-one-application-origin.md): origins, console at `/<slug>`, the host ceiling, several domains per organization, named by the latest, the organization's own domain allowed, marketing on `www`.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): learner sessions per learn domain, which admit customer-owned domains.
 - [ADR 0016](../adr/0016-route-files.md): route files, including `$organizationSlug/route.tsx` as a layout.
 

@@ -25,7 +25,7 @@ type Bounded = { fetchOptions?: { signal?: AbortSignal } };
 /**
  * The part of a Better Auth client, with its email code plugin, that signing in
  * uses. Structural, so either app's client fits whichever plugins it was built
- * with.
+ * with, and so does a learn domain's, over Braivo's own routes (ADR 0018).
  */
 export type SignInAuth = {
   emailOtp: {
@@ -111,6 +111,11 @@ function refusal(error: AuthError): MessageDescriptor {
   if (error.code === "SIGN_IN_CODE_COOLDOWN") return COOLDOWN;
   if (error.code === "SIGN_IN_CODE_SEND_FAILED") {
     return msg`The code could not be sent. Try again in a minute.`;
+  }
+  // A learn domain's sign-in (ADR 0018): the code is right and stays good
+  // until it expires, so once added in time, the same one signs in.
+  if (error.code === "NOT_A_MEMBER") {
+    return msg`This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires.`;
   }
   if (error.status === 429) return RATE_LIMITED;
   return msg`That did not work. Try again.`;

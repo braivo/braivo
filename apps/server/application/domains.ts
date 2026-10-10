@@ -7,7 +7,6 @@ import {
   insertLearnDomain,
   type Organization,
   readDomainOrganization,
-  readLearnDomain,
   readOrganizationBySlug,
 } from "../persistence/index.ts";
 
@@ -58,14 +57,16 @@ export function readLearnHostname(input: string): string {
 }
 
 /**
- * Registers `hostname` as an organization's learn domain, or confirms it
- * already is, so provisioning may retry. It may be the organization's own:
+ * Registers `hostname` as one of an organization's learn domains, or confirms
+ * it already is, so provisioning may retry. It may be the organization's own:
  * whoever controls it reaches only that organization's learner sessions
- * (ADR 0004, ADR 0018).
+ * (ADR 0004, ADR 0018). Newly registered, it is the one the organization's
+ * learn domain is named by; those before it keep serving, so learners'
+ * links and sign-ins there still work, and `<slug>.<self-serve domain>`
+ * stands in when a custom domain does not.
  *
  * Never the installation's hostname, which serves every organization whatever
- * a mapping says, and never a replacement: learners' links and sign-ins are on
- * the current one.
+ * a mapping says.
  */
 export async function registerLearnDomain(input: {
   database: Database;
@@ -90,18 +91,11 @@ export async function registerLearnDomain(input: {
     return { organization, hostname };
   }
 
-  // A mapping already there refused it: this one, the hostname's elsewhere, or
-  // the organization's other domain.
+  // A mapping already there refused it: this one, or the hostname's elsewhere.
   const served = await readDomainOrganization(database, hostname);
   if (served?.id === organization.id) return { organization, hostname };
   if (served) {
     throw new DomainRefused(`${hostname} already serves ${served.name} (${served.slug}).`);
-  }
-  const current = await readLearnDomain(database, organization.id);
-  if (current) {
-    throw new DomainRefused(
-      `${organization.name} is already served at ${current}; an organization has one learn domain.`,
-    );
   }
   // Removed between the insert and the reads.
   throw new Error(`Could not register ${hostname}; try again.`);

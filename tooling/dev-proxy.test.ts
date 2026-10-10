@@ -40,6 +40,12 @@ describe("the development API proxy", () => {
     );
   });
 
+  test("presents an organization's domain as its HTTPS origin, as deployed", () => {
+    expect(
+      rewritten({ origin: "http://fernwood.localhost:5173", host: "fernwood.localhost:5173" }),
+    ).toBe("origin: https://fernwood.localhost");
+  });
+
   test("forwards to the server on `PORT`, not to `BRAIVO_URL`", () => {
     expect(braivoApi({ BRAIVO_URL: "http://localhost:5174" })["/api"]?.target).toBe(
       "http://localhost:3000",

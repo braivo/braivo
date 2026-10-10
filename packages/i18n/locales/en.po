@@ -129,6 +129,8 @@ msgstr "Could not confirm the organization was created. Reload this page to chec
 msgid "Could not connect. Check your connection and try again."
 msgstr "Could not connect. Check your connection and try again."
 
+#: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Could not sign in with Google. Try again, or sign in with a code."
@@ -238,10 +240,6 @@ msgstr "How others in your organizations see you."
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "in {time}"
-
-#: apps/learn/routes/login.tsx
-msgid "It may have expired."
-msgstr "It may have expired."
 
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
@@ -383,16 +381,17 @@ msgstr "Sending…"
 msgid "Set up your organization"
 msgstr "Set up your organization"
 
+#: apps/learn/routes/login.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sign in"
 msgstr "Sign in"
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 msgid "Sign in again"
 msgstr "Sign in again"
 
 #: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
 msgid "Sign in to {organizationName}"
 msgstr "Sign in to {organizationName}"
 
@@ -406,7 +405,6 @@ msgid "Signed in as {email}."
 msgstr "Signed in as {email}."
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 msgid "Signing in"
 msgstr "Signing in"
 
@@ -482,9 +480,9 @@ msgstr "This address cannot be changed later."
 msgid "This course does not exist, or is not one of yours."
 msgstr "This course does not exist, or is not one of yours."
 
-#: apps/learn/routes/login.tsx
-msgid "This sign-in did not finish."
-msgstr "This sign-in did not finish."
+#: packages/auth-client/sign-in.tsx
+msgid "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
+msgstr "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
 
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"

@@ -11,16 +11,18 @@ import type { ProxyOptions } from "vite-plus";
  * (Google's callback, a learn domain's handoff), so locally it is the console's
  * dev server, never the server's own port.
  *
- * Braivo and Better Auth refuse a write whose `Origin` they do not trust.
- * Locally both apps run on the installation's host (access-19), so a page on
- * this dev server writes with `BRAIVO_URL`'s `Origin`, as one served there
- * would. Any other `Origin` is forwarded untouched, for the server to judge.
+ * Braivo and Better Auth refuse a write whose `Origin` they do not trust. A
+ * page on this dev server writes with the `Origin` the deployed site would
+ * send: `BRAIVO_URL`'s on the installation's host, where both apps run
+ * locally (access-19), and `https://<hostname>` on an organization's domain,
+ * `<slug>.localhost` (access-28). Any other `Origin` is forwarded untouched,
+ * for the server to judge.
  */
 export function braivoApi(env: {
   BRAIVO_URL?: string;
   PORT?: string;
 }): Record<string, ProxyOptions> {
-  const site = new URL(env.BRAIVO_URL ?? "http://localhost:5174").origin;
+  const site = new URL(env.BRAIVO_URL ?? "http://localhost:5174");
 
   return {
     "/api": {
@@ -28,9 +30,13 @@ export function braivoApi(env: {
       configure(proxy) {
         proxy.on("proxyReq", (proxied, request) => {
           const origin = request.headers.origin;
-          if (origin !== undefined && origin === `http://${request.headers.host}`) {
-            proxied.setHeader("origin", site);
-          }
+          const { host } = request.headers;
+          if (origin === undefined || host === undefined || origin !== `http://${host}`) return;
+          const { hostname } = new URL(origin);
+          proxied.setHeader(
+            "origin",
+            hostname === site.hostname ? site.origin : `https://${hostname}`,
+          );
         });
       },
     },
