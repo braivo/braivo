@@ -40,7 +40,9 @@ test("keeps Braivo's theme off a learn domain's sign-in from the first paint, no
     history.replaceState(null, "", "/");
   });
   // `index.html`'s first script, as the browser runs it before any module.
-  const [, script] = read("./index.html").match(/<script>([\s\S]*?)<\/script>/) ?? [];
+  const script = new DOMParser()
+    .parseFromString(read("./index.html"), "text/html")
+    .querySelector("script")?.textContent;
   const boot = (url: string) => {
     history.replaceState(null, "", url);
     // As `packages/i18n/boot.test.ts` runs its own: happy-dom runs no inline script.
