@@ -12,9 +12,9 @@ import { BraivoLogo } from "./braivo-logo.tsx";
 import { LanguageMenu } from "./language-menu.tsx";
 
 /**
- * `/login`'s frame, after shadcn's login-02 block: `aside` from `lg`, then a
- * column with `brand`, the language, and the theme above the form, and
- * `footer` below it. Without `aside`, the column is the page. The form is
+ * `/login`'s frame and `<main>`, after shadcn's login-02 block: `aside` from
+ * `lg`, then a column with `brand`, the language, and the theme above the
+ * form, and `footer` below it. Without `aside`, the column is the page. The form is
  * centred, its width a phone's at most.
  */
 export function SignInPage(props: {
@@ -24,7 +24,7 @@ export function SignInPage(props: {
   children: ReactNode;
 }) {
   return (
-    <div className={cn("grid min-h-svh", props.aside && "lg:grid-cols-[13fr_12fr]")}>
+    <main className={cn("grid min-h-svh", props.aside && "lg:grid-cols-[13fr_12fr]")}>
       {props.aside}
       {/* `min-w-0`, so a long email or hostname wraps rather than widens the page. */}
       <div className="flex min-w-0 flex-col gap-6 p-6 md:p-10">
@@ -44,7 +44,7 @@ export function SignInPage(props: {
           </footer>
         )}
       </div>
-    </div>
+    </main>
   );
 }
 

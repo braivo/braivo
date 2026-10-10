@@ -110,7 +110,7 @@ export function OrganizationSetup(props: { braivo: BraivoClient; domain: string 
   const address = `${slug || "your-name"}.${domain}`;
 
   return (
-    <form onSubmit={submit} aria-labelledby={`${id}-heading`} className="max-w-md">
+    <form onSubmit={submit} aria-labelledby={`${id}-heading`}>
       <Heading id={`${id}-heading`}>Set up your organization</Heading>
       <MutedText className="mb-6 block">
         A home for your materials, courses, and learners: for a school, a training business, or just

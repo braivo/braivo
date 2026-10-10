@@ -3,13 +3,13 @@
 
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
-import { cn } from "@braivo/ui/lib/utils";
 import {
   createRootRouteWithContext,
   HeadContent,
   Link,
   Outlet,
   useMatch,
+  useMatches,
 } from "@tanstack/react-router";
 import { useLayoutEffect } from "react";
 
@@ -47,19 +47,26 @@ function Root() {
   useLayoutEffect(() => {
     document.documentElement.toggleAttribute("data-learn-domain", learnDomain === true);
   }, [learnDomain]);
-  // A sign-in page frames itself (`SignInPage`); loading or failed, it keeps
-  // the column every other page has.
-  const framed = useMatch({
-    from: "/login",
-    shouldThrow: false,
-    select: (match) => match.status === "success",
+  // `/login` (`SignInPage`) and the signed-in pages (under their header)
+  // render their own `<main>`; loading or failed, they get this column.
+  const framed = useMatches({
+    select: (matches) =>
+      matches.some(
+        (match) =>
+          (match.routeId === "/login" || match.routeId === "/_signed-in") &&
+          match.status === "success",
+      ),
   });
   return (
     <>
       <HeadContent />
-      <main className={cn(!framed && "mx-auto max-w-3xl p-6")}>
+      {framed ? (
         <Outlet />
-      </main>
+      ) : (
+        <main className="mx-auto max-w-3xl p-6">
+          <Outlet />
+        </main>
+      )}
     </>
   );
 }

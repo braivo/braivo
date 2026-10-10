@@ -47,6 +47,10 @@ msgstr "O kod poproszono niecałą minutę temu. Sprawdź pocztę."
 msgid "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
 msgstr "Nowy kod został wysłany na adres {address}. Użyj najnowszego; wygasa po 10 minutach."
 
+#: apps/console/components/account-menu.tsx
+msgid "Account: {name}"
+msgstr "Konto: {name}"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Another code can be sent a minute after the last."
 msgstr "Kolejny kod można wysłać minutę po poprzednim."
@@ -96,6 +100,7 @@ msgid "Correct"
 msgstr "Poprawna"
 
 #: apps/console/components/language-menu.tsx
+#: apps/console/routes/_signed-in/route.tsx
 msgid "Could not change the language. Try again."
 msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
 
@@ -108,6 +113,7 @@ msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
 msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem."
 
+#: apps/console/routes/_signed-in/route.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/_signed-in/route.tsx
 msgid "Could not sign out. Try again."
@@ -305,6 +311,7 @@ msgstr "Zaloguj się ponownie"
 msgid "Sign in to {organizationName}"
 msgstr "Logowanie: {organizationName}"
 
+#: apps/console/components/account-menu.tsx
 #: apps/learn/routes/_signed-in/route.tsx
 msgid "Sign out"
 msgstr "Wyloguj się"
@@ -364,6 +371,7 @@ msgstr "Nie udało się wysłać kodu. Spróbuj ponownie za minutę."
 msgid "The learning engine behind your courses"
 msgstr "Silnik nauki stojący za Twoimi kursami"
 
+#: apps/console/components/account-menu.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Theme"
 msgstr "Motyw"

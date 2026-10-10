@@ -95,7 +95,6 @@ export const useTheme = () => useContext(ThemeContext);
 
 /** A menu choosing light, dark, or the system's theme; its icon shows the one in use. */
 export function ModeToggle() {
-  const { theme, setTheme } = useTheme();
   const { t } = useLingui();
   return (
     <DropdownMenu>
@@ -107,21 +106,34 @@ export function ModeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-          <DropdownMenuRadioItem value="light">
-            <SunIcon />
-            {t`Light`}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
-            <MoonIcon />
-            {t`Dark`}
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
-            <MonitorIcon />
-            {t`System`}
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
+        <ThemeMenuRadioGroup />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Light, dark, and the system's theme as a dropdown menu's choices, for any such menu to hold. */
+export function ThemeMenuRadioGroup() {
+  const { theme, setTheme } = useTheme();
+  const { t } = useLingui();
+  return (
+    <DropdownMenuRadioGroup
+      aria-label={t`Theme`}
+      value={theme}
+      onValueChange={(value) => setTheme(value as Theme)}
+    >
+      <DropdownMenuRadioItem value="light">
+        <SunIcon />
+        {t`Light`}
+      </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem value="dark">
+        <MoonIcon />
+        {t`Dark`}
+      </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem value="system">
+        <MonitorIcon />
+        {t`System`}
+      </DropdownMenuRadioItem>
+    </DropdownMenuRadioGroup>
   );
 }
