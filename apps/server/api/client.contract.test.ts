@@ -246,6 +246,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await expect(refused).rejects.toMatchObject({
       status: 409,
       reason: "You already own an organization. Reload this page to open it.",
+      code: "ALREADY_OWNER",
     });
   });
 

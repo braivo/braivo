@@ -278,10 +278,12 @@
 //
 // `POST /api/organization-setup` `{ "name", "slug" }`, a JSON write — sets up
 // an organization the session's user owns, at `<slug>.<domain>`: 201
-// `{ "organization" }` as listed above. 400 a malformed body, or `{ "error" }`
-// for a name or slug that cannot be one; 409 `{ "error" }` for an address
-// taken or an organization the user already owns; 404 where only the operator
-// creates them; 401 without a session.
+// `{ "organization" }` as listed above. 400 a malformed body, or `{ "error",
+// "code" }` for a name or slug that cannot be one (`NAME_INVALID`,
+// `ADDRESS_INVALID`, `ADDRESS_RESERVED`); 409 `{ "error", "code" }` for an
+// address taken (`ADDRESS_TAKEN`) or an organization the user already owns
+// (`ALREADY_OWNER`); 404 where only the operator creates them; 401 without a
+// session. `error` is English; a client words `code` in its own language.
 //
 // The organization routes below share their refusals: 401 without a session,
 // and 403 unless the session holds `owner` or `admin` there — authoring is a

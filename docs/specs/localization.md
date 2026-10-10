@@ -1,8 +1,8 @@
 # Localization
 
-Status: living; checked against the code on 2026-10-08.
+Status: living; checked against the code on 2026-10-10.
 
-A learner should not need English to sign in and learn, in any language Braivo supports. English is the source language and the fallback. Signing in, the sign-in mail, and learning are localized.
+A learner should not need English to sign in and learn, in any language Braivo supports. English is the source language and the fallback. Signing in, the sign-in mail, learning, and the console's first page after signing in are localized.
 
 ## Rules
 
@@ -12,11 +12,12 @@ A learner should not need English to sign in and learn, in any language Braivo s
 - **localization-4:** Every supported language's catalog is complete and compiles, so English never stands in for a missing translation: an app's build fails on a translation missing or malformed (CI's build; the failure itself untested), and `bun run i18n:check` on marked copy not yet extracted, or extracted and not translated (CI).
 - **localization-5:** After sign-in, the learn app's own copy is in the chosen language: the course list, empty or failed; signing out, and its failure; the course page in each of its states (a question and its grading, an answer not yet confirmed, a rest, caught up, nothing to practise, a course not found, a failure); and the screen for an address that names nothing, with its title. Times are written as the language writes them, in the browser's time zone, and counts in its plural forms. `apps/learn/routes.test.tsx`
 - **localization-6:** The sign-in mail is in the supported language its code request's `Accept-Language` weighs highest (the apps send the language the page shows, so a language chosen from the menu, localization-1, holds for the mail too), matched by primary subtag, else English, as when the server asks itself, with no header: equal weights go by the header's order, and a range weighted `q=0`, `*`, or a malformed range picks nothing. Its subject, text, and HTML are in that language, the HTML marked with it; counts take the language's plural forms. Supported: English and Polish. `apps/server/mail/sign-in-code.test.ts`, `apps/server/auth/auth.test.ts`, `packages/auth-client/sign-in.test.tsx` (the header)
+- **localization-7:** The console's `/organizations` is in the chosen language: setting up an organization, its checks, the address it makes, sending, and Braivo's refusal, worded from its code, never its English (access-31); and the list of the organizations someone manages, or the note that they manage none. `apps/console/routes.test.tsx` (the setup and a refusal; the list untested)
 
 ## Boundaries
 
 - **Not here:** course content and the language it is authored or generated in ([generation](generation.md)); the browser's own validation messages, such as for a required field left empty, which Braivo does not control. Sign-in and the learn flow keep their rules in [access](access.md) and the [learner loop](learner-loop.md), which point here for language and never restate it.
-- **Not yet:** the console past its sign-in pages, beyond its header (a shared component it shows, such as a source passage's page, already follows the language); an organization's language; a language menu in the learn app, which follows the browser, as a choice made on the console's `/login` is another host's.
+- **Not yet:** the console past its sign-in pages, beyond its header and `/organizations` (a shared component it shows, such as a source passage's page, already follows the language); an organization's language; a language menu in the learn app, which follows the browser, as a choice made on the console's `/login` is another host's.
 
 ## Decisions
 
