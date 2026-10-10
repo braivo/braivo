@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "d7221663-adb0-4e0a-998f-f59fa599f868",
+  "id": "e1a0a3d3-7465-4a84-aa0a-5850982124f0",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -78,6 +78,12 @@
     {
       "isRlsEnabled": false,
       "name": "learner_session",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "learner_sign_in_code",
       "entityType": "tables",
       "schema": "public"
     },
@@ -1006,6 +1012,19 @@
       "table": "organization_domain"
     },
     {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "registered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain"
+    },
+    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -1173,6 +1192,97 @@
       "entityType": "columns",
       "schema": "public",
       "table": "learner_session"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "hostname",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "code_hash",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "resend_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "learner_sign_in_code"
     },
     {
       "type": "text",
@@ -2186,9 +2296,16 @@
           "asc": true,
           "nullsFirst": false,
           "opclass": null
+        },
+        {
+          "value": "registered_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
         }
       ],
-      "isUnique": true,
+      "isUnique": false,
       "where": null,
       "with": "",
       "method": "btree",
@@ -2281,6 +2398,48 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "learner_session"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "expires_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "learner_sign_in_code_expires_at_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "organization_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "learner_sign_in_code_organization_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "learner_sign_in_code"
     },
     {
       "nameExplicit": true,
@@ -2838,6 +2997,23 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
+      "name": "learner_sign_in_code_organization_id_organization_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "learner_sign_in_code"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "organization",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "ai_request_organization_id_organization_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -3151,6 +3327,17 @@
       "entityType": "fks",
       "schema": "public",
       "table": "task_citation"
+    },
+    {
+      "columns": [
+        "hostname",
+        "email"
+      ],
+      "nameExplicit": false,
+      "name": "learner_sign_in_code_pkey",
+      "entityType": "pks",
+      "schema": "public",
+      "table": "learner_sign_in_code"
     },
     {
       "columns": [
