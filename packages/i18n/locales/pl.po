@@ -55,6 +55,10 @@ msgstr "Kolejny kod można wysłać minutę po poprzednim."
 msgid "Back to sign-in options"
 msgstr "Wróć do opcji logowania"
 
+#: apps/console/components/braivo-logo.tsx
+msgid "Beta"
+msgstr "Beta"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</1>."

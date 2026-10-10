@@ -56,7 +56,7 @@ export function SignInPage(props: {
 export function ConsoleBrand() {
   return (
     <>
-      <BraivoLogo className="text-3xl lg:hidden" />
+      <BraivoLogo className="text-2xl sm:text-3xl lg:hidden" />
       <span className="hidden items-center gap-2 text-xs font-medium tracking-widest text-muted-foreground uppercase lg:flex">
         <span className="size-1.5 rounded-full bg-ring" />
         Braivo Console
