@@ -50,7 +50,7 @@ cat > .env <<ENV
 DATABASE_URL=postgres://localhost/braivo
 TEST_DATABASE_URL=postgres://localhost/braivo_test
 BETTER_AUTH_SECRET=$(openssl rand -base64 32)
-BRAIVO_URL=http://localhost:3000
+BRAIVO_URL=http://localhost:5174
 ENV
 bun run db:migrate
 bun run dev        # API on :3000, learn app on :5173, console on :5174
