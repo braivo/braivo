@@ -20,5 +20,6 @@ export {
   type Theme,
   THEME_STORAGE_KEY,
   ThemeProvider,
+  ThemeMenuRadioGroup,
   useTheme,
 } from "./compositions/theme.tsx";

@@ -18,9 +18,11 @@ import { useState } from "react";
  * The language the page speaks, chosen from Braivo's, each by its own name.
  * Kept for every later visit (`chooseLanguage`), and the page switches at
  * once. Nothing is loaded again, so what the page holds (a sign-in under way)
- * stays; a route's tab title follows on the next page.
+ * stays; a route's tab title follows on the next page. A failure is said
+ * below the button or, given `onFailureChange`, by the caller: `true` when a
+ * choice fails, `false` when another is made.
  */
-export function LanguageMenu() {
+export function LanguageMenu(props: { onFailureChange?: (failed: boolean) => void }) {
   const { i18n, t } = useLingui();
   // Failures so far: a key, so a second one is announced too (docs/apps.md).
   const [failures, setFailures] = useState(0);
@@ -33,10 +35,10 @@ export function LanguageMenu() {
         <DropdownMenuTrigger asChild>
           {/* Named with what it shows (WCAG 2.5.3), and what it is for. On a
               phone just the globe, so the header's row fits beside the logo. */}
-          <Button variant="ghost" className="h-11 px-3" aria-label={t`Language: ${name}`}>
+          <Button variant="ghost" className="h-11 min-w-11 px-3" aria-label={t`Language: ${name}`}>
             <GlobeIcon data-icon="inline-start" />
             <span className="max-sm:hidden">{name}</span>
-            <ChevronDownIcon data-icon="inline-end" />
+            <ChevronDownIcon data-icon="inline-end" className="max-sm:hidden" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -44,8 +46,10 @@ export function LanguageMenu() {
             value={current}
             onValueChange={async (locale) => {
               setFailed(false);
+              props.onFailureChange?.(false);
               // The catalog is fetched on choosing it, and that can fail.
               await chooseLanguage(locale as Locale).catch(() => {
+                if (props.onFailureChange) return props.onFailureChange(true);
                 setFailures((count) => count + 1);
                 setFailed(true);
               });

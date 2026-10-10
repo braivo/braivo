@@ -26,23 +26,24 @@ function Organizations() {
 
   // Someone new where anyone may set one up (ADR 0018); a learner who came
   // here instead of their school's site is still told where to go.
+  // Onboarding's width, 560px: one short form, not a table.
   if (organizations.length === 0 && setupDomain !== null) {
     return (
-      <>
+      <div className="mx-auto max-w-140">
         <OrganizationSetup braivo={braivo} domain={setupDomain} />
-        <div className="mt-8 flex max-w-md flex-col gap-2">
+        <div className="mt-8 flex flex-col gap-2">
           <MutedText>Learning? Open the site your school or training provider gave you.</MutedText>
           <MutedText>
             Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you.
           </MutedText>
           <MutedText className="wrap-anywhere">Signed in as {user.email}.</MutedText>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="mx-auto max-w-140">
       <Heading>Organizations</Heading>
       {organizations.length === 0 ? (
         // Who lands here: a learner who came to Braivo's origin, someone
@@ -57,7 +58,9 @@ function Organizations() {
             <EmptyDescription>
               Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you.
             </EmptyDescription>
-            <EmptyDescription>Signed in as {user.email}.</EmptyDescription>
+            <EmptyDescription className="wrap-anywhere">
+              Signed in as {user.email}.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -67,7 +70,7 @@ function Organizations() {
               <Link
                 to="/$organizationSlug"
                 params={{ organizationSlug: organization.slug }}
-                className="underline"
+                className="wrap-anywhere underline"
               >
                 {organization.name}
               </Link>
@@ -75,6 +78,6 @@ function Organizations() {
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }

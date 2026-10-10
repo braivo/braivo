@@ -8,6 +8,7 @@ import {
   type LearnerProgressReport,
   type Organization,
 } from "@braivo/server/client";
+import { i18n } from "@lingui/core";
 import {
   createBrowserHistory,
   createMemoryHistory,
@@ -35,6 +36,16 @@ function stall(options?: { signal?: AbortSignal }): Promise<never> {
     if (signal?.aborted) return reject(signal.reason);
     signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
   });
+}
+
+/** Opens the header's account menu by keyboard: Radix's menus ignore a bare click. */
+async function openAccountMenu(): Promise<HTMLElement> {
+  fireEvent.keyDown(await screen.findByRole("button", { name: /^Account: / }), { key: "Enter" });
+  return screen.findByRole("menu");
+}
+
+async function signOutFromMenu() {
+  fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Sign out" }));
 }
 
 /** Lets `ms` pass on fake timers, so that a stalled request reaches its deadline. */
@@ -289,27 +300,35 @@ describe("the console", () => {
     expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
   });
 
-  test("signs an owner out, saying so when it could not and letting them try again", async () => {
+  test("names the account in its menu, and signs an owner out, saying so when it could not and letting them try again", async () => {
     const { auth, router } = renderAt("/example", { braivo: { listCourses: async () => [] } });
     const refused = Promise.withResolvers<{ error: { status: number } }>();
     auth.signOut.mockReturnValueOnce(refused.promise as never);
     auth.signOut.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
-    const signOut = await screen.findByRole("button", { name: "Sign out" });
-    fireEvent.click(signOut);
-    // Locked while it is sent, but never disabled, which would drop the focus.
-    fireEvent.click(signOut);
-    expect(signOut.getAttribute("aria-disabled")).toBe("true");
-    expect(signOut.matches(":disabled")).toBe(false);
+    const menu = await openAccountMenu();
+    expect(within(menu).getByText("Olive Owner")).toBeTruthy();
+    expect(within(menu).getByText("olive@example.com")).toBeTruthy();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
+    // Locked while it is sent.
+    const reopened = await openAccountMenu();
+    const locked = within(reopened).getByRole("menuitem", { name: "Sign out" });
+    expect(locked.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(locked);
     expect(auth.signOut).toHaveBeenCalledOnce();
+    fireEvent.keyDown(reopened, { key: "Escape" });
     refused.resolve({ error: { status: 500 } });
-    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
-    fireEvent.click(signOut);
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe("Could not sign out. Try again.");
+    await signOutFromMenu();
     await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(2));
-    expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
+    // A new alert, so the repeat is announced too.
+    const second = await screen.findByRole("alert");
+    expect(second.textContent).toBe("Could not sign out. Try again.");
+    expect(second).not.toBe(first);
     expect(router.state.location.pathname).toBe("/example");
 
-    fireEvent.click(signOut);
+    await signOutFromMenu();
     expect(await screen.findByLabelText("Email address")).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
   });
@@ -319,16 +338,73 @@ describe("the console", () => {
     auth.signOut.mockImplementationOnce((options?: { fetchOptions?: { signal?: AbortSignal } }) =>
       stall(options?.fetchOptions),
     );
-    const signOut = await screen.findByRole("button", { name: "Sign out" });
+    const menu = await openAccountMenu();
 
     vi.useFakeTimers();
-    fireEvent.click(signOut);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     await waitOut(REQUEST_DEADLINE_MS);
     vi.useRealTimers();
 
     expect((await screen.findByRole("alert")).textContent).toBe("Could not sign out. Try again.");
-    expect(signOut.getAttribute("aria-disabled")).toBe("false");
+    const signOut = within(await openAccountMenu()).getByRole("menuitem", { name: "Sign out" });
+    expect(signOut.getAttribute("aria-disabled")).toBeNull();
     expect(router.state.location.pathname).toBe("/example");
+  });
+
+  test("chooses the theme and the language from the signed-in header", async () => {
+    onTestFinished(async () => {
+      localStorage.clear();
+      document.documentElement.classList.remove("dark");
+      await activateLocale("en");
+    });
+    renderAt("/example", { braivo: { listCourses: async () => [] } });
+
+    const themes = within(await openAccountMenu()).getByRole("group", { name: "Theme" });
+    fireEvent.click(within(themes).getByRole("menuitemradio", { name: "Dark" }));
+    await vi.waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Language: English" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Polski" }));
+    expect(await screen.findByRole("button", { name: "Konto: Olive Owner" })).toBeTruthy();
+  });
+
+  test("says under the header's row when a language could not load, as a new alert, until another is chosen", async () => {
+    onTestFinished(async () => {
+      vi.restoreAllMocks();
+      localStorage.clear();
+      await activateLocale("en");
+    });
+    const { auth } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+    auth.signOut.mockResolvedValueOnce({ error: { status: 500 } } as never);
+    const load = vi.spyOn(i18n, "loadAndActivate").mockImplementation(() => {
+      throw new Error("Catalog failed");
+    });
+
+    const chooseFromLanguageMenu = async (name: string) => {
+      fireEvent.keyDown(await screen.findByRole("button", { name: /^(Language|Język): / }), {
+        key: "Enter",
+      });
+      fireEvent.click(await screen.findByRole("menuitemradio", { name }));
+    };
+    await signOutFromMenu();
+    const signOutFailure = await screen.findByText("Could not sign out. Try again.");
+    await chooseFromLanguageMenu("Polski");
+    const alert = await screen.findByText("Could not change the language. Try again.");
+    // A new alert, though it replaces another, so it is announced too.
+    expect(alert).not.toBe(signOutFailure);
+    expect(alert.getAttribute("role")).toBe("alert");
+    // In the header, after its row, never inside it (docs/apps.md).
+    expect(alert.closest("header")).toBeTruthy();
+    expect(
+      alert.previousElementSibling?.contains(
+        screen.getByRole("button", { name: /^Konto|^Account/ }),
+      ),
+    ).toBe(true);
+
+    load.mockRestore();
+    await chooseFromLanguageMenu("Polski");
+    expect(await screen.findByRole("button", { name: "Konto: Olive Owner" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   test("offers to try again when the session cannot be checked in time", async () => {
@@ -349,7 +425,7 @@ describe("the console", () => {
 
     answering = true;
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Account: Olive Owner" })).toBeTruthy();
   });
 
   describe("signing in with Google", () => {
@@ -1311,7 +1387,7 @@ describe("the console", () => {
 
     const video = await screen.findByRole("link", { name: "Los animales" });
     expect(video.getAttribute("href")).toBe("/example/sources/s1");
-    const [first, second] = screen.getAllByRole("listitem");
+    const [first, second] = within(screen.getByRole("main")).getAllByRole("listitem");
     expect(within(first!).getByText("es")).toBeTruthy();
     expect(within(second!).getByText("Original kept")).toBeTruthy();
   });

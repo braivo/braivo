@@ -12,13 +12,15 @@ import type { ComponentProps } from "react";
  * (`--font-logo`). The sparkle in the main action's colour: the theme's, or
  * with `tone="dark"` the story panel's accent, as that panel is dark in either
  * theme. Sized by its font size. "Beta" until Braivo's first release: the API,
- * schema, and apps still change without notice (README).
+ * schema, and apps still change without notice (README). `compactOnPhone`: on a
+ * phone, the sparkle alone, the wordmark kept for screen readers.
  */
 export function BraivoLogo({
   tone = "theme",
+  compactOnPhone = false,
   className,
   ...props
-}: ComponentProps<"span"> & { tone?: "dark" | "theme" }) {
+}: ComponentProps<"span"> & { tone?: "dark" | "theme"; compactOnPhone?: boolean }) {
   return (
     <span
       className={cn("flex items-center gap-[0.35em] font-logo leading-none font-normal", className)}
@@ -31,11 +33,12 @@ export function BraivoLogo({
           tone === "dark" ? "text-brand-panel-accent" : "text-primary",
         )}
       />
-      <span>braivo</span>
+      <span className={cn(compactOnPhone && "max-sm:sr-only")}>braivo</span>
       <Badge
         variant="outline"
         className={cn(
           "ml-[0.15em] font-sans",
+          compactOnPhone && "max-sm:hidden",
           tone === "dark"
             ? "border-brand-panel-muted/40 text-brand-panel-muted"
             : "text-muted-foreground",
