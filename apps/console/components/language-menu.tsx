@@ -31,11 +31,11 @@ export function LanguageMenu() {
     <div className="relative">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          {/* Named with what it shows (WCAG 2.5.3), and what it is for. Below
-              360px just the globe, so the header's row fits beside the logo. */}
+          {/* Named with what it shows (WCAG 2.5.3), and what it is for. On a
+              phone just the globe, so the header's row fits beside the logo. */}
           <Button variant="ghost" className="h-11 px-3" aria-label={t`Language: ${name}`}>
             <GlobeIcon data-icon="inline-start" />
-            <span className="max-[359px]:hidden">{name}</span>
+            <span className="max-sm:hidden">{name}</span>
             <ChevronDownIcon data-icon="inline-end" />
           </Button>
         </DropdownMenuTrigger>
