@@ -3,6 +3,7 @@
 
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { cn } from "@braivo/ui/lib/utils";
 import {
   createRootRouteWithContext,
   HeadContent,
@@ -10,6 +11,7 @@ import {
   Outlet,
   useMatch,
 } from "@tanstack/react-router";
+import { useLayoutEffect } from "react";
 
 import type { AppContext } from "#lib/context";
 
@@ -34,16 +36,28 @@ export const Route = createRootRouteWithContext<AppContext>()({
 
 function Root() {
   // A learn domain's sign-in, loading and failed alike, is marked so that it
-  // wears none of Braivo's colours (`styles.css`, ADR 0018).
+  // wears none of Braivo's colours (`styles.css`, ADR 0018): on `<html>`, so
+  // dialogs and popovers outside `<main>` follow. `index.html` marks it before
+  // the app starts; from here the route decides, so leaving it unmarks it.
   const learnDomain = useMatch({
     from: "/login",
     shouldThrow: false,
     select: (match) => match.search.handoff !== undefined,
   });
+  useLayoutEffect(() => {
+    document.documentElement.toggleAttribute("data-learn-domain", learnDomain === true);
+  }, [learnDomain]);
+  // A sign-in page frames itself (`SignInPage`); loading or failed, it keeps
+  // the column every other page has.
+  const framed = useMatch({
+    from: "/login",
+    shouldThrow: false,
+    select: (match) => match.status === "success",
+  });
   return (
     <>
       <HeadContent />
-      <main data-learn-domain={learnDomain ? "" : undefined} className="mx-auto max-w-3xl p-6">
+      <main className={cn(!framed && "mx-auto max-w-3xl p-6")}>
         <Outlet />
       </main>
     </>

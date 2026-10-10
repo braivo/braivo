@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { requireSession } from "@braivo/auth-client";
+import { ModeToggle } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { createFileRoute, Link, Outlet, useMatch, useRouter } from "@tanstack/react-router";
+import { SparkleIcon } from "lucide-react";
 import { useState } from "react";
 
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -58,8 +60,10 @@ function SignedIn() {
   return (
     <>
       <header className="mb-6">
-        <div className="flex items-center justify-between">
-          <nav className="flex gap-2 font-semibold">
+        {/* Wrapping, so at 320px the account's controls go below, never off screen. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <nav className="flex items-center gap-2 font-semibold">
+            <SparkleIcon aria-hidden="true" className="mr-1 size-5 shrink-0 text-primary" />
             <Link to="/organizations">Organizations</Link>
             {organization && (
               <>
@@ -70,8 +74,9 @@ function SignedIn() {
               </>
             )}
           </nav>
-          <span className="flex gap-4">
-            {user.name}
+          <span className="flex min-w-0 items-center gap-4">
+            <span className="wrap-anywhere">{user.name}</span>
+            <ModeToggle />
             {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
             <Button variant="link" aria-disabled={signingOut} onClick={signOut}>
               Sign out

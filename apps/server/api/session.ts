@@ -14,33 +14,40 @@ import {
 } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import { cookieOptions, type Guards, HANDOFF_COOKIE, LEARNER_COOKIE } from "./guards.ts";
+import type { SignInSettings } from "./types.ts";
 
 type SessionOptions = {
   auth: Auth;
   database: Database;
   /** The installation's public origin, where a learn domain's sign-in goes. */
   baseUrl: string;
+  /** The privacy policy and terms `/login` links, or none. */
+  legal?: NonNullable<SignInSettings["legal"]>;
 };
 
 /**
- * Braivo's session routes: which sign-in methods `/login` offers, a learn
- * domain's sign-in handed off through it (ADR 0018), who is signed in, and
- * signing out. Better Auth answers `/api/auth/*` itself.
+ * Braivo's session routes: what `/login` offers, a learn domain's sign-in
+ * handed off through it (ADR 0018), who is signed in, and signing out.
+ * Better Auth answers `/api/auth/*` itself.
  */
 export function sessionRoutes(
   { requestHost, sessionFor, isTrustedWrite, requireLearner }: Guards,
-  { auth, database, baseUrl }: SessionOptions,
+  { auth, database, baseUrl, legal }: SessionOptions,
 ) {
   const origin = new URL(baseUrl).origin;
   const routes = new Hono();
 
   /**
-   * How `/login` may sign people in besides an emailed code, which is always
-   * offered: with Google, when the installation has an OAuth client for it.
-   * The console is built once for any installation, so it asks.
+   * What `/login` offers besides an emailed code, which it always does: Google,
+   * when the installation has an OAuth client for it, and the operator's
+   * privacy policy and terms to agree to. The console is built once for any
+   * installation, so it asks.
    */
-  routes.get("/api/sign-in-methods", (context) =>
-    context.json({ google: auth.options.socialProviders?.google !== undefined }),
+  routes.get("/api/sign-in-settings", (context) =>
+    context.json<SignInSettings>({
+      google: auth.options.socialProviders?.google !== undefined,
+      legal: legal ?? null,
+    }),
   );
 
   /**

@@ -147,7 +147,7 @@ describe("the learn app", () => {
       signedIn: false,
     });
 
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
     expect(nextActivity).not.toHaveBeenCalled();
@@ -186,7 +186,7 @@ describe("the learn app", () => {
     expect(visit).toHaveBeenCalledWith(
       `/api/session/sign-in?redirect=${encodeURIComponent("/courses/c1?tab=next")}`,
     );
-    expect(screen.queryByLabelText("Email")).toBeNull();
+    expect(screen.queryByLabelText("Email address")).toBeNull();
   });
 
   test("on its organization's domain, sends a learner already signed in onward, without a second handoff", async () => {
@@ -266,7 +266,7 @@ describe("the learn app", () => {
     await waitOut(READ_DEADLINE_MS);
     vi.useRealTimers();
 
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
   });
 
   test("signs in in the browser's language, on every view of the way", async () => {
@@ -277,8 +277,8 @@ describe("the learn app", () => {
     renderAt("/login", { signedIn: false });
     expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Nauka"));
-    expect(screen.getByLabelText("E-mail")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Wyślij kod" })).toBeTruthy();
+    expect(screen.getByLabelText("Adres e-mail")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wyślij mi kod" })).toBeTruthy();
     cleanup();
 
     renderAt("/login", { signedIn: false, hostOrganization: fernwood });
@@ -376,7 +376,7 @@ describe("the learn app", () => {
     expect(router.state.location.pathname).toBe("/");
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(signOut).toHaveBeenCalledTimes(2);
   });
@@ -385,7 +385,7 @@ describe("the learn app", () => {
     document.title = "";
     renderAt("/login", { signedIn: false });
 
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(screen.queryByText("Fernwood")).toBeNull();
     await vi.waitFor(() => expect(document.title).toBe("Learning"));
   });
@@ -416,7 +416,7 @@ describe("the learn app", () => {
 
     const notice = await screen.findByRole("region", { name: "Something went wrong." });
     expect(document.activeElement).toBe(notice);
-    expect(screen.queryByLabelText("Email")).toBeNull();
+    expect(screen.queryByLabelText("Email address")).toBeNull();
     expect(visit).not.toHaveBeenCalled();
 
     // Until it is tried again, once the lookup can answer.
@@ -431,10 +431,10 @@ describe("the learn app", () => {
       learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
     });
 
-    fireEvent.change(await screen.findByLabelText("Email"), {
+    fireEvent.change(await screen.findByLabelText("Email address"), {
       target: { value: "ada@example.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
     const code = await screen.findByLabelText("Code");
     // No link: an emailed code makes the account, so there is nothing to sign up for.
     expect(screen.queryByRole("link")).toBeNull();
@@ -920,7 +920,7 @@ describe("the learn app", () => {
         throw new BraivoError(401, "no session");
       },
     });
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
     cleanup();
 
@@ -1116,7 +1116,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByRole("button", { name: "Send code" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
   });
 

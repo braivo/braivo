@@ -15,6 +15,7 @@ import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./gua
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { sessionRoutes } from "./session.ts";
+import type { SignInSettings } from "./types.ts";
 
 type ApiOptions = {
   auth: Auth;
@@ -33,6 +34,8 @@ type ApiOptions = {
   ai?: Ai;
   /** Where anyone signed in may set up an organization (ADR 0018); without one, nobody may. */
   selfServeDomain?: string;
+  /** The privacy policy and terms `/login` links, or none. */
+  legal?: NonNullable<SignInSettings["legal"]>;
 };
 
 /**
@@ -89,6 +92,7 @@ export function createApi(options: ApiOptions) {
     files,
     ai,
     selfServeDomain,
+    legal,
   } = options;
   const api = new Hono();
   const guards = createGuards(options);
@@ -130,7 +134,7 @@ export function createApi(options: ApiOptions) {
       "/api/organization-setup",
       "/api/auth",
       "/api/handoffs",
-      "/api/sign-in-methods",
+      "/api/sign-in-settings",
     ];
     if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
@@ -204,7 +208,7 @@ export function createApi(options: ApiOptions) {
   });
 
   // After the host gate, which runs only before routes registered after it.
-  api.route("/", sessionRoutes(guards, { auth, database, baseUrl }));
+  api.route("/", sessionRoutes(guards, { auth, database, baseUrl, legal }));
   api.route("/", learningRoutes(guards, { database }));
   api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain }));
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));

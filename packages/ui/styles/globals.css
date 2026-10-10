@@ -146,11 +146,88 @@
 
 /*
  * Corners: below the preset's smallest radius, so controls are softly rounded
- * rectangles (about 7px at 32px tall), not Rhea's pills. Every radius scales
- * from it. Unlayered and after the theme, so it wins over the preset's.
+ * rectangles (about 9px), not Rhea's pills. Every radius scales from it.
+ * Unlayered and after the theme, so it wins over the preset's.
+ *
+ * `color-scheme` follows `.dark`, so the browser's own parts (scrollbars,
+ * autofill, native controls) match the theme.
+ *
+ * Tokens beyond shadcn's, which the rules below use: the main action's hover,
+ * and a field's fill, apart from `--input`, its border. Neutral here, as the
+ * learn app is; the console sets Braivo's (`apps/console/styles.css`).
  */
 :root {
-  --radius: 0.25rem;
+  color-scheme: light;
+  --radius: 0.3125rem;
+  --primary-hover: color-mix(in oklab, var(--primary) 88%, var(--foreground));
+  --input-background: var(--background);
+}
+
+.dark {
+  color-scheme: dark;
+  --input-background: oklch(1 0 0 / 5%);
+}
+
+@theme inline {
+  --color-primary-hover: var(--primary-hover);
+  --color-input-background: var(--input-background);
+}
+
+/*
+ * A field is bounded by `--input` on its own fill, not Rhea's tint without a
+ * border, so it reads as a field on any surface (WCAG 1.4.11). Unlayered, to
+ * win over the components' classes; a focused or invalid field, or a group
+ * holding one, keeps theirs.
+ */
+:is(
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"],
+  [data-slot="native-select"],
+  [data-slot="input-group"],
+  [data-slot="input-otp-slot"]
+) {
+  background-color: var(--input-background);
+}
+
+:is(
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"],
+  [data-slot="native-select"],
+  [data-slot="input-group"]
+):not(:focus-visible, :has(:focus-visible), [aria-invalid="true"], :has([aria-invalid="true"])) {
+  border-color: var(--input);
+}
+
+/*
+ * A secondary button is raised like a field: the card's fill and the field's
+ * border, not the page's own colour, which on a tinted page (the console's
+ * off-white) it would vanish into. As Google's sign-in button asks too: white,
+ * outlined, in light. Unlayered, over the variant's `bg-background` and
+ * `dark:bg-transparent`; hovered or open, it keeps the variant's.
+ */
+[data-slot="button"][data-variant="outline"]:not(:hover, [aria-expanded="true"]) {
+  background-color: var(--card);
+}
+
+[data-slot="button"][data-variant="outline"] {
+  border-color: var(--input);
+}
+
+/*
+ * The main action shifts on hover (`--primary-hover`), rather than fading;
+ * while locked or disabled it turns muted, solid, rather than half-transparent
+ * over the page.
+ */
+[data-slot="button"][data-variant="default"]:hover {
+  background-color: var(--primary-hover);
+}
+
+[data-slot="button"][data-variant="default"]:is([aria-disabled="true"], :disabled) {
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+  opacity: 1;
 }
 
 /*
@@ -161,6 +238,44 @@
   [data-slot="button"][aria-disabled="true"] {
     @apply pointer-events-none opacity-50;
   }
+}
+
+/*
+ * Signing in is a page with one task, often on a phone: its fields and
+ * buttons are touch-sized (48px), its links aside. Unlayered, to win over the
+ * components' own heights, which are utilities.
+ */
+[data-slot="sign-in-form"]
+  :is([data-slot="input"], [data-slot="button"]:not([data-variant="link"])) {
+  @apply h-12;
+}
+
+[data-slot="sign-in-form"] [data-slot="input"] {
+  @apply px-3.5;
+}
+
+/*
+ * LastPass anchors its icon on a 0×0 element it puts after a field's input:
+ * still a flex item, it takes the field's gap (`gap-3`), pushing what follows
+ * down as the icon loads. A negative margin after it cancels the gap, and
+ * leaves it where it is, which LastPass places its icon from; its inline
+ * styles are `!important`, but set no margin.
+ */
+[data-slot="field"] > [data-lastpass-icon-root] {
+  margin-block-end: --spacing(-3);
+}
+
+/*
+ * While the theme changes (`ThemeProvider`), every colour switches at once,
+ * rather than each control easing on its own transition behind a page that
+ * already has; as next-themes' `disableTransitionOnChange`. A class, not an
+ * injected `<style>`, which a strict CSP refuses (ADR 0004).
+ */
+.theme-changing,
+.theme-changing *,
+.theme-changing *::before,
+.theme-changing *::after {
+  transition: none !important;
 }
 
 /*

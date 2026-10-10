@@ -9,7 +9,7 @@ Schools need their learners served in languages other than English ([localizatio
 ## Decision
 
 - **Lingui for web copy**: English written where it is rendered, message IDs generated from it, ICU plurals, PO catalogs versioned with the code. Translator context is added where the same or short English could be translated two ways.
-- **The language is chosen once, when an app starts**: the best supported one among the browser's preferences, else English. Its catalog is loaded before the first render and the document's language set to it. No preference is stored or carried between hosts; both read the same browser. The page's loading message, all a learner sees until the app starts or if the catalog fails to load, follows the same rule, set by a script the build inlines into the HTML.
+- **The language is chosen when an app starts**: the one last chosen from a menu in that browser, if still supported, else the best supported one among the browser's preferences, else English. Its catalog is loaded before the first render and the document's language set to it. A menu's choice switches the page at once and is kept in `localStorage`, per origin, only once its catalog has loaded; it is not carried between hosts, so a learn domain follows the browser until it offers a menu of its own. The page's loading message, all a learner sees until the app starts or if the catalog fails to load, follows the same rule, set by a script the build inlines into the HTML.
 - **Every supported catalog is complete and compiles.** English is the fallback for an unsupported language, never for a missing translation, so a release cannot ship a supported language with gaps.
 - **Locale-sensitive formatting follows the chosen language**, without changing which time zone a time is shown in.
 - **Failures are worded by the client from what the server answers in machine-readable form**: an error code, or an HTTP status where that is all there is. One it has no wording for gets generic localized copy; server or provider prose is never shown to a learner. Where Braivo's own API needs a distinction worded differently, it answers a code of its own.
@@ -19,7 +19,8 @@ Schools need their learners served in languages other than English ([localizatio
 
 - **Typed dictionaries, no library.** Smaller at first, but plurals, rich text, extraction, and catalog checks would each become Braivo's to build as more copy is localized.
 - **Key-based frameworks** (i18next, Paraglide). Workable, but keys move the English away from where it is rendered, which is where this codebase's copy is written and reviewed.
-- **A stored or organization-chosen language.** Deferred until a learner or a school must override the browser. It would take precedence in choosing the language without changing the mechanism.
+- **The browser's language alone, nothing stored** (replaced). A teacher whose browser asks for English could not sign in to the console in Polish, nor keep Polish once chosen.
+- **An organization-chosen language.** Deferred until a school must override the browser. It would take precedence in choosing the language without changing the mechanism.
 
 ## Consequences
 

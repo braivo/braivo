@@ -35,9 +35,33 @@ msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego
 msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
 msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”. Poproś o dodanie tego adresu e-mail, a potem spróbuj ponownie."
 
+#: apps/console/components/sign-in-page.tsx
+msgid "<0>Here to learn?</0> Sign in through your course's website."
+msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
+
+#: packages/auth-client/sign-in.tsx
+msgid "A code was requested less than a minute ago. Check your email."
+msgstr "O kod poproszono niecałą minutę temu. Sprawdź pocztę."
+
 #: packages/ui/compositions/sign-in-form.tsx
-msgid "A new code was sent to {email}. Check your spam folder too."
-msgstr "Nowy kod został wysłany na adres {email}. Sprawdź też folder ze spamem."
+msgid "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
+msgstr "Nowy kod został wysłany na adres {address}. Użyj najnowszego; wygasa po 10 minutach."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Another code can be sent a minute after the last."
+msgstr "Kolejny kod można wysłać minutę po poprzednim."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Back to sign-in options"
+msgstr "Wróć do opcji logowania"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
+msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</1>."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Check your email"
+msgstr "Sprawdź pocztę"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The sign-in code sent by email"
@@ -67,6 +91,10 @@ msgctxt "Marks the correct option"
 msgid "Correct"
 msgstr "Poprawna"
 
+#: apps/console/components/language-menu.tsx
+msgid "Could not change the language. Try again."
+msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
+
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
@@ -85,22 +113,43 @@ msgstr "Nie udało się wylogować. Spróbuj ponownie."
 msgid "Courses will appear here when they're available to you."
 msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
 
+#: packages/ui/compositions/theme.tsx
+msgid "Dark"
+msgstr "Ciemny"
+
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "due for review"
 msgstr "do powtórki"
+
+#: apps/console/components/sign-in-page.tsx
+msgctxt "A learner's standing on an objective"
+msgid "Due for review"
+msgstr "Do powtórki"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Due for review: about {percent}% likely to recall now."
 msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypomnisz."
 
 #: packages/ui/compositions/sign-in-form.tsx
-msgid "Email"
-msgstr "E-mail"
+msgid "Email address"
+msgstr "Adres e-mail"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Enter the six-digit code sent to {address}. It expires in 10 minutes and works once."
+msgstr "Wpisz sześciocyfrowy kod wysłany na adres {address}. Wygasa po 10 minutach i działa tylko raz."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Enter your email address, such as name@example.com."
+msgstr "Wpisz swój adres e-mail, np. imie@example.com."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Enter your name."
 msgstr "Wpisz swoje imię i nazwisko."
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "First time here? Signing in creates your account."
+msgstr "Jesteś tu pierwszy raz? Logowanie utworzy Twoje konto."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "From your lessons"
@@ -114,9 +163,18 @@ msgstr "Wróć do poprzedniej strony i zaloguj się ponownie."
 msgid "How others in your organizations see you."
 msgstr "Tak widzą Cię inni w Twoich organizacjach."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
+msgid "in {time}"
+msgstr "za {time}"
+
 #: apps/learn/routes/login.tsx
 msgid "It may have expired."
 msgstr "Mogło wygasnąć."
+
+#: apps/console/components/language-menu.tsx
+msgid "Language: {name}"
+msgstr "Język: {name}"
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -126,6 +184,15 @@ msgstr "w trakcie nauki"
 #: apps/learn/routes/__root.tsx
 msgid "Learning"
 msgstr "Nauka"
+
+#: apps/console/components/sign-in-page.tsx
+msgctxt "A learner's standing on an objective"
+msgid "Learning"
+msgstr "W trakcie nauki"
+
+#: packages/ui/compositions/theme.tsx
+msgid "Light"
+msgstr "Jasny"
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
@@ -143,9 +210,17 @@ msgctxt "Why a question comes now"
 msgid "New"
 msgstr "Nowy temat"
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "No code? Check your spam folder."
+msgstr "Nie ma kodu? Sprawdź folder ze spamem."
+
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "No courses yet"
 msgstr "Nie masz jeszcze kursów"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "No password to remember."
+msgstr "Bez hasła do zapamiętania."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Not quite"
@@ -173,6 +248,7 @@ msgid "One question at a time. What you get wrong comes back soon; what you get 
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
 
 #: packages/ui/compositions/sign-in-form.tsx
+msgctxt "Between two ways to sign in"
 msgid "or"
 msgstr "lub"
 
@@ -185,6 +261,11 @@ msgstr "s. {page}"
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "retained"
 msgstr "utrwalono"
+
+#: apps/console/components/sign-in-page.tsx
+msgctxt "A learner's standing on an objective"
+msgid "Retained"
+msgstr "Utrwalone"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgctxt "Why a question comes now"
@@ -200,18 +281,13 @@ msgid "Send again"
 msgstr "Wyślij ponownie"
 
 #: packages/ui/compositions/sign-in-form.tsx
-msgid "Send code"
-msgstr "Wyślij kod"
+msgid "Send me a code"
+msgstr "Wyślij mi kod"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Sending…"
 msgstr "Wysyłanie…"
 
-#: packages/ui/compositions/sign-in-form.tsx
-msgid "Sent to {email}. Check your spam folder too."
-msgstr "Wysłano na adres {email}. Sprawdź też folder ze spamem."
-
-#: apps/learn/routes/login.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sign in"
 msgstr "Zaloguj się"
@@ -244,9 +320,17 @@ msgstr "Coś poszło nie tak."
 msgid "Something went wrong. Try again."
 msgstr "Coś poszło nie tak. Spróbuj ponownie."
 
+#: packages/ui/compositions/theme.tsx
+msgid "System"
+msgstr "Systemowy"
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Take a short break"
 msgstr "Zrób krótką przerwę"
+
+#: apps/console/components/sign-in-page.tsx
+msgid "Teach it once. <0>Tutor every learner.</0>"
+msgstr "Ucz raz. <0>Prowadź każdego ucznia.</0>"
 
 #: packages/auth-client/sign-in.tsx
 msgid "That code has expired. Send a new one."
@@ -271,6 +355,14 @@ msgstr "Poprawna odpowiedź: {correctAnswer}"
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."
 msgstr "Nie udało się wysłać kodu. Spróbuj ponownie za minutę."
+
+#: apps/console/components/sign-in-page.tsx
+msgid "The learning engine behind your courses"
+msgstr "Silnik nauki stojący za Twoimi kursami"
+
+#: packages/ui/compositions/theme.tsx
+msgid "Theme"
+msgstr "Motyw"
 
 #: apps/learn/routes/__root.tsx
 msgid "There is nothing here."
@@ -322,8 +414,8 @@ msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
 
 #: packages/ui/compositions/sign-in-form.tsx
-msgid "We'll email you a sign-in code. Using it creates an account if you don't have one."
-msgstr "Wyślemy Ci kod do logowania. Jeśli nie masz jeszcze konta, użycie kodu je utworzy."
+msgid "What should we call you?"
+msgstr "Jak mamy się do Ciebie zwracać?"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You missed this last time."
@@ -375,6 +467,10 @@ msgstr "Adres e-mail Twojego konta Google nie jest zweryfikowany. Zaloguj się k
 #: packages/auth-client/sign-in.tsx
 msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
 msgstr "Adres e-mail Twojego konta Google nie zgadza się już z tym kontem. Zaloguj się kodem wysłanym na adres e-mail tego konta."
+
+#: apps/console/components/sign-in-page.tsx
+msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
+msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Your name"

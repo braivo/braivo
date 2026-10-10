@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { needsName, safeRedirect, SignIn } from "@braivo/auth-client";
-import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -65,15 +64,11 @@ function Login() {
     );
   }
   return (
-    <>
-      <Heading>
-        <Trans>Sign in</Trans>
-      </Heading>
-      <SignIn
-        auth={context.auth}
-        needsName={context.needsName}
-        onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
-      />
-    </>
+    <SignIn
+      auth={context.auth}
+      needsName={context.needsName}
+      // In `/login`'s place, so Back does not return to it.
+      onSignedIn={() => router.navigate({ href: redirect ?? "/", replace: true })}
+    />
   );
 }

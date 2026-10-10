@@ -3,7 +3,7 @@
 
 import type { Plugin } from "vite-plus";
 
-import type { Locale } from "./locales.ts";
+import { LANGUAGE_STORAGE_KEY, type Locale } from "./locales.ts";
 
 /**
  * The words of each app's `index.html` loading message (`#boot`): shown before
@@ -29,7 +29,7 @@ export const BOOT: Record<
 };
 
 /**
- * The inline script rewriting `#boot` in the language `chooseLocale` would
+ * The inline script rewriting `#boot` in the language `preferredLocale` would
  * choose, its rule restated as no module has loaded yet. It runs as the page is
  * parsed, before the app's module script.
  */
@@ -38,7 +38,11 @@ export function bootScript(): string {
   const copy = JSON.stringify(BOOT).replaceAll("<", "\\u003c");
   return `(() => {
   const copy = ${copy};
-  const locale = (navigator.languages || [])
+  let stored = null;
+  try {
+    stored = localStorage.getItem(${JSON.stringify(LANGUAGE_STORAGE_KEY)});
+  } catch {}
+  const locale = [stored || "", ...(navigator.languages || [])]
     .map((language) => language.split("-")[0].toLowerCase())
     .find((primary) => Object.hasOwn(copy, primary));
   if (locale === undefined || locale === "en") return;

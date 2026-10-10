@@ -42,7 +42,7 @@ const routes = [
   "POST /api/auth/sign-in/email-otp",
   "POST /api/auth/sign-in/social",
   "POST /api/auth/sign-out",
-  "GET  /api/sign-in-methods",
+  "GET  /api/sign-in-settings",
   "GET  /api/session/sign-in",
   "GET  /api/session/handoff",
   "GET  /api/session",
@@ -256,7 +256,7 @@ POST /api/auth/email-otp/send-verification-otp                                  
 POST /api/auth/sign-in/email-otp                                                400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-in/social                                                   400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-out                                                         200     200     200     200     403     403     415     415     1MB
-GET  /api/sign-in-methods                                                       200     200     200     200       ·       ·       ·       ·       ·
+GET  /api/sign-in-settings                                                      200     200     200     200       ·       ·       ·       ·       ·
 GET  /api/session/sign-in                                                       404     404     404     404       ·       ·       ·       ·       ·
 GET  /api/session/handoff                                                       404     404     404     404       ·       ·       ·       ·       ·
 GET  /api/session                                                               401     200     200     401       ·       ·       ·       ·       ·
@@ -304,7 +304,7 @@ POST /api/auth/email-otp/send-verification-otp                                  
 POST /api/auth/sign-in/email-otp                                                404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-in/social                                                   404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-out                                                         404     404     401     404     404     404     404     404     404
-GET  /api/sign-in-methods                                                       404     404     401     404       ·       ·       ·       ·       ·
+GET  /api/sign-in-settings                                                      404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/session/sign-in                                                       302     302     401     302       ·       ·       ·       ·       ·
 GET  /api/session/handoff                                                       302     302     401     302       ·       ·       ·       ·       ·
 GET  /api/session                                                               401     401     401     200       ·       ·       ·       ·       ·

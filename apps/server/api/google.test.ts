@@ -109,11 +109,11 @@ describe.skipIf(!connectionString)("signing in with Google", () => {
   });
 
   test("is offered only by an installation with Google's client", async () => {
-    const offered = await api.request("/api/sign-in-methods");
-    const notOffered = await apiWith({}).request("/api/sign-in-methods");
+    const offered = await api.request("/api/sign-in-settings");
+    const notOffered = await apiWith({}).request("/api/sign-in-settings");
 
-    expect(await offered.json()).toEqual({ google: true });
-    expect(await notOffered.json()).toEqual({ google: false });
+    expect(await offered.json()).toMatchObject({ google: true });
+    expect(await notOffered.json()).toMatchObject({ google: false });
   });
 
   test("sends the person to Google to choose an account, back to the installation", async () => {
