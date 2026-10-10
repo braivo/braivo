@@ -75,12 +75,19 @@ export class BraivoError extends Error {
    * refused and why, say. Meant to be shown, to a person or a model, as it is.
    */
   readonly reason: string | undefined;
+  /**
+   * Braivo's code for the refusal, where it answers one (`ADDRESS_TAKEN`,
+   * say), for a client to word it in its own language rather than show
+   * `reason`, which is English (ADR 0035).
+   */
+  readonly code: string | undefined;
 
-  constructor(status: number, message: string, reason?: string) {
+  constructor(status: number, message: string, reason?: string, code?: string) {
     super(message);
     this.name = "BraivoError";
     this.status = status;
     this.reason = reason;
+    this.code = code;
   }
 }
 
@@ -505,11 +512,12 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
    * between would otherwise be parsed as though it were a real answer.
    */
   async function unexpected(response: Response, doing: string): Promise<BraivoError> {
-    const reason = await explanation(response);
+    const { reason, code } = await explanation(response);
     return new BraivoError(
       response.status,
       `Braivo answered ${response.status} ${doing}${reason ? `: ${reason}` : "."}`,
       reason,
+      code,
     );
   }
 
@@ -950,20 +958,20 @@ async function digest(values: readonly string[]): Promise<string> {
 const MAX_EXPLANATION_BYTES = 64 * 1024;
 
 /**
- * Braivo's reason for refusing a request: the `error` of a JSON body on a
- * status Braivo explains (400 a quote not in its source, 409 a key naming
+ * Braivo's reason for refusing a request, and its `code` where it answers
+ * one: the `error` of a JSON body on a status Braivo explains (400 a quote not in its source, 409 a key naming
  * something else, 403, 429, 501, 502 from the AI and file routes). Any other
  * body is cancelled unread: the status already says what failed, and waiting
  * on whatever else answered — a proxy's error page, a stream that never ends —
  * would only delay saying so. A JSON body is read no further than a real
  * explanation could run.
  */
-async function explanation(response: Response): Promise<string | undefined> {
+async function explanation(response: Response): Promise<{ reason?: string; code?: string }> {
   const mediaType = (response.headers.get("content-type") ?? "").split(";")[0]?.trim();
   const explained = [400, 403, 409, 429, 501, 502].includes(response.status);
   if (!explained || mediaType !== "application/json" || !response.body) {
     await response.body?.cancel().catch(() => {});
-    return undefined;
+    return {};
   }
 
   const reader = response.body.getReader();
@@ -976,17 +984,21 @@ async function explanation(response: Response): Promise<string | undefined> {
       size += value.byteLength;
       if (size > MAX_EXPLANATION_BYTES) {
         await reader.cancel();
-        return undefined;
+        return {};
       }
       chunks.push(value);
     }
-    const { error } = JSON.parse(new TextDecoder().decode(concatenate(chunks, size))) as {
+    const { error, code } = JSON.parse(new TextDecoder().decode(concatenate(chunks, size))) as {
       error?: unknown;
+      code?: unknown;
     };
-    return typeof error === "string" ? error : undefined;
+    return {
+      reason: typeof error === "string" ? error : undefined,
+      code: typeof code === "string" ? code : undefined,
+    };
   } catch {
     // A dropped connection or a body that is not JSON: nothing Braivo explained.
-    return undefined;
+    return {};
   }
 }
 

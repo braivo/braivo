@@ -46,13 +46,17 @@ export async function listMembers(input: {
 }
 
 /**
- * Why an organization was not set up, worded for the person setting it up:
- * `conflict` for an address someone has or an organization already owned,
- * `invalid` for a name or address that cannot be one.
+ * Why an organization was not set up: `code` for a client to word it in its
+ * language (ADR 0035), `message` the same in English, for any other caller.
  */
 export class SetUpRefused extends Error {
   constructor(
-    readonly reason: "conflict" | "invalid",
+    readonly code:
+      | "NAME_INVALID"
+      | "ADDRESS_INVALID"
+      | "ADDRESS_RESERVED"
+      | "ADDRESS_TAKEN"
+      | "ALREADY_OWNER",
     message: string,
   ) {
     super(message);
@@ -92,17 +96,20 @@ export async function setUpOrganization(input: {
   const { database, actingAs, slug } = input;
   const name = input.name.trim();
   if (name === "" || name.length > MAX_NAME_LENGTH) {
-    throw new SetUpRefused("invalid", `A name is 1 to ${MAX_NAME_LENGTH} characters.`);
+    throw new SetUpRefused("NAME_INVALID", `A name is 1 to ${MAX_NAME_LENGTH} characters.`);
   }
   const hostname = `${slug}.${input.selfServeDomain}`;
-  const taken = new SetUpRefused("conflict", `${hostname} is taken. Choose another address.`);
+  const taken = new SetUpRefused("ADDRESS_TAKEN", `${hostname} is taken. Choose another address.`);
   const invalid = new SetUpRefused(
-    "invalid",
+    "ADDRESS_INVALID",
     `${hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them.`,
   );
-  const reserved = new SetUpRefused("invalid", `${hostname} is reserved. Choose another address.`);
+  const reserved = new SetUpRefused(
+    "ADDRESS_RESERVED",
+    `${hostname} is reserved. Choose another address.`,
+  );
   const alreadyOwns = new SetUpRefused(
-    "conflict",
+    "ALREADY_OWNER",
     "You already own an organization. Reload this page to open it.",
   );
   if (RESERVED_SUBDOMAINS.has(slug)) throw reserved;

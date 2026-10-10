@@ -241,17 +241,57 @@
 }
 
 /*
- * Signing in is a page with one task, often on a phone: its fields and
- * buttons are touch-sized (48px), its links aside. Unlayered, to win over the
+ * A page with one task, often on a phone (signing in, setting up an
+ * organization), marks its form `data-touch`: its fields and buttons are
+ * touch-sized (48px), its links aside. Unlayered, to win over the
  * components' own heights, which are utilities.
  */
-[data-slot="sign-in-form"]
-  :is([data-slot="input"], [data-slot="button"]:not([data-variant="link"])) {
+[data-touch]
+  :is(
+    [data-slot="input"],
+    [data-slot="input-group"]:not(:has(> textarea)),
+    [data-slot="button"]:not([data-variant="link"], [data-slot="input-group"] *)
+  ) {
   @apply h-12;
 }
 
-[data-slot="sign-in-form"] [data-slot="input"] {
+[data-touch] [data-slot="input"] {
   @apply px-3.5;
+}
+
+/*
+ * A group's single-line input fills it, so a tap anywhere in it focuses the
+ * input. Its text sits at the inputs' inset, unless an addon leads; an addon
+ * after it, at the same inset from the end.
+ */
+[data-touch] input[data-slot="input-group-control"] {
+  @apply h-full;
+}
+
+[data-touch]
+  [data-slot="input-group"]:not(:has(> [data-align="inline-start"]))
+  > [data-slot="input-group-control"] {
+  @apply ps-3.5;
+}
+
+[data-touch] [data-slot="input-group-addon"][data-align="inline-end"] {
+  @apply pe-3.5;
+}
+
+/*
+ * A button's trailing arrow (`ArrowRightIcon`, `data-icon="inline-end"`)
+ * leans toward where it goes, on hover: never on its own, nor where hover is
+ * a tap's leftover (touch), motion unwanted, or the button inert.
+ */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  [data-slot="button"] > svg.lucide-arrow-right[data-icon="inline-end"] {
+    transition: translate 150ms ease-out;
+  }
+
+  [data-slot="button"]:hover:not(:disabled, [aria-disabled="true"])
+    > svg.lucide-arrow-right[data-icon="inline-end"] {
+    translate: --spacing(0.5) 0;
+  }
 }
 
 /*

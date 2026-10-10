@@ -112,6 +112,7 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     expect(second.status).toBe(409);
     expect(await second.json()).toEqual({
       error: "You already own an organization. Reload this page to open it.",
+      code: "ALREADY_OWNER",
     });
     expect((await managed(teacher.cookie)).organizations).toHaveLength(1);
   });
@@ -137,6 +138,7 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
       error: expect.stringContaining("is not a valid address"),
+      code: "ADDRESS_INVALID",
     });
     expect((await managed(teacher.cookie)).organizations).toEqual([]);
   });
@@ -172,33 +174,38 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
       expect(response.status).toBe(409);
       expect(await response.json()).toEqual({
         error: `${address} is taken. Choose another address.`,
+        code: "ADDRESS_TAKEN",
       });
     }
     expect((await managed(teacher.cookie)).organizations).toEqual([]);
   });
 
   test.each([
-    ["a slug Braivo's paths use", "login", "login.braivo.example is reserved"],
-    ["a subdomain Braivo uses", "www", "www.braivo.example is reserved"],
-    ["Braivo's demo", "demo", "demo.braivo.example is reserved"],
-    ["a malformed slug", "fern--wood", "Use lowercase letters"],
-    ["a slug no hostname has", "Fern Wood", "Use lowercase letters"],
-  ])("refuses %s, saying what to change", async (_case, slug, advice) => {
+    ["a slug Braivo's paths use", "login", "login.braivo.example is reserved", "ADDRESS_RESERVED"],
+    ["a subdomain Braivo uses", "www", "www.braivo.example is reserved", "ADDRESS_RESERVED"],
+    ["Braivo's demo", "demo", "demo.braivo.example is reserved", "ADDRESS_RESERVED"],
+    ["a malformed slug", "fern--wood", "Use lowercase letters", "ADDRESS_INVALID"],
+    ["a slug no hostname has", "Fern Wood", "Use lowercase letters", "ADDRESS_INVALID"],
+  ])("refuses %s, saying what to change", async (_case, slug, advice, code) => {
     const teacher = await signUp();
 
     const response = await setUp({ name: "Fernwood", slug }, teacher.cookie);
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: expect.stringContaining(advice) });
+    expect(await response.json()).toEqual({ error: expect.stringContaining(advice), code });
     expect((await managed(teacher.cookie)).organizations).toEqual([]);
   });
 
   test.each([
-    ["a blank name", { name: "  ", slug: `blank-${run}` }, { error: expect.any(String) }],
+    [
+      "a blank name",
+      { name: "  ", slug: `blank-${run}` },
+      { error: expect.any(String), code: "NAME_INVALID" },
+    ],
     [
       "a name too long",
       { name: "x".repeat(101), slug: `long-${run}` },
-      { error: expect.any(String) },
+      { error: expect.any(String), code: "NAME_INVALID" },
     ],
     ["no slug", { name: "Fernwood" }, null],
     ["no body", null, null],

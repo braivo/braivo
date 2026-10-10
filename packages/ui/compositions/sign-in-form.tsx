@@ -252,8 +252,8 @@ export function SignInForm(props: {
 
   return (
     // Keyed by step, so each starts empty rather than keeping the last one's input.
-    // `data-slot` sizes its controls for touch (`globals.css`).
-    <form ref={form} key={step.step} data-slot="sign-in-form" onSubmit={submit}>
+    // `data-touch` sizes its controls for touch (`globals.css`).
+    <form ref={form} key={step.step} data-slot="sign-in-form" data-touch onSubmit={submit}>
       <FieldGroup>
         <div className="flex flex-col gap-3 text-sm text-muted-foreground">
           {/* Where the person is: asking for a code, then past it. */}

@@ -36,8 +36,10 @@ export function BraivoLogo({
       <span className={cn(compactOnPhone && "max-sm:sr-only")}>braivo</span>
       <Badge
         variant="outline"
+        // Scaled with the logo, as the sparkle is, and smaller than the
+        // wordmark it labels; its own `em`s, at 0.45 of the logo's.
         className={cn(
-          "ml-[0.15em] font-sans",
+          "h-[1.65em] px-[0.6em] py-0 font-sans text-[0.45em]",
           compactOnPhone && "max-sm:hidden",
           tone === "dark"
             ? "border-brand-panel-muted/40 text-brand-panel-muted"

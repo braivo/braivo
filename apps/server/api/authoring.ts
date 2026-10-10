@@ -419,7 +419,8 @@ export function authoringRoutes(
       return context.json({ organization }, 201);
     } catch (error) {
       if (!(error instanceof SetUpRefused)) throw error;
-      return context.json({ error: error.message }, error.reason === "conflict" ? 409 : 400);
+      const conflict = error.code === "ADDRESS_TAKEN" || error.code === "ALREADY_OWNER";
+      return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
     }
   });
 

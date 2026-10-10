@@ -27,6 +27,18 @@ msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# ni
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
+#: apps/console/components/organization-setup.tsx
+msgid "{hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them."
+msgstr "Adres {hostname} jest nieprawidłowy. Używaj małych liter, cyfr i pojedynczych łączników między nimi."
+
+#: apps/console/components/organization-setup.tsx
+msgid "{hostname} is reserved. Choose another address."
+msgstr "Adres {hostname} jest zarezerwowany. Wybierz inny."
+
+#: apps/console/components/organization-setup.tsx
+msgid "{hostname} is taken. Choose another address."
+msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
@@ -42,6 +54,10 @@ msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
 #: packages/auth-client/sign-in.tsx
 msgid "A code was requested less than a minute ago. Check your email."
 msgstr "O kod poproszono niecałą minutę temu. Sprawdź pocztę."
+
+#: apps/console/components/organization-setup.tsx
+msgid "A home for your materials, courses, and learners."
+msgstr "Miejsce na Twoje materiały, kursy i uczniów."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
@@ -104,6 +120,10 @@ msgstr "Poprawna"
 msgid "Could not change the language. Try again."
 msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
 
+#: apps/console/components/organization-setup.tsx
+msgid "Could not confirm the organization was created. Reload this page to check before trying again."
+msgstr "Nie udało się potwierdzić, że organizacja została utworzona. Odśwież stronę, aby to sprawdzić, zanim spróbujesz ponownie."
+
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
@@ -123,6 +143,14 @@ msgstr "Nie udało się wylogować. Spróbuj ponownie."
 msgid "Courses will appear here when they're available to you."
 msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
 
+#: apps/console/components/organization-setup.tsx
+msgid "Create organization"
+msgstr "Utwórz organizację"
+
+#: apps/console/components/organization-setup.tsx
+msgid "Creating…"
+msgstr "Tworzenie…"
+
 #: packages/ui/compositions/theme.tsx
 msgid "Dark"
 msgstr "Ciemny"
@@ -141,9 +169,30 @@ msgstr "Do powtórki"
 msgid "Due for review: about {percent}% likely to recall now."
 msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypomnisz."
 
+#: apps/console/components/organization-setup.tsx
+msgid "e.g. Fernwood Academy"
+msgstr "np. Fernwood Academy"
+
+#: apps/console/components/organization-setup.tsx
+msgctxt "Changes the learners' site address"
+msgid "Edit"
+msgstr "Zmień"
+
+#: apps/console/components/organization-setup.tsx
+msgid "Edit learners' site"
+msgstr "Zmień adres strony dla uczniów"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email address"
 msgstr "Adres e-mail"
+
+#: apps/console/components/organization-setup.tsx
+msgid "Enter a name of at most {MAX_NAME_LENGTH} characters."
+msgstr "Wpisz nazwę o długości najwyżej {MAX_NAME_LENGTH} znaków."
+
+#: apps/console/components/organization-setup.tsx
+msgid "Enter an address of lowercase letters, digits, and single hyphens."
+msgstr "Wpisz adres złożony z małych liter, cyfr i pojedynczych łączników."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Enter the six-digit code sent to {address}. It expires in 10 minutes and works once."
@@ -157,6 +206,14 @@ msgstr "Wpisz swój adres e-mail, np. imie@example.com."
 msgid "Enter your name."
 msgstr "Wpisz swoje imię i nazwisko."
 
+#: apps/console/components/organization-setup.tsx
+msgid "Enter your organization's name."
+msgstr "Wpisz nazwę organizacji."
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
+msgstr "Masz zarządzać organizacją? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "First time here? Signing in creates your account."
 msgstr "Jesteś tu pierwszy raz? Logowanie utworzy Twoje konto."
@@ -168,6 +225,10 @@ msgstr "Z Twoich lekcji"
 #: apps/console/routes/login.tsx
 msgid "Go back to the site you came from and sign in again."
 msgstr "Wróć do poprzedniej strony i zaloguj się ponownie."
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Here to learn? Open the site your school or training provider gave you."
+msgstr "Jesteś uczniem? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "How others in your organizations see you."
@@ -182,9 +243,17 @@ msgstr "za {time}"
 msgid "It may have expired."
 msgstr "Mogło wygasnąć."
 
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
+msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
+
 #: apps/console/components/language-menu.tsx
 msgid "Language: {name}"
 msgstr "Język: {name}"
+
+#: apps/console/components/organization-setup.tsx
+msgid "Learners' site"
+msgstr "Strona dla uczniów"
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -199,6 +268,10 @@ msgstr "Nauka"
 msgctxt "A learner's standing on an objective"
 msgid "Learning"
 msgstr "W trakcie nauki"
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Learning? Open the site your school or training provider gave you."
+msgstr "Uczysz się? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
 
 #: packages/ui/compositions/theme.tsx
 msgid "Light"
@@ -262,6 +335,14 @@ msgctxt "Between two ways to sign in"
 msgid "or"
 msgstr "lub"
 
+#: apps/console/components/organization-setup.tsx
+msgid "Organization name"
+msgstr "Nazwa organizacji"
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Organizations"
+msgstr "Organizacje"
+
 #. A page of a book
 #: packages/ui/compositions/source-passage.tsx
 msgid "p. {page}"
@@ -298,6 +379,10 @@ msgstr "Wyślij mi kod"
 msgid "Sending…"
 msgstr "Wysyłanie…"
 
+#: apps/console/components/organization-setup.tsx
+msgid "Set up your organization"
+msgstr "Załóż swoją organizację"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sign in"
 msgstr "Zaloguj się"
@@ -315,6 +400,10 @@ msgstr "Logowanie: {organizationName}"
 #: apps/learn/routes/_signed-in/route.tsx
 msgid "Sign out"
 msgstr "Wyloguj się"
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "Signed in as {email}."
+msgstr "Zalogowano jako {email}."
 
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
@@ -355,6 +444,7 @@ msgstr "Ten kod jest nieprawidłowy. Sprawdź go lub wyślij nowy."
 msgid "That code was tried too many times. Send a new one."
 msgstr "Ten kod wpisano zbyt wiele razy. Wyślij nowy."
 
+#: apps/console/components/organization-setup.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "That did not work. Try again."
 msgstr "Nie udało się. Spróbuj ponownie."
@@ -383,6 +473,10 @@ msgstr "Nic tu nie ma."
 #: apps/console/routes/login.tsx
 msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
 msgstr "To konto nie należy do organizacji „{organizationName}”. Poproś o dodanie, a potem spróbuj ponownie."
+
+#: apps/console/components/organization-setup.tsx
+msgid "This address cannot be changed later."
+msgstr "Tego adresu nie można później zmienić."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "This course does not exist, or is not one of yours."
@@ -421,6 +515,10 @@ msgstr "Użyj innego konta"
 msgid "Use another email"
 msgstr "Użyj innego adresu e-mail"
 
+#: apps/console/components/organization-setup.tsx
+msgid "Use lowercase letters, digits, and single hyphens between them."
+msgstr "Używaj małych liter, cyfr i pojedynczych łączników między nimi."
+
 #: packages/auth-client/sign-in.tsx
 msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
@@ -428,6 +526,14 @@ msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "What should we call you?"
 msgstr "Jak mamy się do Ciebie zwracać?"
+
+#: apps/console/components/organization-setup.tsx
+msgid "You already own an organization. Reload this page to open it."
+msgstr "Masz już organizację. Odśwież stronę, aby ją otworzyć."
+
+#: apps/console/routes/_signed-in/organizations.tsx
+msgid "You don't manage any organizations"
+msgstr "Nie zarządzasz żadną organizacją"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You missed this last time."
@@ -437,6 +543,7 @@ msgstr "Ostatnim razem się nie udało."
 msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
 msgstr "Temat „{objectiveTitle}” był niedawno ćwiczony. Ćwiczenia wznowią się o {continuesAt}, aby kolejna próba pokazała, co pamiętasz."
 
+#: apps/console/components/organization-setup.tsx
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "You were signed out. Sign in again."
@@ -480,6 +587,10 @@ msgstr "Adres e-mail Twojego konta Google nie jest zweryfikowany. Zaloguj się k
 msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
 msgstr "Adres e-mail Twojego konta Google nie zgadza się już z tym kontem. Zaloguj się kodem wysłanym na adres e-mail tego konta."
 
+#: apps/console/components/organization-setup.tsx
+msgid "Your learners see this name. If it's just you, use your own."
+msgstr "Tę nazwę zobaczą Twoi uczniowie. Jeśli działasz samodzielnie, wpisz swoje imię i nazwisko."
+
 #: apps/console/components/sign-in-page.tsx
 msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
 msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."
@@ -487,3 +598,8 @@ msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Your name"
 msgstr "Imię i nazwisko"
+
+#. An example address before a name makes one: lowercase a-z, digits, and hyphens only
+#: apps/console/components/organization-setup.tsx
+msgid "your-organization"
+msgstr "twoja-organizacja"

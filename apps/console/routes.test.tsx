@@ -817,6 +817,32 @@ describe("the console", () => {
       expect(screen.getByText("Do powtórki")).toBeTruthy();
     });
 
+    test("sets up an organization in the chosen language, wording a refusal from its code", async () => {
+      onTestFinished(() => activateLocale("en"));
+      await activateLocale(chooseLocale(["pl-PL", "en"]));
+      const setUpOrganization = vi.fn(async () => {
+        // Braivo's English, never shown: the code is worded instead.
+        const taken = "laka.braivo.app is taken. Choose another address.";
+        throw new BraivoError(409, "Braivo answered 409", taken, "ADDRESS_TAKEN");
+      });
+      renderAt("/organizations", {
+        organizations: [],
+        braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      });
+
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Załóż swoją organizację" }),
+      ).toBeTruthy();
+      expect(screen.getByText(/o dodanie adresu olive@example\.com\.$/)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("Nazwa organizacji"), { target: { value: "Łąka" } });
+      fireEvent.click(screen.getByRole("button", { name: "Utwórz organizację" }));
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Adres laka.braivo.app jest już zajęty. Wybierz inny.",
+      );
+      expect(screen.getByLabelText("Strona dla uczniów")).toBeTruthy();
+    });
+
     test("speaks the browser's language, under the organization's name", async () => {
       onTestFinished(() => activateLocale("en"));
       await activateLocale(chooseLocale(["pl-PL", "en"]));
@@ -2713,24 +2739,28 @@ describe("the console", () => {
       },
     });
 
-    const name = await screen.findByLabelText("Name");
+    const name = await screen.findByLabelText("Organization name");
     expect(document.activeElement).toBe(name);
     fireEvent.change(name, { target: { value: "Szkoła Łąka" } });
     // Shown, not asked.
     expect(screen.getByText("szkola-laka.braivo.app")).toBeTruthy();
-    expect(screen.queryByLabelText("Learners' address")).toBeNull();
+    expect(screen.queryByLabelText("Learners' site")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit learners' address" }));
-    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    fireEvent.click(screen.getByRole("button", { name: "Edit learners' site" }));
+    const address = screen.getByLabelText("Learners' site") as HTMLInputElement;
     expect(document.activeElement).toBe(address);
     expect(address.value).toBe("szkola-laka");
+    // Announced whole: the domain beside it, and that it is permanent.
+    const described = address.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(described.map((id) => document.getElementById(id)?.textContent).join(" ")).toBe(
+      ".braivo.app This address cannot be changed later.",
+    );
     fireEvent.change(address, { target: { value: "laka" } });
     fireEvent.change(name, { target: { value: "Szkoła Łąka w Lesie" } });
     expect(address.value).toBe("laka");
-    expect(screen.getByText(/Where your learners practise: laka\.braivo\.app\./)).toBeTruthy();
-    // A learner who came here is still told where to go.
+    // A learner who came here is still told where to go, and anyone who they are.
     expect(screen.getByText(/Open the site your school/)).toBeTruthy();
-    expect(screen.getByText("Signed in as olive@example.com.")).toBeTruthy();
+    expect(screen.getByText(/to add olive@example\.com\.$/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
@@ -2754,7 +2784,9 @@ describe("the console", () => {
       braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
     });
 
-    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Pimsleur" } });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Pimsleur" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
     await vi.waitFor(() =>
@@ -2772,17 +2804,17 @@ describe("the console", () => {
       organizations: [],
       braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
     });
-    const name = await screen.findByLabelText("Name");
+    const name = await screen.findByLabelText("Organization name");
     fireEvent.change(name, { target: { value: "Pimsleur" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
     const pending = await screen.findByRole("button", { name: "Creating…" });
     expect(pending.getAttribute("aria-disabled")).toBe("true");
     expect((name as HTMLInputElement).readOnly).toBe(true);
-    const edit = screen.getByRole("button", { name: "Edit learners' address" });
+    const edit = screen.getByRole("button", { name: "Edit learners' site" });
     expect(edit.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(edit);
-    expect(screen.queryByLabelText("Learners' address")).toBeNull();
+    expect(screen.queryByLabelText("Learners' site")).toBeNull();
     // Enter in a field submits past aria-disabled.
     fireEvent.submit(name);
     fireEvent.click(pending);
@@ -2796,6 +2828,51 @@ describe("the console", () => {
     expect(screen.getByRole("button", { name: "Create organization" })).toBeTruthy();
   });
 
+  test.each([
+    [
+      "an answer it could not read",
+      new BraivoError(201, "Braivo answered 201 with a body that is not JSON."),
+    ],
+    ["a server error", new BraivoError(500, "Braivo answered 500.")],
+  ])(
+    "tells someone to reload before trying again after %s, as it may have been made",
+    async (_case, error) => {
+      const setUpOrganization = vi.fn(async () => {
+        throw error;
+      });
+      renderAt("/organizations", {
+        organizations: [],
+        braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      });
+      fireEvent.change(await screen.findByLabelText("Organization name"), {
+        target: { value: "Fernwood" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not confirm the organization was created. Reload this page to check before trying again.",
+      );
+    },
+  );
+
+  test("says someone signed out meanwhile was, not to try again", async () => {
+    const setUpOrganization = vi.fn(async () => {
+      throw new BraivoError(401, "Braivo answered 401.");
+    });
+    renderAt("/organizations", {
+      organizations: [],
+      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+    });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Fernwood" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "You were signed out. Sign in again.",
+    );
+  });
+
   test("opens the address when the name makes none, saying what one is", async () => {
     const setUpOrganization = vi.fn();
     renderAt("/organizations", {
@@ -2803,17 +2880,19 @@ describe("the console", () => {
       braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
     });
 
-    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "東京" } });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "東京" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
-    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    const address = screen.getByLabelText("Learners' site") as HTMLInputElement;
     expect(address.validationMessage).toBe(
       "Enter an address of lowercase letters, digits, and single hyphens.",
     );
     expect(setUpOrganization).not.toHaveBeenCalled();
 
     // A name that makes one makes it good again.
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Tokyo" } });
+    fireEvent.change(screen.getByLabelText("Organization name"), { target: { value: "Tokyo" } });
     expect(address.value).toBe("tokyo");
     expect(address.validationMessage).toBe("");
   });
@@ -2821,19 +2900,21 @@ describe("the console", () => {
   test("says why an organization was not set up, each time, opening the address", async () => {
     const taken = "laka.braivo.app is taken. Choose another address.";
     const setUpOrganization = vi.fn(async () => {
-      throw new BraivoError(409, "Braivo answered 409", taken);
+      throw new BraivoError(409, "Braivo answered 409", taken, "ADDRESS_TAKEN");
     });
     renderAt("/organizations", {
       organizations: [],
       braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
     });
-    fireEvent.change(await screen.findByLabelText("Name"), { target: { value: "Łąka" } });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Łąka" },
+    });
     const create = screen.getByRole("button", { name: "Create organization" });
 
     fireEvent.click(create);
     const first = await screen.findByRole("alert");
     expect(first.textContent).toBe(taken);
-    const address = screen.getByLabelText("Learners' address") as HTMLInputElement;
+    const address = screen.getByLabelText("Learners' site") as HTMLInputElement;
     expect(address.value).toBe("laka");
 
     // Editing clears Braivo's refusal; an address it would not take is refused
@@ -2852,7 +2933,9 @@ describe("the console", () => {
     await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
     expect(address.value).toBe("laka");
     // A typed address stays as the name changes, and so does its refusal.
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Łąka w Lesie" } });
+    fireEvent.change(screen.getByLabelText("Organization name"), {
+      target: { value: "Łąka w Lesie" },
+    });
     expect(screen.getByRole("alert").textContent).toBe(taken);
   });
 
@@ -2860,7 +2943,7 @@ describe("the console", () => {
     renderAt("/organizations", { organizations: [] });
 
     expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
-    expect(screen.queryByLabelText("Name")).toBeNull();
+    expect(screen.queryByLabelText("Organization name")).toBeNull();
   });
 
   test("reads a slug that is not one of the owner's organizations as not found", async () => {
