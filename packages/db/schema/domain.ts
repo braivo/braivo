@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { sql } from "drizzle-orm";
-import { check, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { organization } from "./auth.ts";
 
@@ -25,11 +25,19 @@ export const organizationDomain = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    /**
+     * An organization may have several, each serving its learn app: the latest
+     * registered is the one named wherever its learn domain is, the others
+     * still serving, as `<slug>.braivo.app` does once a custom domain is
+     * added, for when that one does not work (ADR 0004).
+     */
+    registeredAt: timestamp("registered_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
-    // One learn domain per organization, found from the organization when
-    // needed (ADR 0018). Several would need a notion of primary; not yet.
-    uniqueIndex("organization_domain_organization_idx").on(table.organizationId),
+    // Finding an organization's domains, and the cascade from it.
+    index("organization_domain_organization_idx").on(table.organizationId, table.registeredAt),
     check(
       "organization_domain_hostname_lowercase",
       sql`${table.hostname} = lower(${table.hostname})`,

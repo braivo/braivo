@@ -96,6 +96,10 @@ function renderAt(
     user?: { id: string; name: string };
     /** Better Auth's answer on the installation's host, in place of `signedIn`'s. */
     getSession?: (options?: { fetchOptions?: { signal?: AbortSignal } }) => Promise<unknown>;
+    /** What `/login` offers on a learn domain; codes alone unless given. */
+    signInSettings?: BraivoClient["signInSettings"];
+    /** A learn domain's code sign-in, in place of signing `user` in. */
+    signInWithCode?: BraivoClient["signInWithCode"];
   },
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
@@ -106,7 +110,7 @@ function renderAt(
     options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
   );
   let signedIn = options.signedIn;
-  const user = options.user ?? { id: "ada", name: "Ada Learner" };
+  const user = { ...(options.user ?? { id: "ada", name: "Ada Learner" }) };
   const auth = {
     getSession:
       options.getSession ?? (async () => ({ data: signedIn ? { user } : null, error: null })),
@@ -121,9 +125,24 @@ function renderAt(
   const signOut = vi.fn(async () => {
     signedIn = false;
   });
+  const sendSignInCode = vi.fn<BraivoClient["sendSignInCode"]>(async () => {});
+  const signInWithCode = vi.fn<BraivoClient["signInWithCode"]>(
+    options.signInWithCode ??
+      (async () => {
+        signedIn = true;
+        return user;
+      }),
+  );
+  const nameAccount = vi.fn<BraivoClient["nameAccount"]>(async (name) => {
+    user.name = name;
+  });
   const braivo = {
     hostOrganization,
     session: options.session ?? (async () => (signedIn ? user : undefined)),
+    signInSettings: options.signInSettings ?? (async () => ({ google: false, legal: null })),
+    sendSignInCode,
+    signInWithCode,
+    nameAccount,
     signOut,
     learnerCourses,
     learnerProgress,
@@ -138,7 +157,18 @@ function renderAt(
   });
   render(<RouterProvider router={router} />);
 
-  return { learnerCourses, learnerProgress, nextActivity, submitAttempt, router, signOut, visit };
+  return {
+    learnerCourses,
+    learnerProgress,
+    nextActivity,
+    submitAttempt,
+    router,
+    signOut,
+    visit,
+    sendSignInCode,
+    signInWithCode,
+    nameAccount,
+  };
 }
 
 describe("the learn app", () => {
@@ -174,19 +204,69 @@ describe("the learn app", () => {
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
-  test("on its organization's domain, leaves to sign in on the installation's origin, to come back here", async () => {
-    const { visit } = renderAt("/courses/c1?tab=next", {
+  test("on its organization's domain, signs in there by its own code, under its name, and returns where they were headed", async () => {
+    const { sendSignInCode, signInWithCode, router, visit } = renderAt("/", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
+      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
     });
 
-    // Wearing the organization's brand meanwhile, and taking no code here.
-    expect(await screen.findByText("Fernwood")).toBeTruthy();
-    await vi.waitFor(() => expect(document.title).toBe("Fernwood"));
-    expect(visit).toHaveBeenCalledWith(
-      `/api/session/sign-in?redirect=${encodeURIComponent("/courses/c1?tab=next")}`,
+    expect(await screen.findByRole("heading", { name: "Sign in to Fernwood" })).toBeTruthy();
+    // Its brand in Braivo's place, in the tab too.
+    expect(screen.getByText("Fernwood")).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Sign in · Fernwood"));
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "ada@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/");
+    // In the page's language, which the server mails in.
+    expect(sendSignInCode).toHaveBeenCalledWith(
+      "ada@example.com",
+      expect.objectContaining({ headers: { "Accept-Language": "en" } }),
     );
-    expect(screen.queryByLabelText("Email address")).toBeNull();
+    expect(signInWithCode).toHaveBeenCalledWith("ada@example.com", "123456", expect.anything());
+    expect(visit).not.toHaveBeenCalled();
+  });
+
+  test("on its organization's domain, says a non-member's right code works once they are added", async () => {
+    renderAt("/login", {
+      signedIn: false,
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      signInWithCode: async () => {
+        throw new BraivoError(403, "not a member", undefined, "NOT_A_MEMBER");
+      },
+    });
+
+    fireEvent.change(await screen.findByLabelText("Email address"), {
+      target: { value: "eve@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+
+    expect(
+      await screen.findByText(
+        "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires.",
+      ),
+    ).toBeTruthy();
+    // Kept, to send again once added.
+    expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123456");
+  });
+
+  test("on its organization's domain, leaves for Google through the installation's origin, when offered", async () => {
+    const { visit } = renderAt("/login?redirect=%2Fcourses%2Fc1", {
+      signedIn: false,
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      signInSettings: async () => ({ google: true, legal: null }),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
+    expect(visit).toHaveBeenCalledWith(
+      "/api/session/sign-in?redirect=%2Fcourses%2Fc1&provider=google",
+    );
   });
 
   test("on its organization's domain, sends a learner already signed in onward, without a second handoff", async () => {
@@ -205,28 +285,62 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
   });
 
-  test("on its organization's domain, hands an unnamed learner off again, to be named there", async () => {
-    const { visit } = renderAt("/login", {
+  test("on its organization's domain, asks an unnamed learner signed in there for a name, then goes on", async () => {
+    const { nameAccount, router } = renderAt("/login", {
       signedIn: true,
       user: { id: "ada", name: "" },
       hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Ada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(nameAccount).toHaveBeenCalledWith("Ada", expect.anything());
   });
 
-  test("on its organization's domain, after a failed handoff, hands off again only on a click", async () => {
+  test("on its organization's domain, goes on when the account was named meanwhile, rather than asking again", async () => {
+    // Named by a request whose answer was lost, or in another tab.
+    let named = false;
+    const { nameAccount, router } = renderAt("/login", {
+      signedIn: true,
+      session: async () => ({ id: "ada", name: named ? "Ada" : "" }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
+    });
+    nameAccount.mockImplementationOnce(async () => {
+      named = true;
+      throw new BraivoError(409, "named", undefined, "ALREADY_NAMED");
+    });
+
+    fireEvent.change(await screen.findByLabelText("Your name"), { target: { value: "Ada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
+  test("on its organization's domain, after Google's round trip failed, says so on the form, leaving only on a click", async () => {
     const { visit } = renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
+      signInSettings: async () => ({ google: true, legal: null }),
     });
 
-    const notice = await screen.findByRole("region", { name: "This sign-in did not finish." });
-    expect(document.activeElement).toBe(notice);
+    expect(
+      await screen.findByText("Could not sign in with Google. Try again, or sign in with a code."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Email address")).toBeTruthy();
     expect(visit).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
-    // Where the failed sign-in was headed is not known here.
-    expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F");
+  });
+
+  test("on its organization's domain, still says Google's round trip failed once Google is not offered", async () => {
+    renderAt("/login?failed=1", {
+      signedIn: false,
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      signInSettings: async () => ({ google: false, legal: null }),
+    });
+
+    expect(
+      await screen.findByText("Could not sign in with Google. Try again, or sign in with a code."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
   });
 
   test.each(["the host's organization", "the session"])(
@@ -251,9 +365,8 @@ describe("the learn app", () => {
 
       answering = true;
       fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-      await vi.waitFor(() =>
-        expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"),
-      );
+      expect(await screen.findByRole("heading", { name: "Sign in to Fernwood" })).toBeTruthy();
+      expect(visit).not.toHaveBeenCalled();
     },
   );
 
@@ -276,21 +389,23 @@ describe("the learn app", () => {
 
     renderAt("/login", { signedIn: false });
     expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
-    await vi.waitFor(() => expect(document.title).toBe("Nauka"));
+    await vi.waitFor(() => expect(document.title).toBe("Zaloguj się"));
     expect(screen.getByLabelText("Adres e-mail")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Wyślij mi kod" })).toBeTruthy();
     cleanup();
 
-    renderAt("/login", { signedIn: false, hostOrganization: fernwood });
-    expect(await screen.findByRole("status", { name: "Logowanie" })).toBeTruthy();
-    cleanup();
-
-    renderAt("/login?failed=1", { signedIn: false, hostOrganization: fernwood });
+    renderAt("/login?failed=1", {
+      signedIn: false,
+      hostOrganization: fernwood,
+      signInSettings: async () => ({ google: true, legal: null }),
+    });
+    expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Zaloguj się · Fernwood"));
     expect(
-      await screen.findByRole("region", { name: "To logowanie nie zostało dokończone." }),
+      screen.getByText(
+        "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem.",
+      ),
     ).toBeTruthy();
-    expect(screen.getByText("Mogło wygasnąć.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Zaloguj się ponownie" })).toBeTruthy();
     cleanup();
 
     renderAt("/login", {
@@ -311,34 +426,17 @@ describe("the learn app", () => {
     });
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(screen.queryByText("This sign-in did not finish.")).toBeNull();
-  });
-
-  test("on its organization's domain, leaves only on navigating to sign in, not on a preload", async () => {
-    const { router, signOut, visit } = renderAt("/", {
-      signedIn: true,
-      hostOrganization: async () => ({ name: "Fernwood" }),
-    });
-    expect(await screen.findByRole("button", { name: "Sign out" })).toBeTruthy();
-    // Signed out behind the page's back, so `/login` would hand off.
-    await signOut();
-
-    await router.preloadRoute({ to: "/login" });
-    expect(visit).not.toHaveBeenCalled();
-
-    await router.navigate({ to: "/login" });
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
   });
 
   test("signs a learner out of this domain, then back to sign in", async () => {
-    const { signOut, visit } = renderAt("/", {
+    const { signOut } = renderAt("/", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
 
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+    expect(await screen.findByRole("heading", { name: "Sign in to Fernwood" })).toBeTruthy();
     expect(signOut).toHaveBeenCalledOnce();
   });
 
@@ -387,7 +485,7 @@ describe("the learn app", () => {
 
     expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(screen.queryByText("Fernwood")).toBeNull();
-    await vi.waitFor(() => expect(document.title).toBe("Learning"));
+    await vi.waitFor(() => expect(document.title).toBe("Sign in"));
   });
 
   test("stays usable, unbranded, when the brand cannot be read", async () => {
@@ -422,7 +520,8 @@ describe("the learn app", () => {
     // Until it is tried again, once the lookup can answer.
     down = false;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2F"));
+    expect(await screen.findByRole("heading", { name: "Sign in to Fernwood" })).toBeTruthy();
+    expect(visit).not.toHaveBeenCalled();
   });
 
   test("signs a learner in with an emailed code, and returns them where they were headed", async () => {

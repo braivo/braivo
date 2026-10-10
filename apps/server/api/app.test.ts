@@ -225,7 +225,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await at(organizationOrigin, sources)).status).toBe(404);
     expect((await at(organizationOrigin, "/api/organizations")).status).toBe(404);
     expect((await at(baseUrl, "/api/sign-in-settings")).status).toBe(200);
-    expect((await at(organizationOrigin, "/api/sign-in-settings")).status).toBe(404);
+    // What `/login` offers is a learn domain's too, which signs in there (ADR 0018).
+    expect((await at(organizationOrigin, "/api/sign-in-settings")).status).toBe(200);
     const device = await api.request(`${organizationOrigin}/api/auth/device/code`, {
       method: "POST",
       headers: { "content-type": "application/json" },

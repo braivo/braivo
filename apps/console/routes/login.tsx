@@ -11,9 +11,14 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConsoleBrand, ConsoleStory, LearnerNote, SignInPage } from "#components/sign-in-page";
+import {
+  ConsoleBrand,
+  ConsoleStory,
+  LearnerNote,
+  ConsoleSignInPage,
+} from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 const expiredTitle = msg`This sign-in has expired`;
@@ -24,10 +29,15 @@ const expiredTitle = msg`This sign-in has expired`;
  */
 export const Route = createFileRoute("/login")({
   // `error`: why Google's round trip came back here rather than signed in.
-  validateSearch: (search): { redirect?: string; handoff?: string; error?: string } => ({
+  // `provider`: a learn domain's learner chose Google there, which this page
+  // starts (ADR 0018).
+  validateSearch: (
+    search,
+  ): { redirect?: string; handoff?: string; error?: string; provider?: "google" } => ({
     redirect: safeRedirect(search.redirect),
     handoff: typeof search.handoff === "string" && search.handoff ? search.handoff : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
+    provider: search.provider === "google" ? "google" : undefined,
   }),
   beforeLoad: async ({ context, search, abortController }) => {
     // Asked alongside the session, but awaited only for a form to show it.
@@ -106,7 +116,7 @@ function Login() {
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
   return (
-    <SignInPage
+    <ConsoleSignInPage
       brand={<ConsoleBrand />}
       aside={<ConsoleStory />}
       footer={`© ${new Date().getFullYear()} Braivo`}
@@ -120,7 +130,7 @@ function Login() {
         onSignedIn={() => router.navigate({ href: redirect ?? "/", replace: true })}
       />
       <LearnerNote />
-    </SignInPage>
+    </ConsoleSignInPage>
   );
 }
 
@@ -137,8 +147,13 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   // Back here signed in, where the account is offered as any open session is:
   // only a click hands someone over.
   const google = useGoogleSignIn(`/login?handoff=${encodeURIComponent(handoffId)}`);
+  const { provider } = Route.useSearch();
+  // Google chosen on the learn domain starts at once, unless an account is
+  // open here, which is offered first as always: on a shared device it may
+  // be someone else's, and Google's round trip would only offer it again.
+  const startsGoogle = provider === "google" && google !== undefined && !account;
   const [view, setView] = useState<"account" | "form" | "leaving" | "refused" | "expired">(
-    account ? "account" : "form",
+    account ? "account" : startsGoogle ? "leaving" : "form",
   );
   // Once the account the page opened with is named, signed out, or found
   // signed out, what was read about it no longer holds.
@@ -156,12 +171,37 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   useLayoutEffect(() => {
     if (view === "refused") retry.current?.focus();
   }, [view]);
+  // Once, as Strict Mode runs an effect twice. Back from Google, the URL has
+  // no `provider`, so this never loops.
+  const startedGoogle = useRef(false);
+  useEffect(() => {
+    if (!startsGoogle || !google || !handoff || startedGoogle.current) return;
+    startedGoogle.current = true;
+    void auth.signIn
+      .social({
+        provider: "google",
+        callbackURL: google.callbackURL,
+        errorCallbackURL: google.errorCallbackURL,
+        fetchOptions: { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+      })
+      .then(
+        ({ error }) =>
+          error && msg`Could not sign in with Google. Try again, or sign in with a code.`,
+        () => msg`Could not connect. Check your connection and try again.`,
+      )
+      .then((failed) => {
+        // Otherwise leaving for Google: "leaving" stays until the page is gone.
+        if (!failed) return;
+        setError(failed);
+        setView("form");
+      });
+  }, [startsGoogle, google, handoff, auth]);
 
   if (!handoff) {
     return (
-      <SignInPage>
+      <ConsoleSignInPage>
         <Expired />
-      </SignInPage>
+      </ConsoleSignInPage>
     );
   }
   const { name: organizationName } = handoff.organization;
@@ -171,9 +211,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   const brand = <span className="font-semibold wrap-anywhere">{organizationName}</span>;
   if (view === "expired") {
     return (
-      <SignInPage brand={brand}>
+      <ConsoleSignInPage brand={brand}>
         <Expired hostname={hostname} />
-      </SignInPage>
+      </ConsoleSignInPage>
     );
   }
 
@@ -237,7 +277,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     </Button>
   );
   return (
-    <SignInPage brand={brand} footer={<Trans>You will continue at {hostname}.</Trans>}>
+    <ConsoleSignInPage brand={brand} footer={<Trans>You will continue at {hostname}.</Trans>}>
       {view !== "form" && (
         <Heading>
           <Trans>Sign in to {organizationName}</Trans>
@@ -308,7 +348,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
           {another}
         </div>
       )}
-    </SignInPage>
+    </ConsoleSignInPage>
   );
 }
 

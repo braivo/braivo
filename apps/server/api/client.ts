@@ -126,8 +126,33 @@ export type BraivoClient = {
   /** Signs out of this host alone: a learn domain's learner session, or the account. */
   signOut(options?: RequestOptions): Promise<void>;
 
-  /** What the installation's `/login` offers besides an emailed code. */
+  /** What `/login` offers besides an emailed code, on the installation's host or a learn domain's. */
   signInSettings(options?: RequestOptions): Promise<SignInSettings>;
+
+  /**
+   * On a learn domain, emails `email` a code that signs in there alone (ADR
+   * 0018), in the language the request's `Accept-Language` prefers. A
+   * {@link BraivoError} with its `code`: 429 `SIGN_IN_CODE_COOLDOWN` within
+   * a minute of the last, 503 `SIGN_IN_CODE_SEND_FAILED`; 429 without one, too
+   * many requests from this client.
+   */
+  sendSignInCode(email: string, options?: RequestOptions): Promise<void>;
+
+  /**
+   * On a learn domain, signs `email` in there with the code it sent, as its
+   * learner, resolving to who is signed in, whose name may still be empty. A
+   * {@link BraivoError} with its `code`: 400 `INVALID_OTP` or `OTP_EXPIRED`,
+   * 403 `TOO_MANY_ATTEMPTS`, or 403 `NOT_A_MEMBER`, after which the code
+   * still works once the account is added.
+   */
+  signInWithCode(email: string, code: string, options?: RequestOptions): Promise<SessionUser>;
+
+  /**
+   * On a learn domain, names the signed-in learner's account, which has no
+   * name yet. A {@link BraivoError}: 401 signed out, 400 `NAME_INVALID`, 409
+   * `ALREADY_NAMED`.
+   */
+  nameAccount(name: string, options?: RequestOptions): Promise<void>;
 
   /**
    * What a learn domain's sign-in, `handoffId`, signs in to, or `undefined`
@@ -579,6 +604,25 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<SignInSettings>(response, doing);
+    },
+
+    async sendSignInCode(email, requestOptions) {
+      const response = await post("/api/session/code", { email }, requestOptions);
+      if (response.status !== 204) throw await unexpected(response, "sending a sign-in code");
+    },
+
+    async signInWithCode(email, code, requestOptions) {
+      const response = await post("/api/session/sign-in", { email, code }, requestOptions);
+
+      const doing = "signing in with a code";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ user: SessionUser }>(response, doing)).user;
+    },
+
+    async nameAccount(name, requestOptions) {
+      const response = await post("/api/session/name", { name }, requestOptions);
+      if (response.status !== 204) throw await unexpected(response, "naming the account");
     },
 
     async handoff(handoffId, requestOptions) {

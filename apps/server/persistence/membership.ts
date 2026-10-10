@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { member, organization, organizationDomain, user } from "@braivo/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 /** An organization as the people who manage it find it: by name and slug. */
 export type Organization = { id: string; name: string; slug: string };
@@ -51,13 +51,17 @@ export async function readMemberships(
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
-      learnDomain: organizationDomain.hostname,
+      // The one it is named by, as `readLearnDomain` reads it.
+      learnDomain: sql<string | null>`(
+        select ${organizationDomain.hostname} from ${organizationDomain}
+        where ${organizationDomain.organizationId} = ${organization.id}
+        order by ${organizationDomain.registeredAt} desc, ${organizationDomain.hostname} desc
+        limit 1
+      )`,
       role: member.role,
     })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
-    // At most one per organization (its unique index), so no row is repeated.
-    .leftJoin(organizationDomain, eq(organizationDomain.organizationId, organization.id))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name), asc(organization.id));
 

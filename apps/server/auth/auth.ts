@@ -5,8 +5,8 @@ import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import type { Database } from "@braivo/db";
 import * as authTables from "@braivo/db/schema/auth";
-import { betterAuth } from "better-auth";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { betterAuth, type BetterAuthPlugin } from "better-auth";
+import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
 import * as z from "zod";
 
@@ -43,9 +43,10 @@ type AuthOptions = {
  * Sign-in codes, chosen rather than Better Auth's defaults (ADR 0018). Ten
  * minutes leave time to switch to a mail app and back; five guesses at a
  * six-digit code leave an attacker one chance in 200,000 per code, and the
- * address's minute between codes bounds how many codes they get.
+ * address's minute between codes bounds how many codes they get. A learn
+ * domain's own codes keep the same (`application/learner-sign-in.ts`).
  */
-const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
+export const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
 
 /**
  * The most members an organization holds, staff included: a guard against
@@ -61,6 +62,49 @@ export const MEMBERSHIP_LIMIT = 1_000;
  * send is awaited, that is while `advanced.backgroundTasks` is unset.
  */
 const signInCodeSendFailed = defineRequestState(() => false);
+
+/**
+ * Whether `error` is PostgreSQL refusing a second account with an email
+ * (`user`'s inline `UNIQUE`), as Drizzle wraps it: what another sign-in made
+ * first causes, and nothing else.
+ */
+function isTakenEmail(error: unknown): boolean {
+  const cause = (error as { cause?: { code?: unknown; constraint?: unknown } })?.cause;
+  return cause?.code === "23505" && cause.constraint === "user_email_key";
+}
+
+/**
+ * The account of an email Braivo proved itself, by a learn domain's own code
+ * (ADR 0018), made if there is none, as Better Auth's code sign-in makes one,
+ * its hooks run. Server-only: no route reaches it, and it opens no session.
+ */
+const verifiedAccounts = {
+  id: "braivo-verified-accounts",
+  endpoints: {
+    verifiedAccount: createAuthEndpoint(
+      "/braivo/verified-account",
+      { method: "POST", body: z.object({ email: z.email() }), metadata: { SERVER_ONLY: true } },
+      async (context) => {
+        const email = context.body.email.toLowerCase();
+        const { internalAdapter } = context.context;
+        const found = async () => (await internalAdapter.findUserByEmail(email))?.user;
+        // Every account's email is verified already: by a code, or by Google.
+        // Another sign-in at once (another tab) may make it first, and the
+        // email's uniqueness refuse this one: that account is the one.
+        const user =
+          (await found()) ??
+          (await internalAdapter
+            .createUser({ email, name: "", emailVerified: true }, { method: "email-otp" })
+            .catch(async (error: unknown) => {
+              const made = isTakenEmail(error) && (await found());
+              if (!made) throw error;
+              return made;
+            }));
+        return context.json({ user: { id: user.id, name: user.name } });
+      },
+    ),
+  },
+} satisfies BetterAuthPlugin;
 
 /** Refuses a slug that cannot address an organization, as a 400 carrying the reason. */
 function assertSlugAllowed(slug: string): void {
@@ -219,6 +263,7 @@ export function createAuth(options: AuthOptions) {
               signInCodeMail({
                 to: email,
                 code: otp,
+                site: new URL(options.baseURL).host,
                 expiresInMinutes: SIGN_IN_CODE.seconds / 60,
                 locale: mailLocale(ctx?.headers?.get("accept-language")),
               }),
@@ -295,6 +340,7 @@ export function createAuth(options: AuthOptions) {
       // Unsigned tokens accepted, since the device flow hands out the session
       // token itself; it is as secret as the cookie it stands in for.
       bearer(),
+      verifiedAccounts,
     ],
 
     // Off where the plugin has no switch of its own. Direct `auth.api` calls

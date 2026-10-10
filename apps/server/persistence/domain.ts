@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { organization, organizationDomain } from "@braivo/db/schema";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import type { Organization } from "./membership.ts";
 
@@ -21,7 +21,10 @@ export async function readDomainOrganization(
   return row;
 }
 
-/** The hostname serving an organization's learn app, or `undefined` while none does. */
+/**
+ * The hostname an organization's learn app is named by, the latest it
+ * registered, or `undefined` while none serves it. Any others serve it too.
+ */
 export async function readLearnDomain(
   database: Database,
   organizationId: string,
@@ -29,15 +32,17 @@ export async function readLearnDomain(
   const [row] = await database
     .select({ hostname: organizationDomain.hostname })
     .from(organizationDomain)
-    .where(eq(organizationDomain.organizationId, organizationId));
+    .where(eq(organizationDomain.organizationId, organizationId))
+    .orderBy(desc(organizationDomain.registeredAt), desc(organizationDomain.hostname))
+    .limit(1);
 
   return row?.hostname;
 }
 
 /**
  * Maps a hostname to an organization, answering whether this call inserted it:
- * `false` when either already has a mapping, this one included. The constraints
- * decide, so concurrent calls cannot both win; the caller reads which did.
+ * `false` when the hostname already has a mapping, this one included. The
+ * key decides, so concurrent calls cannot both win; the caller reads which did.
  */
 export async function insertLearnDomain(
   database: Database,

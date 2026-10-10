@@ -14,7 +14,7 @@ The server mounts Better Auth at `/api/auth/*` and serves the learning API along
 > [!WARNING]
 > Do not expose the server directly. Put it behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend, and set `NODE_ENV=production`.
 
-`NODE_ENV=production` enables Better Auth's rate limiting on its own endpoints. That limit is keyed on `X-Forwarded-For`, and the server does not give Better Auth the connection's address, so with nothing in front of it every caller shares one bucket per endpoint — 120 code requests and 120 sign-in attempts for the whole installation, each until a minute passes without an admitted one — and any caller can sidestep it by sending that header themselves. Braivo's own routes are not rate limited in any environment.
+`NODE_ENV=production` enables Better Auth's rate limiting on its own endpoints. That limit is keyed on `X-Forwarded-For`, and the server does not give Better Auth the connection's address, so with nothing in front of it every caller shares one bucket per endpoint — 120 code requests and 120 sign-in attempts for the whole installation, each until a minute passes without an admitted one — and any caller can sidestep it by sending that header themselves. Braivo's own routes are not rate limited, but for a learn domain's sign-in (`/api/session/code` and `/api/session/sign-in`): 120 requests a minute to each per client, told apart as Better Auth's limiter does (its `X-Forwarded-For` value, an IPv6 address by its /64), in every environment, and none without the header; kept per process, so behind several processes each counts apart.
 
 ## The apps
 
@@ -37,7 +37,7 @@ bun apps/server/cli/index.ts organization add-member --slug my-school --email le
 
 ### An organization's domain
 
-The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization, and Braivo trusts that origin only while the row exists ([ADR 0004](../adr/0004-one-application-origin.md)). The operator registers one per organization with `organization add-domain --slug <slug> --hostname <hostname>`; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. To try it locally, see [the API guide](api.md#an-organizations-domain-locally).
+The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization, and Braivo trusts that origin only while the row exists ([ADR 0004](../adr/0004-one-application-origin.md)). The operator registers each with `organization add-domain --slug <slug> --hostname <hostname>`; an organization may have several, named by the latest registered, the earlier still serving, so its `<slug>.<self-serve domain>` stays a way in when its own domain does not work; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on the domain's own `/login`, by a code that works there alone; with Google, through `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. To try it locally, see [the API guide](api.md#an-organizations-domain-locally).
 
 ## Configuration
 

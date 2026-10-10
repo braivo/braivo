@@ -118,7 +118,7 @@ function renderAt(
         signedIn = true;
         return { data: { user: { ...account } }, error: null };
       }),
-      social: vi.fn(async () => ({ error: null })),
+      social: vi.fn(async (): Promise<{ error: { status: number } | null }> => ({ error: null })),
     },
     updateUser: vi.fn(async ({ name }: { name: string }) => {
       account.name = name;
@@ -534,6 +534,51 @@ describe("the console", () => {
           errorCallbackURL: "/login?handoff=h1",
         }),
       );
+    });
+
+    test("for a learn domain whose learner chose Google there, starts it at once, offering an open account first", async () => {
+      const fernwood = { organization: { name: "Fernwood" }, hostname: "learn.fernwood.example" };
+      const { auth } = renderAt("/login?handoff=h1&provider=google", {
+        signedIn: false,
+        braivo: { ...withGoogle, handoff: async () => fernwood },
+      });
+
+      await vi.waitFor(() =>
+        expect(auth.signIn.social).toHaveBeenCalledWith(
+          expect.objectContaining({
+            provider: "google",
+            // Back without `provider`, so it never starts again by itself.
+            callbackURL: "/login?handoff=h1",
+            errorCallbackURL: "/login?handoff=h1",
+          }),
+        ),
+      );
+      expect(auth.signIn.social).toHaveBeenCalledOnce();
+      expect(screen.queryByLabelText("Email address")).toBeNull();
+      cleanup();
+
+      // An account open here is offered first, as always.
+      const signedIn = renderAt("/login?handoff=h1&provider=google", {
+        braivo: { ...withGoogle, handoff: async () => fernwood },
+      });
+      expect(await screen.findByRole("button", { name: "Continue as Olive Owner" })).toBeTruthy();
+      expect(signedIn.auth.signIn.social).not.toHaveBeenCalled();
+    });
+
+    test("for a learn domain, when starting the learner's choice of Google fails, offers the form", async () => {
+      const fernwood = { organization: { name: "Fernwood" }, hostname: "learn.fernwood.example" };
+      const { auth } = renderAt("/login?handoff=h1&provider=google", {
+        signedIn: false,
+        braivo: { ...withGoogle, handoff: async () => fernwood },
+      });
+      auth.signIn.social.mockResolvedValueOnce({ error: { status: 500 } });
+
+      expect(
+        await screen.findByText(
+          "Could not sign in with Google. Try again, or sign in with a code.",
+        ),
+      ).toBeTruthy();
+      expect(screen.getByLabelText("Email address")).toBeTruthy();
     });
   });
 

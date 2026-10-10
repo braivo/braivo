@@ -129,6 +129,8 @@ msgstr "Nie udało się potwierdzić, że organizacja została utworzona. Odświ
 msgid "Could not connect. Check your connection and try again."
 msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
 
+#: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem."
@@ -238,10 +240,6 @@ msgstr "Tak widzą Cię inni w Twoich organizacjach."
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "za {time}"
-
-#: apps/learn/routes/login.tsx
-msgid "It may have expired."
-msgstr "Mogło wygasnąć."
 
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
@@ -383,16 +381,17 @@ msgstr "Wysyłanie…"
 msgid "Set up your organization"
 msgstr "Załóż swoją organizację"
 
+#: apps/learn/routes/login.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sign in"
 msgstr "Zaloguj się"
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 msgid "Sign in again"
 msgstr "Zaloguj się ponownie"
 
 #: apps/console/routes/login.tsx
+#: apps/learn/routes/login.tsx
 msgid "Sign in to {organizationName}"
 msgstr "Logowanie: {organizationName}"
 
@@ -406,7 +405,6 @@ msgid "Signed in as {email}."
 msgstr "Zalogowano jako {email}."
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 msgid "Signing in"
 msgstr "Logowanie"
 
@@ -482,9 +480,9 @@ msgstr "Tego adresu nie można później zmienić."
 msgid "This course does not exist, or is not one of yours."
 msgstr "Ten kurs nie istnieje albo nie masz do niego dostępu."
 
-#: apps/learn/routes/login.tsx
-msgid "This sign-in did not finish."
-msgstr "To logowanie nie zostało dokończone."
+#: packages/auth-client/sign-in.tsx
+msgid "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
+msgstr "Ten adres e-mail nie został jeszcze dodany do tej organizacji. Poproś o jego dodanie, a potem zaloguj się ponownie: ten kod działa, dopóki nie wygaśnie."
 
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"

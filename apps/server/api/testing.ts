@@ -33,7 +33,7 @@ export function createTestApi(
     baseURL: baseUrl,
     sendMail: outbox.sendMail,
   });
-  const api = createApi({ ...options, auth, database, baseUrl });
+  const api = createApi({ sendMail: outbox.sendMail, ...options, auth, database, baseUrl });
 
   /**
    * Makes a new account and signs it in by code through the mounted Better

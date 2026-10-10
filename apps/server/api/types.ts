@@ -86,8 +86,8 @@ export type Objective = { id: string; title: string };
 
 /**
  * An organization as those who manage it find it; `slug` is its console
- * address, `learnDomain` the hostname its learners practise on, `null` until
- * one is registered.
+ * address, `learnDomain` the hostname its learners practise on, the latest
+ * of its learn domains registered, `null` until one is.
  */
 export type Organization = { id: string; name: string; slug: string; learnDomain: string | null };
 

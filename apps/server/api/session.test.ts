@@ -116,6 +116,19 @@ describe.skipIf(!connectionString)("the session routes", () => {
     expect(await signedIn.json()).toEqual({ user: { id: learner.id, name: learner.name } });
   });
 
+  test("says when the learner chose Google, for the installation's `/login` to start it", async () => {
+    const location = async (query: string) =>
+      new URL(
+        (await api.request(`${organizationOrigin}/api/session/sign-in?${query}`)).headers.get(
+          "location",
+        )!,
+      ).searchParams;
+
+    expect((await location("provider=google")).get("provider")).toBe("google");
+    expect((await location("provider=elsewhere")).has("provider")).toBe(false);
+    expect((await location("")).has("provider")).toBe(false);
+  });
+
   test("lets the latest of two sign-ins begun on one domain finish", async () => {
     // One nonce cookie: the second start replaces the first's.
     const start = async () => {

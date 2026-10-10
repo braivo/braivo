@@ -29,8 +29,10 @@ Running an installation:
                 Add an existing account as a learner (member, the default)
                 or an administrator (admin).
   organization add-domain --slug <slug> --hostname <hostname>
-                Register <hostname> for the organization's learn app;
-                DNS, TLS, and routing it here are set up outside Braivo.
+                Register <hostname> for the organization's learn app, the
+                one it is named by from now on, its earlier ones still
+                serving; DNS, TLS, and routing it here are set up outside
+                Braivo.
   serve         Serve the HTTP API.
 
 Working with one, as yourself:

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import { organization, user } from "./auth.ts";
 
@@ -65,5 +65,38 @@ export const learnerSession = pgTable(
     index("learner_session_expires_at_idx").on(table.expiresAt),
     index("learner_session_user_id_idx").on(table.userId),
     index("learner_session_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+/**
+ * A learn domain's own sign-in code for an address (ADR 0018): good on that
+ * hostname alone, for the organization it served when sent, as a learner
+ * session for a member. One row per hostname and address, holding the code
+ * until it is spent and the minute between codes past it. The code is kept
+ * as an HMAC under the installation's secret: six digits are too few for a
+ * plain hash, which a database leak would reverse.
+ */
+export const learnerSignInCode = pgTable(
+  "learner_sign_in_code",
+  {
+    hostname: text("hostname").notNull(),
+    /** Lowercased, as Better Auth's codes are. */
+    email: text("email").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** `null` once spent. */
+    codeHash: text("code_hash"),
+    /** Wrong guesses at this code. */
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** Until when another code to the address here is refused. */
+    resendAt: timestamp("resend_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  // Expiry for the deletes on each send; the organization for its cascade.
+  (table) => [
+    primaryKey({ columns: [table.hostname, table.email] }),
+    index("learner_sign_in_code_expires_at_idx").on(table.expiresAt),
+    index("learner_sign_in_code_organization_id_idx").on(table.organizationId),
   ],
 );

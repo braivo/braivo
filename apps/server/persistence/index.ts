@@ -32,6 +32,13 @@ export {
   spendHandoffCode,
   renewLearnerSession,
 } from "./learner-session.ts";
+export type { CheckedCode } from "./learner-sign-in-code.ts";
+export {
+  checkLearnerSignInCode,
+  nameUnnamedUser,
+  spendLearnerSignInCode,
+  storeLearnerSignInCode,
+} from "./learner-sign-in-code.ts";
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
 export { ConflictingKey } from "./key.ts";

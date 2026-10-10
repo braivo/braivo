@@ -4,7 +4,13 @@
 import { Button } from "@braivo/ui/components/button";
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createRootRouteWithContext, HeadContent, Link, Outlet } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Link,
+  Outlet,
+  useMatches,
+} from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
 import type { AppContext } from "#lib/context";
@@ -43,7 +49,19 @@ function NotFound() {
 
 function Root() {
   const { organization } = Route.useLoaderData();
+  // `/login` is a page of its own, `SignInPage`, naming the organization itself.
+  const signingIn = useMatches({
+    select: (matches) => matches.some(({ routeId }) => routeId === "/login"),
+  });
 
+  if (signingIn) {
+    return (
+      <>
+        <HeadContent />
+        <Outlet />
+      </>
+    );
+  }
   return (
     <>
       <HeadContent />

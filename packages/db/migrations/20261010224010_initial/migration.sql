@@ -90,6 +90,7 @@ CREATE TABLE "verification" (
 CREATE TABLE "organization_domain" (
 	"hostname" text PRIMARY KEY,
 	"organization_id" text NOT NULL,
+	"registered_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "organization_domain_hostname_lowercase" CHECK ("hostname" = lower("hostname"))
 );
 --> statement-breakpoint
@@ -110,6 +111,17 @@ CREATE TABLE "learner_session" (
 	"organization_id" text NOT NULL,
 	"hostname" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "learner_sign_in_code" (
+	"hostname" text,
+	"email" text,
+	"organization_id" text NOT NULL,
+	"code_hash" text,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"resend_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "learner_sign_in_code_pkey" PRIMARY KEY("hostname","email")
 );
 --> statement-breakpoint
 CREATE TABLE "ai_request" (
@@ -226,11 +238,13 @@ CREATE INDEX "member_userId_idx" ON "member" ("user_id");--> statement-breakpoin
 CREATE UNIQUE INDEX "organization_slug_uidx" ON "organization" ("slug");--> statement-breakpoint
 CREATE INDEX "session_userId_idx" ON "session" ("user_id");--> statement-breakpoint
 CREATE INDEX "verification_identifier_idx" ON "verification" ("identifier");--> statement-breakpoint
-CREATE UNIQUE INDEX "organization_domain_organization_idx" ON "organization_domain" ("organization_id");--> statement-breakpoint
+CREATE INDEX "organization_domain_organization_idx" ON "organization_domain" ("organization_id","registered_at");--> statement-breakpoint
 CREATE INDEX "learner_handoff_expires_at_idx" ON "learner_handoff" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_expires_at_idx" ON "learner_session" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_user_id_idx" ON "learner_session" ("user_id");--> statement-breakpoint
 CREATE INDEX "learner_session_organization_id_idx" ON "learner_session" ("organization_id");--> statement-breakpoint
+CREATE INDEX "learner_sign_in_code_expires_at_idx" ON "learner_sign_in_code" ("expires_at");--> statement-breakpoint
+CREATE INDEX "learner_sign_in_code_organization_id_idx" ON "learner_sign_in_code" ("organization_id");--> statement-breakpoint
 CREATE INDEX "ai_request_organization_created_idx" ON "ai_request" ("organization_id","created_at");--> statement-breakpoint
 CREATE INDEX "attempt_learner_task_idx" ON "attempt" ("learner_id","task_id","at");--> statement-breakpoint
 CREATE INDEX "course_organization_idx" ON "course" ("organization_id");--> statement-breakpoint
@@ -255,6 +269,7 @@ ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_organization_id_or
 ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "learner_sign_in_code" ADD CONSTRAINT "learner_sign_in_code_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "ai_request" ADD CONSTRAINT "ai_request_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "ai_request" ADD CONSTRAINT "ai_request_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "attempt" ADD CONSTRAINT "attempt_learner_id_user_id_fkey" FOREIGN KEY ("learner_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
