@@ -12,7 +12,7 @@ import { braivoApi } from "../../tooling/dev-proxy.ts";
 
 /** The learner-facing app, served at the root of an organization's own domain (ADR 0004). */
 export default defineConfig(({ command, mode }) => {
-  const env = loadEnv(mode, "../..", "BRAIVO_");
+  const env = loadEnv(mode, "../..", ["BRAIVO_", "PORT"]);
 
   return {
     plugins: [
@@ -38,7 +38,7 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: 5173,
       strictPort: true,
-      proxy: braivoApi(env.BRAIVO_URL ?? "http://localhost:3000"),
+      proxy: braivoApi(env),
     },
   };
 });

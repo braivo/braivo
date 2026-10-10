@@ -13,7 +13,7 @@ import { braivoApi } from "./dev-proxy.ts";
 function rewritten(headers: { origin?: string; host?: string }): string | undefined {
   // A trailing slash, as an `.env` would carry: the header has to be a bare
   // origin, which is what `braivoApi` normalizes to.
-  const { "/api": api } = braivoApi("http://localhost:3000/");
+  const { "/api": api } = braivoApi({ BRAIVO_URL: "http://localhost:5174/" });
   let set: string | undefined;
 
   // Vite's proxy, as far as `configure` reaches into it.
@@ -34,14 +34,25 @@ function rewritten(headers: { origin?: string; host?: string }): string | undefi
 }
 
 describe("the development API proxy", () => {
-  test("presents the API's own origin for a request that is same-origin to the dev server", () => {
+  test("presents the site's origin for a request that is same-origin to the dev server", () => {
     expect(rewritten({ origin: "http://localhost:5173", host: "localhost:5173" })).toBe(
-      "origin: http://localhost:3000",
+      "origin: http://localhost:5174",
     );
+  });
+
+  test("forwards to the server on `PORT`, not to `BRAIVO_URL`", () => {
+    expect(braivoApi({ BRAIVO_URL: "http://localhost:5174" })["/api"]?.target).toBe(
+      "http://localhost:3000",
+    );
+    expect(braivoApi({ PORT: "3100" })["/api"]?.target).toBe("http://localhost:3100");
   });
 
   test("does not rewrite another site's origin", () => {
     expect(rewritten({ origin: "https://evil.example", host: "localhost:5173" })).toBeUndefined();
+  });
+
+  test("does not rewrite the origin of another port on the same host", () => {
+    expect(rewritten({ origin: "http://localhost:9999", host: "localhost:5173" })).toBeUndefined();
   });
 
   test("leaves a request carrying no origin alone", () => {

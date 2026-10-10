@@ -43,8 +43,8 @@ The learn app presents itself as the organization whose domain serves it, per an
 
 **Origin**
 
-- `BRAIVO_URL`: the public origin this installation is served from. Better Auth builds callback URLs from it, so it must match how the server is actually reached.
-- `PORT`: 3000 by default.
+- `BRAIVO_URL`: the public origin serving the console and `/api`, which sign-in callbacks and links are built from; locally, the console's dev server, `http://localhost:5174`, not the server's own port.
+- `PORT`: the port the server listens on, 3000 by default.
 
 **Email.** People sign in with a code sent to their email ([ADR 0033](../adr/0033-email-over-smtp.md)).
 
@@ -62,7 +62,7 @@ Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `lo
 
 AI requests may run for up to five minutes, so configure the proxy for that; nginx's `proxy_read_timeout`, for one, defaults to 60 seconds. A request the proxy cuts off may still count toward the organization's limit.
 
-**Google sign-in.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, an OAuth client from Google Cloud's console, add "Continue with Google" to `/login`; set both or neither. The client's authorized redirect URI is `BRAIVO_URL` followed by `/api/auth/callback/google`, such as `http://localhost:3000/api/auth/callback/google` locally; there Google returns to the API's port, not the console's, so open the console yourself, already signed in. Only a Google account whose email Google has verified makes or signs in to an account this way ([ADR 0018](../adr/0018-sign-in-and-invitations.md)).
+**Google sign-in.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, an OAuth client from Google Cloud's console, add "Continue with Google" to `/login`; set both or neither. The client's authorized redirect URI is `BRAIVO_URL` followed by `/api/auth/callback/google`, such as `http://localhost:5174/api/auth/callback/google` locally. Only a Google account whose email Google has verified makes or signs in to an account this way ([ADR 0018](../adr/0018-sign-in-and-invitations.md)).
 
 **Files.** `BRAIVO_FILES` is where uploaded original files, such as the PDFs sources were extracted from, are stored ([ADR 0028](../adr/0028-original-files.md)):
 
