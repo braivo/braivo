@@ -108,6 +108,32 @@ describe("signing in with Google", () => {
   });
 });
 
+describe("the legal pages sign-in links", () => {
+  test("are linked only as a pair, each an http or https URL", () => {
+    expect(readServeConfig(valid).legal).toBeUndefined();
+    const pages = {
+      BRAIVO_PRIVACY_URL: " https://fernwood.example/privacy ",
+      BRAIVO_TERMS_URL: "https://fernwood.example/legal/terms",
+    };
+    expect(readServeConfig({ ...valid, ...pages }).legal).toEqual({
+      privacy: "https://fernwood.example/privacy",
+      terms: "https://fernwood.example/legal/terms",
+    });
+    for (const half of [
+      { BRAIVO_PRIVACY_URL: "https://a.example" },
+      { BRAIVO_TERMS_URL: "https://a.example" },
+    ]) {
+      expect(() => readServeConfig({ ...valid, ...half })).toThrow("go together");
+    }
+    expect(() => readServeConfig({ ...valid, ...pages, BRAIVO_TERMS_URL: "/terms" })).toThrow(
+      "BRAIVO_TERMS_URL must be an absolute URL",
+    );
+    expect(() =>
+      readServeConfig({ ...valid, ...pages, BRAIVO_PRIVACY_URL: "javascript:alert(1)" }),
+    ).toThrow("BRAIVO_PRIVACY_URL must be an http or https URL");
+  });
+});
+
 describe("where files are kept", () => {
   test("is nowhere unless set", () => {
     expect(readServeConfig(valid).files).toBeUndefined();

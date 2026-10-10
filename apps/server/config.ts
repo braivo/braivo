@@ -26,11 +26,18 @@ export type ServerConfig = {
   /** Google's OAuth client, offering "Continue with Google", or none: email codes alone. */
   google?: { clientId: string; clientSecret: string };
   /**
+   * The operator's privacy policy and terms, which `/login` says signing in
+   * agrees to, or neither: whoever runs an installation writes their own.
+   */
+  legal?: Legal;
+  /**
    * The domain under which anyone signed in may set up an organization, served
    * at `<slug>.<selfServeDomain>`, or none: the operator creates every one (ADR 0018).
    */
   selfServeDomain?: string;
 };
+
+export type Legal = { privacy: string; terms: string };
 
 export type ServeConfig = ServerConfig & {
   databaseUrl: string;
@@ -77,6 +84,8 @@ type VariableName =
   | "BRAIVO_AI_MONTHLY_LIMIT"
   | "GOOGLE_CLIENT_ID"
   | "GOOGLE_CLIENT_SECRET"
+  | "BRAIVO_PRIVACY_URL"
+  | "BRAIVO_TERMS_URL"
   | "BRAIVO_SELF_SERVE_DOMAIN";
 
 /**
@@ -116,6 +125,7 @@ export function readServerConfig(environment: Environment): ServerConfig {
     baseUrl: readUrl(environment, "BRAIVO_URL"),
     ...ai,
     ...readGoogle(environment),
+    ...readLegal(environment),
     ...selfServe,
   };
 }
@@ -220,6 +230,41 @@ function readGoogle(environment: Environment): { google?: ServerConfig["google"]
     );
   }
   return { google: { clientId, clientSecret } };
+}
+
+/**
+ * `BRAIVO_PRIVACY_URL` and `BRAIVO_TERMS_URL`, pages anywhere: both or
+ * neither, since `/login` asks agreement to the two together.
+ */
+function readLegal(environment: Environment): { legal?: Legal } {
+  const privacy = environment.BRAIVO_PRIVACY_URL?.trim();
+  const terms = environment.BRAIVO_TERMS_URL?.trim();
+  if (!privacy && !terms) return {};
+  if (!privacy || !terms) {
+    throw new Error(
+      "BRAIVO_PRIVACY_URL and BRAIVO_TERMS_URL go together: set both to link them from sign-in, or neither.",
+    );
+  }
+  return {
+    legal: {
+      privacy: readPage(privacy, "BRAIVO_PRIVACY_URL"),
+      terms: readPage(terms, "BRAIVO_TERMS_URL"),
+    },
+  };
+}
+
+/** An absolute http or https URL, which a link on any origin reaches. */
+function readPage(value: string, name: VariableName): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an absolute URL, got "${value}".`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${name} must be an http or https URL, got "${value}".`);
+  }
+  return parsed.href;
 }
 
 /**

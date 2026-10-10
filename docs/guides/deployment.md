@@ -31,6 +31,8 @@ bun apps/server/cli/index.ts organization add-member --slug my-school --email le
 
 `add-member` adds someone who has signed in once; `--role admin` makes them a content owner too.
 
+**Privacy policy and terms.** `BRAIVO_PRIVACY_URL` and `BRAIVO_TERMS_URL`, absolute http or https URLs to pages you host, add "By continuing, you agree to the Terms and Privacy Policy" under `/login`'s sign-in, where an account is made; set both or neither. Unset, sign-in asks agreement to nothing: set them before inviting anyone beyond a pilot.
+
 **Self-serve.** `BRAIVO_SELF_SERVE_DOMAIN`, a domain such as `braivo.app`, lets anyone signed in who owns no organization set one up in the console, served at `<slug>.<domain>`; one each. Serve the learn app on every subdomain first: wildcard DNS, a wildcard certificate, and a proxy passing `Host`. With it, an AI key needs `BRAIVO_AI_ORGANIZATIONS`, or the server refuses to start. Unset, only the operator creates organizations. Locally, `localhost` serves each at `<slug>.localhost`, as in [the API guide](api.md#an-organizations-domain-locally).
 
 ### An organization's domain

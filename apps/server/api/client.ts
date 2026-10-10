@@ -19,7 +19,7 @@ import type {
   Organization,
   QuotedCitation,
   SessionUser,
-  SignInMethods,
+  SignInSettings,
   Source,
   SourceSummary,
   TaskDraft,
@@ -56,7 +56,7 @@ export type {
   Passage,
   QuotedCitation,
   SessionUser,
-  SignInMethods,
+  SignInSettings,
   Source,
   SourceSummary,
   TaskDraft,
@@ -119,8 +119,8 @@ export type BraivoClient = {
   /** Signs out of this host alone: a learn domain's learner session, or the account. */
   signOut(options?: RequestOptions): Promise<void>;
 
-  /** How the installation's `/login` may sign people in besides an emailed code. */
-  signInMethods(options?: RequestOptions): Promise<SignInMethods>;
+  /** What the installation's `/login` offers besides an emailed code. */
+  signInSettings(options?: RequestOptions): Promise<SignInSettings>;
 
   /**
    * What a learn domain's sign-in, `handoffId`, signs in to, or `undefined`
@@ -564,13 +564,13 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 204) throw await unexpected(response, "signing out");
     },
 
-    async signInMethods(requestOptions) {
-      const response = await get("/api/sign-in-methods", requestOptions);
+    async signInSettings(requestOptions) {
+      const response = await get("/api/sign-in-settings", requestOptions);
 
-      const doing = "asking how to sign in";
+      const doing = "asking what sign-in offers";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      return parsed<SignInMethods>(response, doing);
+      return parsed<SignInSettings>(response, doing);
     },
 
     async handoff(handoffId, requestOptions) {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { LocalizationProvider } from "@braivo/i18n";
+import { ThemeProvider } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { Spinner } from "@braivo/ui/components/spinner";
@@ -32,8 +33,13 @@ export function createConsoleRouter({
     // Not while a layout already shown reruns a slow `beforeLoad` (the session
     // check, say): the old page stays meanwhile.
     defaultPendingComponent: PagePending,
-    // Marked copy's provider, here so that tests rendering the router get it too.
-    Wrap: LocalizationProvider,
+    // Marked copy's provider and the theme's, here so that tests rendering the
+    // router get them too.
+    Wrap: ({ children }) => (
+      <LocalizationProvider>
+        <ThemeProvider>{children}</ThemeProvider>
+      </LocalizationProvider>
+    ),
   });
 }
 

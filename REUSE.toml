@@ -5,7 +5,8 @@
 version = 1
 
 # Braivo's files that cannot, or should not, carry a header: docs, JSON,
-# markup, the lockfile, generated code a tool overwrites, and database migrations.
+# markup, the lockfile, generated code a tool overwrites, database migrations,
+# and an app's static files (the console's icons).
 [[annotations]]
 path = [
   "**/*.md",
@@ -15,6 +16,7 @@ path = [
   ".gitignore",
   ".worktreeinclude",
   "bun.lock",
+  "apps/*/public/**",
   "apps/*/routeTree.gen.ts",
   "packages/db/schema/auth.ts",
   "packages/db/migrations/**",

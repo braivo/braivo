@@ -224,8 +224,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await at(baseUrl, sources)).status).toBe(200);
     expect((await at(organizationOrigin, sources)).status).toBe(404);
     expect((await at(organizationOrigin, "/api/organizations")).status).toBe(404);
-    expect((await at(baseUrl, "/api/sign-in-methods")).status).toBe(200);
-    expect((await at(organizationOrigin, "/api/sign-in-methods")).status).toBe(404);
+    expect((await at(baseUrl, "/api/sign-in-settings")).status).toBe(200);
+    expect((await at(organizationOrigin, "/api/sign-in-settings")).status).toBe(404);
     const device = await api.request(`${organizationOrigin}/api/auth/device/code`, {
       method: "POST",
       headers: { "content-type": "application/json" },

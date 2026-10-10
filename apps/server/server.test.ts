@@ -27,6 +27,8 @@ interface Env {
   BRAIVO_AI_ORGANIZATIONS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  BRAIVO_PRIVACY_URL?: string;
+  BRAIVO_TERMS_URL?: string;
   FILES: { get(key: string): Promise<unknown> };
 }
 
@@ -35,6 +37,7 @@ function testServer(
   options: {
     ai?: Pick<Env, "ANTHROPIC_API_KEY" | "BRAIVO_AI_ORGANIZATIONS">;
     google?: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">;
+    legal?: Pick<Env, "BRAIVO_PRIVACY_URL" | "BRAIVO_TERMS_URL">;
     cachedDatabase?: Database;
     files?: FileStore;
   } = {},
@@ -45,6 +48,7 @@ function testServer(
     FILES: { get: async () => undefined },
     ...options.ai,
     ...options.google,
+    ...options.legal,
   };
   return createServer({
     config: readServerConfig(env),
@@ -83,13 +87,23 @@ describe.skipIf(!connectionString)("createServer", () => {
     cookie = admin.cookie;
   });
 
-  test("offers Google sign-in when the environment holds Google's client", async () => {
+  test("offers Google sign-in, and links the operator's legal pages, as the environment says", async () => {
     const google = { GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "secret" };
-    const methods = async (server: ReturnType<typeof testServer>) =>
-      (await server.request(`${baseUrl}/api/sign-in-methods`)).json();
+    const legal = {
+      BRAIVO_PRIVACY_URL: "https://fernwood.example/privacy",
+      BRAIVO_TERMS_URL: "https://fernwood.example/terms",
+    };
+    const settings = async (server: ReturnType<typeof testServer>) =>
+      (await server.request(`${baseUrl}/api/sign-in-settings`)).json();
 
-    expect(await methods(testServer({ google }))).toEqual({ google: true });
-    expect(await methods(testServer())).toEqual({ google: false });
+    expect(await settings(testServer({ google }))).toEqual({ google: true, legal: null });
+    expect(await settings(testServer({ legal }))).toEqual({
+      google: false,
+      legal: {
+        privacy: "https://fernwood.example/privacy",
+        terms: "https://fernwood.example/terms",
+      },
+    });
   });
 
   test("sends sign-in codes through the host's mail, on the configured origin alone", async () => {

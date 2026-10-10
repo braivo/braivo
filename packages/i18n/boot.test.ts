@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { BOOT, bootScript } from "./boot.ts";
-import { chooseLocale } from "./index.tsx";
+import { chooseLocale, LANGUAGE_STORAGE_KEY, preferredLocale } from "./index.tsx";
 
 const apps = ["learn", "console"];
 
@@ -67,6 +67,19 @@ test.each(apps)("%s's loading message follows the browser's first supported lang
     expect(page.reload).toBe(page.originalLink);
     expect(page.reload!.getAttribute("href")).toBe("");
   }
+});
+
+test.each(apps)("%s's loading message follows a language chosen from the menu first", (app) => {
+  onTestFinished(() => localStorage.clear());
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "pl");
+  expect(boot(app, ["en-GB"]).lang).toBe("pl");
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "en");
+  const page = boot(app, ["pl-PL"]);
+  expect({ lang: page.lang, loading: page.loading }).toEqual({
+    lang: "en",
+    loading: BOOT.en.loading,
+  });
+  expect(page.lang).toBe(preferredLocale(["pl-PL"]));
 });
 
 test("no copy can close the script it is inlined in", () => {

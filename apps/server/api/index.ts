@@ -16,14 +16,14 @@
 // `callbackURL` signed in, or to `errorCallbackURL` with an `error` query
 // parameter (to `/login` when it cannot tell where the sign-in began).
 //
-// `GET /api/sign-in-methods` — `{ "google": boolean }`: whether `/login` offers
-// Google besides email codes. No session needed.
+// `GET /api/sign-in-settings` — `{ "google": boolean, "legal": { "privacy",
+// "terms" } | null }`: whether `/login` offers Google besides email codes, and
+// the operator's pages that signing in agrees to. No session needed.
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
 // organization's learn domain — `/api/auth/*`, `/api/handoffs/*`,
-// `/api/sign-in-methods`, and every
-// `/api/organizations…` route answer 404, and any request carrying
-// `Authorization` 401 (ADR 0004, ADR 0022).
+// `/api/sign-in-settings`, and every `/api/organizations…` route answer 404,
+// and any request carrying `Authorization` 401 (ADR 0004, ADR 0022).
 //
 // What PostgreSQL cannot store as sent, a NUL or an unpaired surrogate, is
 // refused after those host refusals and before any session is read: a path

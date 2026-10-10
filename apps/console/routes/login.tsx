@@ -10,9 +10,10 @@ import { Spinner } from "@braivo/ui/components/spinner";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { ConsoleBrand, ConsoleStory, LearnerNote, SignInPage } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 const expiredTitle = msg`This sign-in has expired`;
@@ -28,27 +29,32 @@ export const Route = createFileRoute("/login")({
     handoff: typeof search.handoff === "string" && search.handoff ? search.handoff : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
   }),
-  beforeLoad: async ({ context, abortController }) => {
-    const [{ data }, offersGoogle] = await Promise.all([
-      // One read for both, so they describe the same session. One that cannot
-      // be checked, in time or at all, counts as none: signing in is how to find out.
-      context.auth
-        .getSession({
-          fetchOptions: { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) },
-        })
-        .catch(() => ({ data: null })),
-      // Not knowing still leaves the code, so it is no reason to fail the page,
-      // nor, on stalled wifi, to keep it waiting.
-      context.braivo
-        .signInMethods({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
-        .then(
-          (methods) => methods.google,
-          () => false,
-        ),
-    ]);
+  beforeLoad: async ({ context, search, abortController }) => {
+    // Asked alongside the session, but awaited only for a form to show it.
+    // Not knowing still leaves the code, so it is no reason to fail the page,
+    // nor, on stalled wifi, to keep it waiting: unread, it offers no Google and
+    // links no legal pages.
+    const settingsRead = context.braivo
+      .signInSettings({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
+      .catch(() => ({ google: false, legal: null }));
+    // One read for both, so they describe the same session. One that cannot be
+    // checked, in time or at all, counts as none: signing in is how to find out.
+    const { data } = await context.auth
+      .getSession({
+        fetchOptions: { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) },
+      })
+      .catch(() => ({ data: null }));
     const user = data?.user;
+    // Signed in already (Back, a bookmark): on to where sign-in would lead,
+    // in `/login`'s place, as every redirect is. A learn domain's sign-in
+    // offers the account instead (access-13).
+    if (search.handoff === undefined && user?.name.trim()) {
+      throw redirect({ href: search.redirect ?? "/" });
+    }
+    const settings = await settingsRead;
     return {
-      offersGoogle,
+      offersGoogle: settings.google,
+      legal: settings.legal ?? undefined,
       needsName: user !== undefined && user.name.trim() === "",
       // Whoever is signed in, for a learn domain's sign-in to offer: by name,
       // or by email while unnamed.
@@ -93,22 +99,28 @@ function useGoogleSignIn(to: string) {
 }
 
 function Login() {
-  const { auth, needsName } = Route.useRouteContext();
+  const { auth, needsName, legal } = Route.useRouteContext();
   const { redirect, handoff } = Route.useSearch();
   const router = useRouter();
   const google = useGoogleSignIn(redirect ?? "/");
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
   return (
-    <>
-      <Heading>Braivo Console</Heading>
+    <SignInPage
+      brand={<ConsoleBrand />}
+      aside={<ConsoleStory />}
+      footer={`© ${new Date().getFullYear()} Braivo`}
+    >
       <SignIn
         auth={auth}
         needsName={needsName}
         google={google}
-        onSignedIn={() => router.navigate({ href: redirect ?? "/" })}
+        legal={legal}
+        // In `/login`'s place, so Back does not return to it.
+        onSignedIn={() => router.navigate({ href: redirect ?? "/", replace: true })}
       />
-    </>
+      <LearnerNote />
+    </SignInPage>
   );
 }
 
@@ -119,7 +131,7 @@ function Login() {
  * someone else's.
  */
 function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
-  const { auth, braivo, visit, needsName, account } = Route.useRouteContext();
+  const { auth, braivo, visit, needsName, account, legal } = Route.useRouteContext();
   const { handoff } = Route.useLoaderData();
   const { t } = useLingui();
   // Back here signed in, where the account is offered as any open session is:
@@ -145,10 +157,25 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     if (view === "refused") retry.current?.focus();
   }, [view]);
 
-  if (!handoff) return <Expired />;
-  if (view === "expired") return <Expired hostname={handoff.hostname} />;
+  if (!handoff) {
+    return (
+      <SignInPage>
+        <Expired />
+      </SignInPage>
+    );
+  }
   const { name: organizationName } = handoff.organization;
   const { hostname } = handoff;
+  // The organization in Braivo's place, named on every view, as each step of
+  // the form heads itself (access-13).
+  const brand = <span className="font-semibold wrap-anywhere">{organizationName}</span>;
+  if (view === "expired") {
+    return (
+      <SignInPage brand={brand}>
+        <Expired hostname={hostname} />
+      </SignInPage>
+    );
+  }
 
   /** From the account offered, or one just signed in to; failing, back to the former. */
   async function handOver() {
@@ -210,13 +237,12 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     </Button>
   );
   return (
-    <>
-      <Heading>
-        <Trans>Sign in to {organizationName}</Trans>
-      </Heading>
-      <MutedText className="mb-6 block wrap-break-word">
-        <Trans>You will continue at {hostname}.</Trans>
-      </MutedText>
+    <SignInPage brand={brand} footer={<Trans>You will continue at {hostname}.</Trans>}>
+      {view !== "form" && (
+        <Heading>
+          <Trans>Sign in to {organizationName}</Trans>
+        </Heading>
+      )}
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{t(error)}</AlertDescription>
@@ -225,8 +251,10 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
       {view === "form" && (
         <SignIn
           auth={auth}
+          title={t`Sign in to ${organizationName}`}
           needsName={!stale && needsName}
           google={google}
+          legal={legal}
           onSignedIn={() => {
             setStale(true);
             void handOver();
@@ -280,7 +308,7 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
           {another}
         </div>
       )}
-    </>
+    </SignInPage>
   );
 }
 

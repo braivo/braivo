@@ -16,7 +16,10 @@ type AuthError = { code?: string; status?: number; message?: string };
 
 type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null };
 
-/** Better Auth's per-request options; signing in sets only the deadline's signal. */
+/**
+ * Better Auth's per-request options: the deadline's signal, all a step sets
+ * but sending a code, which adds the page's language.
+ */
 type Bounded = { fetchOptions?: { signal?: AbortSignal } };
 
 /**
@@ -26,7 +29,11 @@ type Bounded = { fetchOptions?: { signal?: AbortSignal } };
  */
 export type SignInAuth = {
   emailOtp: {
-    sendVerificationOtp(input: { email: string; type: "sign-in" } & Bounded): Promise<AuthResult>;
+    sendVerificationOtp(input: {
+      email: string;
+      type: "sign-in";
+      fetchOptions: { headers: { "Accept-Language": string }; signal?: AbortSignal };
+    }): Promise<AuthResult>;
   };
   signIn: {
     emailOtp(
@@ -69,6 +76,30 @@ const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
   TOO_MANY_ATTEMPTS: msg`That code was tried too many times. Send a new one.`,
 };
 
+/** Refusals after which the code can sign in no more, so only a new one helps. */
+const SPENT = new Set(["OTP_EXPIRED", "TOO_MANY_ATTEMPTS"]);
+
+/**
+ * The server's wait between codes to one address (`SIGN_IN_CODE` in
+ * `apps/server/auth`), which the form counts down before offering another.
+ * Advisory: another tab may have asked meanwhile, and the server decides.
+ */
+const RESEND_WAIT_MS = 60_000;
+
+/**
+ * Refusals of a send after which the form counts a whole minute down again,
+ * not knowing how much of the server's is left: a send that failed spends its
+ * minute too.
+ */
+const WAIT_AGAIN = new Set(["SIGN_IN_CODE_COOLDOWN", "SIGN_IN_CODE_SEND_FAILED"]);
+
+/** Refusals asking only to wait, a limit rather than a fault: shown calm. */
+const COOLDOWN = msg`Wait a minute before asking for a code again.`;
+const RATE_LIMITED = msg`Too many tries. Wait a minute, then try again.`;
+// "Requested", not "sent": the minute proves an ask, and another tab's send may have failed.
+const SENT_RECENTLY = msg`A code was requested less than a minute ago. Check your email.`;
+const WAITS = new Set([COOLDOWN, RATE_LIMITED, SENT_RECENTLY]);
+
 /**
  * Why a step was refused: a code's refusal, Braivo's own (`apps/server/auth`),
  * a rate limit, which Better Auth's limiter answers with no code, or else a
@@ -77,13 +108,11 @@ const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
 function refusal(error: AuthError): MessageDescriptor {
   const known = CODE_REFUSALS[error.code ?? ""];
   if (known) return known;
-  if (error.code === "SIGN_IN_CODE_COOLDOWN") {
-    return msg`Wait a minute before asking for a code again.`;
-  }
+  if (error.code === "SIGN_IN_CODE_COOLDOWN") return COOLDOWN;
   if (error.code === "SIGN_IN_CODE_SEND_FAILED") {
     return msg`The code could not be sent. Try again in a minute.`;
   }
-  if (error.status === 429) return msg`Too many tries. Wait a minute, then try again.`;
+  if (error.status === 429) return RATE_LIMITED;
   return msg`That did not work. Try again.`;
 }
 
@@ -129,21 +158,26 @@ type GoogleSignIn = {
  * name when `needsName` says a session is open for such an account. Reports
  * success through `onSignedIn` and leaves where to go next to the caller.
  * With `google`, offers Google too, which leaves the page and comes back to
- * its `callbackURL` signed in.
+ * its `callbackURL` signed in. `title` heads the email step, "Sign in" if
+ * omitted. With `legal`, says signing in agrees to those pages.
  */
 export function SignIn(props: {
   auth: SignInAuth;
+  title?: string;
   needsName?: boolean;
   onSignedIn: () => void;
   google?: GoogleSignIn;
+  legal?: { privacy: string; terms: string };
 }) {
   const { auth, google } = props;
-  const { t } = useLingui();
+  const { i18n, t } = useLingui();
   const [step, setStep] = useState<SignInStep>(
     props.needsName ? { step: "name" } : { step: "email" },
   );
   const [error, setError] = useState(googleRefusal(google?.error));
   const [pending, setPending] = useState(false);
+  // The address whose last send here failed: its minute then holds no code.
+  const [failedFor, setFailedFor] = useState<string>();
 
   /** Takes one step, answering why it was refused if it was. */
   async function next(values: SignInValues): Promise<MessageDescriptor | undefined> {
@@ -151,15 +185,38 @@ export function SignIn(props: {
       const { error } = await auth.emailOtp.sendVerificationOtp({
         email: values.email,
         type: "sign-in",
-        fetchOptions: deadline(),
+        // The mail in the page's language, which a menu may have chosen over
+        // the browser's: the server reads it from this header (localization-6).
+        fetchOptions: { ...deadline(), headers: { "Accept-Language": i18n.locale } },
       });
-      if (error) return refusal(error);
-      // Asked again from the code step, a refusal above keeps it there, so the
-      // first code can still be entered.
+      const address = values.email.toLowerCase();
+      if (error?.code === "SIGN_IN_CODE_SEND_FAILED") setFailedFor(address);
+      if (error) {
+        // Asked again from the code step, a refusal keeps it there, so the
+        // first code can still be entered, and the countdown restarts.
+        if (step.step === "code" && WAIT_AGAIN.has(error.code ?? "")) {
+          setStep({ ...step, resendAt: Date.now() + RESEND_WAIT_MS });
+        }
+        // From the email (after Back, a reload, another tab), the minute means
+        // a code was asked for, which likely still signs in, so on to it rather
+        // than stuck here, unless this page saw that send fail. Says nothing
+        // new: the refusal already said a code was asked for.
+        if (
+          step.step === "email" &&
+          error.code === "SIGN_IN_CODE_COOLDOWN" &&
+          failedFor !== address
+        ) {
+          setStep({ step: "code", email: values.email, resendAt: Date.now() + RESEND_WAIT_MS });
+          return SENT_RECENTLY;
+        }
+        return refusal(error);
+      }
+      setFailedFor(undefined);
       setStep({
         step: "code",
         email: values.email,
         sent: step.step === "code" ? (step.sent ?? 1) + 1 : 1,
+        resendAt: Date.now() + RESEND_WAIT_MS,
       });
     } else if (values.step === "code" && step.step === "code") {
       const { data, error } = await auth.signIn.emailOtp({
@@ -169,7 +226,9 @@ export function SignIn(props: {
       });
       // Only a refused code clears what was typed: after a rate limit, say, it
       // may still be good.
-      if (CODE_REFUSALS[error?.code ?? ""]) setStep({ ...step, refused: (step.refused ?? 0) + 1 });
+      if (CODE_REFUSALS[error?.code ?? ""]) {
+        setStep({ ...step, refused: (step.refused ?? 0) + 1, spent: SPENT.has(error?.code ?? "") });
+      }
       if (error) return refusal(error);
       if (data?.user.name.trim()) props.onSignedIn();
       else setStep({ step: "name" });
@@ -225,13 +284,16 @@ export function SignIn(props: {
   return (
     <SignInForm
       step={step}
+      title={props.title}
       pending={pending}
       error={error && t(error)}
+      wait={error && WAITS.has(error)}
       onSubmit={submit}
       onResend={
         step.step === "code" ? () => submit({ step: "email", email: step.email }) : undefined
       }
       onContinueWithGoogle={google && (() => continueWithGoogle(google))}
+      legal={props.legal}
       onChangeEmail={() => {
         setError(undefined);
         setStep({ step: "email", email: step.step === "code" ? step.email : undefined });

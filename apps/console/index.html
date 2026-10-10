@@ -3,6 +3,45 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Braivo's icons, except on a learn domain's sign-in (a non-empty
+         `?handoff=`, as the route reads it), which wears no Braivo branding
+         (ADR 0018). That page is marked instead, so its loading screen keeps
+         the neutral theme (styles.css); the root route keeps the mark after. -->
+    <script>
+      if (new URLSearchParams(location.search).get("handoff")) {
+        document.documentElement.dataset.learnDomain = "";
+      } else {
+        for (const [rel, href] of [
+          ["icon", "/favicon.svg"],
+          ["apple-touch-icon", "/apple-touch-icon.png"],
+        ]) {
+          const link = document.createElement("link");
+          link.rel = rel;
+          link.href = href;
+          document.head.append(link);
+        }
+      }
+    </script>
+    <!-- The theme before the first paint, so a dark page never flashes light:
+         `ThemeProvider`'s rule and storage key (`braivo-theme`), restated as
+         no module has loaded yet. -->
+    <script>
+      {
+        // Unreadable storage (blocked by policy, say) is no choice: the system's.
+        let theme = null;
+        try {
+          theme = localStorage.getItem("braivo-theme");
+        } catch {}
+        const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+        if (theme === "dark" || (theme !== "light" && dark)) {
+          document.documentElement.classList.add("dark");
+        }
+      }
+    </script>
+    <!-- A link, not an import in main.tsx: the dev server then serves it before
+         the first paint too, as the build does, so the boot screen below is
+         styled, not bare, while the modules load. -->
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div id="root"></div>

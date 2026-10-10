@@ -10,6 +10,12 @@ export const LOCALES = ["en", "pl"] as const;
 
 export type Locale = (typeof LOCALES)[number];
 
+/**
+ * Where a language chosen from a menu is kept, per browser and origin; the
+ * loading message (`boot.ts`) reads it too, before any module loads.
+ */
+export const LANGUAGE_STORAGE_KEY = "braivo-language";
+
 /** The supported language a language tag names by its primary subtag (`pl-PL` is `pl`), if any. */
 export function supportedLocale(tag: string): Locale | undefined {
   const primary = tag.split("-")[0]!.toLowerCase();

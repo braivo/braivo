@@ -36,6 +36,7 @@ export function createServer(options: {
     files: options.files,
     baseUrl: config.baseUrl,
     selfServeDomain: config.selfServeDomain,
+    legal: config.legal,
     ai: config.ai && {
       model: anthropicModel(config.ai),
       organizations: config.ai.organizations,
