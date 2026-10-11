@@ -17,6 +17,10 @@ msgstr "{count, plural, one {# due for review} other {# due for review}}"
 msgid "{count, plural, one {# learning} other {# learning}}"
 msgstr "{count, plural, one {# learning} other {# learning}}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{count, plural, one {# member.} other {# members.}}"
+msgstr "{count, plural, one {# member.} other {# members.}}"
+
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
@@ -63,13 +67,25 @@ msgstr "A home for your materials, courses, and learners."
 msgid "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
 msgstr "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Account"
+msgstr "Account"
+
 #: apps/console/components/account-menu.tsx
 msgid "Account: {name}"
 msgstr "Account: {name}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Admin"
+msgstr "Admin"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Another code can be sent a minute after the last."
 msgstr "Another code can be sent a minute after the last."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Back to {organizationName}"
+msgstr "Back to {organizationName}"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Back to sign-in options"
@@ -79,6 +95,10 @@ msgstr "Back to sign-in options"
 msgid "Beta"
 msgstr "Beta"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
+msgid "Both are kept in this browser."
+msgstr "Both are kept in this browser."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 msgstr "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
@@ -86,6 +106,10 @@ msgstr "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Check your email"
 msgstr "Check your email"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Choose one from the list."
+msgstr "Choose one from the list."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The sign-in code sent by email"
@@ -116,6 +140,7 @@ msgid "Correct"
 msgstr "Correct"
 
 #: apps/console/components/language-menu.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Could not change the language. Try again."
 msgstr "Could not change the language. Try again."
@@ -128,6 +153,10 @@ msgstr "Could not confirm the organization was created. Reload this page to chec
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
 msgstr "Could not connect. Check your connection and try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "Could not save your name. Try again."
+msgstr "Could not save your name. Try again."
 
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
@@ -153,6 +182,7 @@ msgstr "Create organization"
 msgid "Creating…"
 msgstr "Creating…"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Dark"
 msgstr "Dark"
@@ -184,6 +214,7 @@ msgstr "Edit"
 msgid "Edit learners' site"
 msgstr "Edit learners' site"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email address"
 msgstr "Email address"
@@ -204,6 +235,7 @@ msgstr "Enter the six-digit code sent to {address}. It expires in 10 minutes and
 msgid "Enter your email address, such as name@example.com."
 msgstr "Enter your email address, such as name@example.com."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Enter your name."
 msgstr "Enter your name."
@@ -245,9 +277,17 @@ msgstr "in {time}"
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
+msgid "Language"
+msgstr "Language"
+
 #: apps/console/components/language-menu.tsx
 msgid "Language: {name}"
 msgstr "Language: {name}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Learner"
+msgstr "Learner"
 
 #: apps/console/components/organization-setup.tsx
 msgid "Learners' site"
@@ -271,6 +311,7 @@ msgstr "Learning"
 msgid "Learning? Open the site your school or training provider gave you."
 msgstr "Learning? Open the site your school or training provider gave you."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Light"
 msgstr "Light"
@@ -285,6 +326,16 @@ msgstr "Loading"
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Loading…"
 msgstr "Loading…"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Members"
+msgstr "Members"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgctxt "person"
+msgid "Name"
+msgstr "Name"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgctxt "Why a question comes now"
@@ -333,6 +384,10 @@ msgctxt "Between two ways to sign in"
 msgid "or"
 msgstr "or"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Organization"
+msgstr "Organization"
+
 #: apps/console/components/organization-setup.tsx
 msgid "Organization name"
 msgstr "Organization name"
@@ -341,10 +396,24 @@ msgstr "Organization name"
 msgid "Organizations"
 msgstr "Organizations"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Owner"
+msgstr "Owner"
+
 #. A page of a book
 #: packages/ui/compositions/source-passage.tsx
 msgid "p. {page}"
 msgstr "p. {page}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Preferences"
+msgstr "Preferences"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Profile"
+msgstr "Profile"
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -360,6 +429,22 @@ msgstr "Retained"
 msgctxt "Why a question comes now"
 msgid "Review"
 msgstr "Review"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Role"
+msgstr "Role"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "Save"
+msgstr "Save"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "Saved."
+msgstr "Saved."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "Saving…"
+msgstr "Saving…"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send a new code"
@@ -380,6 +465,15 @@ msgstr "Sending…"
 #: apps/console/components/organization-setup.tsx
 msgid "Set up your organization"
 msgstr "Set up your organization"
+
+#: apps/console/components/account-menu.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Settings"
+msgstr "Settings"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "Shown to the people you work with, in every organization."
+msgstr "Shown to the people you work with, in every organization."
 
 #: apps/learn/routes/login.tsx
 #: packages/ui/compositions/sign-in-form.tsx
@@ -418,9 +512,14 @@ msgstr "Something went wrong."
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "System"
 msgstr "System"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
+msgid "System follows your device's light or dark mode."
+msgstr "System follows your device's light or dark mode."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Take a short break"
@@ -460,13 +559,22 @@ msgid "The learning engine behind your courses"
 msgstr "The learning engine behind your courses"
 
 #: apps/console/components/account-menu.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Theme"
 msgstr "Theme"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "There is no such setting"
+msgstr "There is no such setting"
+
 #: apps/learn/routes/__root.tsx
 msgid "There is nothing here."
 msgstr "There is nothing here."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "They cannot be added or removed here yet; whoever runs Braivo for you can."
+msgstr "They cannot be added or removed here yet; whoever runs Braivo for you can."
 
 #: apps/console/routes/login.tsx
 msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
@@ -483,6 +591,10 @@ msgstr "This course does not exist, or is not one of yours."
 #: packages/auth-client/sign-in.tsx
 msgid "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
 msgstr "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "This organization does not exist, or you do not manage it."
+msgstr "This organization does not exist, or you do not manage it."
 
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"
@@ -525,6 +637,10 @@ msgstr "Wait a minute before asking for a code again."
 msgid "What should we call you?"
 msgstr "What should we call you?"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "You"
+msgstr "You"
+
 #: apps/console/components/organization-setup.tsx
 msgid "You already own an organization. Reload this page to open it."
 msgstr "You already own an organization. Reload this page to open it."
@@ -540,6 +656,10 @@ msgstr "You missed this last time."
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
 msgstr "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+msgid "You sign in with it. It cannot be changed yet."
+msgstr "You sign in with it. It cannot be changed yet."
 
 #: apps/console/components/organization-setup.tsx
 #: apps/console/routes/login.tsx
@@ -593,6 +713,7 @@ msgstr "Your learners see this name. If it's just you, use your own."
 msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
 msgstr "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Your name"
 msgstr "Your name"

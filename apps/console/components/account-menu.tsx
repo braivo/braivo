@@ -14,7 +14,9 @@ import {
   DropdownMenuTrigger,
 } from "@braivo/ui/components/dropdown-menu";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { LogOutIcon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { LogOutIcon, SettingsIcon } from "lucide-react";
+import type { Ref } from "react";
 
 /** "Avery Reviewer" is "AR", "Olive" is "O": the first letters of its first two words. */
 function initialsOf(name: string): string {
@@ -29,11 +31,18 @@ function initialsOf(name: string): string {
 
 /**
  * The signed-in account, after shadcn's nav-user: its initials open a menu
- * naming it, choosing the theme, and signing out. Signing out is the
- * caller's, locked while `signingOut`.
+ * naming it, opening settings, choosing the theme, and signing out. Signing
+ * out is the caller's, locked while `signingOut`.
  */
-export function AccountMenu(props: {
+export function AccountMenu({
+  ref,
+  ...props
+}: {
+  /** Its trigger, the button showing the initials. */
+  ref?: Ref<HTMLButtonElement>;
   user: { name: string; email: string };
+  /** The organization shown, whose settings it opens; without one, no Settings item. */
+  organizationSlug?: string;
   signingOut: boolean;
   onSignOut: () => void;
 }) {
@@ -45,6 +54,7 @@ export function AccountMenu(props: {
       <DropdownMenuTrigger asChild>
         {/* 44px, a touch target's least. */}
         <Button
+          ref={ref}
           variant="ghost"
           size="icon"
           className="size-11 rounded-full"
@@ -61,6 +71,20 @@ export function AccountMenu(props: {
           <span className="text-xs wrap-anywhere text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {props.organizationSlug && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link
+                to="/$organizationSlug/settings/account"
+                params={{ organizationSlug: props.organizationSlug }}
+              >
+                <SettingsIcon />
+                <Trans>Settings</Trans>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuGroup>
           <DropdownMenuLabel className="text-xs text-muted-foreground">
             <Trans>Theme</Trans>

@@ -6,7 +6,7 @@ How `apps/console` and `apps/learn` build a page, beyond what their specs requir
 
 - **Router options** go in each app's `router.tsx` (`createConsoleRouter`, `createLearnRouter`), which `main.tsx` and `routes.test.tsx` share, so tests run with production options. `Register` lives there too.
 - **Tab title:** `head: (head) => pageHead(head, …)` from the app's `lib/title.ts`, page first: `<page> · <organization>`. The console names a learner `<learner> · <course>` and a source `<source> · Source`; learn titles only the course page (white-label-6).
-- **Way back:** a page below a list names its parent as a small link above its heading, styled as on learn's course page and the console's learner report. The console header's breadcrumb is Braivo's logo, leading to Organizations, then `<organization>`.
+- **Way back:** a page below a list names its parent as a small link above its heading, styled as on learn's course page and the console's learner report. The console header's breadcrumb is Braivo's logo, leading to Organizations, then `<organization>`. Settings (access-36) have no header: their navigation, and Escape, lead back to the page they were opened from.
 - **A course in the console** is checked to belong to the organization before anything about it is read: `readCourse` through the organization, or `readCourseInOrganization` when the page needs no authored course. Await it before the scoped reads (progress-9).
 - **Console refusals** are in `apps/console/lib/refusals.ts` (`orNotFound`, `readCourseInOrganization`, `explainAiProxyTimeout`): reuse them.
 
@@ -14,6 +14,7 @@ How `apps/console` and `apps/learn` build a page, beyond what their specs requir
 
 - **A failed load:** the router's default `PageError` replaces only the failed page, focused, with Try again; a route's own `errorComponent` wins. Not-found messages are per route (`notFoundComponent`).
 - **A failed action** keeps the page. Lock a control that may hold focus with `aria-disabled` and an early return while pending, `onClick={() => !pending && act()}`, rather than `disabled`, which drops its focus; a form's submit handler returns while pending too, since only a natively disabled button blocks Enter's implicit submission. Say what failed as `role="alert"`: "Could not <verb>. Try again." when retrying unchanged can work, clicking again to retry; otherwise the refusal's own way forward, such as reloading the course after a conflict, or `explainAiProxyTimeout`'s warning that a retry spends another AI request. In a header, the message goes on its own line under the row, never inside it, where at 320px it pushes the row's controls off screen.
+- **A success said in words** ("Saved.") goes in a `role="status"` element mounted empty from the start, its text changing: one mounted already filled is not reliably announced. An alert, by contrast, is announced as it mounts.
 - **A retry that can fail the same way twice** mounts a new `role="alert"` each time (a key counting failures), or a screen reader announces nothing new; the retry button keeps its node and focus.
 - **Focus moved to a newly shown element** is set in `useLayoutEffect`, before paint: a passive effect can run after a test or assistive technology already sees the element unfocused.
 
@@ -28,7 +29,7 @@ How `apps/console` and `apps/learn` build a page, beyond what their specs requir
 Observed behaviour, not documented contracts: recheck each after upgrading.
 
 - A match gets an error boundary only if its route has an error component, its own or `defaultErrorComponent`; an error replaces that route's whole component, layout included. `notFound()` passes through error boundaries.
-- An unmatched path renders the nearest matched ancestor's `notFoundComponent` with props `{}` (not the documented `isNotFound` and `routeId`), and that match's status stays `success`; a route's own `notFound()` sets `notFound`.
+- An unmatched path renders the nearest matched ancestor's `notFoundComponent` with props `{}` (not the documented `isNotFound` and `routeId`), and that match's status stays `success`; a route's own `notFound()` sets `notFound`. A layout's renders in its own `Outlet`, its component around it, so a layout without one leaves an unmatched path to an ancestor's, which replaces the layout whole.
 - The deepest `title` wins; `{ title: undefined }` emits an empty `<meta>`, so return `meta: []`. A reload ending in not-found keeps the old `loaderData`, hence `status === "success"` checks.
 - `beforeLoad`s run before loaders, which orders mock calls in route tests.
 

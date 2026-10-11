@@ -27,6 +27,7 @@ afterEach(() => {
   vi.useRealTimers();
   cleanup();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 /** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
@@ -108,7 +109,8 @@ function renderAt(
     history?: RouterHistory;
   } = {},
 ) {
-  const account = { name: stubs.name ?? "Olive Owner", email: "olive@example.com" };
+  // `u1`, as in `members`.
+  const account = { id: "u1", name: stubs.name ?? "Olive Owner", email: "olive@example.com" };
   let signedIn = stubs.signedIn ?? true;
   const auth = {
     getSession: async () => ({ data: signedIn ? { user: { ...account } } : null, error: null }),
@@ -120,10 +122,12 @@ function renderAt(
       }),
       social: vi.fn(async (): Promise<{ error: { status: number } | null }> => ({ error: null })),
     },
-    updateUser: vi.fn(async ({ name }: { name: string }) => {
-      account.name = name;
-      return { error: null };
-    }),
+    updateUser: vi.fn(
+      async ({ name }: { name: string; fetchOptions?: { signal?: AbortSignal } }) => {
+        account.name = name;
+        return { error: null };
+      },
+    ),
     signOut: vi.fn(async () => {
       signedIn = false;
       return { error: null };
@@ -405,6 +409,282 @@ describe("the console", () => {
     await chooseFromLanguageMenu("Polski");
     expect(await screen.findByRole("button", { name: "Konto: Olive Owner" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  describe("settings", () => {
+    /** Types `name` as the account's name and saves it, once the page shows. */
+    function saveName(name: string) {
+      fireEvent.change(screen.getByLabelText("Your name"), { target: { value: name } });
+      fireEvent.click(screen.getByRole("button", { name: /^Save/ }));
+    }
+
+    test("opens from the account menu, in the header's place, with their own navigation", async () => {
+      const { router } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+
+      fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Profile" })).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/example/settings/account");
+      await vi.waitFor(() => expect(document.title).toBe("Profile · Example School"));
+      expect(document.querySelector("header")).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Account: / })).toBeNull();
+
+      const nav = screen.getByRole("navigation", { name: "Settings" });
+      const profile = within(nav).getByRole("link", { name: "Profile" });
+      expect(profile.getAttribute("aria-current")).toBe("page");
+      // Not lost with the menu's trigger, gone with the header.
+      expect(document.activeElement).toBe(profile);
+      expect(screen.getByText("olive@example.com")).toBeTruthy();
+
+      fireEvent.click(within(nav).getByRole("link", { name: "Back to Example School" }));
+      const account = await screen.findByRole("button", { name: "Account: Olive Owner" });
+      expect(router.state.location.pathname).toBe("/example");
+      // Not lost with settings' navigation: back on the menu that opened them.
+      expect(document.activeElement).toBe(account);
+    });
+
+    test("list the members by name with their roles, marking the account's own", async () => {
+      renderAt("/example/settings", {
+        braivo: {
+          listMembers: async () => [
+            { userId: "u1", name: "Olive Owner", roles: ["owner", "admin"] },
+            { userId: "u2", name: "Lee Learner", roles: ["member"] },
+            { userId: "u3", name: "Ada Admin", roles: ["admin"] },
+          ],
+        },
+      });
+
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      fireEvent.click(within(nav).getByRole("link", { name: "Members" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Members · Example School"));
+      expect(screen.getByText(/^3 members\./)).toBeTruthy();
+
+      const rows = screen.getAllByRole("row").map((row) => row.textContent);
+      expect(rows).toEqual([
+        "NameRole",
+        "Olive OwnerYouOwner and Admin",
+        "Lee LearnerLearner",
+        "Ada AdminAdmin",
+      ]);
+    });
+
+    test("choose the theme and the language, each kept in this browser", async () => {
+      onTestFinished(async () => {
+        localStorage.clear();
+        document.documentElement.classList.remove("dark");
+        await activateLocale("en");
+      });
+      renderAt("/example/settings");
+
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      fireEvent.click(within(nav).getByRole("link", { name: "Preferences" }));
+      const themes = await screen.findByRole("radiogroup", { name: "Theme" });
+      fireEvent.click(within(themes).getByRole("radio", { name: "Dark" }));
+      await vi.waitFor(() =>
+        expect(document.documentElement.classList.contains("dark")).toBe(true),
+      );
+      expect(localStorage.getItem("braivo-theme")).toBe("dark");
+      fireEvent.click(within(themes).getByRole("radio", { name: "System" }));
+      expect(localStorage.getItem("braivo-theme")).toBeNull();
+
+      fireEvent.change(screen.getByLabelText("Language"), { target: { value: "pl" } });
+      expect(await screen.findByRole("heading", { level: 1, name: "Preferencje" })).toBeTruthy();
+      expect(screen.getByLabelText<HTMLSelectElement>("Język").value).toBe("pl");
+    });
+
+    test("say when a language could not load, a new alert each time, keeping the one shown", async () => {
+      onTestFinished(async () => {
+        vi.restoreAllMocks();
+        await activateLocale("en");
+      });
+      renderAt("/example/settings/preferences");
+      const select = await screen.findByLabelText<HTMLSelectElement>("Language");
+      vi.spyOn(i18n, "loadAndActivate").mockImplementation(() => {
+        throw new Error("Catalog failed");
+      });
+
+      fireEvent.change(select, { target: { value: "pl" } });
+      const first = await screen.findByRole("alert");
+      expect(first.textContent).toBe("Could not change the language. Try again.");
+      expect(select.value).toBe("en");
+      fireEvent.change(select, { target: { value: "pl" } });
+      await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+    });
+
+    test("lead back to the page they were opened from, by their link or by Escape", async () => {
+      const { router } = renderAt("/example/sources", { braivo: { listSources: async () => [] } });
+
+      fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      await screen.findByLabelText("Your name");
+      expect(
+        within(nav).getByRole("link", { name: "Back to Example School" }).getAttribute("href"),
+      ).toBe("/example/sources");
+
+      // A field keeps Escape: given time to navigate, it has not.
+      fireEvent.keyDown(screen.getByLabelText("Your name"), { key: "Escape" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(router.state.location.pathname).toBe("/example/settings/account");
+
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example/sources"));
+
+      fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
+      fireEvent.click(
+        within(await screen.findByRole("navigation", { name: "Settings" })).getByRole("link", {
+          name: "Back to Example School",
+        }),
+      );
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example/sources"));
+    });
+
+    test("lead back within the organization whose settings show, after another's", async () => {
+      const { router } = renderAt("/example/sources", {
+        organizations: [school, annex],
+        braivo: { listSources: async () => [] },
+      });
+      fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
+      await screen.findByRole("navigation", { name: "Settings" });
+
+      // As the browser's history can, from one organization's settings to another's.
+      await router.navigate({ href: "/annex/settings/members" });
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      fireEvent.click(await within(nav).findByRole("link", { name: "Back to Annex" }));
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe("/annex"));
+    });
+
+    test("leave an Escape a dialog or menu used to it, not leaving settings", async () => {
+      const { router } = renderAt("/example/settings/preferences");
+      await screen.findByLabelText("Language");
+      // As Radix's listener does, on the document while capturing.
+      document.addEventListener("keydown", (event) => event.preventDefault(), {
+        capture: true,
+        once: true,
+      });
+
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(router.state.location.pathname).toBe("/example/settings/preferences");
+    });
+
+    test("scroll the page shown into the phone's row, sideways alone", async () => {
+      renderAt("/example/settings/account");
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      const members = within(nav).getByRole("link", { name: "Members" });
+      const row = members.closest("ul")!.parentElement!;
+      // happy-dom lays nothing out: the row 300px wide, Members past its right edge.
+      const box = (left: number, right: number) => () => ({ left, right }) as DOMRect;
+      row.getBoundingClientRect = box(0, 300);
+      members.getBoundingClientRect = box(400, 480);
+      const scrollTo = vi.spyOn(window, "scrollTo");
+      onTestFinished(() => scrollTo.mockRestore());
+
+      fireEvent.click(members);
+      await vi.waitFor(() => expect(row.scrollLeft).toBe(180));
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    test("say a page they do not have is none, keeping their navigation and the way back", async () => {
+      const { router } = renderAt("/example/settings/billing");
+
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "There is no such setting" }),
+      ).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Settings · Example School"));
+      const nav = screen.getByRole("navigation", { name: "Settings" });
+      fireEvent.click(within(nav).getByRole("link", { name: "Members" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/example/settings/members");
+    });
+
+    test("open at the account's", async () => {
+      const { router } = renderAt("/example/settings");
+      expect(await screen.findByRole("heading", { level: 1, name: "Profile" })).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/example/settings/account");
+    });
+
+    test("rename the account, trimmed, and every page shows the new name", async () => {
+      const { auth } = renderAt("/example/settings/account", {
+        braivo: { listCourses: async () => [] },
+      });
+
+      await screen.findByLabelText("Your name");
+      // Mounted empty before it says anything, so the saying is announced.
+      const status = screen.getByRole("status");
+      expect(status.textContent).toBe("");
+      saveName("  Ann Admin  ");
+      await vi.waitFor(() => expect(status.textContent).toBe("Saved."));
+      expect(auth.updateUser).toHaveBeenCalledWith(expect.objectContaining({ name: "Ann Admin" }));
+      expect(screen.getByLabelText<HTMLInputElement>("Your name").value).toBe("Ann Admin");
+
+      fireEvent.click(screen.getByRole("link", { name: "Back to Example School" }));
+      expect(await screen.findByRole("button", { name: "Account: Ann Admin" })).toBeTruthy();
+    });
+
+    test("refuse a name of spaces alone before sending it", async () => {
+      const { auth } = renderAt("/example/settings/account");
+
+      await screen.findByLabelText("Your name");
+      saveName("   ");
+      const input = screen.getByLabelText<HTMLInputElement>("Your name");
+      expect(input.validationMessage).toBe("Enter your name.");
+      expect(auth.updateUser).not.toHaveBeenCalled();
+    });
+
+    test("keep the name typed when saving fails, saying so each time, and lock Save while it is sent", async () => {
+      const { auth } = renderAt("/example/settings/account");
+      const refused = Promise.withResolvers<{ error: { status: number } }>();
+      auth.updateUser.mockReturnValueOnce(refused.promise as never);
+      auth.updateUser.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      await screen.findByLabelText("Your name");
+      saveName("Ann Admin");
+      const save = screen.getByRole("button", { name: /^Saving/ });
+      expect(save.getAttribute("aria-disabled")).toBe("true");
+      expect(screen.getByLabelText<HTMLInputElement>("Your name").readOnly).toBe(true);
+      fireEvent.click(save);
+      expect(auth.updateUser).toHaveBeenCalledOnce();
+      refused.resolve({ error: { status: 500 } });
+      const first = await screen.findByRole("alert");
+      expect(first.textContent).toBe("Could not save your name. Try again.");
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await vi.waitFor(() => expect(auth.updateUser).toHaveBeenCalledTimes(2));
+      // A new alert, so the repeat is announced too.
+      await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+      expect(screen.getByLabelText<HTMLInputElement>("Your name").value).toBe("Ann Admin");
+      expect(screen.getByRole("status").textContent).toBe("");
+    });
+
+    test("give up saving when it does not finish in time, saying so", async () => {
+      const { auth } = renderAt("/example/settings/account");
+      auth.updateUser.mockImplementationOnce((options) => stall(options.fetchOptions));
+      await screen.findByLabelText("Your name");
+
+      vi.useFakeTimers();
+      saveName("Ann Admin");
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not save your name. Try again.",
+      );
+      expect(screen.getByRole("button", { name: "Save" }).getAttribute("aria-disabled")).not.toBe(
+        "true",
+      );
+    });
+
+    test("send an account signed out meanwhile to sign in, and back", async () => {
+      const { auth, router } = renderAt("/example/settings/account");
+      auth.updateUser.mockResolvedValueOnce({ error: { status: 401 } } as never);
+      await screen.findByLabelText("Your name");
+      await auth.signOut();
+
+      saveName("Ann Admin");
+      expect(await screen.findByLabelText("Email address")).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/login");
+      expect(router.state.location.search).toEqual({ redirect: "/example/settings/account" });
+    });
   });
 
   test("offers to try again when the session cannot be checked in time", async () => {

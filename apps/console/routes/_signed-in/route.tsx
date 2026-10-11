@@ -10,12 +10,21 @@ import {
   BreadcrumbSeparator,
 } from "@braivo/ui/components/breadcrumb";
 import { Trans } from "@lingui/react/macro";
-import { createFileRoute, Link, Outlet, useMatch, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useMatch,
+  useLocation,
+  useMatches,
+  useRouter,
+} from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AccountMenu } from "#components/account-menu";
 import { BraivoLogo } from "#components/braivo-logo";
 import { LanguageMenu } from "#components/language-menu";
+import { rememberAppPage } from "#lib/app-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /**
@@ -46,6 +55,23 @@ function SignedIn() {
   // Shown on each of its pages, so someone managing several sees which one they act on.
   const organization = useMatch({ from: "/_signed-in/$organizationSlug", shouldThrow: false })
     ?.context.organization;
+  // Settings are a page of their own, with their own navigation in this frame's place.
+  const inSettings = useMatches({
+    select: (matches) =>
+      matches.some(({ routeId }) => routeId === "/_signed-in/$organizationSlug/settings"),
+  });
+  // Where leaving settings returns to (`appPageToReturnTo`).
+  const href = useLocation({ select: (location) => location.href });
+  useEffect(() => rememberAppPage(href), [href]);
+  // Left settings, whose navigation took the focus with it: it returns to
+  // the account menu, which opened them.
+  const accountMenu = useRef<HTMLButtonElement>(null);
+  const wasInSettings = useRef(inSettings);
+  useLayoutEffect(() => {
+    const left = wasInSettings.current && !inSettings;
+    wasInSettings.current = inSettings;
+    if (left && document.activeElement === document.body) accountMenu.current?.focus();
+  }, [inSettings]);
 
   const [signingOut, setSigningOut] = useState(false);
   // Shown until its action is tried again or another fails.
@@ -72,6 +98,8 @@ function SignedIn() {
     // Runs the check above again, which now sends the owner to sign in.
     await router.invalidate();
   }
+
+  if (inSettings) return <Outlet />;
 
   return (
     <>
@@ -120,7 +148,13 @@ function SignedIn() {
                   failed ? reportFailure("language") : clearFailure("language")
                 }
               />
-              <AccountMenu user={user} signingOut={signingOut} onSignOut={signOut} />
+              <AccountMenu
+                ref={accountMenu}
+                user={user}
+                organizationSlug={organization?.slug}
+                signingOut={signingOut}
+                onSignOut={signOut}
+              />
             </div>
           </div>
           {/* Below the row, never in it (docs/apps.md). */}
