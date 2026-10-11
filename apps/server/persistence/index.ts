@@ -61,6 +61,7 @@ export {
   organizationOwnsLearningContent,
   readOrganizationBySlug,
   readOrganizationSlug,
+  updateOrganizationName,
 } from "./organization.ts";
 export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";

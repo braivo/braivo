@@ -45,6 +45,8 @@ export { defineObjectives, InvalidDefinition, listObjectives } from "./objective
 export {
   listManagedOrganizations,
   listMembers,
+  NameRefused,
+  renameOrganization,
   SetUpRefused,
   setUpOrganization,
 } from "./organizations.ts";

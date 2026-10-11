@@ -255,6 +255,17 @@ export type BraivoClient = {
   ): Promise<Organization>;
 
   /**
+   * Renames an organization, answering the name as stored, trimmed. A
+   * {@link BraivoError} with `code` `NAME_INVALID` (400) for one blank, over
+   * 100 characters, or holding NUL; 403 without `owner` or `admin` there.
+   */
+  renameOrganization(
+    organizationId: string,
+    name: string,
+    options?: RequestOptions,
+  ): Promise<{ name: string }>;
+
+  /**
    * Every member of an organization, by name, without their emails.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
@@ -749,6 +760,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 201) throw await unexpected(response, doing);
 
       return (await parsed<{ organization: Organization }>(response, doing)).organization;
+    },
+
+    async renameOrganization(organizationId, name, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/rename`,
+        { name },
+        requestOptions,
+      );
+
+      const doing = `renaming organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<{ name: string }>(response, doing);
     },
 
     async listMembers(organizationId, requestOptions) {

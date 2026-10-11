@@ -15,9 +15,11 @@ import {
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
+  NameRefused,
   readAuthoredCourse,
   recordGradedEvidence,
   type QuotedCitation,
+  renameOrganization,
   retireTasks,
   SetUpRefused,
   setUpOrganization,
@@ -423,6 +425,32 @@ export function authoringRoutes(
       return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
     }
   });
+
+  /** Renames an organization, for whoever administers it. */
+  routes.post(
+    "/api/organizations/:organizationId/rename",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      const body = (await jsonBody(context)) as { name?: unknown } | null;
+      if (typeof body?.name !== "string") return context.body(null, 400);
+
+      try {
+        const renamed = await renameOrganization({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          name: body.name,
+        });
+        return context.json(renamed);
+      } catch (error) {
+        if (error instanceof NameRefused) {
+          return context.json({ error: error.message, code: error.code }, 400);
+        }
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /** Every member of an organization, for whoever administers it. */
   routes.get("/api/organizations/:organizationId/members", requireAccount, async (context) => {

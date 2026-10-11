@@ -3,12 +3,18 @@
 
 import { runMigrations } from "@braivo/db";
 import { member, organization, user } from "@braivo/db/schema/auth";
-import { sharedDatabase } from "@braivo/db/testing";
+import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { registerLearnDomain } from "./domains.ts";
-import { SetUpRefused, setUpOrganization } from "./organizations.ts";
+import {
+  NameRefused,
+  renameOrganization,
+  SetUpRefused,
+  setUpOrganization,
+} from "./organizations.ts";
+import { NotPermitted } from "./permission.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -143,5 +149,66 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
       [],
     );
     expect(await database.select().from(member).where(eq(member.userId, userId))).toEqual([]);
+  });
+});
+
+describe.skipIf(!connectionString)("renaming an organization", () => {
+  const organizationId = "rename-test-school";
+  const admin = "rename-test-admin";
+  const learner = "rename-test-learner";
+
+  beforeAll(async () => {
+    await runMigrations(connectionString ?? "");
+  });
+
+  const nameOf = async () =>
+    (await database.select().from(organization).where(eq(organization.id, organizationId)))[0]
+      ?.name;
+  const rename = (name: string, actingAs = admin) =>
+    renameOrganization({ database, organizationId, actingAs, name });
+
+  test("renames it, trimmed, for whoever administers it, and no one else", async () => {
+    await seedOrganization(database, {
+      organizationId,
+      learnerIds: [learner],
+      adminIds: [admin],
+      at,
+    });
+
+    expect(await rename("  Fernwood Language School ")).toEqual({
+      name: "Fernwood Language School",
+    });
+    expect(await nameOf()).toBe("Fernwood Language School");
+
+    await expect(rename("Taken Over", learner)).rejects.toBeInstanceOf(NotPermitted);
+    // Administering another organization is not enough.
+    const otherAdmin = "rename-test-other-admin";
+    await seedOrganization(database, {
+      organizationId: "rename-test-other-school",
+      learnerIds: [],
+      adminIds: [otherAdmin],
+      at,
+    });
+    await expect(rename("Taken Over", otherAdmin)).rejects.toBeInstanceOf(NotPermitted);
+    expect(await nameOf()).toBe("Fernwood Language School");
+  });
+
+  test.each([
+    ["blank", "   "],
+    ["over 100 characters", "a".repeat(101)],
+    // PostgreSQL's text cannot hold it: refused, not failing to store.
+    ["holding NUL", "Fern\u0000wood"],
+  ])("refuses a name %s, keeping the old one", async (_case, name) => {
+    await seedOrganization(database, {
+      organizationId,
+      learnerIds: [learner],
+      adminIds: [admin],
+      at,
+    });
+    await rename("Fernwood");
+
+    await expect(rename(name)).rejects.toBeInstanceOf(NameRefused);
+    expect(await nameOf()).toBe("Fernwood");
+    expect((await rename("a".repeat(100))).name).toHaveLength(100);
   });
 });

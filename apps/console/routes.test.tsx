@@ -442,6 +442,173 @@ describe("the console", () => {
       expect(document.activeElement).toBe(account);
     });
 
+    test("rename the organization, trimmed, every page then naming it so", async () => {
+      let organization = { ...school };
+      const braivo = {
+        listOrganizations: async () => [organization],
+        renameOrganization: vi.fn(async (_organizationId: string, name: string) => {
+          organization = { ...organization, name };
+          return { name };
+        }),
+      };
+      renderAt("/example/settings", { braivo });
+
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      fireEvent.click(within(nav).getByRole("link", { name: "General" }));
+      const input = await screen.findByLabelText<HTMLInputElement>("Organization name");
+      expect(input.value).toBe("Example School");
+      expect(screen.getByText(`${window.location.host}/example`)).toBeTruthy();
+
+      const status = screen.getByRole("status");
+      fireEvent.change(input, { target: { value: "  Fernwood  " } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await vi.waitFor(() => expect(status.textContent).toBe("Saved."));
+      expect(braivo.renameOrganization).toHaveBeenCalledWith(
+        "org-1",
+        "Fernwood",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(input.value).toBe("Fernwood");
+      expect(await within(nav).findByRole("link", { name: "Back to Fernwood" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("General · Fernwood"));
+    });
+
+    test("say why the organization was not renamed, in a new alert each time", async () => {
+      const braivo = {
+        renameOrganization: vi
+          .fn()
+          .mockRejectedValueOnce(new BraivoError(400, "invalid", undefined, "NAME_INVALID"))
+          .mockRejectedValueOnce(new TypeError("Failed to fetch")),
+      };
+      renderAt("/example/settings/general", { braivo });
+
+      const input = await screen.findByLabelText<HTMLInputElement>("Organization name");
+      fireEvent.change(input, { target: { value: "   " } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(input.validationMessage).toBe("Enter your organization's name.");
+      expect(braivo.renameOrganization).not.toHaveBeenCalled();
+
+      fireEvent.change(input, { target: { value: "Fernwood" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      const first = await screen.findByRole("alert");
+      expect(first.textContent).toBe("Enter a name of at most 100 characters.");
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+      expect(screen.getByRole("alert").textContent).toBe("Could not save the name. Try again.");
+      expect(input.value).toBe("Fernwood");
+    });
+
+    test("show another organization's name once switched to it, nothing typed or saving carried over", async () => {
+      const saving = Promise.withResolvers<{ name: string }>();
+      const braivo = { renameOrganization: vi.fn(() => saving.promise) };
+      const { router } = renderAt("/example/settings/general", {
+        organizations: [school, annex],
+        braivo,
+      });
+      fireEvent.change(await screen.findByLabelText("Organization name"), {
+        target: { value: "Typed for Example" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(braivo.renameOrganization).toHaveBeenCalledOnce();
+
+      // As the browser's history can, from one organization's settings to another's.
+      await router.navigate({ href: "/annex/settings/general" });
+      const input = await vi.waitFor(() => {
+        const field = screen.getByLabelText<HTMLInputElement>("Organization name");
+        expect(field.value).toBe("Annex");
+        return field;
+      });
+      // Example's save, answered only now, touches nothing of Annex's.
+      await act(async () => saving.resolve({ name: "Typed for Example" }));
+      expect(input.value).toBe("Annex");
+      expect(input.readOnly).toBe(false);
+      expect(screen.getByRole("status").textContent).toBe("");
+      expect(screen.getByRole("link", { name: "Back to Annex" })).toBeTruthy();
+    });
+
+    test("give up renaming when it does not finish in time, saying so", async () => {
+      const braivo = {
+        renameOrganization: vi.fn(
+          (_organizationId: string, _name: string, options?: { signal?: AbortSignal }) =>
+            stall(options),
+        ),
+      };
+      renderAt("/example/settings/general", { braivo });
+      const input = await screen.findByLabelText<HTMLInputElement>("Organization name");
+      fireEvent.change(input, { target: { value: "Fernwood" } });
+
+      vi.useFakeTimers();
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      // Locked while sent: a second click sends nothing.
+      expect(screen.getByRole("button", { name: /^Saving/ }).getAttribute("aria-disabled")).toBe(
+        "true",
+      );
+      expect(input.readOnly).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: /^Saving/ }));
+      expect(braivo.renameOrganization).toHaveBeenCalledOnce();
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not save the name. Try again.",
+      );
+      expect(input.value).toBe("Fernwood");
+      expect(screen.getByRole("button", { name: "Save" }).getAttribute("aria-disabled")).not.toBe(
+        "true",
+      );
+    });
+
+    test("send an account signed out meanwhile to sign in, and back", async () => {
+      const braivo = {
+        renameOrganization: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+      };
+      const { auth, router } = renderAt("/example/settings/general", { braivo });
+      fireEvent.change(await screen.findByLabelText("Organization name"), {
+        target: { value: "Fernwood" },
+      });
+      await auth.signOut();
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(await screen.findByLabelText("Email address")).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/login");
+      expect(router.state.location.search).toEqual({ redirect: "/example/settings/general" });
+    });
+
+    test("say a refusal that leaves them managing it, as any other failure", async () => {
+      const braivo = {
+        renameOrganization: vi.fn().mockRejectedValue(new BraivoError(403, "Refused.")),
+      };
+      renderAt("/example/settings/general", { braivo });
+      fireEvent.change(await screen.findByLabelText("Organization name"), {
+        target: { value: "Fernwood" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not save the name. Try again.",
+      );
+      expect(screen.getByLabelText<HTMLInputElement>("Organization name").value).toBe("Fernwood");
+    });
+
+    test("say the organization is not theirs once they no longer manage it", async () => {
+      let organizations = [school];
+      const braivo = {
+        listOrganizations: async () => organizations,
+        renameOrganization: vi.fn().mockRejectedValue(new BraivoError(403, "Not permitted.")),
+      };
+      renderAt("/example/settings/general", { braivo });
+      fireEvent.change(await screen.findByLabelText("Organization name"), {
+        target: { value: "Fernwood" },
+      });
+      organizations = [];
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(
+        await screen.findByText("This organization does not exist, or you do not manage it."),
+      ).toBeTruthy();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     test("list the members by name with their roles, marking the account's own", async () => {
       renderAt("/example/settings", {
         braivo: {

@@ -277,6 +277,34 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
+  test("renames an organization, with a code for a name it cannot have", async () => {
+    const options = { headers: { cookie: teacherCookie } };
+    const before = (await client.listOrganizations(options)).find(
+      ({ id }) => id === organizationId,
+    );
+    if (!before) throw new Error(`${organizationId} is not listed: nothing to rename back.`);
+
+    try {
+      expect(await client.renameOrganization(organizationId, " Contract School ", options)).toEqual(
+        { name: "Contract School" },
+      );
+      // Its own domain names it so from then on.
+      expect(await onOrganizationDomain.hostOrganization()).toEqual({ name: "Contract School" });
+      await expect(client.renameOrganization(organizationId, " ", options)).rejects.toMatchObject({
+        status: 400,
+        code: "NAME_INVALID",
+      });
+      await expect(
+        client.renameOrganization(organizationId, "Learner's", {
+          headers: { cookie: learnerCookie },
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    } finally {
+      // Put back, for whatever else reads it, even after a failure.
+      await client.renameOrganization(organizationId, before.name, options);
+    }
+  });
+
   test("lists members in the shape it declares, and refuses a learner", async () => {
     const members = await client.listMembers(organizationId, {
       headers: { cookie: teacherCookie },
