@@ -13,6 +13,7 @@ import type {
   Handoff,
   HostOrganization,
   LearnerProgressReport,
+  LearnerProgressSummary,
   LocatedCitation,
   Member,
   Objective,
@@ -47,6 +48,7 @@ export type {
   Handoff,
   HostOrganization,
   LearnerProgressReport,
+  LearnerProgressSummary,
   LearningDecision,
   LocatedCitation,
   Member,
@@ -204,9 +206,14 @@ export type BraivoClient = {
    * three it was being exactly what Braivo declines to say.
    */
   learnerProgress(
-    input: { courseId: string; learnerId: string },
+    input: { courseId: string; learnerId: string; includeHistory?: true },
     options?: RequestOptions,
   ): Promise<LearnerProgressReport>;
+  /** Without each objective's evidence, which grows with every result: standings only. */
+  learnerProgress(
+    input: { courseId: string; learnerId: string; includeHistory: false },
+    options?: RequestOptions,
+  ): Promise<LearnerProgressSummary>;
 
   /**
    * Where each learner in a course stands, counted: every member of its
@@ -677,10 +684,14 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return parsed<Grade>(response, doing);
     },
 
-    async learnerProgress(input, requestOptions) {
+    async learnerProgress(
+      input: { courseId: string; learnerId: string; includeHistory?: boolean },
+      requestOptions?: RequestOptions,
+    ) {
       const response = await get(
         `/api/courses/${encodeURIComponent(input.courseId)}` +
-          `/learners/${encodeURIComponent(input.learnerId)}/progress`,
+          `/learners/${encodeURIComponent(input.learnerId)}/progress` +
+          (input.includeHistory === false ? "?includeHistory=false" : ""),
         requestOptions,
       );
 

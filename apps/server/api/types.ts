@@ -28,8 +28,11 @@ export type LearningDecision = Json<learning.LearningDecision>;
 /** A learner's standing on each objective in a course, in content order. */
 export type LearnerProgressReport = Json<application.LearnerProgressReport>;
 
+/** As `LearnerProgressReport`, without each objective's evidence (`includeHistory: false`). */
+export type LearnerProgressSummary = Json<application.LearnerProgressSummary>;
+
 /** Where a learner stands on one objective, by its ID and title. */
-export type LearnerProgressStanding = LearnerProgressReport["objectives"][number];
+export type LearnerProgressStanding = LearnerProgressSummary["objectives"][number];
 
 /** Where each learner in a course stands, counted, as `GET /api/courses/:courseId/progress` answers it. */
 export type CourseProgressOverview = Json<application.CourseProgressOverview>;

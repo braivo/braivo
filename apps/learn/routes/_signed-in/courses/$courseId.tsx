@@ -7,7 +7,7 @@ import {
   BraivoError,
   type BraivoClient,
   type Grade,
-  type LearnerProgressReport,
+  type LearnerProgressSummary,
   type LearningDecision,
   type LearnerProgressStanding,
 } from "@braivo/server/client";
@@ -59,7 +59,11 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       const [activity, progress, course] = await Promise.all([
         resumed?.attempt.activity ?? context.braivo.nextActivity(params.courseId, { signal }),
         context.braivo
-          .learnerProgress({ courseId: params.courseId, learnerId }, { signal: optional })
+          // Standings only: the page never shows the evidence.
+          .learnerProgress(
+            { courseId: params.courseId, learnerId, includeHistory: false },
+            { signal: optional },
+          )
           .catch(() => undefined),
         // The title, from the list: one more read per load, sized by the
         // learner's courses, rather than an endpoint for one string.
@@ -247,7 +251,7 @@ function labelOf(standing: LearnerProgressStanding): ProgressLabel {
   return standing.due ? "dueForReview" : "retained";
 }
 
-function ProgressSummary({ report }: { report: LearnerProgressReport }) {
+function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
   const { t } = useLingui();
   const labels = report.objectives.map(labelOf);
   const line = (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
@@ -276,7 +280,7 @@ function ProgressSummary({ report }: { report: LearnerProgressReport }) {
  * yet due. The model's time, not a promise of practice: an objective may have
  * no task. A label, since a title may be a phrase ("Greet someone").
  */
-function CaughtUp({ report }: { report: LearnerProgressReport | undefined }) {
+function CaughtUp({ report }: { report: LearnerProgressSummary | undefined }) {
   const { t, i18n } = useLingui();
   // Read moments apart from the activity, the report may already count one due,
   // whose time has passed.

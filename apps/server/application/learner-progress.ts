@@ -99,6 +99,25 @@ export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
 };
 
 /**
+ * The report without its evidence, which grows with every result, for a reader
+ * showing standings only.
+ */
+export type LearnerProgressSummary = Omit<KnowledgeReport, "objectives"> & {
+  objectives: (ObjectiveStanding & { title: string })[];
+};
+
+/**
+ * The summary of a report. Left out after building rather than never built:
+ * replay reads the same evidence either way, so only the bytes are saved.
+ */
+export function withoutHistory(report: LearnerProgressReport): LearnerProgressSummary {
+  return {
+    ...report,
+    objectives: report.objectives.map(({ evidence: _evidence, ...standing }) => standing),
+  };
+}
+
+/**
  * `unavailable` covers four cases on purpose. A missing course and one the reader
  * may not read look alike, so a reader cannot confirm that a course exists. A
  * learner outside the organization and an ID that belongs to nobody look alike,

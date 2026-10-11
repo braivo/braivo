@@ -11,6 +11,7 @@ import {
   readCourseProgress,
   readLearnerProgress,
   submitAttempt,
+  withoutHistory,
 } from "../application/index.ts";
 import { type Guards, jsonBody } from "./guards.ts";
 import { secondsUntil } from "./refusals.ts";
@@ -187,6 +188,13 @@ export function learningRoutes(
       if (!requestHost(context).installation && learnerId !== viewer.id) {
         return context.body(null, 404);
       }
+      // Only `false` leaves the history out; a misspelt or repeated value is
+      // refused rather than read as the default, which would quietly send it all.
+      const values = context.req.queries("includeHistory") ?? ["true"];
+      if (values.length !== 1 || (values[0] !== "true" && values[0] !== "false")) {
+        return context.body(null, 400);
+      }
+      const includeHistory = values[0] === "true";
 
       const progress = await readLearnerProgress({
         database,
@@ -203,7 +211,7 @@ export function learningRoutes(
         case "unavailable":
           return context.body(null, 404);
         case "assessed":
-          return context.json(progress.report);
+          return context.json(includeHistory ? progress.report : withoutHistory(progress.report));
         default:
           throw new Error(`Unhandled answer: ${JSON.stringify(progress satisfies never)}`);
       }

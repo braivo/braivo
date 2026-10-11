@@ -7,7 +7,9 @@ import {
   BraivoError,
   type BraivoClient,
   type Grade,
-  type LearnerProgressReport,
+  type LearnerProgressStanding,
+  type LearnerProgressSummary,
+  type RequestOptions,
 } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -60,7 +62,7 @@ const anotherActivity: Activity = {
   },
 };
 
-const noProgress: LearnerProgressReport = { modelVersion: "v1", objectives: [] };
+const noProgress: LearnerProgressSummary = { modelVersion: "v1", objectives: [] };
 
 /** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
 function stall(options?: { signal?: AbortSignal }): Promise<never> {
@@ -85,7 +87,11 @@ function renderAt(
   options: {
     signedIn: boolean;
     learnerCourses?: BraivoClient["learnerCourses"];
-    learnerProgress?: BraivoClient["learnerProgress"];
+    /** As the app calls it: standings only, without evidence. */
+    learnerProgress?: (
+      input: { courseId: string; learnerId: string; includeHistory: false },
+      options?: RequestOptions,
+    ) => Promise<LearnerProgressSummary>;
     nextActivity?: BraivoClient["nextActivity"];
     submitAttempt?: BraivoClient["submitAttempt"];
     /** The organization whose domain serves the app; none unless given. */
@@ -1318,7 +1324,6 @@ describe("the learn app", () => {
             retrievability: 0.95,
             due: false,
             dueAt: "2026-06-04T00:00:00.001Z",
-            evidence: [{ outcome: "success", at }],
           },
           {
             objectiveId: "b",
@@ -1329,17 +1334,15 @@ describe("the learn app", () => {
             retrievability: 0.5,
             due: true,
             dueAt: "2026-06-02T00:00:00.001Z",
-            evidence: [{ outcome: "success", at }],
           },
           {
             objectiveId: "c",
             title: "Colours",
             phase: "acquiring",
             lastEvidenceAt: at,
-            evidence: [{ outcome: "failure", at }],
           },
-          { objectiveId: "d", title: "Days", phase: "unseen", evidence: [] },
-          { objectiveId: "e", title: "Months", phase: "unseen", evidence: [] },
+          { objectiveId: "d", title: "Days", phase: "unseen" },
+          { objectiveId: "e", title: "Months", phase: "unseen" },
         ],
       }),
     });
@@ -1363,8 +1366,9 @@ describe("the learn app", () => {
       "Days: not started",
       "Months: not started",
     ]);
+    // Without the history, which the summary never shows.
     expect(learnerProgress).toHaveBeenCalledWith(
-      { courseId: "c1", learnerId: "ada" },
+      { courseId: "c1", learnerId: "ada", includeHistory: false },
       { signal: expect.any(AbortSignal) },
     );
   });
@@ -1376,8 +1380,8 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         objectives: [
-          { objectiveId: "a", title: "Greetings", phase: "unseen", evidence: [] },
-          { objectiveId: "b", title: "Numbers", phase: "unseen", evidence: [] },
+          { objectiveId: "a", title: "Greetings", phase: "unseen" },
+          { objectiveId: "b", title: "Numbers", phase: "unseen" },
         ],
       }),
     });
@@ -1388,15 +1392,17 @@ describe("the learn app", () => {
   test("says how practice goes until an objective starts", async () => {
     const hint =
       "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it.";
-    type Standing = LearnerProgressReport["objectives"][number];
-    const pastTense: Standing = {
+    const pastTense: LearnerProgressStanding = {
       objectiveId: "o1",
       title: "Past tense",
       phase: "unseen",
-      evidence: [],
     };
-    const greetings: Standing = { ...pastTense, objectiveId: "o2", title: "Greetings" };
-    let reported: Standing[] = [pastTense, greetings];
+    const greetings: LearnerProgressStanding = {
+      ...pastTense,
+      objectiveId: "o2",
+      title: "Greetings",
+    };
+    let reported: LearnerProgressStanding[] = [pastTense, greetings];
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity: vi
@@ -1422,7 +1428,6 @@ describe("the learn app", () => {
         ...pastTense,
         phase: "acquiring",
         lastEvidenceAt: "2026-06-01T00:00:00.000Z",
-        evidence: [{ outcome: "failure", at: "2026-06-01T00:00:00.000Z" }],
       },
       greetings,
     ];
@@ -1541,7 +1546,6 @@ describe("the learn app", () => {
       retrievability: due ? 0.5 : 0.95,
       due,
       dueAt,
-      evidence: [{ outcome: "success" as const, at: "2026-06-01T00:00:00.000Z" }],
     });
     renderAt("/courses/c1", {
       signedIn: true,
@@ -1792,13 +1796,12 @@ describe("the learn app in Polish", () => {
     };
   });
 
-  const notStarted = (count: number): LearnerProgressReport => ({
+  const notStarted = (count: number): LearnerProgressSummary => ({
     modelVersion: "v1",
     objectives: Array.from({ length: count }, (_, index) => ({
       objectiveId: `o${index}`,
       title: `Objective ${index}`,
       phase: "unseen" as const,
-      evidence: [],
     })),
   });
 
@@ -1960,7 +1963,6 @@ describe("the learn app in Polish", () => {
             retrievability: 0.95,
             due: false,
             dueAt: "2026-06-05T09:31:00.000Z",
-            evidence: [{ outcome: "success", at: "2026-06-01T00:00:00.000Z" }],
           },
         ],
       }),

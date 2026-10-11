@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { LearnerProgressStanding } from "@braivo/server/client";
+import type { LearnerProgressReport, LearnerProgressStanding } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import {
   Table,
@@ -120,7 +120,7 @@ function Evidence({
   evidence,
 }: {
   objective: string;
-  evidence: LearnerProgressStanding["evidence"];
+  evidence: LearnerProgressReport["objectives"][number]["evidence"];
 }) {
   if (evidence.length === 0) return "—";
   const successes = evidence.filter(({ outcome }) => outcome === "success").length;

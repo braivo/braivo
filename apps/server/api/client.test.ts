@@ -316,6 +316,17 @@ describe("the Braivo client", () => {
     });
   });
 
+  test("asks for the progress without its history only when told to", async () => {
+    const lean = clientFor(Response.json({ modelVersion: "v1", objectives: [] }));
+    const full = clientFor(Response.json({ modelVersion: "v1", objectives: [] }));
+
+    await lean.client.learnerProgress({ courseId: "c", learnerId: "l", includeHistory: false });
+    await full.client.learnerProgress({ courseId: "c", learnerId: "l", includeHistory: true });
+
+    expect(lean.calls[0]!.url).toBe("/api/courses/c/learners/l/progress?includeHistory=false");
+    expect(full.calls[0]!.url).toBe("/api/courses/c/learners/l/progress");
+  });
+
   test("throws with the status when Braivo will not show the progress", async () => {
     const { client } = clientFor(new Response(null, { status: 404 }));
 
