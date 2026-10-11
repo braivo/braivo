@@ -12,7 +12,7 @@ Use this document to resolve product trade-offs. If a task conflicts with the pr
 
 ## Core jobs
 
-1. Turn existing materials into structured learning content.
+1. Turn existing materials into structured learning content. A content owner may draft it with the AI assistant they already use or with Braivo's own; either way, learners see it once the owner has reviewed and published it in Braivo.
 2. Estimate what each learner knows, struggles with, and may be forgetting.
 3. Choose the next learning or review activity from that estimate, within applicable learning constraints.
 4. Generate practice and feedback grounded in the source content and the learner's work.

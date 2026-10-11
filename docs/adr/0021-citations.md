@@ -18,9 +18,7 @@ Status: accepted (2026-09-23)
 
 ## Proposals are not stored
 
-ADR 0020 anticipated proposals as server state reviewed before acceptance. They are not: review happens where the draft is made — in the content owner's agent, or in the console ([ADR 0029](0029-server-drafting.md)) — and accepting a draft is two writes, defining the objective and then citing it. An objective left uncited because the second write failed is valid state (hand-written objectives have no citations) and the write can be retried.
-
-Server-side proposals return when drafting runs asynchronously in Braivo, or when a draft must wait for someone other than its author to review it.
+ADR 0020 anticipated proposals as server state reviewed before acceptance. There is no proposal object: Braivo's own draft is reviewed in the console before anything is stored ([ADR 0029](0029-server-drafting.md)), and what a tool writes is stored as the courses and tasks it is, unpublished until someone publishes it in the console ([ADR 0039](0039-published-in-the-console.md)). Accepting a draft is two writes, defining the objective and then citing it. An objective left uncited because the second write failed is valid state (hand-written objectives have no citations) and the write can be retried.
 
 ## Consequences
 
