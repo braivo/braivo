@@ -14,6 +14,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - `packages/ui` holds the apps' tokens and components, `apps/storybook` shows those components, and `packages/auth-client` holds browser authentication helpers ([ADR 0011](adr/0011-ui-and-auth-client-packages.md)). `packages/i18n` holds the catalogs and chooses an app's language when it starts ([ADR 0035](adr/0035-lingui-localization.md)).
 - One toolchain, Vite+, configured in the root `vite.config.ts`: `vp check` formats, lints, and type-checks; `bun run test` runs Vitest on Bun.
 - Developers integrate over the documented HTTP API. Braivo's own code is AGPL-3.0-only, with a commercial license available, and third-party code keeps its upstream license ([ADR 0002](adr/0002-agpl-only.md)).
+- What content owners and learners do, whether in the apps, through CLI commands, or through an agent's tools, reaches the same use cases with the same checks, as a person. An agent gets no rule of its own beyond what an ADR names ([ADR 0022](adr/0022-machine-access.md), [ADR 0039](adr/0039-published-in-the-console.md): acts kept to a browser session; courses and tasks a token writes wait to be published). Such an act is therefore a use case behind the API, never one surface's own code. The CLI's operational commands are not a surface (Modules, cli).
 - No microservices, queues, or caches until a concrete workflow or measured problem requires them.
 - Tests sit next to the code they cover as `*.test.ts`; an app's route tests sit in its `routes.test.tsx`.
 
@@ -58,7 +59,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - Use deterministic code wherever a rule can reasonably be deterministic; use AI for interpretation, transformation, and generation.
 - Treat model output as untrusted: validate its structure and constraints before it affects product state or is shown to learners.
 - Prompts are version-controlled next to the code that uses them.
-- Start with one AI provider behind a thin integration. Do not build a multi-provider abstraction until another provider is actually needed.
+- Start with one AI provider behind a thin integration, Anthropic ([ADR 0029](adr/0029-server-drafting.md)). Add another only when Braivo's own AI needs one; an assistant someone prefers reaches Braivo through its tools ([ADR 0023](adr/0023-mcp-server.md)), not as a provider.
 
 ## Abstractions
 
@@ -66,4 +67,4 @@ Add an abstraction only for a concrete need: another implementation, an integrat
 
 ## Not yet decided
 
-Hosting, AI provider, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A credential for server-to-server callers acting as no person — an LMS recording evidence, say — is open too; a person's own tools, such as a CLI or an MCP server, act as that person through the device flow ([ADR 0022](adr/0022-machine-access.md)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.
+Hosting, how tenant data is separated in storage, how learners are enrolled in individual courses (for now, organization membership stands in for it, [ADR 0018](adr/0018-sign-in-and-invitations.md)), and how Braivo Cloud consumes Braivo. A credential for server-to-server callers acting as no person — an LMS recording evidence, say — is open too; a person's own tools act as that person: the CLI and `braivo mcp` through the device flow ([ADR 0022](adr/0022-machine-access.md)); a remote AI client signs in over OAuth only in a spike (`/mcp`, [#180](https://github.com/braivo/braivo/pull/180)), not yet tried with ChatGPT or Claude, and its authorization, connection lifecycle, and compatibility with those clients are open ([#114](https://github.com/braivo/braivo/issues/114)). Record material choices as ADRs in `adr/` when they are made; do not let architecture emerge implicitly.

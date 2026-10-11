@@ -26,6 +26,7 @@ Use this document to resolve product trade-offs. If a task conflicts with the pr
 - **Learning over engagement.** Optimize for understanding, retention, and learner time. Do not add mechanics whose main purpose is engagement, or repeat known material without a learning reason.
 - **Explainable decisions.** Mastery changes, scheduled reviews, and activity choices can be explained from recorded inputs and testable decision rules.
 - **Grounded AI.** Generated content stays tied to the source material it adapts. Feedback is grounded in the source, the task, and the learner's response.
+- **The AI people already use.** A content owner may author through their own AI assistant, acting as themselves and never with more authority. Braivo holds the content and learner evidence, enforces permissions, and is where the owner reviews and publishes; Braivo's own AI drafts for those without an assistant, and authoring never requires it.
 - **Composable core.** Core learning capabilities do not depend on Braivo Cloud, a specific customer or brand, or a specific UI.
 - **Simplest model that works.** Start with the simplest learning model that produces useful, testable behavior. Add sophistication only when evidence or a clear requirement justifies it.
 
