@@ -22,7 +22,11 @@ export { defineCourse, listCourses, listLearnerCourses, readAuthoredCourse } fro
 export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } from "./files.ts";
 export type { RequestHost } from "./host.ts";
 export { readHostOrganization } from "./host.ts";
-export type { LearnerProgress, LearnerProgressReport } from "./learner-progress.ts";
+export type {
+  LearnerProgress,
+  LearnerProgressReport,
+  LearnerProgressSummary,
+} from "./learner-progress.ts";
 export type { CompletedHandoff } from "./learner-sessions.ts";
 export {
   completeHandoff,
@@ -32,7 +36,7 @@ export {
   redeemHandoff,
   startHandoff,
 } from "./learner-sessions.ts";
-export { readLearnerProgress } from "./learner-progress.ts";
+export { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
 export { nameNewLearner, sendLearnerSignInCode, signInLearner } from "./learner-sign-in.ts";
 export type { NextObjective } from "./next-objective.ts";

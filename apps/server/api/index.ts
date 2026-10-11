@@ -178,8 +178,11 @@
 // stands on each objective in a course, for a content owner or the learner. The
 // reader is the session's user and must be the learner, or hold `owner` or
 // `admin` in the course's organization; the learner must belong to it. A
-// learner session reads its own alone.
+// learner session reads its own alone. `?includeHistory=false` leaves each
+// objective's `evidence` out, for a reader showing standings only: it grows
+// with every result.
 //
+//   400  `includeHistory` given more than once, or as other than `true` or `false`
 //   401  no session
 //   404  the course does not exist; the reader is neither the learner nor
 //        administers its organization; or the learner is not in it, or does
@@ -204,8 +207,9 @@
 //        `due` is the decision route's own rule — a retained objective it would
 //        offer for review — so given the same evidence and time, the two agree.
 //        `dueAt` is when that starts to hold, past or future. `evidence`, on every
-//        objective, holds the outcome and time alone of each result its
-//        standing was replayed from: oldest first, ties in replay's order.
+//        objective unless left out, holds the outcome and time alone of each
+//        result its standing was replayed from: oldest first, ties in replay's
+//        order.
 //        The shape is `LearnerProgressReport` serialized, pinned like the
 //        decision's.
 //

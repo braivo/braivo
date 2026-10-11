@@ -428,6 +428,30 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     });
   });
 
+  test("leaves the evidence out when asked, and refuses a value it does not know", async () => {
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      { id: "summary-failed", objectiveId: pastTense, outcome: "failure", at: recordedAt },
+    ]);
+    const path = `/api/courses/${courseId}/learners/${learner.id}/progress`;
+    const read = (query: string) =>
+      api.request(`${path}${query}`, { headers: { cookie: teacher.cookie } });
+
+    const full = (await (await read("?includeHistory=true")).json()) as {
+      objectives: { evidence: unknown[] }[];
+    };
+    expect(full.objectives[0]!.evidence).toHaveLength(1);
+    // The same report, but for the evidence.
+    const { evidence: _evidence, ...standing } = full.objectives[0]!;
+    expect(await (await read("?includeHistory=false")).json()).toEqual({
+      ...full,
+      objectives: [standing],
+    });
+    // Read as the default, a typo would send the whole history unnoticed.
+    expect((await read("?includeHistory=no")).status).toBe(400);
+    expect((await read("?includeHistory=False")).status).toBe(400);
+    expect((await read("?includeHistory=true&includeHistory=false")).status).toBe(400);
+  });
+
   test("shows a learner's progress to them and their organization's administrators only", async () => {
     expect((await progress(courseId, learner.id)).status).toBe(401);
     expect((await progress(courseId, learner.id, learner.cookie)).status).toBe(200);
