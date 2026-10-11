@@ -306,6 +306,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
       courseId: course,
       host: { hostname: "localhost", installation: true },
       now,
+      timeZone: "UTC",
     });
 
     await record([evidence({ outcome: "failure" })]);
@@ -315,6 +316,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
       courseId: course,
       host: { hostname: "localhost", installation: true },
       now,
+      timeZone: "UTC",
     });
 
     expect(before).toMatchObject({

@@ -157,7 +157,11 @@ describe("the Braivo client", () => {
 
     await client.nextActivity("odd/course id");
 
-    expect(calls[0]!.url).toBe("/api/courses/odd%2Fcourse%20id/activity");
+    expect(calls[0]!.url).toMatch(/^\/api\/courses\/odd%2Fcourse%20id\/activity\?/);
+    const url = new URL(calls[0]!.url, "https://braivo.example");
+    // The runtime's, a browser's being its user's: the day new objectives are
+    // counted in.
+    expect(url.searchParams.get("timeZone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 
   test("submits an attempt and returns Braivo's grade", async () => {

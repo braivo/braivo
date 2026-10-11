@@ -53,6 +53,7 @@ export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
 export { nameNewLearner, sendLearnerSignInCode, signInLearner } from "./learner-sign-in.ts";
 export type { NextObjective } from "./next-objective.ts";
 export { chooseNextObjective } from "./next-objective.ts";
+export { isTimeZone } from "./daily-limit.ts";
 export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";
 export {
   listManagedOrganizations,

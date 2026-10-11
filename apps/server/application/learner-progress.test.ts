@@ -187,6 +187,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       courseId: course,
       host: { hostname: "localhost", installation: true },
       now,
+      timeZone: "UTC",
     });
     const read = await progress();
 

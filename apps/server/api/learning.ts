@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import {
   chooseNextActivity,
   chooseNextObjective,
+  isTimeZone,
   listLearnerCourses,
   readCourseProgress,
   readLearnerProgress,
@@ -34,6 +35,15 @@ function parseAttempt(
 }
 
 /**
+ * The `timeZone` a learner's day is counted in, an IANA name; UTC when the
+ * request names none, `undefined` when it names one that does not exist.
+ */
+function parseTimeZone(value: string | undefined): string | undefined {
+  if (value === undefined) return "UTC";
+  return isTimeZone(value) ? value : undefined;
+}
+
+/**
  * What a learner studies: their courses, what to do next in one, answering its
  * tasks, and where they stand, with the overview a content owner reads.
  */
@@ -49,12 +59,16 @@ export function learningRoutes(
    * authorize and nothing to get wrong.
    */
   routes.get("/api/courses/:courseId/next", requireLearner, async (context) => {
+    const timeZone = parseTimeZone(context.req.query("timeZone"));
+    if (timeZone === undefined) return context.body(null, 400);
+
     const next = await chooseNextObjective({
       database,
       learnerId: context.var.learner.id,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),
+      timeZone,
     });
 
     switch (next.kind) {
@@ -67,6 +81,8 @@ export function learningRoutes(
       // learner already entitled to the course.
       case "caught-up":
         return context.body(null, 204);
+      case "daily-limit":
+        return context.json({ dailyLimit: next.limit });
       case "decided":
         return context.json(next.decision);
       // A new answer added to `NextObjective` fails to compile here instead of
@@ -88,9 +104,13 @@ export function learningRoutes(
 
   /**
    * The signed-in learner's next objective, with a task to practise it or, while
-   * its tasks rest, when to ask again. Statuses as for the decision route.
+   * every objective with a task that needs attention rests, when to ask again. Statuses as for the
+   * decision route.
    */
   routes.get("/api/courses/:courseId/activity", requireLearner, async (context) => {
+    const timeZone = parseTimeZone(context.req.query("timeZone"));
+    if (timeZone === undefined) return context.body(null, 400);
+
     const now = new Date();
     const next = await chooseNextActivity({
       database,
@@ -98,6 +118,7 @@ export function learningRoutes(
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now,
+      timeZone,
     });
 
     switch (next.kind) {
@@ -105,6 +126,8 @@ export function learningRoutes(
         return context.body(null, 404);
       case "caught-up":
         return context.body(null, 204);
+      case "daily-limit":
+        return context.json({ dailyLimit: next.limit });
       case "no-activity":
         return context.json({ decision: next.decision, objective: next.objective });
       case "resting":

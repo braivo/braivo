@@ -165,6 +165,8 @@ function NextStep() {
       {progress && <ProgressSummary report={progress} />}
       {!activity ? (
         <CaughtUp report={progress} />
+      ) : "dailyLimit" in activity ? (
+        <CaughtUp report={progress} limitReached />
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
@@ -282,24 +284,36 @@ function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
  * Adds when the next review falls due, if any objective is retained and not
  * yet due. The model's time, not a promise of practice: an objective may have
  * no task. A label, since a title may be a phrase ("Greet someone").
+ * `limitReached`: caught up but for new objectives, held back by the day's limit.
  */
-function CaughtUp({ report }: { report: LearnerProgressSummary | undefined }) {
+function CaughtUp({
+  report,
+  limitReached = false,
+}: {
+  report: LearnerProgressSummary | undefined;
+  limitReached?: boolean;
+}) {
   const { t, i18n } = useLingui();
   // Read moments apart from the activity, the report may already count one due,
   // whose time has passed.
   const next = report?.objectives
     .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
     .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
-  let description = t`Nothing is due right now.`;
+  let description = limitReached
+    ? t`You can start new material again tomorrow. Nothing is due right now.`
+    : t`Nothing is due right now.`;
   if (next) {
     const objectiveTitle = next.title;
     const nextReviewAt = new Intl.DateTimeFormat(i18n.locale, {
       dateStyle: "full",
       timeStyle: "short",
     }).format(roundUpToMinute(Date.parse(next.dueAt)));
-    description = t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
+    description = limitReached
+      ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`
+      : t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
   }
-  return <Notice title={t`You're caught up`} description={description} />;
+  const title = limitReached ? t`That's all the new material for today` : t`You're caught up`;
+  return <Notice title={title} description={description} />;
 }
 
 type PresentedTask = Extract<Activity, { task: unknown }>["task"];

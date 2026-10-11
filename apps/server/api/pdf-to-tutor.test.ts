@@ -147,10 +147,10 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
     // The learner meets the first objective, answers wrongly, and is sent to
     // page 12 of the book the teacher uploaded.
     const activity = await client.nextActivity(courseId, learner);
-    expect(activity?.objective.title).toBe("Say hello");
     if (!activity || !("task" in activity) || activity.task.kind !== "typed") {
       throw new Error("No typed task to answer.");
     }
+    expect(activity.objective.title).toBe("Say hello");
     const grade = await client.submitAttempt(
       {
         courseId,

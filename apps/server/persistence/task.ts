@@ -12,7 +12,7 @@ import {
   task,
   taskCitation,
 } from "@braivo/db/schema";
-import { and, asc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   momentOf,
@@ -468,6 +468,35 @@ export async function readNextTask(
 }
 
 /**
+ * How many attempts this learner recorded at the organization after `after` on
+ * objectives other than `objectiveId`: those that space an objective's rest out
+ * (docs/adr/0017-task-rest.md). A resend records nothing and evidence from
+ * elsewhere is no attempt, so neither counts. Strictly after: one recorded in
+ * the same millisecond is not known to follow, so a tie never ends a rest early.
+ */
+export async function countOtherAttempts(
+  database: Database | Transaction,
+  input: { learnerId: string; organizationId: string; objectiveId: string; after: Date },
+): Promise<number> {
+  const [row] = await database
+    .select({ attempts: count() })
+    .from(attempt)
+    .innerJoin(
+      task,
+      and(eq(task.organizationId, attempt.organizationId), eq(task.id, attempt.taskId)),
+    )
+    .where(
+      and(
+        eq(attempt.learnerId, input.learnerId),
+        eq(attempt.organizationId, input.organizationId),
+        gt(attempt.at, input.after),
+        ne(task.objectiveId, input.objectiveId),
+      ),
+    );
+  return row?.attempts ?? 0;
+}
+
+/**
  * A task, provided it assesses one of this course's objectives: answering is
  * authorized through the course, so a task outside it is as good as missing.
  * Retired ones included, so a resend of an attempt recorded before retirement
@@ -508,8 +537,9 @@ export async function readCourseTask(
  * the attempt's foreign key takes only a key-share lock, which does not wait
  * for the update that retires, so an attempt could be recorded after it.
  *
- * A new attempt is `RestingTask` when the learner answered the same task in
- * another attempt after `restWindowStart` (docs/adr/0017-task-rest.md). Checked only
+ * A new attempt is `RestingTask` when the learner's latest other attempt on the
+ * same task came after `restWindowStart` and fewer than `restAttempts` attempts
+ * on other objectives followed it (docs/adr/0017-task-rest.md). Checked only
  * once the insert shows the attempt is new, so a resend is never mistaken for
  * another answer, whatever was answered since.
  */
@@ -524,12 +554,22 @@ export async function recordAttempt(
     response: TaskResponse;
     at: Date;
     restWindowStart: Date;
+    restAttempts: number;
     /** Dated by the attempt. */
     evidence: Omit<Evidence, "at">;
   },
 ): Promise<Evidence["outcome"]> {
-  const { learnerId, organizationId, attemptId, taskId, response, at, restWindowStart, evidence } =
-    input;
+  const {
+    learnerId,
+    organizationId,
+    attemptId,
+    taskId,
+    response,
+    at,
+    restWindowStart,
+    restAttempts,
+    evidence,
+  } = input;
 
   return database.transaction(async (transaction) => {
     const inserted = await transaction
@@ -575,8 +615,9 @@ export async function recordAttempt(
       .for("share");
     if (current?.retiredAt) throw new RetiredTask();
 
+    // The latest: an earlier one may have been spaced out while this one was not.
     const [previous] = await transaction
-      .select({ id: attempt.id })
+      .select({ at: attempt.at })
       .from(attempt)
       .where(
         and(
@@ -586,9 +627,18 @@ export async function recordAttempt(
           gt(attempt.at, restWindowStart),
         ),
       )
+      .orderBy(desc(attempt.at))
       .limit(1);
+    const resting =
+      previous !== undefined &&
+      (await countOtherAttempts(transaction, {
+        learnerId,
+        organizationId,
+        objectiveId: evidence.objectiveId,
+        after: previous.at,
+      })) < restAttempts;
     // Thrown inside the transaction, so the attempt just inserted goes with it.
-    if (previous) throw new RestingTask();
+    if (resting) throw new RestingTask();
 
     await transaction
       .insert(learnerEvidence)

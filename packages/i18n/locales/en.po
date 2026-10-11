@@ -793,6 +793,10 @@ msgid "That domain already serves your organization."
 msgstr "That domain already serves your organization."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "That's all the new material for today"
+msgstr "That's all the new material for today"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "The answer: {correctAnswer}"
 msgstr "The answer: {correctAnswer}"
 
@@ -928,6 +932,14 @@ msgstr "You"
 #: apps/console/components/organization-setup-form.tsx
 msgid "You already own an organization. Reload this page to open it."
 msgstr "You already own an organization. Reload this page to open it."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgstr "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You can start new material again tomorrow. Nothing is due right now."
+msgstr "You can start new material again tomorrow. Nothing is due right now."
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "You don't manage any organizations"

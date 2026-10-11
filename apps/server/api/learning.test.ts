@@ -12,6 +12,7 @@ import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { NEW_OBJECTIVES_PER_DAY } from "../application/daily-limit.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
@@ -603,6 +604,41 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect((await activity(courseId)).status).toBe(401);
     expect((await activity(foreignCourseId, learner.cookie)).status).toBe(404);
     expect((await activity(emptyCourseId, learner.cookie)).status).toBe(204);
+  });
+
+  test("answers the daily limit once only new objectives are left, and 400 to an unknown time zone", async () => {
+    const elsewhere = await createObjectives(
+      database,
+      organizationId,
+      Array.from({ length: NEW_OBJECTIVES_PER_DAY }, (_, i) => `Elsewhere ${i}`),
+    );
+    // Started now, and asked about in a zone where it is about noon, so neither
+    // falls on another day there however close to midnight the suite runs.
+    const now = new Date(Math.floor(Date.now() / 1000) * 1000);
+    const offset = 12 - now.getUTCHours();
+    // Etc/GMT's signs are POSIX's: Etc/GMT-3 is three hours ahead of UTC.
+    const noon = `Etc/GMT${offset > 0 ? "-" : "+"}${Math.abs(offset)}`;
+    await recordEvidence(
+      database,
+      { learnerId: learner.id, organizationId },
+      elsewhere.map((objectiveId) => ({
+        id: objectiveId,
+        objectiveId,
+        outcome: "success" as const,
+        at: now,
+      })),
+    );
+
+    for (const route of ["next", "activity"]) {
+      const ask = (timeZone: string) =>
+        api.request(`/api/courses/${courseId}/${route}?${new URLSearchParams({ timeZone })}`, {
+          headers: { cookie: learner.cookie },
+        });
+      const response = await ask(noon);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ dailyLimit: NEW_OBJECTIVES_PER_DAY });
+      expect((await ask("Mars/Olympus_Mons")).status).toBe(400);
+    }
   });
 
   test("answers the decision without a task when its objective has none", async () => {

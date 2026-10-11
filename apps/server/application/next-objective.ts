@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { activeModel, type LearningDecision, selectNext } from "../learning/index.ts";
+import { NEW_OBJECTIVES_PER_DAY, limitNewObjectives } from "./daily-limit.ts";
 import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 
@@ -16,10 +17,10 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
  * (docs/adr/0009-evidence-read-whole.md, docs/adr/0032-learner-history.md).
  *
  * Candidates come from the course, never the caller, so a nonexistent objective
- * cannot be asked about. Eligibility rules will narrow them here, keeping their
- * vocabulary out of `learning`. The learner must be a member of the course's
- * organization. `now` is an argument so only the process entry point reads a
- * clock.
+ * cannot be asked about. Eligibility rules narrow them here, keeping their
+ * vocabulary out of `learning`: so far, the daily limit on new objectives. The
+ * learner must be a member of the course's organization. `now` is an argument
+ * so only the process entry point reads a clock.
  */
 export async function chooseNextObjective(input: {
   database: Database;
@@ -28,8 +29,10 @@ export async function chooseNextObjective(input: {
   /** The host the request came to, which limits the organizations reachable. */
   host: RequestHost;
   now: Date;
+  /** The learner's, an IANA name, for the day `limitNewObjectives` counts in. */
+  timeZone: string;
 }): Promise<NextObjective> {
-  const { database, learnerId, courseId, host, now } = input;
+  const { database, learnerId, courseId, host, now, timeZone } = input;
 
   // The reader is the learner, and their membership is what is checked.
   const learner = await loadLearnerInCourse(database, {
@@ -41,13 +44,15 @@ export async function chooseNextObjective(input: {
   });
   if (learner === undefined) return { kind: "unavailable" };
 
+  const { candidates, heldBack } = limitNewObjectives(learner, { now, timeZone });
   const decision = selectNext({
     now,
-    candidates: learner.objectiveIds,
+    candidates,
     estimates: learner.estimates,
     model: activeModel,
   });
-  return decision ? { kind: "decided", decision } : { kind: "caught-up" };
+  if (decision !== undefined) return { kind: "decided", decision };
+  return heldBack ? { kind: "daily-limit", limit: NEW_OBJECTIVES_PER_DAY } : { kind: "caught-up" };
 }
 
 /**
@@ -57,9 +62,11 @@ export async function chooseNextObjective(input: {
  *
  * `caught-up` is reached only after membership is confirmed, so it reveals
  * nothing, and it tells a client "come back later" rather than "not for you". A
- * course with no objectives yet is caught up too.
+ * course with no objectives yet is caught up too. `daily-limit` is caught up but
+ * for objectives not started yet, held back until tomorrow (`limitNewObjectives`).
  */
 export type NextObjective =
   | { kind: "unavailable" }
   | { kind: "caught-up" }
+  | { kind: "daily-limit"; limit: number }
   | { kind: "decided"; decision: LearningDecision };

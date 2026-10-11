@@ -48,6 +48,7 @@ function record(attemptId: string, outcome: "success" | "failure" = "success") {
     response: { choice: 0 },
     at,
     restWindowStart: at,
+    restAttempts: 3,
     evidence: { id: `attempt:${attemptId}`, objectiveId, outcome },
   });
 }
@@ -148,6 +149,7 @@ describe.skipIf(!connectionString)("storing a task and an attempt", () => {
       response: { choice: 1 },
       at,
       restWindowStart: at,
+      restAttempts: 3,
       evidence: { id: "attempt:stored", objectiveId: objective, outcome: "failure" },
     });
 

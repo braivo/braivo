@@ -21,6 +21,7 @@ import {
   recordEvidence,
 } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
+import { NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
 import type { RequestHost } from "./host.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -64,6 +65,16 @@ let foreignCourseId!: string;
 let shuffleCourseId!: string;
 let letters!: string;
 let shuffleTask!: string;
+/** A vocabulary course: five words, one task each, in this order. */
+let wordsCourseId!: string;
+let words!: string[];
+let wordTasks!: string[];
+/** A second task for the fifth word. */
+let fifthWordSibling!: string;
+/** The first two words alone. */
+let twoWordsCourseId!: string;
+/** As many objectives as a learner may start in a day, in no course. */
+let elsewhere!: string[];
 const sixOptions: TaskBody = {
   kind: "choice",
   prompt: "Which letter?",
@@ -72,7 +83,7 @@ const sixOptions: TaskBody = {
 };
 
 function activity(now: Date, learnerId = learner, course = courseId, host = installation) {
-  return chooseNextActivity({ database, learnerId, courseId: course, host, now });
+  return chooseNextActivity({ database, learnerId, courseId: course, host, now, timeZone: "UTC" });
 }
 
 async function decided(now: Date) {
@@ -179,6 +190,32 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       createdAt: start,
     });
 
+    words = await createObjectives(database, organizationId, [
+      "eins",
+      "zwei",
+      "drei",
+      "vier",
+      "fünf",
+    ]);
+    wordsCourseId = await createCourse(database, {
+      organizationId,
+      title: "Words",
+      objectiveIds: words,
+    });
+    twoWordsCourseId = await createCourse(database, {
+      organizationId,
+      title: "Two words",
+      objectiveIds: words.slice(0, 2),
+    });
+    wordTasks = [];
+    for (const word of words) wordTasks.push(await task(word, `${word}?`, start));
+    fifthWordSibling = await task(words[4]!, "fünf, again?", later(1));
+    elsewhere = await createObjectives(
+      database,
+      organizationId,
+      Array.from({ length: NEW_OBJECTIVES_PER_DAY }, (_, i) => `Elsewhere ${i}`),
+    );
+
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignTask = await testing.createTask(database, {
       organizationId: otherOrganizationId,
@@ -218,11 +255,11 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       // Written by hand, from no source.
       passages: [],
     });
-    // Its one task rests, since the learner has just been shown the answer.
-    expect(await activity(later(2))).toEqual({
-      kind: "resting",
-      objective: { id: pastTense, title: "Past tense" },
-      retryAt: later(11),
+    // Its one task rests, since the learner has just been shown the answer, so
+    // the next objective is introduced meanwhile, skipping the one without a task.
+    expect((await decided(later(2))).decision).toMatchObject({
+      objectiveId: fractions,
+      intent: "introduce",
     });
     expect((await decided(later(11))).decision).toMatchObject({
       objectiveId: pastTense,
@@ -459,6 +496,161 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     ).toMatchObject({ kind: "graded" });
   });
 
+  describe("while a missed word rests", () => {
+    const word = (attemptId: string, index: number, choice: number, now: Date) =>
+      answer(attemptId, wordTasks[index]!, choice, now, { course: wordsCourseId });
+    /** The word offered next, by index, or why there is none. */
+    const offered = async (now: Date) => {
+      const next = await activity(now, learner, wordsCourseId);
+      return next.kind === "decided" ? words.indexOf(next.decision.objectiveId) : next.kind;
+    };
+
+    test("introduces the next words, and brings it back after three of them", async () => {
+      expect(await word("missed", 0, 1, start)).toMatchObject({ grade: { outcome: "failure" } });
+      expect(await offered(start)).toBe(1);
+
+      await word("second", 1, 0, later(1));
+      await word("third", 2, 0, later(2));
+      // Two answers since: still resting, and an answer to it is refused.
+      expect(await offered(later(2))).toBe(3);
+      expect(await word("too-early", 0, 0, later(2))).toEqual({ kind: "resting" });
+
+      await word("fourth", 3, 0, later(3));
+      // Three: back before the fifth word, well within ten minutes.
+      expect(await activity(later(3), learner, wordsCourseId)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: words[0], intent: "reteach" },
+      });
+      expect(await word("recalled", 0, 0, later(3))).toMatchObject({
+        grade: { outcome: "success" },
+      });
+      // A rest runs from the latest answer, not the first one already spaced out.
+      expect(await word("again", 0, 0, later(4))).toEqual({ kind: "resting" });
+    });
+
+    test("waits for the rest that ends first once every word rests", async () => {
+      const inTwoWords = { course: twoWordsCourseId };
+      await answer("first", wordTasks[0]!, 1, start, inTwoWords);
+      await answer("second", wordTasks[1]!, 1, later(1), inTwoWords);
+
+      expect(await activity(later(2), learner, twoWordsCourseId)).toEqual({
+        kind: "resting",
+        objective: { id: words[0], title: "eins" },
+        retryAt: later(10),
+      });
+      expect(await activity(later(10), learner, twoWordsCourseId)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: words[0], intent: "reteach" },
+      });
+    });
+
+    test("counts only new attempts here: no resend, outside evidence, or other organization", async () => {
+      await word("missed", 0, 1, start);
+      await word("second", 1, 0, later(1));
+      await word("fourth", 3, 0, later(1));
+      // Each of these, were it counted, would be the third answer.
+      await word("fourth", 3, 0, later(2));
+      await recordEvidence(database, { learnerId: learner, organizationId }, [
+        { id: "elsewhere", objectiveId: words[2]!, outcome: "success", at: later(2) },
+      ]);
+      expect(
+        await answer("theirs", foreignTask, 0, later(2), { course: foreignCourseId }),
+      ).toMatchObject({ kind: "graded" });
+
+      expect(await offered(later(3))).toBe(4);
+      expect(await word("too-early", 0, 0, later(3))).toEqual({ kind: "resting" });
+    });
+
+    test("never counts another task of the same word", async () => {
+      await word("missed", 4, 1, start);
+      await word("first", 0, 0, later(1));
+      await word("second", 1, 0, later(2));
+      // Were the same word spacing, this would be the third.
+      expect(
+        await answer("sibling", fifthWordSibling, 0, later(3), { course: wordsCourseId }),
+      ).toMatchObject({ kind: "graded" });
+
+      expect(await word("too-early", 4, 0, later(4))).toEqual({ kind: "resting" });
+    });
+  });
+
+  test("holds new words back once a day's worth were started at the organization, never a review", async () => {
+    const inWords = (now: Date, timeZone = "UTC") =>
+      chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId: wordsCourseId,
+        host: installation,
+        now,
+        timeZone,
+      });
+    // Missed at the start of June 1, UTC, then twenty more started elsewhere.
+    await answer("missed", wordTasks[0]!, 1, start, { course: wordsCourseId });
+    await recordEvidence(
+      database,
+      { learnerId: learner, organizationId },
+      elsewhere.map((objectiveId) => ({
+        id: objectiveId,
+        objectiveId,
+        outcome: "success" as const,
+        at: later(1),
+      })),
+    );
+
+    // The missed word is reviewed past the limit...
+    expect(await inWords(later(20))).toMatchObject({
+      kind: "decided",
+      decision: { objectiveId: words[0], intent: "reteach" },
+    });
+    await answer("recalled", wordTasks[0]!, 0, later(20), { course: wordsCourseId });
+    // ...but the next word waits for tomorrow, rather than reading as caught up.
+    expect(await inWords(later(21))).toEqual({
+      kind: "daily-limit",
+      limit: NEW_OBJECTIVES_PER_DAY,
+    });
+    // 23:30 on June 1 in UTC is June 2 in Tokyo.
+    const lateEvening = new Date("2026-06-01T23:30:00Z");
+    expect(await inWords(lateEvening)).toEqual({
+      kind: "daily-limit",
+      limit: NEW_OBJECTIVES_PER_DAY,
+    });
+    expect(await inWords(lateEvening, "Asia/Tokyo")).toMatchObject({
+      kind: "decided",
+      decision: { objectiveId: words[1], intent: "introduce" },
+    });
+  });
+
+  test("lets a rest, then an objective without a task, show through the daily limit", async () => {
+    await recordEvidence(
+      database,
+      { learnerId: learner, organizationId },
+      elsewhere.map((objectiveId) => ({
+        id: objectiveId,
+        objectiveId,
+        outcome: "success" as const,
+        at: start,
+      })),
+    );
+    await answer("missed", pastTenseTask, 1, later(1));
+    // Graded elsewhere: started, and with no task to practise it.
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      { id: "untaught", objectiveId: untaught, outcome: "failure", at: later(1) },
+    ]);
+
+    // Fractions, not started, is held back; the past tense rests.
+    expect(await activity(later(2))).toEqual({
+      kind: "resting",
+      objective: { id: pastTense, title: "Past tense" },
+      retryAt: later(11),
+    });
+
+    await answer("recalled", pastTenseTask, 0, later(11));
+    expect(await activity(later(12))).toMatchObject({
+      kind: "no-activity",
+      objective: { id: untaught },
+    });
+  });
+
   test("records a resubmitted attempt once, and answers it the same", async () => {
     const first = await answer("retry", pastTenseTask, 0, later(1));
     const again = await answer("retry", pastTenseTask, 0, later(2));
@@ -543,6 +735,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       response: { choice: 0 },
       at: later(1),
       restWindowStart: start,
+      restAttempts: 3,
       evidence: { id: `attempt:regraded:${pastTense}`, objectiveId: pastTense, outcome: "failure" },
     });
 

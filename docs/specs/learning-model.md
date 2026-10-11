@@ -280,7 +280,7 @@ Deliberately unresolved; each needs evidence or a requirement, not a guess.
 ## Not in scope
 
 - **Mastery as a binary label.** `glossary.md` leaves it undecided, and it stays that way. The model already exposes phase, stability, and retrievability; inventing a threshold so the glossary has an entry would add a parameter serving documentation rather than behavior. Define it when a concrete rule needs it — prerequisite readiness is the likely first caller — and define it as that rule.
-- **Session composition.** No cap on the share of a session spent reviewing. Such a cap needs session state that selection does not have and v1 does not define, and it is not clear the problem exists. If review backlogs prove to hurt, the fix is an explicit session policy in the application, not a half-specified ratio here.
+- **Session composition.** No cap on the share of a session spent reviewing. Such a cap needs session state that selection does not have and v1 does not define, and it is not clear the problem exists. If review backlogs prove to hurt, the fix is an explicit session policy in the application, not a half-specified ratio here. The application does pace new material: at most twenty new objectives a day, as eligibility on the candidates ([ADR 0041](../adr/0041-daily-limit.md)).
 - Per-subject models, parameter profiles, or estimates. Subject-specific behavior belongs to task types and graders.
 - Difficulty or ability estimation across learners, as in IRT. Adopt only if replay shows the per-learner model is insufficient.
 - Engagement mechanics: streaks, points, or any scheduling pressure whose purpose is return frequency rather than retention.

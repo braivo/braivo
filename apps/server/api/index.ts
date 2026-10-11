@@ -84,14 +84,21 @@
 //
 // `GET /api/courses/:courseId/next` — what the signed-in learner should do next
 // in a course. The learner is the session's user; the request never names one.
+// `?timeZone=Europe/Warsaw`, an IANA name, is the learner's, for the day new
+// objectives are counted in; UTC when it is left out. Once twenty were started
+// today at the organization, objectives not started yet wait for tomorrow;
+// started ones, acquiring or due, never do (ADR 0041).
 //
 //   401  no session
+//   400  `timeZone` names no time zone
 //   404  the course does not exist, or belongs to an organization the learner
 //        is not in. One status for both, deliberately: singling out the second
 //        would enumerate other organizations' courses one guess at a time.
 //   204  caught up — the course is theirs and nothing in it needs attention
 //        now, a course with no objectives yet included. Only an entitled
 //        learner reaches this, so telling it apart from 404 discloses nothing.
+//   200  `{ "dailyLimit": 20 }` — nothing else needs attention, and objectives
+//        not started yet wait for tomorrow. Not caught up: say so.
 //   200  a learning decision. Always `objectiveId`, `modelVersion` and
 //        `intent`, plus the values that intent was decided on:
 //
@@ -112,10 +119,11 @@
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective, with a task to practise it or, while its tasks
-// rest, when to ask again. Statuses as for `next`. The decision is made among
-// objectives with a task first, and among those without only when none of
-// those is selectable. When a task is available, 200 answers the decision, its
-// objective, and the task, never the task's answer:
+// rest, when to ask again. Statuses, `timeZone`, and the daily limit as for
+// `next`. The decision is made among objectives with a task first, and among
+// those without only when none of those is selectable. When a task is
+// available, 200 answers the decision, its objective, and the task, never the
+// task's answer:
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "objective": { "id": "…", "title": "Greetings" },
@@ -135,11 +143,15 @@
 // rely on where the answer was last time. Show them as given and answer with
 // the option's `choice`. A reload keeps the order; each accepted answer reseeds it.
 //
-// A task rests for ten minutes after Braivo accepts an answer to it, because
-// the grade reveals the answer. When every task for the decision is resting,
-// 200 answers the objective and in how many seconds to ask again: whole
-// seconds, rounded up, and a duration rather than a date, so the client's clock
-// does not matter. No decision: it may no longer hold when the rest ends.
+// A task rests after Braivo accepts an answer to it, because the grade reveals
+// the answer: for ten minutes, or until the learner makes three attempts on
+// other objectives at the organization, Show answer included, whichever ends
+// first. Meanwhile another objective is decided, a new one included. When every
+// objective with a task that needs attention is resting, ahead of any without
+// one, 200 answers the objective whose rest ends first and in how many seconds
+// to ask again: whole seconds, rounded up, and a duration rather than a date,
+// so the client's clock does not matter. No decision: it may no longer hold
+// when the rest ends.
 //
 //   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540 }
 //
@@ -165,9 +177,9 @@
 //        or the task was retired (a resend of an attempt recorded before that
 //        still answers its grade)
 //   409  `id` was already used at this organization for a different task or
-//        response, or the
-//        learner answered this task in another attempt less than ten minutes
-//        ago. Either way, ask for the activity again rather than resending.
+//        response, or the task is resting for this learner since their latest
+//        answer to it. Either way, ask for the activity again rather than
+//        resending.
 //   413  the body is larger than 1 MB
 //   200  the grade: `{ "kind": "choice", "outcome": "failure", "correctChoice": 0,
 //        "explanation": "…" }`, `correctChoice` the correct option's `choice`;

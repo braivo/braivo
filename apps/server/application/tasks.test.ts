@@ -100,6 +100,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       courseId,
       host: installation,
       now,
+      timeZone: "UTC",
     });
     expect(next).toMatchObject({
       kind: "decided",
@@ -126,7 +127,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     );
 
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({ task: { id: first } });
   });
 
@@ -139,7 +147,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     expect(refused).toBeInstanceOf(InvalidTask);
     expect((refused as InvalidTask).index).toBe(1);
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       kind: "no-activity",
       objective: { id: objective },
@@ -193,7 +208,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     await retire([wrong]);
 
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       task: { id: right },
     });
@@ -205,7 +227,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     await retire([right]);
     expect(await readObjectivesWithTasks(database, [objective])).toEqual(new Set());
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       kind: "no-activity",
       objective: { id: objective },
@@ -229,7 +258,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     await expect(retire(["no-such-task"])).rejects.toBeInstanceOf(NotPermitted);
     // Refused whole: the task that was the organization's is still offered.
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       task: { id: ours },
     });
@@ -295,7 +331,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     );
     // No task either: one stored without its citations could never be given them.
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       kind: "no-activity",
       objective: { id: objective },
@@ -334,7 +377,14 @@ describe.skipIf(!connectionString)("tasks", () => {
       ]),
     ).rejects.toBeInstanceOf(NotPermitted);
     expect(
-      await chooseNextActivity({ database, learnerId: learner, courseId, host: installation, now }),
+      await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      }),
     ).toMatchObject({
       kind: "no-activity",
       objective: { id: objective },
