@@ -144,7 +144,11 @@ function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
-        listDomains: async () => ({ domains: [{ hostname: "example.braivo.app" }] }),
+        listDomains: async () => ({
+          domains: [{ hostname: "example.braivo.app" }],
+          claims: [],
+          canAdd: false,
+        }),
         courseProgress,
         signInSettings: async () => ({ google: false, legal: null }),
         organizationSetupDomain: async () => null,
@@ -448,6 +452,8 @@ describe("the console", () => {
         braivo: {
           listDomains: async () => ({
             domains: [{ hostname: "learn.example.com" }, { hostname: "example.braivo.app" }],
+            claims: [],
+            canAdd: false,
           }),
         },
       });
@@ -472,7 +478,7 @@ describe("the console", () => {
 
     test("say learners have no site yet when no domain serves the organization", async () => {
       renderAt("/example/settings/domains", {
-        braivo: { listDomains: async () => ({ domains: [] }) },
+        braivo: { listDomains: async () => ({ domains: [], claims: [], canAdd: false }) },
       });
       expect(await screen.findByText(/Learners have no site to practise on yet/)).toBeTruthy();
       expect(within(screen.getByRole("main")).queryByRole("list")).toBeNull();
@@ -486,6 +492,274 @@ describe("the console", () => {
         await screen.findByText("This organization does not exist, or you do not manage it."),
       ).toBeTruthy();
       expect(screen.queryByRole("heading", { level: 1, name: "Domains" })).toBeNull();
+    });
+
+    test("offer no way to add a domain where the installation cannot prove one", async () => {
+      renderAt("/example/settings/domains");
+      expect(await screen.findByRole("heading", { level: 1, name: "Domains" })).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: "Add a domain" })).toBeNull();
+      expect(screen.queryByLabelText("Domain")).toBeNull();
+    });
+
+    /** A claim waiting for its records, as Braivo lists one. */
+    const pendingClaim = (hostname: string) => ({
+      hostname,
+      status: {
+        ready: false,
+        records: [
+          { type: "CNAME", name: hostname, value: "domains.braivo.app" },
+          { type: "TXT", name: `_cf-custom-hostname.${hostname}`, value: `token-${hostname}` },
+        ],
+      },
+    });
+
+    /** Braivo's domains, holding what `claimDomain` claims, so a reload lists it. */
+    function domainsStub() {
+      const claims: ReturnType<typeof pendingClaim>[] = [];
+      return {
+        listDomains: vi.fn(async () => ({
+          domains: [{ hostname: "example.braivo.app" }],
+          claims: [...claims],
+          canAdd: true,
+        })),
+        claimDomain: vi.fn(async (_organizationId: string, hostname: string) => {
+          claims.push(pendingClaim(hostname));
+          return pendingClaim(hostname);
+        }),
+      };
+    }
+
+    function addDomain(hostname: string) {
+      fireEvent.change(screen.getByLabelText("Domain"), { target: { value: hostname } });
+      fireEvent.click(screen.getByRole("button", { name: /^Add/ }));
+    }
+
+    test("list each domain waiting for DNS with the records to create, or that it cannot say", async () => {
+      renderAt("/example/settings/domains", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [{ hostname: "example.braivo.app" }],
+            claims: [
+              pendingClaim("learn.example.com"),
+              { hostname: "study.example.com", status: null },
+            ],
+            canAdd: true,
+          }),
+        },
+      });
+
+      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const [learn, study] = within(waiting).getAllByRole("listitem");
+      expect(within(learn!).getByRole("heading", { name: "learn.example.com" })).toBeTruthy();
+      expect(within(learn!).getByText("Pending")).toBeTruthy();
+      const rows = within(learn!)
+        .getAllByRole("row")
+        .map((row) => row.textContent);
+      expect(rows).toEqual([
+        "TypeNameValue",
+        "CNAMElearn.example.comdomains.braivo.app",
+        "TXT_cf-custom-hostname.learn.example.comtoken-learn.example.com",
+      ]);
+      expect(within(study!).getByText("Status unknown")).toBeTruthy();
+      expect(within(study!).getByText(/Could not check this domain/)).toBeTruthy();
+      expect(within(study!).queryByRole("table")).toBeNull();
+    });
+
+    test("say a claim's records are not available yet, rather than an empty table", async () => {
+      renderAt("/example/settings/domains", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [],
+            claims: [{ hostname: "learn.example.com", status: { ready: false, records: [] } }],
+            canAdd: true,
+          }),
+        },
+      });
+      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      expect(within(waiting).getByText("Its records are not available yet.")).toBeTruthy();
+      expect(within(waiting).queryByRole("table")).toBeNull();
+    });
+
+    test("copy a record's name or value, as a DNS provider wants it", async () => {
+      const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+      const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      onTestFinished(() => {
+        if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+        else Reflect.deleteProperty(navigator, "clipboard");
+      });
+      renderAt("/example/settings/domains", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [],
+            claims: [pendingClaim("learn.example.com")],
+            canAdd: true,
+          }),
+        },
+      });
+
+      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      fireEvent.click(within(waiting).getByRole("button", { name: "Copy TXT value" }));
+      // Its name kept, so each record's button stays told apart; the copy announced instead.
+      await vi.waitFor(() =>
+        expect(
+          within(waiting)
+            .getAllByRole("status")
+            .map((status) => status.textContent),
+        ).toContain("Copied."),
+      );
+      expect(within(waiting).getByRole("button", { name: "Copy TXT value" })).toBeTruthy();
+      expect(writeText).toHaveBeenCalledExactlyOnceWith("token-learn.example.com");
+      fireEvent.click(within(waiting).getByRole("button", { name: "Copy CNAME name" }));
+      await vi.waitFor(() => expect(writeText).toHaveBeenLastCalledWith("learn.example.com"));
+    });
+
+    test("add a domain, trimmed, then list it with its records", async () => {
+      const braivo = domainsStub();
+      renderAt("/example/settings/domains", { braivo });
+
+      await screen.findByLabelText("Domain");
+      // Mounted empty before it says anything, so the saying is announced.
+      const status = within(screen.getByRole("region", { name: "Add a domain" })).getByRole(
+        "status",
+      );
+      expect(status.textContent).toBe("");
+      addDomain("  learn.example.com ");
+      await vi.waitFor(() =>
+        expect(status.textContent).toBe("Added learn.example.com. Create its DNS records above."),
+      );
+      expect(braivo.claimDomain).toHaveBeenCalledWith(
+        "org-1",
+        "learn.example.com",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      expect(within(waiting).getByText("domains.braivo.app")).toBeTruthy();
+      expect(screen.getByLabelText<HTMLInputElement>("Domain").value).toBe("");
+    });
+
+    test("refuse a blank domain before sending it", async () => {
+      const braivo = domainsStub();
+      renderAt("/example/settings/domains", { braivo });
+
+      await screen.findByLabelText("Domain");
+      addDomain("   ");
+      expect(screen.getByLabelText<HTMLInputElement>("Domain").validationMessage).toBe(
+        "Enter a domain, such as learn.example.com.",
+      );
+      expect(braivo.claimDomain).not.toHaveBeenCalled();
+    });
+
+    test("say why a domain was refused, in a new alert each time, keeping what was typed", async () => {
+      const braivo = domainsStub();
+      braivo.claimDomain
+        .mockRejectedValueOnce(new BraivoError(409, "taken", undefined, "DOMAIN_TAKEN"))
+        .mockRejectedValueOnce(new BraivoError(400, "invalid", undefined, "DOMAIN_INVALID"))
+        .mockRejectedValueOnce(new BraivoError(400, "reserved", undefined, "DOMAIN_RESERVED"))
+        .mockRejectedValueOnce(new BraivoError(409, "added", undefined, "ALREADY_ADDED"));
+      renderAt("/example/settings/domains", { braivo });
+      await screen.findByLabelText("Domain");
+
+      let last: HTMLElement | undefined;
+      for (const said of [
+        "Another organization already uses that domain.",
+        "Enter a domain such as learn.example.com, without https:// or a path.",
+        "That address is Braivo's own. Enter a domain your organization owns.",
+        "That domain already serves your organization.",
+      ]) {
+        addDomain("learn.example.com");
+        await vi.waitFor(() => expect(screen.getByRole("alert").textContent).toBe(said));
+        expect(screen.getByRole("alert")).not.toBe(last);
+        last = screen.getByRole("alert");
+      }
+      expect(screen.getByLabelText<HTMLInputElement>("Domain").value).toBe("learn.example.com");
+    });
+
+    test("list a domain kept though it could not be served yet, saying to try again", async () => {
+      const braivo = domainsStub();
+      braivo.claimDomain.mockImplementationOnce(async (_organizationId, hostname) => {
+        braivo.listDomains.mockResolvedValueOnce({
+          domains: [],
+          claims: [{ hostname, status: null } as never],
+          canAdd: true,
+        });
+        throw new BraivoError(502, "failed", undefined, "PROVISIONING_FAILED");
+      });
+      renderAt("/example/settings/domains", { braivo });
+
+      await screen.findByLabelText("Domain");
+      addDomain("learn.example.com");
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "The domain was saved, but setting it up failed. Add it again to retry.",
+      );
+      expect(await screen.findByText("Status unknown")).toBeTruthy();
+    });
+
+    test("show claims read-only where the installation cannot check them", async () => {
+      renderAt("/example/settings/domains", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [],
+            claims: [{ hostname: "learn.example.com", status: null }],
+            canAdd: false,
+          }),
+        },
+      });
+
+      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      expect(within(waiting).getByText(/This installation cannot check domains/)).toBeTruthy();
+      expect(within(waiting).queryByRole("button")).toBeNull();
+    });
+
+    test("carry nothing of a pending add over to another organization's domains", async () => {
+      const adding = Promise.withResolvers<never>();
+      const braivo = { ...domainsStub(), claimDomain: vi.fn(() => adding.promise) };
+      const { router } = renderAt("/example/settings/domains", {
+        organizations: [school, annex],
+        braivo,
+      });
+      await screen.findByLabelText("Domain");
+      addDomain("learn.example.com");
+      expect(braivo.claimDomain).toHaveBeenCalledOnce();
+
+      // As the browser's history can, from one organization's settings to another's.
+      await router.navigate({ href: "/annex/settings/domains" });
+      await vi.waitFor(() =>
+        expect(screen.getByRole("link", { name: "Back to Annex" })).toBeTruthy(),
+      );
+      const input = screen.getByLabelText<HTMLInputElement>("Domain");
+      expect(input.value).toBe("");
+      expect(input.readOnly).toBe(false);
+      // Example's add, refused only now, says nothing on Annex's page.
+      await act(async () =>
+        adding.reject(new BraivoError(409, "taken", undefined, "DOMAIN_TAKEN")),
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("button", { name: "Add domain" })).toBeTruthy();
+    });
+
+    test("lock adding while it is sent, and say when it got no answer in time", async () => {
+      const braivo = domainsStub();
+      braivo.claimDomain.mockImplementationOnce(
+        (_organizationId, _hostname, options?: { signal?: AbortSignal }) => stall(options),
+      );
+      renderAt("/example/settings/domains", { braivo });
+      await screen.findByLabelText("Domain");
+
+      vi.useFakeTimers();
+      addDomain("learn.example.com");
+      const button = screen.getByRole("button", { name: /^Adding/ });
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(screen.getByLabelText<HTMLInputElement>("Domain").readOnly).toBe(true);
+      fireEvent.click(button);
+      expect(braivo.claimDomain).toHaveBeenCalledOnce();
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not connect. Check your connection and try again.",
+      );
+      expect(screen.getByRole("button", { name: "Add domain" })).toBeTruthy();
     });
 
     test("rename the organization, trimmed, every page then naming it so", async () => {
@@ -1907,13 +2181,13 @@ describe("the console", () => {
 
     expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
     expect(writeText).toHaveBeenCalledExactlyOnceWith("https://example.braivo.app");
-    expect(screen.getByRole("status").textContent).toBe("Address copied.");
+    expect(screen.getByRole("status").textContent).toBe("Copied.");
 
     // Refused, as outside a secure context or without permission.
     writeText.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));
     fireEvent.click(screen.getByRole("button", { name: "Copied" }));
     const refused = await screen.findByRole("alert");
-    expect(refused.textContent).toBe("Could not copy. Select the address instead.");
+    expect(refused.textContent).toBe("Could not copy. Select it instead.");
     expect(screen.getByRole("status").textContent).toBe("");
     // Refused again: a new alert, so it is announced again.
     writeText.mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"));

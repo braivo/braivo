@@ -1,10 +1,10 @@
 {
+  "id": "abc8d6ef-2a14-4a07-b92e-018e5a6aa76a",
+  "prevIds": [
+    "38c5fb4f-e8ce-4c55-8448-3d33bec8a7bf"
+  ],
   "version": "8",
   "dialect": "postgres",
-  "id": "a01864d8-7a31-485e-8c5f-eedcc585f9f9",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
   "ddl": [
     {
       "values": [
@@ -114,6 +114,12 @@
     {
       "isRlsEnabled": false,
       "name": "organization_domain",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "organization_domain_claim",
       "entityType": "tables",
       "schema": "public"
     },
@@ -2471,6 +2477,67 @@
       "default": null,
       "generated": null,
       "identity": null,
+      "name": "hostname",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "always",
+        "name": "organization_domain_claim_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "organization_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "claimed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
       "name": "id",
       "entityType": "columns",
       "schema": "public",
@@ -4080,6 +4147,34 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "organization_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "claimed_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "organization_domain_claim_organization_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "expires_at",
           "isExpression": false,
           "asc": true,
@@ -4894,6 +4989,23 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
+      "name": "organization_domain_claim_organization_id_organization_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "organization_domain_claim"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "organization_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "organization",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
       "name": "learner_handoff_organization_id_organization_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -5548,6 +5660,16 @@
     },
     {
       "columns": [
+        "hostname"
+      ],
+      "nameExplicit": false,
+      "name": "organization_domain_claim_pkey",
+      "schema": "public",
+      "table": "organization_domain_claim",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
         "id"
       ],
       "nameExplicit": false,
@@ -5744,6 +5866,17 @@
     {
       "nameExplicit": false,
       "columns": [
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "organization_domain_claim_id_key",
+      "schema": "public",
+      "table": "organization_domain_claim",
+      "entityType": "uniques"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
         "code_hash"
       ],
       "nullsNotDistinct": false,
@@ -5758,6 +5891,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "organization_domain"
+    },
+    {
+      "value": "\"hostname\" = lower(\"hostname\")",
+      "name": "organization_domain_claim_hostname_lowercase",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "organization_domain_claim"
     }
   ],
   "renames": []

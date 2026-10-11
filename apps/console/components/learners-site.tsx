@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { MutedText } from "@braivo/ui";
-import { Button } from "@braivo/ui/components/button";
-import { useEffect, useState } from "react";
+import { useLingui } from "@lingui/react/macro";
+
+import { CopyButton } from "#components/copy-button";
 
 /**
  * Where an organization's learners practise: `at` and a link to its learn
@@ -12,6 +13,7 @@ import { useEffect, useState } from "react";
  */
 export function LearnersSite(props: { learnDomain: string | null; at: string; none: string }) {
   const { learnDomain } = props;
+  const { t } = useLingui();
   if (!learnDomain)
     return <MutedText className="mb-4 block wrap-break-word">{props.none}</MutedText>;
 
@@ -24,53 +26,8 @@ export function LearnersSite(props: { learnDomain: string | null; at: string; no
         </a>
         .
       </MutedText>
-      <CopyAddress address={`https://${learnDomain}`} />
+      {/* A teacher passes it on by chat or email. */}
+      <CopyButton value={`https://${learnDomain}`} label={t`Copy address`} />
     </div>
-  );
-}
-
-/**
- * Copies the learners' address, which a teacher passes on by chat or email.
- * "Copied" shows for a moment and is announced, as a button's new label is
- * not; a refusal (no clipboard outside a secure context, or permission denied)
- * says so, leaving the link to copy by hand. Each try is announced afresh: the
- * status is emptied first, and each refusal mounts a new alert (docs/apps.md),
- * since React batches the emptying with a refusal thrown before any await.
- */
-function CopyAddress(props: { address: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const [failures, setFailures] = useState(0);
-
-  useEffect(() => {
-    if (state !== "copied") return;
-    const timer = setTimeout(() => setState("idle"), 2000);
-    return () => clearTimeout(timer);
-  }, [state]);
-
-  async function copy() {
-    setState("idle");
-    try {
-      await navigator.clipboard.writeText(props.address);
-      setState("copied");
-    } catch {
-      setState("failed");
-      setFailures((count) => count + 1);
-    }
-  }
-
-  return (
-    <>
-      <Button variant="link" size="sm" className="h-auto px-0" onClick={copy}>
-        {state === "copied" ? "Copied" : "Copy address"}
-      </Button>
-      <span role="status" className="sr-only">
-        {state === "copied" ? "Address copied." : ""}
-      </span>
-      {state === "failed" && (
-        <p key={failures} role="alert" className="basis-full text-sm text-destructive">
-          Could not copy. Select the address instead.
-        </p>
-      )}
-    </>
   );
 }

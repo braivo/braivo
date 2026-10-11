@@ -225,6 +225,14 @@ CREATE TABLE "organization_domain" (
 	CONSTRAINT "organization_domain_hostname_lowercase" CHECK ("hostname" = lower("hostname"))
 );
 --> statement-breakpoint
+CREATE TABLE "organization_domain_claim" (
+	"hostname" text PRIMARY KEY,
+	"id" bigint UNIQUE GENERATED ALWAYS AS IDENTITY (sequence name "organization_domain_claim_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"organization_id" text NOT NULL,
+	"claimed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "organization_domain_claim_hostname_lowercase" CHECK ("hostname" = lower("hostname"))
+);
+--> statement-breakpoint
 CREATE TABLE "learner_handoff" (
 	"id" text PRIMARY KEY,
 	"organization_id" text NOT NULL,
@@ -385,6 +393,7 @@ CREATE UNIQUE INDEX "organization_slug_uidx" ON "organization" ("slug");--> stat
 CREATE INDEX "session_userId_idx" ON "session" ("user_id");--> statement-breakpoint
 CREATE INDEX "verification_identifier_idx" ON "verification" ("identifier");--> statement-breakpoint
 CREATE INDEX "organization_domain_organization_idx" ON "organization_domain" ("organization_id","registered_at");--> statement-breakpoint
+CREATE INDEX "organization_domain_claim_organization_idx" ON "organization_domain_claim" ("organization_id","claimed_at");--> statement-breakpoint
 CREATE INDEX "learner_handoff_expires_at_idx" ON "learner_handoff" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_expires_at_idx" ON "learner_session" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_user_id_idx" ON "learner_session" ("user_id");--> statement-breakpoint
@@ -423,6 +432,7 @@ ALTER TABLE "oauth_refresh_token" ADD CONSTRAINT "oauth_refresh_token_session_id
 ALTER TABLE "oauth_refresh_token" ADD CONSTRAINT "oauth_refresh_token_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "organization_domain" ADD CONSTRAINT "organization_domain_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "organization_domain_claim" ADD CONSTRAINT "organization_domain_claim_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint

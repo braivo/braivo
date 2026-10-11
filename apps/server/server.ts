@@ -10,6 +10,7 @@ import type { Database } from "@braivo/db";
 
 import { anthropicModel } from "./ai/index.ts";
 import { createApi } from "./api/index.ts";
+import type { DomainProvisioner } from "./application/index.ts";
 import { createAuth } from "./auth/index.ts";
 import type { ServerConfig } from "./config.ts";
 import type { SendMail } from "./mail/index.ts";
@@ -18,6 +19,7 @@ import type { FileStore } from "./storage/index.ts";
 export { readServerConfig } from "./config.ts";
 export { type SendMail, smtpMail } from "./mail/index.ts";
 export type { FileStore } from "./storage/index.ts";
+export type { DnsRecord, DomainProvisioner, DomainStatus } from "./application/index.ts";
 
 export function createServer(options: {
   config: ServerConfig;
@@ -28,12 +30,15 @@ export function createServer(options: {
   files?: FileStore;
   /** Sends sign-in codes. */
   sendMail: SendMail;
+  /** Serves organizations' own domains once proven (ADR 0038); without one, they cannot add any. */
+  domains?: DomainProvisioner;
 }) {
   const { config, database } = options;
   return createApi({
     database,
     cachedDatabase: options.cachedDatabase,
     files: options.files,
+    domains: options.domains,
     baseUrl: config.baseUrl,
     selfServeDomain: config.selfServeDomain,
     legal: config.legal,
