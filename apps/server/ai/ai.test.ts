@@ -27,6 +27,7 @@ function answering(answer: unknown) {
 }
 
 const task = (prompt: string, answer: number, quotes: string[]) => ({
+  kind: "choice",
   prompt,
   options: ["red", "blue"],
   answer,
@@ -71,6 +72,99 @@ describe("drafting a course from a source", () => {
     expect(asked[0]?.prompt).toContain("Learners: grade 2, English speakers.");
     expect(asked[0]?.prompt).toContain(source.text);
     expect(asked[0]?.schema).toMatchObject({ type: "object", required: ["objectives"] });
+  });
+
+  test("keeps typed tasks, reading a malformed or other-kind field as absent", async () => {
+    const { model, asked } = answering({
+      objectives: [
+        {
+          title: "Red",
+          quotes: ["Rojo significa red."],
+          tasks: [
+            {
+              kind: "typed",
+              prompt: "Red, in Spanish?",
+              accepted: ["rojo"],
+              // The other kind's fields, one malformed; a stray null; and a
+              // language Braivo cannot read: none costs the task.
+              options: ["rojo", "azul"],
+              answer: "0",
+              explanation: null,
+              answerLanguage: "Spanish",
+              quotes: ["Rojo significa red."],
+            },
+            { kind: "typed", prompt: "¿Y?", accepted: [], quotes: ["Rojo significa red."] },
+            // A malformed field of its own kind costs only the task, by name.
+            { ...task("¿Rojo?", 0, ["Rojo significa red."]), answer: "0" },
+          ],
+        },
+        {
+          title: "Blue",
+          quotes: ["Azul significa blue."],
+          tasks: [
+            {
+              kind: "typed",
+              prompt: "Blue, in Spanish?",
+              accepted: ["azul"],
+              answerLanguage: "es",
+              explanation: "Azul significa blue.",
+              quotes: ["Azul significa blue."],
+            },
+          ],
+        },
+      ],
+    });
+
+    const draft = await draftCourse(model, source);
+
+    expect(draft.objectives.map(({ tasks }) => tasks)).toEqual([
+      [
+        {
+          kind: "typed",
+          prompt: "Red, in Spanish?",
+          accepted: ["rojo"],
+          citations: [{ sourceId: source.id, quote: "Rojo significa red." }],
+        },
+      ],
+      [
+        {
+          kind: "typed",
+          prompt: "Blue, in Spanish?",
+          accepted: ["azul"],
+          answerLanguage: "es",
+          explanation: "Azul significa blue.",
+          citations: [{ sourceId: source.id, quote: "Azul significa blue." }],
+        },
+      ],
+    ]);
+    expect(draft.refused).toEqual([
+      "Objective “Red”, task “¿Y?”: the task needs 1 to 20 accepted answers.",
+      "Objective “Red”, task “¿Rojo?”: the task needs its answer to be the index of the correct option, a whole number from 0 to 1.",
+    ]);
+    // The model is offered typed tasks, told what they are for, and not to
+    // mix kinds in one objective.
+    expect(asked[0]?.schema).toMatchObject({
+      properties: {
+        objectives: {
+          items: {
+            properties: {
+              tasks: {
+                items: {
+                  properties: {
+                    kind: { enum: ["choice", "typed"] },
+                    accepted: { type: "array" },
+                    answerLanguage: { type: "string" },
+                  },
+                  required: ["kind", "prompt", "quotes"],
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(asked[0]?.system).toContain("vocabulary");
+    expect(asked[0]?.system).toContain("An objective's tasks are all of one kind");
   });
 
   test("refuses, by name, what it cannot find or cannot keep", async () => {

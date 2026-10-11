@@ -525,12 +525,14 @@ describe.skipIf(!connectionString)("the materials routes", () => {
               quotes: ["Hola significa hello."],
               tasks: [
                 {
+                  kind: "choice",
                   prompt: "Hello?",
                   options: ["Hola", "Adiós"],
                   answer: 0,
                   quotes: ["Hola significa hello."],
                 },
                 {
+                  kind: "choice",
                   prompt: "Hola?",
                   options: ["Hello", "Goodbye"],
                   answer: 0,

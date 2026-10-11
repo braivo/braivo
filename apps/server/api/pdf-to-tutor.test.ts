@@ -40,10 +40,11 @@ const model: Model = {
           quotes: ["Hola significa hello."],
           tasks: [
             {
-              prompt: "How do you say hello?",
-              options: ["Hola", "Adiós"],
-              answer: 0,
-              explanation: "Adiós is goodbye.",
+              kind: "typed",
+              prompt: "How do you say hello in Spanish?",
+              accepted: ["hola"],
+              answerLanguage: "es",
+              explanation: "Hola means hello; adiós means goodbye.",
               quotes: ["Hola significa hello."],
             },
           ],
@@ -53,7 +54,8 @@ const model: Model = {
           quotes: ["Adiós significa goodbye."],
           tasks: [
             {
-              prompt: "How do you say goodbye?",
+              kind: "choice",
+              prompt: "How do you say goodbye in Spanish?",
               options: ["Adiós", "Hola"],
               answer: 0,
               quotes: ["Adiós significa goodbye."],
@@ -146,23 +148,24 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
     // page 12 of the book the teacher uploaded.
     const activity = await client.nextActivity(courseId, learner);
     expect(activity?.objective.title).toBe("Say hello");
-    if (!activity || !("task" in activity) || activity.task.kind !== "choice") {
-      throw new Error("No choice task to answer.");
+    if (!activity || !("task" in activity) || activity.task.kind !== "typed") {
+      throw new Error("No typed task to answer.");
     }
-    const wrong = activity.task.options.find(({ text }) => text === "Adiós")!;
     const grade = await client.submitAttempt(
       {
         courseId,
         id: crypto.randomUUID(),
         taskId: activity.task.id,
-        response: { choice: wrong.choice },
+        response: { text: "Adiós" },
       },
       learner,
     );
 
     expect(grade).toMatchObject({
+      kind: "typed",
       outcome: "failure",
-      explanation: "Adiós is goodbye.",
+      correctAnswer: "hola",
+      explanation: "Hola means hello; adiós means goodbye.",
       passages: [
         { quote: "Hola significa hello.", page: "12", source: { title: "Mi primer libro" } },
       ],
