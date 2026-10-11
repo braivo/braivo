@@ -28,7 +28,9 @@
     "@lingui/vite-plugin": "6.9.0",
     "@types/bun": "latest",
     "@types/pg": "^8.23.1",
+    "@vitest/browser-playwright": "4.1.11",
     "pg": "^8.23.1",
+    "playwright": "^1.64.0",
     "typescript": "^7.0.2",
     "vite-plus": "0.3.2"
   },

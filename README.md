@@ -66,6 +66,7 @@ bun apps/server/cli/index.ts organization create \
 Tests that need a database skip themselves without `TEST_DATABASE_URL`; give them a database of their own, since they create and delete fixture data. A linked worktree's tests use one of their own ([ADR 0014](docs/adr/0014-worktree-setup.md)).
 
 ```bash
+bunx playwright install --only-shell chromium  # once, for the few tests run in a browser
 bun run test       # Vitest, on Bun; not `vp test`, which starts Node
 bunx vp check      # format, lint, and type-check; add --fix to fix
 bun run storybook  # the component catalog
