@@ -44,6 +44,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0033: Email goes out over SMTP, or to the log of an installation only its machine reaches](0033-email-over-smtp.md)
 - [0034: node-postgres, so the server reaches PostgreSQL from Bun or from Workers through Hyperdrive](0034-node-postgres.md)
 - [0039: Courses and tasks a tool writes wait to be published in the console](0039-published-in-the-console.md)
+- [0040: Setup asks for the data region, and another region is another installation](0040-data-region-at-setup.md)
 
 ## Web
 

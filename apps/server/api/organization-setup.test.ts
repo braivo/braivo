@@ -50,7 +50,12 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     const teacher = await signUp();
     const slug = `fernwood-${run}`;
 
-    expect(await (await domain(teacher.cookie)).json()).toEqual({ domain: selfServeDomain });
+    expect(await (await domain(teacher.cookie)).json()).toEqual({
+      domain: selfServeDomain,
+      maySetUp: true,
+      dataRegion: null,
+      otherRegions: [],
+    });
     const response = await setUp({ name: " Fernwood Academy ", slug }, teacher.cookie);
 
     expect(response.status).toBe(201);
@@ -107,6 +112,8 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     const teacher = await signUp();
 
     expect((await setUp({ name: "First", slug: `first-${run}` }, teacher.cookie)).status).toBe(201);
+    // Said before asking, so the console offers no setup it would refuse.
+    expect(await (await domain(teacher.cookie)).json()).toMatchObject({ maySetUp: false });
     const second = await setUp({ name: "Second", slug: `second-${run}` }, teacher.cookie);
 
     expect(second.status).toBe(409);
@@ -152,6 +159,7 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
       at,
     });
 
+    expect(await (await domain(teacher.cookie)).json()).toMatchObject({ maySetUp: true });
     expect((await setUp({ name: "Own", slug: `own-${run}` }, teacher.cookie)).status).toBe(201);
   });
 
@@ -257,7 +265,12 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
   test("is off where the operator creates organizations", async () => {
     const teacher = await operated.signUp();
 
-    expect(await (await domain(teacher.cookie, operated.api)).json()).toEqual({ domain: null });
+    expect(await (await domain(teacher.cookie, operated.api)).json()).toEqual({
+      domain: null,
+      maySetUp: false,
+      dataRegion: null,
+      otherRegions: [],
+    });
     const response = await setUp(
       { name: "Fernwood", slug: `off-${run}` },
       teacher.cookie,

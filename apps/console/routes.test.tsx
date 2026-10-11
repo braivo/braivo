@@ -151,7 +151,7 @@ function renderAt(
         }),
         courseProgress,
         signInSettings: async () => ({ google: false, legal: null }),
-        organizationSetupDomain: async () => null,
+        organizationSetup: async () => null,
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
       visit,
@@ -246,8 +246,9 @@ function expectLockedInFocus(button: HTMLElement) {
 describe("the console", () => {
   test.each([
     ["their only organization", [school], "/example"],
-    ["the picker, among several", [school, annex], "/organizations"],
-    ["the picker, which says there are none", [], "/organizations"],
+    // Listed by name, as Braivo lists them.
+    ["the first among several", [annex, school], "/annex"],
+    ["setting one up, managing none", [], "/join"],
   ])("sends an owner at / to %s", async (_case, organizations, where) => {
     const { router } = renderAt("/", { organizations, braivo: { listCourses: async () => [] } });
 
@@ -882,6 +883,29 @@ describe("the console", () => {
       expect(input.value).toBe("Fernwood");
       expect(await within(nav).findByRole("link", { name: "Back to Fernwood" })).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("General · Fernwood"));
+    });
+
+    test("rename the organization, the header's switcher then listing it so", async () => {
+      let organization = { ...school };
+      const braivo = {
+        listOrganizations: async () => [annex, organization],
+        renameOrganization: async (_organizationId: string, name: string) => {
+          organization = { ...organization, name };
+          return { name };
+        },
+        listCourses: async () => [],
+      };
+      renderAt("/example/settings/general", { braivo });
+
+      const input = await screen.findByLabelText<HTMLInputElement>("Organization name");
+      fireEvent.change(input, { target: { value: "Fernwood" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      fireEvent.click(await screen.findByRole("link", { name: "Back to Fernwood" }));
+
+      const trigger = await screen.findByRole("button", { name: "Organizations" });
+      fireEvent.keyDown(trigger, { key: "Enter" });
+      const items = within(await screen.findByRole("menu")).getAllByRole("menuitem");
+      expect(items.map((item) => item.textContent)).toEqual(["Annex", "Fernwood"]);
     });
 
     test("say why the organization was not renamed, in a new alert each time", async () => {
@@ -1728,14 +1752,25 @@ describe("the console", () => {
         const taken = "laka.braivo.app is taken. Choose another address.";
         throw new BraivoError(409, "Braivo answered 409", taken, "ADDRESS_TAKEN");
       });
-      renderAt("/organizations", {
+      renderAt("/join", {
         organizations: [],
-        braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+        braivo: {
+          organizationSetup: async () => ({
+            domain: "braivo.app",
+            maySetUp: true,
+            dataRegion: "EU",
+            otherRegions: [{ region: "US", setupUrl: null }],
+          }),
+          setUpOrganization,
+        },
       });
 
       expect(
         await screen.findByRole("heading", { level: 1, name: "Załóż swoją organizację" }),
       ).toBeTruthy();
+      // Regions' names are the browser's, in the chosen language.
+      expect(screen.getByRole("option", { name: "Unia Europejska" })).toBeTruthy();
+      expect(screen.getByRole("option", { name: "Stany Zjednoczone (wkrótce)" })).toBeTruthy();
       expect(screen.getByText(/o dodanie adresu olive@example\.com\.$/)).toBeTruthy();
       fireEvent.change(screen.getByLabelText("Nazwa organizacji"), { target: { value: "Łąka" } });
       fireEvent.click(screen.getByRole("button", { name: "Utwórz organizację" }));
@@ -3534,26 +3569,217 @@ describe("the console", () => {
     expect(JSON.stringify(first)).not.toContain("Hi?");
   });
 
-  test("lists the organizations the owner is in, never asking onboarding's endpoint", async () => {
-    const organizationSetupDomain = vi.fn(async () => {
-      throw new Error("unreachable");
+  test("sends an owner from /join to their organization, setup being theirs already", async () => {
+    const { router } = renderAt("/join", {
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: false,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        listCourses: async () => [],
+      },
     });
-    renderAt("/organizations", { braivo: { organizationSetupDomain } });
 
-    const link = await screen.findByRole("link", { name: "Example School" });
-    expect(link.getAttribute("href")).toBe("/example");
-    expect(organizationSetupDomain).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
   });
 
-  test("names the organization in view on its pages, and nowhere else", async () => {
-    renderAt("/annex", { organizations: [school, annex], braivo: { listCourses: async () => [] } });
-    const current = await screen.findByRole("link", { name: "Annex" });
-    expect(current.getAttribute("href")).toBe("/annex");
+  test("shows an organization's page without waiting on whether setup is offered", async () => {
+    renderAt("/example", {
+      organizations: [school, annex],
+      braivo: { organizationSetup: () => new Promise(() => {}), listCourses: async () => [] },
+    });
+
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    // Switching, meanwhile, offered as for anyone managing several.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Organizations" }), {
+      key: "Enter",
+    });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByRole("menuitem", { name: "Set up an organization" })).toBeNull();
     cleanup();
 
-    renderAt("/organizations", { organizations: [school, annex] });
-    await screen.findByRole("link", { name: "Annex" });
-    expect(screen.getAllByRole("link", { name: "Annex" })).toHaveLength(1);
+    // With one organization, nothing in the header to show meanwhile.
+    renderAt("/example", {
+      braivo: { organizationSetup: () => new Promise(() => {}), listCourses: async () => [] },
+    });
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
+  });
+
+  test("offers setup once a read of whether it may succeeds, after one that failed", async () => {
+    const eligible = { domain: "braivo.app", maySetUp: true, dataRegion: null, otherRegions: [] };
+    const organizationSetup = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue(eligible);
+    const { router } = renderAt("/example", {
+      braivo: { organizationSetup, listCourses: async () => [], listSources: async () => [] },
+    });
+    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
+
+    // Read again on the next navigation, not left out for good.
+    await router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "example" },
+    });
+    expect(await screen.findByRole("button", { name: "Organizations" })).toBeTruthy();
+  });
+
+  test("keeps an admin's open menu while whether they may set one up is read again", async () => {
+    const eligible = { domain: "braivo.app", maySetUp: true, dataRegion: null, otherRegions: [] };
+    const organizationSetup = vi
+      .fn()
+      .mockResolvedValueOnce(eligible)
+      .mockReturnValue(new Promise(() => {}));
+    const { router } = renderAt("/example", {
+      braivo: { organizationSetup, listCourses: async () => [] },
+    });
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+      key: "Enter",
+    });
+    const menu = await screen.findByRole("menu");
+
+    await act(() => router.invalidate());
+
+    expect(organizationSetup).toHaveBeenCalledTimes(2);
+    expect(menu.isConnected).toBe(true);
+    expect(within(menu).getByRole("menuitem", { name: "Set up an organization" })).toBeTruthy();
+  });
+
+  test("keeps an admin's open menu when reading again whether they may set one up fails", async () => {
+    const eligible = { domain: "braivo.app", maySetUp: true, dataRegion: null, otherRegions: [] };
+    const organizationSetup = vi
+      .fn()
+      .mockResolvedValueOnce(eligible)
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    const { router } = renderAt("/example", {
+      braivo: { organizationSetup, listCourses: async () => [] },
+    });
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+      key: "Enter",
+    });
+    const menu = await screen.findByRole("menu");
+
+    await act(() => router.invalidate());
+    // Unknown, not refused: the last answer stands.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    expect(organizationSetup).toHaveBeenCalledTimes(2);
+    expect(menu.isConnected).toBe(true);
+    expect(within(menu).getByRole("menuitem", { name: "Set up an organization" })).toBeTruthy();
+  });
+
+  test("offers no setup form where Braivo says the account may not", async () => {
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: false,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+      },
+    });
+
+    expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
+    expect(screen.queryByLabelText("Organization name")).toBeNull();
+  });
+
+  test("stops offering setup once the admin has set one up", async () => {
+    const organizations: Organization[] = [school];
+    let maySetUp = true;
+    const { router } = renderAt("/example", {
+      organizations,
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization: async ({ name, slug }: { name: string; slug: string }) => {
+          const created = { id: "org-own", name, slug, learnDomain: `${slug}.braivo.app` };
+          organizations.push(created);
+          maySetUp = false;
+          return created;
+        },
+        listCourses: async () => [],
+      },
+    });
+    await screen.findByRole("button", { name: "Organizations" });
+
+    await router.navigate({ to: "/join" });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Own" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/own"));
+
+    // Back where setup was offered, its page cached: offered no longer.
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+      key: "Enter",
+    });
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Example School", "Own"]);
+  });
+
+  test("offers an admin owning none setup, from the switcher to /join", async () => {
+    const organizationSetup = async () => ({
+      domain: "braivo.app",
+      maySetUp: true,
+      dataRegion: null,
+      otherRegions: [],
+    });
+    const { router } = renderAt("/example", {
+      braivo: { organizationSetup, listCourses: async () => [] },
+    });
+
+    // One organization, and still a switcher: its last item is setting one up.
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+      key: "Enter",
+    });
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Set up an organization" }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/join"));
+    expect(await screen.findByLabelText("Organization name")).toBeTruthy();
+    // Not new here: no word on where learners go.
+    expect(screen.queryByText(/Here to learn\?/)).toBeNull();
+  });
+
+  test("names the organization in view on its pages, the logo leading to /", async () => {
+    renderAt("/annex", { organizations: [annex], braivo: { listCourses: async () => [] } });
+    const current = await screen.findByRole("link", { name: "Annex" });
+    expect(current.getAttribute("href")).toBe("/annex");
+    expect(screen.getByRole("link", { name: /^braivo/ }).getAttribute("href")).toBe("/");
+    // One organization: nothing to switch to.
+    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
+  });
+
+  test("switches between the organizations an owner manages from the header", async () => {
+    const { router } = renderAt("/annex", {
+      organizations: [annex, school],
+      braivo: { listCourses: async () => [] },
+    });
+    // By keyboard: Radix's menus ignore a bare click.
+    const trigger = await screen.findByRole("button", { name: "Organizations" });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const items = within(await screen.findByRole("menu")).getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual(["Annex", "Example School"]);
+    expect(items[0]?.getAttribute("aria-current")).toBe("page");
+    expect(items[1]?.getAttribute("aria-current")).toBeNull();
+    fireEvent.click(items[1] as HTMLElement);
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
   });
 
   test("titles an organization's pages so tabs tell apart pages and organizations", async () => {
@@ -3618,8 +3844,94 @@ describe("the console", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Courses" })).toBeTruthy();
   });
 
+  test("asks where a new organization's data is stored, only where the installation says", async () => {
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: "EU",
+          otherRegions: [{ region: "US", setupUrl: null }],
+        }),
+      },
+    });
+
+    const region = (await screen.findByLabelText("Data region")) as HTMLSelectElement;
+    expect(region.value).toBe("EU");
+    expect(screen.getByRole("option", { name: "European Union" })).toBeTruthy();
+    // Listed, never chosen, until its installation is open.
+    const unopened = screen.getByRole("option", { name: "United States (coming soon)" });
+    expect((unopened as HTMLOptionElement).disabled).toBe(true);
+    cleanup();
+
+    // Nothing else to choose: said, not asked.
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: "EU",
+          otherRegions: [],
+        }),
+      },
+    });
+
+    expect(await screen.findByText("European Union")).toBeTruthy();
+    expect(screen.getByText("Data region")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    cleanup();
+
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+      },
+    });
+
+    expect(await screen.findByLabelText("Organization name")).toBeTruthy();
+    expect(screen.queryByText("Data region")).toBeNull();
+  });
+
+  test("trades the form for a link to another region's own installation", async () => {
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: "EU",
+          otherRegions: [{ region: "US", setupUrl: "https://us.braivo.app/join" }],
+        }),
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Fernwood" },
+    });
+
+    fireEvent.change(screen.getByLabelText("Data region"), { target: { value: "US" } });
+    expect(screen.getByText(/set up on its own site, where you sign in again/)).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Go to the United States site" });
+    expect(link.getAttribute("href")).toBe("https://us.braivo.app/join");
+    // Nothing asked here, nor sent.
+    expect(screen.queryByRole("textbox", { name: "Organization name" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create organization" })).toBeNull();
+
+    // Back to this installation's region: what was typed is still there.
+    fireEvent.change(screen.getByLabelText("Data region"), { target: { value: "EU" } });
+    expect((screen.getByLabelText("Organization name") as HTMLInputElement).value).toBe("Fernwood");
+    expect(screen.getByText("fernwood.braivo.app")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create organization" })).toBeTruthy();
+  });
+
   test("tells someone who manages no organization where to go, and who they are", async () => {
-    renderAt("/organizations", { organizations: [] });
+    renderAt("/join", { organizations: [] });
 
     expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
     expect(screen.getByText(/Open the site your school/)).toBeTruthy();
@@ -3633,10 +3945,15 @@ describe("the console", () => {
       organizations.push(created);
       return created;
     });
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations,
       braivo: {
-        organizationSetupDomain: async () => "braivo.app",
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
         setUpOrganization,
         listCourses: async () => [],
       },
@@ -3682,9 +3999,17 @@ describe("the console", () => {
       slug,
       learnDomain: null,
     }));
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations: [],
-      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
     });
 
     fireEvent.change(await screen.findByLabelText("Organization name"), {
@@ -3703,9 +4028,17 @@ describe("the console", () => {
   test("sends one setup however often it is submitted while pending", async () => {
     const answered = Promise.withResolvers<Organization>();
     const setUpOrganization = vi.fn(() => answered.promise);
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations: [],
-      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
     });
     const name = await screen.findByLabelText("Organization name");
     fireEvent.change(name, { target: { value: "Pimsleur" } });
@@ -3743,9 +4076,17 @@ describe("the console", () => {
       const setUpOrganization = vi.fn(async () => {
         throw error;
       });
-      renderAt("/organizations", {
+      renderAt("/join", {
         organizations: [],
-        braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+        braivo: {
+          organizationSetup: async () => ({
+            domain: "braivo.app",
+            maySetUp: true,
+            dataRegion: null,
+            otherRegions: [],
+          }),
+          setUpOrganization,
+        },
       });
       fireEvent.change(await screen.findByLabelText("Organization name"), {
         target: { value: "Fernwood" },
@@ -3762,9 +4103,17 @@ describe("the console", () => {
     const setUpOrganization = vi.fn(async () => {
       throw new BraivoError(401, "Braivo answered 401.");
     });
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations: [],
-      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
     });
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Fernwood" },
@@ -3778,9 +4127,17 @@ describe("the console", () => {
 
   test("opens the address when the name makes none, saying what one is", async () => {
     const setUpOrganization = vi.fn();
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations: [],
-      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
     });
 
     fireEvent.change(await screen.findByLabelText("Organization name"), {
@@ -3805,9 +4162,17 @@ describe("the console", () => {
     const setUpOrganization = vi.fn(async () => {
       throw new BraivoError(409, "Braivo answered 409", taken, "ADDRESS_TAKEN");
     });
-    renderAt("/organizations", {
+    renderAt("/join", {
       organizations: [],
-      braivo: { organizationSetupDomain: async () => "braivo.app", setUpOrganization },
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
     });
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Łąka" },
@@ -3843,7 +4208,7 @@ describe("the console", () => {
   });
 
   test("offers no setup where the operator creates organizations", async () => {
-    renderAt("/organizations", { organizations: [] });
+    renderAt("/join", { organizations: [] });
 
     expect(await screen.findByText("You don't manage any organizations")).toBeTruthy();
     expect(screen.queryByLabelText("Organization name")).toBeNull();
@@ -3867,10 +4232,10 @@ describe("the console", () => {
     expect(screen.queryByText(/This organization does not exist/)).toBeNull();
   });
 
-  test("leads from a path that names nothing back to the organizations", async () => {
-    renderAt("/organizations/elsewhere");
+  test("leads from a path that names nothing back home, to an organization managed", async () => {
+    renderAt("/join/elsewhere", { braivo: { listCourses: async () => [] } });
 
-    fireEvent.click(await screen.findByRole("link", { name: "Organizations" }));
+    fireEvent.click(await screen.findByRole("link", { name: "Go home" }));
 
     expect(await screen.findByRole("link", { name: "Example School" })).toBeTruthy();
   });

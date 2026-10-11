@@ -49,6 +49,64 @@ describe("self-serve onboarding", () => {
   });
 });
 
+describe("where data is stored", () => {
+  // Shown at setup alone, so set only with it.
+  const selfServe = { ...valid, BRAIVO_SELF_SERVE_DOMAIN: "braivo.app" };
+
+  test("is unsaid unless set, and a place's region code", () => {
+    expect(readServeConfig(selfServe).dataRegion).toBeUndefined();
+    expect(readServeConfig({ ...selfServe, BRAIVO_DATA_REGION: " " }).dataRegion).toBeUndefined();
+    expect(readServeConfig({ ...selfServe, BRAIVO_DATA_REGION: " eu " }).dataRegion).toBe("EU");
+    // Private use, "Unknown Region", digits, and words name no place.
+    for (const value of ["Europe", "E", "QQ", "XA", "ZZ", "150", "eu-central-1"]) {
+      expect(() => readServeConfig({ ...selfServe, BRAIVO_DATA_REGION: value })).toThrow(
+        "BRAIVO_DATA_REGION must be a region code",
+      );
+    }
+  });
+
+  test("needs self-serve setup, where it shows", () => {
+    expect(() => readServeConfig({ ...valid, BRAIVO_DATA_REGION: "EU" })).toThrow(
+      "BRAIVO_DATA_REGION needs BRAIVO_SELF_SERVE_DOMAIN",
+    );
+  });
+
+  test("lists other regions, open where their installation sets up organizations", () => {
+    const config = readServeConfig({
+      ...selfServe,
+      BRAIVO_DATA_REGION: "EU",
+      BRAIVO_OTHER_REGIONS: " us , ca=https://ca.example , de=http://localhost:3001 ",
+    });
+    expect(config.otherRegions).toEqual([
+      { region: "US", setupUrl: null },
+      { region: "CA", setupUrl: "https://ca.example/join" },
+      // Plain HTTP on a loopback host only, as in development.
+      { region: "DE", setupUrl: "http://localhost:3001/join" },
+    ]);
+    expect(
+      readServeConfig({ ...selfServe, BRAIVO_DATA_REGION: "EU" }).otherRegions,
+    ).toBeUndefined();
+  });
+
+  test("refuses other regions without its own, repeated, not regions, or not HTTPS", () => {
+    expect(() => readServeConfig({ ...selfServe, BRAIVO_OTHER_REGIONS: "US" })).toThrow(
+      "BRAIVO_OTHER_REGIONS needs BRAIVO_DATA_REGION",
+    );
+    const regions = { ...selfServe, BRAIVO_DATA_REGION: "EU" };
+    for (const value of ["EU", "US,US", "US,", "Mars"]) {
+      expect(() => readServeConfig({ ...regions, BRAIVO_OTHER_REGIONS: value })).toThrow(
+        "BRAIVO_OTHER_REGIONS lists region codes",
+      );
+    }
+    expect(() => readServeConfig({ ...regions, BRAIVO_OTHER_REGIONS: "US=us.example" })).toThrow(
+      "BRAIVO_OTHER_REGIONS must be an absolute URL",
+    );
+    expect(() =>
+      readServeConfig({ ...regions, BRAIVO_OTHER_REGIONS: "US=http://us.example" }),
+    ).toThrow("BRAIVO_OTHER_REGIONS needs https://");
+  });
+});
+
 describe("the model that drafts courses", () => {
   test("is none without a key, and Anthropic's default with one", () => {
     const all = { ANTHROPIC_API_KEY: " key " };

@@ -18,7 +18,7 @@ import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { mcpEndpoint } from "./mcp.ts";
 import { sessionRoutes } from "./session.ts";
-import type { SignInSettings } from "./types.ts";
+import type { OrganizationSetup, SignInSettings } from "./types.ts";
 
 type ApiOptions = {
   auth: Auth;
@@ -39,6 +39,10 @@ type ApiOptions = {
   ai?: Ai;
   /** Where anyone signed in may set up an organization (ADR 0018); without one, nobody may. */
   selfServeDomain?: string;
+  /** Where the installation stores its data, a region code, said at setup; or unsaid. */
+  dataRegion?: string;
+  /** Regions whose own installations set up organizations, offered at setup (ADR 0040). */
+  otherRegions?: OrganizationSetup["otherRegions"];
   /** The privacy policy and terms `/login` links, or none. */
   legal?: NonNullable<SignInSettings["legal"]>;
   /**
@@ -114,6 +118,8 @@ export function createApi(options: ApiOptions) {
     domains,
     ai,
     selfServeDomain,
+    dataRegion,
+    otherRegions,
     legal,
     sendMail = async () => {
       throw new Error("No mail transport was given to createApi.");
@@ -285,7 +291,18 @@ export function createApi(options: ApiOptions) {
   // After the host gate, which runs only before routes registered after it.
   api.route("/", sessionRoutes(guards, { auth, database, baseUrl, legal, sendMail }));
   api.route("/", learningRoutes(guards, { database }));
-  api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain, domains }));
+  api.route(
+    "/",
+    authoringRoutes(guards, {
+      auth,
+      database,
+      baseUrl,
+      selfServeDomain,
+      domains,
+      dataRegion,
+      otherRegions,
+    }),
+  );
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
 
   return api;

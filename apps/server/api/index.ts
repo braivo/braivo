@@ -287,9 +287,14 @@
 // "…", "name": "…", "slug": "…", "learnDomain": "…" | null }] }`. 401 without
 // a session.
 //
-// `GET /api/organization-setup` — `{ "domain": "…" | null }`: the domain an
-// organization set up below is served under, `null` where only the operator
-// creates them (ADR 0018). 401 without a session.
+// `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
+// | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",
+// "setupUrl": "…" | null }] }`: the domain an organization set up below is
+// served under, `null` where only the operator creates them (ADR 0018);
+// whether this account may set one up now, owning none (`false` there); the
+// region code (`EU`, `US`) where the installation stores data, `null` unsaid;
+// and the regions whose own installations set up organizations, at
+// `setupUrl`, `null` not yet open (ADR 0040). 401 without a session.
 //
 // `POST /api/organization-setup` `{ "name", "slug" }`, a JSON write — sets up
 // an organization the session's user owns, at `<slug>.<domain>`: 201

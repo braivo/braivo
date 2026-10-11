@@ -24,6 +24,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AccountMenu } from "#components/account-menu";
 import { BraivoLogo } from "#components/braivo-logo";
 import { LanguageMenu } from "#components/language-menu";
+import { OrganizationSwitcher } from "#components/organization-switcher";
 import { rememberAppPage } from "#lib/app-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -52,9 +53,11 @@ type Failure = { action: "sign-out" | "language"; count: number };
 function SignedIn() {
   const { auth, user } = Route.useRouteContext();
   const router = useRouter();
-  // Shown on each of its pages, so someone managing several sees which one they act on.
-  const organization = useMatch({ from: "/_signed-in/$organizationSlug", shouldThrow: false })
-    ?.context.organization;
+  // Shown on each of its pages, so someone managing several sees which one they
+  // act on, and switches from it.
+  const match = useMatch({ from: "/_signed-in/$organizationSlug", shouldThrow: false });
+  const { organization, organizations = [] } = match?.context ?? {};
+  const maySetUp = useLastSettled(match?.loaderData?.maySetUp, false);
   // Settings are a page of their own, with their own navigation in this frame's place.
   const inSettings = useMatches({
     select: (matches) =>
@@ -107,14 +110,14 @@ function SignedIn() {
       <header className="border-b bg-card text-card-foreground">
         <div className="mx-auto max-w-280 px-4 sm:px-6">
           <div className="flex min-h-16 items-center justify-between gap-4 py-2">
-            {/* The logo leads to every organization: `/` would reopen the last
-                one. Growing, so the organization's name wraps in all the room left. */}
+            {/* The logo leads to `/`, the organization last opened. Growing, so
+                the organization's name wraps in all the room left. */}
             <Breadcrumb className="min-w-0 flex-1">
               <BreadcrumbList className="flex-nowrap">
                 <BreadcrumbItem className="shrink-0">
                   <BreadcrumbLink asChild>
                     {/* 44px, a touch target's least, as each link here. */}
-                    <Link to="/organizations" className="flex min-h-11 min-w-11 items-center">
+                    <Link to="/" className="flex min-h-11 min-w-11 items-center">
                       {/* Beside an organization on a phone, the sparkle alone: its
                           name needs the room. */}
                       <BraivoLogo
@@ -137,6 +140,13 @@ function SignedIn() {
                           {organization.name}
                         </Link>
                       </BreadcrumbLink>
+                      {(organizations.length > 1 || maySetUp) && (
+                        <OrganizationSwitcher
+                          current={organization}
+                          organizations={organizations}
+                          maySetUp={maySetUp}
+                        />
+                      )}
                     </BreadcrumbItem>
                   </>
                 )}
@@ -178,4 +188,25 @@ function SignedIn() {
       </main>
     </>
   );
+}
+
+/**
+ * What the latest `promise` settled to, `initial` before any has; kept while
+ * the next is read, and when one settles `undefined` (unknown), so the
+ * switcher stays mounted, an open menu with it. For the account's `maySetUp`,
+ * which no organization changes; signing out unmounts this layout, so no
+ * account sees another's. Not `Await`, whose Suspense would remount what it
+ * wraps.
+ */
+function useLastSettled<T>(promise: Promise<T | undefined> | undefined, initial: T): T {
+  const [value, setValue] = useState(initial);
+  useEffect(() => {
+    // An earlier promise settling late is ignored, not taken over a newer one's.
+    let current = true;
+    void promise?.then((settled) => current && settled !== undefined && setValue(settled));
+    return () => {
+      current = false;
+    };
+  }, [promise]);
+  return value;
 }

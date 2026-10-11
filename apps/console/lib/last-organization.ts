@@ -24,3 +24,12 @@ export function rememberOrganization(id: string): void {
     // See above: forgetting is fine.
   }
 }
+
+/**
+ * Where `/` opens among the organizations someone manages, listed by name:
+ * the one last opened here, else the first; none when they manage none.
+ */
+export function organizationToOpen<T extends { id: string }>(organizations: T[]): T | undefined {
+  const last = lastOrganization();
+  return organizations.find(({ id }) => id === last) ?? organizations[0];
+}

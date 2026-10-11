@@ -41,6 +41,8 @@ export function createServer(options: {
     domains: options.domains,
     baseUrl: config.baseUrl,
     selfServeDomain: config.selfServeDomain,
+    dataRegion: config.dataRegion,
+    otherRegions: config.otherRegions,
     legal: config.legal,
     sendMail: options.sendMail,
     ai: config.ai && {

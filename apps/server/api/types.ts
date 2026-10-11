@@ -94,6 +94,15 @@ export type Objective = { id: string; title: string };
  */
 export type Organization = { id: string; name: string; slug: string; learnDomain: string | null };
 
+/** Self-serve setup (ADR 0018), and its data regions (ADR 0040), as `api/index.ts` documents. */
+export type OrganizationSetup = {
+  domain: string;
+  /** Owning none, this account may set one up; owning one, it may not. */
+  maySetUp: boolean;
+  dataRegion: string | null;
+  otherRegions: { region: string; setupUrl: string | null }[];
+};
+
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 

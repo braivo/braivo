@@ -38,6 +38,11 @@ const { database, api, outbox, signUp } = createTestApi({
     add: async (hostname) => pendingDomain(hostname),
     status: async (hostname) => pendingDomain(hostname),
   },
+  dataRegion: "EU",
+  otherRegions: [
+    { region: "US", setupUrl: null },
+    { region: "CA", setupUrl: "https://ca.example/join" },
+  ],
 });
 
 /** The client reaches Braivo over HTTP; here that HTTP is the app itself. */
@@ -261,7 +266,15 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const { cookie } = await signUp();
     const slug = `contract-${crypto.randomUUID().slice(0, 8)}`;
 
-    expect(await client.organizationSetupDomain({ headers: { cookie } })).toBe(selfServeDomain);
+    expect(await client.organizationSetup({ headers: { cookie } })).toEqual({
+      domain: selfServeDomain,
+      maySetUp: true,
+      dataRegion: "EU",
+      otherRegions: [
+        { region: "US", setupUrl: null },
+        { region: "CA", setupUrl: "https://ca.example/join" },
+      ],
+    });
     const organization = await client.setUpOrganization(
       { name: "Fernwood Academy", slug },
       { headers: { cookie } },

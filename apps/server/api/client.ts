@@ -20,6 +20,7 @@ import type {
   Member,
   Objective,
   Organization,
+  OrganizationSetup,
   QuotedCitation,
   SessionUser,
   SignInSettings,
@@ -60,6 +61,7 @@ export type {
   Objective,
   LearnerProgressStanding,
   Organization,
+  OrganizationSetup,
   Passage,
   QuotedCitation,
   SessionUser,
@@ -243,10 +245,10 @@ export type BraivoClient = {
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
 
   /**
-   * The domain an organization set up here is served under, as
-   * `<slug>.<domain>`, or `null` where the operator creates every one.
+   * Setting up an organization here: its domain, as `<slug>.<domain>`, and
+   * data regions (ADR 0040); `null` where the operator creates every one.
    */
-  organizationSetupDomain(options?: RequestOptions): Promise<string | null>;
+  organizationSetup(options?: RequestOptions): Promise<OrganizationSetup | null>;
 
   /**
    * Sets up an organization the session's user owns, served at
@@ -784,13 +786,16 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return organizations;
     },
 
-    async organizationSetupDomain(requestOptions) {
+    async organizationSetup(requestOptions) {
       const response = await get("/api/organization-setup", requestOptions);
 
       const doing = "asking whether an organization may be set up";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      return (await parsed<{ domain: string | null }>(response, doing)).domain;
+      const { domain, ...rest } = await parsed<
+        Omit<OrganizationSetup, "domain"> & { domain: string | null }
+      >(response, doing);
+      return domain === null ? null : { domain, ...rest };
     },
 
     async setUpOrganization(organization, requestOptions) {
