@@ -39,7 +39,7 @@ async function waitingOnShareLock(stopped: () => boolean): Promise<void> {
   }
 }
 
-function record(attemptId: string) {
+function record(attemptId: string, outcome: "success" | "failure" = "success") {
   return recordAttempt(database, {
     learnerId: learner,
     organizationId,
@@ -48,12 +48,12 @@ function record(attemptId: string) {
     response: { choice: 0 },
     at,
     restWindowStart: at,
-    evidence: { id: `attempt:${attemptId}`, objectiveId, outcome: "success" },
+    evidence: { id: `attempt:${attemptId}`, objectiveId, outcome },
   });
 }
 
 /** Requires TEST_DATABASE_URL: locking is the database's to do. */
-describe.skipIf(!connectionString)("recording an attempt on a retired task", () => {
+describe.skipIf(!connectionString)("recording an attempt", () => {
   beforeAll(async () => {
     await runMigrations(connectionString ?? "");
     await seedOrganization(database, { organizationId, learnerIds: [learner], at });
@@ -70,7 +70,15 @@ describe.skipIf(!connectionString)("recording an attempt on a retired task", () 
     });
   });
 
-  test("refuses it, recording nothing", async () => {
+  test("answers a resend with the outcome stored, whichever it proposes", async () => {
+    // A resend proposing another outcome, as changed grading would: the first stands.
+    expect(await record("first", "failure")).toBe("failure");
+    expect(await record("first", "success")).toBe("failure");
+    expect(await record("second", "success")).toBe("success");
+    expect(await record("second", "failure")).toBe("success");
+  });
+
+  test("refuses one on a retired task, recording nothing", async () => {
     await markTasksRetired(database, [taskId], at);
 
     await expect(record("after")).rejects.toBeInstanceOf(RetiredTask);
@@ -224,8 +232,8 @@ describe.skipIf(!connectionString)("task invariants", () => {
     expect(violatedConstraint(error)).toBe("task_objective_fk");
   });
 
-  // Past attempts are graded again from the task they answered, so a changed
-  // body or passage would change grades already given.
+  // A resend's feedback is rebuilt from the task it answered (its outcome is
+  // the evidence's), so a changed body or passage would change what it shows.
   test("retiring leaves a task as stored but for the date", async () => {
     const { taskId, stored } = await citedTask("Retired");
     const [[before], cited] = await stored();

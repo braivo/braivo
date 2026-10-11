@@ -16,6 +16,7 @@ import {
   createSource,
   createTasks,
   readLearnerEvidence,
+  recordAttempt,
   recordEvidence,
 } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
@@ -437,13 +438,34 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     ).toMatchObject({ kind: "graded" });
   });
 
-  test("records a resubmitted attempt once, and grades it the same", async () => {
+  test("records a resubmitted attempt once, and answers it the same", async () => {
     const first = await answer("retry", pastTenseTask, 0, later(1));
     const again = await answer("retry", pastTenseTask, 0, later(2));
 
     expect(again).toEqual(first);
     // Dated by the first submission, not the retry.
     expect(await stored()).toMatchObject([{ id: `attempt:retry:${pastTense}`, at: later(1) }]);
+  });
+
+  test("answers a resend with the outcome recorded, not today's grade", async () => {
+    // Recorded as a grader that has since changed would have: the right
+    // option, graded a failure.
+    await recordAttempt(database, {
+      learnerId: learner,
+      organizationId,
+      attemptId: "regraded",
+      taskId: pastTenseTask,
+      response: { choice: 0 },
+      at: later(1),
+      restWindowStart: start,
+      evidence: { id: `attempt:regraded:${pastTense}`, objectiveId: pastTense, outcome: "failure" },
+    });
+
+    expect(await answer("regraded", pastTenseTask, 0, later(2))).toMatchObject({
+      kind: "graded",
+      grade: { outcome: "failure", correctChoice: 0 },
+    });
+    expect(await stored()).toMatchObject([{ outcome: "failure", at: later(1) }]);
   });
 
   test("refuses an attempt ID reused for a different response", async () => {
