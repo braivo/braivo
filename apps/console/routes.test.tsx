@@ -1219,15 +1219,17 @@ describe("the console", () => {
 
       fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
       const nav = await screen.findByRole("navigation", { name: "Settings" });
-      await screen.findByLabelText("Your name");
+      // Across settings' own pages, the way back stays.
+      fireEvent.click(within(nav).getByRole("link", { name: "General" }));
+      await screen.findByLabelText("Organization name");
       expect(
         within(nav).getByRole("link", { name: "Back to Example School" }).getAttribute("href"),
       ).toBe("/example/sources");
 
       // A field keeps Escape: given time to navigate, it has not.
-      fireEvent.keyDown(screen.getByLabelText("Your name"), { key: "Escape" });
+      fireEvent.keyDown(screen.getByLabelText("Organization name"), { key: "Escape" });
       await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(router.state.location.pathname).toBe("/example/settings/account");
+      expect(router.state.location.pathname).toBe("/example/settings/general");
 
       fireEvent.keyDown(document.body, { key: "Escape" });
       await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example/sources"));
