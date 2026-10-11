@@ -11,6 +11,7 @@ import { createRouter, type RouterHistory, useRouter } from "@tanstack/react-rou
 import { useId, useLayoutEffect, useRef } from "react";
 
 import type { AppContext } from "./lib/context.ts";
+import { PAGE_SCROLLER } from "./lib/page-scroller.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
 /** The console's router, as `main.tsx` runs it and its tests render it. */
@@ -33,6 +34,8 @@ export function createConsoleRouter({
     // Not while a layout already shown reruns a slow `beforeLoad` (the session
     // check, say): the old page stays meanwhile.
     defaultPendingComponent: PagePending,
+    // Each page starts at the top of what scrolls it, as of the window.
+    scrollToTopSelectors: [PAGE_SCROLLER],
     // Marked copy's provider and the theme's, here so that tests rendering the
     // router get them too.
     Wrap: ({ children }) => (

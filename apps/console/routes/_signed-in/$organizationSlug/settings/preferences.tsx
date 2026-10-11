@@ -24,7 +24,7 @@ import { pageHead } from "#lib/title";
 
 /**
  * How the console looks and speaks in this browser: its theme and language,
- * each kept for every later visit here, as the header's menus keep them.
+ * each kept for every later visit here, as the sidebar's menus keep them.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/preferences")({
   head: (head) => pageHead(head, t`Preferences`),

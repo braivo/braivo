@@ -20,7 +20,8 @@ import { useState } from "react";
  * once. Nothing is loaded again, so what the page holds (a sign-in under way)
  * stays; a route's tab title follows on the next page. A failure is said
  * below the button or, given `onFailureChange`, by the caller: `true` when a
- * choice fails, `false` when another is made.
+ * choice fails, `false` when another is made. An organization's pages offer
+ * the choice in the account menu instead (`AccountMenu`).
  */
 export function LanguageMenu(props: { onFailureChange?: (failed: boolean) => void }) {
   const { i18n, t } = useLingui();
@@ -42,25 +43,13 @@ export function LanguageMenu(props: { onFailureChange?: (failed: boolean) => voi
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuRadioGroup
-            value={current}
-            onValueChange={async (locale) => {
-              setFailed(false);
-              props.onFailureChange?.(false);
-              // The catalog is fetched on choosing it, and that can fail.
-              await chooseLanguage(locale as Locale).catch(() => {
-                if (props.onFailureChange) return props.onFailureChange(true);
-                setFailures((count) => count + 1);
-                setFailed(true);
-              });
+          <LanguageRadioGroup
+            onFailureChange={(failed) => {
+              if (props.onFailureChange) return props.onFailureChange(failed);
+              setFailed(failed);
+              if (failed) setFailures((count) => count + 1);
             }}
-          >
-            {LOCALES.map((locale) => (
-              <DropdownMenuRadioItem key={locale} value={locale} lang={locale}>
-                {LANGUAGE_NAMES[locale]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       {/* Below the button, out of the header's row, which it must not push. */}
@@ -74,5 +63,30 @@ export function LanguageMenu(props: { onFailureChange?: (failed: boolean) => voi
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Braivo's languages in a menu, each by its own name, the one spoken checked.
+ * `onFailureChange`: `true` when a choice fails, `false` when another is made.
+ */
+export function LanguageRadioGroup(props: { onFailureChange: (failed: boolean) => void }) {
+  const { i18n, t } = useLingui();
+  return (
+    <DropdownMenuRadioGroup
+      aria-label={t`Language`}
+      value={i18n.locale}
+      onValueChange={async (locale) => {
+        props.onFailureChange(false);
+        // The catalog is fetched on choosing it, and that can fail.
+        await chooseLanguage(locale as Locale).catch(() => props.onFailureChange(true));
+      }}
+    >
+      {LOCALES.map((locale) => (
+        <DropdownMenuRadioItem key={locale} value={locale} lang={locale}>
+          {LANGUAGE_NAMES[locale]}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
   );
 }

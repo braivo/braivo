@@ -14,7 +14,7 @@ import { pageHead } from "#lib/title";
 
 /**
  * Settings, as Linear has them: a page of their own, in place of the console's
- * header. Under the organization, the account's included, so the way back
+ * sidebar. Under the organization, the account's included, so the way back
  * leads to the page in it they were opened from.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings")({
@@ -35,9 +35,12 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings")({
   ),
 });
 
-/** A link in the navigation: 44px high, a touch target's least, marked while its page shows. */
+/**
+ * A link in the navigation, as the sidebar's: 32px high, 44px on a phone, a
+ * touch target's least; marked while its page shows.
+ */
 const navLink =
-  "flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground";
+  "flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:min-h-8";
 
 /** The pages, grouped as Linear's: the account's own, then the organization's. */
 const GROUPS = [
@@ -68,7 +71,7 @@ function Settings() {
   // from md, never overflows sideways, so nothing moves.
   const pages = useRef<HTMLDivElement>(null);
   const pathname = useLocation({ select: (location) => location.pathname });
-  // Opened from the account menu, whose trigger went with the header: focus,
+  // Opened from the account menu, whose trigger went with the sidebar: focus,
   // lost with it, goes to the page shown in the navigation.
   useLayoutEffect(() => {
     if (document.activeElement !== document.body) return;
@@ -121,18 +124,19 @@ function Settings() {
           <span className="wrap-anywhere">{t`Back to ${organizationName}`}</span>
         </a>
         {/* On a phone, one row scrolling sideways, the groups' headings for
-            screen readers alone, so the page starts near the top; from md, a
-            column down the side. */}
+            screen readers alone, so the page starts near the top, its padding
+            room for the focus ring it would clip; from md, a column down the
+            side. */}
         <div
           ref={pages}
-          className="-mx-3 mt-2 flex gap-1 overflow-x-auto px-3 md:mx-0 md:mt-0 md:block md:overflow-visible md:px-0"
+          className="-mx-3 mt-1 flex gap-1 overflow-x-auto px-3 py-1 md:mx-0 md:mt-0 md:block md:overflow-visible md:p-0"
         >
           {GROUPS.map((group) => (
             <Fragment key={group.heading.id}>
-              <h2 className="mt-4 mb-1 px-2 text-xs font-medium text-muted-foreground max-md:sr-only">
+              <h2 className="mt-4 mb-1 px-3 text-xs font-medium text-muted-foreground max-md:sr-only">
                 {i18n._(group.heading)}
               </h2>
-              <ul className="flex gap-1 md:block">
+              <ul className="flex gap-1 md:flex-col md:gap-0.5">
                 {group.pages.map((page) => (
                   <li key={page.to}>
                     <Link

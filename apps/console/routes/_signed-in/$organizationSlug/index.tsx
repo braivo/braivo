@@ -34,12 +34,6 @@ function Courses() {
 
   return (
     <>
-      {/* Where a course starts: the material it is written from. */}
-      <p className="mb-4">
-        <Link to="/$organizationSlug/sources" params={{ organizationSlug }} className="underline">
-          Sources
-        </Link>
-      </p>
       <Heading>Courses</Heading>
       <LearnersSite
         learnDomain={learnDomain}
@@ -70,7 +64,7 @@ function Courses() {
               <Link
                 to="/$organizationSlug/courses/$courseId"
                 params={{ organizationSlug, courseId: course.id }}
-                className="underline"
+                className="underline wrap-anywhere"
               >
                 {course.title}
               </Link>

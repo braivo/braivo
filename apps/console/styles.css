@@ -176,3 +176,26 @@
     visibility: hidden;
   }
 }
+
+/*
+ * An organization's sidebar, expanded on a wide screen: its rows' outer
+ * gutter 12px, not the 16px shadcn's padding stacks up from the container's
+ * and each region's. The rail (its own 16px either side of 32px controls) and
+ * a phone's drawer keep shadcn's. Unlayered, to win over its utilities.
+ */
+@media (width >= 48rem) {
+  [data-slot="sidebar"][data-state="expanded"]
+    :is([data-slot="sidebar-header"], [data-slot="sidebar-group"], [data-slot="sidebar-footer"]) {
+    padding-inline: --spacing(1);
+  }
+}
+
+/*
+ * One corner for the sidebar's controls and the settings' links: shadcn
+ * rounds those in its header and content a step more than its footer's,
+ * raising `--radius` there; inherited, they match. Unlayered, to win over
+ * its utility.
+ */
+:is([data-slot="sidebar-header"], [data-slot="sidebar-content"]) {
+  --radius: inherit;
+}

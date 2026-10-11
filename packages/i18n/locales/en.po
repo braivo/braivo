@@ -156,10 +156,18 @@ msgstr "Checking…"
 msgid "Choose one from the list."
 msgstr "Choose one from the list."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Close navigation"
+msgstr "Close navigation"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The sign-in code sent by email"
 msgid "Code"
 msgstr "Code"
+
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Collapse sidebar"
+msgstr "Collapse sidebar"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Console address"
@@ -269,6 +277,10 @@ msgstr "Could not sign in with Google. Try again, or sign in with a code."
 msgid "Could not sign out. Try again."
 msgstr "Could not sign out. Try again."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Courses"
+msgstr "Courses"
+
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Courses will appear here when they're available to you."
 msgstr "Courses will appear here when they're available to you."
@@ -370,6 +382,10 @@ msgstr "Enter your name."
 msgid "Enter your organization's name."
 msgstr "Enter your organization's name."
 
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Expand sidebar"
+msgstr "Expand sidebar"
+
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
 msgstr "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
@@ -440,6 +456,8 @@ msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you
 msgid "Keep it"
 msgstr "Keep it"
 
+#: apps/console/components/account-menu.tsx
+#: apps/console/components/language-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 msgid "Language"
 msgstr "Language"
@@ -521,6 +539,10 @@ msgctxt "person"
 msgid "Name"
 msgstr "Name"
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Navigation"
+msgstr "Navigation"
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgctxt "Why a question comes now"
 msgid "New"
@@ -567,6 +589,10 @@ msgstr "Nothing to practise right now"
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Open navigation"
+msgstr "Open navigation"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "Between two ways to sign in"
 msgid "or"
@@ -580,6 +606,10 @@ msgstr "Organization"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Organization name"
 msgstr "Organization name"
+
+#: apps/console/components/organization-switcher.tsx
+msgid "Organization: {name}"
+msgstr "Organization: {name}"
 
 #: apps/console/components/organization-switcher.tsx
 #: apps/console/routes/_signed-in/join.tsx
@@ -746,6 +776,10 @@ msgstr "Something went wrong."
 msgid "Something went wrong. Try again."
 msgstr "Something went wrong. Try again."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Sources"
+msgstr "Sources"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Status unknown"
 msgstr "Status unknown"
@@ -811,6 +845,10 @@ msgstr "The domain was saved, but setting it up failed. Add it again to retry."
 #: apps/console/components/sign-in-page.tsx
 msgid "The learning engine behind your courses"
 msgstr "The learning engine behind your courses"
+
+#: apps/console/components/organization-sidebar.tsx
+msgid "The organization's pages and your account."
+msgstr "The organization's pages and your account."
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx

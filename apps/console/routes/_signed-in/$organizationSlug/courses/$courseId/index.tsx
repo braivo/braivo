@@ -138,7 +138,7 @@ function Learners({ learners }: { learners: CourseProgressOverview["learners"] }
               <Link
                 to="/$organizationSlug/courses/$courseId/learners/$learnerId"
                 params={{ organizationSlug, courseId, learnerId: userId }}
-                className="underline"
+                className="underline wrap-anywhere"
               >
                 {name}
               </Link>

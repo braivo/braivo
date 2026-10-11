@@ -65,7 +65,7 @@ function Sources() {
               <Link
                 to="/$organizationSlug/sources/$sourceId"
                 params={{ organizationSlug, sourceId: source.id }}
-                className="underline"
+                className="underline wrap-anywhere"
               >
                 {source.title}
               </Link>

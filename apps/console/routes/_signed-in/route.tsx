@@ -2,14 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { requireSession } from "@braivo/auth-client";
+import { Button } from "@braivo/ui/components/button";
+import { ScrollArea } from "@braivo/ui/components/scroll-area";
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbSeparator,
-} from "@braivo/ui/components/breadcrumb";
-import { Trans } from "@lingui/react/macro";
+  SidebarInset,
+  SidebarMenuItem,
+  SidebarProvider,
+  useSidebar,
+} from "@braivo/ui/components/sidebar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@braivo/ui/components/tooltip";
+import { cn } from "@braivo/ui/lib/utils";
+import { Trans, useLingui } from "@lingui/react/macro";
 import {
   createFileRoute,
   Link,
@@ -19,12 +27,13 @@ import {
   useMatches,
   useRouter,
 } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { PanelLeftIcon } from "lucide-react";
+import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { AccountMenu } from "#components/account-menu";
 import { BraivoLogo } from "#components/braivo-logo";
 import { LanguageMenu } from "#components/language-menu";
-import { OrganizationSwitcher } from "#components/organization-switcher";
+import { OrganizationSidebar } from "#components/organization-sidebar";
 import { rememberAppPage } from "#lib/app-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -47,7 +56,7 @@ export const Route = createFileRoute("/_signed-in")({
   component: SignedIn,
 });
 
-/** The header's latest failure; its count keys the alert, so a repeat is announced too. */
+/** The latest failure of the header's or sidebar's menus; its count keys the alert, so a repeat is announced too. */
 type Failure = { action: "sign-out" | "language"; count: number };
 
 function SignedIn() {
@@ -67,14 +76,24 @@ function SignedIn() {
   const href = useLocation({ select: (location) => location.href });
   useEffect(() => rememberAppPage(href), [href]);
   // Left settings, whose navigation took the focus with it: it returns to
-  // the account menu, which opened them.
+  // the account menu, which opened them, or, in a phone's closed drawer, to
+  // what opens it.
   const accountMenu = useRef<HTMLButtonElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
   const wasInSettings = useRef(inSettings);
   useLayoutEffect(() => {
     const left = wasInSettings.current && !inSettings;
     wasInSettings.current = inSettings;
-    if (left && document.activeElement === document.body) accountMenu.current?.focus();
+    if (!left || document.activeElement !== document.body) return;
+    // On a phone, before the drawer replaces it, the menu is in a hidden
+    // sidebar, so focusing it fails.
+    accountMenu.current?.focus();
+    if (document.activeElement === document.body) toggle.current?.focus();
   }, [inSettings]);
+  // Expanded or collapsed, here, so that it holds across an organization's
+  // pages, other organizations', and a visit to settings, which replace the
+  // sidebar. Not kept across reloads.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [signingOut, setSigningOut] = useState(false);
   // Shown until its action is tried again or another fails.
@@ -104,89 +123,141 @@ function SignedIn() {
 
   if (inSettings) return <Outlet />;
 
+  const reportLanguage = (failed: boolean) =>
+    failed ? reportFailure("language") : clearFailure("language");
+  const accountMenuOf = (inSidebar: boolean) => (
+    <AccountMenu
+      ref={accountMenu}
+      inSidebar={inSidebar}
+      onLanguageFailureChange={inSidebar ? reportLanguage : undefined}
+      user={user}
+      organizationSlug={organization?.slug}
+      signingOut={signingOut}
+      onSignOut={signOut}
+    />
+  );
+  // Below the row, never in it (docs/apps.md).
+  const failed = failure && (
+    <p key={failure.count} role="alert" className="pb-2 text-right text-sm text-destructive">
+      {failure.action === "sign-out" ? (
+        <Trans>Could not sign out. Try again.</Trans>
+      ) : (
+        <Trans>Could not change the language. Try again.</Trans>
+      )}
+    </p>
+  );
+
+  // An organization's pages, in its sidebar; anywhere else (`/join`, a device
+  // code, an organization not found), a header.
+  if (organization) {
+    return (
+      <TooltipProvider>
+        {/* From md, as tall as the window, the page scrolling inside its
+            surface (`PAGE_SCROLLER`); on a phone, the document scrolls, as the
+            browser's bars and keyboard change its height. */}
+        <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="md:h-svh">
+          <OrganizationSidebar
+            organization={organization}
+            organizations={organizations}
+            maySetUp={maySetUp}
+            alert={failed}
+            toggle={toggle}
+            footer={<SidebarMenuItem>{accountMenuOf(true)}</SidebarMenuItem>}
+          />
+          {/* Collapsed, as close to the rail as on its other side: shadcn's
+              inset keeps a margin there the rail already leaves. */}
+          <SidebarInset className="min-w-0 md:min-h-0 md:overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
+            <header className="shrink-0 px-2 pt-2 sm:px-4">
+              <div className="flex items-center gap-2">
+                <SidebarToggle ref={toggle} />
+                <ShownOrganization name={organization.name} />
+              </div>
+              {failed}
+            </header>
+            {/* Radix lays the content out as a table (inline style), which
+                grows with its widest line, a long word or a list, past the
+                viewport, which clips it: as a block, it takes the viewport's
+                width and wraps. */}
+            <ScrollArea
+              data-page-scroller=""
+              className="md:min-h-0 md:flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!"
+            >
+              <div className="mx-auto w-full max-w-3xl p-6 pt-2">
+                <Outlet />
+              </div>
+            </ScrollArea>
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <>
       {/* Full width; its content 1120px at most. */}
       <header className="border-b bg-card text-card-foreground">
         <div className="mx-auto max-w-280 px-4 sm:px-6">
           <div className="flex min-h-16 items-center justify-between gap-4 py-2">
-            {/* The logo leads to `/`, the organization last opened. Growing, so
-                the organization's name wraps in all the room left. */}
-            <Breadcrumb className="min-w-0 flex-1">
-              <BreadcrumbList className="flex-nowrap">
-                <BreadcrumbItem className="shrink-0">
-                  <BreadcrumbLink asChild>
-                    {/* 44px, a touch target's least, as each link here. */}
-                    <Link to="/" className="flex min-h-11 min-w-11 items-center">
-                      {/* Beside an organization on a phone, the sparkle alone: its
-                          name needs the room. */}
-                      <BraivoLogo
-                        compactOnPhone={!!organization}
-                        className="text-2xl text-foreground"
-                      />
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {organization && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem className="min-w-0">
-                      <BreadcrumbLink asChild>
-                        <Link
-                          to="/$organizationSlug"
-                          params={{ organizationSlug: organization.slug }}
-                          className="flex min-h-11 min-w-11 items-center font-medium wrap-anywhere text-foreground"
-                        >
-                          {organization.name}
-                        </Link>
-                      </BreadcrumbLink>
-                      {(organizations.length > 1 || maySetUp) && (
-                        <OrganizationSwitcher
-                          current={organization}
-                          organizations={organizations}
-                          maySetUp={maySetUp}
-                        />
-                      )}
-                    </BreadcrumbItem>
-                  </>
-                )}
-              </BreadcrumbList>
-            </Breadcrumb>
+            {/* The logo leads to `/`, the organization last opened. 44px, a
+                touch target's least, as each control here. */}
+            <Link to="/" className="flex min-h-11 min-w-11 items-center">
+              <BraivoLogo className="text-2xl text-foreground" />
+            </Link>
             <div className="flex shrink-0 items-center gap-1">
-              <LanguageMenu
-                onFailureChange={(failed) =>
-                  failed ? reportFailure("language") : clearFailure("language")
-                }
-              />
-              <AccountMenu
-                ref={accountMenu}
-                user={user}
-                organizationSlug={organization?.slug}
-                signingOut={signingOut}
-                onSignOut={signOut}
-              />
+              <LanguageMenu onFailureChange={reportLanguage} />
+              {accountMenuOf(false)}
             </div>
           </div>
-          {/* Below the row, never in it (docs/apps.md). */}
-          {failure && (
-            <p
-              key={failure.count}
-              role="alert"
-              className="pb-2 text-right text-sm text-destructive"
-            >
-              {failure.action === "sign-out" ? (
-                <Trans>Could not sign out. Try again.</Trans>
-              ) : (
-                <Trans>Could not change the language. Try again.</Trans>
-              )}
-            </p>
-          )}
+          {failed}
         </div>
       </header>
       <main className="mx-auto w-full max-w-3xl p-6">
         <Outlet />
       </main>
     </>
+  );
+}
+
+/**
+ * Collapses the sidebar to its rail and expands it again; on a phone, opens
+ * its drawer. Named for what it does next, in place of shadcn's
+ * `SidebarTrigger`, whose name is English alone.
+ */
+function SidebarToggle({ ref }: { ref?: Ref<HTMLButtonElement> }) {
+  const { t } = useLingui();
+  const { isMobile, open, toggleSidebar } = useSidebar();
+  const label = isMobile ? t`Open navigation` : open ? t`Collapse sidebar` : t`Expand sidebar`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* 44px, a touch target's least. The provider's shortcut toggles it too. */}
+        <Button
+          ref={ref}
+          variant="ghost"
+          size="icon"
+          className="size-11"
+          aria-label={label}
+          aria-keyshortcuts={isMobile ? undefined : "Control+B Meta+B"}
+          onClick={toggleSidebar}
+        >
+          <PanelLeftIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The organization's name where the sidebar does not show it: on a phone,
+ * the drawer closed, and beside the rail. So whoever manages several sees
+ * which one they act on. Hidden beside the expanded sidebar by CSS, `md:`,
+ * not by `isMobile`, which is known only after the first render.
+ */
+function ShownOrganization({ name }: { name: string }) {
+  const { open } = useSidebar();
+  return (
+    <span className={cn("min-w-0 font-medium wrap-anywhere", open && "md:hidden")}>{name}</span>
   );
 }
 
