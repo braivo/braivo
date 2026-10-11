@@ -22,7 +22,7 @@ import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { CircleAlertIcon } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { CopyButton } from "#components/copy-button";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -31,9 +31,10 @@ import { pageHead } from "#lib/title";
 
 /**
  * The hostnames serving the organization's learn app, the primary one first
- * (white-label-9). Then those it added, waiting for their DNS records, which
- * each shows (white-label-10), and, where the installation can prove one, a
- * form to add another (ADR 0038).
+ * (white-label-9). Then those it added, not active yet, each with its DNS
+ * records (white-label-10); and, where the installation can prove one, a
+ * button activating each (white-label-11) and a form to add another
+ * (ADR 0038).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/domains")({
   // Another organization's domains are another page: nothing typed or pending carries over.
@@ -53,6 +54,13 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/dom
 
 function Domains() {
   const { domains, claims, canAdd } = Route.useLoaderData();
+  // The domain just activated, said below the list. Its claim's button gone,
+  // focus moves to its link.
+  const [activated, setActivated] = useState<string>();
+  const activatedLink = useRef<HTMLAnchorElement>(null);
+  useLayoutEffect(() => activatedLink.current?.focus(), [activated]);
+  // Named, so a translator sees `{domain}`, not `{activated}`.
+  const domain = activated;
 
   return (
     <>
@@ -84,6 +92,7 @@ function Domains() {
                 <ItemContent className="min-w-0">
                   <ItemTitle className="wrap-anywhere">
                     <a
+                      ref={hostname === activated ? activatedLink : undefined}
                       href={`https://${hostname}`}
                       target="_blank"
                       rel="noreferrer"
@@ -105,7 +114,12 @@ function Domains() {
           </ItemGroup>
         </>
       )}
-      {claims.length > 0 && <Claims claims={claims} canCheck={canAdd} />}
+      {/* Mounted before it says anything: a status region shown already filled
+          is not reliably announced. */}
+      <p role="status" className="mt-3 text-sm wrap-anywhere text-muted-foreground empty:mt-0">
+        {domain && <Trans>{domain} now serves your learners.</Trans>}
+      </p>
+      {claims.length > 0 && <Claims claims={claims} canCheck={canAdd} onActivated={setActivated} />}
       {canAdd && <AddDomain />}
     </>
   );
@@ -114,14 +128,15 @@ function Domains() {
 /** Domains added and not yet serving, each with the DNS records it waits for. */
 function Claims(props: {
   claims: DomainClaim[];
-  /** Whether the installation has a provisioner to ask about them. */
+  /** Whether the installation has a provisioner to ask: without one, they wait read-only. */
   canCheck: boolean;
+  onActivated: (hostname: string) => void;
 }) {
   const id = useId();
   return (
     <section aria-labelledby={id} className="mt-10">
       <Heading level={2} id={id}>
-        <Trans>Waiting for DNS</Trans>
+        <Trans>Not active yet</Trans>
       </Heading>
       <MutedText className="mb-4 block wrap-break-word">
         <Trans>
@@ -132,17 +147,72 @@ function Claims(props: {
       </MutedText>
       <ul className="flex flex-col gap-6">
         {props.claims.map((claim) => (
-          <Claim key={claim.hostname} claim={claim} canCheck={props.canCheck} />
+          <Claim
+            key={claim.hostname}
+            claim={claim}
+            canCheck={props.canCheck}
+            onActivated={props.onActivated}
+          />
         ))}
       </ul>
     </section>
   );
 }
 
-/** A domain waiting for its records, with where it stands. */
-function Claim(props: { claim: DomainClaim; canCheck: boolean }) {
+/**
+ * A domain not active yet, and its button activating it once the provisioner
+ * reports it ready: it then serves as the primary domain.
+ */
+function Claim(props: {
+  claim: DomainClaim;
+  canCheck: boolean;
+  onActivated: (hostname: string) => void;
+}) {
   const { hostname, status } = props.claim;
+  const { organization, braivo } = Route.useRouteContext();
+  const router = useRouter();
   const { t } = useLingui();
+  const [checking, setChecking] = useState(false);
+  /** The last failure; its count keys the alert, so a repeat is announced too. */
+  const [failure, setFailure] = useState<{ message: string; count: number }>();
+
+  async function activate() {
+    setChecking(true);
+    try {
+      await braivo.activateDomain(organization.id, hostname, {
+        signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+      });
+    } catch (thrown) {
+      setFailure((last) => ({ message: refusal(thrown), count: (last?.count ?? 0) + 1 }));
+      setChecking(false);
+      // Read again only for what it shows: its records as they stand, or the
+      // guard sending a signed-out owner to sign in. Not otherwise, which
+      // could take this claim, its alert, and the focused button away.
+      if (
+        thrown instanceof BraivoError &&
+        (thrown.code === "NOT_VERIFIED" || thrown.status === 401)
+      ) {
+        await router.invalidate();
+      }
+      return;
+    }
+    // Focus moves once the domain is listed (`sync`), its button gone with its claim.
+    await router.invalidate({ sync: true });
+    props.onActivated(hostname);
+  }
+
+  /** Why it is not serving yet, worded here from Braivo's code (ADR 0035). */
+  function refusal(thrown: unknown): string {
+    if (!(thrown instanceof BraivoError)) {
+      return t`Could not connect. Check your connection and try again.`;
+    }
+    if (thrown.status === 401) return t`You were signed out. Sign in again.`;
+    if (thrown.code === "NOT_VERIFIED") {
+      return t`It is not ready yet: its records can take a few minutes to be found, and its certificate to be issued. Try again then.`;
+    }
+    if (thrown.status === 404) return t`It changed meanwhile. Reload the page to see it as it is.`;
+    return t`Could not check the domain. Try again.`;
+  }
 
   return (
     <li className="rounded-lg border p-4">
@@ -164,7 +234,7 @@ function Claim(props: { claim: DomainClaim; canCheck: boolean }) {
       {status === null ? (
         <MutedText className="block wrap-break-word">
           {props.canCheck ? (
-            <Trans>Could not check this domain just now. Reload the page in a moment.</Trans>
+            <Trans>Could not check this domain just now. Try again in a moment.</Trans>
           ) : (
             <Trans>
               This installation cannot check domains. Ask whoever set Braivo up for you to finish
@@ -208,10 +278,31 @@ function Claim(props: { claim: DomainClaim; canCheck: boolean }) {
           </TableBody>
         </Table>
       )}
-      {status?.ready && (
-        <MutedText className="mt-3 block wrap-break-word">
-          <Trans>Its records are verified, but learners cannot use it yet.</Trans>
-        </MutedText>
+      {props.canCheck && (
+        <Button
+          className="mt-4"
+          variant={status?.ready ? "default" : "outline"}
+          aria-disabled={checking}
+          onClick={() => !checking && activate()}
+        >
+          {checking ? (
+            <>
+              {/* Hidden: "Checking…" already says it. */}
+              <Spinner data-icon="inline-start" aria-hidden="true" />
+              <Trans>Checking…</Trans>
+            </>
+          ) : status?.ready ? (
+            <Trans>Activate</Trans>
+          ) : (
+            <Trans>Check and activate</Trans>
+          )}
+        </Button>
+      )}
+      {failure && (
+        <Alert key={failure.count} variant="destructive" className="mt-4">
+          <CircleAlertIcon />
+          <AlertDescription>{failure.message}</AlertDescription>
+        </Alert>
       )}
     </li>
   );

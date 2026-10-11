@@ -548,7 +548,7 @@ describe("the console", () => {
         },
       });
 
-      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
       const [learn, study] = within(waiting).getAllByRole("listitem");
       expect(within(learn!).getByRole("heading", { name: "learn.example.com" })).toBeTruthy();
       expect(within(learn!).getByText("Pending")).toBeTruthy();
@@ -575,7 +575,7 @@ describe("the console", () => {
           }),
         },
       });
-      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
       expect(within(waiting).getByText("Its records are not available yet.")).toBeTruthy();
       expect(within(waiting).queryByRole("table")).toBeNull();
     });
@@ -598,7 +598,7 @@ describe("the console", () => {
         },
       });
 
-      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
       fireEvent.click(within(waiting).getByRole("button", { name: "Copy TXT value" }));
       // Its name kept, so each record's button stays told apart; the copy announced instead.
       await vi.waitFor(() =>
@@ -633,7 +633,7 @@ describe("the console", () => {
         "learn.example.com",
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
-      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
       expect(within(waiting).getByText("domains.braivo.app")).toBeTruthy();
       expect(screen.getByLabelText<HTMLInputElement>("Domain").value).toBe("");
     });
@@ -706,9 +706,100 @@ describe("the console", () => {
         },
       });
 
-      const waiting = await screen.findByRole("region", { name: "Waiting for DNS" });
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
       expect(within(waiting).getByText(/This installation cannot check domains/)).toBeTruthy();
       expect(within(waiting).queryByRole("button")).toBeNull();
+    });
+
+    test("activate a verified domain, then list it first, saying so, its link focused", async () => {
+      const verified = {
+        ...pendingClaim("learn.example.com"),
+        status: { ready: true, records: [] },
+      };
+      let activated = false;
+      // The list read again after activating answers late: focus waits for it.
+      const reread = Promise.withResolvers<void>();
+      const braivo = {
+        listDomains: vi.fn(async () => {
+          if (!activated) {
+            return {
+              domains: [{ hostname: "example.braivo.app" }],
+              claims: [verified],
+              canAdd: true,
+            };
+          }
+          await reread.promise;
+          return {
+            domains: [{ hostname: "learn.example.com" }, { hostname: "example.braivo.app" }],
+            claims: [],
+            canAdd: true,
+          };
+        }),
+        activateDomain: vi.fn(async () => {
+          activated = true;
+        }),
+      };
+      renderAt("/example/settings/domains", { braivo });
+
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
+      expect(within(waiting).getByText("Verified")).toBeTruthy();
+      // The page's own, outside the sections, mounted empty.
+      const status = screen.getAllByRole("status").find((region) => !region.closest("section"));
+      expect(status?.textContent).toBe("");
+      fireEvent.click(within(waiting).getByRole("button", { name: "Activate" }));
+      await vi.waitFor(() => expect(braivo.listDomains).toHaveBeenCalledTimes(2));
+      expect(status?.textContent).toBe("");
+      reread.resolve();
+
+      await vi.waitFor(() =>
+        expect(status?.textContent).toBe("learn.example.com now serves your learners."),
+      );
+      expect(braivo.activateDomain).toHaveBeenCalledWith(
+        "org-1",
+        "learn.example.com",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      const [primary] = within(
+        within(screen.getByRole("main")).getAllByRole("list")[0]!,
+      ).getAllByRole("listitem");
+      expect(within(primary!).getByText("Primary")).toBeTruthy();
+      expect(document.activeElement).toBe(
+        within(primary!).getByRole("link", { name: "learn.example.com" }),
+      );
+      expect(screen.queryByRole("region", { name: "Not active yet" })).toBeNull();
+    });
+
+    test("say a domain is not ready yet, in a new alert each check, locked while checking", async () => {
+      const checked = Promise.withResolvers<void>();
+      const braivo = {
+        listDomains: vi.fn(async () => ({
+          domains: [],
+          claims: [pendingClaim("learn.example.com")],
+          canAdd: true,
+        })),
+        activateDomain: vi
+          .fn()
+          .mockReturnValueOnce(checked.promise)
+          .mockRejectedValueOnce(new BraivoError(409, "not yet", undefined, "NOT_VERIFIED")),
+      };
+      renderAt("/example/settings/domains", { braivo });
+
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
+      fireEvent.click(within(waiting).getByRole("button", { name: "Check and activate" }));
+      const locked = within(waiting).getByRole("button", { name: /^Checking/ });
+      expect(locked.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(locked);
+      expect(braivo.activateDomain).toHaveBeenCalledOnce();
+
+      checked.reject(new BraivoError(409, "not yet", undefined, "NOT_VERIFIED"));
+      const said =
+        "It is not ready yet: its records can take a few minutes to be found, and its certificate to be issued. Try again then.";
+      await vi.waitFor(() => expect(within(waiting).getByRole("alert").textContent).toBe(said));
+      const first = within(waiting).getByRole("alert");
+
+      fireEvent.click(within(waiting).getByRole("button", { name: "Check and activate" }));
+      await vi.waitFor(() => expect(within(waiting).getByRole("alert")).not.toBe(first));
+      expect(within(waiting).getByRole("alert").textContent).toBe(said);
     });
 
     test("carry nothing of a pending add over to another organization's domains", async () => {

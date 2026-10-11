@@ -430,6 +430,14 @@
 // (`ALREADY_ADDED`); 502 `PROVISIONING_FAILED`, the claim kept, which
 // claiming again retries; 501 where the installation has no provisioner.
 //
+// `POST /api/organizations/:organizationId/domains/:hostname/activate`, a JSON
+// write — makes a claimed hostname serve the learn app, as the organization's
+// primary domain, once the provisioner reports it ready: 204, also for one
+// serving it already, left as it is. 409 `{ "error", "code": "NOT_VERIFIED",
+// "status" }` while not ready, `status` as listed above; 404 for a
+// hostname the organization has not claimed, or whose claim expired; 502
+// `PROVISIONING_FAILED`; 501 where the installation has no provisioner.
+//
 // `POST /api/organizations/:organizationId/sources` — adds material a content
 // owner provides, as text:
 //

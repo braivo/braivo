@@ -5,10 +5,12 @@ import type { Database } from "@braivo/db";
 
 import { describeError } from "../logging.ts";
 import {
+  activateDomainClaim,
   type HostnameHolder,
   insertDomainClaim,
   insertLearnDomain,
   type Organization,
+  readDomainClaim,
   readDomainClaims,
   readDomains,
   readOrganizationBySlug,
@@ -115,6 +117,7 @@ export class DomainRefused extends Error {
       | "DOMAIN_RESERVED"
       | "DOMAIN_TAKEN"
       | "ALREADY_ADDED"
+      | "NOT_CLAIMED"
       | "NO_ORGANIZATION",
     message: string,
   ) {
@@ -229,10 +232,10 @@ function taken(hostname: string, { organization, holds }: HostnameHolder): Domai
  * the provisioner to serve it once proven (ADR 0038), answering where it
  * stands, the DNS records to create included. Claiming it again, as a retry
  * does, asks again; one expired is replaced, proven afresh. The claim serves
- * nothing. Refused: no provisioner (the caller's to say), a malformed
- * hostname, the installation's own or one under its self-serve domain, and
- * one any organization holds, this one serving it included. A provisioner
- * failing keeps the claim.
+ * nothing until activated. Refused: no provisioner (the caller's to say), a
+ * malformed hostname, the installation's own or one under its self-serve
+ * domain, and one any organization holds, this one serving it included. A
+ * provisioner failing keeps the claim.
  */
 export async function claimDomain(input: {
   database: Database;
@@ -274,4 +277,55 @@ export async function claimDomain(input: {
   } catch (error) {
     throw new ProvisioningFailed({ cause: error });
   }
+}
+
+/**
+ * Activates an organization's claim to `hostname`, by its `owner` or `admin`,
+ * once the provisioner reports it ready (ADR 0038): it serves the learn app
+ * from then on, as its primary domain. Answers `active`, also for a hostname
+ * that serves the organization already, left as it is, so a retry succeeds;
+ * or, not ready, where it stands. Only its own claim is asked about, so no
+ * organization learns where another's stands.
+ */
+export async function activateDomain(input: {
+  database: Database;
+  provisioner: DomainProvisioner;
+  organizationId: string;
+  actingAs: string;
+  hostname: string;
+}): Promise<{ active: true } | { active: false; status: DomainStatus }> {
+  const { database, provisioner, organizationId } = input;
+  await assertMayAdminister(database, { organizationId, userId: input.actingAs });
+  const hostname = readLearnHostname(input.hostname);
+  const notClaimed = new DomainRefused(
+    "NOT_CLAIMED",
+    `This organization has not claimed ${hostname}.`,
+  );
+
+  // The claim first, then, without it, the domains: activating removes one
+  // and adds the other at once, so read in this order no activation made
+  // meanwhile is missed, as reading both at once could.
+  const claim = await readDomainClaim(database, { hostname, organizationId });
+  if (!claim) {
+    const domains = await readDomains(database, organizationId);
+    if (domains.some((domain) => domain.hostname === hostname)) return { active: true };
+    throw notClaimed;
+  }
+
+  let status: DomainStatus;
+  try {
+    status = await provisioner.status(hostname, claim.id);
+  } catch (error) {
+    throw new ProvisioningFailed({ cause: error });
+  }
+  if (!status.ready) return { active: false, status };
+  // Only the claim this proof is for: one gone since, expired or replaced by
+  // the operator's registration, is not activated by it; the lock decides.
+  const activated = await activateDomainClaim(database, {
+    hostname,
+    organizationId,
+    claimId: claim.id,
+  });
+  if (activated === "unclaimed") throw notClaimed;
+  return { active: true };
 }

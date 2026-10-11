@@ -134,6 +134,24 @@ export async function readDomainClaims(
     .orderBy(desc(organizationDomainClaim.claimedAt), desc(organizationDomainClaim.hostname));
 }
 
+/** An organization's unexpired claim to a hostname, by its ID, or `undefined` without one. */
+export async function readDomainClaim(
+  database: Database,
+  input: { hostname: string; organizationId: string },
+): Promise<{ id: number } | undefined> {
+  const [claim] = await database
+    .select({ id: organizationDomainClaim.id })
+    .from(organizationDomainClaim)
+    .where(
+      and(
+        eq(organizationDomainClaim.hostname, input.hostname),
+        eq(organizationDomainClaim.organizationId, input.organizationId),
+        unexpired,
+      ),
+    );
+  return claim;
+}
+
 /**
  * Claims a hostname for an organization, answering the new claim's ID, or
  * who held it instead, this one's own claim included.
@@ -152,5 +170,30 @@ export async function insertDomainClaim(
       .returning({ id: organizationDomainClaim.id });
     if (!claim) throw new Error(`Claiming ${input.hostname} stored nothing.`);
     return { claimId: claim.id };
+  });
+}
+
+/**
+ * Turns an organization's claim `claimId` to a hostname into a domain serving
+ * it, the newest, so the one its learn domain is named by (ADR 0038). The
+ * caller has proven that claim: a proof never passes to another made since.
+ * Answers `"activated"`, `"active"` when it serves the organization already,
+ * or `"unclaimed"` when that claim is gone, expired or replaced meanwhile.
+ */
+export async function activateDomainClaim(
+  database: Database,
+  input: { hostname: string; organizationId: string; claimId: number },
+): Promise<"activated" | "active" | "unclaimed"> {
+  const { hostname, organizationId, claimId } = input;
+  return database.transaction(async (transaction) => {
+    const holder = await lockHostname(transaction, hostname);
+    if (holder?.organization.id !== organizationId) return "unclaimed";
+    if (holder.holds === "domain") return "active";
+    if (holder.claimId !== claimId) return "unclaimed";
+    await transaction
+      .delete(organizationDomainClaim)
+      .where(eq(organizationDomainClaim.id, claimId));
+    await transaction.insert(organizationDomain).values({ hostname, organizationId });
+    return "activated";
   });
 }
