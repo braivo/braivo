@@ -31,6 +31,7 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 | `/consent`                                                    | Approving an AI app's remote MCP connection, by Better Auth's signed request                  |
 | `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                    |
 | `/login`                                                      | Sign-in ([access](access.md))                                                                 |
+| `/<slug>/settings/<page>`                                     | The organization's settings: `account` and `preferences` (access-36), `members` (access-26)   |
 
 - **white-label-8:** A slug is lowercase letters, digits, and single hyphens, at most 63 characters, and none of the reserved `api`, `assets`, `consent`, `device`, `invitations`, `login`, and `organizations`, which `/<slug>` would shadow; every root-level console route is reserved. An organization is never created with a malformed or reserved slug, and its slug never changes: an update naming a different one is refused, the current one resent accepted. `apps/server/auth/slug.test.ts`, `apps/server/auth/auth.test.ts`
 
