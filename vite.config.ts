@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { lingui } from "@lingui/vite-plugin";
-import { defineConfig } from "vite-plus";
+import { configDefaults, defineConfig } from "vite-plus";
+import { playwright } from "vite-plus/test/browser-playwright";
 
 /** What the shadcn CLI generates into `packages/ui` (ADR 0011, ADR 0012). */
 const shadcnOutput = [
@@ -34,6 +35,9 @@ const bunOnly = [
   "**/*.test.ts",
 ];
 
+/** Tests that need a real browser (docs/apps.md), left out of the happy-dom projects. */
+const inBrowser = "**/*.browser.test.tsx";
+
 /**
  * For a test project rendering marked copy (ADR 0035): its macros compiled and
  * catalogs loaded as in the apps, and English active.
@@ -44,6 +48,7 @@ const localized = (name: string, root: string) => ({
     name,
     root,
     environment: "happy-dom",
+    exclude: [...configDefaults.exclude, inBrowser],
     setupFiles: ["../../packages/i18n/test-setup.ts"],
   },
 });
@@ -171,6 +176,23 @@ export default defineConfig({
       { test: { name: "tooling", root: "tooling" } },
       localized("i18n", "packages/i18n"),
       localized("ui", "packages/ui"),
+      {
+        plugins: [lingui({ macroTransform: true })],
+        test: {
+          name: "ui-browser",
+          root: "packages/ui",
+          include: [inBrowser],
+          setupFiles: ["../../packages/i18n/test-setup.ts"],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            // No files left behind in the tree.
+            screenshotFailures: false,
+            instances: [{ browser: "chromium" }],
+          },
+        },
+      },
       localized("auth-client", "packages/auth-client"),
       localized("learn", "apps/learn"),
       localized("console", "apps/console"),

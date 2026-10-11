@@ -52,6 +52,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      # The browser tests' Chromium (`*.browser.test.tsx`), with the libraries it needs.
+      - run: bunx playwright install --with-deps --only-shell chromium
       - run: bun run test
 
   # Every app builds: a translation missing or malformed fails it (ADR 0035), as
