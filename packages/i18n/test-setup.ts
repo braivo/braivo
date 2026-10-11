@@ -7,3 +7,7 @@
 import { activateLocale } from "./index.tsx";
 
 await activateLocale("en");
+
+// Compiled here, once per project, not in the first test choosing Polish,
+// whose 5-second limit the compile spent under a full run's load.
+await import("./locales/pl.po");
