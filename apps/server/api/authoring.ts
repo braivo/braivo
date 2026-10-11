@@ -20,6 +20,7 @@ import {
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
+  maySetUpOrganization,
   NameRefused,
   ProvisioningFailed,
   readAuthoredCourse,
@@ -34,6 +35,7 @@ import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import { type Guards, jsonBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
+import type { OrganizationSetup } from "./types.ts";
 
 /**
  * Reads evidence out of a request body, or nothing when the body is not
@@ -245,12 +247,16 @@ export function authoringRoutes(
     baseUrl,
     selfServeDomain,
     domains: provisioner,
+    dataRegion,
+    otherRegions = [],
   }: {
     auth: Auth;
     database: Database;
     baseUrl: string;
     selfServeDomain?: string;
     domains?: DomainProvisioner;
+    dataRegion?: string;
+    otherRegions?: OrganizationSetup["otherRegions"];
   },
 ) {
   const routes = new Hono();
@@ -410,10 +416,18 @@ export function authoringRoutes(
 
   /**
    * Where an organization set up here would be served, for the console to
-   * offer setting one up: `null` where the operator creates them (ADR 0018).
+   * offer setting one up: `null` where the operator creates them (ADR 0018);
+   * whether this account may now, owning none; and its data regions (ADR 0040).
    */
-  routes.get("/api/organization-setup", requireAccount, (context) =>
-    context.json({ domain: selfServeDomain ?? null }),
+  routes.get("/api/organization-setup", requireAccount, async (context) =>
+    context.json({
+      domain: selfServeDomain ?? null,
+      maySetUp:
+        selfServeDomain !== undefined &&
+        (await maySetUpOrganization({ database, actingAs: context.var.userId })),
+      dataRegion: dataRegion ?? null,
+      otherRegions,
+    }),
   );
 
   /** Sets up an organization the session's user owns (ADR 0018). */

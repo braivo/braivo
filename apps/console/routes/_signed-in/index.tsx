@@ -3,21 +3,19 @@
 
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { lastOrganization } from "#lib/last-organization";
+import { organizationToOpen } from "#lib/last-organization";
 
 /**
  * Where `/` sends a signed-in owner (ADR 0004): the organization last opened
- * here, else the only one they manage, else `/organizations`.
+ * here, else the first they manage, else `/join`.
  */
 export const Route = createFileRoute("/_signed-in/")({
-  beforeLoad: async ({ context }) => {
-    const organizations = await context.braivo.listOrganizations();
-
-    const last = lastOrganization();
-    const organization =
-      organizations.find(({ id }) => id === last) ??
-      (organizations.length === 1 ? organizations[0] : undefined);
-    if (!organization) throw redirect({ to: "/organizations" });
+  beforeLoad: async ({ context, abortController }) => {
+    const organizations = await context.braivo.listOrganizations({
+      signal: abortController.signal,
+    });
+    const organization = organizationToOpen(organizations);
+    if (!organization) throw redirect({ to: "/join" });
     throw redirect({ to: "/$organizationSlug", params: { organizationSlug: organization.slug } });
   },
 });

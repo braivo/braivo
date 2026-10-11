@@ -7,14 +7,14 @@ import { slugProblem } from "./slug.ts";
 
 describe("slugProblem", () => {
   // `signup` among them: an emailed code makes accounts, so no route takes it (ADR 0018).
-  test.each(["acme", "italian-a1", "2026-cohort", "signup", "a".repeat(63)])(
+  test.each(["acme", "italian-a1", "2026-cohort", "signup", "organizations", "a".repeat(63)])(
     "allows %s",
     (slug) => {
       expect(slugProblem(slug)).toBeUndefined();
     },
   );
 
-  test.each(["api", "assets", "invitations", "login", "organizations"])(
+  test.each(["api", "assets", "invitations", "join", "login"])(
     "refuses the reserved %s",
     (slug) => {
       expect(slugProblem(slug)).toContain("reserved");

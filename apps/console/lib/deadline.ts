@@ -7,7 +7,10 @@
 /** Signing in and out, and a page an action waits to reload. */
 export const REQUEST_DEADLINE_MS = 10_000;
 
-/** Whether Google is offered: short, since codes alone still sign in. */
+/**
+ * A read the page works without, as whether Google is offered (codes alone
+ * still sign in): short.
+ */
 export const OPTIONAL_READ_DEADLINE_MS = 3_000;
 
 /** `signal`, also aborted after `ms`; a timer, which test fake timers advance. */

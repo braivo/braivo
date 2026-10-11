@@ -35,7 +35,16 @@ export type ServerConfig = {
    * at `<slug>.<selfServeDomain>`, or none: the operator creates every one (ADR 0018).
    */
   selfServeDomain?: string;
+  /**
+   * Where the installation stores its data, a region code (`EU`), offered at
+   * setup with `otherRegions`, each another installation (ADR 0040); or unsaid.
+   */
+  dataRegion?: string;
+  otherRegions?: OtherRegion[];
 };
+
+/** Another region's installation, setting up at `setupUrl`, or `null` not yet open. */
+export type OtherRegion = { region: string; setupUrl: string | null };
 
 export type Legal = { privacy: string; terms: string };
 
@@ -86,7 +95,9 @@ type VariableName =
   | "GOOGLE_CLIENT_SECRET"
   | "BRAIVO_PRIVACY_URL"
   | "BRAIVO_TERMS_URL"
-  | "BRAIVO_SELF_SERVE_DOMAIN";
+  | "BRAIVO_SELF_SERVE_DOMAIN"
+  | "BRAIVO_DATA_REGION"
+  | "BRAIVO_OTHER_REGIONS";
 
 /**
  * A Worker's `env`, bindings beside the variables, or `process.env`, which
@@ -127,6 +138,7 @@ export function readServerConfig(environment: Environment): ServerConfig {
     ...readGoogle(environment),
     ...readLegal(environment),
     ...selfServe,
+    ...readRegions(environment, selfServe.selfServeDomain !== undefined),
   };
 }
 
@@ -290,6 +302,69 @@ function readSelfServeDomain(environment: Environment): { selfServeDomain?: stri
     );
   }
   return { selfServeDomain: value };
+}
+
+const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region", fallback: "none" });
+
+/**
+ * A place's two-letter code CLDR names, uppercased, as `DE`, `EU`, or `US`;
+ * not one ISO 3166 leaves to private use (`AA`, `QM`–`QZ`, `XA`–`XZ`, `ZZ`,
+ * "Unknown Region"), which names no place.
+ */
+function parseRegion(value: string): string | undefined {
+  const region = value.trim().toUpperCase();
+  const privateUse = /^(?:AA|Q[M-Z]|X[A-Z]|ZZ)$/.test(region);
+  return /^[A-Z]{2}$/.test(region) && !privateUse && REGION_NAMES.of(region) !== undefined
+    ? region
+    : undefined;
+}
+
+/**
+ * `BRAIVO_DATA_REGION`, this installation's, and `BRAIVO_OTHER_REGIONS`,
+ * comma-separated: `US` not yet open, `US=https://us.example` the origin of
+ * the installation serving it. Unset or blank leaves both unsaid; others need
+ * this installation's own, and both self-serve setup, where they show.
+ */
+function readRegions(
+  environment: Environment,
+  selfServe: boolean,
+): {
+  dataRegion?: string;
+  otherRegions?: OtherRegion[];
+} {
+  const own = environment.BRAIVO_DATA_REGION?.trim() ?? "";
+  const others = environment.BRAIVO_OTHER_REGIONS?.trim() ?? "";
+  if (own === "") {
+    if (others !== "") throw new Error("BRAIVO_OTHER_REGIONS needs BRAIVO_DATA_REGION.");
+    return {};
+  }
+  // Setup is where regions show; without it, setting them would do nothing.
+  if (!selfServe) throw new Error("BRAIVO_DATA_REGION needs BRAIVO_SELF_SERVE_DOMAIN.");
+  const dataRegion = parseRegion(own);
+  if (dataRegion === undefined) {
+    throw new Error(`BRAIVO_DATA_REGION must be a region code such as EU or US, got "${own}".`);
+  }
+  if (others === "") return { dataRegion };
+
+  const seen = new Set([dataRegion]);
+  const otherRegions = others.split(",").map((entry): OtherRegion => {
+    const [code = "", url] = entry.split(/=(.*)/s, 2);
+    const region = parseRegion(code);
+    if (region === undefined || seen.has(region)) {
+      throw new Error(
+        `BRAIVO_OTHER_REGIONS lists region codes other than BRAIVO_DATA_REGION's, each once, got "${entry.trim()}".`,
+      );
+    }
+    seen.add(region);
+    if (url === undefined) return { region, setupUrl: null };
+    const origin = new URL(readUrl({ BRAIVO_OTHER_REGIONS: url.trim() }, "BRAIVO_OTHER_REGIONS"));
+    // People sign in there: plain HTTP only where nobody else can listen.
+    if (origin.protocol !== "https:" && !LOOPBACK.has(origin.hostname)) {
+      throw new Error(`BRAIVO_OTHER_REGIONS needs https://, got "${url.trim()}".`);
+    }
+    return { region, setupUrl: new URL("/join", origin).href };
+  });
+  return { dataRegion, otherRegions };
 }
 
 /**

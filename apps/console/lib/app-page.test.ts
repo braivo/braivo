@@ -21,7 +21,7 @@ test.each([
   ["nothing remembered", undefined],
   ["another organization's page", "/annex/sources"],
   ["one whose slug merely starts the same", "/example-two/sources"],
-  ["a page outside any organization", "/organizations"],
+  ["a page outside any organization", "/join"],
 ])("opens the organization's home for %s", (_case, href) => {
   if (href) rememberAppPage(href);
   expect(appPageToReturnTo("example")).toBe("/example");

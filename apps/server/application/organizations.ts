@@ -30,6 +30,22 @@ export async function listManagedOrganizations(input: {
   return memberships.filter(({ roles }) => administers(roles)).map((m) => m.organization);
 }
 
+/** The organizations someone owns: self-serve allows one. */
+async function ownedOrganizations(database: Database, userId: string) {
+  return (await readMemberships(database, userId)).filter(({ roles }) => roles.includes("owner"));
+}
+
+/**
+ * Whether someone may set up an organization (ADR 0018): owning none. An
+ * `admin` or `member` elsewhere may; administering is not owning.
+ */
+export async function maySetUpOrganization(input: {
+  database: Database;
+  actingAs: string;
+}): Promise<boolean> {
+  return (await ownedOrganizations(input.database, input.actingAs)).length === 0;
+}
+
 /**
  * Every member of an organization, for whoever administers it. A learner may
  * not list the others: membership is not a directory of classmates.
@@ -148,8 +164,7 @@ export async function setUpOrganization(input: {
     throw error;
   }
 
-  const owns = async () =>
-    (await readMemberships(database, actingAs)).filter(({ roles }) => roles.includes("owner"));
+  const owns = () => ownedOrganizations(database, actingAs);
   if ((await owns()).length > 0) throw alreadyOwns;
   if (
     hostname === new URL(input.baseUrl).hostname ||

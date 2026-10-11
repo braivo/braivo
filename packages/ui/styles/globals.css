@@ -249,6 +249,7 @@
 [data-touch]
   :is(
     [data-slot="input"],
+    [data-slot="native-select"],
     [data-slot="input-group"]:not(:has(> textarea)),
     [data-slot="button"]:not([data-variant="link"], [data-slot="input-group"] *)
   ) {
@@ -257,6 +258,11 @@
 
 [data-touch] [data-slot="input"] {
   @apply px-3.5;
+}
+
+/* Its text at the inputs' inset; its end kept clear for the chevron. */
+[data-touch] [data-slot="native-select"] {
+  @apply ps-3.5;
 }
 
 /*

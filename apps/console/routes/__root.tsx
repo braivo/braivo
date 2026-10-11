@@ -27,7 +27,7 @@ export const Route = createRootRouteWithContext<AppContext>()({
       </EmptyHeader>
       <EmptyContent>
         <Button asChild variant="outline">
-          <Link to="/organizations">Organizations</Link>
+          <Link to="/">Go home</Link>
         </Button>
       </EmptyContent>
     </Empty>

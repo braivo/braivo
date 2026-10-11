@@ -1,6 +1,6 @@
 # 0004: Application origins and organization addressing
 
-Status: accepted (2026-09-16), amended (2026-10-11: several learn domains per organization; organizations add their own, ADR 0038), partly implemented (2026-09-25; see Consequences)
+Status: accepted (2026-09-16), amended (2026-10-11: several learn domains per organization; organizations add their own, ADR 0038; `/join`, and a menu switching organizations instead of a page), partly implemented (2026-09-25; see Consequences)
 
 ## Context
 
@@ -19,7 +19,7 @@ Both applications write through Braivo's API, and the console through Better Aut
 /login                           signing in (ADR 0018)
 /invitations/<invitation>        accepting an invitation (ADR 0018)
 /device                          approving a content owner's tool (ADR 0022)
-/organizations                   the organizations someone manages
+/join                            setting up an organization, or, managing none, where to go
 /<organization>                  the organization's console
 /<organization>/courses/<course>
 /<organization>/learners, …/settings
@@ -27,7 +27,7 @@ Both applications write through Braivo's API, and the console through Better Aut
 
 - **The request names the organization, never the session**: the path here, the hostname on a learn domain, with access checked as [ADR 0006](0006-better-auth.md) requires. Better Auth's active organization is unused; opening an organization writes nothing.
 - **The host is a ceiling.** On an organization's domain the API answers another organization's course with 404, even to someone entitled to it, so no domain shows another's material under its brand; on a host that is neither an organization's nor the installation's, it reaches no course, and removing a domain's row revokes what it reaches.
-- **Signed in, `/` returns to the organization last opened in that browser** — remembered by ID, opened at its current slug, and only while they still manage it — else their only one, else `/organizations`. That page lists the organizations they manage; managing none, it says learners use the learning site their school provides. Organizations are created by the operator ([ADR 0018](0018-sign-in-and-invitations.md)). The last one opened is a browser preference, not session state: switching writes nothing, and a remembered ID grants nothing.
+- **Signed in, `/` returns to the organization last opened in that browser** — remembered by ID, opened at its current slug, and only while they still manage it — else the first they manage by name, else `/join`, which says learners use the learning site their school provides and, where the installation allows it, sets one up for whoever owns none ([ADR 0018](0018-sign-in-and-invitations.md)); otherwise the operator creates them. The organizations someone manages are a menu in the header, beside the one shown, not a page: switching is the only thing a list of them is for. It also leads an `admin` who owns none to `/join`. The last one opened is a browser preference, not session state: switching writes nothing, and a remembered ID grants nothing.
 - **The console's organizations are those someone manages**, as `owner` or `admin` (`GET /api/organizations`). A school someone only studies at, as a `member`, is not one of them.
 - **"Organization" is the one name** in code, docs, and UI. ("Workspace" means the Vite+ workspace here.)
 - **A slug has one spelling, and an `owner` or `admin` may change it.** Lowercase letters, digits, and single hyphens, at most 63 characters, checked wherever a slug is set. Before a change the console warns that existing links break and that the old slug is free for another organization to take. No redirects, aliases, or slug history until someone needs them. A slug change does not touch the learn domain.
@@ -46,6 +46,7 @@ Both applications write through Braivo's API, and the console through Better Aut
 - **Marketing on the bare domain, beside the application**, as Linear and GitHub do (replaced). Every marketing page would be held to the application's script policy — strict CSP, reviewed third-party scripts only, no tag manager — which Braivo's marketing needs to break, and every marketing page would be a reserved slug, tying this public repository to the private site.
 - **`console.braivo.app`.** A subdomain for Braivo's only application, lengthening every address.
 - **`braivo.app/console/<organization>`**, or **`braivo.app/organizations/<organization>`** (replaced). A segment that says nothing on every shared address; the reserved list it avoids is a small price.
+- **A page listing the organizations someone manages** (replaced). A page whose only use is leaving it; the header's menu switches from wherever someone is.
 - **`learn.braivo.app`.** Learners belong on their content owner's domain, under its brand.
 - **The last organization in the session**, as Better Auth's active organization: a server write on every switch, racing between tabs, for a browser preference.
 - **The organization from the session alone.** URLs could not be shared, and two tabs could not show two organizations.
@@ -58,9 +59,9 @@ Both applications write through Braivo's API, and the console through Better Aut
 - `braivo.app`'s script policy is the application's alone.
 - Changing a slug breaks bookmarks and shared links, knowingly; redirects get built when an organization needs its old links kept.
 - Done in this repository:
-  - the console at `/`, with `/$organizationSlug` routes, `/login`, `/organizations`, and `/` as above;
+  - the console at `/`, with `/$organizationSlug` routes, `/login`, `/join`, and `/` as above;
   - the learn app resolves its organization from its host (`GET /api/organization`) and presents itself under its name;
-  - `/organizations` listing only what someone manages, with an empty state saying where learners go; organizations created by the operator's command ([ADR 0018](0018-sign-in-and-invitations.md));
+  - the header's menu switching among only what someone manages, and `/join` saying where learners go; organizations created by the operator's command or set up at `/join` ([ADR 0018](0018-sign-in-and-invitations.md));
   - slug format and reserved list, application routes only, enforced at creation;
   - Braivo's writes trust `BRAIVO_URL`'s origin and, on a registered hostname, `https://<hostname>`, failing closed otherwise; Better Auth trusts `BRAIVO_URL`'s alone;
   - the host ceiling on the learner's course routes;

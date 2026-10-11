@@ -6,7 +6,7 @@ How `apps/console` and `apps/learn` build a page, beyond what their specs requir
 
 - **Router options** go in each app's `router.tsx` (`createConsoleRouter`, `createLearnRouter`), which `main.tsx` and `routes.test.tsx` share, so tests run with production options. `Register` lives there too.
 - **Tab title:** `head: (head) => pageHead(head, …)` from the app's `lib/title.ts`, page first: `<page> · <organization>`. The console names a learner `<learner> · <course>` and a source `<source> · Source`; learn titles only the course page (white-label-6).
-- **Way back:** a page below a list names its parent as a small link above its heading, styled as on learn's course page and the console's learner report. The console header's breadcrumb is Braivo's logo, leading to Organizations, then `<organization>`. Settings (access-36) have no header: their navigation, and Escape, lead back to the page they were opened from.
+- **Way back:** a page below a list names its parent as a small link above its heading, styled as on learn's course page and the console's learner report. The console header's breadcrumb is Braivo's logo, leading to `/`, then `<organization>`, with a menu switching to the others someone manages, if any, and to setting one up, where offered. Settings (access-36) have no header: their navigation, and Escape, lead back to the page they were opened from.
 - **A course in the console** is checked to belong to the organization before anything about it is read: `readCourse` through the organization, or `readCourseInOrganization` when the page needs no authored course. Await it before the scoped reads (progress-9).
 - **Console refusals** are in `apps/console/lib/refusals.ts` (`orNotFound`, `readCourseInOrganization`, `explainAiProxyTimeout`): reuse them.
 

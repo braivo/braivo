@@ -15,7 +15,7 @@ import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInOrganizationSlugRouteRouteImport } from './routes/_signed-in/$organizationSlug/route'
 import { Route as SignedInConsentRouteImport } from './routes/_signed-in/consent'
 import { Route as SignedInDeviceRouteImport } from './routes/_signed-in/device'
-import { Route as SignedInOrganizationsRouteImport } from './routes/_signed-in/organizations'
+import { Route as SignedInJoinRouteImport } from './routes/_signed-in/join'
 import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
 import { Route as SignedInOrganizationSlugSettingsRouteRouteImport } from './routes/_signed-in/$organizationSlug/settings/route'
 import { Route as SignedInOrganizationSlugSettingsIndexRouteImport } from './routes/_signed-in/$organizationSlug/settings/index'
@@ -59,9 +59,9 @@ const SignedInDeviceRoute = SignedInDeviceRouteImport.update({
   path: '/device',
   getParentRoute: () => SignedInRouteRoute,
 } as any)
-const SignedInOrganizationsRoute = SignedInOrganizationsRouteImport.update({
-  id: '/organizations',
-  path: '/organizations',
+const SignedInJoinRoute = SignedInJoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => SignedInRouteRoute,
 } as any)
 const SignedInOrganizationSlugIndexRoute =
@@ -143,7 +143,7 @@ export interface FileRoutesByFullPath {
   '/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
   '/consent': typeof SignedInConsentRoute
   '/device': typeof SignedInDeviceRoute
-  '/organizations': typeof SignedInOrganizationsRoute
+  '/join': typeof SignedInJoinRoute
   '/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
@@ -161,7 +161,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/consent': typeof SignedInConsentRoute
   '/device': typeof SignedInDeviceRoute
-  '/organizations': typeof SignedInOrganizationsRoute
+  '/join': typeof SignedInJoinRoute
   '/': typeof SignedInIndexRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
@@ -182,7 +182,7 @@ export interface FileRoutesById {
   '/_signed-in/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
   '/_signed-in/consent': typeof SignedInConsentRoute
   '/_signed-in/device': typeof SignedInDeviceRoute
-  '/_signed-in/organizations': typeof SignedInOrganizationsRoute
+  '/_signed-in/join': typeof SignedInJoinRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
@@ -205,7 +205,7 @@ export interface FileRouteTypes {
     | '/$organizationSlug'
     | '/consent'
     | '/device'
-    | '/organizations'
+    | '/join'
     | '/$organizationSlug/settings'
     | '/$organizationSlug/'
     | '/$organizationSlug/settings/account'
@@ -223,7 +223,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/consent'
     | '/device'
-    | '/organizations'
+    | '/join'
     | '/'
     | '/$organizationSlug'
     | '/$organizationSlug/settings/account'
@@ -243,7 +243,7 @@ export interface FileRouteTypes {
     | '/_signed-in/$organizationSlug'
     | '/_signed-in/consent'
     | '/_signed-in/device'
-    | '/_signed-in/organizations'
+    | '/_signed-in/join'
     | '/_signed-in/'
     | '/_signed-in/$organizationSlug/settings'
     | '/_signed-in/$organizationSlug/'
@@ -308,11 +308,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInDeviceRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
-    '/_signed-in/organizations': {
-      id: '/_signed-in/organizations'
-      path: '/organizations'
-      fullPath: '/organizations'
-      preLoaderRoute: typeof SignedInOrganizationsRouteImport
+    '/_signed-in/join': {
+      id: '/_signed-in/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof SignedInJoinRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
     '/_signed-in/$organizationSlug/': {
@@ -465,7 +465,7 @@ interface SignedInRouteRouteChildren {
   SignedInOrganizationSlugRouteRoute: typeof SignedInOrganizationSlugRouteRouteWithChildren
   SignedInConsentRoute: typeof SignedInConsentRoute
   SignedInDeviceRoute: typeof SignedInDeviceRoute
-  SignedInOrganizationsRoute: typeof SignedInOrganizationsRoute
+  SignedInJoinRoute: typeof SignedInJoinRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
 }
 
@@ -474,7 +474,7 @@ const SignedInRouteRouteChildren: SignedInRouteRouteChildren = {
     SignedInOrganizationSlugRouteRouteWithChildren,
   SignedInConsentRoute: SignedInConsentRoute,
   SignedInDeviceRoute: SignedInDeviceRoute,
-  SignedInOrganizationsRoute: SignedInOrganizationsRoute,
+  SignedInJoinRoute: SignedInJoinRoute,
   SignedInIndexRoute: SignedInIndexRoute,
 }
 

@@ -56,6 +56,7 @@ export { defineObjectives, InvalidDefinition, listObjectives } from "./objective
 export {
   listManagedOrganizations,
   listMembers,
+  maySetUpOrganization,
   NameRefused,
   renameOrganization,
   SetUpRefused,
