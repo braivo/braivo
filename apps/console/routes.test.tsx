@@ -20,6 +20,7 @@ import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus
 
 import type { AppContext } from "./lib/context.ts";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS } from "./lib/deadline.ts";
+import { PAGE_SCROLLER } from "./lib/page-scroller.ts";
 import { createConsoleRouter } from "./router.tsx";
 
 afterEach(() => {
@@ -361,7 +362,7 @@ describe("the console", () => {
     expect(router.state.location.pathname).toBe("/example");
   });
 
-  test("chooses the theme and the language from the signed-in header", async () => {
+  test("chooses the theme and the language from the account menu, a person's choices", async () => {
     onTestFinished(async () => {
       localStorage.clear();
       document.documentElement.classList.remove("dark");
@@ -373,12 +374,16 @@ describe("the console", () => {
     fireEvent.click(within(themes).getByRole("menuitemradio", { name: "Dark" }));
     await vi.waitFor(() => expect(document.documentElement.classList.contains("dark")).toBe(true));
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Language: English" }), { key: "Enter" });
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Polski" }));
+    // Not a row of its own in the sidebar.
+    expect(screen.queryByRole("button", { name: /^Language/ })).toBeNull();
+    const languages = within(await openAccountMenu()).getByRole("group", { name: "Language" });
+    const english = within(languages).getByRole("menuitemradio", { name: "English" });
+    expect(english.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(languages).getByRole("menuitemradio", { name: "Polski" }));
     expect(await screen.findByRole("button", { name: "Konto: Olive Owner" })).toBeTruthy();
   });
 
-  test("says under the header's row when a language could not load, as a new alert, until another is chosen", async () => {
+  test("says under the sidebar's toggle when a language could not load, as a new alert, until another is chosen", async () => {
     onTestFinished(async () => {
       vi.restoreAllMocks();
       localStorage.clear();
@@ -391,7 +396,7 @@ describe("the console", () => {
     });
 
     const chooseFromLanguageMenu = async (name: string) => {
-      fireEvent.keyDown(await screen.findByRole("button", { name: /^(Language|Język): / }), {
+      fireEvent.keyDown(await screen.findByRole("button", { name: /^(Account|Konto): / }), {
         key: "Enter",
       });
       fireEvent.click(await screen.findByRole("menuitemradio", { name }));
@@ -403,11 +408,11 @@ describe("the console", () => {
     // A new alert, though it replaces another, so it is announced too.
     expect(alert).not.toBe(signOutFailure);
     expect(alert.getAttribute("role")).toBe("alert");
-    // In the header, after its row, never inside it (docs/apps.md).
+    // In the page's header, after its row, never inside it (docs/apps.md).
     expect(alert.closest("header")).toBeTruthy();
     expect(
       alert.previousElementSibling?.contains(
-        screen.getByRole("button", { name: /^Konto|^Account/ }),
+        screen.getByRole("button", { name: /^(Collapse sidebar|Zwiń panel boczny)$/ }),
       ),
     ).toBe(true);
 
@@ -986,7 +991,7 @@ describe("the console", () => {
       await vi.waitFor(() => expect(document.title).toBe("General · Fernwood"));
     });
 
-    test("rename the organization, the header's switcher then listing it so", async () => {
+    test("rename the organization, the sidebar's switcher then listing it so", async () => {
       let organization = { ...school };
       const braivo = {
         listOrganizations: async () => [annex, organization],
@@ -1003,7 +1008,7 @@ describe("the console", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
       fireEvent.click(await screen.findByRole("link", { name: "Back to Fernwood" }));
 
-      const trigger = await screen.findByRole("button", { name: "Organizations" });
+      const trigger = await screen.findByRole("button", { name: /^Organization: / });
       fireEvent.keyDown(trigger, { key: "Enter" });
       const items = within(await screen.findByRole("menu")).getAllByRole("menuitem");
       expect(items.map((item) => item.textContent)).toEqual(["Annex", "Fernwood"]);
@@ -2374,7 +2379,7 @@ describe("the console", () => {
     );
   });
 
-  test("keeps the Sources link but offers no button once an organization has a course", async () => {
+  test("keeps Sources in the sidebar but offers no button once an organization has a course", async () => {
     renderAt("/example", {
       braivo: { listCourses: async () => [{ id: "c1", title: "Spanish" }] },
     });
@@ -3703,19 +3708,27 @@ describe("the console", () => {
 
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
     // Switching, meanwhile, offered as for anyone managing several.
-    fireEvent.keyDown(screen.getByRole("button", { name: "Organizations" }), {
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Organization: / }), {
       key: "Enter",
     });
     const menu = await screen.findByRole("menu");
     expect(within(menu).queryByRole("menuitem", { name: "Set up an organization" })).toBeNull();
     cleanup();
 
-    // With one organization, nothing in the header to show meanwhile.
+    // With one organization, it alone meanwhile.
     renderAt("/example", {
       braivo: { organizationSetup: () => new Promise(() => {}), listCourses: async () => [] },
     });
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Organization: Example School" }), {
+      key: "Enter",
+    });
+    const alone = await screen.findByRole("menu");
+    expect(
+      within(alone)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Example School"]);
   });
 
   test("offers setup once a read of whether it may succeeds, after one that failed", async () => {
@@ -3728,14 +3741,21 @@ describe("the console", () => {
       braivo: { organizationSetup, listCourses: async () => [], listSources: async () => [] },
     });
     expect(await screen.findByText("No courses published yet")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
+    const setUp = { name: "Set up an organization" };
+    const openSwitcher = async () => {
+      fireEvent.keyDown(screen.getByRole("button", { name: /^Organization: / }), { key: "Enter" });
+      return screen.findByRole("menu");
+    };
+    expect(within(await openSwitcher()).queryByRole("menuitem", setUp)).toBeNull();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
 
     // Read again on the next navigation, not left out for good.
     await router.navigate({
       to: "/$organizationSlug/sources",
       params: { organizationSlug: "example" },
     });
-    expect(await screen.findByRole("button", { name: "Organizations" })).toBeTruthy();
+    expect(within(await openSwitcher()).getByRole("menuitem", setUp)).toBeTruthy();
   });
 
   test("keeps an admin's open menu while whether they may set one up is read again", async () => {
@@ -3747,7 +3767,7 @@ describe("the console", () => {
     const { router } = renderAt("/example", {
       braivo: { organizationSetup, listCourses: async () => [] },
     });
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+    fireEvent.keyDown(await screen.findByRole("button", { name: /^Organization: / }), {
       key: "Enter",
     });
     const menu = await screen.findByRole("menu");
@@ -3768,7 +3788,7 @@ describe("the console", () => {
     const { router } = renderAt("/example", {
       braivo: { organizationSetup, listCourses: async () => [] },
     });
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+    fireEvent.keyDown(await screen.findByRole("button", { name: /^Organization: / }), {
       key: "Enter",
     });
     const menu = await screen.findByRole("menu");
@@ -3820,7 +3840,7 @@ describe("the console", () => {
         listCourses: async () => [],
       },
     });
-    await screen.findByRole("button", { name: "Organizations" });
+    await screen.findByRole("button", { name: /^Organization: / });
 
     await router.navigate({ to: "/join" });
     fireEvent.change(await screen.findByLabelText("Organization name"), {
@@ -3831,7 +3851,7 @@ describe("the console", () => {
 
     // Back where setup was offered, its page cached: offered no longer.
     await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+    fireEvent.keyDown(await screen.findByRole("button", { name: /^Organization: / }), {
       key: "Enter",
     });
     const menu = await screen.findByRole("menu");
@@ -3854,7 +3874,7 @@ describe("the console", () => {
     });
 
     // One organization, and still a switcher: its last item is setting one up.
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Organizations" }), {
+    fireEvent.keyDown(await screen.findByRole("button", { name: /^Organization: / }), {
       key: "Enter",
     });
     const menu = await screen.findByRole("menu");
@@ -3862,26 +3882,27 @@ describe("the console", () => {
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/join"));
     expect(await screen.findByLabelText("Organization name")).toBeTruthy();
+    // Under the header, the logo leading to `/`, not an organization's sidebar.
+    expect(screen.getByRole("banner").contains(screen.getByRole("link", { name: /^braivo/ }))).toBe(
+      true,
+    );
+    expect(screen.getByRole("link", { name: /^braivo/ }).getAttribute("href")).toBe("/");
+    expect(document.querySelector('[data-slot="sidebar"]')).toBeNull();
+    // The language a menu of its own, for whoever cannot read the page yet.
+    expect(screen.getByRole("button", { name: "Language: English" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /sidebar|navigation/ })).toBeNull();
     // Not new here: no word on where learners go.
     expect(screen.queryByText(/Here to learn\?/)).toBeNull();
   });
 
-  test("names the organization in view on its pages, the logo leading to /", async () => {
-    renderAt("/annex", { organizations: [annex], braivo: { listCourses: async () => [] } });
-    const current = await screen.findByRole("link", { name: "Annex" });
-    expect(current.getAttribute("href")).toBe("/annex");
-    expect(screen.getByRole("link", { name: /^braivo/ }).getAttribute("href")).toBe("/");
-    // One organization: nothing to switch to.
-    expect(screen.queryByRole("button", { name: "Organizations" })).toBeNull();
-  });
-
-  test("switches between the organizations an owner manages from the header", async () => {
-    const { router } = renderAt("/annex", {
+  test("switches between the organizations an owner manages from the sidebar, each at its home", async () => {
+    // From a course's page: no course carries over to another organization.
+    const { router } = renderAt("/annex/courses/course-1", {
       organizations: [annex, school],
-      braivo: { listCourses: async () => [] },
+      braivo: { readCourse },
     });
     // By keyboard: Radix's menus ignore a bare click.
-    const trigger = await screen.findByRole("button", { name: "Organizations" });
+    const trigger = await screen.findByRole("button", { name: "Organization: Annex" });
     fireEvent.keyDown(trigger, { key: "Enter" });
     const items = within(await screen.findByRole("menu")).getAllByRole("menuitem");
     expect(items.map((item) => item.textContent)).toEqual(["Annex", "Example School"]);
@@ -3890,6 +3911,193 @@ describe("the console", () => {
     fireEvent.click(items[1] as HTMLElement);
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
+  });
+
+  describe("the sidebar", () => {
+    /** The sidebar's own element, its `data-state` expanded or collapsed. */
+    const sidebar = () => document.querySelector('[data-slot="sidebar"]');
+
+    test("leads an organization's pages: the organization first, then its sections, the one shown marked", async () => {
+      const { router } = renderAt("/example", {
+        braivo: { listCourses: async () => [], listSources: async () => [], readCourse },
+      });
+      const nav = await screen.findByRole("navigation", { name: "Example School" });
+      const courses = within(nav).getByRole("link", { name: "Courses" });
+      const sources = within(nav).getByRole("link", { name: "Sources" });
+      expect(courses.getAttribute("href")).toBe("/example");
+      expect(sources.getAttribute("href")).toBe("/example/sources");
+      // In order: the organization, its sections, the account (the language in its menu).
+      const named = Array.from(
+        sidebar()?.querySelectorAll("a, button") ?? [],
+        (element) => element.getAttribute("aria-label") ?? element.textContent,
+      );
+      expect(named).toEqual([
+        "Organization: Example School",
+        "Courses",
+        "Sources",
+        "Account: Olive Owner",
+      ]);
+      // No logo and breadcrumb above the page: the sidebar names the organization.
+      expect(screen.queryByRole("link", { name: /^braivo/ })).toBeNull();
+
+      const marked = () => [courses, sources].map((link) => link.getAttribute("aria-current"));
+      expect(marked()).toEqual(["page", null]);
+      await act(() =>
+        router.navigate({
+          to: "/$organizationSlug/courses/$courseId",
+          params: { organizationSlug: "example", courseId: "course-1" },
+        }),
+      );
+      // A course's page is in Courses, not Courses' own page.
+      await vi.waitFor(() => expect(marked()).toEqual(["true", null]));
+      fireEvent.click(sources);
+      await vi.waitFor(() => expect(marked()).toEqual([null, "page"]));
+    });
+
+    test("collapses to a rail and expands again, holding across pages and settings", async () => {
+      renderAt("/example", {
+        braivo: { listCourses: async () => [], listSources: async () => [] },
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Collapse sidebar" }));
+      expect(sidebar()?.getAttribute("data-state")).toBe("collapsed");
+
+      // Still the way around, each named.
+      fireEvent.click(screen.getByRole("link", { name: "Sources" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Sources" })).toBeTruthy();
+      expect(sidebar()?.getAttribute("data-state")).toBe("collapsed");
+      expect(screen.getByRole("button", { name: "Organization: Example School" })).toBeTruthy();
+
+      fireEvent.click(within(await openAccountMenu()).getByRole("menuitem", { name: "Settings" }));
+      fireEvent.click(await screen.findByRole("link", { name: "Back to Example School" }));
+      const expand = await screen.findByRole("button", { name: "Expand sidebar" });
+      expect(sidebar()?.getAttribute("data-state")).toBe("collapsed");
+
+      fireEvent.click(expand);
+      expect(sidebar()?.getAttribute("data-state")).toBe("expanded");
+      expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeTruthy();
+    });
+
+    test("starts each page at the top of the surface it scrolls in", async () => {
+      renderAt("/example/sources", {
+        braivo: { listCourses: async () => [], listSources: async () => [] },
+      });
+      await screen.findByRole("heading", { level: 1, name: "Sources" });
+      const scroller = document.querySelector(PAGE_SCROLLER);
+      expect(scroller?.contains(screen.getByRole("heading", { level: 1 }))).toBe(true);
+      (scroller as HTMLElement).scrollTop = 300;
+
+      fireEvent.click(screen.getByRole("link", { name: "Courses" }));
+      await screen.findByRole("heading", { level: 1, name: "Courses" });
+      await vi.waitFor(() => expect(scroller?.scrollTop).toBe(0));
+    });
+
+    describe("on a phone", () => {
+      /** 375px wide, under the sidebar's 768px breakpoint, before the app reads it. */
+      function onPhone() {
+        const { happyDOM } = window as unknown as {
+          happyDOM: { setViewport(viewport: { width: number }): void };
+        };
+        const width = window.innerWidth;
+        happyDOM.setViewport({ width: 375 });
+        onTestFinished(() => happyDOM.setViewport({ width }));
+      }
+
+      test("opens a drawer, closed by navigating or its button, the focus back on what opened it", async () => {
+        onPhone();
+        const { router } = renderAt("/example", {
+          braivo: { listCourses: async () => [], listSources: async () => [] },
+        });
+        const open = await screen.findByRole("button", { name: "Open navigation" });
+        // Closed, nothing of it on the page.
+        expect(screen.queryByRole("link", { name: "Sources" })).toBeNull();
+
+        fireEvent.click(open);
+        // Named in the page's language, not shadcn's English.
+        const drawer = await screen.findByRole("dialog", { name: "Navigation" });
+        fireEvent.click(within(drawer).getByRole("link", { name: "Sources" }));
+        await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example/sources"));
+        await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        await vi.waitFor(() => expect(document.activeElement).toBe(open));
+
+        fireEvent.click(open);
+        fireEvent.click(
+          within(await screen.findByRole("dialog")).getByRole("button", {
+            name: "Close navigation",
+          }),
+        );
+        await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        await vi.waitFor(() => expect(document.activeElement).toBe(open));
+      });
+
+      test("closes the drawer for the page already shown too, from a section or the organization menu", async () => {
+        onPhone();
+        renderAt("/example", { braivo: { listCourses: async () => [] } });
+        const open = await screen.findByRole("button", { name: "Open navigation" });
+
+        fireEvent.click(open);
+        const drawer = await screen.findByRole("dialog", { name: "Navigation" });
+        fireEvent.click(within(drawer).getByRole("link", { name: "Courses" }));
+        await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        await vi.waitFor(() => expect(document.activeElement).toBe(open));
+
+        fireEvent.click(open);
+        fireEvent.keyDown(
+          within(await screen.findByRole("dialog")).getByRole("button", {
+            name: "Organization: Example School",
+          }),
+          { key: "Enter" },
+        );
+        fireEvent.click(
+          within(await screen.findByRole("menu")).getByRole("menuitem", {
+            name: "Example School",
+          }),
+        );
+        await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+        await vi.waitFor(() => expect(document.activeElement).toBe(open));
+      });
+
+      test("names the organization beside what opens the drawer, closed", async () => {
+        onPhone();
+        renderAt("/annex", {
+          organizations: [annex, school],
+          braivo: { listCourses: async () => [] },
+        });
+        await screen.findByRole("button", { name: "Open navigation" });
+        // Beside the toggle, not only in the drawer or the tab's title.
+        const header = () => screen.getByRole("button", { name: "Open navigation" }).parentElement;
+        await vi.waitFor(() => expect(header()?.textContent).toBe("Annex"));
+        expect(screen.queryByRole("dialog")).toBeNull();
+
+        fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+        fireEvent.keyDown(
+          within(await screen.findByRole("dialog")).getByRole("button", {
+            name: "Organization: Annex",
+          }),
+          { key: "Enter" },
+        );
+        fireEvent.click(
+          within(await screen.findByRole("menu")).getByRole("menuitem", {
+            name: "Example School",
+          }),
+        );
+        await vi.waitFor(() => expect(header()?.textContent).toBe("Example School"));
+      });
+
+      test("says in the drawer when signing out from it failed, each time", async () => {
+        onPhone();
+        const { auth } = renderAt("/example", { braivo: { listCourses: async () => [] } });
+        auth.signOut.mockResolvedValue({ error: { status: 500 } } as never);
+        fireEvent.click(await screen.findByRole("button", { name: "Open navigation" }));
+        const drawer = await screen.findByRole("dialog");
+
+        await signOutFromMenu();
+        const first = await within(drawer).findByRole("alert");
+        expect(first.textContent).toBe("Could not sign out. Try again.");
+        await signOutFromMenu();
+        // A new alert, so it is announced again.
+        await vi.waitFor(() => expect(within(drawer).getByRole("alert")).not.toBe(first));
+      });
+    });
   });
 
   test("titles an organization's pages so tabs tell apart pages and organizations", async () => {
@@ -4338,7 +4546,7 @@ describe("the console", () => {
     renderAt("/example/courses", { braivo: { listCourses: async () => [] } });
 
     expect(await screen.findByText("There is nothing here.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Example School" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Organization: Example School" })).toBeTruthy();
     expect(screen.queryByText(/This organization does not exist/)).toBeNull();
   });
 
@@ -4347,10 +4555,12 @@ describe("the console", () => {
 
     fireEvent.click(await screen.findByRole("link", { name: "Go home" }));
 
-    expect(await screen.findByRole("link", { name: "Example School" })).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Organization: Example School" }),
+    ).toBeTruthy();
   });
 
-  test("fails a page that could not load in its place, under the header, until tried again", async () => {
+  test("fails a page that could not load in its place, beside the sidebar, until tried again", async () => {
     const listCourses = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
@@ -4359,7 +4569,7 @@ describe("the console", () => {
 
     const failure = await screen.findByRole("region", { name: "Something went wrong." });
     expect(document.activeElement).toBe(failure);
-    expect(screen.getByRole("link", { name: "Example School" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Organization: Example School" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(await screen.findByRole("link", { name: "Beginners" })).toBeTruthy();
@@ -4373,7 +4583,7 @@ describe("the console", () => {
     });
 
     expect(await screen.findByRole("status", { name: "Loading" }, { timeout: 2000 })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Example School" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Organization: / })).toBeNull();
     loading.resolve([school]);
     expect(await screen.findByRole("link", { name: "Beginners" }, { timeout: 2000 })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();

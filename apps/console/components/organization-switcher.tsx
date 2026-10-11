@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Organization } from "@braivo/server/client";
-import { Button } from "@braivo/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +14,12 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 
+import { railIdentity, SidebarButton, useCloseDrawerOnFollow } from "./sidebar-button.tsx";
+
 /**
- * Switches between the organizations someone manages (ADR 0004), each
- * opening at its home; the list has no page of its own. Shown with two or
- * more, or to offer its last item, setting one up: an `admin` owning none
+ * The organization shown, first in the sidebar: its menu switches between the organizations someone manages (ADR 0004), each opening
+ * at its home, so no course or source carries over; the list has no page of
+ * its own. Last, where offered, setting one up: an `admin` owning none
  * (ADR 0018) never lands on `/join` otherwise.
  */
 export function OrganizationSwitcher(props: {
@@ -26,31 +27,45 @@ export function OrganizationSwitcher(props: {
   organizations: Organization[];
   maySetUp: boolean;
 }) {
-  const { current } = props;
+  const { name } = props.current;
   const { t } = useLingui();
+  const closeOnFollow = useCloseDrawerOnFollow();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {/* 44px, a touch target's least, as each control in the header. */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-11 shrink-0 text-muted-foreground"
-          // Not "Switch": beside one organization, it may only offer setting one up.
-          aria-label={t`Organizations`}
+        {/* The name wraps, never truncated (docs/apps.md); in the rail, the
+            initial alone, the name in its tooltip. */}
+        <SidebarButton
+          size="lg"
+          tooltip={name}
+          aria-label={t`Organization: ${name}`}
+          className={railIdentity}
         >
-          <ChevronsUpDownIcon />
-        </Button>
+          <span
+            aria-hidden="true"
+            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+          >
+            {initialOf(name)}
+          </span>
+          <span className="min-w-0 flex-1 font-medium wrap-anywhere group-data-[collapsible=icon]:hidden">
+            {name}
+          </span>
+          <ChevronsUpDownIcon className="text-muted-foreground group-data-[collapsible=icon]:hidden" />
+        </SidebarButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel className="text-xs text-muted-foreground">
           <Trans>Organizations</Trans>
         </DropdownMenuLabel>
         {props.organizations.map((organization) => {
-          const shown = organization.id === current.id;
+          const shown = organization.id === props.current.id;
           return (
             <DropdownMenuItem key={organization.id} asChild>
-              <Link to="/$organizationSlug" params={{ organizationSlug: organization.slug }}>
+              <Link
+                to="/$organizationSlug"
+                params={{ organizationSlug: organization.slug }}
+                onClick={closeOnFollow}
+              >
                 <span className="min-w-0 flex-1 wrap-anywhere">{organization.name}</span>
                 {/* Hidden: `aria-current` already says it. */}
                 {shown && <CheckIcon aria-hidden="true" />}
@@ -62,7 +77,7 @@ export function OrganizationSwitcher(props: {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/join">
+              <Link to="/join" onClick={closeOnFollow}>
                 <PlusIcon />
                 <Trans>Set up an organization</Trans>
               </Link>
@@ -72,4 +87,9 @@ export function OrganizationSwitcher(props: {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** "Example School" is "E": a whole first character, not half of one. */
+function initialOf(name: string): string {
+  return (Array.from(name.trim())[0] ?? "").toLocaleUpperCase();
 }

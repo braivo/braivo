@@ -47,7 +47,7 @@ function Root() {
   useLayoutEffect(() => {
     document.documentElement.toggleAttribute("data-learn-domain", learnDomain === true);
   }, [learnDomain]);
-  // `/login` (`ConsoleSignInPage`) and the signed-in pages (under their header)
+  // `/login` (`ConsoleSignInPage`) and the signed-in pages (beside their sidebar or under their header)
   // render their own `<main>`; loading or failed, they get this column.
   const framed = useMatches({
     select: (matches) =>

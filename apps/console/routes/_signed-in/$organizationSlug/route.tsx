@@ -12,7 +12,7 @@ import { rememberOrganization } from "#lib/last-organization";
  * organization: pages below read `context.organization`, never the slug.
  * Resolved among the organizations the owner manages, so one they do not
  * manage reads as missing and nothing below runs. The list is kept too, for
- * the header's switcher, with whether it offers setting one up. Read-only, so
+ * the sidebar's switcher, with whether it offers setting one up. Read-only, so
  * safe to preload.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug")({
@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug")({
 
 /**
  * The slug, when `beforeLoad` found no organization. Otherwise a path below an
- * organization that names no page, under the header naming it. Told apart by
+ * organization that names no page, beside the sidebar naming it. Told apart by
  * status: that path leaves this match successful, and its not-found props are
  * empty, not the documented `isNotFound` and `routeId`.
  */

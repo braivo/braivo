@@ -156,10 +156,18 @@ msgstr "Sprawdzanie…"
 msgid "Choose one from the list."
 msgstr "Wybierz jedno z listy."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Close navigation"
+msgstr "Zamknij nawigację"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The sign-in code sent by email"
 msgid "Code"
 msgstr "Kod"
+
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Collapse sidebar"
+msgstr "Zwiń panel boczny"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Console address"
@@ -269,6 +277,10 @@ msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj s
 msgid "Could not sign out. Try again."
 msgstr "Nie udało się wylogować. Spróbuj ponownie."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Courses"
+msgstr "Kursy"
+
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Courses will appear here when they're available to you."
 msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
@@ -370,6 +382,10 @@ msgstr "Wpisz swoje imię i nazwisko."
 msgid "Enter your organization's name."
 msgstr "Wpisz nazwę organizacji."
 
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Expand sidebar"
+msgstr "Rozwiń panel boczny"
+
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
 msgstr "Masz zarządzać organizacją? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię."
@@ -440,6 +456,8 @@ msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która
 msgid "Keep it"
 msgstr "Zostaw"
 
+#: apps/console/components/account-menu.tsx
+#: apps/console/components/language-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 msgid "Language"
 msgstr "Język"
@@ -521,6 +539,10 @@ msgctxt "person"
 msgid "Name"
 msgstr "Imię i nazwisko"
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Navigation"
+msgstr "Nawigacja"
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgctxt "Why a question comes now"
 msgid "New"
@@ -567,6 +589,10 @@ msgstr "Na razie nie ma nic do ćwiczenia"
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
 
+#: apps/console/routes/_signed-in/route.tsx
+msgid "Open navigation"
+msgstr "Otwórz nawigację"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "Between two ways to sign in"
 msgid "or"
@@ -580,6 +606,10 @@ msgstr "Organizacja"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Organization name"
 msgstr "Nazwa organizacji"
+
+#: apps/console/components/organization-switcher.tsx
+msgid "Organization: {name}"
+msgstr "Organizacja: {name}"
 
 #: apps/console/components/organization-switcher.tsx
 #: apps/console/routes/_signed-in/join.tsx
@@ -746,6 +776,10 @@ msgstr "Coś poszło nie tak."
 msgid "Something went wrong. Try again."
 msgstr "Coś poszło nie tak. Spróbuj ponownie."
 
+#: apps/console/components/organization-sidebar.tsx
+msgid "Sources"
+msgstr "Materiały źródłowe"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Status unknown"
 msgstr "Stan nieznany"
@@ -811,6 +845,10 @@ msgstr "Domena została zapisana, ale nie udało się jej skonfigurować. Dodaj 
 #: apps/console/components/sign-in-page.tsx
 msgid "The learning engine behind your courses"
 msgstr "Silnik nauki stojący za Twoimi kursami"
+
+#: apps/console/components/organization-sidebar.tsx
+msgid "The organization's pages and your account."
+msgstr "Strony organizacji i Twoje konto."
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
