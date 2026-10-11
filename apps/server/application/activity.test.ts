@@ -4,11 +4,12 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { runMigrations } from "@braivo/db";
-import { organizationDomain } from "@braivo/db/schema";
+import { attempt, organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { presentTask, type TaskBody } from "../content/index.ts";
+import { type PresentedTask, presentTask, type TaskBody } from "../content/index.ts";
 import { activeModel } from "../learning/index.ts";
 import {
   createCourse,
@@ -97,6 +98,21 @@ function answer(
     response: { choice },
     now,
   });
+}
+
+/** The response stored under an attempt ID, as the learner sent it. */
+async function responseOf(attemptId: string) {
+  const [row] = await database
+    .select({ response: attempt.response })
+    .from(attempt)
+    .where(eq(attempt.id, attemptId));
+  return row?.response;
+}
+
+/** A presented choice task's options; anything else fails the test. */
+function optionsOf(task: PresentedTask) {
+  if (task.kind !== "choice") throw new Error(`Expected a choice task, got "${task.kind}".`);
+  return task.options;
 }
 
 const stored = () =>
@@ -198,7 +214,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
     expect(await answer("a1", pastTenseTask, 1, later(1))).toEqual({
       kind: "graded",
-      grade: { outcome: "failure", correctChoice: 0 },
+      grade: { kind: "choice", outcome: "failure", correctChoice: 0 },
       // Written by hand, from no source.
       passages: [],
     });
@@ -239,15 +255,19 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   test("keeps a task's option order across reloads, and reseeds it once answered", async () => {
     const shown = async (now: Date, learnerId = learner) => {
       const next = await activity(now, learnerId, shuffleCourseId);
-      if (next.kind !== "decided") throw new Error(`Expected an activity, got "${next.kind}".`);
+      if (next.kind !== "decided" || next.task.kind !== "choice") {
+        throw new Error(`Expected a choice task, got "${next.kind}".`);
+      }
       return next.task.options;
     };
     // The documented seed: who, which task, and when they last answered it.
     const order = (lastAttemptAt: Date | null, learnerId = learner) =>
-      presentTask(
-        sixOptions,
-        JSON.stringify([learnerId, shuffleTask, lastAttemptAt?.getTime() ?? null]),
-      ).options;
+      optionsOf(
+        presentTask(
+          sixOptions,
+          JSON.stringify([learnerId, shuffleTask, lastAttemptAt?.getTime() ?? null]),
+        ),
+      );
 
     expect(await shown(start)).toEqual(order(null));
     expect(await shown(later(5))).toEqual(order(null));
@@ -263,8 +283,9 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
   test("neither rests a task nor reseeds its order for evidence graded elsewhere", async () => {
     const seededBy = (lastAttemptAt: Date) =>
-      presentTask(sixOptions, JSON.stringify([learner, shuffleTask, lastAttemptAt.getTime()]))
-        .options;
+      optionsOf(
+        presentTask(sixOptions, JSON.stringify([learner, shuffleTask, lastAttemptAt.getTime()])),
+      );
     await answer("s1", shuffleTask, 1, later(5), { course: shuffleCourseId });
     // Were the evidence an attempt at any of these minutes, the ten-minute rest
     // would hold the task at minute 21, and reseed its order. The task ID is
@@ -331,7 +352,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     );
     expect(await answer("g1", taskId!, 1, later(1), { course: greetingsCourse })).toEqual({
       kind: "graded",
-      grade: { outcome: "failure", correctChoice: 0 },
+      grade: { kind: "choice", outcome: "failure", correctChoice: 0 },
       // By source title, each with where a learner can find it.
       passages: [
         { quote: "Di hola", source: { title: "Cuaderno" } },
@@ -447,6 +468,70 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect(await stored()).toMatchObject([{ id: `attempt:retry:${pastTense}`, at: later(1) }]);
   });
 
+  test("grades a typed answer, records the text as sent, and matches a resend on it", async () => {
+    const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
+    const wordCourse = await createCourse(database, {
+      organizationId,
+      title: "Typed",
+      objectiveIds: [word],
+    });
+    const typedTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: word,
+      body: { kind: "typed", prompt: "I am tired: Ich ___ müde.", accepted: ["bin"] },
+      createdAt: start,
+    });
+
+    expect(await activity(start, learner, wordCourse)).toMatchObject({
+      kind: "decided",
+      task: { id: typedTask, kind: "typed", prompt: "I am tired: Ich ___ müde." },
+    });
+    const send = (text: string) =>
+      submitAttempt({
+        database,
+        learnerId: learner,
+        courseId: wordCourse,
+        host: installation,
+        attemptId: "typed",
+        taskId: typedTask,
+        response: { text },
+        now: later(1),
+      });
+    const graded = {
+      kind: "graded",
+      grade: { kind: "typed", outcome: "success", correctAnswer: "bin" },
+      passages: [],
+    };
+    expect(await send(" Bin ")).toEqual(graded);
+    expect(await responseOf("typed")).toEqual({ text: " Bin " });
+
+    // The same text again is the same attempt; another, though graded alike, is not.
+    expect(await send(" Bin ")).toEqual(graded);
+    expect(await send("bin")).toEqual({ kind: "conflict" });
+  });
+
+  test("records Show answer as a failure, and that it was asked", async () => {
+    expect(
+      await submitAttempt({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        attemptId: "shown",
+        taskId: pastTenseTask,
+        response: { reveal: true },
+        now: later(1),
+      }),
+    ).toMatchObject({
+      kind: "graded",
+      grade: { kind: "choice", outcome: "failure", correctChoice: 0 },
+    });
+    expect(await stored()).toMatchObject([
+      { id: `attempt:shown:${pastTense}`, outcome: "failure" },
+    ]);
+    expect(await responseOf("shown")).toEqual({ reveal: true });
+  });
+
   test("answers a resend with the outcome recorded, not today's grade", async () => {
     // Recorded as a grader that has since changed would have: the right
     // option, graded a failure.
@@ -463,7 +548,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
     expect(await answer("regraded", pastTenseTask, 0, later(2))).toMatchObject({
       kind: "graded",
-      grade: { outcome: "failure", correctChoice: 0 },
+      grade: { kind: "choice", outcome: "failure", correctChoice: 0 },
     });
     expect(await stored()).toMatchObject([{ outcome: "failure", at: later(1) }]);
   });

@@ -9,6 +9,7 @@ const meta = {
   component: TaskEditor,
   args: {
     task: {
+      kind: "choice",
       prompt: "¿Qué dice el perro?",
       options: ["guau", "miau", "pío"],
       answer: 0,
@@ -34,5 +35,17 @@ export const Editing: Story = {};
 
 /** A task with no explanation yet, to write one. */
 export const WithoutExplanation: Story = {
-  args: { task: { prompt: "¿Dos?", options: ["one", "two"], answer: 1 } },
+  args: { task: { kind: "choice", prompt: "¿Dos?", options: ["one", "two"], answer: 1 } },
+};
+
+/** A typed task: its accepted answers, one a line, the first shown after a miss. */
+export const Typed: Story = {
+  args: {
+    task: {
+      kind: "typed",
+      prompt: "The dog: el ___",
+      accepted: ["perro", "can"],
+      explanation: "Perro is everyday Spanish; can is literary.",
+    },
+  },
 };

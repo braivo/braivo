@@ -10,7 +10,11 @@ afterEach(cleanup);
 
 describe("a task under review", () => {
   test("shows every option as written, and says in words which is correct", () => {
-    render(<AuthoredTask prompt="¿Dos?" options={["one", "two", "three"]} answer={1} />);
+    render(
+      <AuthoredTask
+        task={{ kind: "choice", prompt: "¿Dos?", options: ["one", "two", "three"], answer: 1 }}
+      />,
+    );
 
     const options = within(screen.getByRole("list")).getAllByRole("listitem");
     expect(options.map((option) => option.textContent)).toEqual([
@@ -20,13 +24,30 @@ describe("a task under review", () => {
     ]);
   });
 
+  test("lists a typed task's accepted answers, marking the one shown after a miss", () => {
+    render(
+      <AuthoredTask
+        task={{ kind: "typed", prompt: "Bile, in Polish", accepted: ["żółć", "zolc"] }}
+      />,
+    );
+
+    const answers = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(answers.map((answer) => answer.textContent)).toEqual([
+      "żółć Shown after a miss",
+      "zolc ",
+    ]);
+  });
+
   test("carries the explanation, the passages, and what the reviewer may do", () => {
     render(
       <AuthoredTask
-        prompt="¿Dos?"
-        options={["one", "two"]}
-        answer={1}
-        explanation="Dos is two."
+        task={{
+          kind: "choice",
+          prompt: "¿Dos?",
+          options: ["one", "two"],
+          answer: 1,
+          explanation: "Dos is two.",
+        }}
         action={<button type="button">Retire</button>}
       >
         <blockquote>Dos significa two.</blockquote>

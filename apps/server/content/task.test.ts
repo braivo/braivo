@@ -4,12 +4,20 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import {
+  normalizeAnswer,
   gradeResponse,
   parseTaskBody,
   parseTaskResponse,
+  type PresentedTask,
   presentTask,
   type TaskBody,
 } from "./task.ts";
+
+/** A presented choice task's options; anything else fails the test. */
+function optionsOf(task: PresentedTask) {
+  if (task.kind !== "choice") throw new Error(`Expected a choice task, got "${task.kind}".`);
+  return task.options;
+}
 
 const choice: TaskBody = {
   kind: "choice",
@@ -89,7 +97,7 @@ describe("parseTaskBody", () => {
     [
       "an unknown kind",
       { ...choice, kind: "essay" },
-      'has an unknown kind; the only kind is "choice"',
+      'has an unknown kind; the kinds are "choice" and "typed"',
     ],
     ["a blank prompt", { ...choice, prompt: " " }, "has a prompt that is blank"],
     ["no prompt", { ...choice, prompt: undefined }, "has a prompt that is missing"],
@@ -180,7 +188,7 @@ describe("presentTask", () => {
   });
 
   test("shows every option once, each with its own choice wherever it lands", () => {
-    const { options } = presentTask(many, "seed");
+    const options = optionsOf(presentTask(many, "seed"));
 
     expect(options.toSorted((a, b) => a.choice - b.choice)).toEqual(
       many.options.map((text, choice) => ({ choice, text })),
@@ -188,7 +196,7 @@ describe("presentTask", () => {
   });
 
   test("orders by the seed alone, and the seed decides the order", () => {
-    const order = (seed: string) => presentTask(many, seed).options.map(({ choice }) => choice);
+    const order = (seed: string) => optionsOf(presentTask(many, seed)).map(({ choice }) => choice);
 
     expect(order("same")).toEqual(order("same"));
     // Not every seed changes a given order, but among several some must.
@@ -197,7 +205,7 @@ describe("presentTask", () => {
   });
 
   test("keeps the author's order when asked to", () => {
-    const kept = presentTask({ ...many, keepOrder: true }, "seed").options;
+    const kept = optionsOf(presentTask({ ...many, keepOrder: true }, "seed"));
 
     expect(kept.map(({ choice }) => choice)).toEqual([0, 1, 2, 3, 4, 5]);
   });
@@ -209,7 +217,8 @@ describe("parseTaskResponse", () => {
   });
 
   test("reads -0 as 0, as storing it will", () => {
-    expect(Object.is(parseTaskResponse(choice, { choice: -0 })?.choice, 0)).toBe(true);
+    const read = parseTaskResponse(choice, { choice: -0 });
+    expect(read && "choice" in read && Object.is(read.choice, 0)).toBe(true);
   });
 
   test.each([[{ choice: 2 }], [{ choice: -1 }], [{ choice: "0" }], [{}], [null]])(
@@ -223,6 +232,7 @@ describe("parseTaskResponse", () => {
 describe("gradeResponse", () => {
   test("succeeds on the answer, with the feedback", () => {
     expect(gradeResponse(choice, { choice: 0 })).toEqual({
+      kind: "choice",
       outcome: "success",
       correctChoice: 0,
       explanation: choice.explanation,
@@ -234,5 +244,152 @@ describe("gradeResponse", () => {
       outcome: "failure",
       correctChoice: 0,
     });
+  });
+});
+
+describe("a typed task", () => {
+  const typed: TaskBody = {
+    kind: "typed",
+    prompt: "I am tired: Ich ___ müde.",
+    accepted: ["bin"],
+    explanation: "Sein, first person singular.",
+  };
+  const grade = (body: TaskBody, text: string) => gradeResponse(body, { text }).outcome;
+
+  test("is stored with its answers' spacing collapsed and its language canonical", () => {
+    expect(
+      parseTaskBody({
+        kind: "typed",
+        prompt: " Bile, in Polish ",
+        accepted: [" żółć ", "zolc"],
+        answerLanguage: "pl-pl",
+      }),
+    ).toEqual({
+      body: {
+        kind: "typed",
+        prompt: "Bile, in Polish",
+        accepted: ["żółć", "zolc"],
+        answerLanguage: "pl-PL",
+      },
+    });
+  });
+
+  test.each([
+    ["no accepted answer", { accepted: [] }, "needs 1 to 20 accepted answers"],
+    [
+      "21 accepted answers",
+      { accepted: Array.from({ length: 21 }, (_, i) => `a${i}`) },
+      "needs 1 to 20 accepted answers",
+    ],
+    ["a blank answer", { accepted: ["bin", " "] }, "has accepted answer 1 that is blank"],
+    [
+      "an answer of 201 characters",
+      { accepted: ["x".repeat(201)] },
+      "has accepted answer 0 that is over 200 characters",
+    ],
+    [
+      "two answers equal as compared",
+      { accepted: ["Bin", " bin "] },
+      "repeats accepted answer 0 as accepted answer 1, as answers are compared (case, spacing, and curly or straight quotes aside); list each once",
+    ],
+    [
+      "a language that is not one",
+      { answerLanguage: "German" },
+      'has an answerLanguage that is not a language tag, such as "en" or "pt-BR"',
+    ],
+  ])("refuses %s, saying why", (_case, change, problem) => {
+    expect(parseTaskBody({ ...typed, ...change })).toEqual({ problem });
+  });
+
+  test("accepts an answer of 200 characters, and several words", () => {
+    expect(parseTaskBody({ ...typed, accepted: ["x".repeat(200), "ich bin"] })).toHaveProperty(
+      "body",
+    );
+  });
+
+  test("is presented without its answers or explanation", () => {
+    expect(presentTask(typed, "seed")).toEqual({ kind: "typed", prompt: typed.prompt });
+  });
+
+  test("succeeds on an accepted answer, case, spacing, and curly or straight quotes aside", () => {
+    expect(grade(typed, " Bin ")).toBe("success");
+    expect(grade({ ...typed, accepted: ["ich bin"] }, "Ich   bin")).toBe("success");
+    expect(grade({ ...typed, accepted: ["it's"] }, "it\u2019s")).toBe("success");
+  });
+
+  test("fails on anything else: punctuation, a slip, accents, nothing at all", () => {
+    expect(grade(typed, "bin.")).toBe("failure");
+    expect(grade({ ...typed, accepted: ["it's"] }, "its")).toBe("failure");
+    expect(grade(typed, "ben")).toBe("failure");
+    expect(grade(typed, "")).toBe("failure");
+    expect(grade({ ...typed, accepted: ["żółć"] }, "zolc")).toBe("failure");
+    // Unless the author lists the variant.
+    expect(grade({ ...typed, accepted: ["żółć", "zolc"] }, "zolc")).toBe("success");
+  });
+
+  test("compares in NFC, whatever form the answer was typed in", () => {
+    expect(normalizeAnswer("z\u0307o\u0301\u0142c\u0301")).toBe(normalizeAnswer("żółć"));
+  });
+
+  test("names the first accepted answer, whichever matched", () => {
+    expect(gradeResponse({ ...typed, accepted: ["colour", "color"] }, { text: "color" })).toEqual({
+      kind: "typed",
+      outcome: "success",
+      correctAnswer: "colour",
+      explanation: typed.explanation,
+    });
+    expect(gradeResponse(typed, { text: "ben" })).toEqual({
+      kind: "typed",
+      outcome: "failure",
+      correctAnswer: "bin",
+      explanation: typed.explanation,
+    });
+  });
+
+  test("reads text exactly as sent, an empty one too, up to 500 characters", () => {
+    expect(parseTaskResponse(typed, { text: " Bin " })).toEqual({ text: " Bin " });
+    expect(parseTaskResponse(typed, { text: "" })).toEqual({ text: "" });
+    expect(parseTaskResponse(typed, { text: "x".repeat(500) })).toEqual({ text: "x".repeat(500) });
+    expect(parseTaskResponse(typed, { text: "x".repeat(501) })).toBeUndefined();
+  });
+
+  test.each([[{ choice: 0 }], [{ text: 5 }], [{ text: "a\u0000" }], [{}]])(
+    "refuses %j",
+    (value) => {
+      expect(parseTaskResponse(typed, value)).toBeUndefined();
+    },
+  );
+});
+
+describe("Show answer", () => {
+  const typed: TaskBody = { kind: "typed", prompt: "Ich ___ müde.", accepted: ["bin"] };
+
+  test("is a response to either kind, graded a failure that shows the answer", () => {
+    expect(parseTaskResponse(choice, { reveal: true })).toEqual({ reveal: true });
+    expect(gradeResponse(choice, { reveal: true })).toMatchObject({
+      outcome: "failure",
+      correctChoice: 0,
+    });
+    expect(parseTaskResponse(typed, { reveal: true })).toEqual({ reveal: true });
+    expect(gradeResponse(typed, { reveal: true })).toEqual({
+      kind: "typed",
+      outcome: "failure",
+      correctAnswer: "bin",
+    });
+  });
+
+  test.each([
+    [{ reveal: 1 }],
+    [{ reveal: false }],
+    [{ reveal: true, choice: 0 }],
+    [{ reveal: true, text: "bin" }],
+    [{ choice: 0, text: "bin" }],
+  ])("refuses %j: exactly one of choice, text, and reveal", (value) => {
+    expect(parseTaskResponse(choice, value)).toBeUndefined();
+    expect(parseTaskResponse(typed, value)).toBeUndefined();
+  });
+
+  test("refuses text to a choice task", () => {
+    expect(parseTaskResponse(choice, { text: "hablé" })).toBeUndefined();
   });
 });

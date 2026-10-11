@@ -628,6 +628,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     const response = await postAttempt(courseId, attempt, learner.cookie);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
+      kind: "choice",
       outcome: "failure",
       correctChoice: 0,
       explanation: "Preterite.",
@@ -658,6 +659,43 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect((await postAttempt(courseId, changed, learner.cookie)).status).toBe(409);
   });
 
+  test("grades a typed answer, and answers a resend of it alike", async () => {
+    const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
+    const wordCourse = await createCourse(database, {
+      organizationId,
+      title: "German",
+      objectiveIds: [word],
+    });
+    const typedTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: word,
+      body: { kind: "typed", prompt: "I am tired: Ich ___ müde.", accepted: ["bin"] },
+      createdAt: at,
+    });
+    const attempt = { id: crypto.randomUUID(), taskId: typedTask, response: { text: " Bin " } };
+
+    const answered = await postAttempt(wordCourse, attempt, learner.cookie);
+    expect(answered.status).toBe(200);
+    expect(await answered.json()).toEqual({
+      kind: "typed",
+      outcome: "success",
+      correctAnswer: "bin",
+    });
+
+    const resent = await postAttempt(wordCourse, attempt, learner.cookie);
+    expect(resent.status).toBe(200);
+    expect(await resent.json()).toEqual({
+      kind: "typed",
+      outcome: "success",
+      correctAnswer: "bin",
+    });
+    expect(await stored(learner.id)).toHaveLength(1);
+
+    // Graded alike, but not the text sent under this ID.
+    const changed = { ...attempt, response: { text: "bin" } };
+    expect((await postAttempt(wordCourse, changed, learner.cookie)).status).toBe(409);
+  });
+
   test("refuses attempts it cannot or must not record, recording none", async () => {
     const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } };
 
@@ -667,6 +705,12 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       await postAttempt(courseId, { ...attempt, id: "" }, learner.cookie),
       await postAttempt(courseId, { ...attempt, id: "x".repeat(129) }, learner.cookie),
       await postAttempt(courseId, { ...attempt, response: { choice: 5 } }, learner.cookie),
+      // Never read as whichever field is looked at first (ADR 0038).
+      await postAttempt(
+        courseId,
+        { ...attempt, response: { choice: 0, reveal: true } },
+        learner.cookie,
+      ),
       await postAttempt(foreignCourseId, attempt, learner.cookie),
       // What PostgreSQL cannot store as sent (`storableJson`): a NUL, or an
       // unpaired surrogate, which would make `a\ud800` the same ID as `a\udfff`.
@@ -682,7 +726,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     ];
 
     expect(refusals.map((response) => response.status)).toEqual([
-      401, 403, 400, 400, 400, 404, 400, 400, 400, 400, 404,
+      401, 403, 400, 400, 400, 400, 404, 400, 400, 400, 400, 404,
     ]);
     expect(await stored(learner.id)).toEqual([]);
   });
@@ -729,6 +773,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
 
     expect(graded.status).toBe(200);
     expect(await graded.json()).toEqual({
+      kind: "choice",
       outcome: "success",
       correctChoice: 0,
       explanation: "Preterite.",

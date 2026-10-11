@@ -3580,6 +3580,57 @@ describe("the console", () => {
     expect(within(numbers).getByText("No tasks: learners are not asked about it.")).toBeTruthy();
   });
 
+  test("shows a typed task's accepted answers, and corrects them keeping its language", async () => {
+    const typed = {
+      id: "t2",
+      kind: "typed" as const,
+      prompt: "Goodbye, in Spanish?",
+      accepted: ["adiós", "adios"],
+      answerLanguage: "es",
+      citations: [{ sourceId: "s1", start: 0, end: 5, quote: "Hola." }],
+    };
+    const defineTasks = vi.fn(async () => ({ taskIds: ["t3"] }));
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [{ ...beginners.objectives[0]!, tasks: [typed] }, beginners.objectives[1]!],
+        }),
+        defineTasks,
+      },
+    });
+
+    const greetings = await screen.findByRole("article", { name: "1. Greetings" });
+    expect(within(greetings).getByText("Shown after a miss").closest("li")?.textContent).toBe(
+      "adiós Shown after a miss",
+    );
+    expect(within(greetings).getByText("adios")).toBeTruthy();
+    expect(within(greetings).getByRole("button", { name: "Retire" })).toBeTruthy();
+
+    fireEvent.click(within(greetings).getByRole("button", { name: "Edit “Goodbye, in Spanish?”" }));
+    fireEvent.change(screen.getByLabelText("Accepted answers, one a line"), {
+      target: { value: "adiós\n\nadios\nchao" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() =>
+      expect(defineTasks).toHaveBeenCalledWith({
+        organizationId: "org-1",
+        tasks: [
+          {
+            objectiveId: "greetings",
+            kind: "typed",
+            prompt: "Goodbye, in Spanish?",
+            accepted: ["adiós", "adios", "chao"],
+            answerLanguage: "es",
+            citations: [{ sourceId: "s1", quote: "Hola." }],
+            replaces: "t2",
+          },
+        ],
+      }),
+    );
+  });
+
   test("retires a task only once the owner confirms, then reads the course again", async () => {
     // Braivo reads the course without a task once it is retired.
     let retired = false;

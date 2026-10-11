@@ -9,9 +9,12 @@ const meta = {
   title: "Compositions/AuthoredTask",
   component: AuthoredTask,
   args: {
-    prompt: "¿Qué dice el perro?",
-    options: ["guau", "miau", "pío"],
-    answer: 0,
+    task: {
+      kind: "choice",
+      prompt: "¿Qué dice el perro?",
+      options: ["guau", "miau", "pío"],
+      answer: 0,
+    },
   },
   decorators: [
     (Story) => (
@@ -31,7 +34,13 @@ export const Written: Story = {};
 /** Everything a reviewer checks: explanation, the passage it cites, and what to do with it. */
 export const UnderReview: Story = {
   args: {
-    explanation: "Guau is what a dog says in Spanish.",
+    task: {
+      kind: "choice",
+      prompt: "¿Qué dice el perro?",
+      options: ["guau", "miau", "pío"],
+      answer: 0,
+      explanation: "Guau is what a dog says in Spanish.",
+    },
     action: (
       <Button variant="outline" size="sm">
         Retire
@@ -45,5 +54,17 @@ export const UnderReview: Story = {
         at={62}
       />
     ),
+  },
+};
+
+/** A typed task: its accepted answers, the first shown to a learner who missed. */
+export const Typed: Story = {
+  args: {
+    task: {
+      kind: "typed",
+      prompt: "The dog: el ___",
+      accepted: ["perro", "can"],
+      explanation: "Perro is everyday Spanish; can is literary.",
+    },
   },
 };

@@ -322,45 +322,65 @@ export function createMcpServer(client: BraivoClient): McpServer {
     async (input) => answer({ citations: await client.citeSources(input) }),
   );
 
+  /** What every kind of task is authored with. */
+  const taskFields = {
+    objectiveId: z.string().min(1),
+    prompt: taskText,
+    explanation: taskText.optional().describe("Shown after grading: why the answer is right."),
+    citations: z
+      .array(z.object({ sourceId: z.string().min(1), quote }))
+      .max(10)
+      .optional(),
+    replaces: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "The ID of the task this corrects, of the same objective, retired in the same step. Send it alone; repeating it is safe. If that task is already retired, this succeeds only when exactly this task is offered; otherwise list the tasks again.",
+      ),
+  };
+
   server.registerTool(
     "author_tasks",
     {
       title: "Author tasks",
       description:
-        "Adds multiple-choice tasks, each practising one objective and citing the passages it was written from. Returns their IDs; a task already there returns its ID, so retrying is safe. Tasks are never edited: one task sent alone with replaces corrects an existing one.",
+        "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Returns their IDs; a task already there returns its ID, so retrying is safe. Tasks are never edited: one task sent alone with replaces corrects an existing one.",
       inputSchema: {
         organizationId,
         tasks: z
           .array(
-            z.object({
-              objectiveId: z.string().min(1),
-              kind: z.literal("choice"),
-              prompt: taskText,
-              options: z.array(taskText).min(2).max(26),
-              answer: z
-                .number()
-                .int()
-                .min(0)
-                .describe("Index into options of the one correct option."),
-              explanation: taskText
-                .optional()
-                .describe("Shown after grading: why the answer is right."),
-              keepOrder: z
-                .literal(true)
-                .optional()
-                .describe("Only when the options' order means something."),
-              citations: z
-                .array(z.object({ sourceId: z.string().min(1), quote }))
-                .max(10)
-                .optional(),
-              replaces: z
-                .string()
-                .min(1)
-                .optional()
-                .describe(
-                  "The ID of the task this corrects, of the same objective, retired in the same step. Send it alone; repeating it is safe. If that task is already retired, this succeeds only when exactly this task is offered; otherwise list the tasks again.",
-                ),
-            }),
+            z.discriminatedUnion("kind", [
+              z.object({
+                ...taskFields,
+                kind: z.literal("choice"),
+                options: z.array(taskText).min(2).max(26),
+                answer: z
+                  .number()
+                  .int()
+                  .min(0)
+                  .describe("Index into options of the one correct option."),
+                keepOrder: z
+                  .literal(true)
+                  .optional()
+                  .describe("Only when the options' order means something."),
+              }),
+              z.object({
+                ...taskFields,
+                kind: z.literal("typed"),
+                accepted: z
+                  .array(text(200))
+                  .min(1)
+                  .max(20)
+                  .describe(
+                    "Every answer graded correct, the first shown to a learner who missed. Case, spacing, and curly versus straight quotes do not count; accents and punctuation do, a missing apostrophe included, so list each variant to accept.",
+                  ),
+                answerLanguage: z
+                  .string()
+                  .optional()
+                  .describe('The language the answers are in, a BCP 47 tag such as "de".'),
+              }),
+            ]),
           )
           .min(1)
           .max(1000)

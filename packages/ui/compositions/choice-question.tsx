@@ -41,6 +41,8 @@ export function ChoiceQuestion(props: {
   correctChoice?: number;
   /** Whether the chosen option is on its way. */
   pending?: boolean;
+  /** Locks the options without a choice, as when the learner asked to be shown the answer. */
+  locked?: boolean;
   onChoose: (choice: number) => void;
   ref?: Ref<HTMLDivElement>;
   /** Context read after the prompt when the question takes focus. */
@@ -51,7 +53,7 @@ export function ChoiceQuestion(props: {
   const { t } = useLingui();
   const promptId = useId();
   const graded = correctChoice !== undefined;
-  const locked = graded || chosen !== undefined;
+  const locked = props.locked || graded || chosen !== undefined;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (locked || event.repeat) return;

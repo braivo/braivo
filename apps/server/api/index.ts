@@ -122,6 +122,11 @@
 //     "task": { "id": "…", "kind": "choice", "prompt": "…",
 //               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
 //
+// or, for a typed task, where the learner types the answer,
+// `"task": { "id": "…", "kind": "typed", "prompt": "…" }`. A client meeting a
+// kind it does not know says the task is not supported there and sends
+// nothing (ADR 0038).
+//
 // When the decided objective has no task, 200 answers the decision and its
 // objective without one: the learner is not caught up, but has nothing to
 // practise until a task is added or another objective comes due.
@@ -141,7 +146,10 @@
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
 // `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
-// the option's, as the activity gave it. `id` is the client's, unique per
+// the option's, as the activity gave it; to a typed task the response is
+// `{ "text": "…" }`, at most 500 characters, stored as sent; and to either
+// kind, Show answer is `{ "reveal": true }`, graded a failure. A response names
+// exactly one of `choice`, `text`, and `reveal`. `id` is the client's, unique per
 // learner within the course's organization, at most 128 characters (a UUID
 // will do). Mint it once per answer,
 // and when delivery is uncertain (a network error, a 5xx) resend that same ID:
@@ -150,7 +158,8 @@
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, or the response
-//        cannot answer the task
+//        cannot answer the task or names more than one of `choice`, `text`,
+//        and `reveal`
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task,
 //        or the task was retired (a resend of an attempt recorded before that
@@ -160,8 +169,10 @@
 //        learner answered this task in another attempt less than ten minutes
 //        ago. Either way, ask for the activity again rather than resending.
 //   413  the body is larger than 1 MB
-//   200  the grade: `{ "outcome": "failure", "correctChoice": 0, "explanation": "…" }`,
-//        `correctChoice` the correct option's `choice`, `explanation` present
+//   200  the grade: `{ "kind": "choice", "outcome": "failure", "correctChoice": 0,
+//        "explanation": "…" }`, `correctChoice` the correct option's `choice`;
+//        or `{ "kind": "typed", "outcome": "failure", "correctAnswer": "bin" }`,
+//        `correctAnswer` the first accepted one, whichever matched; `explanation` present
 //        only when the task has one, and `passages` only when it cites any —
 //        the words it was written from, by source:
 //
@@ -330,15 +341,19 @@
 //   { "tasks": [{ "objectiveId": "…", "kind": "choice", "prompt": "…",
 //                 "options": ["…", "…"], "answer": 0, "explanation": "…" }] }
 //
-// `choice` is the only kind: a prompt and 2 to 26 distinct options, `answer`
-// the index of the correct one, `explanation` optional and shown after
-// grading, each text 1 to 2000 characters, and `keepOrder: true` to present
-// the options as written rather than shuffled — for a scale, or "all of the
-// above". Any task may add `"citations": [{ "sourceId": "…", "quote": "…" }]`,
-// at most 10: the passages it was written from, located as on the citations
-// route and stored with the task. A task the objective already has, unretired
-// — the same body and passages — is not added again: its ID is answered, so a
-// retry duplicates nothing (ADR 0024). Answers 201 with `{ "taskIds": [...] }`,
+// Every task has a prompt and an optional `explanation`, shown after grading,
+// each 1 to 2000 characters. A `choice` task: 2 to 26 distinct options of 1 to
+// 2000 characters, `answer` the index of the correct one, and `keepOrder: true`
+// to present them as written rather than shuffled — for a scale, or "all of
+// the above". A `typed` task: 1 to 20 `accepted` answers of 1 to 200
+// characters, distinct as compared (case, spacing, and curly or straight
+// quotes aside), the first shown to a learner who missed, and an optional
+// `answerLanguage`, a language tag such as "de" (ADR 0038). Any task may add
+// `"citations": [{ "sourceId": "…", "quote": "…" }]`, at most 10: the passages
+// it was written from, located as on the citations route and stored with the
+// task. A task the objective already has, unretired — the same body and
+// passages — is not added again: its ID is answered, so a retry duplicates
+// nothing (ADR 0024). Answers 201 with `{ "taskIds": [...] }`,
 // positionally matching; 400 with an `error` when a task is not a valid one of
 // its kind or cites a quote Braivo cannot find — "Task 1, citation 0: the
 // quote does not occur in the source." — and 403 when an objective or a

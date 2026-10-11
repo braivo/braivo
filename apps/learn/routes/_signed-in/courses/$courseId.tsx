@@ -10,8 +10,9 @@ import {
   type LearnerProgressSummary,
   type LearningDecision,
   type LearnerProgressStanding,
+  type TaskResponse,
 } from "@braivo/server/client";
-import { ChoiceQuestion, Heading, MutedText, SourcePassage } from "@braivo/ui";
+import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import type { MessageDescriptor } from "@lingui/core";
@@ -174,6 +175,8 @@ function NextStep() {
         // Not "caught up": the objective selected next has nothing to practise it
         // with (glossary: No activity).
         <NoPractice objectiveTitle={activity.objective.title} />
+      ) : !isAnswerable(activity.task) ? (
+        <UnsupportedTask />
       ) : (
         // Keyed, so the next activity starts unanswered, and what a reload's
         // resend found replaces what was on screen.
@@ -299,6 +302,36 @@ function CaughtUp({ report }: { report: LearnerProgressSummary | undefined }) {
   return <Notice title={t`You're caught up`} description={description} />;
 }
 
+type PresentedTask = Extract<Activity, { task: unknown }>["task"];
+
+/**
+ * Whether this page answers the task. Every kind its types know, but a newer
+ * Braivo may send one they do not (docs/adr/0038-typed-answers.md).
+ */
+function isAnswerable(task: PresentedTask): boolean {
+  return Object.hasOwn(KINDS, task.kind);
+}
+
+/** Every kind the page renders; a kind added to the types fails to compile here. */
+const KINDS: Record<PresentedTask["kind"], true> = { choice: true, typed: true };
+
+/**
+ * A task of a kind this app does not answer yet: said, with a way out, and
+ * nothing sent, so nothing is recorded (docs/adr/0038-typed-answers.md).
+ */
+function UnsupportedTask() {
+  const { t } = useLingui();
+  return (
+    <Notice title={t`This question can't be answered here yet.`}>
+      <Button asChild variant="outline">
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
+      </Button>
+    </Notice>
+  );
+}
+
 function NoPractice({ objectiveTitle }: { objectiveTitle: string }) {
   const { t } = useLingui();
   return (
@@ -418,7 +451,8 @@ function Practice({
   const { courseId } = Route.useParams();
   const router = useRouter();
   const { t } = useLingui();
-  const [chosen, setChosen] = useState(resumed?.attempt.response.choice);
+  // From the moment it is sent, so the question shows what was sent.
+  const [sent, setSent] = useState<TaskResponse | undefined>(resumed?.attempt.response);
   const [grade, setGrade] = useState(resumed?.grade);
   // Counted, not flagged, so that each answer left unconfirmed gets a new alert (below).
   const [unconfirmedCount, setUnconfirmedCount] = useState(resumed && !resumed.grade ? 1 : 0);
@@ -428,6 +462,8 @@ function Practice({
   // The question itself, so its number keys work at once and a screen reader
   // announces the prompt that labels it.
   const focused = useFocusOnMount<HTMLDivElement>();
+  // A typed task's field, so the learner types straight away.
+  const focusedField = useFocusOnMount<HTMLInputElement>();
   // Describes the question, so the focus landing on it reads this too.
   const contextId = useId();
   const passagesId = useId();
@@ -443,13 +479,12 @@ function Practice({
     return () => controller.abort();
   }, []);
 
-  async function submit(choice: number) {
+  async function submit(response: TaskResponse) {
     const left = lifetime.current?.signal;
-    setChosen(choice);
+    setSent(response);
     setSending(true);
     // Before sending, kept until Continue: a reload can land after Braivo
     // records it and before its grade arrives, or before it is read.
-    const response = { choice };
     saveUnfinishedAttempt(user.id, courseId, { id: attemptId, activity, response });
     try {
       const answered = await braivo.submitAttempt(
@@ -500,10 +535,18 @@ function Practice({
   // No retry, unlike a failed load: this answer would be refused again.
   if (refused) return <Notice title={t`Something went wrong.`} />;
 
+  const correctChoice = grade?.kind === "choice" ? grade.correctChoice : undefined;
+  // Named only on a failure: a typed answer may succeed on another accepted
+  // spelling than the one named, and is not corrected then.
   const correctAnswer =
-    grade?.outcome === "failure"
-      ? task.options.find((option) => option.choice === grade.correctChoice)?.text
-      : undefined;
+    grade?.outcome !== "failure"
+      ? undefined
+      : grade.kind === "typed"
+        ? grade.correctAnswer
+        : task.kind === "choice"
+          ? task.options.find((option) => option.choice === correctChoice)?.text
+          : undefined;
+  const revealed = sent !== undefined && "reveal" in sent;
 
   return (
     <section className="flex flex-col gap-6">
@@ -522,18 +565,47 @@ function Practice({
           </MutedText>
         )}
       </div>
-      <ChoiceQuestion
-        prompt={task.prompt}
-        options={task.options}
-        chosen={chosen}
-        correctChoice={grade?.correctChoice}
-        pending={sending}
-        onChoose={submit}
-        // Resumed, the focus is on Send again or Continue, as when answered here.
-        ref={resumed ? undefined : focused}
-        aria-describedby={contextId}
-      />
-      {unconfirmedCount > 0 && chosen !== undefined && (
+      {/* Typed first: a kind added later then fails to compile on `options`
+          rather than rendering as a typed question. */}
+      {task.kind === "typed" ? (
+        <TypedQuestion
+          prompt={task.prompt}
+          sent={sent && "text" in sent ? sent.text : undefined}
+          outcome={grade?.outcome}
+          pending={sending && !revealed}
+          locked={revealed}
+          onSubmit={(text) => submit({ text })}
+          ref={resumed ? undefined : focusedField}
+          aria-describedby={contextId}
+        />
+      ) : (
+        <ChoiceQuestion
+          prompt={task.prompt}
+          options={task.options}
+          chosen={sent && "choice" in sent ? sent.choice : undefined}
+          correctChoice={correctChoice}
+          pending={sending}
+          locked={revealed}
+          onChoose={(choice) => submit({ choice })}
+          // Resumed, the focus is on Send again or Continue, as when answered here.
+          ref={resumed ? undefined : focused}
+          aria-describedby={contextId}
+        />
+      )}
+      {/* Before answering only: asking is an answer of its own, a failure, not
+          a hint (ADR 0038). Kept, locked, while it is sent, so it keeps the
+          focus until the grade or Send again replaces it (docs/apps.md). */}
+      {(sent === undefined || (revealed && sending && unconfirmedCount === 0)) && (
+        <Button
+          variant="ghost"
+          className="self-start"
+          aria-disabled={sending}
+          onClick={() => !sending && submit({ reveal: true })}
+        >
+          {revealed ? t`Loading…` : t`Show answer`}
+        </Button>
+      )}
+      {unconfirmedCount > 0 && sent !== undefined && (
         <>
           {/* Only the alert is keyed, so failing again mounts a new one, not the
               same one unchanged, while Send again keeps its node and focus. */}
@@ -547,7 +619,7 @@ function Practice({
             size="lg"
             autoFocus
             aria-disabled={sending}
-            onClick={() => !sending && submit(chosen)}
+            onClick={() => !sending && submit(sent)}
           >
             {sending ? t`Sending…` : t`Send again`}
           </Button>
@@ -558,7 +630,9 @@ function Practice({
           {/* `wrap-anywhere`: a grid, whose column is otherwise as wide as the
               explanation's longest word, such as a link. */}
           <Alert className="wrap-anywhere">
-            <AlertTitle>{grade.outcome === "success" ? t`Correct` : t`Not quite`}</AlertTitle>
+            <AlertTitle>
+              {grade.outcome === "success" ? t`Correct` : revealed ? t`Here it is` : t`Not quite`}
+            </AlertTitle>
             {(correctAnswer || grade.explanation) && (
               <AlertDescription>
                 {/* Named, not only marked, so a learner need not go back to the

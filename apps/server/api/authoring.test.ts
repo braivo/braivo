@@ -793,6 +793,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     );
 
     expect(await answered.json()).toEqual({
+      kind: "choice",
       outcome: "failure",
       correctChoice: 0,
       passages: [

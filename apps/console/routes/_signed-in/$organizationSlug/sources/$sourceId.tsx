@@ -311,9 +311,17 @@ function ReviewDraft(props: {
     const task = draft.objectives[index]!.tasks[taskIndex]!;
     const edit = edited.get(`${index}:${taskIndex}`);
     if (!edit) return task;
-    // Whole, not merged: an explanation the owner removed stays removed.
-    const { explanation: _, ...rest } = task;
-    return { ...rest, ...edit, options: [...edit.options] };
+    // Whole, not merged: an explanation the owner removed stays removed. The
+    // edit is of the task's own kind; its passages are the draft's.
+    const { citations } = task;
+    return edit.kind === "choice"
+      ? {
+          ...edit,
+          options: [...edit.options],
+          ...(task.kind === "choice" && task.keepOrder && { keepOrder: true as const }),
+          citations,
+        }
+      : { ...edit, accepted: [...edit.accepted], citations };
   }
 
   const kept = draft.objectives.flatMap((objective, index) =>
@@ -514,10 +522,7 @@ function ReviewDraft(props: {
                     return (
                       <AuthoredTask
                         key={taskIndex}
-                        prompt={task.prompt}
-                        options={task.options}
-                        answer={task.answer}
-                        explanation={task.explanation}
+                        task={task}
                         action={
                           <span className="flex items-center gap-2">
                             <Button

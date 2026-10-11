@@ -8,7 +8,13 @@ import { TaskEditor } from "./task-editor.tsx";
 
 afterEach(cleanup);
 
-const task = { prompt: "¿Rojo? ", options: ["red", "blue"], answer: 1, explanation: "Rojo." };
+const task = {
+  kind: "choice" as const,
+  prompt: "¿Rojo? ",
+  options: ["red", "blue"],
+  answer: 1,
+  explanation: "Rojo.",
+};
 
 function edit() {
   const onSave = vi.fn();
@@ -26,7 +32,12 @@ describe("editing a proposed task", () => {
     fireEvent.change(screen.getByLabelText("Why the answer is right"), { target: { value: " " } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onSave).toHaveBeenCalledWith({ prompt: "¿Rojo?", options: ["red", "azul"], answer: 0 });
+    expect(onSave).toHaveBeenCalledWith({
+      kind: "choice",
+      prompt: "¿Rojo?",
+      options: ["red", "azul"],
+      answer: 0,
+    });
   });
 
   test("counts options that differ only in spacing as repeated, as the server does", () => {
@@ -136,6 +147,62 @@ describe("editing a proposed task", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onCancel).toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe("editing a proposed typed task", () => {
+  const typed = {
+    kind: "typed" as const,
+    prompt: "Red, in Spanish?",
+    accepted: ["rojo"],
+    answerLanguage: "es",
+  };
+  function editTyped() {
+    const onSave = vi.fn();
+    render(<TaskEditor task={typed} onSave={onSave} onCancel={vi.fn()} />);
+    return { onSave, answers: screen.getByLabelText("Accepted answers, one a line") };
+  }
+
+  test("saves its accepted answers a line each, blank lines dropped, its language kept", () => {
+    const { onSave, answers } = editTyped();
+
+    fireEvent.change(answers, { target: { value: " rojo \n\n  colorado  rojo " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      kind: "typed",
+      prompt: "Red, in Spanish?",
+      accepted: ["rojo", "colorado rojo"],
+      answerLanguage: "es",
+    });
+  });
+
+  test("saves twenty answers of 200 characters, more than one text's limit together", () => {
+    const { onSave, answers } = editTyped();
+    const many = Array.from({ length: 20 }, (_, index) => `${index}`.padEnd(200, "x"));
+
+    fireEvent.change(answers, { target: { value: many.join("\n") } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ accepted: many }));
+  });
+
+  test.each([
+    ["no answer", " \n ", "Write at least one accepted answer."],
+    [
+      "answers equal as compared",
+      "Rojo\nrojo",
+      "Every answer must differ, case, spacing, and curly or straight quotes aside.",
+    ],
+    ["an answer over 200 characters", "x".repeat(201), "Keep each answer to 200 characters."],
+  ])("refuses %s before saving, as the server would", (_case, value, problem) => {
+    const { onSave, answers } = editTyped();
+
+    fireEvent.change(answers, { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(screen.getByText(problem)).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
   });
 });
