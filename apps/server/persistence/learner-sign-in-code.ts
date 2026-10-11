@@ -126,10 +126,12 @@ export async function spendLearnerSignInCode(
           // found, or while this waited for its row.
           gt(learnerSignInCode.expiresAt, sql`clock_timestamp()`),
           lt(learnerSignInCode.attempts, input.attempts),
+          // Locked, as `handoffDomainHolds` is, for a removal of the domain.
           sql`exists (
             select 1 from ${organizationDomain}
             where ${organizationDomain.hostname} = ${learnerSignInCode.hostname}
               and ${organizationDomain.organizationId} = ${learnerSignInCode.organizationId}
+            for key share
           )`,
         ),
       )

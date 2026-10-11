@@ -316,6 +316,15 @@ export type BraivoClient = {
   activateDomain(organizationId: string, hostname: string, options?: RequestOptions): Promise<void>;
 
   /**
+   * Removes a domain serving an organization, or its claim to one: it stops
+   * serving at once. A {@link BraivoError} says why not: 409, its `code`
+   * `DOMAIN_RESERVED` for the installation's own, `LAST_DOMAIN` for the only
+   * one serving; 404 for a hostname the organization does not hold; 403 without
+   * `owner` or `admin` there; 501 where domains cannot be removed.
+   */
+  removeDomain(organizationId: string, hostname: string, options?: RequestOptions): Promise<void>;
+
+  /**
    * Every course an organization has, by title.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
@@ -866,6 +875,17 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       );
 
       const doing = `activating ${hostname} for organization "${organizationId}"`;
+      if (response.status !== 204) throw await unexpected(response, doing);
+    },
+
+    async removeDomain(organizationId, hostname, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/domains/${encodeURIComponent(hostname)}/remove`,
+        {},
+        requestOptions,
+      );
+
+      const doing = `removing ${hostname} from organization "${organizationId}"`;
       if (response.status !== 204) throw await unexpected(response, doing);
     },
 

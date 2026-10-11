@@ -13,12 +13,14 @@ import { and, eq, gt, lte, sql } from "drizzle-orm";
 
 /**
  * A handoff whose domain still serves its organization: one moved since to
- * another organization, or removed, hands nothing over.
+ * another organization, or removed, hands nothing over. Its row locked, so a
+ * removal under way is waited for, and one waiting deletes the session opened.
  */
 const handoffDomainHolds = sql`exists (
   select 1 from ${organizationDomain}
   where ${organizationDomain.hostname} = ${learnerHandoff.hostname}
     and ${organizationDomain.organizationId} = ${learnerHandoff.organizationId}
+  for key share
 )`;
 
 /**

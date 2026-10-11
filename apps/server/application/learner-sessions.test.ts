@@ -131,6 +131,30 @@ describe.skipIf(!connectionString)("a learn domain's sign-in, handed over", () =
     expect(await resumeLearnerSession({ database, hostname, token, now: at })).toBeUndefined();
   });
 
+  test("opens no session once a removal of its domain, under way, commits", async () => {
+    const { nonce, code } = await issued();
+    const removing = Promise.withResolvers<void>();
+    const removed = Promise.withResolvers<void>();
+    // As `deleteDomain` removes it, its sessions deleted, stopped before it commits.
+    const removal = database.transaction(async (transaction) => {
+      await transaction.delete(organizationDomain).where(eq(organizationDomain.hostname, hostname));
+      await transaction.delete(learnerSession).where(eq(learnerSession.hostname, hostname));
+      removing.resolve();
+      await removed.promise;
+    });
+    await removing.promise;
+
+    const redeemed = redeem({ code, nonce });
+    // Time to open a session, were it not waiting for the removal.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    removed.resolve();
+    await removal;
+    expect(await redeemed).toBeUndefined();
+    expect(
+      await database.select().from(learnerSession).where(eq(learnerSession.hostname, hostname)),
+    ).toEqual([]);
+  });
+
   test("refuses a session on the organization's later domain", async () => {
     const { token } = (await redeem(await issued())) ?? expect.fail("not redeemed");
     const next = "learner-sessions-test-next.example.com";

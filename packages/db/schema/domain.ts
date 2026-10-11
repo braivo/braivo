@@ -34,6 +34,12 @@ export const organizationDomain = pgTable(
     registeredAt: timestamp("registered_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
+    /**
+     * The claim it was proven by (`organization_domain_claim.id`), so removing
+     * it tells the provisioner about that claim alone; `null` when the
+     * operator registered it.
+     */
+    claimId: bigint("claim_id", { mode: "number" }),
   },
   (table) => [
     // Finding an organization's domains, and the cascade from it.
@@ -61,10 +67,11 @@ export const organizationDomainClaim = pgTable(
     /**
      * This claim, and no other: the provisioner keeps a proof, and whatever
      * serves the hostname, for a claim alone (ADR 0038), so a hostname claimed
-     * again, its claim expired or its organization deleted, is proven again.
-     * From a sequence, taken under the hostname's lock, so a later claim's is
-     * greater, whatever the clocks say: the provisioner ignores a late addition
-     * for an earlier one.
+     * again, its claim expired or removed or its organization deleted, is
+     * proven again, and a late removal of an earlier claim never undoes a later
+     * one. From a sequence, taken under the hostname's lock, so a later claim's
+     * is greater, whatever the clocks say: the provisioner ignores a late
+     * addition for an earlier one.
      */
     id: bigint("id", { mode: "number" }).notNull().unique().generatedAlwaysAsIdentity(),
     // Cascading, as a domain: a claim outliving its organization claims for nobody.

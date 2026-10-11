@@ -1,7 +1,7 @@
 {
-  "id": "abc8d6ef-2a14-4a07-b92e-018e5a6aa76a",
+  "id": "80fcf048-608f-46a0-b62c-613a52473c90",
   "prevIds": [
-    "38c5fb4f-e8ce-4c55-8448-3d33bec8a7bf"
+    "3e17d39a-9545-4788-bd2c-ebf507eab9eb"
   ],
   "version": "8",
   "dialect": "postgres",
@@ -2465,6 +2465,19 @@
       "generated": null,
       "identity": null,
       "name": "registered_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization_domain"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "claim_id",
       "entityType": "columns",
       "schema": "public",
       "table": "organization_domain"

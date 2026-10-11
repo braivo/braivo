@@ -222,6 +222,7 @@ CREATE TABLE "organization_domain" (
 	"hostname" text PRIMARY KEY,
 	"organization_id" text NOT NULL,
 	"registered_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"claim_id" bigint,
 	CONSTRAINT "organization_domain_hostname_lowercase" CHECK ("hostname" = lower("hostname"))
 );
 --> statement-breakpoint

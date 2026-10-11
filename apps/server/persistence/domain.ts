@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { organization, organizationDomain, organizationDomainClaim } from "@braivo/db/schema";
+import {
+  learnerSession,
+  organization,
+  organizationDomain,
+  organizationDomainClaim,
+} from "@braivo/db/schema";
 import { and, desc, eq, not, sql } from "drizzle-orm";
 
 import type { Organization } from "./membership.ts";
@@ -175,10 +180,11 @@ export async function insertDomainClaim(
 
 /**
  * Turns an organization's claim `claimId` to a hostname into a domain serving
- * it, the newest, so the one its learn domain is named by (ADR 0038). The
- * caller has proven that claim: a proof never passes to another made since.
- * Answers `"activated"`, `"active"` when it serves the organization already,
- * or `"unclaimed"` when that claim is gone, expired or replaced meanwhile.
+ * it, the newest, so the one its learn domain is named by (ADR 0038), which
+ * keeps that claim's ID. The caller has proven that claim: a proof never
+ * passes to another made since. Answers `"activated"`, `"active"` when it
+ * serves the organization already, or `"unclaimed"` when that claim is gone,
+ * removed, expired, or replaced meanwhile.
  */
 export async function activateDomainClaim(
   database: Database,
@@ -193,7 +199,55 @@ export async function activateDomainClaim(
     await transaction
       .delete(organizationDomainClaim)
       .where(eq(organizationDomainClaim.id, claimId));
-    await transaction.insert(organizationDomain).values({ hostname, organizationId });
+    await transaction.insert(organizationDomain).values({ hostname, organizationId, claimId });
     return "activated";
+  });
+}
+
+/**
+ * Removes an organization's domain or claim to a hostname, answering
+ * `"removed"` with the claim it was (`null` for a domain the operator
+ * registered), for the provisioner to forget that claim alone; `"unheld"`
+ * when the organization holds no such hostname; or `"last"` for the only
+ * domain serving the organization, kept so its learners keep an address. The
+ * organization is held too, so two removals at once cannot both leave it
+ * without one. A domain's learner sessions go with it: access-17 refuses them
+ * only while it no longer serves, so they would open it again if it were
+ * added back.
+ */
+export async function deleteDomain(
+  database: Database,
+  input: { hostname: string; organizationId: string },
+): Promise<{ kind: "removed"; claimId: number | null } | { kind: "unheld" } | { kind: "last" }> {
+  return database.transaction(async (transaction) => {
+    await transaction.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`braivo:domains:${input.organizationId}`}, 0))`,
+    );
+    const holder = await lockHostname(transaction, input.hostname);
+    if (holder?.organization.id !== input.organizationId) return { kind: "unheld" };
+    if (holder.holds === "claim") {
+      await transaction
+        .delete(organizationDomainClaim)
+        .where(eq(organizationDomainClaim.id, holder.claimId));
+      return { kind: "removed", claimId: holder.claimId };
+    }
+    const [{ count } = { count: 0 }] = await transaction
+      .select({ count: sql<number>`count(*)::int` })
+      .from(organizationDomain)
+      .where(eq(organizationDomain.organizationId, input.organizationId));
+    if (count <= 1) return { kind: "last" };
+    const [removed] = await transaction
+      .delete(organizationDomain)
+      .where(eq(organizationDomain.hostname, input.hostname))
+      .returning({ claimId: organizationDomain.claimId });
+    await transaction
+      .delete(learnerSession)
+      .where(
+        and(
+          eq(learnerSession.hostname, input.hostname),
+          eq(learnerSession.organizationId, input.organizationId),
+        ),
+      );
+    return { kind: "removed", claimId: removed?.claimId ?? null };
   });
 }

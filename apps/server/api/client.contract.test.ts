@@ -37,6 +37,7 @@ const { database, api, outbox, signUp } = createTestApi({
   domains: {
     add: async (hostname) => pendingDomain(hostname),
     status: async (hostname) => pendingDomain(hostname),
+    remove: async () => {},
   },
   dataRegion: "EU",
   otherRegions: [
@@ -353,7 +354,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       headers: { cookie: teacherCookie },
     });
     expect(domains).toEqual({
-      domains: [{ hostname: organizationHost }],
+      // The only one serving: not removable.
+      domains: [{ hostname: organizationHost, removable: false }],
       claims: expect.any(Array),
       canAdd: true,
     });
@@ -410,6 +412,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await expect(
       client.activateDomain(organizationId, organizationHost, options),
     ).resolves.toBeUndefined();
+  });
+
+  test("removes a domain, saying with a code why not", async () => {
+    const options = { headers: { cookie: teacherCookie } };
+    const hostname = "removed.contract-test.example.com";
+    await client.claimDomain(organizationId, hostname, options);
+
+    await expect(client.removeDomain(organizationId, hostname, options)).resolves.toBeUndefined();
+    expect((await client.listDomains(organizationId, options)).claims).not.toContainEqual(
+      expect.objectContaining({ hostname }),
+    );
+    for (const [name, code] of [
+      [organizationHost, "LAST_DOMAIN"],
+      [`school.${selfServeDomain}`, "DOMAIN_RESERVED"],
+    ] as const) {
+      await expect(client.removeDomain(organizationId, name, options)).rejects.toMatchObject({
+        status: 409,
+        code,
+      });
+    }
   });
 
   test("lists courses in the shape it declares, and refuses a learner", async () => {

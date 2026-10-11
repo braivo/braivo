@@ -4,6 +4,17 @@
 import { BraivoError, type DomainClaim } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@braivo/ui/components/alert-dialog";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import { Field, FieldDescription, FieldLabel } from "@braivo/ui/components/field";
@@ -54,17 +65,23 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/dom
 
 function Domains() {
   const { domains, claims, canAdd } = Route.useLoaderData();
-  // The domain just activated, said below the list. Its claim's button gone,
-  // focus moves to its link.
-  const [activated, setActivated] = useState<string>();
+  // What was just done, said below the list. Its button gone with what it
+  // acted on, focus moves: to the domain activated or, removed, to the page's
+  // heading.
+  const [done, setDone] = useState<{ hostname: string; action: "activated" | "removed" }>();
   const activatedLink = useRef<HTMLAnchorElement>(null);
-  useLayoutEffect(() => activatedLink.current?.focus(), [activated]);
-  // Named, so a translator sees `{domain}`, not `{activated}`.
-  const domain = activated;
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (done?.action === "activated") activatedLink.current?.focus();
+    if (done?.action === "removed") heading.current?.focus();
+  }, [done]);
+  const removed = (hostname: string) => setDone({ hostname, action: "removed" });
+  // Named, so a translator sees `{domain}`, not `{0}`.
+  const domain = done?.hostname;
 
   return (
     <>
-      <Heading>
+      <Heading ref={heading} tabIndex={-1} className="outline-none">
         <Trans>Domains</Trans>
       </Heading>
       {domains.length === 0 ? (
@@ -87,12 +104,16 @@ function Domains() {
             </Trans>
           </MutedText>
           <ItemGroup className="gap-2">
-            {domains.map(({ hostname }, index) => (
+            {domains.map(({ hostname, removable }, index) => (
               <Item key={hostname} role="listitem" variant="outline" size="sm">
                 <ItemContent className="min-w-0">
                   <ItemTitle className="wrap-anywhere">
                     <a
-                      ref={hostname === activated ? activatedLink : undefined}
+                      ref={
+                        done?.action === "activated" && hostname === done.hostname
+                          ? activatedLink
+                          : undefined
+                      }
                       href={`https://${hostname}`}
                       target="_blank"
                       rel="noreferrer"
@@ -102,11 +123,14 @@ function Domains() {
                     </a>
                   </ItemTitle>
                 </ItemContent>
-                {index === 0 && (
+                {(index === 0 || removable) && (
                   <ItemActions>
-                    <Badge variant="secondary">
-                      <Trans>Primary</Trans>
-                    </Badge>
+                    {index === 0 && (
+                      <Badge variant="secondary">
+                        <Trans>Primary</Trans>
+                      </Badge>
+                    )}
+                    {removable && <RemoveDomain hostname={hostname} serving onRemoved={removed} />}
                   </ItemActions>
                 )}
               </Item>
@@ -117,9 +141,17 @@ function Domains() {
       {/* Mounted before it says anything: a status region shown already filled
           is not reliably announced. */}
       <p role="status" className="mt-3 text-sm wrap-anywhere text-muted-foreground empty:mt-0">
-        {domain && <Trans>{domain} now serves your learners.</Trans>}
+        {done?.action === "activated" && <Trans>{domain} now serves your learners.</Trans>}
+        {done?.action === "removed" && <Trans>Removed {domain}.</Trans>}
       </p>
-      {claims.length > 0 && <Claims claims={claims} canCheck={canAdd} onActivated={setActivated} />}
+      {claims.length > 0 && (
+        <Claims
+          claims={claims}
+          canCheck={canAdd}
+          onActivated={(hostname) => setDone({ hostname, action: "activated" })}
+          onRemoved={removed}
+        />
+      )}
       {canAdd && <AddDomain />}
     </>
   );
@@ -131,6 +163,7 @@ function Claims(props: {
   /** Whether the installation has a provisioner to ask: without one, they wait read-only. */
   canCheck: boolean;
   onActivated: (hostname: string) => void;
+  onRemoved: (hostname: string) => void;
 }) {
   const id = useId();
   return (
@@ -152,6 +185,7 @@ function Claims(props: {
             claim={claim}
             canCheck={props.canCheck}
             onActivated={props.onActivated}
+            onRemoved={props.onRemoved}
           />
         ))}
       </ul>
@@ -167,6 +201,7 @@ function Claim(props: {
   claim: DomainClaim;
   canCheck: boolean;
   onActivated: (hostname: string) => void;
+  onRemoved: (hostname: string) => void;
 }) {
   const { hostname, status } = props.claim;
   const { organization, braivo } = Route.useRouteContext();
@@ -279,24 +314,26 @@ function Claim(props: {
         </Table>
       )}
       {props.canCheck && (
-        <Button
-          className="mt-4"
-          variant={status?.ready ? "default" : "outline"}
-          aria-disabled={checking}
-          onClick={() => !checking && activate()}
-        >
-          {checking ? (
-            <>
-              {/* Hidden: "Checking…" already says it. */}
-              <Spinner data-icon="inline-start" aria-hidden="true" />
-              <Trans>Checking…</Trans>
-            </>
-          ) : status?.ready ? (
-            <Trans>Activate</Trans>
-          ) : (
-            <Trans>Check and activate</Trans>
-          )}
-        </Button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant={status?.ready ? "default" : "outline"}
+            aria-disabled={checking}
+            onClick={() => !checking && activate()}
+          >
+            {checking ? (
+              <>
+                {/* Hidden: "Checking…" already says it. */}
+                <Spinner data-icon="inline-start" aria-hidden="true" />
+                <Trans>Checking…</Trans>
+              </>
+            ) : status?.ready ? (
+              <Trans>Activate</Trans>
+            ) : (
+              <Trans>Check and activate</Trans>
+            )}
+          </Button>
+          <RemoveDomain hostname={hostname} serving={false} onRemoved={props.onRemoved} />
+        </div>
       )}
       {failure && (
         <Alert key={failure.count} variant="destructive" className="mt-4">
@@ -439,6 +476,121 @@ function AddDomain() {
         </Alert>
       )}
     </section>
+  );
+}
+
+/**
+ * Removes a domain, or a domain's claim (`serving` false), asked first since a
+ * domain stops serving at once. Once removed, it and this button are gone, so
+ * `onRemoved` says where focus goes instead.
+ */
+function RemoveDomain(props: {
+  hostname: string;
+  serving: boolean;
+  onRemoved: (hostname: string) => void;
+}) {
+  const { hostname } = props;
+  const { organization, braivo } = Route.useRouteContext();
+  const router = useRouter();
+  const { t } = useLingui();
+  // A ref, set at once, refuses a second click before `removing` renders.
+  const pending = useRef(false);
+  const [removing, setRemoving] = useState(false);
+  /** The last failure; its count keys the alert, so a repeat is announced too. */
+  const [failure, setFailure] = useState<{ message: string; count: number }>();
+
+  async function remove() {
+    if (pending.current) return;
+    pending.current = true;
+    setRemoving(true);
+    try {
+      await braivo.removeDomain(organization.id, hostname, {
+        signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+      });
+    } catch (thrown) {
+      pending.current = false;
+      setRemoving(false);
+      setFailure((last) => ({ message: refusal(thrown), count: (last?.count ?? 0) + 1 }));
+      // Read again only for the guard to send a signed-out owner to sign in:
+      // otherwise the list, read again, could take this button and its alert
+      // away (another owner removed the other domain, say).
+      if (thrown instanceof BraivoError && thrown.status === 401) await router.invalidate();
+      return;
+    }
+    // Focus moves once the domain is gone from the page.
+    await router.invalidate({ sync: true });
+    props.onRemoved(hostname);
+  }
+
+  /** Why it was not removed, worded here from Braivo's code (ADR 0035). */
+  function refusal(thrown: unknown): string {
+    if (!(thrown instanceof BraivoError)) {
+      return t`Could not connect. Check your connection and try again.`;
+    }
+    if (thrown.status === 401) return t`You were signed out. Sign in again.`;
+    if (thrown.code === "LAST_DOMAIN") {
+      return t`It is the only domain your learners have. Add another first.`;
+    }
+    if (thrown.status === 404) return t`It changed meanwhile. Reload the page to see it as it is.`;
+    return t`Could not remove the domain. Try again.`;
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          {/* Named for its domain: one of several Remove buttons on the page.
+              Kept focusable while removing, though it opens nothing. */}
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={removing ? undefined : t`Remove ${hostname}`}
+            aria-disabled={removing}
+            onClick={(event) => removing && event.preventDefault()}
+          >
+            {removing ? (
+              <>
+                {/* Hidden: "Removing…" already says it. */}
+                <Spinner data-icon="inline-start" aria-hidden="true" />
+                <Trans>Removing…</Trans>
+              </>
+            ) : (
+              <Trans>Remove</Trans>
+            )}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="wrap-anywhere">
+              <Trans>Remove {hostname}?</Trans>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {props.serving ? (
+                <Trans>
+                  Learners can no longer practise there: links to it stop working, and anyone signed
+                  in there is signed out.
+                </Trans>
+              ) : (
+                <Trans>This cancels its setup. You can add it again later.</Trans>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Trans>Keep it</Trans>
+            </AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={remove}>
+              <Trans>Remove</Trans>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {failure && (
+        <p key={failure.count} role="alert" className="text-sm text-destructive">
+          {failure.message}
+        </p>
+      )}
+    </div>
   );
 }
 

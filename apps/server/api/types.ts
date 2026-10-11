@@ -106,8 +106,11 @@ export type OrganizationSetup = {
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 
-/** A hostname serving an organization's learn app. */
-export type Domain = { hostname: string };
+/**
+ * A hostname serving an organization's learn app, and whether its `owner` or
+ * `admin` may remove it here: never the installation's own, nor the last.
+ */
+export type Domain = { hostname: string; removable: boolean };
 
 /** A hostname an organization claimed, not yet serving, with where it stands (ADR 0038). */
 export type DomainClaim = application.DomainClaim;

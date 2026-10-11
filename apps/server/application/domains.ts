@@ -6,6 +6,7 @@ import type { Database } from "@braivo/db";
 import { describeError } from "../logging.ts";
 import {
   activateDomainClaim,
+  deleteDomain,
   type HostnameHolder,
   insertDomainClaim,
   insertLearnDomain,
@@ -23,13 +24,14 @@ import { assertMayAdminister } from "./permission.ts";
  * Every call names the claim it is for (`claim`, its ID), and a proof, and
  * whatever serves the hostname, belong to that claim alone: whatever an
  * earlier claim to the hostname left (its organization since deleted, say)
- * never answers for a later one. Claims' IDs are ordered, a later claim's to
- * a hostname greater, whatever the clocks say, so an `add` arriving late for
- * a claim older than the one the provisioner serves the hostname for is
- * ignored, answering it not ready. Each call is safe to repeat for the same
- * claim, and should settle within seconds: Braivo waits for it. A claim
- * expired (seven days on, not activated) is never named again, nor removed:
- * what the provisioner holds for it is its own to sweep.
+ * never answers for a later one, nor does removing it touch a later one.
+ * Claims' IDs are ordered, a later claim's to a hostname greater, whatever
+ * the clocks say, so an `add` arriving late for a claim older than the one
+ * the provisioner serves the hostname for is ignored, answering it not ready.
+ * Each call is safe to repeat for the same claim, and should settle within
+ * seconds: Braivo waits for it. A claim expired (seven days on, not activated)
+ * is never named again, nor removed: what the provisioner holds for it is its
+ * own to sweep.
  */
 export type DomainProvisioner = {
   /**
@@ -39,6 +41,11 @@ export type DomainProvisioner = {
   add(hostname: string, claim: number): Promise<DomainStatus>;
   /** Where `claim` to `hostname`, added before, stands. */
   status(hostname: string, claim: number): Promise<DomainStatus>;
+  /**
+   * Stops serving `hostname` for `claim`, leaving any later claim's be.
+   * Braivo stops waiting once `signal` aborts.
+   */
+  remove(hostname: string, claim: number, options: { signal: AbortSignal }): Promise<void>;
 };
 
 export type DomainStatus = {
@@ -67,9 +74,15 @@ export type DomainClaim = { hostname: string; status: DomainStatus | null };
 export async function listDomains(input: {
   database: Database;
   provisioner?: DomainProvisioner;
+  baseUrl: string;
+  selfServeDomain?: string;
   organizationId: string;
   actingAs: string;
-}): Promise<{ domains: { hostname: string }[]; claims: DomainClaim[]; canAdd: boolean }> {
+}): Promise<{
+  domains: { hostname: string; removable: boolean }[];
+  claims: DomainClaim[];
+  canAdd: boolean;
+}> {
   const { database, provisioner, organizationId, actingAs } = input;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
   const [domains, claimed] = await Promise.all([
@@ -91,7 +104,17 @@ export async function listDomains(input: {
         : null,
     })),
   );
-  return { domains, claims, canAdd: provisioner !== undefined };
+  const canAdd = provisioner !== undefined;
+  return {
+    // As `removeDomain` allows: with a provisioner, never the installation's
+    // own, nor the last.
+    domains: domains.map(({ hostname }) => ({
+      hostname,
+      removable: canAdd && !isInstallationHostname(hostname, input) && domains.length > 1,
+    })),
+    claims,
+    canAdd,
+  };
 }
 
 /** Whether `hostname` is the installation's: its own, or given out by setup (access-31). */
@@ -118,6 +141,7 @@ export class DomainRefused extends Error {
       | "DOMAIN_TAKEN"
       | "ALREADY_ADDED"
       | "NOT_CLAIMED"
+      | "LAST_DOMAIN"
       | "NO_ORGANIZATION",
     message: string,
   ) {
@@ -319,8 +343,9 @@ export async function activateDomain(input: {
     throw new ProvisioningFailed({ cause: error });
   }
   if (!status.ready) return { active: false, status };
-  // Only the claim this proof is for: one gone since, expired or replaced by
-  // the operator's registration, is not activated by it; the lock decides.
+  // Only the claim this proof is for: one gone since, removed, expired, or
+  // replaced by the operator's registration, is not activated by it; the lock
+  // decides.
   const activated = await activateDomainClaim(database, {
     hostname,
     organizationId,
@@ -328,4 +353,80 @@ export async function activateDomain(input: {
   });
   if (activated === "unclaimed") throw notClaimed;
   return { active: true };
+}
+
+/**
+ * How long removing a domain waits for the provisioner: half the 10 seconds
+ * the console waits for the answer, so a removal the provisioner leaves
+ * hanging usually still reaches it as done, the database's waits permitting.
+ */
+export const PROVISIONER_REMOVE_MS = 5_000;
+
+/**
+ * Removes a domain serving an organization, or its claim to one, by its `owner`
+ * or `admin` (ADR 0038): it stops serving there and then, its learner sessions
+ * deleted with it, then the provisioner is told to forget that claim, which
+ * leaves any later claim to the hostname be. Its failing is logged, not
+ * refused: Braivo serves the hostname no more, which is what the organization
+ * asked, and what the provisioner is left holding is its own to sweep. The
+ * primary falls back to the next newest. Refused: the installation's own
+ * hostnames, which setup gave and which stay; the last domain serving the
+ * organization; and a hostname another organization holds, as not this one's.
+ */
+export async function removeDomain(input: {
+  database: Database;
+  provisioner: DomainProvisioner;
+  baseUrl: string;
+  selfServeDomain?: string;
+  organizationId: string;
+  actingAs: string;
+  hostname: string;
+}): Promise<void> {
+  const { database, provisioner, organizationId } = input;
+  await assertMayAdminister(database, { organizationId, userId: input.actingAs });
+  const hostname = readLearnHostname(input.hostname);
+  if (isInstallationHostname(hostname, input)) {
+    throw new DomainRefused("DOMAIN_RESERVED", `${hostname} is this installation's own; it stays.`);
+  }
+
+  const removed = await deleteDomain(database, { hostname, organizationId });
+  if (removed.kind === "unheld") {
+    throw new DomainRefused("NOT_CLAIMED", `This organization holds no ${hostname}.`);
+  }
+  if (removed.kind === "last") {
+    throw new DomainRefused(
+      "LAST_DOMAIN",
+      `${hostname} is the only domain serving this organization; add another first.`,
+    );
+  }
+  // Registered by the operator: never the provisioner's to forget.
+  if (removed.claimId === null) return;
+
+  // After the removal is committed, as the claim's ID keeps it from touching
+  // a later claim. Bounded; caught, so a failure still answers as removed.
+  const deadline = new AbortController();
+  const { signal } = deadline;
+  const timer = setTimeout(
+    () => deadline.abort(new Error("The provisioner did not answer in time.")),
+    PROVISIONER_REMOVE_MS,
+  );
+  // Called within the `try`, so a provisioner throwing before it returns a
+  // promise is caught too.
+  try {
+    await Promise.race([
+      provisioner.remove(hostname, removed.claimId, { signal }),
+      new Promise<never>((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+    ]);
+  } catch (error) {
+    console.error({
+      message: "A removed domain could not be removed by the provisioner",
+      hostname,
+      claim: removed.claimId,
+      error: describeError(error),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }

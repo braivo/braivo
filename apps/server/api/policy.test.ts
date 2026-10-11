@@ -70,6 +70,7 @@ const routes = [
   "GET  /api/organizations/:organizationId/domains",
   "POST /api/organizations/:organizationId/domains",
   "POST /api/organizations/:organizationId/domains/:hostname/activate",
+  "POST /api/organizations/:organizationId/domains/:hostname/remove",
   "POST /api/organizations/:organizationId/learners/:learnerId/evidence",
   "GET  /api/organizations/:organizationId/objectives",
   "POST /api/organizations/:organizationId/objectives",
@@ -298,6 +299,7 @@ GET  /api/organizations/:organizationId/members                                 
 GET  /api/organizations/:organizationId/domains                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/domains                                 401     501     501     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/domains/:hostname/activate              401     501     501     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/domains/:hostname/remove                401     501     501     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/learners/:learnerId/evidence            401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/objectives                              401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/objectives                              401     400     400     401     403     403     403     403     1MB
@@ -356,6 +358,7 @@ GET  /api/organizations/:organizationId/members                                 
 GET  /api/organizations/:organizationId/domains                                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/domains                                 404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/domains/:hostname/activate              404     404     401     404     404     404     404     404     404
+POST /api/organizations/:organizationId/domains/:hostname/remove                404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/learners/:learnerId/evidence            404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/objectives                              404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/objectives                              404     404     401     404     404     404     404     404     404
