@@ -24,7 +24,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0009: An organization's evidence is read whole, never narrowed to the decision](0009-evidence-read-whole.md)
 - [0010: Hono for the HTTP layer, and what a route is allowed to do](0010-hono-http-layer.md)
 - [0015: Immutable tasks, graded by Braivo on the learner's submission](0015-tasks.md)
-- [0017: A task rests after it is answered](0017-task-rest.md)
+- [0017: A task rests after it is answered, and practice moves on meanwhile](0017-task-rest.md)
 - [0038: Typed answers, graded by comparing, and Show answer](0038-typed-answers.md)
 - [0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain](0018-sign-in-and-invitations.md)
 - [0038: Organizations add their own domains, verified by a provisioner the installation supplies](0038-self-served-custom-domains.md)
@@ -45,6 +45,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0034: node-postgres, so the server reaches PostgreSQL from Bun or from Workers through Hyperdrive](0034-node-postgres.md)
 - [0039: Courses and tasks a tool writes wait to be published in the console](0039-published-in-the-console.md)
 - [0040: Setup asks for the data region, and another region is another installation](0040-data-region-at-setup.md)
+- [0041: A learner starts at most twenty new objectives a day](0041-daily-limit.md)
 
 ## Web
 

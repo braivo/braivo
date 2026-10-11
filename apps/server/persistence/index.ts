@@ -80,6 +80,7 @@ export { createSource, readSource, readSources } from "./source.ts";
 export type { AuthoredTask, CitedTaskPassage, TaskCitation } from "./task.ts";
 export {
   ConflictingAttempt,
+  countOtherAttempts,
   createTasks,
   findTasksOutsideOrganization,
   markTasksRetired,

@@ -793,6 +793,10 @@ msgid "That domain already serves your organization."
 msgstr "Ta domena jest już przypisana do Twojej organizacji."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "That's all the new material for today"
+msgstr "To już cały nowy materiał na dziś"
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "The answer: {correctAnswer}"
 msgstr "Poprawna odpowiedź: {correctAnswer}"
 
@@ -928,6 +932,14 @@ msgstr "Ty"
 #: apps/console/components/organization-setup-form.tsx
 msgid "You already own an organization. Reload this page to open it."
 msgstr "Masz już organizację. Odśwież stronę, aby ją otworzyć."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgstr "Jutro możesz rozpocząć naukę nowego materiału. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
+
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "You can start new material again tomorrow. Nothing is due right now."
+msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie czeka na powtórkę."
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "You don't manage any organizations"

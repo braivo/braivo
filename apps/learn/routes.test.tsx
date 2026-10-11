@@ -1717,6 +1717,18 @@ describe("the learn app", () => {
     expect(document.activeElement).toBe(notice);
   });
 
+  test("tells a learner held back by the day's limit on new material to come back tomorrow, not that they are caught up", async () => {
+    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => ({ dailyLimit: 20 }) });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "That's all the new material for today",
+        description: "You can start new material again tomorrow. Nothing is due right now.",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByText("You're caught up")).toBeNull();
+  });
+
   test("tells a caught-up learner when their next review falls due, and of what", async () => {
     const retained = (objectiveId: string, title: string, dueAt: string, due = false) => ({
       objectiveId,

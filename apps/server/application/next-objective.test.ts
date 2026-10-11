@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { activeModel, type Evidence } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
+import { NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -40,6 +41,7 @@ function choose(courseId: string, learnerId = learner) {
     courseId,
     host: { hostname: "localhost", installation: true },
     now,
+    timeZone: "UTC",
   });
 }
 
@@ -133,6 +135,24 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     await recordEvidence(database, { learnerId: learner, organizationId }, [evidence({ at: now })]);
 
     expect(await choose(soloCourse)).toEqual({ kind: "caught-up" });
+  });
+
+  test("holds back new objectives once a day's worth were started, rather than reporting caught up", async () => {
+    const elsewhere = await createObjectives(
+      database,
+      organizationId,
+      Array.from({ length: NEW_OBJECTIVES_PER_DAY }, (_, i) => `Elsewhere ${i}`),
+    );
+    await recordEvidence(
+      database,
+      { learnerId: learner, organizationId },
+      elsewhere.map((objectiveId) => evidence({ id: objectiveId, objectiveId })),
+    );
+
+    expect(await choose(bothCourse)).toEqual({
+      kind: "daily-limit",
+      limit: NEW_OBJECTIVES_PER_DAY,
+    });
   });
 
   test("reports a learner caught up on a course that teaches nothing yet", async () => {
