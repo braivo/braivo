@@ -21,6 +21,7 @@ A content owner with a desktop agent drafts a course through `braivo mcp` at the
 - **Keys from the model's name for an objective**, so that a redraft would find it again. The same idea came back under another name, and a reworded title under the same name was refused.
 - **Requiring `BRAIVO_AI_ORGANIZATIONS` on every installation**: needed only where anyone signed in may create an organization, which self-serve alone allows.
 - **Every organization drawing on a key, however it was created** (replaced): with self-serve, anyone signed in could spend the operator's credits.
+- **No publish step, review being the console's workflow alone** (replaced): a tool's course then reached learners unread in Braivo ([ADR 0039](0039-published-in-the-console.md)).
 
 ## Consequences
 
@@ -28,5 +29,5 @@ A content owner with a desktop agent drafts a course through `braivo mcp` at the
 - Drafting reads a source's text only; a PDF or photo is read into a source first ([ADR 0030](0030-server-extraction.md)).
 - Each draft spends the installation's AI credits; each request is recorded, and an operator may set organizations a monthly quota ([ADR 0031](0031-ai-limits.md)).
 - The console reviews a draft on the source's page: each objective and task kept or dropped, a task's words and correct option corrected (never its passages, which were located), what was refused listed, and what is kept authored as a course. A redraft's objectives are new ones; matching them to earlier ones waits for teachers who need it.
-- Review before learners see a draft is the console's workflow, not a state the server enforces: the authoring API and `braivo mcp` create courses directly, as the person they act for. A publish step would be a state machine no customer has asked for.
+- Accepting a draft in the console publishes it: the review happened there. What a tool writes through the API waits to be published in the console ([ADR 0039](0039-published-in-the-console.md)).
 - The route passes the request's abort signal to the model's, and the console aborts its request when the teacher leaves the page, so Braivo stops waiting and asks the provider to stop. That cannot promise the provider bills nothing, and the request still counts against the quota.
