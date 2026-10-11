@@ -144,6 +144,7 @@ function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
+        listDomains: async () => ({ domains: [{ hostname: "example.braivo.app" }] }),
         courseProgress,
         signInSettings: async () => ({ google: false, legal: null }),
         organizationSetupDomain: async () => null,
@@ -440,6 +441,51 @@ describe("the console", () => {
       expect(router.state.location.pathname).toBe("/example");
       // Not lost with settings' navigation: back on the menu that opened them.
       expect(document.activeElement).toBe(account);
+    });
+
+    test("list the organization's domains, the primary one first and marked", async () => {
+      renderAt("/example/settings", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [{ hostname: "learn.example.com" }, { hostname: "example.braivo.app" }],
+          }),
+        },
+      });
+
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      fireEvent.click(within(nav).getByRole("link", { name: "Domains" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Domains" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Domains · Example School"));
+
+      const [primary, other] = within(
+        within(screen.getByRole("main")).getByRole("list"),
+      ).getAllByRole("listitem");
+      const link = within(primary!).getByRole("link", { name: "learn.example.com" });
+      expect(link.getAttribute("href")).toBe("https://learn.example.com");
+      // A new tab, told nothing of the console: no referrer, no opener.
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toBe("noreferrer");
+      expect(within(primary!).getByText("Primary")).toBeTruthy();
+      expect(within(other!).getByRole("link", { name: "example.braivo.app" })).toBeTruthy();
+      expect(within(other!).queryByText("Primary")).toBeNull();
+    });
+
+    test("say learners have no site yet when no domain serves the organization", async () => {
+      renderAt("/example/settings/domains", {
+        braivo: { listDomains: async () => ({ domains: [] }) },
+      });
+      expect(await screen.findByText(/Learners have no site to practise on yet/)).toBeTruthy();
+      expect(within(screen.getByRole("main")).queryByRole("list")).toBeNull();
+    });
+
+    test("say the organization is not theirs when Braivo refuses its domains", async () => {
+      renderAt("/example/settings/domains", {
+        braivo: { listDomains: vi.fn().mockRejectedValue(new BraivoError(403, "Not permitted.")) },
+      });
+      expect(
+        await screen.findByText("This organization does not exist, or you do not manage it."),
+      ).toBeTruthy();
+      expect(screen.queryByRole("heading", { level: 1, name: "Domains" })).toBeNull();
     });
 
     test("rename the organization, trimmed, every page then naming it so", async () => {

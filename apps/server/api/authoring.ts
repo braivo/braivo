@@ -10,6 +10,7 @@ import {
   defineObjectives,
   defineTasks,
   listCourses,
+  listDomains,
   listManagedOrganizations,
   listMembers,
   listObjectiveCitations,
@@ -462,6 +463,21 @@ export function authoringRoutes(
       });
 
       return context.json({ members });
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
+
+  /** Every hostname serving an organization's learn app, newest first, for whoever administers it. */
+  routes.get("/api/organizations/:organizationId/domains", requireAccount, async (context) => {
+    try {
+      const listed = await listDomains({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+      });
+
+      return context.json(listed);
     } catch (error) {
       return organizationRefusal(context, error);
     }

@@ -16,7 +16,12 @@ export {
   readLearnerCourses,
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";
-export { insertLearnDomain, readDomainOrganization, readLearnDomain } from "./domain.ts";
+export {
+  insertLearnDomain,
+  readDomainOrganization,
+  readDomains,
+  readLearnDomain,
+} from "./domain.ts";
 export {
   ConflictingEvidence,
   readLearnerEvidence,

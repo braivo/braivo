@@ -7,8 +7,24 @@ import {
   insertLearnDomain,
   type Organization,
   readDomainOrganization,
+  readDomains,
   readOrganizationBySlug,
 } from "../persistence/index.ts";
+import { assertMayAdminister } from "./permission.ts";
+
+/**
+ * Every hostname serving an organization's learn app, newest first, the first
+ * naming its learn domain, for whoever administers it.
+ */
+export async function listDomains(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+}): Promise<{ domains: { hostname: string }[] }> {
+  const { database, organizationId, actingAs } = input;
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  return { domains: await readDomains(database, organizationId) };
+}
 
 /**
  * A learn domain refused as malformed, taken, or for no organization; the

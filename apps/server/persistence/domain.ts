@@ -21,6 +21,21 @@ export async function readDomainOrganization(
   return row;
 }
 
+/** Newest first: the first is the one an organization's learn domain is named by. */
+const NEWEST_FIRST = [desc(organizationDomain.registeredAt), desc(organizationDomain.hostname)];
+
+/** Every hostname serving an organization, newest first. */
+export async function readDomains(
+  database: Database,
+  organizationId: string,
+): Promise<{ hostname: string }[]> {
+  return database
+    .select({ hostname: organizationDomain.hostname })
+    .from(organizationDomain)
+    .where(eq(organizationDomain.organizationId, organizationId))
+    .orderBy(...NEWEST_FIRST);
+}
+
 /**
  * The hostname an organization's learn app is named by, the latest it
  * registered, or `undefined` while none serves it. Any others serve it too.
@@ -33,7 +48,7 @@ export async function readLearnDomain(
     .select({ hostname: organizationDomain.hostname })
     .from(organizationDomain)
     .where(eq(organizationDomain.organizationId, organizationId))
-    .orderBy(desc(organizationDomain.registeredAt), desc(organizationDomain.hostname))
+    .orderBy(...NEWEST_FIRST)
     .limit(1);
 
   return row?.hostname;

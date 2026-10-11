@@ -326,6 +326,18 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
+  test("lists domains in the shape it declares, and refuses a learner", async () => {
+    expect(
+      await client.listDomains(organizationId, { headers: { cookie: teacherCookie } }),
+    ).toEqual({ domains: [{ hostname: organizationHost }] });
+
+    const rejected = await client
+      .listDomains(organizationId, { headers: { cookie: learnerCookie } })
+      .catch((thrown: unknown) => thrown);
+    expect(rejected).toBeInstanceOf(BraivoError);
+    expect(rejected as BraivoError).toMatchObject({ status: 403 });
+  });
+
   test("lists courses in the shape it declares, and refuses a learner", async () => {
     const courses = await client.listCourses(organizationId, {
       headers: { cookie: teacherCookie },
