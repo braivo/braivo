@@ -53,6 +53,9 @@ const routes = [
   "GET  /api/handoffs/:handoffId",
   "POST /api/handoffs/:handoffId",
   "GET  /api/organization",
+  "GET  /.well-known/oauth-protected-resource/mcp",
+  "POST /mcp",
+  "GET  /api/oauth/consent",
   "GET  /api/courses",
   "GET  /api/courses/:courseId/next",
   "GET  /api/courses/:courseId/activity",
@@ -131,7 +134,10 @@ async function credentials(): Promise<Credentials> {
   return { ...account, learnerCookie: await learnerSessionOn(api, learnOrigin, member.cookie) };
 }
 
-/** The answer to one request: its status, then `*` if it lacks `Cache-Control: private, no-store`. */
+/**
+ * The answer to one request: its status, then `*` if it lacks
+ * `Cache-Control: private, no-store`, or `+` if a shared cache may keep it.
+ */
 async function send(route: string, origin: string, headers: Headers) {
   const [method = "", template = ""] = route.split(/\s+/);
   const path = template.replaceAll(/:\w+/g, "unknown");
@@ -145,6 +151,7 @@ async function send(route: string, origin: string, headers: Headers) {
   const cache = response.headers.get("cache-control");
   if (cache === "private, no-store") return String(response.status);
   if (cache === null) return `${response.status}*`;
+  if (cache.startsWith("public,")) return `${response.status}+`;
   throw new Error(`${route} answered Cache-Control: ${cache}`);
 }
 
@@ -248,8 +255,8 @@ test("refuses the installation's API on an unregistered host too", async () => {
 });
 
 /**
- * Each answer's status; `*` marks one without `private, no-store`, `·` a
- * column that means nothing for a GET.
+ * Each answer's status; `*` marks one without `private, no-store`, `+` one a
+ * shared cache may keep, `·` a column that means nothing for a GET.
  */
 const onInstallation = `
 route                                                                          none account  bearer learner foreign sibling    form    file   limit
@@ -270,6 +277,9 @@ POST /api/session/sign-out                                                      
 GET  /api/handoffs/:handoffId                                                   404     404     404     404       ·       ·       ·       ·       ·
 POST /api/handoffs/:handoffId                                                   401     404     403     401     403     403     403     403     401
 GET  /api/organization                                                          404     404     404     404       ·       ·       ·       ·       ·
+GET  /.well-known/oauth-protected-resource/mcp                                 200+    200+    200+    200+       ·       ·       ·       ·       ·
+POST /mcp                                                                       401     401     401     401     403     403     403     403     1MB
+GET  /api/oauth/consent                                                         302     302     302     302       ·       ·       ·       ·       ·
 GET  /api/courses                                                               401     200     200     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     404     404     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     404     404     401       ·       ·       ·       ·       ·
@@ -321,6 +331,9 @@ POST /api/session/sign-out                                                      
 GET  /api/handoffs/:handoffId                                                   404     404     401     404       ·       ·       ·       ·       ·
 POST /api/handoffs/:handoffId                                                   404     404     401     404     404     404     404     404     404
 GET  /api/organization                                                          200     200     401     200       ·       ·       ·       ·       ·
+GET  /.well-known/oauth-protected-resource/mcp                                 404*    404*    404*    404*       ·       ·       ·       ·       ·
+POST /mcp                                                                       404     404     404     404     404     404     404     404     404
+GET  /api/oauth/consent                                                         404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/courses                                                               401     401     401     200       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     401     401     404       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     401     401     404       ·       ·       ·       ·       ·

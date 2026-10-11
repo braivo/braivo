@@ -53,6 +53,12 @@ describe("the development API proxy", () => {
     expect(braivoApi({ PORT: "3100" })["/api"]?.target).toBe("http://localhost:3100");
   });
 
+  test("serves remote MCP's endpoint and discovery from the server, `/mcp` exactly", () => {
+    const proxied = braivoApi({ PORT: "3100" });
+    expect(proxied["^/mcp$"]?.target).toBe("http://localhost:3100");
+    expect(proxied["/.well-known/oauth-protected-resource"]?.target).toBe("http://localhost:3100");
+  });
+
   test("does not rewrite another site's origin", () => {
     expect(rewritten({ origin: "https://evil.example", host: "localhost:5173" })).toBeUndefined();
   });
