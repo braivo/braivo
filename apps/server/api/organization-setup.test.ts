@@ -182,10 +182,16 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
 
   test.each([
     ["a slug Braivo's paths use", "login", "login.braivo.example is reserved", "ADDRESS_RESERVED"],
-    ["a subdomain Braivo uses", "www", "www.braivo.example is reserved", "ADDRESS_RESERVED"],
-    ["Braivo's demo", "demo", "demo.braivo.example is reserved", "ADDRESS_RESERVED"],
     ["a malformed slug", "fern--wood", "Use lowercase letters", "ADDRESS_INVALID"],
     ["a slug no hostname has", "Fern Wood", "Use lowercase letters", "ADDRESS_INVALID"],
+    // Reserved names spelled otherwise are not slugs at all.
+    ["a reserved name in capitals", "ADMIN", "Use lowercase letters", "ADDRESS_INVALID"],
+    [
+      "a reserved name in fullwidth letters",
+      "ａｄｍｉｎ",
+      "Use lowercase letters",
+      "ADDRESS_INVALID",
+    ],
   ])("refuses %s, saying what to change", async (_case, slug, advice, code) => {
     const teacher = await signUp();
 
@@ -193,6 +199,35 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: expect.stringContaining(advice), code });
+    expect((await managed(teacher.cookie)).organizations).toEqual([]);
+  });
+
+  // Written out, not imported: dropping a name from the code's list must fail
+  // here. `api` comes from the slug rules.
+  test.each([
+    "admin",
+    "api",
+    "app",
+    "customers",
+    "demo",
+    "docs",
+    "domains",
+    "eu",
+    "help",
+    "mail",
+    "status",
+    "us",
+    "www",
+  ])("refuses the reserved address %s", async (slug) => {
+    const teacher = await signUp();
+
+    const response = await setUp({ name: "Fernwood", slug }, teacher.cookie);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: `${slug}.braivo.example is reserved. Choose another address.`,
+      code: "ADDRESS_RESERVED",
+    });
     expect((await managed(teacher.cookie)).organizations).toEqual([]);
   });
 

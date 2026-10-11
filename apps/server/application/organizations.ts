@@ -64,8 +64,26 @@ export class SetUpRefused extends Error {
   }
 }
 
-/** Subdomains of `selfServeDomain` that are Braivo's own: marketing's, and its demo learn app (ADR 0004). */
-const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set(["www", "demo"]);
+/**
+ * Service and region names no self-serve organization may take as its
+ * subdomain, so none passes for the installation's own; `domains` is kept for
+ * organizations' own domains to point at. Console routes are reserved by the
+ * slug rules (`auth/slug.ts`).
+ */
+const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set([
+  "admin",
+  "app",
+  "customers",
+  "demo",
+  "docs",
+  "domains",
+  "eu",
+  "help",
+  "mail",
+  "status",
+  "us",
+  "www",
+]);
 
 const MAX_NAME_LENGTH = 100;
 
