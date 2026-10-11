@@ -398,6 +398,10 @@
 // name, every role a member holds. No emails: the roster's clients need only
 // names and roles.
 //
+// `GET /api/organizations/:organizationId/domains` — answers `{ "domains":
+// [{ "hostname" }] }`: the hostnames serving its learn app, newest first, the
+// first naming its learn domain.
+//
 // `POST /api/organizations/:organizationId/sources` — adds material a content
 // owner provides, as text:
 //

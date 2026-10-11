@@ -195,6 +195,11 @@ msgstr "Tworzenie…"
 msgid "Dark"
 msgstr "Ciemny"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Domains"
+msgstr "Domeny"
+
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "due for review"
@@ -307,6 +312,14 @@ msgstr "Język: {name}"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Uczeń"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
+msgstr "Uczniowie mogą ćwiczyć pod każdym z tych adresów. Nowe linki, które wysyła im Braivo, także w zaproszeniach, prowadzą do domeny głównej."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
+msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Poproś osobę, która skonfigurowała dla Ciebie Braivo, o jej dodanie."
 
 #: apps/console/components/organization-setup.tsx
 msgid "Learners' site"
@@ -429,6 +442,10 @@ msgstr "s. {page}"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Preferences"
 msgstr "Preferencje"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Primary"
+msgstr "Główna"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -615,6 +632,7 @@ msgstr "Ten kurs nie istnieje albo nie masz do niego dostępu."
 msgid "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
 msgstr "Ten adres e-mail nie został jeszcze dodany do tej organizacji. Poproś o jego dodanie, a potem zaloguj się ponownie: ten kod działa, dopóki nie wygaśnie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "This organization does not exist, or you do not manage it."
 msgstr "Ta organizacja nie istnieje albo nie zarządzasz nią."

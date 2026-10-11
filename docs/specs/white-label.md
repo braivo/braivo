@@ -23,17 +23,18 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 - **white-label-6:** The learn app reads that name before sign-in, shows it, and uses it in the page title. With an organization named `Fernwood`, the title is `Fernwood`, or `Spanish · Fernwood` on a course named Spanish; on a host serving no organization, those titles are `Learning` and `Spanish`. A failure to read the organization leaves the app unbranded rather than down. `apps/learn/routes.test.tsx`
 - **white-label-7:** The console's URL names the organization, never the session: Better Auth's active organization is unused. `/<slug>` is resolved among the organizations the user manages: a slug they do not manage reads as not found, and a path below one they manage that names no page says only that there is nothing here. `/` signed in opens the organization last opened in this browser while the user still manages it, else the only one they manage, else `/organizations`. `apps/console/routes.test.tsx`
 
-| Path                                                          | Page                                                                                                               |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `/`                                                           | Signed in: as white-label-7 says. Anonymous: `/login`                                                              |
-| `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead                      |
-| `/device`                                                     | Approving a content owner's tool, by the code it showed ([access](access.md))                                      |
-| `/consent`                                                    | Approving an AI app's remote MCP connection, by Better Auth's signed request                                       |
-| `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                         |
-| `/login`                                                      | Sign-in ([access](access.md))                                                                                      |
-| `/<slug>/settings/<page>`                                     | The organization's settings: `account` and `preferences` (access-36), `general` (access-37), `members` (access-26) |
+| Path                                                          | Page                                                                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                                           | Signed in: as white-label-7 says. Anonymous: `/login`                                                                                         |
+| `/organizations`                                              | Organizations the user manages (`owner` or `admin`); managing none, where learners go instead                                                 |
+| `/device`                                                     | Approving a content owner's tool, by the code it showed ([access](access.md))                                                                 |
+| `/consent`                                                    | Approving an AI app's remote MCP connection, by Better Auth's signed request                                                                  |
+| `/<slug>`, `/<slug>/courses/<course>`, `…/learners/<learner>` | The organization's console                                                                                                                    |
+| `/login`                                                      | Sign-in ([access](access.md))                                                                                                                 |
+| `/<slug>/settings/<page>`                                     | The organization's settings: `account` and `preferences` (access-36), `general` (access-37), `members` (access-26), `domains` (white-label-9) |
 
 - **white-label-8:** A slug is lowercase letters, digits, and single hyphens, at most 63 characters, and none of the reserved `api`, `assets`, `consent`, `device`, `invitations`, `login`, and `organizations`, which `/<slug>` would shadow; every root-level console route is reserved. An organization is never created with a malformed or reserved slug, and its slug never changes: an update naming a different one is refused, the current one resent accepted. `apps/server/auth/slug.test.ts`, `apps/server/auth/auth.test.ts`
+- **white-label-9:** `GET /api/organizations/:organizationId/domains` lists the hostnames serving an organization, newest first (registration time, then hostname, both descending), the first the one its learn domain is named by, to its `owner` or `admin` alone; the console's `/<organization>/settings/domains` shows them, each a link, the first marked Primary, or, with none, that learners have no site yet. Read-only: the operator registers them (white-label-2), until [ADR 0038](../adr/0038-self-served-custom-domains.md)'s self-served domains. `apps/server/application/domains.test.ts`, `apps/server/api/client.contract.test.ts`, `apps/server/api/policy.test.ts`, `apps/console/routes.test.tsx`
 
 ## Boundaries
 
@@ -46,6 +47,7 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 
 - [ADR 0004](../adr/0004-one-application-origin.md): origins, console at `/<slug>`, the host ceiling, several domains per organization, named by the latest, the organization's own domain allowed, marketing on `www`.
 - [ADR 0018](../adr/0018-sign-in-and-invitations.md): learner sessions per learn domain, which admit customer-owned domains.
+- [ADR 0038](../adr/0038-self-served-custom-domains.md): organizations add their own domains, verified by the installation's provisioner, serving only once active.
 - [ADR 0016](../adr/0016-route-files.md): route files, including `$organizationSlug/route.tsx` as a layout.
 
 ## Gaps
@@ -59,4 +61,4 @@ Each app calls `/api` on its own origin; which hostname reaches which app and th
 
 ## Entry points
 
-`apps/server/application/host.ts` (the host ceiling), `apps/server/application/domains.ts` (registering a domain), `apps/server/auth/slug.ts` (slugs), `apps/console/routes/_signed-in/$organizationSlug/route.tsx` (resolving a slug), `apps/learn/routes/__root.tsx` (branding).
+`apps/server/application/host.ts` (the host ceiling), `apps/server/application/domains.ts` (registering and listing domains), `apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx` (the Domains page), `apps/server/auth/slug.ts` (slugs), `apps/console/routes/_signed-in/$organizationSlug/route.tsx` (resolving a slug), `apps/learn/routes/__root.tsx` (branding).

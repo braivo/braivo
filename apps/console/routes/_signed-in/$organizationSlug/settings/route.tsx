@@ -53,6 +53,7 @@ const GROUPS = [
     pages: [
       { to: "/$organizationSlug/settings/general", label: msg`General` },
       { to: "/$organizationSlug/settings/members", label: msg`Members` },
+      { to: "/$organizationSlug/settings/domains", label: msg`Domains` },
     ],
   },
 ] as const;

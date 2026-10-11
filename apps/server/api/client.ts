@@ -7,6 +7,7 @@ import type {
   AuthoredTask,
   Course,
   CourseProgressOverview,
+  DomainList,
   Draft,
   Grade,
   GradedEvidence,
@@ -42,6 +43,8 @@ export type {
   AuthoredTask,
   Course,
   CourseProgressOverview,
+  Domain,
+  DomainList,
   Draft,
   Grade,
   GradedEvidence,
@@ -272,6 +275,15 @@ export type BraivoClient = {
    * throws a {@link BraivoError} with status 403.
    */
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
+
+  /**
+   * The hostnames serving an organization's learn app, newest first: the
+   * first is the one its learn domain is named by (`Organization.learnDomain`).
+   *
+   * Whoever the session belongs to must hold `owner` or `admin` there, or this
+   * throws a {@link BraivoError} with status 403.
+   */
+  listDomains(organizationId: string, options?: RequestOptions): Promise<DomainList>;
 
   /**
    * Every course an organization has, by title.
@@ -786,6 +798,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { members } = await parsed<{ members: Member[] }>(response, doing);
       return members;
+    },
+
+    async listDomains(organizationId, requestOptions) {
+      const response = await get(
+        `/api/organizations/${encodeURIComponent(organizationId)}/domains`,
+        requestOptions,
+      );
+
+      const doing = `listing the domains of organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<DomainList>(response, doing);
     },
 
     async listCourses(organizationId, requestOptions) {

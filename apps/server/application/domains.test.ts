@@ -8,7 +8,8 @@ import { eq, inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { readDomainOrganization, readLearnDomain } from "../persistence/index.ts";
-import { DomainRefused, registerLearnDomain } from "./domains.ts";
+import { DomainRefused, listDomains, registerLearnDomain } from "./domains.ts";
+import { NotPermitted } from "./permission.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -222,5 +223,69 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
       .from(organizationDomain)
       .where(eq(organizationDomain.hostname, "learn.domains-test.example"));
     expect(rows).toEqual([{ organizationId: won?.organization.id }]);
+  });
+});
+
+/** Requires TEST_DATABASE_URL. */
+describe.skipIf(!connectionString)("listDomains", () => {
+  beforeAll(() => runMigrations(connectionString ?? ""));
+
+  const admin = "domains-test-admin";
+  const otherAdmin = "domains-test-other-admin";
+  const learner = "domains-test-learner";
+
+  beforeEach(async () => {
+    await seedOrganization(database, {
+      organizationId: school,
+      learnerIds: [learner],
+      adminIds: [admin],
+      at,
+    });
+    await seedOrganization(database, {
+      organizationId: otherSchool,
+      learnerIds: [],
+      adminIds: [otherAdmin],
+      at,
+    });
+    await database
+      .delete(organizationDomain)
+      .where(inArray(organizationDomain.organizationId, [school, otherSchool]));
+  });
+
+  const list = (actingAs: string) => listDomains({ database, organizationId: school, actingAs });
+
+  test("lists every domain serving the organization, newest first, for its admin", async () => {
+    expect(await list(admin)).toEqual({ domains: [] });
+
+    await register("school.braivo.example");
+    await register("learn.domains-test.example");
+    await register("learn.other-test.example", otherSchool);
+
+    expect(await list(admin)).toEqual({
+      domains: [{ hostname: "learn.domains-test.example" }, { hostname: "school.braivo.example" }],
+    });
+  });
+
+  test("breaks a tie in registration time by hostname, as the learn domain does", async () => {
+    const registeredAt = new Date("2026-01-01T00:00:00.000Z");
+    await database.insert(organizationDomain).values(
+      ["a.domains-test.example", "z.domains-test.example"].map((hostname) => ({
+        hostname,
+        organizationId: school,
+        registeredAt,
+      })),
+    );
+
+    expect((await list(admin)).domains.map(({ hostname }) => hostname)).toEqual([
+      "z.domains-test.example",
+      "a.domains-test.example",
+    ]);
+    expect(await readLearnDomain(database, school)).toBe("z.domains-test.example");
+  });
+
+  test("refuses a learner and another organization's admin", async () => {
+    for (const actingAs of [learner, otherAdmin]) {
+      await expect(list(actingAs)).rejects.toBeInstanceOf(NotPermitted);
+    }
   });
 });

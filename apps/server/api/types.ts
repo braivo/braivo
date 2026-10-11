@@ -97,6 +97,12 @@ export type Organization = { id: string; name: string; slug: string; learnDomain
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 
+/** A hostname serving an organization's learn app. */
+export type Domain = { hostname: string };
+
+/** An organization's domains, newest first, the first naming its learn domain. */
+export type DomainList = { domains: Domain[] };
+
 /** The organization a domain serves, as its learn app presents itself. */
 export type HostOrganization = { name: string };
 
