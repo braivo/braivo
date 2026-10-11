@@ -25,6 +25,7 @@ export {
   listDomains,
   ProvisioningFailed,
   registerLearnDomain,
+  removeDomain,
 } from "./domains.ts";
 /** What a draft is, and the model failing to give one, named so callers need not reach into `ai`. */
 export type { Draft } from "../ai/index.ts";

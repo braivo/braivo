@@ -803,6 +803,107 @@ describe("the console", () => {
       expect(within(waiting).getByRole("alert").textContent).toBe(said);
     });
 
+    test("remove a domain once asked, focus on its button while removing, then on the heading", async () => {
+      let domains = [
+        { hostname: "learn.example.com", removable: true },
+        { hostname: "example.braivo.app", removable: false },
+      ];
+      const removing = Promise.withResolvers<void>();
+      const braivo = {
+        listDomains: vi.fn(async () => ({ domains, claims: [], canAdd: true })),
+        removeDomain: vi.fn(() => removing.promise),
+      };
+      renderAt("/example/settings/domains", { braivo });
+
+      const list = within(await screen.findByRole("main")).getAllByRole("list")[0]!;
+      const [learn, braivoApp] = within(list).getAllByRole("listitem");
+      expect(within(braivoApp!).queryByRole("button", { name: /^Remove/ })).toBeNull();
+      const remove = within(learn!).getByRole("button", { name: "Remove learn.example.com" });
+      fireEvent.click(remove);
+      const dialog = await screen.findByRole("alertdialog", { name: "Remove learn.example.com?" });
+      expect(dialog.textContent).toMatch(/links to it stop working/);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      await vi.waitFor(() => expect(document.activeElement).toBe(remove));
+      // Saying so, it opens nothing more meanwhile.
+      expect(remove.textContent).toBe("Removing…");
+      fireEvent.click(remove);
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+
+      domains = [{ hostname: "example.braivo.app", removable: false }];
+      removing.resolve();
+      expect(braivo.removeDomain).toHaveBeenCalledOnce();
+      await vi.waitFor(() =>
+        expect(
+          screen.getAllByRole("status").find((region) => !region.closest("section"))?.textContent,
+        ).toBe("Removed learn.example.com."),
+      );
+      expect(braivo.removeDomain).toHaveBeenCalledWith(
+        "org-1",
+        "learn.example.com",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(screen.queryByRole("link", { name: "learn.example.com" })).toBeNull();
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { level: 1, name: "Domains" }),
+      );
+    });
+
+    test("remove a claim, saying it can be added again", async () => {
+      let claims = [pendingClaim("learn.example.com")];
+      const braivo = {
+        listDomains: vi.fn(async () => ({
+          domains: [{ hostname: "example.braivo.app", removable: false }],
+          claims,
+          canAdd: true,
+        })),
+        removeDomain: vi.fn(async () => {
+          claims = [];
+        }),
+      };
+      renderAt("/example/settings/domains", { braivo });
+
+      const waiting = await screen.findByRole("region", { name: "Not active yet" });
+      fireEvent.click(within(waiting).getByRole("button", { name: "Remove learn.example.com" }));
+      const dialog = await screen.findByRole("alertdialog", { name: "Remove learn.example.com?" });
+      expect(dialog.textContent).toMatch(/You can add it again later/);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+      await vi.waitFor(() =>
+        expect(screen.queryByRole("region", { name: "Not active yet" })).toBeNull(),
+      );
+    });
+
+    test("say why a domain was not removed, focus back on its button, which stays", async () => {
+      // Read again, the list would say otherwise: another owner removed the
+      // other domain meanwhile. Not read again, the explanation stays.
+      let reads = 0;
+      const braivo = {
+        listDomains: vi.fn(async () => ({
+          domains: [{ hostname: "learn.example.com", removable: reads++ === 0 }],
+          claims: [],
+          canAdd: true,
+        })),
+        removeDomain: vi
+          .fn()
+          .mockRejectedValue(new BraivoError(409, "last", undefined, "LAST_DOMAIN")),
+      };
+      renderAt("/example/settings/domains", { braivo });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Remove learn.example.com" }));
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Remove" }),
+      );
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "It is the only domain your learners have. Add another first.",
+      );
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(
+          screen.getByRole("button", { name: "Remove learn.example.com" }),
+        ),
+      );
+      expect(braivo.listDomains).toHaveBeenCalledOnce();
+    });
+
     test("carry nothing of a pending add over to another organization's domains", async () => {
       const adding = Promise.withResolvers<never>();
       const braivo = { ...domainsStub(), claimDomain: vi.fn(() => adding.promise) };
@@ -1155,18 +1256,25 @@ describe("the console", () => {
       await vi.waitFor(() => expect(router.state.location.pathname).toBe("/annex"));
     });
 
-    test("leave an Escape a dialog or menu used to it, not leaving settings", async () => {
-      const { router } = renderAt("/example/settings/preferences");
-      await screen.findByLabelText("Language");
-      // As Radix's listener does, on the document while capturing.
-      document.addEventListener("keydown", (event) => event.preventDefault(), {
-        capture: true,
-        once: true,
+    test("leave Escape to an open dialog, closing it, not settings", async () => {
+      const { router } = renderAt("/example/settings/domains", {
+        braivo: {
+          listDomains: async () => ({
+            domains: [
+              { hostname: "learn.example.com", removable: true },
+              { hostname: "example.braivo.app", removable: false },
+            ],
+            claims: [],
+            canAdd: true,
+          }),
+        },
       });
 
-      fireEvent.keyDown(document.body, { key: "Escape" });
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      expect(router.state.location.pathname).toBe("/example/settings/preferences");
+      fireEvent.click(await screen.findByRole("button", { name: "Remove learn.example.com" }));
+      const dialog = await screen.findByRole("alertdialog");
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+      expect(router.state.location.pathname).toBe("/example/settings/domains");
     });
 
     test("scroll the page shown into the phone's row, sideways alone", async () => {

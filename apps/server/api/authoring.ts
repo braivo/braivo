@@ -26,6 +26,7 @@ import {
   readAuthoredCourse,
   recordGradedEvidence,
   type QuotedCitation,
+  removeDomain,
   renameOrganization,
   retireTasks,
   SetUpRefused,
@@ -500,6 +501,8 @@ export function authoringRoutes(
       const listed = await listDomains({
         database,
         provisioner,
+        baseUrl,
+        selfServeDomain,
         organizationId: context.req.param("organizationId"),
         actingAs: context.var.userId,
       });
@@ -580,6 +583,42 @@ export function authoringRoutes(
         if (error instanceof DomainRefused) return context.body(null, 404);
         if (error instanceof ProvisioningFailed) {
           return context.json({ error: error.message, code: "PROVISIONING_FAILED" }, 502);
+        }
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Removes a domain serving an organization, or its claim to one, for
+   * whoever administers it (ADR 0038).
+   */
+  routes.post(
+    "/api/organizations/:organizationId/domains/:hostname/remove",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (!provisioner) {
+        return context.json({ error: "This installation cannot remove domains." }, 501);
+      }
+      try {
+        await removeDomain({
+          database,
+          provisioner,
+          baseUrl,
+          selfServeDomain,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          hostname: context.req.param("hostname"),
+        });
+        return context.body(null, 204);
+      } catch (error) {
+        if (error instanceof DomainRefused) {
+          // Another's: as missing as any other organization's resource.
+          if (error.code === "NOT_CLAIMED" || error.code === "DOMAIN_INVALID") {
+            return context.body(null, 404);
+          }
+          return context.json({ error: error.message, code: error.code }, 409);
         }
         return organizationRefusal(context, error);
       }

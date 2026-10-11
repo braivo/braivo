@@ -245,6 +245,10 @@ msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
 msgid "Could not copy. Select it instead."
 msgstr "Nie udało się skopiować. Zaznacz tekst i skopiuj go ręcznie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Could not remove the domain. Try again."
+msgstr "Nie udało się usunąć domeny. Spróbuj ponownie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not save the name. Try again."
 msgstr "Nie udało się zapisać nazwy. Spróbuj ponownie."
@@ -421,12 +425,20 @@ msgid "It is not ready yet: its records can take a few minutes to be found, and 
 msgstr "Domena nie jest jeszcze gotowa: wykrycie jej rekordów i wydanie certyfikatu może potrwać kilka minut. Spróbuj ponownie później."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "It is the only domain your learners have. Add another first."
+msgstr "To jedyna domena Twoich uczniów. Najpierw dodaj inną."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Its records are not available yet."
 msgstr "Jej rekordy nie są jeszcze dostępne."
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Keep it"
+msgstr "Zostaw"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 msgid "Language"
@@ -439,6 +451,10 @@ msgstr "Język: {name}"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Uczeń"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Learners can no longer practise there: links to it stop working, and anyone signed in there is signed out."
+msgstr "Uczniowie nie będą mogli już tam ćwiczyć: linki do niej przestaną działać, a zalogowani tam zostaną wylogowani."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
@@ -601,6 +617,26 @@ msgstr "Główna"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Profile"
 msgstr "Profil"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Remove"
+msgstr "Usuń"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Remove {hostname}"
+msgstr "Usuń {hostname}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Remove {hostname}?"
+msgstr "Usunąć {hostname}?"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Removed {domain}."
+msgstr "Usunięto {domain}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Removing…"
+msgstr "Usuwanie…"
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -797,6 +833,10 @@ msgstr "To konto nie należy do organizacji „{organizationName}”. Poproś o 
 #: apps/console/components/organization-setup-form.tsx
 msgid "This address cannot be changed later."
 msgstr "Tego adresu nie można później zmienić."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "This cancels its setup. You can add it again later."
+msgstr "To anuluje jej konfigurację. Możesz dodać ją ponownie później."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "This course does not exist, or is not one of yours."

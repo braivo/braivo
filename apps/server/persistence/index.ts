@@ -18,6 +18,7 @@ export {
 export { recordAiRequest } from "./ai-request.ts";
 export {
   activateDomainClaim,
+  deleteDomain,
   type HostnameHolder,
   insertDomainClaim,
   insertLearnDomain,

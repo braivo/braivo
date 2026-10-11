@@ -387,6 +387,50 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
     expect(await again.json()).toMatchObject({ code: "SIGN_IN_CODE_COOLDOWN" });
   });
 
+  test("opens no session once a removal of its domain, under way, commits", async () => {
+    const hostname = `removed-${run}.example`;
+    const member = await signUp();
+    await addMember(auth, { slug: organizationId, email: member.email, role: "member" });
+    await registerLearnDomain({ database, baseUrl, organizationSlug: organizationId, hostname });
+    await post(`https://${hostname}/api/session/code`, { email: member.email });
+    const [{ codeHash } = { codeHash: null }] = await database
+      .select({ codeHash: learnerSignInCode.codeHash })
+      .from(learnerSignInCode)
+      .where(
+        and(eq(learnerSignInCode.hostname, hostname), eq(learnerSignInCode.email, member.email)),
+      );
+
+    const removing = Promise.withResolvers<void>();
+    const removed = Promise.withResolvers<void>();
+    // As `deleteDomain` removes it, its sessions deleted, stopped before it commits.
+    const removal = database.transaction(async (transaction) => {
+      await transaction.delete(organizationDomain).where(eq(organizationDomain.hostname, hostname));
+      await transaction.delete(learnerSession).where(eq(learnerSession.hostname, hostname));
+      removing.resolve();
+      await removed.promise;
+    });
+    await removing.promise;
+    const spending = spendLearnerSignInCode(database, {
+      hostname,
+      email: member.email,
+      organizationId,
+      codeHash: codeHash!,
+      attempts: 5,
+      userId: member.id,
+      at: new Date(),
+      session: { tokenHash: crypto.randomUUID(), expiresAt: new Date(Date.now() + 60_000) },
+    });
+    // Time to open a session, were it not waiting for the removal.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    removed.resolve();
+    await removal;
+
+    expect(await spending).toBe(false);
+    expect(
+      await database.select().from(learnerSession).where(eq(learnerSession.hostname, hostname)),
+    ).toEqual([]);
+  });
+
   test("signs in nowhere once the domain serves another organization", async () => {
     const hostname = `moved-${run}.example`;
     const [first, second] = [`moved-a-${run}`, `moved-b-${run}`];

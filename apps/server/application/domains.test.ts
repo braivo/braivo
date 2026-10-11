@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { organization, organizationDomain, organizationDomainClaim } from "@braivo/db/schema";
+import {
+  learnerSession,
+  organization,
+  organizationDomain,
+  organizationDomainClaim,
+} from "@braivo/db/schema";
 import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
@@ -16,7 +21,9 @@ import {
   type DomainStatus,
   listDomains,
   ProvisioningFailed,
+  PROVISIONER_REMOVE_MS,
   registerLearnDomain,
+  removeDomain,
 } from "./domains.ts";
 import { NotPermitted } from "./permission.ts";
 
@@ -109,6 +116,8 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
         hostname: "learn.domains-test.example",
         organizationId: school,
         registeredAt: expect.any(Date),
+        // Registered by the operator, so proven by no claim.
+        claimId: null,
       },
     ]);
   });
@@ -204,6 +213,8 @@ describe.skipIf(!connectionString)("registerLearnDomain", () => {
         hostname: "learn.domains-test.example",
         organizationId: school,
         registeredAt: expect.any(Date),
+        // Registered by the operator, so proven by no claim.
+        claimId: null,
       },
     ]);
   });
@@ -262,6 +273,7 @@ describe.skipIf(!connectionString)("claimDomain", () => {
     const fake: DomainProvisioner = {
       add: async (name) => (asked.push(`add ${name}`), pending),
       status: async (name) => (asked.push(`status ${name}`), pending),
+      remove: async (name) => void asked.push(`remove ${name}`),
       ...overrides,
     };
     return { fake, asked };
@@ -331,11 +343,12 @@ describe.skipIf(!connectionString)("claimDomain", () => {
       await listDomains({
         database,
         provisioner: fake,
+        baseUrl,
         organizationId: school,
         actingAs: admin,
       }),
     ).toEqual({
-      domains: [{ hostname: "school.braivo.example" }],
+      domains: [{ hostname: "school.braivo.example", removable: false }],
       claims: [{ hostname, status: pending }],
       canAdd: true,
     });
@@ -427,6 +440,7 @@ describe.skipIf(!connectionString)("claimDomain", () => {
     const listed = await listDomains({
       database,
       provisioner: failing,
+      baseUrl,
       organizationId: school,
       actingAs: admin,
     });
@@ -435,7 +449,9 @@ describe.skipIf(!connectionString)("claimDomain", () => {
 
   test("lists without a provisioner, offering no way to add", async () => {
     await claim(provisioner().fake);
-    expect(await listDomains({ database, organizationId: school, actingAs: admin })).toEqual({
+    expect(
+      await listDomains({ database, baseUrl, organizationId: school, actingAs: admin }),
+    ).toEqual({
       domains: [],
       claims: [{ hostname, status: null }],
       canAdd: false,
@@ -478,7 +494,12 @@ describe.skipIf(!connectionString)("claimDomain", () => {
     const first = await claimId();
     await expire();
 
-    const listed = await listDomains({ database, organizationId: school, actingAs: admin });
+    const listed = await listDomains({
+      database,
+      baseUrl,
+      organizationId: school,
+      actingAs: admin,
+    });
     expect(listed.claims).toEqual([]);
     expect(await claim(provisioner().fake, hostname, otherSchool)).toEqual({
       hostname,
@@ -514,11 +535,18 @@ describe.skipIf(!connectionString)("claimDomain", () => {
     const fake: DomainProvisioner = {
       add: async (_name, id) => (calls.push(`add ${id}`), pending),
       status: async (_name, id) => (calls.push(`status ${id}`), pending),
+      remove: async () => {},
     };
     await claim(fake);
     const first = await claimId();
     await claim(fake);
-    await listDomains({ database, provisioner: fake, organizationId: school, actingAs: admin });
+    await listDomains({
+      database,
+      provisioner: fake,
+      baseUrl,
+      organizationId: school,
+      actingAs: admin,
+    });
     expect(calls).toEqual([`add ${first}`, `add ${first}`, `status ${first}`]);
 
     await expire();
@@ -668,6 +696,36 @@ describe.skipIf(!connectionString)("claimDomain", () => {
       expect(await claimsOf(school)).toEqual([{ hostname }]);
     });
 
+    test("does not pass a proof to the claim made after its own was removed", async () => {
+      await claim(provisioner().fake);
+      const answered = Promise.withResolvers<DomainStatus>();
+      const asked = Promise.withResolvers<void>();
+      const slow = provisioner({
+        status: () => {
+          asked.resolve();
+          return answered.promise;
+        },
+      }).fake;
+
+      const activating = activate(slow);
+      await asked.promise;
+      // Meanwhile: removed, and claimed again, its proof still to come.
+      await removeDomain({
+        database,
+        provisioner: provisioner().fake,
+        baseUrl,
+        organizationId: school,
+        actingAs: admin,
+        hostname,
+      });
+      await claim(provisioner().fake);
+      answered.resolve(ready);
+
+      expect(await refusedCode(activating)).toBe("NOT_CLAIMED");
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+      expect(await claimsOf(school)).toEqual([{ hostname }]);
+    });
+
     test("activates once when asked twice at once", async () => {
       await claim(provisioner().fake);
       const fake = provisioner({ status: async () => ready }).fake;
@@ -680,6 +738,313 @@ describe.skipIf(!connectionString)("claimDomain", () => {
         .from(organizationDomain)
         .where(eq(organizationDomain.hostname, hostname));
       expect(served).toEqual([{ organizationId: school }]);
+    });
+  });
+
+  describe("removeDomain", () => {
+    const remove = (fake: DomainProvisioner, name = hostname, actingAs = admin) =>
+      removeDomain({
+        database,
+        provisioner: fake,
+        baseUrl,
+        selfServeDomain: "schools.example",
+        organizationId: school,
+        actingAs,
+        hostname: name,
+      });
+
+    test("removes a claim, telling the provisioner", async () => {
+      await claim(provisioner().fake);
+      const { fake, asked } = provisioner();
+      await remove(fake, "Learn.Claims-Test.example");
+      expect(asked).toEqual([`remove ${hostname}`]);
+      expect(await claimsOf(school)).toEqual([]);
+    });
+
+    test("stops a domain serving at once, its sessions too, the primary falling back", async () => {
+      await register("school.schools.example");
+      // Proven by a claim, so the provisioner's to forget.
+      await claim(provisioner().fake);
+      await activateDomain({
+        database,
+        provisioner: provisioner({ status: async () => ({ ...pending, ready: true }) }).fake,
+        organizationId: school,
+        actingAs: admin,
+        hostname,
+      });
+      const { fake, asked } = provisioner();
+      expect(
+        (
+          await listDomains({
+            database,
+            provisioner: fake,
+            baseUrl,
+            organizationId: school,
+            actingAs: admin,
+            selfServeDomain: "schools.example",
+          })
+        ).domains,
+      ).toEqual([
+        { hostname, removable: true },
+        { hostname: "school.schools.example", removable: false },
+      ]);
+      // Otherwise, added back, the domain would let them in again (access-17).
+      const expiresAt = new Date(Date.now() + 60_000);
+      await database.delete(learnerSession).where(eq(learnerSession.userId, learner));
+      await database.insert(learnerSession).values([
+        {
+          tokenHash: "domains-test-there",
+          userId: learner,
+          organizationId: school,
+          hostname,
+          expiresAt,
+        },
+        {
+          tokenHash: "domains-test-elsewhere",
+          userId: learner,
+          organizationId: school,
+          hostname: "school.schools.example",
+          expiresAt,
+        },
+      ]);
+
+      await remove(fake);
+      expect(asked).toEqual([`remove ${hostname}`]);
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+      expect(await readLearnDomain(database, school)).toBe("school.schools.example");
+      expect(
+        await database
+          .select({ tokenHash: learnerSession.tokenHash })
+          .from(learnerSession)
+          .where(eq(learnerSession.userId, learner)),
+      ).toEqual([{ tokenHash: "domains-test-elsewhere" }]);
+    });
+
+    test("leaves a domain the operator registered alone at the provisioner", async () => {
+      await register("school.schools.example");
+      await register(hostname);
+      const { fake, asked } = provisioner();
+      await remove(fake);
+      expect(asked).toEqual([]);
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+    });
+
+    test("refuses the installation's own hostnames and the last domain, asking nothing", async () => {
+      await register("school.schools.example");
+      await register("braivo.example.other");
+      const { fake, asked } = provisioner();
+
+      expect(await refusedCode(remove(fake, "school.schools.example"))).toBe("DOMAIN_RESERVED");
+      expect(await refusedCode(remove(fake, "braivo.example"))).toBe("DOMAIN_RESERVED");
+      await database
+        .delete(organizationDomain)
+        .where(eq(organizationDomain.hostname, "school.schools.example"));
+      expect(await refusedCode(remove(fake, "braivo.example.other"))).toBe("LAST_DOMAIN");
+      expect(asked).toEqual([]);
+      expect(await readDomainOrganization(database, "braivo.example.other")).toMatchObject({
+        id: school,
+      });
+    });
+
+    test("refuses a hostname another organization holds, asking nothing", async () => {
+      await claim(provisioner().fake, hostname, otherSchool);
+      const { fake, asked } = provisioner();
+      expect(await refusedCode(remove(fake))).toBe("NOT_CLAIMED");
+      expect(asked).toEqual([]);
+      expect(await claimsOf(otherSchool)).toEqual([{ hostname }]);
+    });
+
+    test("refuses a hostname claiming refuses, though lowercased it names a claim", async () => {
+      await claim(provisioner().fake, "kids.claims-test.example");
+      const { fake, asked } = provisioner();
+      // The Kelvin sign, lowercased, is `k`.
+      expect(await refusedCode(remove(fake, "\u212Aids.claims-test.example"))).toBe(
+        "DOMAIN_INVALID",
+      );
+      expect(asked).toEqual([]);
+      expect(await claimsOf(school)).toEqual([{ hostname: "kids.claims-test.example" }]);
+    });
+
+    test("refuses a member who does not administer the organization", async () => {
+      await claim(provisioner().fake);
+      await expect(remove(provisioner().fake, hostname, learner)).rejects.toBeInstanceOf(
+        NotPermitted,
+      );
+      expect(await claimsOf(school)).toEqual([{ hostname }]);
+    });
+
+    test("removes here though the provisioner fails", async () => {
+      await claim(provisioner().fake);
+      const failing = provisioner({
+        remove: async () => {
+          throw new Error("Cloudflare is down");
+        },
+      }).fake;
+
+      await remove(failing);
+      expect(await claimsOf(school)).toEqual([]);
+    });
+
+    test("removes here though the provisioner throws before answering", async () => {
+      await claim(provisioner().fake);
+      const throwing = provisioner({
+        remove: () => {
+          throw new Error("Not configured");
+        },
+      }).fake;
+
+      await remove(throwing);
+      expect(await claimsOf(school)).toEqual([]);
+    });
+
+    /**
+     * A provisioner as the contract has it: one resource per hostname, the
+     * claim's whose ID made it; added for a later claim, replaced, its proof
+     * to be made anew, and for an earlier one, ignored; removed only for its
+     * own claim.
+     */
+    function claimBoundProvisioner() {
+      const served = new Map<string, { claim: number; ready: boolean }>();
+      const statusOf = (name: string, claim: number): DomainStatus => ({
+        ...pending,
+        ready: served.get(name)?.claim === claim && served.get(name)?.ready === true,
+      });
+      const fake: DomainProvisioner = {
+        add: async (name, claim) => {
+          const held = served.get(name)?.claim;
+          if (held === undefined || claim > held) served.set(name, { claim, ready: false });
+          return statusOf(name, claim);
+        },
+        status: async (name, claim) => statusOf(name, claim),
+        remove: async (name, claim) => {
+          if (served.get(name)?.claim === claim) served.delete(name);
+        },
+      };
+      /** Its DNS records found, and its certificate issued. */
+      const prove = (name: string) => served.set(name, { ...served.get(name)!, ready: true });
+      return { fake, served, prove };
+    }
+
+    test("proves a hostname claimed again anew, what an earlier claim left proving nothing", async () => {
+      const provider = claimBoundProvisioner();
+      await claim(provider.fake);
+      provider.prove(hostname);
+      // Removed, the provisioner failing to forget it: its proof still there.
+      await remove({ ...provider.fake, remove: async () => Promise.reject(new Error("down")) });
+      expect(provider.served.get(hostname)?.ready).toBe(true);
+
+      await claim(provider.fake, hostname, otherSchool);
+      expect(
+        await activateDomain({
+          database,
+          provisioner: provider.fake,
+          organizationId: otherSchool,
+          actingAs: otherAdmin,
+          hostname,
+        }),
+      ).toMatchObject({ active: false });
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+    });
+
+    test("never lets a late addition for a claim undo the claim made after it", async () => {
+      const provider = claimBoundProvisioner();
+      const asked = Promise.withResolvers<void>();
+      const told = Promise.withResolvers<void>();
+      // The first claim's addition, slow to arrive.
+      const adding = claim({
+        ...provider.fake,
+        add: async (name, claimId) => {
+          asked.resolve();
+          await told.promise;
+          return provider.fake.add(name, claimId);
+        },
+      });
+      await asked.promise;
+      await remove(provider.fake);
+      // Another organization claims it, proves it, and activates it meanwhile.
+      await claim(provider.fake, hostname, otherSchool);
+      provider.prove(hostname);
+      const activated = await activateDomain({
+        database,
+        provisioner: provider.fake,
+        organizationId: otherSchool,
+        actingAs: otherAdmin,
+        hostname,
+      });
+      expect(activated).toEqual({ active: true });
+
+      told.resolve();
+      await adding;
+      expect(provider.served.get(hostname)?.ready).toBe(true);
+      expect(await readDomainOrganization(database, hostname)).toMatchObject({ id: otherSchool });
+    });
+
+    test("never lets a late removal of a claim undo the claim made after it", async () => {
+      const provider = claimBoundProvisioner();
+      await claim(provider.fake);
+      const first = provider.served.get(hostname)?.claim;
+      const asked = Promise.withResolvers<void>();
+      const told = Promise.withResolvers<void>();
+
+      const removing = remove({
+        ...provider.fake,
+        remove: async (name, claimId, options) => {
+          asked.resolve();
+          await told.promise;
+          return provider.fake.remove(name, claimId, options);
+        },
+      });
+      await asked.promise;
+      // Removed here already: another organization claims it meanwhile.
+      await claim(provider.fake, hostname, otherSchool);
+      const second = provider.served.get(hostname)?.claim;
+      // A later claim's ID is greater, which the provisioner orders them by.
+      expect(second).toBeGreaterThan(first!);
+
+      told.resolve();
+      await removing;
+      expect(provider.served.get(hostname)?.claim).toBe(second);
+      expect(await claimsOf(otherSchool)).toEqual([{ hostname }]);
+    });
+
+    test("stops waiting for a provisioner that does not answer, removing all the same", async () => {
+      await claim(provisioner().fake);
+      let signalled: AbortSignal | undefined;
+      const silent = provisioner({
+        remove: (_name, _claim, { signal }) => {
+          signalled = signal;
+          return new Promise<void>(() => {});
+        },
+      }).fake;
+
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const removing = remove(silent);
+        await vi.waitFor(() => expect(signalled).toBeDefined());
+        await vi.advanceTimersByTimeAsync(PROVISIONER_REMOVE_MS);
+        await removing;
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(signalled?.aborted).toBe(true);
+      expect(await claimsOf(school)).toEqual([]);
+    });
+
+    test("leaves one domain when its last two are removed at once", async () => {
+      await register("first.claims-test.example");
+      await register("second.claims-test.example");
+      const outcomes = await Promise.allSettled([
+        remove(provisioner().fake, "first.claims-test.example"),
+        remove(provisioner().fake, "second.claims-test.example"),
+      ]);
+      const refused = outcomes.filter((outcome) => outcome.status === "rejected");
+      expect(refused).toHaveLength(1);
+      expect(refused[0]?.reason).toMatchObject({ code: "LAST_DOMAIN" });
+      const served = await database
+        .select({ hostname: organizationDomain.hostname })
+        .from(organizationDomain)
+        .where(eq(organizationDomain.organizationId, school));
+      expect(served).toHaveLength(1);
     });
   });
 });
@@ -710,7 +1075,8 @@ describe.skipIf(!connectionString)("listDomains", () => {
       .where(inArray(organizationDomain.organizationId, [school, otherSchool]));
   });
 
-  const list = (actingAs: string) => listDomains({ database, organizationId: school, actingAs });
+  const list = (actingAs: string) =>
+    listDomains({ database, baseUrl, organizationId: school, actingAs });
 
   test("lists every domain serving the organization, newest first, for its admin", async () => {
     expect(await list(admin)).toEqual({ domains: [], claims: [], canAdd: false });
@@ -720,7 +1086,11 @@ describe.skipIf(!connectionString)("listDomains", () => {
     await register("learn.other-test.example", otherSchool);
 
     expect(await list(admin)).toEqual({
-      domains: [{ hostname: "learn.domains-test.example" }, { hostname: "school.braivo.example" }],
+      // Without a provisioner, none removable.
+      domains: [
+        { hostname: "learn.domains-test.example", removable: false },
+        { hostname: "school.braivo.example", removable: false },
+      ],
       claims: [],
       canAdd: false,
     });

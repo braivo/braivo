@@ -419,12 +419,13 @@
 // names and roles.
 //
 // `GET /api/organizations/:organizationId/domains` — answers `{ "domains":
-// [{ "hostname" }], "claims": [{ "hostname", "status" }], "canAdd" }`: the
-// hostnames serving its learn app, newest first, the first naming its learn
-// domain; those it claimed, each expiring seven days on unless activated,
-// newest first, each `status` `{ "ready", "records": [{ "type", "name",
-// "value" }] }` as the provisioner reads it now, or `null` when it cannot; and
-// whether this installation has a provisioner (ADR 0038).
+// [{ "hostname", "removable" }], "claims": [{ "hostname", "status" }],
+// "canAdd" }`: the hostnames serving its learn app, newest first, the first
+// naming its learn domain, each `removable` as `…/remove` allows; those it
+// claimed, each expiring seven days on unless activated, newest first, each
+// `status` `{ "ready", "records": [{ "type", "name", "value" }] }` as the
+// provisioner reads it now, or `null` when it cannot; and whether this
+// installation has a provisioner (ADR 0038).
 //
 // `POST /api/organizations/:organizationId/domains` `{ "hostname" }` — claims
 // a hostname, asking the provisioner to serve it once proven: 201 `{ "claim" }`
@@ -442,6 +443,15 @@
 // "status" }` while not ready, `status` as listed above; 404 for a
 // hostname the organization has not claimed, or whose claim expired; 502
 // `PROVISIONING_FAILED`; 501 where the installation has no provisioner.
+//
+// `POST /api/organizations/:organizationId/domains/:hostname/remove`, a JSON
+// write — removes a domain serving the organization, or its claim to one: it
+// stops serving at once, learner sessions there with it, then the provisioner
+// is told to forget that claim alone (a domain the operator registered,
+// nothing): 204, its failure logged, what it holds then its own to sweep. 409
+// `{ "error", "code" }` for the installation's own (`DOMAIN_RESERVED`) or the
+// only domain serving it (`LAST_DOMAIN`); 404 for a hostname the organization
+// does not hold; 501 where the installation has no provisioner.
 //
 // `POST /api/organizations/:organizationId/sources` — adds material a content
 // owner provides, as text:
