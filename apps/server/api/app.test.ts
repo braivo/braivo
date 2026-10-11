@@ -238,6 +238,71 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect((await at(organizationOrigin, "/api/courses/unknown/next", bearer)).status).toBe(401);
   });
 
+  test("tells a remote MCP client where `/mcp`'s tokens come from, on the installation's host alone", async () => {
+    const resource = await api.request(`${baseUrl}/.well-known/oauth-protected-resource/mcp`);
+    const elsewhere = await api.request(
+      `${organizationOrigin}/.well-known/oauth-protected-resource/mcp`,
+    );
+    // The fallback MCP clients must try for an issuer with a path.
+    const server = await api.request(`${baseUrl}/api/auth/.well-known/openid-configuration`);
+
+    expect(resource.status).toBe(200);
+    expect(await resource.json()).toMatchObject({
+      resource: `${baseUrl}/mcp`,
+      authorization_servers: [`${baseUrl}/api/auth`],
+      // `/mcp` takes bearer tokens alone.
+      dpop_signing_alg_values_supported: [],
+    });
+    expect(elsewhere.status).toBe(404);
+    expect(server.status).toBe(200);
+    expect(await server.json()).toMatchObject({
+      issuer: `${baseUrl}/api/auth`,
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      code_challenge_methods_supported: ["S256"],
+      client_id_metadata_document_supported: true,
+      // A client named by its metadata document holds no secret: PKCE alone.
+      token_endpoint_auth_methods_supported: expect.arrayContaining(["none"]),
+      dpop_signing_alg_values_supported: [],
+    });
+  });
+
+  test("sends a remote MCP client without a token to discovery, on the installation's host alone", async () => {
+    const call = (origin: string, headers: Record<string, string> = {}) =>
+      api.request(`${origin}/mcp`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      });
+
+    const unsigned = await call(baseUrl);
+    expect(unsigned.status).toBe(401);
+    expect(unsigned.headers.get("www-authenticate")).toContain(
+      `resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"`,
+    );
+    // A session token is not an access token for `/mcp`.
+    expect((await call(baseUrl, { authorization: `Bearer ${teacher.token}` })).status).toBe(401);
+    expect((await call(organizationOrigin)).status).toBe(404);
+    // A page elsewhere, in a browser, whatever it carries.
+    expect((await call(baseUrl, { origin: "https://evil.example" })).status).toBe(403);
+  });
+
+  test("lets an OAuth client authenticate with HTTP Basic where metadata offers it, and nowhere else", async () => {
+    const exchange = (path: string, authorization: string) =>
+      api.request(path, {
+        method: "POST",
+        headers: { authorization, "content-type": "application/x-www-form-urlencoded" },
+        body: "grant_type=refresh_token&refresh_token=unknown",
+      });
+    const basic = `Basic ${btoa("unknown-client:secret")}`;
+
+    // Reaches Better Auth, which answers in OAuth's terms, not the gate's empty 403.
+    const exchanged = await exchange("/api/auth/oauth2/token", basic);
+    expect(exchanged.status).toBe(400);
+    expect(await exchanged.json()).toMatchObject({ error: "invalid_grant" });
+    expect((await exchange("/api/auth/oauth2/token", "Bearer anything")).status).toBe(403);
+    expect((await exchange("/api/auth/device/token", basic)).status).toBe(403);
+  });
+
   describe("a content owner's own tools, signed in through the device flow", () => {
     /** What Braivo's CLI sends: JSON, and no cookie, ever. */
     function asCli(path: string, body: Record<string, string>) {

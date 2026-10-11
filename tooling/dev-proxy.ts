@@ -23,10 +23,16 @@ export function braivoApi(env: {
   PORT?: string;
 }): Record<string, ProxyOptions> {
   const site = new URL(env.BRAIVO_URL ?? "http://localhost:5174");
+  const server = `http://localhost:${env.PORT || 3000}`;
 
   return {
+    // Remote MCP: the endpoint, and where it says its tokens come from, on
+    // `BRAIVO_URL` as clients find them. Clients run outside a browser, so no
+    // `Origin` to rewrite. `/mcp` exact, as a prefix would take a slug's page.
+    "^/mcp$": { target: server },
+    "/.well-known/oauth-protected-resource": { target: server },
     "/api": {
-      target: `http://localhost:${env.PORT || 3000}`,
+      target: server,
       configure(proxy) {
         proxy.on("proxyReq", (proxied, request) => {
           const origin = request.headers.origin;

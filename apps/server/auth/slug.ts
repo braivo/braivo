@@ -10,6 +10,7 @@
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "api",
   "assets",
+  "consent",
   "device",
   "invitations",
   "login",

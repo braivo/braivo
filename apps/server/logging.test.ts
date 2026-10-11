@@ -178,13 +178,13 @@ describe.skipIf(!connectionString)("a failure's log", () => {
     });
 
     expect(response.status).toBe(500);
+    // `mcp()`'s provider reads its resource first, so that query is what fails.
     expect(logged).toEqual([
-      "[Better Auth] DrizzleQueryError < DatabaseError 42P01",
       {
         message: "Request failed",
         method: "GET",
         route: "/api/organizations",
-        error: "APIError",
+        error: "DrizzleQueryError < DatabaseError 42P01",
       },
     ]);
     expectNothingPersonal();

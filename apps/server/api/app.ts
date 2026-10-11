@@ -15,6 +15,7 @@ import { authoringRoutes } from "./authoring.ts";
 import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
+import { mcpEndpoint } from "./mcp.ts";
 import { sessionRoutes } from "./session.ts";
 import type { SignInSettings } from "./types.ts";
 
@@ -52,6 +53,17 @@ type ApiOptions = {
 const BEARER_AUTH_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/get-session",
   "/api/auth/sign-out",
+]);
+
+/**
+ * Where an OAuth client authenticates itself with HTTP Basic (RFC 6749,
+ * 2.3.1), as the authorization server's metadata offers: a client's own
+ * credential, not a person's session, so a bearer's limits do not apply.
+ */
+const OAUTH_CLIENT_PATHS: ReadonlySet<string> = new Set([
+  "/api/auth/oauth2/token",
+  "/api/auth/oauth2/introspect",
+  "/api/auth/oauth2/revoke",
 ]);
 
 /**
@@ -143,6 +155,7 @@ export function createApi(options: ApiOptions) {
       "/api/organization-setup",
       "/api/auth",
       "/api/handoffs",
+      "/api/oauth",
     ];
     if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
@@ -170,7 +183,10 @@ export function createApi(options: ApiOptions) {
     // A tool's token is for Braivo's API and for finding its way there, not
     // for managing the account — approving another device, changing an
     // email — which takes the person in their browser.
-    const bearer = context.req.header("authorization") !== undefined;
+    const authorization = context.req.header("authorization");
+    const clientBasicAuth =
+      OAUTH_CLIENT_PATHS.has(context.req.path) && /^basic /i.test(authorization ?? "");
+    const bearer = authorization !== undefined && !clientBasicAuth;
     if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
     if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
       return context.body(null, 403);
@@ -184,6 +200,15 @@ export function createApi(options: ApiOptions) {
         .catch(() => undefined);
       const refused = refuseUnstorable(context, body);
       if (refused) return refused;
+      // Better Auth verifies the signed request, then looks up whichever
+      // client the body names: only the one the request is for.
+      if (context.req.path === "/api/auth/oauth2/public-client-prelogin") {
+        const { client_id, oauth_query } = (body ?? {}) as Record<string, unknown>;
+        const signedFor = new URLSearchParams(
+          typeof oauth_query === "string" ? oauth_query : "",
+        ).get("client_id");
+        if (client_id !== signedFor) return context.body(null, 400);
+      }
     }
 
     // Copied, since a library's response may carry immutable headers.
@@ -198,6 +223,44 @@ export function createApi(options: ApiOptions) {
     }
     return response;
   });
+
+  // Where Better Auth sends a person to sign in and consent: on to the
+  // console's `/consent`, the signed query as one opaque value. The console's
+  // router reparses a query (JSON values, repeated keys), which would break
+  // the signature over it; `r.` keeps the value from parsing as JSON.
+  api.get("/api/oauth/consent", (context) => {
+    const signed = new URL(context.req.url).search.slice(1);
+    return context.redirect(`/consent?request=r.${Buffer.from(signed).toString("base64url")}`);
+  });
+
+  // Where `/mcp`'s tokens come from (RFC 9728), on the installation's host
+  // alone, as `/mcp` is. The authorization server's own metadata is Better
+  // Auth's, under `/api/auth/.well-known`.
+  api.get("/.well-known/oauth-protected-resource/mcp", async (context) => {
+    if (!requestHost(context).installation) return context.body(null, 404);
+    return auth.handler(context.req.raw);
+  });
+
+  const mcp = mcpEndpoint({
+    auth,
+    database,
+    resource: new URL("/mcp", baseUrl).href,
+    issuer: new URL("/api/auth", baseUrl).href,
+  });
+  // Per person, so as uncacheable as `/api`. Refused before anything reads
+  // the body: another host, as under `/api`, and a write `isTrustedWrite`
+  // doubts, whose `Origin` check MCP's transport requires against DNS
+  // rebinding (a client outside a browser sends no `Origin`).
+  api.post(
+    "/mcp",
+    noStore,
+    async (context, next) => {
+      if (!requestHost(context).installation) return context.body(null, 404);
+      return (await isTrustedWrite(context)) ? next() : context.body(null, 403);
+    },
+    limitBody(MAX_BODY_BYTES),
+    (context) => mcp(context.req.raw),
+  );
 
   /**
    * The organization this request's host serves, which a learn app on that

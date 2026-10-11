@@ -13,6 +13,7 @@ import { Route as SignedInRouteRouteImport } from './routes/_signed-in/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SignedInIndexRouteImport } from './routes/_signed-in/index'
 import { Route as SignedInOrganizationSlugRouteRouteImport } from './routes/_signed-in/$organizationSlug/route'
+import { Route as SignedInConsentRouteImport } from './routes/_signed-in/consent'
 import { Route as SignedInDeviceRouteImport } from './routes/_signed-in/device'
 import { Route as SignedInOrganizationsRouteImport } from './routes/_signed-in/organizations'
 import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
@@ -41,6 +42,11 @@ const SignedInOrganizationSlugRouteRoute =
     path: '/$organizationSlug',
     getParentRoute: () => SignedInRouteRoute,
   } as any)
+const SignedInConsentRoute = SignedInConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => SignedInRouteRoute,
+} as any)
 const SignedInDeviceRoute = SignedInDeviceRouteImport.update({
   id: '/device',
   path: '/device',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/': typeof SignedInIndexRoute
   '/login': typeof LoginRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/consent': typeof SignedInConsentRoute
   '/device': typeof SignedInDeviceRoute
   '/organizations': typeof SignedInOrganizationsRoute
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/consent': typeof SignedInConsentRoute
   '/device': typeof SignedInDeviceRoute
   '/organizations': typeof SignedInOrganizationsRoute
   '/': typeof SignedInIndexRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/_signed-in': typeof SignedInRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/_signed-in/$organizationSlug': typeof SignedInOrganizationSlugRouteRouteWithChildren
+  '/_signed-in/consent': typeof SignedInConsentRoute
   '/_signed-in/device': typeof SignedInDeviceRoute
   '/_signed-in/organizations': typeof SignedInOrganizationsRoute
   '/_signed-in/': typeof SignedInIndexRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/$organizationSlug'
+    | '/consent'
     | '/device'
     | '/organizations'
     | '/$organizationSlug/'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/consent'
     | '/device'
     | '/organizations'
     | '/'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/_signed-in'
     | '/login'
     | '/_signed-in/$organizationSlug'
+    | '/_signed-in/consent'
     | '/_signed-in/device'
     | '/_signed-in/organizations'
     | '/_signed-in/'
@@ -191,6 +203,13 @@ declare module '@tanstack/react-router' {
       path: '/$organizationSlug'
       fullPath: '/$organizationSlug'
       preLoaderRoute: typeof SignedInOrganizationSlugRouteRouteImport
+      parentRoute: typeof SignedInRouteRoute
+    }
+    '/_signed-in/consent': {
+      id: '/_signed-in/consent'
+      path: '/consent'
+      fullPath: '/consent'
+      preLoaderRoute: typeof SignedInConsentRouteImport
       parentRoute: typeof SignedInRouteRoute
     }
     '/_signed-in/device': {
@@ -273,6 +292,7 @@ const SignedInOrganizationSlugRouteRouteWithChildren =
 
 interface SignedInRouteRouteChildren {
   SignedInOrganizationSlugRouteRoute: typeof SignedInOrganizationSlugRouteRouteWithChildren
+  SignedInConsentRoute: typeof SignedInConsentRoute
   SignedInDeviceRoute: typeof SignedInDeviceRoute
   SignedInOrganizationsRoute: typeof SignedInOrganizationsRoute
   SignedInIndexRoute: typeof SignedInIndexRoute
@@ -281,6 +301,7 @@ interface SignedInRouteRouteChildren {
 const SignedInRouteRouteChildren: SignedInRouteRouteChildren = {
   SignedInOrganizationSlugRouteRoute:
     SignedInOrganizationSlugRouteRouteWithChildren,
+  SignedInConsentRoute: SignedInConsentRoute,
   SignedInDeviceRoute: SignedInDeviceRoute,
   SignedInOrganizationsRoute: SignedInOrganizationsRoute,
   SignedInIndexRoute: SignedInIndexRoute,

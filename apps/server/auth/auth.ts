@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
+import { mcp } from "@better-auth/mcp";
 import type { Database } from "@braivo/db";
 import * as authTables from "@braivo/db/schema/auth";
 import { betterAuth, type BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
-import { bearer, deviceAuthorization, emailOTP, organization } from "better-auth/plugins";
+import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better-auth/plugins";
 import * as z from "zod";
 
 import { describeLogCall } from "../logging.ts";
@@ -38,6 +41,18 @@ type AuthOptions = {
   /** Google's OAuth client, offering sign-in with Google; without one, codes alone. */
   google?: { clientId: string; clientSecret: string };
 };
+
+/**
+ * Fetches a client's metadata for `cimd()`, closing the connection after ten
+ * seconds whatever happened to the response: Better Auth leaves the body of
+ * one it refuses (a redirect, a non-JSON answer) unread and open, so a client's
+ * server could otherwise hold sockets indefinitely.
+ */
+const fetchClientMetadata: typeof fetchClientMetadataResource = (input, init) =>
+  fetchClientMetadataResource(input, {
+    ...init,
+    signal: AbortSignal.any([AbortSignal.timeout(10_000), ...(init?.signal ? [init.signal] : [])]),
+  });
 
 /**
  * Sign-in codes, chosen rather than Better Auth's defaults (ADR 0018). Ten
@@ -340,12 +355,49 @@ export function createAuth(options: AuthOptions) {
       // Unsigned tokens accepted, since the device flow hands out the session
       // token itself; it is as secret as the cookie it stands in for.
       bearer(),
+      // Spike (#113): the OAuth 2.1 authorization server remote MCP clients
+      // sign in through, its access tokens JWTs bound to `/mcp`. Only OAuth
+      // signs JWTs: a session gets none, so signing in never needs the
+      // signing key, which the auth secret encrypts.
+      jwt({ disableSettingJwtHeader: true }),
+      mcp({
+        // Braivo's, which hands the request to the console's `/consent`; under
+        // its signed-in layout, someone signed out signs in on the way.
+        loginPage: "/api/oauth/consent",
+        consentPage: "/api/oauth/consent",
+        resource: new URL("/mcp", options.baseURL).href,
+        // A person signs each client in; `client_credentials`, a client acting
+        // as no one, waits for its own decision (ADR 0022).
+        grantTypes: ["authorization_code", "refresh_token"],
+        // How the consent page names the client: only for a request whose
+        // signature verifies, so nothing is shown for one Braivo never made.
+        allowPublicClientPrelogin: true,
+        // No DPoP: `/mcp` takes bearer tokens alone, so the metadata offers no
+        // algorithm and the token endpoint refuses a proof, rather than issue
+        // a token `/mcp` would refuse.
+        dpop: { signingAlgorithms: [] },
+      }),
+      // A client is the HTTPS URL of its metadata document, fetched resolving
+      // its host once, refusing private addresses and redirects, and pinning
+      // the address checked; `node:https` does all of that on Bun too.
+      cimd({ fetchClientMetadataResource: fetchClientMetadata, metadataProfile: "mcp-2026-07-28" }),
       verifiedAccounts,
     ],
 
     // Off where the plugin has no switch of its own. Direct `auth.api` calls
     // bypass it; Braivo makes none to these.
     disabledPaths: [
+      // `jwt()`'s session-for-JWT exchange: only OAuth issues JWTs.
+      "/token",
+      // Clients name themselves by their metadata document (`cimd()`), or
+      // server code registers one. Over HTTP, anyone signed in, a learner
+      // too, could put a client of their naming on a consent page.
+      "/oauth2/create-client",
+      "/oauth2/get-client",
+      "/oauth2/get-clients",
+      "/oauth2/update-client",
+      "/oauth2/delete-client",
+      "/oauth2/client/rotate-secret",
       // Google signs in, making or finding the account by its email; nothing
       // links a provider to an account by hand.
       "/link-social",
