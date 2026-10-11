@@ -22,7 +22,7 @@
     "@lingui/core": "6.9.0",
     "@lingui/react": "6.9.0",
     "@tanstack/react-router": "^1.170.36",
-    "better-auth": "1.7.5",
+    "better-auth": "1.7.7",
     "lucide-react": "^1.54.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
