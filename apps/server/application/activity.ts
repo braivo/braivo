@@ -142,7 +142,7 @@ export type NextActivity =
  * with its evidence. The learner submits for themselves, which posting evidence
  * does not allow, because Braivo grades: they choose the answer, never the
  * outcome. A retry under the same `attemptId` stores nothing twice and answers
- * the same grade (`recordAttempt`).
+ * the outcome recorded (`recordAttempt`), with feedback rebuilt from the task.
  */
 export async function submitAttempt(input: {
   database: Database;
@@ -172,8 +172,9 @@ export async function submitAttempt(input: {
   if (response === undefined) return { kind: "invalid" };
 
   const grade = gradeResponse(task.body, response);
+  let outcome: Grade["outcome"];
   try {
-    await recordAttempt(database, {
+    outcome = await recordAttempt(database, {
       learnerId,
       organizationId,
       attemptId,
@@ -209,7 +210,7 @@ export async function submitAttempt(input: {
     source,
   }));
 
-  return { kind: "graded", grade, passages };
+  return { kind: "graded", grade: { ...grade, outcome }, passages };
 }
 
 /**

@@ -494,9 +494,11 @@ export async function readCourseTask(
 /**
  * Stores an attempt and the evidence graded from it, together or not at all.
  *
- * Resubmitting the same attempt — same ID, task, and response — stores nothing
- * and returns, so a client may retry after a lost answer; its evidence keeps the
- * first submission's date. The same ID with anything else is `ConflictingAttempt`.
+ * Returns the outcome that stands. Resubmitting the same attempt — same ID,
+ * task, and response — stores nothing and returns the outcome recorded, even
+ * if grading would now say otherwise, so a client may retry after a lost
+ * answer; its evidence keeps the first submission's date. The same ID with
+ * anything else is `ConflictingAttempt`.
  * IDs are the organization's, as evidence IDs are: the same ID at another
  * organization is another attempt.
  * Compared after the insert, inside the transaction, so two racing submissions
@@ -525,11 +527,11 @@ export async function recordAttempt(
     /** Dated by the attempt. */
     evidence: Omit<Evidence, "at">;
   },
-): Promise<void> {
+): Promise<Evidence["outcome"]> {
   const { learnerId, organizationId, attemptId, taskId, response, at, restWindowStart, evidence } =
     input;
 
-  await database.transaction(async (transaction) => {
+  return database.transaction(async (transaction) => {
     const inserted = await transaction
       .insert(attempt)
       .values({ id: attemptId, learnerId, organizationId, taskId, response, at })
@@ -547,8 +549,23 @@ export async function recordAttempt(
             eq(attempt.id, attemptId),
           ),
         );
-      if (stored?.taskId === taskId && isDeepStrictEqual(stored.response, response)) return;
-      throw new ConflictingAttempt(attemptId);
+      if (stored?.taskId !== taskId || !isDeepStrictEqual(stored.response, response)) {
+        throw new ConflictingAttempt(attemptId);
+      }
+      const [recorded] = await transaction
+        .select({ outcome: learnerEvidence.outcome })
+        .from(learnerEvidence)
+        .where(
+          and(
+            eq(learnerEvidence.learnerId, learnerId),
+            eq(learnerEvidence.organizationId, organizationId),
+            eq(learnerEvidence.id, evidence.id),
+          ),
+        );
+      // Written with the attempt, so never missing: regrading instead would
+      // answer an outcome the evidence does not hold.
+      if (recorded === undefined) throw new Error(`Attempt ${attemptId} has no evidence.`);
+      return recorded.outcome;
     }
 
     const [current] = await transaction
@@ -576,5 +593,6 @@ export async function recordAttempt(
     await transaction
       .insert(learnerEvidence)
       .values({ ...evidence, learnerId, organizationId, at });
+    return evidence.outcome;
   });
 }
