@@ -5,6 +5,7 @@ import type { Database } from "@braivo/db";
 import { Hono } from "hono";
 
 import {
+  activateDomain,
   citeSources,
   claimDomain,
   defineCourse,
@@ -523,6 +524,46 @@ export function authoringRoutes(
           const conflict = error.code === "DOMAIN_TAKEN" || error.code === "ALREADY_ADDED";
           return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
         }
+        if (error instanceof ProvisioningFailed) {
+          return context.json({ error: error.message, code: "PROVISIONING_FAILED" }, 502);
+        }
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Activates a claimed hostname once the provisioner reports it proven, for
+   * whoever administers the organization (ADR 0038).
+   */
+  routes.post(
+    "/api/organizations/:organizationId/domains/:hostname/activate",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (!provisioner) {
+        return context.json({ error: "This installation cannot add domains." }, 501);
+      }
+      try {
+        const activation = await activateDomain({
+          database,
+          provisioner,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          hostname: context.req.param("hostname"),
+        });
+        if (activation.active) return context.body(null, 204);
+        return context.json(
+          {
+            error: "It is not ready yet.",
+            code: "NOT_VERIFIED",
+            status: activation.status,
+          },
+          409,
+        );
+      } catch (error) {
+        // Not claimed: as missing as any other organization's resource.
+        if (error instanceof DomainRefused) return context.body(null, 404);
         if (error instanceof ProvisioningFailed) {
           return context.json({ error: error.message, code: "PROVISIONING_FAILED" }, 502);
         }

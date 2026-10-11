@@ -9,6 +9,7 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 
 import { readDomainOrganization, readDomains, readLearnDomain } from "../persistence/index.ts";
 import {
+  activateDomain,
   claimDomain,
   type DomainProvisioner,
   DomainRefused,
@@ -559,6 +560,127 @@ describe.skipIf(!connectionString)("claimDomain", () => {
         .where(eq(organizationDomain.hostname, hostname));
       expect(claimed.length + served.length).toBe(1);
     }
+  });
+
+  describe("activateDomain", () => {
+    const ready: DomainStatus = { ...pending, ready: true };
+    const activate = (fake: DomainProvisioner, name = hostname, actingAs = admin) =>
+      activateDomain({
+        database,
+        provisioner: fake,
+        organizationId: school,
+        actingAs,
+        hostname: name,
+      });
+
+    test("leaves a claim not yet proven claimed, answering where it stands", async () => {
+      await claim(provisioner().fake);
+      expect(await activate(provisioner().fake)).toEqual({ active: false, status: pending });
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+      expect(await claimsOf(school)).toEqual([{ hostname }]);
+    });
+
+    test("makes a proven claim serve, as the primary domain, and succeeds again", async () => {
+      await register("school.braivo.example");
+      await claim(provisioner().fake);
+      const { fake, asked } = provisioner({ status: async () => ready });
+
+      expect(await activate(fake, "Learn.Claims-Test.example")).toEqual({ active: true });
+      expect(await readDomainOrganization(database, hostname)).toMatchObject({ id: school });
+      expect(await readLearnDomain(database, school)).toBe(hostname);
+      expect(await claimsOf(school)).toEqual([]);
+
+      // Serving already: not asked again.
+      asked.length = 0;
+      expect(await activate(fake)).toEqual({ active: true });
+      expect(asked).toEqual([]);
+    });
+
+    test("refuses a hostname the organization has not claimed, asking nothing about it", async () => {
+      await claim(provisioner().fake, hostname, otherSchool);
+      const { fake, asked } = provisioner();
+      expect(await refusedCode(activate(fake))).toBe("NOT_CLAIMED");
+      expect(asked).toEqual([]);
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+    });
+
+    test("refuses a hostname claiming refuses, though lowercased it names a claim", async () => {
+      await claim(provisioner().fake, "kids.claims-test.example");
+      const { fake, asked } = provisioner({ status: async () => ready });
+      // The Kelvin sign, lowercased, is `k`.
+      expect(await refusedCode(activate(fake, "\u212Aids.claims-test.example"))).toBe(
+        "DOMAIN_INVALID",
+      );
+      expect(asked).toEqual([]);
+    });
+
+    test("refuses a member who does not administer the organization", async () => {
+      await claim(provisioner().fake);
+      const activated = activate(
+        provisioner({ status: async () => ready }).fake,
+        hostname,
+        learner,
+      );
+      await expect(activated).rejects.toBeInstanceOf(NotPermitted);
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+    });
+
+    test("keeps the claim when the provisioner cannot say", async () => {
+      await claim(provisioner().fake);
+      const failing = provisioner({
+        status: async () => {
+          throw new Error("Cloudflare is down");
+        },
+      }).fake;
+      await expect(activate(failing)).rejects.toBeInstanceOf(ProvisioningFailed);
+      expect(await claimsOf(school)).toEqual([{ hostname }]);
+    });
+
+    test("refuses an expired claim, asking nothing about it", async () => {
+      await claim(provisioner().fake);
+      await expire();
+      const { fake, asked } = provisioner();
+      expect(await refusedCode(activate(fake))).toBe("NOT_CLAIMED");
+      expect(asked).toEqual([]);
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+    });
+
+    test("does not pass a proof to the claim made after its own expired", async () => {
+      await claim(provisioner().fake);
+      const answered = Promise.withResolvers<DomainStatus>();
+      const asked = Promise.withResolvers<void>();
+      const slow = provisioner({
+        status: () => {
+          asked.resolve();
+          return answered.promise;
+        },
+      }).fake;
+
+      const activating = activate(slow);
+      await asked.promise;
+      // Meanwhile: expired, and claimed again, its proof still to come.
+      await expire();
+      await claim(provisioner().fake);
+      answered.resolve(ready);
+
+      expect(await refusedCode(activating)).toBe("NOT_CLAIMED");
+      expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+      expect(await claimsOf(school)).toEqual([{ hostname }]);
+    });
+
+    test("activates once when asked twice at once", async () => {
+      await claim(provisioner().fake);
+      const fake = provisioner({ status: async () => ready }).fake;
+      expect(await Promise.all([activate(fake), activate(fake)])).toEqual([
+        { active: true },
+        { active: true },
+      ]);
+      const served = await database
+        .select({ organizationId: organizationDomain.organizationId })
+        .from(organizationDomain)
+        .where(eq(organizationDomain.hostname, hostname));
+      expect(served).toEqual([{ organizationId: school }]);
+    });
   });
 });
 

@@ -17,9 +17,11 @@ export {
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";
 export {
+  activateDomainClaim,
   type HostnameHolder,
   insertDomainClaim,
   insertLearnDomain,
+  readDomainClaim,
   readDomainClaims,
   readDomainOrganization,
   readDomains,

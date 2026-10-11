@@ -380,6 +380,25 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await expect(rejected).rejects.toMatchObject({ status: 403 });
   });
 
+  test("activates a domain, saying with a code why not yet", async () => {
+    const options = { headers: { cookie: teacherCookie } };
+    const hostname = "activated.contract-test.example.com";
+    await client.claimDomain(organizationId, hostname, options);
+
+    // Pending, as this provisioner answers every hostname.
+    await expect(client.activateDomain(organizationId, hostname, options)).rejects.toMatchObject({
+      status: 409,
+      code: "NOT_VERIFIED",
+    });
+    await expect(
+      client.activateDomain(organizationId, "unclaimed.contract-test.example.com", options),
+    ).rejects.toMatchObject({ status: 404 });
+    // Serving already, as the organization's own domain does: activated.
+    await expect(
+      client.activateDomain(organizationId, organizationHost, options),
+    ).resolves.toBeUndefined();
+  });
+
   test("lists courses in the shape it declares, and refuses a learner", async () => {
     const courses = await client.listCourses(organizationId, {
       headers: { cookie: teacherCookie },

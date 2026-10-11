@@ -304,6 +304,16 @@ export type BraivoClient = {
   ): Promise<DomainClaim>;
 
   /**
+   * Makes a claimed hostname serve the organization's learn app, as its
+   * primary domain, once ready (ADR 0038); one serving it already succeeds
+   * too, left as it is. A {@link BraivoError} whose `code` says why not: 409
+   * `NOT_VERIFIED` while not ready, 404 for a hostname not claimed, 502
+   * `PROVISIONING_FAILED`, which may pass on a retry; 403 without `owner` or
+   * `admin` there; 501 where domains cannot be added.
+   */
+  activateDomain(organizationId: string, hostname: string, options?: RequestOptions): Promise<void>;
+
+  /**
    * Every course an organization has, by title.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
@@ -841,6 +851,17 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 201) throw await unexpected(response, doing);
 
       return (await parsed<{ claim: DomainClaim }>(response, doing)).claim;
+    },
+
+    async activateDomain(organizationId, hostname, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/domains/${encodeURIComponent(hostname)}/activate`,
+        {},
+        requestOptions,
+      );
+
+      const doing = `activating ${hostname} for organization "${organizationId}"`;
+      if (response.status !== 204) throw await unexpected(response, doing);
     },
 
     async listCourses(organizationId, requestOptions) {

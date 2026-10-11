@@ -15,6 +15,7 @@ export { readCourseProgress } from "./course-progress.ts";
 export { AiLimitReached, AiNotEntitled, AiUnavailable, InvalidAiRequest } from "./ai.ts";
 export { draftFromSource } from "./drafts.ts";
 export {
+  activateDomain,
   claimDomain,
   type DnsRecord,
   type DomainClaim,

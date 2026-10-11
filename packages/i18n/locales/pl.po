@@ -31,6 +31,10 @@ msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# ni
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "{domain} now serves your learners."
+msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
+
 #: apps/console/components/organization-setup.tsx
 msgid "{hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them."
 msgstr "Adres {hostname} jest nieprawidłowy. Używaj małych liter, cyfr i pojedynczych łączników między nimi."
@@ -74,6 +78,10 @@ msgstr "Konto"
 #: apps/console/components/account-menu.tsx
 msgid "Account: {name}"
 msgstr "Konto: {name}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Activate"
+msgstr "Aktywuj"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add a domain"
@@ -127,9 +135,17 @@ msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</
 msgid "Check"
 msgstr "Sprawdź"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Check and activate"
+msgstr "Sprawdź i aktywuj"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Check your email"
 msgstr "Sprawdź pocztę"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Checking…"
+msgstr "Sprawdzanie…"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Choose one from the list."
@@ -203,8 +219,12 @@ msgid "Could not change the language. Try again."
 msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
-msgid "Could not check this domain just now. Reload the page in a moment."
-msgstr "Nie udało się teraz sprawdzić tej domeny. Odśwież stronę za chwilę."
+msgid "Could not check the domain. Try again."
+msgstr "Nie udało się sprawdzić domeny. Spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Could not check this domain just now. Try again in a moment."
+msgstr "Nie udało się teraz sprawdzić tej domeny. Spróbuj ponownie za chwilę."
 
 #: apps/console/components/organization-setup.tsx
 msgid "Could not confirm the organization was created. Reload this page to check before trying again."
@@ -380,12 +400,16 @@ msgid "It cannot be changed yet."
 msgstr "Na razie nie można go zmienić."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
-msgid "Its records are not available yet."
-msgstr "Jej rekordy nie są jeszcze dostępne."
+msgid "It changed meanwhile. Reload the page to see it as it is."
+msgstr "W międzyczasie coś się zmieniło. Odśwież stronę, aby zobaczyć aktualny stan."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
-msgid "Its records are verified, but learners cannot use it yet."
-msgstr "Jej rekordy są zweryfikowane, ale uczniowie nie mogą jeszcze z niej korzystać."
+msgid "It is not ready yet: its records can take a few minutes to be found, and its certificate to be issued. Try again then."
+msgstr "Domena nie jest jeszcze gotowa: wykrycie jej rekordów i wydanie certyfikatu może potrwać kilka minut. Spróbuj ponownie później."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Its records are not available yet."
+msgstr "Jej rekordy nie są jeszcze dostępne."
 
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
@@ -484,6 +508,10 @@ msgstr "Nie masz jeszcze kursów"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No password to remember."
 msgstr "Bez hasła do zapamiętania."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Not active yet"
+msgstr "Jeszcze nieaktywne"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Not quite"
@@ -826,10 +854,6 @@ msgstr "Zweryfikowana"
 #: packages/auth-client/sign-in.tsx
 msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
-
-#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
-msgid "Waiting for DNS"
-msgstr "Oczekujące na DNS"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "What should we call you?"
