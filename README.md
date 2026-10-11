@@ -15,8 +15,8 @@ Braivo is an open-source platform for educators, schools, training providers, an
 > [!IMPORTANT]
 > Pre-release and not production-ready: the HTTP API, the database schema, and both apps change without deprecation or a compatibility layer.
 
-- **Working:** accounts and organizations; courses drafted from PDFs, photos, and video captions, with multiple-choice tasks that cite their source; the adaptive learner loop, which follows a wrong answer with the passage its task came from; learner and course progress; and evidence graded elsewhere.
-- **Not yet:** task kinds beyond multiple choice, feedback generated per answer, enrolling learners in a course (organization membership stands in for it), and deployment packaging.
+- **Working:** accounts and organizations; courses drafted from PDFs, photos, and video captions, with multiple-choice and typed tasks that cite their source; the adaptive learner loop, which follows a wrong answer with the passage its task came from; learner and course progress; and evidence graded elsewhere.
+- **Not yet:** feedback generated per answer, enrolling learners in a course (organization membership stands in for it), and deployment packaging.
 
 ## How it works
 

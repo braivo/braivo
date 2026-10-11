@@ -7,6 +7,7 @@ import {
   isStorableText,
   locateQuote,
   MAX_TITLE,
+  parseLanguageTag,
   parseTaskBody,
   QUOTE_REFUSALS,
   type TaskBody,
@@ -62,6 +63,13 @@ function named(text: string): string {
   return `“${shown.join("")}”`;
 }
 
+/**
+ * An optional field of the model's answer, read as absent if malformed, such
+ * as a stray null: it costs at most its task, never the whole draft. The JSON
+ * Schema the model sees is unchanged.
+ */
+const lenient = <T extends z.ZodType>(field: T) => field.optional().catch(undefined);
+
 /** What the model is asked to answer, and the only shape Braivo reads from it. */
 const Answer = z.object({
   objectives: z
@@ -74,11 +82,22 @@ const Answer = z.object({
             `The material's exact words that teach it, at most ${MAX_OBJECTIVE_CITATIONS}.`,
           ),
         tasks: z.array(
+          // One shape for both kinds: a union is harder for a model to fill,
+          // and Braivo checks each task by its kind anyway.
           z.object({
+            kind: z.enum(["choice", "typed"]),
             prompt: z.string(),
-            options: z.array(z.string()),
-            answer: z.number().int().describe("Index into options of the one correct option."),
-            explanation: z.string().optional().describe("Why the answer is right."),
+            options: lenient(z.array(z.string())).describe("Multiple choice only."),
+            answer: lenient(z.number().int()).describe(
+              "Multiple choice only: index into options of the one correct option.",
+            ),
+            accepted: lenient(z.array(z.string())).describe(
+              "Typed only: every answer to grade correct, the most usual first.",
+            ),
+            answerLanguage: lenient(z.string()).describe(
+              'Typed only: the answers\' language, a BCP 47 tag such as "es" or "pt-BR".',
+            ),
+            explanation: lenient(z.string()).describe("Why the answer is right."),
             quotes: z
               .array(z.string())
               .describe(
@@ -95,7 +114,11 @@ const SYSTEM = `You turn a teacher's material into a course for Braivo, an adapt
 
 Objectives are what the material teaches: stable, assessable learning targets, one skill or piece of knowledge each, at most ${MAX_OBJECTIVES}, in the order learners should meet them. Each has a title and quotes: the material's words that teach it.
 
-For each objective, write 2 to ${MAX_TASKS} multiple-choice tasks: a short prompt, 2 to 4 options with exactly one correct, plausible wrong options, the index of the correct one, and an explanation of why it is right. Each task quotes the words it was written from. Write for the learners described, in their language, about what the material teaches.
+For each objective, write 2 to ${MAX_TASKS} tasks, each with an explanation of why its answer is right and the words it was written from as quotes. Two kinds:
+- choice: a short prompt, 2 to 4 options with exactly one correct, plausible wrong options, and the index of the correct one.
+- typed: the learner types a word or a short phrase from memory, never a sentence, for what is worth recalling rather than recognising, vocabulary above all. The prompt admits one answer, such as a translation or a sentence with ___ where the word goes; accepted lists every answer that is right (other spellings; with and without accents only if both are correct), the most usual first; answerLanguage is the answers' language. If you cannot list every right answer, narrow the prompt until you can.
+An objective's tasks are all of one kind: recognising and recalling are different abilities, and Braivo counts every answer on an objective alike.
+For vocabulary, each word or phrase is its own objective, one meaning each. Write for the learners described, in their language, about what the material teaches.
 
 Every quote is copied exactly from the material, a sentence or a line, and must occur only once in it: Braivo checks each one, and drops what it cannot find. Teach only what the material teaches.`;
 
@@ -164,11 +187,14 @@ export async function draftCourse(
         refused.push(`${at}: more than ${MAX_TASKS} tasks were drafted.`);
         continue;
       }
-      const { quotes, explanation, ...fields } = task;
-      // A blank explanation is no explanation, not a reason to lose the task.
+      const { quotes, explanation, answerLanguage, ...fields } = task;
+      // A blank explanation, or an answer language Braivo cannot read, is
+      // left out: neither is a reason to lose the task. The other kind's
+      // fields can stay: the parse reads only its kind's.
+      const language = answerLanguage && parseLanguageTag(answerLanguage);
       const body = parseTaskBody({
-        kind: "choice",
         ...fields,
+        ...(language ? { answerLanguage: language } : {}),
         ...(explanation?.trim() ? { explanation } : {}),
       });
       if ("problem" in body) {
