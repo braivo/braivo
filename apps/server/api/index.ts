@@ -389,6 +389,10 @@
 // lists each source those cite once, as the sources listing does. 404 when the
 // organization has no such course.
 //
+// `POST /api/organizations/:organizationId/rename` `{ "name" }` — renames the
+// organization, its name trimmed: 200 `{ "name" }` as stored. 400 `{ "error",
+// "code": "NAME_INVALID" }` for one blank, over 100 characters, or holding NUL.
+//
 // `GET /api/organizations/:organizationId/members` — answers
 // `{ "members": [{ "userId": "…", "name": "…", "roles": ["member"] }] }`, by
 // name, every role a member holds. No emails: the roster's clients need only

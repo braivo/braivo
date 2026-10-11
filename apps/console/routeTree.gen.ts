@@ -20,6 +20,7 @@ import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_sig
 import { Route as SignedInOrganizationSlugSettingsRouteRouteImport } from './routes/_signed-in/$organizationSlug/settings/route'
 import { Route as SignedInOrganizationSlugSettingsIndexRouteImport } from './routes/_signed-in/$organizationSlug/settings/index'
 import { Route as SignedInOrganizationSlugSettingsAccountRouteImport } from './routes/_signed-in/$organizationSlug/settings/account'
+import { Route as SignedInOrganizationSlugSettingsGeneralRouteImport } from './routes/_signed-in/$organizationSlug/settings/general'
 import { Route as SignedInOrganizationSlugSettingsMembersRouteImport } from './routes/_signed-in/$organizationSlug/settings/members'
 import { Route as SignedInOrganizationSlugSettingsPreferencesRouteImport } from './routes/_signed-in/$organizationSlug/settings/preferences'
 import { Route as SignedInOrganizationSlugSourcesIndexRouteImport } from './routes/_signed-in/$organizationSlug/sources/index'
@@ -86,6 +87,12 @@ const SignedInOrganizationSlugSettingsAccountRoute =
     path: '/account',
     getParentRoute: () => SignedInOrganizationSlugSettingsRouteRoute,
   } as any)
+const SignedInOrganizationSlugSettingsGeneralRoute =
+  SignedInOrganizationSlugSettingsGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => SignedInOrganizationSlugSettingsRouteRoute,
+  } as any)
 const SignedInOrganizationSlugSettingsMembersRoute =
   SignedInOrganizationSlugSettingsMembersRouteImport.update({
     id: '/members',
@@ -133,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
+  '/$organizationSlug/settings/general': typeof SignedInOrganizationSlugSettingsGeneralRoute
   '/$organizationSlug/settings/members': typeof SignedInOrganizationSlugSettingsMembersRoute
   '/$organizationSlug/settings/preferences': typeof SignedInOrganizationSlugSettingsPreferencesRoute
   '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
   '/': typeof SignedInIndexRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
+  '/$organizationSlug/settings/general': typeof SignedInOrganizationSlugSettingsGeneralRoute
   '/$organizationSlug/settings/members': typeof SignedInOrganizationSlugSettingsMembersRoute
   '/$organizationSlug/settings/preferences': typeof SignedInOrganizationSlugSettingsPreferencesRoute
   '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
@@ -169,6 +178,7 @@ export interface FileRoutesById {
   '/_signed-in/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
   '/_signed-in/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
+  '/_signed-in/$organizationSlug/settings/general': typeof SignedInOrganizationSlugSettingsGeneralRoute
   '/_signed-in/$organizationSlug/settings/members': typeof SignedInOrganizationSlugSettingsMembersRoute
   '/_signed-in/$organizationSlug/settings/preferences': typeof SignedInOrganizationSlugSettingsPreferencesRoute
   '/_signed-in/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/$organizationSlug/settings'
     | '/$organizationSlug/'
     | '/$organizationSlug/settings/account'
+    | '/$organizationSlug/settings/general'
     | '/$organizationSlug/settings/members'
     | '/$organizationSlug/settings/preferences'
     | '/$organizationSlug/sources/$sourceId'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$organizationSlug'
     | '/$organizationSlug/settings/account'
+    | '/$organizationSlug/settings/general'
     | '/$organizationSlug/settings/members'
     | '/$organizationSlug/settings/preferences'
     | '/$organizationSlug/sources/$sourceId'
@@ -224,6 +236,7 @@ export interface FileRouteTypes {
     | '/_signed-in/$organizationSlug/settings'
     | '/_signed-in/$organizationSlug/'
     | '/_signed-in/$organizationSlug/settings/account'
+    | '/_signed-in/$organizationSlug/settings/general'
     | '/_signed-in/$organizationSlug/settings/members'
     | '/_signed-in/$organizationSlug/settings/preferences'
     | '/_signed-in/$organizationSlug/sources/$sourceId'
@@ -317,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInOrganizationSlugSettingsAccountRouteImport
       parentRoute: typeof SignedInOrganizationSlugSettingsRouteRoute
     }
+    '/_signed-in/$organizationSlug/settings/general': {
+      id: '/_signed-in/$organizationSlug/settings/general'
+      path: '/general'
+      fullPath: '/$organizationSlug/settings/general'
+      preLoaderRoute: typeof SignedInOrganizationSlugSettingsGeneralRouteImport
+      parentRoute: typeof SignedInOrganizationSlugSettingsRouteRoute
+    }
     '/_signed-in/$organizationSlug/settings/members': {
       id: '/_signed-in/$organizationSlug/settings/members'
       path: '/members'
@@ -364,6 +384,7 @@ declare module '@tanstack/react-router' {
 
 interface SignedInOrganizationSlugSettingsRouteRouteChildren {
   SignedInOrganizationSlugSettingsAccountRoute: typeof SignedInOrganizationSlugSettingsAccountRoute
+  SignedInOrganizationSlugSettingsGeneralRoute: typeof SignedInOrganizationSlugSettingsGeneralRoute
   SignedInOrganizationSlugSettingsMembersRoute: typeof SignedInOrganizationSlugSettingsMembersRoute
   SignedInOrganizationSlugSettingsPreferencesRoute: typeof SignedInOrganizationSlugSettingsPreferencesRoute
   SignedInOrganizationSlugSettingsIndexRoute: typeof SignedInOrganizationSlugSettingsIndexRoute
@@ -373,6 +394,8 @@ const SignedInOrganizationSlugSettingsRouteRouteChildren: SignedInOrganizationSl
   {
     SignedInOrganizationSlugSettingsAccountRoute:
       SignedInOrganizationSlugSettingsAccountRoute,
+    SignedInOrganizationSlugSettingsGeneralRoute:
+      SignedInOrganizationSlugSettingsGeneralRoute,
     SignedInOrganizationSlugSettingsMembersRoute:
       SignedInOrganizationSlugSettingsMembersRoute,
     SignedInOrganizationSlugSettingsPreferencesRoute:

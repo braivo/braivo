@@ -116,6 +116,10 @@ msgctxt "The sign-in code sent by email"
 msgid "Code"
 msgstr "Code"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Console address"
+msgstr "Console address"
+
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 #: packages/ui/compositions/sign-in-form.tsx
@@ -153,6 +157,10 @@ msgstr "Could not confirm the organization was created. Reload this page to chec
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
 msgstr "Could not connect. Check your connection and try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not save the name. Try again."
+msgstr "Could not save the name. Try again."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Could not save your name. Try again."
@@ -220,6 +228,7 @@ msgid "Email address"
 msgstr "Email address"
 
 #: apps/console/components/organization-setup.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Enter a name of at most {MAX_NAME_LENGTH} characters."
 msgstr "Enter a name of at most {MAX_NAME_LENGTH} characters."
 
@@ -241,6 +250,7 @@ msgid "Enter your name."
 msgstr "Enter your name."
 
 #: apps/console/components/organization-setup.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Enter your organization's name."
 msgstr "Enter your organization's name."
 
@@ -255,6 +265,11 @@ msgstr "First time here? Signing in creates your account."
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "From your lessons"
 msgstr "From your lessons"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "General"
+msgstr "General"
 
 #: apps/console/routes/login.tsx
 msgid "Go back to the site you came from and sign in again."
@@ -272,6 +287,10 @@ msgstr "How others in your organizations see you."
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "in {time}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "It cannot be changed yet."
+msgstr "It cannot be changed yet."
 
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
@@ -389,6 +408,7 @@ msgid "Organization"
 msgstr "Organization"
 
 #: apps/console/components/organization-setup.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Organization name"
 msgstr "Organization name"
 
@@ -435,14 +455,17 @@ msgid "Role"
 msgstr "Role"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Save"
 msgstr "Save"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saved."
 msgstr "Saved."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saving…"
 msgstr "Saving…"
 
@@ -704,6 +727,10 @@ msgstr "Your Google account's email is not verified. Sign in with a code instead
 #: packages/auth-client/sign-in.tsx
 msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
 msgstr "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Your learners see it on their site, and your team sees it here."
+msgstr "Your learners see it on their site, and your team sees it here."
 
 #: apps/console/components/organization-setup.tsx
 msgid "Your learners see this name. If it's just you, use your own."

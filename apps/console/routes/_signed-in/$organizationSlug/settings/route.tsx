@@ -50,7 +50,10 @@ const GROUPS = [
   },
   {
     heading: msg`Organization`,
-    pages: [{ to: "/$organizationSlug/settings/members", label: msg`Members` }],
+    pages: [
+      { to: "/$organizationSlug/settings/general", label: msg`General` },
+      { to: "/$organizationSlug/settings/members", label: msg`Members` },
+    ],
   },
 ] as const;
 

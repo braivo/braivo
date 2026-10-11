@@ -12,9 +12,10 @@ import {
   readMembers,
   readMemberships,
   readOrganizationBySlug,
+  updateOrganizationName,
 } from "../persistence/index.ts";
 import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains.ts";
-import { administers, assertMayAdminister } from "./permission.ts";
+import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
  * The organizations someone manages (`owner` or `admin`), by name, each with
@@ -88,6 +89,15 @@ const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set([
 const MAX_NAME_LENGTH = 100;
 
 /**
+ * `value` trimmed, if an organization may be named so, set up or renamed: 1
+ * to 100 characters, none NUL, which PostgreSQL's text cannot hold.
+ */
+function parseOrganizationName(value: string): string | undefined {
+  const name = value.trim();
+  return name !== "" && name.length <= MAX_NAME_LENGTH && !name.includes("\0") ? name : undefined;
+}
+
+/**
  * Self-serve onboarding (ADR 0018): someone owning no organization creates
  * one, its `owner`, served at `<slug>.<selfServeDomain>`. One per account, a
  * limit of this path alone, not a defence against squatting; more take the
@@ -112,8 +122,8 @@ export async function setUpOrganization(input: {
   }) => Promise<Organization | "slug taken" | "slug reserved" | "slug malformed">;
 }): Promise<ListedOrganization> {
   const { database, actingAs, slug } = input;
-  const name = input.name.trim();
-  if (name === "" || name.length > MAX_NAME_LENGTH) {
+  const name = parseOrganizationName(input.name);
+  if (name === undefined) {
     throw new SetUpRefused("NAME_INVALID", `A name is 1 to ${MAX_NAME_LENGTH} characters.`);
   }
   const hostname = `${slug}.${input.selfServeDomain}`;
@@ -182,4 +192,34 @@ export async function setUpOrganization(input: {
     throw error instanceof DomainRefused ? taken : error;
   }
   return { ...organization, learnDomain: hostname };
+}
+
+/** A name an organization cannot have; `code` for a client to word (ADR 0035). */
+export class NameRefused extends Error {
+  readonly code = "NAME_INVALID";
+  constructor() {
+    super(`A name is 1 to ${MAX_NAME_LENGTH} characters.`);
+    this.name = "NameRefused";
+  }
+}
+
+/**
+ * Renames an organization, by its `owner` or `admin`, to `name` as setup
+ * takes one, answering the name stored. Its learn domain shows it from its
+ * next load.
+ */
+export async function renameOrganization(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  name: string;
+}): Promise<{ name: string }> {
+  const { database, organizationId } = input;
+  await assertMayAdminister(database, { organizationId, userId: input.actingAs });
+  const name = parseOrganizationName(input.name);
+  if (name === undefined) throw new NameRefused();
+  const stored = await updateOrganizationName(database, { organizationId, name });
+  // Deleted since the check, it is no longer theirs to rename.
+  if (stored === undefined) throw new NotPermitted(`Organization ${organizationId} is gone.`);
+  return { name: stored };
 }

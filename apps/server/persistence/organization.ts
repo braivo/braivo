@@ -63,3 +63,19 @@ export async function readOrganizationBySlug(
 
   return row;
 }
+
+/**
+ * Names an organization `name`, already checked, answering the name stored,
+ * or `undefined` when there is no such organization.
+ */
+export async function updateOrganizationName(
+  database: Database,
+  input: { organizationId: string; name: string },
+): Promise<string | undefined> {
+  const [renamed] = await database
+    .update(organization)
+    .set({ name: input.name })
+    .where(eq(organization.id, input.organizationId))
+    .returning({ name: organization.name });
+  return renamed?.name;
+}
