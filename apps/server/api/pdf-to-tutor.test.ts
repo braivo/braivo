@@ -146,7 +146,9 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
     // page 12 of the book the teacher uploaded.
     const activity = await client.nextActivity(courseId, learner);
     expect(activity?.objective.title).toBe("Say hello");
-    if (!activity || !("task" in activity)) throw new Error("No task to answer.");
+    if (!activity || !("task" in activity) || activity.task.kind !== "choice") {
+      throw new Error("No choice task to answer.");
+    }
     const wrong = activity.task.options.find(({ text }) => text === "Adiós")!;
     const grade = await client.submitAttempt(
       {

@@ -210,7 +210,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } },
       { headers: { cookie: learnerCookie } },
     );
-    expect(grade).toEqual({ outcome: "failure", correctChoice: 0 });
+    expect(grade).toEqual({ kind: "choice", outcome: "failure", correctChoice: 0 });
 
     const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
     expect(next).toEqual({

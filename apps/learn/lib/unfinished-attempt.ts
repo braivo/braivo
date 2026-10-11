@@ -14,6 +14,18 @@ export type UnfinishedAttempt = {
   response: TaskResponse;
 };
 
+/** Whether `value` is a response this app sends: exactly one of the three. */
+function isResponse(value: unknown): value is TaskResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as Record<string, unknown>;
+  if (Object.keys(response).length !== 1) return false;
+  return (
+    typeof response.choice === "number" ||
+    typeof response.text === "string" ||
+    response.reveal === true
+  );
+}
+
 /**
  * Per tab, so another tab's answer is never resent here; by learner, so an
  * answer is never resent as someone else's after signing out and back in.
@@ -51,17 +63,18 @@ function isUnfinishedAttempt(value: unknown): value is UnfinishedAttempt {
   const { decision, objective, task } = attempt?.activity ?? {};
   return (
     typeof attempt?.id === "string" &&
-    typeof attempt.response?.choice === "number" &&
+    isResponse(attempt.response) &&
     Object.hasOwn(INTENTS, decision?.intent ?? "") &&
     (decision?.intent !== "review" || typeof decision.retrievability === "number") &&
     typeof objective?.title === "string" &&
-    task?.kind === "choice" &&
-    typeof task.id === "string" &&
+    typeof task?.id === "string" &&
     typeof task.prompt === "string" &&
-    Array.isArray(task.options) &&
-    task.options.every(
-      (option) => typeof option?.choice === "number" && typeof option.text === "string",
-    )
+    (task.kind === "typed" ||
+      (task.kind === "choice" &&
+        Array.isArray(task.options) &&
+        task.options.every(
+          (option) => typeof option?.choice === "number" && typeof option.text === "string",
+        )))
   );
 }
 

@@ -9,38 +9,58 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "#component
 import { MutedText } from "./muted-text.tsx";
 
 /**
- * A choice task as written, for reviewing rather than answering: options in
- * their order, the correct one marked in words. `action` is what the reviewer
- * can do with it (retire it, say); `children` the passages it was written
- * from, as `SourcePassage`s.
+ * A task as written, for reviewing rather than answering: a choice task's
+ * options in their order, the correct one marked in words; a typed task's
+ * accepted answers, the one a learner who missed is shown marked. `action` is
+ * what the reviewer can do with it (retire it, say); `children` the passages
+ * it was written from, as `SourcePassage`s.
  */
 export function AuthoredTask(props: {
-  prompt: string;
-  options: readonly string[];
-  /** Index into `options` of the correct one. */
-  answer: number;
-  explanation?: string;
+  task:
+    | {
+        kind: "choice";
+        prompt: string;
+        options: readonly string[];
+        /** Index into `options` of the correct one. */
+        answer: number;
+        explanation?: string;
+      }
+    | { kind: "typed"; prompt: string; accepted: readonly string[]; explanation?: string };
   action?: ReactNode;
   children?: ReactNode;
 }) {
-  const { prompt, options, answer, explanation, action, children } = props;
+  const { task, action, children } = props;
 
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>{prompt}</CardTitle>
+        <CardTitle>{task.prompt}</CardTitle>
         {action && <CardAction>{action}</CardAction>}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <ol className="flex list-[upper-alpha] flex-col gap-1 pl-6">
-          {options.map((option, index) => (
-            // Options are fixed once written, so their place is their identity.
-            <li key={index}>
-              {option} {index === answer && <Badge variant="secondary">Correct answer</Badge>}
-            </li>
-          ))}
-        </ol>
-        {explanation && <MutedText>{explanation}</MutedText>}
+        {task.kind === "choice" ? (
+          <ol className="flex list-[upper-alpha] flex-col gap-1 pl-6">
+            {task.options.map((option, index) => (
+              // Options are fixed once written, so their place is their identity.
+              <li key={index}>
+                {option}{" "}
+                {index === task.answer && <Badge variant="secondary">Correct answer</Badge>}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <>
+            <MutedText>Typed. Accepted answers:</MutedText>
+            <ul className="flex list-disc flex-col gap-1 pl-6">
+              {task.accepted.map((answer, index) => (
+                <li key={index}>
+                  {answer} {index === 0 && <Badge variant="secondary">Shown after a miss</Badge>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {task.explanation && <MutedText>{task.explanation}</MutedText>}
         {children}
       </CardContent>
     </Card>

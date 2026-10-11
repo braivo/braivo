@@ -419,6 +419,14 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
           answer: 0,
           citations: [{ sourceId, quote: "Rojo significa red." }],
         },
+        {
+          objectiveId: blue,
+          kind: "typed",
+          prompt: "Blue, in Spanish",
+          accepted: ["azul"],
+          answerLanguage: "es",
+          citations: [{ sourceId, quote: "Azul significa blue." }],
+        },
       ],
     });
     const { courseId } = await json<{ courseId: string }>("create_course", {
@@ -427,7 +435,8 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       objectiveIds: [red, blue],
     });
 
-    expect(taskIds).toHaveLength(1);
+    // A choice task and a typed one.
+    expect(taskIds).toHaveLength(2);
     expect(await readCourseObjectives(database, courseId)).toEqual([red, blue]);
   });
 

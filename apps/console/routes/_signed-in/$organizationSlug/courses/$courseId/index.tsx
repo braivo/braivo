@@ -261,10 +261,7 @@ function Objective(props: {
           ) : (
             <AuthoredTask
               key={task.id}
-              prompt={task.prompt}
-              options={task.options}
-              answer={task.answer}
-              explanation={task.explanation}
+              task={task}
               action={
                 <span className="flex items-start gap-2">
                   <Button
@@ -333,10 +330,13 @@ function CorrectTask(props: {
         tasks: [
           {
             objectiveId,
-            kind: task.kind,
-            ...edit,
-            options: [...edit.options],
-            ...(task.keepOrder && { keepOrder: true }),
+            ...(edit.kind === "choice"
+              ? {
+                  ...edit,
+                  options: [...edit.options],
+                  ...(task.kind === "choice" && task.keepOrder && { keepOrder: true }),
+                }
+              : { ...edit, accepted: [...edit.accepted] }),
             citations: task.citations.map(({ sourceId, quote }) => ({ sourceId, quote })),
             replaces: task.id,
           },

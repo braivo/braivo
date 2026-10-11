@@ -27,7 +27,14 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-const activity: Activity = {
+/** A typed task: the learner types the word. */
+const typedActivity: Activity = {
+  decision: { objectiveId: "o2", modelVersion: "v1", intent: "introduce" },
+  objective: { id: "o2", title: "Sein" },
+  task: { id: "t2", kind: "typed", prompt: "I am tired: Ich ___ müde." },
+};
+
+const activity = {
   decision: { objectiveId: "o1", modelVersion: "v1", intent: "introduce" },
   objective: { id: "o1", title: "Past tense" },
   task: {
@@ -41,7 +48,7 @@ const activity: Activity = {
       { choice: 0, text: "hablé" },
     ],
   },
-};
+} satisfies Activity;
 
 const anotherActivity: Activity = {
   decision: {
@@ -113,7 +120,8 @@ function renderAt(
   const learnerProgress = vi.fn(options.learnerProgress ?? (async () => noProgress));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
-    options.submitAttempt ?? (async () => ({ outcome: "success" as const, correctChoice: 0 })),
+    options.submitAttempt ??
+      (async () => ({ kind: "choice" as const, outcome: "success" as const, correctChoice: 0 })),
   );
   let signedIn = options.signedIn;
   const user = { ...(options.user ?? { id: "ada", name: "Ada Learner" }) };
@@ -591,6 +599,7 @@ describe("the learn app", () => {
         .mockResolvedValueOnce(activity)
         .mockResolvedValueOnce(anotherActivity),
       submitAttempt: async () => ({
+        kind: "choice",
         outcome: "failure",
         correctChoice: 0,
         explanation: "Preterite.",
@@ -630,6 +639,132 @@ describe("the learn app", () => {
     expect(screen.getByText("You missed this last time.")).toBeTruthy();
   });
 
+  test("asks a typed task in a field, and sends the text exactly as typed", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      // Correct on another accepted spelling than the one Braivo names.
+      submitAttempt: async () => ({ kind: "typed", outcome: "success", correctAnswer: "bin" }),
+    });
+
+    const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
+    // Focused, so the learner types straight away; nothing fixes their word.
+    expect(document.activeElement).toBe(field);
+    expect(field.getAttribute("autocorrect")).toBe("off");
+    expect(field.getAttribute("autocapitalize")).toBe("off");
+    expect(field.getAttribute("spellcheck")).toBe("false");
+    fireEvent.change(field, { target: { value: " Bin " } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    expect(
+      await screen.findByText("Correct", { selector: "[data-slot=alert-title]" }),
+    ).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledWith(
+      { courseId: "c1", id: expect.any(String), taskId: "t2", response: { text: " Bin " } },
+      { signal: expect.any(AbortSignal) },
+    );
+    // What was sent stays on screen, locked; no correction on a success.
+    expect((field as HTMLInputElement).value).toBe(" Bin ");
+    expect(field.hasAttribute("readonly")).toBe(true);
+    expect(screen.queryByText(/The answer:/)).toBeNull();
+  });
+
+  test("sends nothing while the field is blank: a stray Enter is no answer", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+    });
+
+    const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
+    const check = screen.getByRole("button", { name: "Check" });
+    for (const value of ["", " \u00a0 "]) {
+      fireEvent.change(field, { target: { value } });
+      expect((check as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(check);
+      fireEvent.submit(field.closest("form")!);
+    }
+    fireEvent.change(field, { target: { value: "b" } });
+    expect((check as HTMLButtonElement).disabled).toBe(false);
+    expect(submitAttempt).not.toHaveBeenCalled();
+    expect(field.hasAttribute("readonly")).toBe(false);
+  });
+
+  test("names the answer when a typed one misses, and resends the same text when unconfirmed", async () => {
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ kind: "typed", outcome: "failure", correctAnswer: "bin" });
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt,
+    });
+
+    const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
+    fireEvent.change(field, { target: { value: "ben" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+    expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
+    // Locked on the text sent: another would conflict with it if it was recorded.
+    fireEvent.change(field, { target: { value: "bin" } });
+    expect((field as HTMLInputElement).value).toBe("ben");
+
+    fireEvent.click(screen.getByRole("button", { name: "Send again" }));
+    expect(await screen.findByText("Not quite")).toBeTruthy();
+    expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+    expect(submitAttempt.mock.calls.map(([input]) => input.response)).toEqual([
+      { text: "ben" },
+      { text: "ben" },
+    ]);
+  });
+
+  test("keeps Show answer focused and saying it is loading until the answer comes", async () => {
+    let graded!: (grade: Grade) => void;
+    renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt: () => new Promise((resolve) => (graded = resolve)),
+    });
+
+    const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
+    fireEvent.change(field, { target: { value: "bi" } });
+    const show = screen.getByRole("button", { name: "Show answer" });
+    show.focus();
+    fireEvent.click(show);
+    expect(show.textContent).toBe("Loading…");
+    expect(show.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(show);
+
+    graded({ kind: "typed", outcome: "failure", correctAnswer: "bin" });
+    expect(await screen.findByText("Here it is")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Loading…" })).toBeNull();
+    // What was typed was not sent, so it is neither shown nor marked wrong.
+    expect((field as HTMLInputElement).value).toBe("");
+    expect(field.getAttribute("aria-invalid")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
+  });
+
+  test("shows the answer when asked, before any is given, as a failure Braivo records", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
+
+    expect(await screen.findByText("Here it is")).toBeTruthy();
+    expect(within(screen.getByRole("alert")).getByText("The answer: hablé")).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledWith(
+      { courseId: "c1", id: expect.any(String), taskId: "t1", response: { reveal: true } },
+      { signal: expect.any(AbortSignal) },
+    );
+    // Asked once: no answer after it, nor asking again.
+    expect(screen.getByRole("button", { name: "hablo" }).getAttribute("aria-disabled")).toBe(
+      "true",
+    );
+    expect(screen.queryByRole("button", { name: "Show answer" })).toBeNull();
+  });
+
   test("on Continue, rechecks the session and reloads the course, not the brand", async () => {
     const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
     const session = vi.fn(async () => ({ id: "ada", name: "Ada Learner" }));
@@ -658,6 +793,7 @@ describe("the learn app", () => {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: async () => ({
+        kind: "choice",
         outcome: "failure",
         correctChoice: 0,
         passages: [
@@ -741,7 +877,7 @@ describe("the learn app", () => {
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(4);
 
-    graded({ outcome: "success", correctChoice: 0 });
+    graded({ kind: "choice", outcome: "success", correctChoice: 0 });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Correct");
 
@@ -766,6 +902,7 @@ describe("the learn app", () => {
       // The answer was recorded, so Braivo has moved on.
       nextActivity: async () => anotherActivity,
       submitAttempt: async () => ({
+        kind: "choice",
         outcome: "failure",
         correctChoice: 0,
         explanation: "Preterite.",
@@ -810,7 +947,7 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce(lost)
-      .mockResolvedValueOnce({ outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
     renderAt("/courses/c1", { signedIn: true, submitAttempt });
 
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
@@ -825,11 +962,50 @@ describe("the learn app", () => {
     expect(second![0]).toEqual(first![0]);
   });
 
+  test.each([
+    ["a typed answer", { text: "ben" }, "Not quite"],
+    ["Show answer", { reveal: true }, "Here it is"],
+  ] as const)(
+    "after a reload, resends %s that could not be confirmed, exactly",
+    async (_case, response, title) => {
+      const { submitAttempt: lost } = renderAt("/courses/c1", {
+        signedIn: true,
+        nextActivity: async () => typedActivity,
+        submitAttempt: async () => {
+          throw new TypeError("Failed to fetch");
+        },
+      });
+      if ("text" in response) {
+        const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
+        fireEvent.change(field, { target: { value: response.text } });
+        fireEvent.click(screen.getByRole("button", { name: "Check" }));
+      } else {
+        fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
+      }
+      expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
+      cleanup();
+
+      const submitAttempt = vi.fn<BraivoClient["submitAttempt"]>(async () => ({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: "bin",
+      }));
+      renderAt("/courses/c1", { signedIn: true, submitAttempt });
+
+      expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+      // The same attempt, ID and all, so Braivo records it once.
+      expect(lost.mock.calls[0]![0]!.response).toEqual(response);
+      expect(submitAttempt.mock.calls[0]![0]).toEqual(lost.mock.calls[0]![0]);
+      expect(within(screen.getByRole("alert")).getByText(title)).toBeTruthy();
+      expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+    },
+  );
+
   test("offers to send an answer again when Braivo does not answer in time", async () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce((_input, options) => stall(options))
-      .mockResolvedValueOnce({ outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
     renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
     const option = await screen.findByRole("button", { name: "hablé" });
 
@@ -1036,7 +1212,12 @@ describe("the learn app", () => {
   });
 
   test("shows a graded answer's feedback again after a reload, until the learner continues", async () => {
-    const graded = { outcome: "failure" as const, correctChoice: 0, explanation: "Preterite." };
+    const graded = {
+      kind: "choice" as const,
+      outcome: "failure" as const,
+      correctChoice: 0,
+      explanation: "Preterite.",
+    };
     renderAt("/courses/c1", {
       signedIn: true,
       nextActivity: async () => activity,
@@ -1083,7 +1264,7 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new BraivoError(401, "no session"))
-      .mockResolvedValueOnce({ outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
     renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
@@ -1125,7 +1306,7 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockReturnValueOnce(new Promise((_, reject) => (refuse = reject)))
-      .mockResolvedValueOnce({ outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
     const { router } = renderAt("/courses/c1", { signedIn: true, submitAttempt });
     await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
     await router.navigate({ to: "/" });
@@ -1410,7 +1591,7 @@ describe("the learn app", () => {
         .mockResolvedValueOnce(activity)
         .mockResolvedValueOnce(anotherActivity),
       learnerProgress: async () => ({ modelVersion: "v1", objectives: reported }),
-      submitAttempt: async () => ({ outcome: "failure", correctChoice: 0 }),
+      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
     });
 
     // Read with the question, which takes the focus.
@@ -1573,6 +1754,28 @@ describe("the learn app", () => {
     ).toBeTruthy();
   });
 
+  test("says a task of a kind it cannot answer is not supported here, and sends nothing", async () => {
+    const { submitAttempt } = renderAt("/courses/c1", {
+      signedIn: true,
+      // A kind a newer Braivo might send, which this app's types do not know.
+      nextActivity: async () =>
+        ({
+          ...activity,
+          task: { id: "t2", kind: "essay", prompt: "I am tired: Ich ___ müde." },
+        }) as never,
+    });
+
+    const notice = await screen.findByRole("region", {
+      name: "This question can't be answered here yet.",
+    });
+    expect(document.activeElement).toBe(notice);
+    expect(within(notice).getByRole("link", { name: "Your courses" }).getAttribute("href")).toBe(
+      "/",
+    );
+    expect(screen.queryByText("I am tired: Ich ___ müde.")).toBeNull();
+    expect(submitAttempt).not.toHaveBeenCalled();
+  });
+
   test("names the objective that has nothing to practise, without claiming the learner is caught up", async () => {
     renderAt("/courses/c1", {
       signedIn: true,
@@ -1672,7 +1875,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    graded({ outcome: "success", correctChoice: 0 });
+    graded({ kind: "choice", outcome: "success", correctChoice: 0 });
 
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
     expect(submitAttempt).toHaveBeenCalledTimes(1);
@@ -1886,6 +2089,7 @@ describe("the learn app in Polish", () => {
         },
       }),
       submitAttempt: async () => ({
+        kind: "choice",
         outcome: "failure",
         correctChoice: 0,
         passages: [{ quote: "Hablé con mi madre.", source: { title: "Libro" }, page: "12" }],

@@ -103,6 +103,10 @@ msgstr "Both are kept in this browser."
 msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 msgstr "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 
+#: packages/ui/compositions/typed-question.tsx
+msgid "Check"
+msgstr "Check"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Check your email"
 msgstr "Check your email"
@@ -140,6 +144,11 @@ msgstr "Correct"
 
 #: packages/ui/compositions/choice-question.tsx
 msgctxt "Marks the correct option"
+msgid "Correct"
+msgstr "Correct"
+
+#: packages/ui/compositions/typed-question.tsx
+msgctxt "Marks the typed answer"
 msgid "Correct"
 msgstr "Correct"
 
@@ -280,6 +289,10 @@ msgstr "General"
 msgid "Go back to the site you came from and sign in again."
 msgstr "Go back to the site you came from and sign in again."
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Here it is"
+msgstr "Here it is"
+
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Here to learn? Open the site your school or training provider gave you."
 msgstr "Here to learn? Open the site your school or training provider gave you."
@@ -352,6 +365,7 @@ msgstr "Light"
 #: apps/learn/router.tsx
 #: packages/ui/compositions/choice-question.tsx
 #: packages/ui/compositions/sign-in-form.tsx
+#: packages/ui/compositions/typed-question.tsx
 msgid "Loading"
 msgstr "Loading"
 
@@ -511,6 +525,10 @@ msgstr "Set up your organization"
 msgid "Settings"
 msgstr "Settings"
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "Show answer"
+msgstr "Show answer"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Shown to the people you work with, in every organization."
 msgstr "Shown to the people you work with, in every organization."
@@ -637,6 +655,10 @@ msgstr "This email has not been added here yet. Ask to have it added, then sign 
 msgid "This organization does not exist, or you do not manage it."
 msgstr "This organization does not exist, or you do not manage it."
 
+#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+msgid "This question can't be answered here yet."
+msgstr "This question can't be answered here yet."
+
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"
 msgstr "This sign-in has expired"
@@ -657,6 +679,10 @@ msgstr "Try again"
 msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Try again"
+
+#: packages/ui/compositions/typed-question.tsx
+msgid "Type the answer"
+msgstr "Type the answer"
 
 #: apps/console/routes/login.tsx
 msgid "Use another account"
@@ -721,6 +747,7 @@ msgid "You're caught up"
 msgstr "You're caught up"
 
 #: packages/ui/compositions/choice-question.tsx
+#: packages/ui/compositions/typed-question.tsx
 msgid "Your answer"
 msgstr "Your answer"
 

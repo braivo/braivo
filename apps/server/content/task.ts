@@ -1,17 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { isStorableText } from "./text.ts";
+import { parseLanguageTag } from "./source.ts";
+import { isStorable, isStorableText } from "./text.ts";
 
 /**
  * What a task asks and how it is graded, one variant per kind. Stored whole as
  * JSON beside the task's relational columns, so adding a kind is a new variant
  * here rather than a column that is null for every other kind.
  *
- * `choice` is the first kind because its grading is deterministic: the loop
- * closes without AI, and an AI-graded kind later adds a variant, not a path.
+ * Every kind here grades deterministically, so the loop runs without AI; an
+ * AI-graded kind would add a variant, not a path (docs/adr/0038-typed-answers.md).
  */
-export type TaskBody = {
+export type TaskBody = ChoiceBody | TypedBody;
+
+/** Picking the one correct option: recognition. */
+export type ChoiceBody = {
   kind: "choice";
   prompt: string;
   options: string[];
@@ -26,36 +30,68 @@ export type TaskBody = {
   keepOrder?: true;
 };
 
+/** Typing the answer: recall, graded against the answers the author accepts. */
+export type TypedBody = {
+  kind: "typed";
+  prompt: string;
+  /** Every answer graded correct, compared as `normalizeAnswer` writes them; the first is shown to a learner who missed. */
+  accepted: string[];
+  /** Shown after grading, whatever the outcome. */
+  explanation?: string;
+  /** The language the answers are in, canonical BCP 47: what a voice would speak. */
+  answerLanguage?: string;
+};
+
 /**
  * A task as a learner may see it before answering: no answer, no explanation.
  * Each option carries its `choice`, so a client never maps a display position
  * to an answer.
  */
-export type PresentedTask = {
-  kind: "choice";
-  prompt: string;
-  options: { choice: number; text: string }[];
-};
+export type PresentedTask =
+  | { kind: "choice"; prompt: string; options: { choice: number; text: string }[] }
+  | { kind: "typed"; prompt: string };
 
-/** A learner's answer to a task, shaped by its kind: `choice` is the option's, not its position. */
-export type TaskResponse = { choice: number };
+/**
+ * A learner's answer: an option's `choice` (not its position) to a choice
+ * task, the `text` typed to a typed one, or, to either, asking to be shown the
+ * answer, which grades as a failure.
+ */
+export type TaskResponse = { choice: number } | { text: string } | { reveal: true };
 
 /**
  * The grader's verdict on one response, and what the learner sees after
  * answering. `outcome` becomes evidence; the rest is feedback.
  */
-export type Grade = {
-  outcome: "success" | "failure";
-  /** The correct option's `choice`. Not `answer`, which invites indexing the presented options. */
-  correctChoice: number;
-  explanation?: string;
-};
+export type Grade =
+  | {
+      kind: "choice";
+      outcome: "success" | "failure";
+      /** The correct option's `choice`. Not `answer`, which invites indexing the presented options. */
+      correctChoice: number;
+      explanation?: string;
+    }
+  | {
+      kind: "typed";
+      outcome: "success" | "failure";
+      /** The first accepted answer, whichever matched. Named as `correctChoice` is. */
+      correctAnswer: string;
+      explanation?: string;
+    };
 
 /** More options than anyone reads through. */
 const MAX_OPTIONS = 26;
 
 /** Longer than any question, option, or explanation a learner reads. */
 const MAX_TEXT = 2000;
+
+/** Enough variants of one short answer. */
+const MAX_ACCEPTED = 20;
+
+/** A word, a phrase, a date, a name: never a paragraph. */
+const MAX_ACCEPTED_TEXT = 200;
+
+/** What a learner may type, generous over the longest accepted answer. */
+const MAX_TYPED = 500;
 
 /**
  * Reads a task body, or says what is wrong with it. Checked on the way in
@@ -71,11 +107,14 @@ const MAX_TEXT = 2000;
 export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: string } {
   if (typeof value !== "object" || value === null) return { problem: "is not a task" };
 
-  const { kind, prompt, options, answer, explanation, keepOrder } = value as Record<
-    string,
-    unknown
-  >;
-  if (kind !== "choice") return { problem: 'has an unknown kind; the only kind is "choice"' };
+  const { kind } = value as Record<string, unknown>;
+  if (kind === "choice") return parseChoiceBody(value as Record<string, unknown>);
+  if (kind === "typed") return parseTypedBody(value as Record<string, unknown>);
+  return { problem: 'has an unknown kind; the kinds are "choice" and "typed"' };
+}
+
+function parseChoiceBody(value: Record<string, unknown>): { body: TaskBody } | { problem: string } {
+  const { prompt, options, answer, explanation, keepOrder } = value;
   if (!isText(prompt)) return { problem: `has a prompt that is ${textProblem(prompt)}` };
   if (!Array.isArray(options) || options.length < 2 || options.length > MAX_OPTIONS) {
     return { problem: `needs 2 to ${MAX_OPTIONS} options` };
@@ -99,26 +138,91 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
       problem: `needs its answer to be the index of the correct option, a whole number from 0 to ${options.length - 1}`,
     };
   }
-  if (explanation !== undefined && !isText(explanation)) {
-    const problem = textProblem(explanation);
-    return {
-      problem: `has an explanation that is ${problem}${problem === "blank" ? "; leave a blank one out" : ""}`,
-    };
-  }
+  const explained = explanationProblem(explanation);
+  if (explained) return { problem: explained };
   if (keepOrder !== undefined && typeof keepOrder !== "boolean") {
     return { problem: "has a keepOrder that is not true or false" };
   }
 
   return {
     body: {
-      kind,
+      kind: "choice",
       prompt: collapseWhitespace(prompt),
       options: collapsed,
       answer: answer as number,
-      ...(explanation === undefined ? {} : { explanation: explanation.trim() }),
+      ...(explanation === undefined ? {} : { explanation: (explanation as string).trim() }),
       ...(keepOrder === true ? { keepOrder } : {}),
     },
   };
+}
+
+function parseTypedBody(value: Record<string, unknown>): { body: TaskBody } | { problem: string } {
+  const { prompt, accepted, explanation, answerLanguage } = value;
+  if (!isText(prompt)) return { problem: `has a prompt that is ${textProblem(prompt)}` };
+  if (!Array.isArray(accepted) || accepted.length < 1 || accepted.length > MAX_ACCEPTED) {
+    return { problem: `needs 1 to ${MAX_ACCEPTED} accepted answers` };
+  }
+  const invalid = accepted.findIndex((answer) => !isStorableText(answer, MAX_ACCEPTED_TEXT));
+  if (invalid !== -1) {
+    return {
+      problem: `has accepted answer ${invalid} that is ${textProblem(accepted[invalid], MAX_ACCEPTED_TEXT)}`,
+    };
+  }
+  // Two answers equal as compared would be one answer listed twice.
+  const compared = accepted.map((answer: string) => normalizeAnswer(answer));
+  const repeat = compared.findIndex((answer, index) => compared.indexOf(answer) !== index);
+  if (repeat !== -1) {
+    const first = compared.indexOf(compared[repeat]!);
+    return {
+      problem: `repeats accepted answer ${first} as accepted answer ${repeat}, as answers are compared (case, spacing, and curly or straight quotes aside); list each once`,
+    };
+  }
+  const explained = explanationProblem(explanation);
+  if (explained) return { problem: explained };
+  const language =
+    answerLanguage === undefined
+      ? undefined
+      : typeof answerLanguage === "string"
+        ? parseLanguageTag(answerLanguage)
+        : undefined;
+  if (answerLanguage !== undefined && language === undefined) {
+    return { problem: 'has an answerLanguage that is not a language tag, such as "en" or "pt-BR"' };
+  }
+
+  return {
+    body: {
+      kind: "typed",
+      prompt: collapseWhitespace(prompt),
+      accepted: accepted.map((answer: string) => collapseWhitespace(answer)),
+      ...(explanation === undefined ? {} : { explanation: (explanation as string).trim() }),
+      ...(language === undefined ? {} : { answerLanguage: language }),
+    },
+  };
+}
+
+/** Why an explanation cannot be stored, finishing "The task …", or nothing when it can. */
+function explanationProblem(explanation: unknown): string | undefined {
+  if (explanation === undefined || isText(explanation)) return undefined;
+  const problem = textProblem(explanation);
+  return `has an explanation that is ${problem}${problem === "blank" ? "; leave a blank one out" : ""}`;
+}
+
+/**
+ * A typed answer as it is graded: NFC, lowercased (locale-independent, so the
+ * same everywhere), trimmed, each whitespace run one space, and typographic
+ * apostrophes and quotes as ASCII ones. Nothing else: accents and punctuation
+ * count, and a variant without them is one the author lists
+ * (docs/adr/0038-typed-answers.md). The console's task editor keeps a copy,
+ * `normalizeAnswer`, to refuse repeats before saving: change both.
+ */
+export function normalizeAnswer(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .replace(/[\u2018\u2019\u201A\u201B\u02BC]/gu, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/gu, '"');
 }
 
 /**
@@ -130,6 +234,7 @@ export function parseTaskBody(value: unknown): { body: TaskBody } | { problem: s
  * still give the same order (half the time with two).
  */
 export function presentTask(body: TaskBody, seed: string): PresentedTask {
+  if (body.kind === "typed") return { kind: "typed", prompt: body.prompt };
   const options = body.options.map((text, choice) => ({ choice, text }));
   return {
     kind: body.kind,
@@ -138,11 +243,25 @@ export function presentTask(body: TaskBody, seed: string): PresentedTask {
   };
 }
 
-/** Reads a learner's response to this task, or nothing when it cannot be one. */
+/**
+ * Reads a learner's response to this task, or nothing when it cannot be one.
+ * It names exactly one of `choice`, `text`, and `reveal`: a mix is refused,
+ * never read as whichever field is looked at first.
+ */
 export function parseTaskResponse(body: TaskBody, value: unknown): TaskResponse | undefined {
   if (typeof value !== "object" || value === null) return undefined;
 
-  const { choice } = value as Record<string, unknown>;
+  const named = RESPONSE_FIELDS.filter((field) => Object.hasOwn(value, field));
+  if (named.length !== 1) return undefined;
+  const { choice, text, reveal } = value as Record<string, unknown>;
+  if (named[0] === "reveal") return reveal === true ? { reveal } : undefined;
+  if (body.kind === "typed") {
+    // Stored exactly as sent: an empty one is an answer, and a failure.
+    return typeof text === "string" && text.length <= MAX_TYPED && isStorable(text)
+      ? { text }
+      : undefined;
+  }
+
   if (!Number.isInteger(choice)) return undefined;
   if ((choice as number) < 0 || (choice as number) >= body.options.length) return undefined;
 
@@ -151,12 +270,31 @@ export function parseTaskResponse(body: TaskBody, value: unknown): TaskResponse 
   return { choice: choice === 0 ? 0 : (choice as number) };
 }
 
-/** Grades a response. Deterministic, so a retried attempt grades the same. */
+const RESPONSE_FIELDS = ["choice", "text", "reveal"] as const;
+
+/**
+ * Grades a response `parseTaskResponse` read for this task. Deterministic; a
+ * reveal is a failure, whatever the kind.
+ */
 export function gradeResponse(body: TaskBody, response: TaskResponse): Grade {
+  const explanation = body.explanation === undefined ? {} : { explanation: body.explanation };
+  if (body.kind === "choice") {
+    const chosen = "choice" in response && response.choice === body.answer;
+    return {
+      kind: "choice",
+      outcome: chosen ? "success" : "failure",
+      correctChoice: body.answer,
+      ...explanation,
+    };
+  }
+  const typed =
+    "text" in response &&
+    body.accepted.some((answer) => normalizeAnswer(answer) === normalizeAnswer(response.text));
   return {
-    outcome: response.choice === body.answer ? "success" : "failure",
-    correctChoice: body.answer,
-    ...(body.explanation === undefined ? {} : { explanation: body.explanation }),
+    kind: "typed",
+    outcome: typed ? "success" : "failure",
+    correctAnswer: body.accepted[0]!,
+    ...explanation,
   };
 }
 
@@ -205,12 +343,12 @@ function isText(value: unknown): value is string {
   return isStorableText(value, MAX_TEXT);
 }
 
-/** Why `value`, refused by `isText`, is not a task's text, finishing "… that is". */
-function textProblem(value: unknown): string {
+/** Why `value`, refused by `isStorableText`, is not a task's text, finishing "… that is". */
+function textProblem(value: unknown, max = MAX_TEXT): string {
   if (value === undefined) return "missing";
   if (typeof value !== "string") return "not text";
   const { length } = value.trim();
   if (length === 0) return "blank";
-  if (length > MAX_TEXT) return `over ${MAX_TEXT} characters`;
+  if (length > max) return `over ${max} characters`;
   return "not storable: it carries a NUL or an unpaired surrogate";
 }
