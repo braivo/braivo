@@ -100,8 +100,14 @@ export type Member = { userId: string; name: string; roles: string[] };
 /** A hostname serving an organization's learn app. */
 export type Domain = { hostname: string };
 
-/** An organization's domains, newest first, the first naming its learn domain. */
-export type DomainList = { domains: Domain[] };
+/** A hostname an organization claimed, not yet serving, with where it stands (ADR 0038). */
+export type DomainClaim = application.DomainClaim;
+
+/**
+ * An organization's domains, newest first, the first naming its learn domain;
+ * its claims; and whether this installation can prove a new one.
+ */
+export type DomainList = { domains: Domain[]; claims: DomainClaim[]; canAdd: boolean };
 
 /** The organization a domain serves, as its learn app presents itself. */
 export type HostOrganization = { name: string };

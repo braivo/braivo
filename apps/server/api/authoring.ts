@@ -6,9 +6,12 @@ import { Hono } from "hono";
 
 import {
   citeSources,
+  claimDomain,
   defineCourse,
   defineObjectives,
   defineTasks,
+  type DomainProvisioner,
+  DomainRefused,
   listCourses,
   listDomains,
   listManagedOrganizations,
@@ -17,6 +20,7 @@ import {
   listObjectives,
   listObjectiveTasks,
   NameRefused,
+  ProvisioningFailed,
   readAuthoredCourse,
   recordGradedEvidence,
   type QuotedCitation,
@@ -239,7 +243,14 @@ export function authoringRoutes(
     database,
     baseUrl,
     selfServeDomain,
-  }: { auth: Auth; database: Database; baseUrl: string; selfServeDomain?: string },
+    domains: provisioner,
+  }: {
+    auth: Auth;
+    database: Database;
+    baseUrl: string;
+    selfServeDomain?: string;
+    domains?: DomainProvisioner;
+  },
 ) {
   const routes = new Hono();
 
@@ -473,6 +484,7 @@ export function authoringRoutes(
     try {
       const listed = await listDomains({
         database,
+        provisioner,
         organizationId: context.req.param("organizationId"),
         actingAs: context.var.userId,
       });
@@ -482,6 +494,42 @@ export function authoringRoutes(
       return organizationRefusal(context, error);
     }
   });
+
+  /** Claims a hostname for an organization, for whoever administers it (ADR 0038). */
+  routes.post(
+    "/api/organizations/:organizationId/domains",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (!provisioner) {
+        return context.json({ error: "This installation cannot add domains." }, 501);
+      }
+      const body = (await jsonBody(context)) as { hostname?: unknown } | null;
+      if (typeof body?.hostname !== "string") return context.body(null, 400);
+
+      try {
+        const claim = await claimDomain({
+          database,
+          provisioner,
+          baseUrl,
+          selfServeDomain,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          hostname: body.hostname,
+        });
+        return context.json({ claim }, 201);
+      } catch (error) {
+        if (error instanceof DomainRefused) {
+          const conflict = error.code === "DOMAIN_TAKEN" || error.code === "ALREADY_ADDED";
+          return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
+        }
+        if (error instanceof ProvisioningFailed) {
+          return context.json({ error: error.message, code: "PROVISIONING_FAILED" }, 502);
+        }
+        return organizationRefusal(context, error);
+      }
+    },
+  );
 
   /**
    * One course as authored — objectives in order, each with its passages and

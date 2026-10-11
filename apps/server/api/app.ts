@@ -7,6 +7,7 @@ import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 
 import { type Ai, readHostOrganization } from "../application/index.ts";
+import type { DomainProvisioner } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import { describeError } from "../logging.ts";
 import type { SendMail } from "../mail/index.ts";
@@ -32,6 +33,8 @@ type ApiOptions = {
   baseUrl: string;
   /** Where uploaded files are kept; without one, the file routes answer 501. */
   files?: FileStore;
+  /** Serves organizations' own domains once proven (ADR 0038); without one, adding one answers 501. */
+  domains?: DomainProvisioner;
   /** The installation's model, and who may use it; without one, AI routes answer 501. */
   ai?: Ai;
   /** Where anyone signed in may set up an organization (ADR 0018); without one, nobody may. */
@@ -108,6 +111,7 @@ export function createApi(options: ApiOptions) {
     baseUrl,
     cachedDatabase = database,
     files,
+    domains,
     ai,
     selfServeDomain,
     legal,
@@ -281,7 +285,7 @@ export function createApi(options: ApiOptions) {
   // After the host gate, which runs only before routes registered after it.
   api.route("/", sessionRoutes(guards, { auth, database, baseUrl, legal, sendMail }));
   api.route("/", learningRoutes(guards, { database }));
-  api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain }));
+  api.route("/", authoringRoutes(guards, { auth, database, baseUrl, selfServeDomain, domains }));
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
 
   return api;

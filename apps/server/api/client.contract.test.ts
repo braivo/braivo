@@ -26,9 +26,18 @@ import { connectionString, createTestApi } from "./testing.ts";
  * the routes refuse.
  */
 const selfServeDomain = "contract-self-serve.example";
+/** What the provisioner answers for any hostname: pending, its records to create. */
+const pendingDomain = (hostname: string) => ({
+  ready: false,
+  records: [{ type: "CNAME", name: hostname, value: "domains.contract-self-serve.example" }],
+});
 const { database, api, outbox, signUp } = createTestApi({
   files: directoryStore(mkdtempSync(join(tmpdir(), "braivo-contract-files-"))),
   selfServeDomain,
+  domains: {
+    add: async (hostname) => pendingDomain(hostname),
+    status: async (hostname) => pendingDomain(hostname),
+  },
 });
 
 /** The client reaches Braivo over HTTP; here that HTTP is the app itself. */
@@ -327,15 +336,48 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   });
 
   test("lists domains in the shape it declares, and refuses a learner", async () => {
-    expect(
-      await client.listDomains(organizationId, { headers: { cookie: teacherCookie } }),
-    ).toEqual({ domains: [{ hostname: organizationHost }] });
+    const domains = await client.listDomains(organizationId, {
+      headers: { cookie: teacherCookie },
+    });
+    expect(domains).toEqual({
+      domains: [{ hostname: organizationHost }],
+      claims: expect.any(Array),
+      canAdd: true,
+    });
 
     const rejected = await client
       .listDomains(organizationId, { headers: { cookie: learnerCookie } })
       .catch((thrown: unknown) => thrown);
     expect(rejected).toBeInstanceOf(BraivoError);
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
+  });
+
+  test("claims a domain in the shape it declares, with a code for each refusal", async () => {
+    const hostname = "claimed.contract-test.example.com";
+    const options = { headers: { cookie: teacherCookie } };
+
+    expect(await client.claimDomain(organizationId, hostname, options)).toEqual({
+      hostname,
+      status: pendingDomain(hostname),
+    });
+    expect((await client.listDomains(organizationId, options)).claims).toContainEqual({
+      hostname,
+      status: pendingDomain(hostname),
+    });
+
+    for (const [name, status, code] of [
+      [organizationHost, 409, "ALREADY_ADDED"],
+      [`school.${selfServeDomain}`, 400, "DOMAIN_RESERVED"],
+      ["not a hostname", 400, "DOMAIN_INVALID"],
+    ] as const) {
+      const refused = client.claimDomain(organizationId, name, options);
+      await expect(refused).rejects.toBeInstanceOf(BraivoError);
+      await expect(refused).rejects.toMatchObject({ status, code });
+    }
+    const rejected = client.claimDomain(organizationId, hostname, {
+      headers: { cookie: learnerCookie },
+    });
+    await expect(rejected).rejects.toMatchObject({ status: 403 });
   });
 
   test("lists courses in the shape it declares, and refuses a learner", async () => {

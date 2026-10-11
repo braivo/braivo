@@ -414,8 +414,21 @@
 // names and roles.
 //
 // `GET /api/organizations/:organizationId/domains` — answers `{ "domains":
-// [{ "hostname" }] }`: the hostnames serving its learn app, newest first, the
-// first naming its learn domain.
+// [{ "hostname" }], "claims": [{ "hostname", "status" }], "canAdd" }`: the
+// hostnames serving its learn app, newest first, the first naming its learn
+// domain; those it claimed, each expiring seven days on unless activated,
+// newest first, each `status` `{ "ready", "records": [{ "type", "name",
+// "value" }] }` as the provisioner reads it now, or `null` when it cannot; and
+// whether this installation has a provisioner (ADR 0038).
+//
+// `POST /api/organizations/:organizationId/domains` `{ "hostname" }` — claims
+// a hostname, asking the provisioner to serve it once proven: 201 `{ "claim" }`
+// as listed above, again for a hostname this organization claimed already.
+// 400 `{ "error", "code" }` for one that cannot be a learn domain
+// (`DOMAIN_INVALID`) or is the installation's (`DOMAIN_RESERVED`); 409 for one
+// another organization holds (`DOMAIN_TAKEN`) or this one serves
+// (`ALREADY_ADDED`); 502 `PROVISIONING_FAILED`, the claim kept, which
+// claiming again retries; 501 where the installation has no provisioner.
 //
 // `POST /api/organizations/:organizationId/sources` — adds material a content
 // owner provides, as text:

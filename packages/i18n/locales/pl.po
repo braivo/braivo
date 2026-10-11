@@ -75,6 +75,22 @@ msgstr "Konto"
 msgid "Account: {name}"
 msgstr "Konto: {name}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Add a domain"
+msgstr "Dodaj domenę"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Add domain"
+msgstr "Dodaj domenę"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Added {added}. Create its DNS records above."
+msgstr "Dodano {added}. Utwórz jej rekordy DNS powyżej."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Adding…"
+msgstr "Dodawanie…"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Admin"
 msgstr "Administrator"
@@ -82,6 +98,10 @@ msgstr "Administrator"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Another code can be sent a minute after the last."
 msgstr "Kolejny kod można wysłać minutę po poprzednim."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Another organization already uses that domain."
+msgstr "Tej domeny używa już inna organizacja."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
@@ -138,6 +158,26 @@ msgstr "Kontynuuj jako {account}"
 msgid "Continue with Google"
 msgstr "Kontynuuj z Google"
 
+#: apps/console/components/copy-button.tsx
+msgid "Copied"
+msgstr "Skopiowano"
+
+#: apps/console/components/copy-button.tsx
+msgid "Copied."
+msgstr "Skopiowano."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Copy {type} name"
+msgstr "Kopiuj nazwę rekordu {type}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Copy {type} value"
+msgstr "Kopiuj wartość rekordu {type}"
+
+#: apps/console/components/learners-site.tsx
+msgid "Copy address"
+msgstr "Kopiuj adres"
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Correct"
 msgstr "Dobrze"
@@ -152,20 +192,33 @@ msgctxt "Marks the typed answer"
 msgid "Correct"
 msgstr "Poprawna"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Could not add the domain. Try again."
+msgstr "Nie udało się dodać domeny. Spróbuj ponownie."
+
 #: apps/console/components/language-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Could not change the language. Try again."
 msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Could not check this domain just now. Reload the page in a moment."
+msgstr "Nie udało się teraz sprawdzić tej domeny. Odśwież stronę za chwilę."
+
 #: apps/console/components/organization-setup.tsx
 msgid "Could not confirm the organization was created. Reload this page to check before trying again."
 msgstr "Nie udało się potwierdzić, że organizacja została utworzona. Odśwież stronę, aby to sprawdzić, zanim spróbujesz ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not connect. Check your connection and try again."
 msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
+
+#: apps/console/components/copy-button.tsx
+msgid "Could not copy. Select it instead."
+msgstr "Nie udało się skopiować. Zaznacz tekst i skopiuj go ręcznie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not save the name. Try again."
@@ -195,6 +248,10 @@ msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
 msgid "Create organization"
 msgstr "Utwórz organizację"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Create these records where the domain's DNS is managed. Learners cannot use a domain until its records are found and its certificate is issued, which can take a few minutes after they are created. A domain not activated within seven days is dropped; add it again then."
+msgstr "Utwórz te rekordy tam, gdzie zarządzasz DNS domeny. Uczniowie mogą z niej korzystać dopiero wtedy, gdy rekordy zostaną wykryte, a certyfikat wystawiony, co może potrwać kilka minut od ich utworzenia. Domena nieaktywowana w ciągu siedmiu dni zostaje usunięta; wtedy dodaj ją ponownie."
+
 #: apps/console/components/organization-setup.tsx
 msgid "Creating…"
 msgstr "Tworzenie…"
@@ -203,6 +260,10 @@ msgstr "Tworzenie…"
 #: packages/ui/compositions/theme.tsx
 msgid "Dark"
 msgstr "Ciemny"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Domain"
+msgstr "Domena"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -240,6 +301,14 @@ msgstr "Zmień adres strony dla uczniów"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email address"
 msgstr "Adres e-mail"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Enter a domain such as learn.example.com, without https:// or a path."
+msgstr "Wpisz domenę, np. learn.example.com, bez https:// i ścieżki."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Enter a domain, such as learn.example.com."
+msgstr "Wpisz domenę, np. learn.example.com."
 
 #: apps/console/components/organization-setup.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
@@ -310,6 +379,14 @@ msgstr "za {time}"
 msgid "It cannot be changed yet."
 msgstr "Na razie nie można go zmienić."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Its records are not available yet."
+msgstr "Jej rekordy nie są jeszcze dostępne."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Its records are verified, but learners cannot use it yet."
+msgstr "Jej rekordy są zweryfikowane, ale uczniowie nie mogą jeszcze z niej korzystać."
+
 #: apps/console/routes/_signed-in/organizations.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
@@ -329,6 +406,10 @@ msgstr "Uczeń"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
 msgstr "Uczniowie mogą ćwiczyć pod każdym z tych adresów. Nowe linki, które wysyła im Braivo, także w zaproszeniach, prowadzą do domeny głównej."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Learners have no site to practise on yet. Add a domain below."
+msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Dodaj domenę poniżej."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
@@ -377,6 +458,10 @@ msgstr "Ładowanie…"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Members"
 msgstr "Członkowie"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Name"
+msgstr "Nazwa"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgctxt "person"
@@ -451,6 +536,11 @@ msgstr "Właściciel"
 #: packages/ui/compositions/source-passage.tsx
 msgid "p. {page}"
 msgstr "s. {page}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgctxt "domain"
+msgid "Pending"
+msgstr "Oczekująca"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -570,6 +660,10 @@ msgstr "Coś poszło nie tak."
 msgid "Something went wrong. Try again."
 msgstr "Coś poszło nie tak. Spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Status unknown"
+msgstr "Stan nieznany"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "System"
@@ -586,6 +680,10 @@ msgstr "Zrób krótką przerwę"
 #: apps/console/components/sign-in-page.tsx
 msgid "Teach it once. <0>Tutor every learner.</0>"
 msgstr "Ucz raz. <0>Prowadź każdego ucznia.</0>"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "That address is Braivo's own. Enter a domain your organization owns."
+msgstr "Ten adres należy do Braivo. Wpisz domenę, której właścicielem jest Twoja organizacja."
 
 #: packages/auth-client/sign-in.tsx
 msgid "That code has expired. Send a new one."
@@ -604,6 +702,10 @@ msgstr "Ten kod wpisano zbyt wiele razy. Wyślij nowy."
 msgid "That did not work. Try again."
 msgstr "Nie udało się. Spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "That domain already serves your organization."
+msgstr "Ta domena jest już przypisana do Twojej organizacji."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "The answer: {correctAnswer}"
 msgstr "Poprawna odpowiedź: {correctAnswer}"
@@ -611,6 +713,10 @@ msgstr "Poprawna odpowiedź: {correctAnswer}"
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."
 msgstr "Nie udało się wysłać kodu. Spróbuj ponownie za minutę."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "The domain was saved, but setting it up failed. Add it again to retry."
+msgstr "Domena została zapisana, ale nie udało się jej skonfigurować. Dodaj ją ponownie, aby spróbować jeszcze raz."
 
 #: apps/console/components/sign-in-page.tsx
 msgid "The learning engine behind your courses"
@@ -651,6 +757,10 @@ msgid "This email has not been added here yet. Ask to have it added, then sign i
 msgstr "Ten adres e-mail nie został jeszcze dodany do tej organizacji. Poproś o jego dodanie, a potem zaloguj się ponownie: ten kod działa, dopóki nie wygaśnie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "This installation cannot check domains. Ask whoever set Braivo up for you to finish adding it."
+msgstr "Ta instalacja nie może sprawdzać domen. Poproś osobę, która skonfigurowała dla Ciebie Braivo, o dokończenie dodawania."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "This organization does not exist, or you do not manage it."
 msgstr "Ta organizacja nie istnieje albo nie zarządzasz nią."
@@ -680,9 +790,17 @@ msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Jeszcze raz"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Type"
+msgstr "Typ"
+
 #: packages/ui/compositions/typed-question.tsx
 msgid "Type the answer"
 msgstr "Wpisz odpowiedź"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Use a subdomain, such as learn.example.com. A domain without one, such as example.com, works only if its DNS provider supports ALIAS records or CNAME flattening."
+msgstr "Użyj subdomeny, np. learn.example.com. Domena bez niej, np. example.com, działa tylko wtedy, gdy jej dostawca DNS obsługuje rekordy ALIAS lub spłaszczanie CNAME (CNAME flattening)."
 
 #: apps/console/routes/login.tsx
 msgid "Use another account"
@@ -696,9 +814,22 @@ msgstr "Użyj innego adresu e-mail"
 msgid "Use lowercase letters, digits, and single hyphens between them."
 msgstr "Używaj małych liter, cyfr i pojedynczych łączników między nimi."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Value"
+msgstr "Wartość"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgctxt "domain"
+msgid "Verified"
+msgstr "Zweryfikowana"
+
 #: packages/auth-client/sign-in.tsx
 msgid "Wait a minute before asking for a code again."
 msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Waiting for DNS"
+msgstr "Oczekujące na DNS"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "What should we call you?"
@@ -729,6 +860,7 @@ msgid "You sign in with it. It cannot be changed yet."
 msgstr "Logujesz się nim. Na razie nie można go zmienić."
 
 #: apps/console/components/organization-setup.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "You were signed out. Sign in again."

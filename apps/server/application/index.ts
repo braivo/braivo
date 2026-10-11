@@ -14,7 +14,17 @@ export type { CourseProgressOverview } from "./course-progress.ts";
 export { readCourseProgress } from "./course-progress.ts";
 export { AiLimitReached, AiNotEntitled, AiUnavailable, InvalidAiRequest } from "./ai.ts";
 export { draftFromSource } from "./drafts.ts";
-export { DomainRefused, listDomains, registerLearnDomain } from "./domains.ts";
+export {
+  claimDomain,
+  type DnsRecord,
+  type DomainClaim,
+  type DomainProvisioner,
+  DomainRefused,
+  type DomainStatus,
+  listDomains,
+  ProvisioningFailed,
+  registerLearnDomain,
+} from "./domains.ts";
 /** What a draft is, and the model failing to give one, named so callers need not reach into `ai`. */
 export type { Draft } from "../ai/index.ts";
 export { ModelUnavailable } from "../ai/index.ts";

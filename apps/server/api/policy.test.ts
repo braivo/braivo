@@ -68,6 +68,7 @@ const routes = [
   "POST /api/organizations/:organizationId/rename",
   "GET  /api/organizations/:organizationId/members",
   "GET  /api/organizations/:organizationId/domains",
+  "POST /api/organizations/:organizationId/domains",
   "POST /api/organizations/:organizationId/learners/:learnerId/evidence",
   "GET  /api/organizations/:organizationId/objectives",
   "POST /api/organizations/:organizationId/objectives",
@@ -294,6 +295,7 @@ POST /api/organization-setup                                                    
 POST /api/organizations/:organizationId/rename                                  401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/domains                                 401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/domains                                 401     501     501     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/learners/:learnerId/evidence            401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/objectives                              401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/objectives                              401     400     400     401     403     403     403     403     1MB
@@ -350,6 +352,7 @@ POST /api/organization-setup                                                    
 POST /api/organizations/:organizationId/rename                                  404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/domains                                 404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/domains                                 404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/learners/:learnerId/evidence            404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/objectives                              404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/objectives                              404     404     401     404     404     404     404     404     404

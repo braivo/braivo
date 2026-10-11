@@ -7,6 +7,7 @@ import type {
   AuthoredTask,
   Course,
   CourseProgressOverview,
+  DomainClaim,
   DomainList,
   Draft,
   Grade,
@@ -44,6 +45,7 @@ export type {
   Course,
   CourseProgressOverview,
   Domain,
+  DomainClaim,
   DomainList,
   Draft,
   Grade,
@@ -279,11 +281,27 @@ export type BraivoClient = {
   /**
    * The hostnames serving an organization's learn app, newest first: the
    * first is the one its learn domain is named by (`Organization.learnDomain`).
+   * Then those it claimed, with where each stands, and whether a new one can
+   * be added here.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
    * throws a {@link BraivoError} with status 403.
    */
   listDomains(organizationId: string, options?: RequestOptions): Promise<DomainList>;
+
+  /**
+   * Claims `hostname` for an organization, answering the DNS records that
+   * point it here and prove it theirs; it serves once activated (ADR 0038).
+   * Claiming it again answers again. A {@link BraivoError} whose `code` says
+   * why: 400 `DOMAIN_INVALID` or `DOMAIN_RESERVED`, 409 `DOMAIN_TAKEN` or
+   * `ALREADY_ADDED`, 502 `PROVISIONING_FAILED`, which may pass on a retry;
+   * 403 without `owner` or `admin` there; 501 where domains cannot be added.
+   */
+  claimDomain(
+    organizationId: string,
+    hostname: string,
+    options?: RequestOptions,
+  ): Promise<DomainClaim>;
 
   /**
    * Every course an organization has, by title.
@@ -810,6 +828,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<DomainList>(response, doing);
+    },
+
+    async claimDomain(organizationId, hostname, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/domains`,
+        { hostname },
+        requestOptions,
+      );
+
+      const doing = `claiming ${hostname} for organization "${organizationId}"`;
+      if (response.status !== 201) throw await unexpected(response, doing);
+
+      return (await parsed<{ claim: DomainClaim }>(response, doing)).claim;
     },
 
     async listCourses(organizationId, requestOptions) {
