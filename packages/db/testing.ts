@@ -11,6 +11,7 @@ import {
   attempt,
   course,
   file,
+  group,
   learnerEvidence,
   member,
   objective,
@@ -151,7 +152,7 @@ export async function createTask(
 
 /**
  * Removes an organization's learning data — sources, files, objectives,
- * courses, tasks, citations, AI requests — with the attempts and evidence
+ * courses, groups, tasks, citations, AI requests — with the attempts and evidence
  * recorded there first: the restricted foreign keys refuse to delete what
  * anything still points at.
  */
@@ -166,6 +167,7 @@ export async function clearLearningData(database: Database, organizationId: stri
 
   await database.delete(learnerEvidence).where(eq(learnerEvidence.organizationId, organizationId));
 
+  await database.delete(group).where(eq(group.organizationId, organizationId));
   await database.delete(course).where(eq(course.organizationId, organizationId));
   await database.delete(objective).where(eq(objective.organizationId, organizationId));
   await database.delete(source).where(eq(source.organizationId, organizationId));

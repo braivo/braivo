@@ -67,6 +67,9 @@ const routes = [
   "POST /api/organization-setup",
   "POST /api/organizations/:organizationId/rename",
   "GET  /api/organizations/:organizationId/members",
+  "GET  /api/organizations/:organizationId/groups",
+  "POST /api/organizations/:organizationId/groups",
+  "POST /api/organizations/:organizationId/groups/:groupId",
   "GET  /api/organizations/:organizationId/domains",
   "POST /api/organizations/:organizationId/domains",
   "POST /api/organizations/:organizationId/domains/:hostname/activate",
@@ -296,6 +299,9 @@ GET  /api/organization-setup                                                    
 POST /api/organization-setup                                                    401     404     404     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/rename                                  401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/groups                                  401     400     400     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/groups/:groupId                         401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/domains                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/domains                                 401     501     501     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/domains/:hostname/activate              401     501     501     401     403     403     403     403     1MB
@@ -355,6 +361,9 @@ GET  /api/organization-setup                                                    
 POST /api/organization-setup                                                    404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/rename                                  404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/groups                                  404     404     401     404     404     404     404     404     404
+POST /api/organizations/:organizationId/groups/:groupId                         404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/domains                                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/domains                                 404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/domains/:hostname/activate              404     404     401     404     404     404     404     404     404

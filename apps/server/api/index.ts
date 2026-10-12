@@ -198,19 +198,21 @@
 //        grading, since a passage could give the answer away.
 //
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
-// stands on each objective in a course, for a content owner or the learner. The
-// reader is the session's user and must be the learner, or hold `owner` or
-// `admin` in the course's organization; the learner must belong to it. A
+// stands on each objective in a course, for a content owner, a teacher, or the
+// learner. The reader is the session's user and must be the learner, hold
+// `owner` or `admin` in the course's organization, or teach a group the learner
+// learns in that takes the course (ADR 0042); the learner must belong to it. A
 // learner session reads its own alone. `?includeHistory=false` leaves each
 // objective's `evidence` out, for a reader showing standings only: it grows
 // with every result.
 //
 //   400  `includeHistory` given more than once, or as other than `true` or `false`
 //   401  no session
-//   404  the course does not exist; the reader is neither the learner nor
-//        administers its organization; or the learner is not in it, or does
-//        not exist. One status for all of them, so it confirms neither a
-//        course nor a person to someone with no business knowing.
+//   404  the course does not exist; the reader is not the learner, does not
+//        administer its organization, and does not teach them in it; or the
+//        learner is not in it, or does not exist. One status for all of them,
+//        so it confirms neither a course nor a person to someone with no
+//        business knowing.
 //   200  a knowledge report, objectives in content order, each carrying the
 //        values that describe its phase:
 //
@@ -237,13 +239,15 @@
 //        decision's.
 //
 // `GET /api/courses/:courseId/progress` — where each learner in a course
-// stands, counted: every member of its organization, by name; and each
-// objective, in content order, with its learners counted. The reader must hold
-// `owner` or `admin` there. On `BRAIVO_URL`'s host alone: elsewhere, 401.
+// stands, counted: by name, every member of its organization to a reader
+// holding `owner` or `admin` there, or to a teacher of groups taking the
+// course, those groups' learners, each once (ADR 0042); and each objective, in
+// content order, with those learners counted. On `BRAIVO_URL`'s host alone:
+// elsewhere, 401.
 //
 //   401  no session
-//   404  the course does not exist, or the reader does not administer its
-//        organization, alike
+//   404  the course does not exist, or the reader neither administers its
+//        organization nor teaches a group taking it, alike
 //   200  { "modelVersion": "v1", "learners": [
 //          { "userId": "…", "name": "Ana", "roles": ["member"],
 //            "standings": { "unseen": 1, "acquiring": 2, "retained": 0, "due": 1 } }
@@ -252,9 +256,10 @@
 //            "standings": { "unseen": 3, "acquiring": 1, "retained": 2, "due": 0 } }
 //        ] }
 //
-//        `standings` count what each learner's report shows at the same moment,
-//        per learner and per objective; `retained` is retaining and not due.
-//        `CourseProgressOverview` serialized.
+//        `roles` only to an `owner` or `admin`: a teacher's learners carry none
+//        (access-26). `standings` count what each learner's report shows at
+//        the same moment, per learner and per objective; `retained` is
+//        retaining and not due. `CourseProgressOverview` serialized.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —
 // records what a learner did. The grader is the session's user and is never
@@ -429,6 +434,36 @@
 // `{ "members": [{ "userId": "…", "name": "…", "roles": ["member"] }] }`, by
 // name, every role a member holds. No emails: the roster's clients need only
 // names and roles.
+//
+// `GET /api/organizations/:organizationId/groups` — the organization's groups,
+// by name: `{ "groups": [{ "id", "organizationId", "name", "learners": [{
+// "userId", "name" }], "teachers": [...], "courses": [{ "id", "title" }] }]
+// }`, people by name and courses by title. Every group to an `owner` or
+// `admin`; to any other member those they teach, none if they teach none:
+// what a teacher may read through the progress routes above. 403 to anyone
+// who is not a member.
+//
+// `POST /api/organizations/:organizationId/groups` — creates a group: `{
+// "name", "learnerIds": [...], "teacherIds": [...], "courseIds": [...] }`,
+// each list at most 1000, with an optional `key` as for courses: the same
+// creation again, its lists in any order, answers its ID even if the group
+// changed since; another under the key 409 with an `error`. Answers 201 `{
+// "groupId" }`. A name refused as a course's title is, an ID listed twice, one
+// person in both roles, someone not a member, or a course not the
+// organization's answers 400 with an `error`; a field it does not know, 400.
+//
+// `POST /api/organizations/:organizationId/groups/:groupId` — changes a group
+// by what the body names, each part optional: `{ "name", "add": {
+// "learnerIds", "teacherIds", "courseIds" }, "remove": { "userIds",
+// "courseIds" } }`. Removals apply first, then additions: removing someone
+// and adding them in one change sets their role, and adding someone already
+// there in the other role is 409 with an `error`, never a silent promotion.
+// Adding what is there or removing what is not does nothing. Concurrent
+// changes apply in turn, the last one's word final. 200 `{ "group" }`, as
+// listed, as it then stands; 404 when the organization has no such group.
+// Refused as creating one is, and a change naming nothing is 400 with an
+// `error`; a field it does not know, 400, as a misspelt one would otherwise
+// change nothing.
 //
 // `GET /api/organizations/:organizationId/domains` — answers `{ "domains":
 // [{ "hostname", "removable" }], "claims": [{ "hostname", "status" }],

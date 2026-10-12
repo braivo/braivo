@@ -13,6 +13,7 @@ import { describeError } from "../logging.ts";
 import type { SendMail } from "../mail/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
+import { groupRoutes } from "./groups.ts";
 import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
@@ -304,6 +305,7 @@ export function createApi(options: ApiOptions) {
     }),
   );
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
+  api.route("/", groupRoutes(guards, { database }));
 
   return api;
 }

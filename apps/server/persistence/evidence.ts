@@ -190,8 +190,9 @@ export async function readLearnerEvidence(
 
 /**
  * `readLearnerEvidence` for every current member of an organization at once,
- * by learner: what a course overview replays. Members without evidence are
- * absent, and so is the evidence of former members.
+ * or just those of `learnerIds`, by learner: what a course overview replays.
+ * Members without evidence are absent, and so is the evidence of former
+ * members.
  *
  * One query rather than one per member, joined from `member` so the planner can
  * read each member's range of the replay index rather than scan the
@@ -201,7 +202,9 @@ export async function readMembersEvidence(
   database: Database,
   organizationId: string,
   asOf: Date,
+  learnerIds?: readonly string[],
 ): Promise<Map<string, Evidence[]>> {
+  if (learnerIds?.length === 0) return new Map();
   const rows = await database
     .select({
       learnerId: learnerEvidence.learnerId,
@@ -218,7 +221,13 @@ export async function readMembersEvidence(
         eq(learnerEvidence.organizationId, member.organizationId),
       ),
     )
-    .where(and(eq(member.organizationId, organizationId), lte(learnerEvidence.at, asOf)));
+    .where(
+      and(
+        eq(member.organizationId, organizationId),
+        learnerIds === undefined ? undefined : inArray(member.userId, learnerIds),
+        lte(learnerEvidence.at, asOf),
+      ),
+    );
 
   const byLearner = new Map<string, Evidence[]>();
   for (const { learnerId, ...evidence } of rows) {

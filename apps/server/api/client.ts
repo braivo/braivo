@@ -12,6 +12,9 @@ import type {
   Draft,
   Grade,
   GradedEvidence,
+  Group,
+  GroupChange,
+  GroupDefinition,
   Handoff,
   HostOrganization,
   LearnerProgressReport,
@@ -51,6 +54,9 @@ export type {
   Draft,
   Grade,
   GradedEvidence,
+  Group,
+  GroupChange,
+  GroupDefinition,
   Handoff,
   HostOrganization,
   LearnerProgressReport,
@@ -206,9 +212,10 @@ export type BraivoClient = {
   ): Promise<Grade>;
 
   /**
-   * Where a learner stands on each objective in a course, for a content owner
-   * or the learner. The session must be the learner's, or hold `owner` or
-   * `admin` in the course's organization, and the learner must belong to it.
+   * Where a learner stands on each objective in a course, for the learner, a
+   * content owner, or a teacher. The session must be the learner's, hold
+   * `owner` or `admin` in the course's organization, or teach a group the
+   * learner is in that takes the course; the learner must belong to it.
    *
    * A missing course, a session that may not read it, and a learner outside the
    * organization are one {@link BraivoError} with status 404, which of the
@@ -225,8 +232,10 @@ export type BraivoClient = {
   ): Promise<LearnerProgressSummary>;
 
   /**
-   * Where each learner in a course stands, counted: every member of its
-   * organization, by name. The session must hold `owner` or `admin` there.
+   * Where each learner in a course stands, counted, by name: every member of
+   * its organization, with their roles, for a session holding `owner` or
+   * `admin` there; for a teacher, without roles, the learners of the groups
+   * they teach that take the course.
    *
    * A missing course and one the session may not read are one
    * {@link BraivoError} with status 404.
@@ -281,6 +290,42 @@ export type BraivoClient = {
    * throws a {@link BraivoError} with status 403.
    */
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
+
+  /**
+   * An organization's groups, by name: every one to a session holding `owner`
+   * or `admin` there, and to any other member those they teach, whose
+   * progress in which courses they may read (ADR 0042). Anyone else gets a
+   * {@link BraivoError} with status 403.
+   */
+  listGroups(organizationId: string, options?: RequestOptions): Promise<Group[]>;
+
+  /**
+   * Creates a group of the organization's members taking some of its courses,
+   * and resolves to its ID. Its teachers then read its learners' progress in
+   * its courses; who may study a course is unchanged. With a `key`, the same
+   * group created again resolves to the same ID, and another under it is a
+   * 409. A name Braivo will not store, an ID listed twice, a person in both
+   * roles, someone who is not a member, or a course not the organization's is
+   * a 400 whose `reason` says which.
+   */
+  defineGroup(
+    input: { organizationId: string; key?: string } & GroupDefinition,
+    options?: RequestOptions,
+  ): Promise<string>;
+
+  /**
+   * Changes a group, naming only what changes, and resolves to the group as
+   * it then stands. Removals apply first, so removing someone and adding them
+   * in one change sets their role; adding someone already there in the other
+   * role is a {@link BraivoError} with status 409, never a silent promotion.
+   * Adding what is there, or removing what is not, does nothing. A change
+   * naming nothing is a 400; a group the organization does not have, 404;
+   * refusals otherwise as `defineGroup`.
+   */
+  changeGroup(
+    input: { organizationId: string; groupId: string } & GroupChange,
+    options?: RequestOptions,
+  ): Promise<Group>;
 
   /**
    * The hostnames serving an organization's learn app, newest first: the
@@ -843,6 +888,44 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { members } = await parsed<{ members: Member[] }>(response, doing);
       return members;
+    },
+
+    async listGroups(organizationId, requestOptions) {
+      const response = await get(
+        `/api/organizations/${encodeURIComponent(organizationId)}/groups`,
+        requestOptions,
+      );
+
+      const doing = `listing the groups of organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ groups: Group[] }>(response, doing)).groups;
+    },
+
+    async defineGroup({ organizationId, ...group }, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/groups`,
+        group,
+        requestOptions,
+      );
+
+      const doing = `creating group "${group.name}" in organization "${organizationId}"`;
+      if (response.status !== 201) throw await unexpected(response, doing);
+
+      return (await parsed<{ groupId: string }>(response, doing)).groupId;
+    },
+
+    async changeGroup({ organizationId, groupId, ...change }, requestOptions) {
+      const response = await post(
+        `/api/organizations/${encodeURIComponent(organizationId)}/groups/${encodeURIComponent(groupId)}`,
+        change,
+        requestOptions,
+      );
+
+      const doing = `changing group "${groupId}" of organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ group: Group }>(response, doing)).group;
     },
 
     async listDomains(organizationId, requestOptions) {

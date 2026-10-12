@@ -349,6 +349,52 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
+  test("defines, changes, and lists groups in the shapes it declares", async () => {
+    const asAdmin = { headers: { cookie: teacherCookie } };
+    const asLearner = { headers: { cookie: learnerCookie } };
+    // A member who teaches: any member may, once a group says so.
+    const definition = {
+      name: "Tutoring",
+      learnerIds: [],
+      teacherIds: [learnerId],
+      courseIds: [courseId],
+    };
+    const groupId = await client.defineGroup(
+      { organizationId, key: "tutoring", ...definition },
+      asAdmin,
+    );
+    expect(
+      await client.defineGroup({ organizationId, key: "tutoring", ...definition }, asAdmin),
+    ).toBe(groupId);
+
+    const taught = await client.listGroups(organizationId, asLearner);
+    expect(taught).toEqual([
+      {
+        id: groupId,
+        organizationId,
+        name: "Tutoring",
+        learners: [],
+        teachers: [{ userId: learnerId, name: expect.any(String) }],
+        courses: [{ id: courseId, title: "Spanish" }],
+      },
+    ]);
+    expect(await client.listGroups(organizationId, asAdmin)).toEqual(taught);
+
+    expect(
+      await client.changeGroup(
+        { organizationId, groupId, remove: { userIds: [learnerId] } },
+        asAdmin,
+      ),
+    ).toEqual({ ...taught[0], teachers: [] });
+    expect(await client.listGroups(organizationId, asLearner)).toEqual([]);
+
+    const missing = await client
+      .changeGroup({ organizationId, groupId: "no-such-group", name: "Any" }, asAdmin)
+      .catch((thrown: unknown) => thrown);
+    expect(missing).toBeInstanceOf(BraivoError);
+    expect(missing as BraivoError).toMatchObject({ status: 404 });
+  });
+
   test("lists domains in the shape it declares, and refuses a learner", async () => {
     const domains = await client.listDomains(organizationId, {
       headers: { cookie: teacherCookie },
