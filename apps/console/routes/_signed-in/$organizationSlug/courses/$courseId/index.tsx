@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import {
-  type AuthoredCourse,
-  BraivoError,
-  type CourseProgressOverview,
-} from "@braivo/server/client";
+import { type AuthoredCourse, BraivoError } from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -26,25 +22,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@braivo/ui/components/alert-dialog";
-import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@braivo/ui/components/table";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { ChevronRightIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { LearnersSite } from "#components/learners-site";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { orNotFound } from "#lib/refusals";
+import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
+  beforeLoad: administratorsOnly,
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
     // Bounded, since a correction or a retirement waits for this reload to
@@ -54,9 +43,8 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
     const course = await orNotFound(
       context.braivo.readCourse({ organizationId, courseId: params.courseId }, { signal }),
     );
-    const progress = await orNotFound(context.braivo.courseProgress(params.courseId, { signal }));
 
-    return { course, progress };
+    return { course };
   },
   head: (head) => pageHead(head, head.loaderData?.course.title),
   component: Course,
@@ -64,8 +52,9 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
 });
 
 function Course() {
-  const { course, progress } = Route.useLoaderData();
+  const { course } = Route.useLoaderData();
   const { organization } = Route.useRouteContext();
+  const { courseId } = Route.useParams();
 
   return (
     <>
@@ -76,8 +65,16 @@ function Course() {
         at={`Open to every learner in ${organization.name} at`}
         none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
       />
-      <ObjectiveProgress objectives={progress.objectives} />
-      <Learners learners={progress.learners} />
+      {/* Its learners' progress, a page shared with teachers (access-39). */}
+      <Button asChild variant="outline" className="mb-8 w-fit">
+        <Link
+          to="/$organizationSlug/courses/$courseId/progress"
+          params={{ organizationSlug: organization.slug, courseId }}
+        >
+          Learner progress
+          <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
+        </Link>
+      </Button>
       <section aria-labelledby="teaches" className="flex flex-col gap-6">
         <Heading level={2} id="teaches">
           What it teaches
@@ -88,114 +85,6 @@ function Course() {
         ))}
       </section>
     </>
-  );
-}
-
-/**
- * Knowledge gaps across learners: each objective with its learners counted by
- * standing. Absent for a course without objectives, which "What it teaches" says.
- */
-function ObjectiveProgress({ objectives }: { objectives: CourseProgressOverview["objectives"] }) {
-  if (objectives.length === 0) return null;
-
-  return (
-    <section aria-labelledby="by-objective" className="flex flex-col gap-3">
-      <Heading level={2} id="by-objective">
-        Progress by objective
-      </Heading>
-      <StandingsTable
-        labelledBy="by-objective"
-        rowHeader="Objective"
-        rows={objectives.map(({ objectiveId, title, standings }) => ({
-          key: objectiveId,
-          label: title,
-          standings,
-        }))}
-      />
-    </section>
-  );
-}
-
-/**
- * Every member, as each is enrolled (ADR 0018), with their objectives counted
- * by standing.
- */
-function Learners({ learners }: { learners: CourseProgressOverview["learners"] }) {
-  const { organizationSlug, courseId } = Route.useParams();
-
-  return (
-    <section aria-labelledby="learners" className="flex flex-col gap-3">
-      <Heading level={2} id="learners">
-        Learners
-      </Heading>
-      <StandingsTable
-        labelledBy="learners"
-        rowHeader="Learner"
-        rows={learners.map(({ userId, name, roles, standings }) => ({
-          key: userId,
-          label: (
-            <>
-              <Link
-                to="/$organizationSlug/courses/$courseId/learners/$learnerId"
-                params={{ organizationSlug, courseId, learnerId: userId }}
-                className="underline wrap-anywhere"
-              >
-                {name}
-              </Link>
-              {roles?.map((role) => (
-                <Badge key={role} variant="secondary" className="ml-2">
-                  {role}
-                </Badge>
-              ))}
-            </>
-          ),
-          standings,
-        }))}
-      />
-    </section>
-  );
-}
-
-/**
- * Rows counted by standing, labelled as the learner's own report labels them.
- * Named by its section's heading, so a screen reader's list of tables tells the
- * page's two apart.
- */
-function StandingsTable(props: {
-  labelledBy: string;
-  rowHeader: string;
-  rows: {
-    key: string;
-    label: ReactNode;
-    standings: CourseProgressOverview["learners"][number]["standings"];
-  }[];
-}) {
-  return (
-    <Table aria-labelledby={props.labelledBy}>
-      <TableHeader>
-        <TableRow>
-          <TableHead>{props.rowHeader}</TableHead>
-          <TableHead className="text-right">Not started</TableHead>
-          <TableHead className="text-right">Learning</TableHead>
-          <TableHead className="text-right">Retained</TableHead>
-          <TableHead className="text-right">Due for review</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {props.rows.map(({ key, label, standings }) => (
-          <TableRow key={key}>
-            {/* A row header, so each count is announced with whose it is. */}
-            <TableHead scope="row" className="font-normal">
-              {label}
-            </TableHead>
-            <TableCell className="text-right">{standings.unseen}</TableCell>
-            <TableCell className="text-right">{standings.acquiring}</TableCell>
-            <TableCell className="text-right">{standings.retained}</TableCell>
-            <TableCell className="text-right">{standings.due}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
   );
 }
 

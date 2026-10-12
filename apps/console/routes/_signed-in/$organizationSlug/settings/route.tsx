@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Heading, MutedText } from "@braivo/ui";
 import { cn } from "@braivo/ui/lib/utils";
 import { msg, t } from "@lingui/core/macro";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { ChevronLeftIcon } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useRef } from "react";
 
+import { NoSuchSetting } from "#components/no-such-setting";
 import { appPageToReturnTo } from "#lib/app-page";
 import { pageHead } from "#lib/title";
 
@@ -23,16 +23,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings")({
   component: Settings,
   // A page settings do not have, told in their outlet, so their navigation
   // and the way back stay; else the organization's would replace them all.
-  notFoundComponent: () => (
-    <>
-      <Heading>
-        <Trans>There is no such setting</Trans>
-      </Heading>
-      <MutedText className="block wrap-break-word">
-        <Trans>Choose one from the list.</Trans>
-      </MutedText>
-    </>
-  ),
+  notFoundComponent: NoSuchSetting,
 });
 
 /**
@@ -42,10 +33,14 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings")({
 const navLink =
   "flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:min-h-8";
 
-/** The pages, grouped as Linear's: the account's own, then the organization's. */
-const GROUPS = [
+/**
+ * The pages, grouped as Linear's: the account's own, then the organization's,
+ * for whoever administers it alone (access-39).
+ */
+const SECTIONS = [
   {
     heading: msg`Account`,
+    administratorsOnly: false,
     pages: [
       { to: "/$organizationSlug/settings/account", label: msg`Profile` },
       { to: "/$organizationSlug/settings/preferences", label: msg`Preferences` },
@@ -53,9 +48,11 @@ const GROUPS = [
   },
   {
     heading: msg`Organization`,
+    administratorsOnly: true,
     pages: [
       { to: "/$organizationSlug/settings/general", label: msg`General` },
       { to: "/$organizationSlug/settings/members", label: msg`Members` },
+      { to: "/$organizationSlug/settings/groups", label: msg`Groups` },
       { to: "/$organizationSlug/settings/domains", label: msg`Domains` },
     ],
   },
@@ -131,7 +128,9 @@ function Settings() {
           ref={pages}
           className="-mx-3 mt-1 flex gap-1 overflow-x-auto px-3 py-1 md:mx-0 md:mt-0 md:block md:overflow-visible md:p-0"
         >
-          {GROUPS.map((group) => (
+          {SECTIONS.filter(
+            ({ administratorsOnly }) => organization.administers || !administratorsOnly,
+          ).map((group) => (
             <Fragment key={group.heading.id}>
               <h2 className="mt-4 mb-1 px-3 text-xs font-medium text-muted-foreground max-md:sr-only">
                 {i18n._(group.heading)}

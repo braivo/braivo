@@ -113,7 +113,13 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     expect(await managed.json()).toEqual({
       organizations: [
-        { id: organizationId, slug: organizationId, name: organizationId, learnDomain: null },
+        {
+          id: organizationId,
+          slug: organizationId,
+          name: organizationId,
+          learnDomain: null,
+          administers: true,
+        },
       ],
     });
     expect(await (await list(learner.cookie)).json()).toEqual({ organizations: [] });

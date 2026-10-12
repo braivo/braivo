@@ -255,7 +255,13 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     const organizations = await json<Organization[]>("list_organizations");
 
     // Each with where its learners practise, for the agent to tell the owner.
-    const listed = (id: string) => ({ id, name: id, slug: id, learnDomain: null });
+    const listed = (id: string) => ({
+      id,
+      name: id,
+      slug: id,
+      learnDomain: null,
+      administers: true,
+    });
     expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
       listed(organizationId),
       listed(progressOrganizationId),

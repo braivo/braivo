@@ -15,11 +15,14 @@ import {
 } from "@braivo/ui/components/sidebar";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation, useMatches } from "@tanstack/react-router";
-import { BookOpenIcon, LibraryIcon, XIcon } from "lucide-react";
+import { BookOpenIcon, LibraryIcon, UsersIcon, XIcon } from "lucide-react";
 import { type ReactNode, type RefObject, useEffect } from "react";
 
 import { OrganizationSwitcher } from "./organization-switcher.tsx";
 import { SidebarButton, useCloseDrawerOnFollow } from "./sidebar-button.tsx";
+
+/** The organization's home, an administrator's Courses. */
+const HOME = "/_signed-in/$organizationSlug/";
 
 /**
  * An organization's sidebar: the organization first, switching to the
@@ -44,23 +47,32 @@ export function OrganizationSidebar(props: {
   // Navigated otherwise (back, forward) while it is open.
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
   const closeOnFollow = useCloseDrawerOnFollow();
-  // The section shown: a course's pages are the Courses', a source's the Sources'.
+  // The section shown: a course's pages are the Courses', a source's the
+  // Sources'; to a teacher, who has no Courses, a course's are the Groups'.
   const section = useMatches({
-    select: (matches) =>
-      matches.some(({ routeId }) => routeId.startsWith("/_signed-in/$organizationSlug/sources"))
-        ? "sources"
-        : matches.some(
-              ({ routeId }) =>
-                routeId === "/_signed-in/$organizationSlug/" ||
-                routeId.startsWith("/_signed-in/$organizationSlug/courses"),
-            )
-          ? "courses"
-          : undefined,
+    select: (matches) => {
+      const under = (path: string) =>
+        matches.some(({ routeId }) => routeId.startsWith(`/_signed-in/$organizationSlug/${path}`));
+      if (under("sources")) return "sources";
+      if (under("groups") || (under("courses") && !organization.administers)) return "groups";
+      if (under("courses") || matches.some(({ routeId }) => routeId === HOME)) return "courses";
+    },
   });
 
+  // A teacher's sections are their groups alone (access-39).
   const sections = [
-    { key: "courses", to: "/$organizationSlug", label: t`Courses`, Icon: BookOpenIcon },
-    { key: "sources", to: "/$organizationSlug/sources", label: t`Sources`, Icon: LibraryIcon },
+    ...(organization.administers
+      ? ([
+          { key: "courses", to: "/$organizationSlug", label: t`Courses`, Icon: BookOpenIcon },
+          {
+            key: "sources",
+            to: "/$organizationSlug/sources",
+            label: t`Sources`,
+            Icon: LibraryIcon,
+          },
+        ] as const)
+      : []),
+    { key: "groups", to: "/$organizationSlug/groups", label: t`Groups`, Icon: UsersIcon },
   ] as const;
 
   return (

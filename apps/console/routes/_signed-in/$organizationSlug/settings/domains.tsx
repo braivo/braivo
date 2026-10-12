@@ -36,8 +36,9 @@ import { CircleAlertIcon } from "lucide-react";
 import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { CopyButton } from "#components/copy-button";
+import { NoSuchSetting } from "#components/no-such-setting";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { orNotFound } from "#lib/refusals";
+import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -48,6 +49,7 @@ import { pageHead } from "#lib/title";
  * (ADR 0038).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/domains")({
+  beforeLoad: administratorsOnly,
   // Another organization's domains are another page: nothing typed or pending carries over.
   remountDeps: ({ params }) => params.organizationSlug,
   loader: ({ context, abortController }) =>
@@ -56,11 +58,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/dom
     ),
   head: (head) => pageHead(head, t`Domains`),
   component: Domains,
-  notFoundComponent: () => (
-    <p>
-      <Trans>This organization does not exist, or you do not manage it.</Trans>
-    </p>
-  ),
+  notFoundComponent: NoSuchSetting,
 });
 
 function Domains() {

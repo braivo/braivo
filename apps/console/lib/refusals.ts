@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type BraivoClient, BraivoError } from "@braivo/server/client";
+import {
+  type BraivoClient,
+  BraivoError,
+  type Course,
+  type Group,
+  type Organization,
+} from "@braivo/server/client";
 import { notFound } from "@tanstack/react-router";
 
 /**
@@ -17,6 +23,15 @@ export async function orNotFound<T>(read: Promise<T>): Promise<T> {
     }
     throw error;
   }
+}
+
+/**
+ * A page's `beforeLoad` where only an `owner` or `admin` has anything: to
+ * someone who teaches there it is not found, before anything is read
+ * (access-39). Presentation alone: Braivo refuses them its reads either way.
+ */
+export function administratorsOnly({ context }: { context: { organization: Organization } }) {
+  if (!context.organization.administers) throw notFound();
 }
 
 /**
@@ -36,6 +51,35 @@ export async function readCourseInOrganization(
   const course = courses.find(({ id }) => id === input.courseId);
   if (!course) throw notFound();
   return course;
+}
+
+/**
+ * The course a progress page reports on, checked to be the organization's
+ * before any progress is read (progress-9). An administrator's, among its
+ * courses; a teacher's, among those of the groups they teach, which come too:
+ * the report's learners are theirs (access-39). Never an administrator's read
+ * for a teacher, which Braivo would refuse.
+ */
+export async function readCourseForProgress(
+  braivo: BraivoClient,
+  input: { organization: Organization; courseId: string; signal: AbortSignal },
+): Promise<{ course: Course; groups?: Group[] }> {
+  const { organization, courseId, signal } = input;
+  if (organization.administers) {
+    return {
+      course: await readCourseInOrganization(braivo, {
+        organizationId: organization.id,
+        courseId,
+        signal,
+      }),
+    };
+  }
+  const groups = (await orNotFound(braivo.listGroups(organization.id, { signal }))).filter(
+    ({ courses }) => courses.some(({ id }) => id === courseId),
+  );
+  const course = groups[0]?.courses.find(({ id }) => id === courseId);
+  if (!course) throw notFound();
+  return { course, groups };
 }
 
 /**

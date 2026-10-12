@@ -5,7 +5,7 @@ import type { Database } from "@braivo/db";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { createLocalJWKSet, errors, jwtVerify, type JWTPayload } from "jose";
 
-import { listManagedOrganizations } from "../application/index.ts";
+import { listOrganizations } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 
 /**
@@ -66,7 +66,10 @@ export function mcpEndpoint(options: {
           annotations: { readOnlyHint: true, openWorldHint: false },
         },
         async () => {
-          const organizations = await listManagedOrganizations({ database, actingAs: userId });
+          // Managed, as described: teaching a group is not managing.
+          const organizations = (await listOrganizations({ database, actingAs: userId })).filter(
+            (organization) => organization.administers,
+          );
           return {
             content: [{ type: "text", text: JSON.stringify({ organizations }) }],
           };

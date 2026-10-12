@@ -17,6 +17,7 @@ import { Route as SignedInConsentRouteImport } from './routes/_signed-in/consent
 import { Route as SignedInDeviceRouteImport } from './routes/_signed-in/device'
 import { Route as SignedInJoinRouteImport } from './routes/_signed-in/join'
 import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
+import { Route as SignedInOrganizationSlugGroupsRouteImport } from './routes/_signed-in/$organizationSlug/groups'
 import { Route as SignedInOrganizationSlugSettingsRouteRouteImport } from './routes/_signed-in/$organizationSlug/settings/route'
 import { Route as SignedInOrganizationSlugSettingsIndexRouteImport } from './routes/_signed-in/$organizationSlug/settings/index'
 import { Route as SignedInOrganizationSlugSettingsAccountRouteImport } from './routes/_signed-in/$organizationSlug/settings/account'
@@ -27,6 +28,10 @@ import { Route as SignedInOrganizationSlugSettingsPreferencesRouteImport } from 
 import { Route as SignedInOrganizationSlugSourcesIndexRouteImport } from './routes/_signed-in/$organizationSlug/sources/index'
 import { Route as SignedInOrganizationSlugSourcesSourceIdRouteImport } from './routes/_signed-in/$organizationSlug/sources/$sourceId'
 import { Route as SignedInOrganizationSlugCoursesCourseIdIndexRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/index'
+import { Route as SignedInOrganizationSlugCoursesCourseIdProgressRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/progress'
+import { Route as SignedInOrganizationSlugSettingsGroupsIndexRouteImport } from './routes/_signed-in/$organizationSlug/settings/groups/index'
+import { Route as SignedInOrganizationSlugSettingsGroupsGroupIdRouteImport } from './routes/_signed-in/$organizationSlug/settings/groups/$groupId'
+import { Route as SignedInOrganizationSlugSettingsGroupsNewRouteImport } from './routes/_signed-in/$organizationSlug/settings/groups/new'
 import { Route as SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport } from './routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
 
 const SignedInRouteRoute = SignedInRouteRouteImport.update({
@@ -68,6 +73,12 @@ const SignedInOrganizationSlugIndexRoute =
   SignedInOrganizationSlugIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugGroupsRoute =
+  SignedInOrganizationSlugGroupsRouteImport.update({
+    id: '/groups',
+    path: '/groups',
     getParentRoute: () => SignedInOrganizationSlugRouteRoute,
   } as any)
 const SignedInOrganizationSlugSettingsRouteRoute =
@@ -130,6 +141,30 @@ const SignedInOrganizationSlugCoursesCourseIdIndexRoute =
     path: '/courses/$courseId/',
     getParentRoute: () => SignedInOrganizationSlugRouteRoute,
   } as any)
+const SignedInOrganizationSlugCoursesCourseIdProgressRoute =
+  SignedInOrganizationSlugCoursesCourseIdProgressRouteImport.update({
+    id: '/courses/$courseId/progress',
+    path: '/courses/$courseId/progress',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugSettingsGroupsIndexRoute =
+  SignedInOrganizationSlugSettingsGroupsIndexRouteImport.update({
+    id: '/groups/',
+    path: '/groups/',
+    getParentRoute: () => SignedInOrganizationSlugSettingsRouteRoute,
+  } as any)
+const SignedInOrganizationSlugSettingsGroupsGroupIdRoute =
+  SignedInOrganizationSlugSettingsGroupsGroupIdRouteImport.update({
+    id: '/groups/$groupId',
+    path: '/groups/$groupId',
+    getParentRoute: () => SignedInOrganizationSlugSettingsRouteRoute,
+  } as any)
+const SignedInOrganizationSlugSettingsGroupsNewRoute =
+  SignedInOrganizationSlugSettingsGroupsNewRouteImport.update({
+    id: '/groups/new',
+    path: '/groups/new',
+    getParentRoute: () => SignedInOrganizationSlugSettingsRouteRoute,
+  } as any)
 const SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute =
   SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRouteImport.update({
     id: '/courses/$courseId/learners/$learnerId',
@@ -145,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/device': typeof SignedInDeviceRoute
   '/join': typeof SignedInJoinRoute
   '/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
+  '/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -154,7 +190,11 @@ export interface FileRoutesByFullPath {
   '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
   '/$organizationSlug/settings/': typeof SignedInOrganizationSlugSettingsIndexRoute
   '/$organizationSlug/sources/': typeof SignedInOrganizationSlugSourcesIndexRoute
+  '/$organizationSlug/courses/$courseId/progress': typeof SignedInOrganizationSlugCoursesCourseIdProgressRoute
+  '/$organizationSlug/settings/groups/$groupId': typeof SignedInOrganizationSlugSettingsGroupsGroupIdRoute
+  '/$organizationSlug/settings/groups/new': typeof SignedInOrganizationSlugSettingsGroupsNewRoute
   '/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/$organizationSlug/settings/groups/': typeof SignedInOrganizationSlugSettingsGroupsIndexRoute
   '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRoutesByTo {
@@ -163,6 +203,7 @@ export interface FileRoutesByTo {
   '/device': typeof SignedInDeviceRoute
   '/join': typeof SignedInJoinRoute
   '/': typeof SignedInIndexRoute
+  '/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -172,7 +213,11 @@ export interface FileRoutesByTo {
   '/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
   '/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsIndexRoute
   '/$organizationSlug/sources': typeof SignedInOrganizationSlugSourcesIndexRoute
+  '/$organizationSlug/courses/$courseId/progress': typeof SignedInOrganizationSlugCoursesCourseIdProgressRoute
+  '/$organizationSlug/settings/groups/$groupId': typeof SignedInOrganizationSlugSettingsGroupsGroupIdRoute
+  '/$organizationSlug/settings/groups/new': typeof SignedInOrganizationSlugSettingsGroupsNewRoute
   '/$organizationSlug/courses/$courseId': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/$organizationSlug/settings/groups': typeof SignedInOrganizationSlugSettingsGroupsIndexRoute
   '/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRoutesById {
@@ -185,6 +230,7 @@ export interface FileRoutesById {
   '/_signed-in/join': typeof SignedInJoinRoute
   '/_signed-in/': typeof SignedInIndexRoute
   '/_signed-in/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
+  '/_signed-in/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
   '/_signed-in/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/_signed-in/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -194,7 +240,11 @@ export interface FileRoutesById {
   '/_signed-in/$organizationSlug/sources/$sourceId': typeof SignedInOrganizationSlugSourcesSourceIdRoute
   '/_signed-in/$organizationSlug/settings/': typeof SignedInOrganizationSlugSettingsIndexRoute
   '/_signed-in/$organizationSlug/sources/': typeof SignedInOrganizationSlugSourcesIndexRoute
+  '/_signed-in/$organizationSlug/courses/$courseId/progress': typeof SignedInOrganizationSlugCoursesCourseIdProgressRoute
+  '/_signed-in/$organizationSlug/settings/groups/$groupId': typeof SignedInOrganizationSlugSettingsGroupsGroupIdRoute
+  '/_signed-in/$organizationSlug/settings/groups/new': typeof SignedInOrganizationSlugSettingsGroupsNewRoute
   '/_signed-in/$organizationSlug/courses/$courseId/': typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
+  '/_signed-in/$organizationSlug/settings/groups/': typeof SignedInOrganizationSlugSettingsGroupsIndexRoute
   '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId': typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
 export interface FileRouteTypes {
@@ -207,6 +257,7 @@ export interface FileRouteTypes {
     | '/device'
     | '/join'
     | '/$organizationSlug/settings'
+    | '/$organizationSlug/groups'
     | '/$organizationSlug/'
     | '/$organizationSlug/settings/account'
     | '/$organizationSlug/settings/domains'
@@ -216,7 +267,11 @@ export interface FileRouteTypes {
     | '/$organizationSlug/sources/$sourceId'
     | '/$organizationSlug/settings/'
     | '/$organizationSlug/sources/'
+    | '/$organizationSlug/courses/$courseId/progress'
+    | '/$organizationSlug/settings/groups/$groupId'
+    | '/$organizationSlug/settings/groups/new'
     | '/$organizationSlug/courses/$courseId/'
+    | '/$organizationSlug/settings/groups/'
     | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -225,6 +280,7 @@ export interface FileRouteTypes {
     | '/device'
     | '/join'
     | '/'
+    | '/$organizationSlug/groups'
     | '/$organizationSlug'
     | '/$organizationSlug/settings/account'
     | '/$organizationSlug/settings/domains'
@@ -234,7 +290,11 @@ export interface FileRouteTypes {
     | '/$organizationSlug/sources/$sourceId'
     | '/$organizationSlug/settings'
     | '/$organizationSlug/sources'
+    | '/$organizationSlug/courses/$courseId/progress'
+    | '/$organizationSlug/settings/groups/$groupId'
+    | '/$organizationSlug/settings/groups/new'
     | '/$organizationSlug/courses/$courseId'
+    | '/$organizationSlug/settings/groups'
     | '/$organizationSlug/courses/$courseId/learners/$learnerId'
   id:
     | '__root__'
@@ -246,6 +306,7 @@ export interface FileRouteTypes {
     | '/_signed-in/join'
     | '/_signed-in/'
     | '/_signed-in/$organizationSlug/settings'
+    | '/_signed-in/$organizationSlug/groups'
     | '/_signed-in/$organizationSlug/'
     | '/_signed-in/$organizationSlug/settings/account'
     | '/_signed-in/$organizationSlug/settings/domains'
@@ -255,7 +316,11 @@ export interface FileRouteTypes {
     | '/_signed-in/$organizationSlug/sources/$sourceId'
     | '/_signed-in/$organizationSlug/settings/'
     | '/_signed-in/$organizationSlug/sources/'
+    | '/_signed-in/$organizationSlug/courses/$courseId/progress'
+    | '/_signed-in/$organizationSlug/settings/groups/$groupId'
+    | '/_signed-in/$organizationSlug/settings/groups/new'
     | '/_signed-in/$organizationSlug/courses/$courseId/'
+    | '/_signed-in/$organizationSlug/settings/groups/'
     | '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
   fileRoutesById: FileRoutesById
 }
@@ -320,6 +385,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/$organizationSlug/'
       preLoaderRoute: typeof SignedInOrganizationSlugIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/groups': {
+      id: '/_signed-in/$organizationSlug/groups'
+      path: '/groups'
+      fullPath: '/$organizationSlug/groups'
+      preLoaderRoute: typeof SignedInOrganizationSlugGroupsRouteImport
       parentRoute: typeof SignedInOrganizationSlugRouteRoute
     }
     '/_signed-in/$organizationSlug/settings': {
@@ -392,6 +464,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedInOrganizationSlugCoursesCourseIdIndexRouteImport
       parentRoute: typeof SignedInOrganizationSlugRouteRoute
     }
+    '/_signed-in/$organizationSlug/courses/$courseId/progress': {
+      id: '/_signed-in/$organizationSlug/courses/$courseId/progress'
+      path: '/courses/$courseId/progress'
+      fullPath: '/$organizationSlug/courses/$courseId/progress'
+      preLoaderRoute: typeof SignedInOrganizationSlugCoursesCourseIdProgressRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/settings/groups/': {
+      id: '/_signed-in/$organizationSlug/settings/groups/'
+      path: '/groups'
+      fullPath: '/$organizationSlug/settings/groups/'
+      preLoaderRoute: typeof SignedInOrganizationSlugSettingsGroupsIndexRouteImport
+      parentRoute: typeof SignedInOrganizationSlugSettingsRouteRoute
+    }
+    '/_signed-in/$organizationSlug/settings/groups/$groupId': {
+      id: '/_signed-in/$organizationSlug/settings/groups/$groupId'
+      path: '/groups/$groupId'
+      fullPath: '/$organizationSlug/settings/groups/$groupId'
+      preLoaderRoute: typeof SignedInOrganizationSlugSettingsGroupsGroupIdRouteImport
+      parentRoute: typeof SignedInOrganizationSlugSettingsRouteRoute
+    }
+    '/_signed-in/$organizationSlug/settings/groups/new': {
+      id: '/_signed-in/$organizationSlug/settings/groups/new'
+      path: '/groups/new'
+      fullPath: '/$organizationSlug/settings/groups/new'
+      preLoaderRoute: typeof SignedInOrganizationSlugSettingsGroupsNewRouteImport
+      parentRoute: typeof SignedInOrganizationSlugSettingsRouteRoute
+    }
     '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId': {
       id: '/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId'
       path: '/courses/$courseId/learners/$learnerId'
@@ -409,6 +509,9 @@ interface SignedInOrganizationSlugSettingsRouteRouteChildren {
   SignedInOrganizationSlugSettingsMembersRoute: typeof SignedInOrganizationSlugSettingsMembersRoute
   SignedInOrganizationSlugSettingsPreferencesRoute: typeof SignedInOrganizationSlugSettingsPreferencesRoute
   SignedInOrganizationSlugSettingsIndexRoute: typeof SignedInOrganizationSlugSettingsIndexRoute
+  SignedInOrganizationSlugSettingsGroupsGroupIdRoute: typeof SignedInOrganizationSlugSettingsGroupsGroupIdRoute
+  SignedInOrganizationSlugSettingsGroupsNewRoute: typeof SignedInOrganizationSlugSettingsGroupsNewRoute
+  SignedInOrganizationSlugSettingsGroupsIndexRoute: typeof SignedInOrganizationSlugSettingsGroupsIndexRoute
 }
 
 const SignedInOrganizationSlugSettingsRouteRouteChildren: SignedInOrganizationSlugSettingsRouteRouteChildren =
@@ -425,6 +528,12 @@ const SignedInOrganizationSlugSettingsRouteRouteChildren: SignedInOrganizationSl
       SignedInOrganizationSlugSettingsPreferencesRoute,
     SignedInOrganizationSlugSettingsIndexRoute:
       SignedInOrganizationSlugSettingsIndexRoute,
+    SignedInOrganizationSlugSettingsGroupsGroupIdRoute:
+      SignedInOrganizationSlugSettingsGroupsGroupIdRoute,
+    SignedInOrganizationSlugSettingsGroupsNewRoute:
+      SignedInOrganizationSlugSettingsGroupsNewRoute,
+    SignedInOrganizationSlugSettingsGroupsIndexRoute:
+      SignedInOrganizationSlugSettingsGroupsIndexRoute,
   }
 
 const SignedInOrganizationSlugSettingsRouteRouteWithChildren =
@@ -434,9 +543,11 @@ const SignedInOrganizationSlugSettingsRouteRouteWithChildren =
 
 interface SignedInOrganizationSlugRouteRouteChildren {
   SignedInOrganizationSlugSettingsRouteRoute: typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
+  SignedInOrganizationSlugGroupsRoute: typeof SignedInOrganizationSlugGroupsRoute
   SignedInOrganizationSlugIndexRoute: typeof SignedInOrganizationSlugIndexRoute
   SignedInOrganizationSlugSourcesSourceIdRoute: typeof SignedInOrganizationSlugSourcesSourceIdRoute
   SignedInOrganizationSlugSourcesIndexRoute: typeof SignedInOrganizationSlugSourcesIndexRoute
+  SignedInOrganizationSlugCoursesCourseIdProgressRoute: typeof SignedInOrganizationSlugCoursesCourseIdProgressRoute
   SignedInOrganizationSlugCoursesCourseIdIndexRoute: typeof SignedInOrganizationSlugCoursesCourseIdIndexRoute
   SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute: typeof SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute
 }
@@ -445,11 +556,14 @@ const SignedInOrganizationSlugRouteRouteChildren: SignedInOrganizationSlugRouteR
   {
     SignedInOrganizationSlugSettingsRouteRoute:
       SignedInOrganizationSlugSettingsRouteRouteWithChildren,
+    SignedInOrganizationSlugGroupsRoute: SignedInOrganizationSlugGroupsRoute,
     SignedInOrganizationSlugIndexRoute: SignedInOrganizationSlugIndexRoute,
     SignedInOrganizationSlugSourcesSourceIdRoute:
       SignedInOrganizationSlugSourcesSourceIdRoute,
     SignedInOrganizationSlugSourcesIndexRoute:
       SignedInOrganizationSlugSourcesIndexRoute,
+    SignedInOrganizationSlugCoursesCourseIdProgressRoute:
+      SignedInOrganizationSlugCoursesCourseIdProgressRoute,
     SignedInOrganizationSlugCoursesCourseIdIndexRoute:
       SignedInOrganizationSlugCoursesCourseIdIndexRoute,
     SignedInOrganizationSlugCoursesCourseIdLearnersLearnerIdRoute:

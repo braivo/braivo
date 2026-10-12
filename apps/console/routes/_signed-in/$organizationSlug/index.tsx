@@ -10,13 +10,19 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@braivo/ui/components/empty";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 
 import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
+  // A teacher's home is their groups: courses are an administrator's.
+  beforeLoad: ({ context, params }) => {
+    if (!context.organization.administers) {
+      throw redirect({ to: "/$organizationSlug/groups", params, replace: true });
+    }
+  },
   loader: async ({ context, abortController }) => ({
     courses: await orNotFound(
       context.braivo.listCourses(context.organization.id, { signal: abortController.signal }),

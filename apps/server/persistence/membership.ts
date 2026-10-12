@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { member, organization, organizationDomain, user } from "@braivo/db/schema";
+import { groupMember, member, organization, organizationDomain, user } from "@braivo/db/schema";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 /** An organization as the people who manage it find it: by name and slug. */
@@ -41,11 +41,14 @@ export async function readOrganizationRoles(
   return row ? splitRoles(row.role) : [];
 }
 
-/** Every organization this user is in, with their roles there, by name. */
+/**
+ * Every organization this user is in, by name, with their roles there and
+ * whether they teach any of its groups (ADR 0042).
+ */
 export async function readMemberships(
   database: Database,
   userId: string,
-): Promise<{ organization: ListedOrganization; roles: string[] }[]> {
+): Promise<{ organization: ListedOrganization; roles: string[]; teaches: boolean }[]> {
   const rows = await database
     .select({
       id: organization.id,
@@ -59,13 +62,23 @@ export async function readMemberships(
         limit 1
       )`,
       role: member.role,
+      teaches: sql<boolean>`exists (
+        select 1 from ${groupMember}
+        where ${groupMember.organizationId} = ${organization.id}
+          and ${groupMember.userId} = ${member.userId}
+          and ${groupMember.role} = 'teacher'
+      )`,
     })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name), asc(organization.id));
 
-  return rows.map(({ role, ...organization }) => ({ organization, roles: splitRoles(role) }));
+  return rows.map(({ role, teaches, ...organization }) => ({
+    organization,
+    roles: splitRoles(role),
+    teaches,
+  }));
 }
 
 /** A member as the people who manage the organization see them: no email. */

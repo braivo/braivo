@@ -61,7 +61,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     expect(response.status).toBe(201);
     const learnDomain = `${slug}.${selfServeDomain}`;
     expect(await response.json()).toEqual({
-      organization: { id: expect.any(String), name: "Fernwood Academy", slug, learnDomain },
+      organization: {
+        id: expect.any(String),
+        name: "Fernwood Academy",
+        slug,
+        learnDomain,
+        administers: true,
+      },
     });
     expect((await managed(teacher.cookie)).organizations).toEqual([
       expect.objectContaining({ slug, learnDomain }),

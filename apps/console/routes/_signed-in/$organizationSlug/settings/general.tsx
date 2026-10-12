@@ -21,7 +21,9 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { CircleAlertIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 
+import { NoSuchSetting } from "#components/no-such-setting";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { administratorsOnly } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /** The server's limit on an organization's name, as setup's. */
@@ -32,10 +34,12 @@ const MAX_NAME_LENGTH = 100;
  * domain, and its console address, which cannot change yet (ADR 0004).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/general")({
+  beforeLoad: administratorsOnly,
   head: (head) => pageHead(head, t`General`),
   // A page per organization: switching carries over nothing typed or saving.
   remountDeps: ({ params }) => params.organizationSlug,
   component: General,
+  notFoundComponent: NoSuchSetting,
 });
 
 /** The last save's outcome; a failure's count keys its alert, so a repeat is announced too. */

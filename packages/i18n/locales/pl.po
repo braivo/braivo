@@ -7,10 +7,45 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: pl\n"
 
+#: apps/console/components/group-form.tsx
+msgid "(in this group)"
+msgstr "(w tej grupie)"
+
+#. placeholder {0}: group.learners.length
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "{0, plural, one {# learner} other {# learners}}"
+msgstr "{0, plural, one {# uczeń} few {# uczniów} many {# uczniów} other {# ucznia}}"
+
+#. placeholder {0}: teachers.length
+#. placeholder {1}: learners.length
+#. placeholder {2}: shown.courseIds.length
+#: apps/console/components/group-form.tsx
+msgid "{0, plural, one {# teacher} other {# teachers}} will be able to read progress for {1, plural, one {# learner} other {# learners}} in {2, plural, one {# course} other {# courses}}."
+msgstr "Postępy {1, plural, one {# ucznia} few {# uczniów} many {# uczniów} other {# ucznia}} w {2, plural, one {# kursie} few {# kursach} many {# kursach} other {# kursu}} będzie widzieć {0, plural, one {# nauczyciel} few {# nauczycieli} many {# nauczycieli} other {# nauczyciela}}."
+
+#. placeholder {0}: head.loaderData.course.title
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{0} · Progress"
+msgstr "{0} · Postępy"
+
+#. placeholder {0}: person(userId).name
+#: apps/console/components/group-form.tsx
+msgid "{0} is a learner."
+msgstr "Rola osoby {0}: uczeń."
+
+#. placeholder {0}: person(userId).name
+#: apps/console/components/group-form.tsx
+msgid "{0} is a teacher."
+msgstr "Rola osoby {0}: nauczyciel."
+
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
+msgstr "{count, plural, one {# uczeń, którego uczysz} few {# uczniów, których uczysz} many {# uczniów, których uczysz} other {# ucznia, których uczysz}} w tym kursie, w Twoich grupach: {groupNames}."
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -20,6 +55,11 @@ msgstr "{count, plural, one {# w trakcie nauki} few {# w trakcie nauki} many {# 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "{count, plural, one {# member.} other {# members.}}"
 msgstr "{count, plural, one {# osoba.} few {# osoby.} many {# osób.} other {# osoby.}}"
+
+#. placeholder {0}: organization.name
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
+msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -34,6 +74,10 @@ msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych}
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "{domain} now serves your learners."
 msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "{failures, plural, one {# failure} other {# failures}}"
+msgstr "{failures, plural, one {# błąd} few {# błędy} many {# błędów} other {# błędu}}"
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "{hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them."
@@ -60,6 +104,10 @@ msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (wkrótce)"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "{successes, plural, one {# success} other {# successes}}"
+msgstr "{successes, plural, one {# sukces} few {# sukcesy} many {# sukcesów} other {# sukcesu}}"
+
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
 msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
@@ -67,6 +115,10 @@ msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
 #: packages/auth-client/sign-in.tsx
 msgid "A code was requested less than a minute ago. Check your email."
 msgstr "O kod poproszono niecałą minutę temu. Sprawdź pocztę."
+
+#: apps/console/components/group-form.tsx
+msgid "A group was already created from this form. Find it among the groups."
+msgstr "Grupa z tego formularza została już utworzona. Znajdziesz ją wśród grup."
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "A home for your materials, courses, and learners."
@@ -92,9 +144,30 @@ msgstr "Aktywuj"
 msgid "Add a domain"
 msgstr "Dodaj domenę"
 
+#: apps/console/components/group-form.tsx
+msgid "Add a teacher to make this group visible to them."
+msgstr "Dodaj nauczyciela, aby zobaczył tę grupę."
+
+#: apps/console/components/group-form.tsx
+msgid "Add courses"
+msgstr "Dodaj kursy"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add domain"
 msgstr "Dodaj domenę"
+
+#: apps/console/components/group-form.tsx
+msgid "Add learners"
+msgstr "Dodaj uczniów"
+
+#: apps/console/components/group-form.tsx
+msgid "Add teachers"
+msgstr "Dodaj nauczycieli"
+
+#. placeholder {0}: titles.get(courseId)
+#: apps/console/components/group-form.tsx
+msgid "Added {0}."
+msgstr "Dodano: {0}."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Added {added}. Create its DNS records above."
@@ -132,9 +205,35 @@ msgstr "Beta"
 msgid "Both are kept in this browser."
 msgstr "Oba ustawienia są zapamiętywane w tej przeglądarce."
 
+#: apps/console/components/group-form.tsx
+msgid "Braivo refused this group: someone or a course in it is no longer the organization's. Remove them and save again, or reload the page to see who and what can be added, losing these changes."
+msgstr "Braivo odrzuciło tę grupę: ktoś lub któryś kurs nie należy już do organizacji. Usuń te osoby lub kursy i zapisz ponownie albo wczytaj stronę jeszcze raz, tracąc te zmiany, aby zobaczyć, kogo i co można dodać."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
 msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</1>."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "By name"
+msgstr "Alfabetycznie"
+
+#: apps/console/components/group-form.tsx
+msgid "Change to learner"
+msgstr "Zmień na ucznia"
+
+#. placeholder {0}: labelOf(userId)
+#: apps/console/components/group-form.tsx
+msgid "Change to learner: {0}"
+msgstr "Zmień na ucznia: {0}"
+
+#: apps/console/components/group-form.tsx
+msgid "Change to teacher"
+msgstr "Zmień na nauczyciela"
+
+#. placeholder {0}: labelOf(userId)
+#: apps/console/components/group-form.tsx
+msgid "Change to teacher: {0}"
+msgstr "Zmień na nauczyciela: {0}"
 
 #: packages/ui/compositions/typed-question.tsx
 msgid "Check"
@@ -152,7 +251,7 @@ msgstr "Sprawdź pocztę"
 msgid "Checking…"
 msgstr "Sprawdzanie…"
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+#: apps/console/components/no-such-setting.tsx
 msgid "Choose one from the list."
 msgstr "Wybierz jedno z listy."
 
@@ -239,6 +338,14 @@ msgstr "Nie udało się sprawdzić domeny. Spróbuj ponownie."
 msgid "Could not check this domain just now. Try again in a moment."
 msgstr "Nie udało się teraz sprawdzić tej domeny. Spróbuj ponownie za chwilę."
 
+#: apps/console/components/group-form.tsx
+msgid "Could not confirm the change. Reload the group to check it before saving again."
+msgstr "Nie udało się potwierdzić zmiany. Wczytaj grupę ponownie i sprawdź ją przed kolejnym zapisem."
+
+#: apps/console/components/group-form.tsx
+msgid "Could not confirm the group was created. Try again: the same group is sent, and never created twice."
+msgstr "Nie udało się potwierdzić utworzenia grupy. Spróbuj ponownie: zostanie wysłana ta sama grupa i nie powstanie dwa razy."
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Could not confirm the organization was created. Reload this page to check before trying again."
 msgstr "Nie udało się potwierdzić, że organizacja została utworzona. Odśwież stronę, aby to sprawdzić, zanim spróbujesz ponownie."
@@ -252,6 +359,10 @@ msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
 #: apps/console/components/copy-button.tsx
 msgid "Could not copy. Select it instead."
 msgstr "Nie udało się skopiować. Zaznacz tekst i skopiuj go ręcznie."
+
+#: apps/console/components/group-form.tsx
+msgid "Could not reload the group. Try again."
+msgstr "Nie udało się wczytać grupy ponownie. Spróbuj jeszcze raz."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Could not remove the domain. Try again."
@@ -277,13 +388,26 @@ msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj s
 msgid "Could not sign out. Try again."
 msgstr "Nie udało się wylogować. Spróbuj ponownie."
 
+#: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
 msgid "Courses"
 msgstr "Kursy"
 
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Courses will appear here when they're available to you."
 msgstr "Kursy pojawią się tutaj, gdy zostaną Ci udostępnione."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Create a group to give teachers access to the learners they teach."
+msgstr "Utwórz grupę, aby dać nauczycielom dostęp do ich uczniów."
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Create group"
+msgstr "Utwórz grupę"
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "Create organization"
@@ -321,9 +445,14 @@ msgid "due for review"
 msgstr "do powtórki"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Due for review"
 msgstr "Do powtórki"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Due for review, {recall}% estimated recall"
+msgstr "Do powtórki, szacowane zapamiętanie {recall}%"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Due for review: about {percent}% likely to recall now."
@@ -333,10 +462,27 @@ msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypo
 msgid "e.g. Fernwood Academy"
 msgstr "np. Fernwood Academy"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Each learner's objectives, counted by standing."
+msgstr "Cele każdego ucznia, policzone według stanu."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whoever is searched for above."
+msgstr "Uczniowie przy każdym celu, policzeni według stanu: {learners, plural, one {# uczeń} few {wszyscy # uczniowie} many {wszystkich # uczniów} other {wszyscy # ucznia}} z tej strony, niezależnie od wyszukiwania powyżej."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Edit"
+msgstr "Edytuj"
+
 #: apps/console/components/organization-setup-form.tsx
 msgctxt "Changes the learners' site address"
 msgid "Edit"
 msgstr "Zmień"
+
+#. placeholder {0}: group.name
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Edit {0}"
+msgstr "Edytuj {0}"
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "Edit learners' site"
@@ -364,6 +510,10 @@ msgstr "Wpisz nazwę o długości najwyżej {MAX_NAME_LENGTH} znaków."
 msgid "Enter an address of lowercase letters, digits, and single hyphens."
 msgstr "Wpisz adres złożony z małych liter, cyfr i pojedynczych łączników."
 
+#: apps/console/components/group-form.tsx
+msgid "Enter the group's name."
+msgstr "Wpisz nazwę grupy."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Enter the six-digit code sent to {address}. It expires in 10 minutes and works once."
 msgstr "Wpisz sześciocyfrowy kod wysłany na adres {address}. Wygasa po 10 minutach i działa tylko raz."
@@ -382,6 +532,10 @@ msgstr "Wpisz swoje imię i nazwisko."
 msgid "Enter your organization's name."
 msgstr "Wpisz nazwę organizacji."
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Evidence"
+msgstr "Wyniki"
+
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Expand sidebar"
 msgstr "Rozwiń panel boczny"
@@ -390,9 +544,33 @@ msgstr "Rozwiń panel boczny"
 msgid "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
 msgstr "Masz zarządzać organizacją? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię."
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "failure"
+msgstr "błąd"
+
+#: apps/console/components/group-form.tsx
+msgid "Find a course"
+msgstr "Znajdź kurs"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Find a group"
+msgstr "Znajdź grupę"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Find a learner"
+msgstr "Znajdź ucznia"
+
+#: apps/console/components/group-form.tsx
+msgid "Find a member"
+msgstr "Znajdź członka"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "First time here? Signing in creates your account."
 msgstr "Jesteś tu pierwszy raz? Logowanie utworzy Twoje konto."
+
+#: apps/console/components/group-form.tsx
+msgid "For example, 7A · English."
+msgstr "Na przykład 7A · Angielski."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "From your lessons"
@@ -410,6 +588,15 @@ msgstr "Wróć do poprzedniej strony i zaloguj się ponownie."
 #: apps/console/components/organization-setup-form.tsx
 msgid "Go to the {selectedRegionName} site"
 msgstr "Przejdź do strony regionu: {selectedRegionName}"
+
+#: apps/console/components/group-form.tsx
+#: apps/console/components/organization-sidebar.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Groups"
+msgstr "Grupy"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Here it is"
@@ -448,6 +635,10 @@ msgstr "To jedyna domena Twoich uczniów. Najpierw dodaj inną."
 msgid "Its records are not available yet."
 msgstr "Jej rekordy nie są jeszcze dostępne."
 
+#: apps/console/components/group-form.tsx
+msgid "Its teachers will see no progress until it has learners and a course."
+msgstr "Nauczyciele tej grupy nie zobaczą postępów, dopóki nie będzie w niej uczniów i kursu."
+
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
@@ -455,6 +646,14 @@ msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Keep it"
 msgstr "Zostaw"
+
+#: apps/console/components/group-form.tsx
+msgid "Keep the name to {MAX_TITLE} characters."
+msgstr "Nazwa może mieć najwyżej {MAX_TITLE} znaków."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Knowledge estimates include learning across this organization's courses that cover these objectives."
+msgstr "Szacunki wiedzy obejmują naukę we wszystkich kursach tej organizacji, które dotyczą tych celów."
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/components/language-menu.tsx
@@ -466,9 +665,21 @@ msgstr "Język"
 msgid "Language: {name}"
 msgstr "Język: {name}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Last evidence"
+msgstr "Ostatni wynik"
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Uczeń"
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Learners"
+msgstr "Uczniowie"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners can no longer practise there: links to it stop working, and anyone signed in there is signed out."
@@ -486,6 +697,10 @@ msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Dodaj domenę poniżej.
 msgid "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
 msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Poproś osobę, która skonfigurowała dla Ciebie Braivo, o jej dodanie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Learners practise at"
+msgstr "Uczniowie ćwiczą na stronie"
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Learners' site"
 msgstr "Strona dla uczniów"
@@ -500,6 +715,8 @@ msgid "Learning"
 msgstr "Nauka"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Learning"
 msgstr "W trakcie nauki"
@@ -507,6 +724,10 @@ msgstr "W trakcie nauki"
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Learning? Open the site your school or training provider gave you."
 msgstr "Uczysz się? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
+
+#: apps/console/components/group-form.tsx
+msgid "Leave this page? Your changes to this group will be lost."
+msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
@@ -525,12 +746,30 @@ msgstr "Ładowanie"
 msgid "Loading…"
 msgstr "Ładowanie…"
 
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Manage groups"
+msgstr "Zarządzaj grupami"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Members"
 msgstr "Członkowie"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Most objectives due"
+msgstr "Najwięcej celów do powtórki"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Most objectives learning"
+msgstr "Najwięcej celów w trakcie nauki"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+msgid "Name"
+msgstr "Nazwa"
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgctxt "group"
 msgid "Name"
 msgstr "Nazwa"
 
@@ -548,17 +787,69 @@ msgctxt "Why a question comes now"
 msgid "New"
 msgstr "Nowy temat"
 
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/new.tsx
+msgid "New group"
+msgstr "Nowa grupa"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No code? Check your spam folder."
 msgstr "Nie ma kodu? Sprawdź folder ze spamem."
+
+#: apps/console/components/group-form.tsx
+msgid "No course matches."
+msgstr "Żaden kurs nie pasuje."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "No courses assigned: edit the group to add one."
+msgstr "Brak przypisanych kursów: edytuj grupę, aby dodać kurs."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "No courses assigned. Ask your administrator to add one."
+msgstr "Brak przypisanych kursów. Poproś administratora o dodanie kursu."
 
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "No courses yet"
 msgstr "Nie masz jeszcze kursów"
 
+#: apps/console/components/group-form.tsx
+msgid "No courses yet."
+msgstr "Na razie brak kursów."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "No group matches “{query}”."
+msgstr "Żadna grupa nie pasuje do „{query}”."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "No groups yet"
+msgstr "Na razie brak grup"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No learner matches “{query}”."
+msgstr "Żaden uczeń nie pasuje do „{query}”."
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "No learners yet."
+msgstr "Na razie brak uczniów."
+
+#: apps/console/components/group-form.tsx
+msgid "No member matches."
+msgstr "Żaden członek nie pasuje."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No password to remember."
 msgstr "Bez hasła do zapamiętania."
+
+#: apps/console/components/group-form.tsx
+msgid "No teacher can read this group's progress yet."
+msgstr "Na razie żaden nauczyciel nie widzi postępów tej grupy."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "No teachers."
+msgstr "Brak nauczycieli."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Not active yet"
@@ -573,6 +864,16 @@ msgstr "Nie tym razem"
 msgid "not started"
 msgstr "nie rozpoczęto"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgctxt "A learner's standing on an objective"
+msgid "Not started"
+msgstr "Nierozpoczęte"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
+msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło, a nie że wciąż się nie udaje: rozwiń wyniki, aby sprawdzić."
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "Nothing is due right now."
 msgstr "Na razie nic nie czeka na powtórkę."
@@ -585,9 +886,22 @@ msgstr "Na razie nic nie czeka na powtórkę. Następna powtórka: „{objective
 msgid "Nothing to practise right now"
 msgstr "Na razie nie ma nic do ćwiczenia"
 
+#: apps/console/components/group-form.tsx
+msgid "Nothing to save: the group is as shown."
+msgstr "Nie ma nic do zapisania: grupa już tak wygląda."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Objective"
+msgstr "Cel"
+
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
+
+#: apps/console/components/group-form.tsx
+msgid "Only the organization's members can be added. Ask whoever runs Braivo for you to add anyone missing first."
+msgstr "Można dodać tylko członków organizacji. Brakujące osoby najpierw musi dodać ten, kto prowadzi dla Ciebie Braivo."
 
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Open navigation"
@@ -597,6 +911,10 @@ msgstr "Otwórz nawigację"
 msgctxt "Between two ways to sign in"
 msgid "or"
 msgstr "lub"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Order"
+msgstr "Kolejność"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Organization"
@@ -619,6 +937,10 @@ msgstr "Organizacje"
 #: apps/console/components/organization-setup-form.tsx
 msgid "Organizations in this region are set up on its own site, where you sign in again."
 msgstr "Organizacje w tym regionie zakłada się na osobnej stronie, na której zalogujesz się ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Organize learners, teachers, and courses. Teachers can read progress for the learners and courses in their groups."
+msgstr "Łącz uczniów, nauczycieli i kursy w grupy. Nauczyciele widzą postępy uczniów w kursach swoich grup."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Owner"
@@ -648,9 +970,31 @@ msgstr "Główna"
 msgid "Profile"
 msgstr "Profil"
 
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Progress"
+msgstr "Postępy"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Progress by objective"
+msgstr "Postępy według celów"
+
+#: apps/console/components/group-form.tsx
+msgid "Reload the group"
+msgstr "Wczytaj grupę ponownie"
+
+#: apps/console/components/group-form.tsx
+msgid "Reloaded. Your changes not yet in the group are still shown."
+msgstr "Wczytano ponownie. Twoje niezapisane zmiany są nadal widoczne."
+
+#: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Remove"
 msgstr "Usuń"
+
+#. placeholder {0}: nameWithTag(name, tag)
+#: apps/console/components/group-form.tsx
+msgid "Remove {0}"
+msgstr "Usuń {0}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Remove {hostname}"
@@ -660,9 +1004,23 @@ msgstr "Usuń {hostname}"
 msgid "Remove {hostname}?"
 msgstr "Usunąć {hostname}?"
 
+#: apps/console/components/group-form.tsx
+msgid "Remove the characters in the name that are not text."
+msgstr "Usuń z nazwy znaki, które nie są tekstem."
+
+#. placeholder {0}: person(userId).name
+#. placeholder {0}: titles.get(courseId)
+#: apps/console/components/group-form.tsx
+msgid "Removed {0}."
+msgstr "Usunięto: {0}."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Removed {domain}."
 msgstr "Usunięto {domain}."
+
+#: apps/console/components/group-form.tsx
+msgid "Removing someone keeps their learning history and their membership; another group may still give the same access."
+msgstr "Usunięcie osoby zachowuje jej historię nauki i członkostwo; inna grupa może nadal dawać ten sam dostęp."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Removing…"
@@ -674,14 +1032,23 @@ msgid "retained"
 msgstr "utrwalono"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Retained"
 msgstr "Utrwalone"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Retained, {recall}% estimated recall"
+msgstr "Utrwalone, szacowane zapamiętanie {recall}%"
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgctxt "Why a question comes now"
 msgid "Review"
 msgstr "Powtórka"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Review due"
+msgstr "Termin powtórki"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Role"
@@ -692,6 +1059,11 @@ msgstr "Rola"
 msgid "Save"
 msgstr "Zapisz"
 
+#: apps/console/components/group-form.tsx
+msgid "Save changes"
+msgstr "Zapisz zmiany"
+
+#: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saved."
@@ -701,6 +1073,18 @@ msgstr "Zapisano."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saving…"
 msgstr "Zapisywanie…"
+
+#: apps/console/components/group-form.tsx
+msgid "See groups"
+msgstr "Zobacz grupy"
+
+#: apps/console/components/group-form.tsx
+msgid "See members"
+msgstr "Zobacz członków"
+
+#: apps/console/components/group-form.tsx
+msgid "See sources"
+msgstr "Zobacz materiały źródłowe"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send a new code"
@@ -766,6 +1150,14 @@ msgstr "Zalogowano jako {email}."
 msgid "Signing in"
 msgstr "Logowanie"
 
+#: apps/console/components/group-form.tsx
+msgid "Someone changed this group meanwhile: {whom} is already in it in the other role, so that change was left out. Change their role below if you meant to, then save again."
+msgstr "Ktoś w międzyczasie zmienił tę grupę: {whom} ma w niej już drugą rolę, więc ta zmiana została pominięta. Jeśli o to chodziło, zmień rolę poniżej i zapisz ponownie."
+
+#: apps/console/components/group-form.tsx
+msgid "Someone changed this group meanwhile. Check the group as it is now, then save again."
+msgstr "Ktoś w międzyczasie zmienił tę grupę. Sprawdź jej aktualny stan i zapisz ponownie."
+
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
@@ -780,9 +1172,17 @@ msgstr "Coś poszło nie tak. Spróbuj ponownie."
 msgid "Sources"
 msgstr "Materiały źródłowe"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Standing"
+msgstr "Stan"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Status unknown"
 msgstr "Stan nieznany"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "success"
+msgstr "sukces"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
@@ -797,9 +1197,23 @@ msgstr "Systemowy podąża za jasnym lub ciemnym trybem Twojego urządzenia."
 msgid "Take a short break"
 msgstr "Zrób krótką przerwę"
 
+#. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "Taught by {0}."
+msgstr "Prowadzący: {0}."
+
 #: apps/console/components/sign-in-page.tsx
 msgid "Teach it once. <0>Tutor every learner.</0>"
 msgstr "Ucz raz. <0>Prowadź każdego ucznia.</0>"
+
+#: apps/console/components/group-form.tsx
+msgid "Teacher"
+msgstr "Nauczyciel"
+
+#: apps/console/components/group-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
+msgid "Teachers"
+msgstr "Nauczyciele"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "That address is Braivo's own. Enter a domain your organization owns."
@@ -856,13 +1270,17 @@ msgstr "Strony organizacji i Twoje konto."
 msgid "Theme"
 msgstr "Motyw"
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+#: apps/console/components/no-such-setting.tsx
 msgid "There is no such setting"
 msgstr "Nie ma takiego ustawienia"
 
 #: apps/learn/routes/__root.tsx
 msgid "There is nothing here."
 msgstr "Nic tu nie ma."
+
+#: apps/console/components/group-form.tsx
+msgid "They can read the progress of this group's learners in its courses."
+msgstr "Widzą postępy uczniów tej grupy w jej kursach."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "They cannot be added or removed here yet; whoever runs Braivo for you can."
@@ -884,18 +1302,42 @@ msgstr "To anuluje jej konfigurację. Możesz dodać ją ponownie później."
 msgid "This course does not exist, or is not one of yours."
 msgstr "Ten kurs nie istnieje albo nie masz do niego dostępu."
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "This course does not exist, or its progress is not yours to see."
+msgstr "Ten kurs nie istnieje albo nie masz wglądu w jego postępy."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "This course has no objectives yet, so there is no progress to report."
+msgstr "Ten kurs nie ma jeszcze celów, więc nie ma postępów do pokazania."
+
+#: apps/console/components/group-form.tsx
+msgid "This does not change which courses learners can study."
+msgstr "Nie zmienia to, w których kursach uczniowie mogą się uczyć."
+
 #: packages/auth-client/sign-in.tsx
 msgid "This email has not been added here yet. Ask to have it added, then sign in again: this code works until it expires."
 msgstr "Ten adres e-mail nie został jeszcze dodany do tej organizacji. Poproś o jego dodanie, a potem zaloguj się ponownie: ten kod działa, dopóki nie wygaśnie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/groups/$groupId.tsx
+msgid "This group does not exist, or is not yours to change."
+msgstr "Ta grupa nie istnieje albo nie możesz jej zmieniać."
+
+#: apps/console/components/group-form.tsx
+msgid "This group no longer exists."
+msgstr "Ta grupa już nie istnieje."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "This installation cannot check domains. Ask whoever set Braivo up for you to finish adding it."
 msgstr "Ta instalacja nie może sprawdzać domen. Poproś osobę, która skonfigurowała dla Ciebie Braivo, o dokończenie dodawania."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "This organization does not exist, or you do not manage it."
-msgstr "Ta organizacja nie istnieje albo nie zarządzasz nią."
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "This learner does not exist, or their progress is not yours to see."
+msgstr "Ten uczeń nie istnieje albo nie masz wglądu w jego postępy."
+
+#: apps/console/components/group-form.tsx
+msgid "This organization has no courses yet: draft one from a source first."
+msgstr "Ta organizacja nie ma jeszcze kursów: najpierw przygotuj kurs z materiału źródłowego."
 
 #: apps/learn/routes/_signed-in/courses/$courseId.tsx
 msgid "This question can't be answered here yet."
@@ -904,6 +1346,10 @@ msgstr "Na to pytanie nie da się jeszcze tu odpowiedzieć."
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"
 msgstr "To logowanie wygasło"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
+msgstr "Aby członek widział postępy swoich uczniów, dodaj go jako nauczyciela do <0>grupy</0>."
 
 #: packages/auth-client/sign-in.tsx
 msgid "Too many tries. Wait a minute, then try again."

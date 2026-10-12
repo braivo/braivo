@@ -12,7 +12,7 @@ import { organizationToOpen } from "#lib/last-organization";
 /**
  * Setting up an organization, for whoever owns none (ADR 0018), and where
  * someone managing none lands (ADR 0004). Whoever may not set one up but
- * manages one is sent to it, as from `/`, so an owner reloading after an
+ * works in one is sent to it, as from `/`, so an owner reloading after an
  * unclear setup finds it. In `beforeLoad`, which every navigation runs; a
  * loader's result a preload may reuse.
  */
