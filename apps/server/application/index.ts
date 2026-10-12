@@ -57,8 +57,8 @@ export { chooseNextObjective } from "./next-objective.ts";
 export { isTimeZone } from "./daily-limit.ts";
 export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";
 export {
-  listManagedOrganizations,
   listMembers,
+  listOrganizations,
   maySetUpOrganization,
   NameRefused,
   renameOrganization,

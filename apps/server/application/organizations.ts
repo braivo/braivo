@@ -18,16 +18,20 @@ import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains
 import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
- * The organizations someone manages (`owner` or `admin`), by name, each with
- * where its learners practise: the console's list. Not every membership, since
- * a learner is a member too.
+ * The organizations someone works in, by name, each with where its learners
+ * practise: those they administer (`owner` or `admin`), and those where they
+ * teach a group (ADR 0042), `administers` telling the two apart. Not every
+ * membership, since a learner is a member too.
  */
-export async function listManagedOrganizations(input: {
+export async function listOrganizations(input: {
   database: Database;
   actingAs: string;
-}): Promise<ListedOrganization[]> {
+}): Promise<(ListedOrganization & { administers: boolean })[]> {
   const memberships = await readMemberships(input.database, input.actingAs);
-  return memberships.filter(({ roles }) => administers(roles)).map((m) => m.organization);
+  return memberships.flatMap(({ organization, roles, teaches }) => {
+    const administering = administers(roles);
+    return administering || teaches ? [{ ...organization, administers: administering }] : [];
+  });
 }
 
 /** The organizations someone owns: self-serve allows one. */
@@ -136,7 +140,7 @@ export async function setUpOrganization(input: {
     slug: string;
     ownerId: string;
   }) => Promise<Organization | "slug taken" | "slug reserved" | "slug malformed">;
-}): Promise<ListedOrganization> {
+}): Promise<ListedOrganization & { administers: true }> {
   const { database, actingAs, slug } = input;
   const name = parseOrganizationName(input.name);
   if (name === undefined) {
@@ -206,7 +210,7 @@ export async function setUpOrganization(input: {
     // Registered for another since the check.
     throw error instanceof DomainRefused ? taken : error;
   }
-  return { ...organization, learnDomain: hostname };
+  return { ...organization, learnDomain: hostname, administers: true };
 }
 
 /** A name an organization cannot have; `code` for a client to word (ADR 0035). */

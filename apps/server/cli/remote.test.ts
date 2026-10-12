@@ -342,7 +342,11 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
 
 describe("adding a file as a source", () => {
   const client = {
-    listOrganizations: async () => [{ id: "o", name: "School", slug: "school" }],
+    listOrganizations: async () => [
+      { id: "o", name: "School", slug: "school", administers: true },
+      // Taught, not managed: never a source's.
+      { id: "t", name: "Tutoring", slug: "tutoring", administers: false },
+    ],
     addSource: async (input: object) => JSON.stringify(input),
   };
 
@@ -678,6 +682,16 @@ describe("adding a file as a source", () => {
   });
 
   test("refuses a slug of no organization its owner manages, listing theirs, and uploads nothing", async () => {
+    await expect(
+      addSourceFromFile({
+        client: client as never,
+        organizationSlug: "tutoring",
+        file: "-",
+        title: "Libro",
+        readStdin: async () => "Hola.",
+      }),
+    ).rejects.toThrow('You manage no organization "tutoring"; yours: school.');
+
     const directory = await mkdtemp(join(tmpdir(), "braivo-"));
     const pdf = join(directory, "libro.pdf");
     await writeFile(pdf, "%PDF-1.7");

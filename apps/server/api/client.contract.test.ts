@@ -258,6 +258,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         name: organizationId,
         slug: organizationId,
         learnDomain: organizationHost,
+        administers: true,
       },
     ]);
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
@@ -285,6 +286,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       name: "Fernwood Academy",
       slug,
       learnDomain: `${slug}.${selfServeDomain}`,
+      administers: true,
     });
     expect(await client.listOrganizations({ headers: { cookie } })).toEqual([organization]);
 
@@ -379,6 +381,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       },
     ]);
     expect(await client.listGroups(organizationId, asAdmin)).toEqual(taught);
+    // Teaching a group with no learners yet is enough to find the organization.
+    expect(await client.listOrganizations(asLearner)).toEqual([
+      expect.objectContaining({ id: organizationId, administers: false }),
+    ]);
 
     expect(
       await client.changeGroup(
@@ -387,6 +393,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       ),
     ).toEqual({ ...taught[0], teachers: [] });
     expect(await client.listGroups(organizationId, asLearner)).toEqual([]);
+    expect(await client.listOrganizations(asLearner)).toEqual([]);
 
     const missing = await client
       .changeGroup({ organizationId, groupId: "no-such-group", name: "Any" }, asAdmin)

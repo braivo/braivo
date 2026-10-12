@@ -1,6 +1,6 @@
 # 0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses
 
-Status: proposed (2026-10-12)
+Status: accepted (2026-10-12)
 
 ## Context
 
@@ -17,6 +17,7 @@ A **group** is an organization's learners and teachers taking some of its course
 - **Last writer wins, for administrators.** Concurrent changes apply in turn, the last one's word final for what both touch: a revision would refuse every blind edit to catch a race between two administrators. An agent's changes wait for the safeguards under Consequences.
 - **A role changes only when the change says so; lists are sets.** Removals apply before additions, so removing someone and adding them in one change sets their role, and adding someone already there in the other role is refused 409, as a learner listed among teachers by mistake would read their classmates' progress. An ID twice, one person in both roles, a non-member, another organization's course, or a change naming nothing is refused 400, saying which; a field the route does not know is refused, as a misspelt one would otherwise change nothing.
 - **Listed where they are.** `GET /api/organizations/:organizationId/groups` answers an administrator every group, any other member those they teach: one route for an organization's console, and for a remote MCP connection, which acts in one school.
+- **Found where they teach.** `GET /api/organizations` lists the organizations someone administers or teaches a group in, an empty group included, each with `administers`: one list, which the console resolves `/<slug>` in, rather than a second endpoint for teaching. In the console a teacher's organization shows Groups alone, its courses' progress, and their account's settings; whatever only an administrator may read is refused before it is asked for, presentation only, the routes deciding. Callers that author, `braivo mcp` and `braivo sources add`, keep to those administered. This amends [ADR 0004](0004-one-application-origin.md) and [ADR 0022](0022-machine-access.md), whose console and tools found only the organizations someone manages.
 - **Integrity in the schema.** A group's people reference their membership, `(organization, user)`, so only a member is in a group and leaving the organization leaves its groups; its courses reference the course with the organization. Deleting a group, a membership, or a course removes the assignments, never evidence.
 - **Practice unchanged.** Who may study a course is still membership: a group scopes teaching, not access to courses.
 
@@ -29,11 +30,13 @@ A **group** is an organization's learners and teachers taking some of its course
 - **Whole replacement at a `revision`**, refused 409 if stale: every edit resends the roster, an agent must read before each write and again after any 409, and a dropped ID still removes someone silently.
 - **A route per edit** (add a learner, remove a teacher, …): what one change route with optional parts does, in four.
 - **Groups a teacher defines themselves**: grants any learner's progress to whoever adds them. Teacher-led groups need the learner's or an administrator's say first, a later decision.
+- **A console endpoint listing teaching apart**, with `canAdminister` and `canTeach`: two lists of organizations to keep in step, and `canTeach` says nothing an administrator does not have already.
 - **Better Auth's teams**: membership without roles, behind endpoints Braivo would have to close as it closes the organization plugin's.
 
 ## Consequences
 
-- A teacher who knows the organization finds what they teach through its groups route; `GET /api/organizations` lists only those a session manages, and neither the console nor `braivo mcp` shows groups, so a teacher who is not an administrator has no page yet.
+- A course's progress reports every group a teacher teaches it to, together: no report is of one group, until the overview can return a group's learners and its objectives' counts for the same learners, at the same moment.
+- `braivo mcp` shows a teacher neither groups nor the organizations they teach in: an agent finds course IDs through `list_courses`, an administrator's.
 - An agent reads progress as the teacher it acts for, through the same use cases, so the planned gate on tools reading others' progress ([#122](https://github.com/braivo/braivo/issues/122)) covers teaching too. Group listings carry names, not progress: whether that gate covers them is its decision. Seeing a learner's standings does not settle sending their dated history to a teacher's AI provider: an agent should ask for standings alone (`includeHistory: false`) unless the question needs the history, and whether it may have the history at all is the gate's to decide.
 - A group change records no actor, as content records no author ([authoring](../specs/authoring.md)): who gave a teacher access, in the console or through which agent, is not answerable yet.
 - Before an agent's tool writes groups: what widens access to learners' progress (a teacher, a learner, or a course added, a role changed) is the people in the console's to approve, as ADR 0039 makes publishing; an approval holds only for the group as it was shown, which needs a precondition the change route then takes; and who made each change is recorded. A retry made after another's change applies again until changes carry an ID of their own. Renaming and removing need none of this.

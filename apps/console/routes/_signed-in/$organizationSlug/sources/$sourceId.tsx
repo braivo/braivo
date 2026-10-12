@@ -27,10 +27,11 @@ import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState }
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { explainAiProxyTimeout, orNotFound } from "#lib/refusals";
+import { administratorsOnly, explainAiProxyTimeout, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
+  beforeLoad: administratorsOnly,
   loader: async ({ context, params, abortController }) => ({
     source: await orNotFound(
       context.braivo.getSource(

@@ -13,9 +13,10 @@ import {
 } from "@braivo/ui/components/table";
 import { msg, t } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { orNotFound } from "#lib/refusals";
+import { NoSuchSetting } from "#components/no-such-setting";
+import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -24,6 +25,7 @@ import { pageHead } from "#lib/title";
  * them meanwhile (access-20).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/members")({
+  beforeLoad: administratorsOnly,
   loader: async ({ context, abortController }) => ({
     members: await orNotFound(
       context.braivo.listMembers(context.organization.id, { signal: abortController.signal }),
@@ -31,11 +33,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/mem
   }),
   head: (head) => pageHead(head, t`Members`),
   component: Members,
-  notFoundComponent: () => (
-    <p>
-      <Trans>This organization does not exist, or you do not manage it.</Trans>
-    </p>
-  ),
+  notFoundComponent: NoSuchSetting,
 });
 
 /** Each role as a school says it: a `member` is a learner, membership being enrollment (access-23). */
@@ -47,7 +45,7 @@ const ROLE_NAMES = {
 
 function Members() {
   const { members } = Route.useLoaderData();
-  const { user } = Route.useRouteContext();
+  const { user, organization } = Route.useRouteContext();
   const { i18n } = useLingui();
   const count = members.length;
   // "Owner and Admin", in the reader's language.
@@ -59,7 +57,18 @@ function Members() {
       </Heading>
       <MutedText className="mb-4 block wrap-break-word">
         <Plural value={count} one="# member." other="# members." />{" "}
-        <Trans>They cannot be added or removed here yet; whoever runs Braivo for you can.</Trans>
+        <Trans>They cannot be added or removed here yet; whoever runs Braivo for you can.</Trans>{" "}
+        <Trans>
+          To let a member read their learners' progress, make them a teacher in a{" "}
+          <Link
+            to="/$organizationSlug/settings/groups"
+            params={{ organizationSlug: organization.slug }}
+            className="underline underline-offset-4"
+          >
+            group
+          </Link>
+          .
+        </Trans>
       </MutedText>
       <Table>
         <TableHeader>

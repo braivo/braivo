@@ -11,100 +11,169 @@ import {
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { plural } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 
-import { orNotFound, readCourseInOrganization } from "#lib/refusals";
+import { nameWithTag, sharedNameTags } from "#lib/name-tags";
+import { validateProgressSearch } from "#lib/progress-search";
+import { orNotFound, readCourseForProgress } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
+/**
+ * One learner's standing on each objective of a course, and the evidence each
+ * was replayed from: for an administrator, any member; for a teacher, a
+ * learner of a group they teach the course to (access-39), found among those
+ * groups before anything about them is read.
+ */
 export const Route = createFileRoute(
   "/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId",
 )({
+  // The progress page's, carried back to it.
+  validateSearch: validateProgressSearch,
+  loaderDeps: () => ({}),
   loader: async ({ context, params, abortController }) => {
     const signal = abortController.signal;
-    const organizationId = context.organization.id;
-
-    const course = await readCourseInOrganization(context.braivo, {
-      organizationId,
+    const { course, groups } = await readCourseForProgress(context.braivo, {
+      organization: context.organization,
       courseId: params.courseId,
       signal,
     });
-
-    const [report, members] = await Promise.all([
+    const read = () =>
       orNotFound(
         context.braivo.learnerProgress(
           { courseId: params.courseId, learnerId: params.learnerId },
           { signal },
         ),
-      ),
-      orNotFound(context.braivo.listMembers(organizationId, { signal })),
-    ]);
+      );
 
+    // Named, and tagged where another shares the name (as the overview tags
+    // them), by the groups, which a teacher may read; the member list they may not.
+    if (groups) {
+      const learners = groups.flatMap(({ learners }) => learners);
+      const learner = learners.find(({ userId }) => userId === params.learnerId);
+      if (!learner) throw notFound();
+      const tag = sharedNameTags(learners).get(learner.userId);
+      return { report: await read(), learnerName: learner.name, tag, courseTitle: course.title };
+    }
+    const [report, members] = await Promise.all([
+      read(),
+      orNotFound(context.braivo.listMembers(context.organization.id, { signal })),
+    ]);
     const learner = members.find(({ userId }) => userId === params.learnerId);
-    return { report, learnerName: learner?.name ?? params.learnerId, courseTitle: course.title };
+    const tag = sharedNameTags(members).get(params.learnerId);
+    return {
+      report,
+      learnerName: learner?.name ?? params.learnerId,
+      tag,
+      courseTitle: course.title,
+    };
   },
   // With the course, so one learner's tabs in two courses differ.
   head: (head) =>
     pageHead(
       head,
-      head.loaderData && `${head.loaderData.learnerName} · ${head.loaderData.courseTitle}`,
+      head.loaderData &&
+        `${nameWithTag(head.loaderData.learnerName, head.loaderData.tag)} · ${head.loaderData.courseTitle}`,
     ),
-  component: Progress,
-  notFoundComponent: () => <p>This learner's progress is not yours to see, or does not exist.</p>,
+  component: LearnerProgress,
+  notFoundComponent: () => (
+    <p>
+      <Trans>This learner does not exist, or their progress is not yours to see.</Trans>
+    </p>
+  ),
 });
 
-function Progress() {
-  const { report, learnerName, courseTitle } = Route.useLoaderData();
+function LearnerProgress() {
+  const { report, learnerName, tag, courseTitle } = Route.useLoaderData();
   const { organizationSlug, courseId } = Route.useParams();
+  const search = Route.useSearch();
+  const { i18n } = useLingui();
+  const when = (at: string) => dated(at, i18n.locale);
 
   return (
     <>
-      {/* The course this report is in, and the way back to its other learners. */}
+      {/* Back to the course's other learners, found and ordered as they were. */}
       <Link
-        to="/$organizationSlug/courses/$courseId"
+        to="/$organizationSlug/courses/$courseId/progress"
         params={{ organizationSlug, courseId }}
-        className="mb-2 inline-block text-sm text-muted-foreground underline"
+        search={search}
+        className="mb-2 inline-block text-sm text-muted-foreground underline wrap-anywhere"
       >
         {courseTitle}
       </Link>
-      <Heading id="learner">{learnerName}</Heading>
+      <Heading id="learner">
+        {learnerName}
+        {tag && (
+          <span className="ms-2 font-mono text-sm font-normal text-muted-foreground">{tag}</span>
+        )}
+      </Heading>
       {/* A course is open to learners even before it has objectives. */}
       {report.objectives.length === 0 ? (
-        <MutedText>This course has no objectives yet, so there is no progress to report.</MutedText>
+        <MutedText>
+          <Trans>This course has no objectives yet, so there is no progress to report.</Trans>
+        </MutedText>
       ) : (
-        <Table aria-labelledby="learner">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Objective</TableHead>
-              <TableHead>Standing</TableHead>
-              <TableHead>Last evidence</TableHead>
-              <TableHead>Evidence</TableHead>
-              <TableHead>Review due</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {report.objectives.map((standing) => (
-              <TableRow key={standing.objectiveId}>
-                {/* A row header, so each value is announced with its objective. */}
-                <TableHead scope="row" className="font-normal">
-                  {standing.title}
+        <>
+          <div className="mb-4 flex flex-col gap-1 text-sm text-muted-foreground">
+            <p>
+              <Trans>
+                Knowledge estimates include learning across this organization's courses that cover
+                these objectives.
+              </Trans>
+            </p>
+            <p>
+              <Trans>
+                Not started means no evidence yet. Learning means practice has begun, not that it
+                keeps failing: open the evidence to see.
+              </Trans>
+            </p>
+          </div>
+          <Table aria-labelledby="learner">
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <Trans>Objective</Trans>
                 </TableHead>
-                <TableCell>{describe(standing)}</TableCell>
-                <TableCell>
-                  {standing.phase === "unseen"
-                    ? "—"
-                    : new Date(standing.lastEvidenceAt).toLocaleString()}
-                </TableCell>
-                <TableCell>
-                  <Evidence objective={standing.title} evidence={standing.evidence} />
-                </TableCell>
-                {/* Only what is retained falls due; what is learning comes back first. */}
-                <TableCell>
-                  {standing.phase === "retaining" ? new Date(standing.dueAt).toLocaleString() : "—"}
-                </TableCell>
+                <TableHead>
+                  <Trans>Standing</Trans>
+                </TableHead>
+                <TableHead>
+                  <Trans>Last evidence</Trans>
+                </TableHead>
+                <TableHead>
+                  <Trans>Evidence</Trans>
+                </TableHead>
+                <TableHead>
+                  <Trans>Review due</Trans>
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {report.objectives.map((standing) => (
+                <TableRow key={standing.objectiveId}>
+                  {/* A row header, so each value is announced with its objective. */}
+                  <TableHead scope="row" className="font-normal whitespace-normal">
+                    {standing.title}
+                  </TableHead>
+                  <TableCell>
+                    <Standing standing={standing} />
+                  </TableCell>
+                  <TableCell>
+                    {standing.phase === "unseen" ? "—" : when(standing.lastEvidenceAt)}
+                  </TableCell>
+                  <TableCell>
+                    <Evidence objective={standing.title} evidence={standing.evidence} />
+                  </TableCell>
+                  {/* Only what is retained falls due; what is learning comes back first. */}
+                  <TableCell>
+                    {standing.phase === "retaining" ? when(standing.dueAt) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
       )}
     </>
   );
@@ -122,12 +191,13 @@ function Evidence({
   objective: string;
   evidence: LearnerProgressReport["objectives"][number]["evidence"];
 }) {
+  const { t, i18n } = useLingui();
   if (evidence.length === 0) return "—";
   const successes = evidence.filter(({ outcome }) => outcome === "success").length;
   const failures = evidence.length - successes;
   const counted = [
-    successes > 0 && `${successes} ${successes === 1 ? "success" : "successes"}`,
-    failures > 0 && `${failures} ${failures === 1 ? "failure" : "failures"}`,
+    successes > 0 && t({ message: plural(successes, { one: "# success", other: "# successes" }) }),
+    failures > 0 && t({ message: plural(failures, { one: "# failure", other: "# failures" }) }),
   ]
     .filter(Boolean)
     .join(", ");
@@ -142,7 +212,8 @@ function Evidence({
         {evidence.toReversed().map(({ outcome, at }, index) => (
           // Stable for this report: evidence never changes once recorded.
           <li key={index}>
-            {new Date(at).toLocaleString()}: {outcome}
+            {dated(at, i18n.locale)}:{" "}
+            {outcome === "success" ? <Trans>success</Trans> : <Trans>failure</Trans>}
           </li>
         ))}
       </ul>
@@ -150,15 +221,25 @@ function Evidence({
   );
 }
 
-function describe(standing: LearnerProgressStanding): string {
+/** A moment as a table can fit it: "Oct 4, 2026, 12:00 PM". */
+function dated(at: string, locale: string): string {
+  return new Date(at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** A standing in words, recall as estimated, never a grade. */
+function Standing({ standing }: { standing: LearnerProgressStanding }) {
   switch (standing.phase) {
     case "unseen":
-      return "Not started";
+      return <Trans context="A learner's standing on an objective">Not started</Trans>;
     case "acquiring":
-      return "Learning";
+      return <Trans context="A learner's standing on an objective">Learning</Trans>;
     case "retaining": {
-      const recall = `${Math.round(standing.retrievability * 100)}% recall`;
-      return standing.due ? `Due for review, ${recall}` : `Retained, ${recall}`;
+      const recall = Math.round(standing.retrievability * 100);
+      return standing.due ? (
+        <Trans>Due for review, {recall}% estimated recall</Trans>
+      ) : (
+        <Trans>Retained, {recall}% estimated recall</Trans>
+      );
     }
     default:
       return standing satisfies never;

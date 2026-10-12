@@ -250,8 +250,9 @@ export type BraivoClient = {
   learnerCourses(options?: RequestOptions): Promise<Course[]>;
 
   /**
-   * The organizations the session's user manages, holding `owner` or `admin`,
-   * by name — not every one they are in, since a learner is a member too.
+   * The organizations the session's user works in, by name: those where they
+   * hold `owner` or `admin`, and those where they teach a group, told apart by
+   * `administers`. Not every one they are in, since a learner is a member too.
    */
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
 
@@ -836,11 +837,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
     async listOrganizations(requestOptions) {
       const response = await get("/api/organizations", requestOptions);
 
-      const doing = "listing the organizations you manage";
+      const doing = "listing the organizations you work in";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { organizations } = await parsed<{ organizations: Organization[] }>(response, doing);
-      return organizations;
+      const { organizations } = await parsed<{
+        organizations: (Omit<Organization, "administers"> & { administers?: boolean })[];
+      }>(response, doing);
+      // A server from before teachers were listed answers managed ones alone,
+      // without `administers`: each of those is administered.
+      return organizations.map((organization) => ({
+        ...organization,
+        administers: organization.administers ?? true,
+      }));
     },
 
     async organizationSetup(requestOptions) {

@@ -129,7 +129,8 @@ export function createMcpServer(client: BraivoClient): McpServer {
         "The organizations the signed-in content owner manages: where the other tools work, and the hostname each one's learners practise on (learnDomain, null until one is registered).",
       annotations: READ_ONLY,
     },
-    () => answer(client.listOrganizations()),
+    // Managed alone: a teacher's agent has no course list to work from yet.
+    () => answer(client.listOrganizations().then((all) => all.filter((o) => o.administers))),
   );
 
   server.registerTool(

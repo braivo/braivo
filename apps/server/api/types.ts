@@ -92,11 +92,19 @@ export type Course = { id: string; title: string };
 export type Objective = { id: string; title: string };
 
 /**
- * An organization as those who manage it find it; `slug` is its console
+ * An organization as those who work in it find it; `slug` is its console
  * address, `learnDomain` the hostname its learners practise on, the latest
- * of its learn domains registered, `null` until one is.
+ * of its learn domains registered, `null` until one is. `administers`: the
+ * reader holds `owner` or `admin` there; otherwise they teach one of its
+ * groups (ADR 0042).
  */
-export type Organization = { id: string; name: string; slug: string; learnDomain: string | null };
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  learnDomain: string | null;
+  administers: boolean;
+};
 
 /** Self-serve setup (ADR 0018), and its data regions (ADR 0040), as `api/index.ts` documents. */
 export type OrganizationSetup = {

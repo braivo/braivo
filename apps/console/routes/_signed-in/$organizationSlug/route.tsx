@@ -10,8 +10,9 @@ import { rememberOrganization } from "#lib/last-organization";
 /**
  * An organization's pages (ADR 0004), and the one place a slug becomes an
  * organization: pages below read `context.organization`, never the slug.
- * Resolved among the organizations the owner manages, so one they do not
- * manage reads as missing and nothing below runs. The list is kept too, for
+ * Resolved among the organizations someone administers or teaches in, so
+ * any other reads as missing and nothing below runs; `administers` then says
+ * which pages they have. The list is kept too, for
  * the sidebar's switcher, with whether it offers setting one up. Read-only, so
  * safe to preload.
  */
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug")({
  */
 function OrganizationNotFound() {
   return Route.useMatch().status === "notFound" ? (
-    <p>This organization does not exist, or you do not manage it.</p>
+    <p>This organization does not exist, or you do not work in it.</p>
   ) : (
     <p>There is nothing here.</p>
   );

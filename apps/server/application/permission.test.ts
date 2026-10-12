@@ -7,7 +7,7 @@ import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
-import { listManagedOrganizations } from "./organizations.ts";
+import { listOrganizations } from "./organizations.ts";
 import { assertMayAdminister, isMember, mayAdminister, NotPermitted } from "./permission.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -39,7 +39,7 @@ describe.skipIf(!connectionString)("permission", () => {
     expect(await mayAdminister(database, input)).toBe(true);
     await expect(assertMayAdminister(database, input)).resolves.toBeUndefined();
 
-    const managed = await listManagedOrganizations({ database, actingAs: memberAndAdmin });
+    const managed = await listOrganizations({ database, actingAs: memberAndAdmin });
     expect(managed.map((organization) => organization.id)).toEqual([organizationId]);
   });
 
@@ -50,6 +50,6 @@ describe.skipIf(!connectionString)("permission", () => {
     // Still a member, so the refusal is the role's.
     expect(await isMember(database, input)).toBe(true);
 
-    expect(await listManagedOrganizations({ database, actingAs: plainMember })).toEqual([]);
+    expect(await listOrganizations({ database, actingAs: plainMember })).toEqual([]);
   });
 });

@@ -15,11 +15,11 @@ import {
   DomainRefused,
   listCourses,
   listDomains,
-  listManagedOrganizations,
   listMembers,
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
+  listOrganizations,
   maySetUpOrganization,
   NameRefused,
   ProvisioningFailed,
@@ -406,9 +406,9 @@ export function authoringRoutes(
     },
   );
 
-  /** The organizations the session's user manages. */
+  /** The organizations the session's user administers or teaches in. */
   routes.get("/api/organizations", requireAccount, async (context) => {
-    const organizations = await listManagedOrganizations({
+    const organizations = await listOrganizations({
       database,
       actingAs: context.var.userId,
     });

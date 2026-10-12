@@ -78,7 +78,7 @@ export async function addSourceFromFile(input: {
 
 /** The ID of the organization `slug` names, among those the signed-in person manages. */
 async function organizationIdOf(client: BraivoClient, slug: string): Promise<string> {
-  const managed = await client.listOrganizations();
+  const managed = (await client.listOrganizations()).filter(({ administers }) => administers);
   const organization = managed.find((candidate) => candidate.slug === slug);
   if (organization) return organization.id;
 

@@ -300,9 +300,10 @@
 //        204 says nothing about permission to grade.
 //
 // `GET /api/organizations` — the organizations the signed-in user manages
-// (`owner` or `admin`, not `member`), by name: `{ "organizations": [{ "id":
-// "…", "name": "…", "slug": "…", "learnDomain": "…" | null }] }`. 401 without
-// a session.
+// (`owner` or `admin`) or teaches a group in, by name: `{ "organizations": [{
+// "id": "…", "name": "…", "slug": "…", "learnDomain": "…" | null,
+// "administers": true }] }`, `administers` false where they only teach. A
+// member who does neither is not listed. 401 without a session.
 //
 // `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
 // | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",
