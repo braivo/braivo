@@ -111,6 +111,18 @@ export type OrganizationSetup = {
 export type Member = { userId: string; name: string; roles: string[] };
 
 /**
+ * An organization's learners and teachers taking some of its courses together
+ * (ADR 0042), as listed: people by name, courses by title.
+ */
+export type Group = application.Group;
+
+/** A group whole, as creating one sends it. */
+export type GroupDefinition = application.GroupDefinition;
+
+/** A change to a group, naming only what changes. */
+export type GroupChange = application.GroupChange;
+
+/**
  * A hostname serving an organization's learn app, and whether its `owner` or
  * `admin` may remove it here: never the installation's own, nor the last.
  */

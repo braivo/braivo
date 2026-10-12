@@ -11,22 +11,23 @@ import {
   type KnowledgeReport,
   type ObjectiveStanding,
 } from "../learning/index.ts";
-import { readObjectiveTitles } from "../persistence/index.ts";
+import { readObjectiveTitles, teaches } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
 
 /**
- * Where a learner stands on each objective in a course, for a content owner or
- * for the learner themselves.
+ * Where a learner stands on each objective in a course, for a content owner,
+ * a teacher of theirs in it, or the learner themselves.
  *
  * Loaded through `loadLearnerInCourse`, like `chooseNextObjective`, so both read
  * the same evidence under the same model, and given the same evidence and time,
  * what this reports as due is what selection would review.
  *
  * `viewedBy` is the reader, not the learner, so it is authorized
- * (docs/adr/0010-hono-http-layer.md): it must be the learner, or administer the
- * course's organization; either way, the learner must belong to it.
+ * (docs/adr/0010-hono-http-layer.md): it must be the learner, administer the
+ * course's organization, or teach the learner in a group taking the course
+ * (ADR 0042); either way, the learner must belong to it.
  */
 export async function readLearnerProgress(input: {
   database: Database;
@@ -47,8 +48,10 @@ export async function readLearnerProgress(input: {
     learnerId,
     host,
     now,
-    authorize: (organizationId) =>
-      viewedBy === learnerId || mayAdminister(database, { organizationId, userId: viewedBy }),
+    authorize: async (organizationId) =>
+      viewedBy === learnerId ||
+      (await mayAdminister(database, { organizationId, userId: viewedBy })) ||
+      teaches(database, { teacherId: viewedBy, learnerId, courseId }),
   });
   if (learner === undefined) return { kind: "unavailable" };
 

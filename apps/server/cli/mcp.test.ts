@@ -134,7 +134,7 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
   test("tells the agent the workflows, and that every quote is checked", () => {
     expect(agent.getInstructions()).toContain("Braivo checks every quote against the source.");
     expect(agent.getInstructions()).toContain("course_progress, then learner_progress");
-    expect(agent.getInstructions()).toContain("names, roles, standings, and learning history");
+    expect(agent.getInstructions()).toContain("names, standings, and learning history");
   });
 
   test("offers the authoring and progress tools", async () => {

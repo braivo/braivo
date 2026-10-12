@@ -27,6 +27,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0017: A task rests after it is answered, and practice moves on meanwhile](0017-task-rest.md)
 - [0038: Typed answers, graded by comparing, and Show answer](0038-typed-answers.md)
 - [0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain](0018-sign-in-and-invitations.md)
+- [0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses](0042-groups-scope-teaching.md)
 - [0038: Organizations add their own domains, verified by a provisioner the installation supplies](0038-self-served-custom-domains.md)
 - [0020: Source content is an immutable text snapshot, extracted by whoever holds the file](0020-source-content.md)
 - [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)

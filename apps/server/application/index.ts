@@ -32,6 +32,7 @@ export type { Draft } from "../ai/index.ts";
 export { ModelUnavailable } from "../ai/index.ts";
 export { defineCourse, listCourses, listLearnerCourses, readAuthoredCourse } from "./courses.ts";
 export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } from "./files.ts";
+export { changeGroup, defineGroup, listGroups } from "./groups.ts";
 export type { RequestHost } from "./host.ts";
 export { readHostOrganization } from "./host.ts";
 export type {
@@ -71,6 +72,9 @@ export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";
 export type {
   AuthoredTask,
   Citation,
+  Group,
+  GroupChange,
+  GroupDefinition,
   Source,
   SourceSummary,
   StoredFile,
@@ -81,4 +85,9 @@ export { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tas
  * from a disagreement. Named here so callers of `application` need not
  * reach into `persistence` for it.
  */
-export { ConflictingEvidence, ConflictingKey, StaleCorrection } from "../persistence/index.ts";
+export {
+  ConflictingEvidence,
+  ConflictingGroupRole,
+  ConflictingKey,
+  StaleCorrection,
+} from "../persistence/index.ts";

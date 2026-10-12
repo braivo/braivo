@@ -11,6 +11,7 @@ import {
   AiNotEntitled,
   AiUnavailable,
   ConflictingEvidence,
+  ConflictingGroupRole,
   ConflictingKey,
   FilesUnavailable,
   InvalidAiRequest,
@@ -52,7 +53,11 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   ) {
     return context.json({ error: error.message }, 400);
   }
-  if (error instanceof ConflictingKey || error instanceof StaleCorrection) {
+  if (
+    error instanceof ConflictingKey ||
+    error instanceof StaleCorrection ||
+    error instanceof ConflictingGroupRole
+  ) {
     return context.json({ error: error.message }, 409);
   }
   if (error instanceof AiUnavailable || error instanceof FilesUnavailable) {

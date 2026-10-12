@@ -142,7 +142,7 @@ function Learners({ learners }: { learners: CourseProgressOverview["learners"] }
               >
                 {name}
               </Link>
-              {roles.map((role) => (
+              {roles?.map((role) => (
                 <Badge key={role} variant="secondary" className="ml-2">
                   {role}
                 </Badge>

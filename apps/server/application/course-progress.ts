@@ -5,25 +5,26 @@ import type { Database } from "@braivo/db";
 
 import { activeModel, assessKnowledge, type ObjectiveStanding, replay } from "../learning/index.ts";
 import {
-  type Member,
   readCourseObjectives,
   readCourseOrganization,
   readMembers,
   readMembersEvidence,
   readObjectiveTitles,
+  readTaughtLearners,
 } from "../persistence/index.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
 import { mayAdminister } from "./permission.ts";
 
 /**
- * Where each learner in a course stands, counted, for a content owner
- * (docs/specs/progress.md): per learner, and per objective (knowledge gaps
- * across learners). The learners are every member, as membership is enrollment
- * (ADR 0018), each counted from what `readLearnerProgress` would report about
- * them at `now`.
+ * Where each learner in a course stands, counted (docs/specs/progress.md): per
+ * learner, and per objective (knowledge gaps across learners). For whoever
+ * administers the organization, the learners are every member, as membership
+ * is enrollment (ADR 0018); for a teacher, the learners of the groups they
+ * teach that take the course (ADR 0042). Each is counted from what
+ * `readLearnerProgress` would report about them at `now`.
  *
  * Checked as `loadLearnerInCourse` checks a reader, minus reading for oneself:
- * no member sees the others.
+ * no member sees others they do not teach.
  */
 export async function readCourseProgress(input: {
   database: Database;
@@ -39,16 +40,24 @@ export async function readCourseProgress(input: {
   const organizationId = await readCourseOrganization(database, courseId);
   if (organizationId === undefined) return { kind: "unavailable" };
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
+  // `undefined` for every member: an administrator's view.
+  let taught: CourseLearner[] | undefined;
   if (!(await mayAdminister(database, { organizationId, userId: viewedBy }))) {
-    return { kind: "unavailable" };
+    taught = await readTaughtLearners(database, { teacherId: viewedBy, courseId });
+    if (taught === undefined) return { kind: "unavailable" };
   }
 
   const [[objectiveIds, titles], members, evidence] = await Promise.all([
     readCourseObjectives(database, courseId).then(
       async (ids) => [ids, await readObjectiveTitles(database, ids)] as const,
     ),
-    readMembers(database, organizationId),
-    readMembersEvidence(database, organizationId, now),
+    taught ?? readMembers(database, organizationId),
+    readMembersEvidence(
+      database,
+      organizationId,
+      now,
+      taught?.map(({ userId }) => userId),
+    ),
   ]);
 
   const assessed = members.map((member) => ({
@@ -88,6 +97,9 @@ export async function readCourseProgress(input: {
   };
 }
 
+/** A learner as the overview names them: `roles` only for whoever administers it (access-26). */
+type CourseLearner = { userId: string; name: string; roles?: string[] };
+
 /** Standings counted; `retained` is retaining and not due. */
 type StandingCounts = { unseen: number; acquiring: number; retained: number; due: number };
 
@@ -102,13 +114,14 @@ function countStandings(standings: readonly ObjectiveStanding[]): StandingCounts
 }
 
 /**
- * Every member of the course's organization, by name, with their objectives
- * counted; and every objective of the course, in content order, with its
- * learners counted. Both count the same learner-objective standings.
+ * The course's learners as the reader may see them, by name, with their
+ * objectives counted; and every objective of the course, in content order,
+ * with those learners counted. Both count the same learner-objective
+ * standings.
  */
 export type CourseProgressOverview = {
   modelVersion: string;
-  learners: (Member & { standings: StandingCounts })[];
+  learners: (CourseLearner & { standings: StandingCounts })[];
   objectives: { objectiveId: string; title: string; standings: StandingCounts }[];
 };
 

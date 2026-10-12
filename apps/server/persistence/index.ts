@@ -52,6 +52,16 @@ export {
 } from "./learner-sign-in-code.ts";
 export type { StoredFile } from "./file.ts";
 export { readFile, recordFile } from "./file.ts";
+export type { Group, GroupChange, GroupDefinition, GroupPerson } from "./group.ts";
+export {
+  ConflictingGroupRole,
+  createGroup,
+  findCreatedGroup,
+  readGroups,
+  readTaughtLearners,
+  teaches,
+  updateGroup,
+} from "./group.ts";
 export { ConflictingKey } from "./key.ts";
 export type { ListedOrganization, Member, Organization } from "./membership.ts";
 export {

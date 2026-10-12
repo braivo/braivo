@@ -1,0 +1,43 @@
+# 0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses
+
+Status: proposed (2026-10-12)
+
+## Context
+
+Only an organization's `owner` or `admin` reads another learner's progress (access-24), and that role also authors content, records evidence, lists every member, and sees every learner in every course. A school with two classes taking one course, each with its own teacher, must make both teachers administrators, and each then sees the other's class. A tutor teaching one learner must be able to read that learner's progress without administering the school. Membership is enrollment ([ADR 0018](0018-sign-in-and-invitations.md)), so nothing records who teaches whom or which class takes which course.
+
+## Decision
+
+A **group** is an organization's learners and teachers taking some of its courses together: a school's class, a tutor and one student, a cohort. It has a name, its people each in one role, `learner` or `teacher`, and its courses.
+
+- **Teaching grants reading progress, nothing else.** A group's teacher reads, for each course the group takes, the overview of the group's learners and each of their reports: what an administrator reads, narrowed to them. A teacher of several groups taking one course sees their learners together, each once. Every teacher of a group teaches every course it takes; a subject taught by someone else is another group, with the same learners.
+- **Administration stays explicit.** `owner` and `admin` keep everything they had, every learner included, and alone define groups: putting a learner in a group grants their progress to its teachers, so a teacher who could build their own groups could read anyone's. A tutor running their own organization is its owner, and defines theirs. Teaching is not an organization role: a teacher is a member like any other.
+- **The same evidence the learner sees.** Estimates stay organization-scoped ([ADR 0009](0009-evidence-read-whole.md)): a teacher sees each standing replayed from all of the learner's evidence at the organization, and the evidence behind it, including what was recorded through another group or course sharing an objective.
+- **Created whole, changed by what changes.** Creating a group sends its whole definition, with an optional `key` ([ADR 0024](0024-idempotent-authoring.md)) compared with the creation's digest, not the group as it is now: a retry is the same request, whatever was changed since. Changing one names only what changes: a new name, people added in a role, people and courses removed. Most edits are expected from an AI acting for an administrator over MCP; a whole roster resent to add one learner is thirty IDs copied, and one dropped silently removes a learner or a teacher. Adding what is there and removing what is not do nothing, so a change sent again at once changes nothing more, and a form sends only what its user edited, so it cannot restore what someone else removed meanwhile. A change is not deduplicated, though: sent again after another administrator's, it applies again. The change answers the group as it then stands, for the caller to check.
+- **Last writer wins, for administrators.** Concurrent changes apply in turn, the last one's word final for what both touch: a revision would refuse every blind edit to catch a race between two administrators. An agent's changes wait for the safeguards under Consequences.
+- **A role changes only when the change says so; lists are sets.** Removals apply before additions, so removing someone and adding them in one change sets their role, and adding someone already there in the other role is refused 409, as a learner listed among teachers by mistake would read their classmates' progress. An ID twice, one person in both roles, a non-member, another organization's course, or a change naming nothing is refused 400, saying which; a field the route does not know is refused, as a misspelt one would otherwise change nothing.
+- **Listed where they are.** `GET /api/organizations/:organizationId/groups` answers an administrator every group, any other member those they teach: one route for an organization's console, and for a remote MCP connection, which acts in one school.
+- **Integrity in the schema.** A group's people reference their membership, `(organization, user)`, so only a member is in a group and leaving the organization leaves its groups; its courses reference the course with the organization. Deleting a group, a membership, or a course removes the assignments, never evidence.
+- **Practice unchanged.** Who may study a course is still membership: a group scopes teaching, not access to courses.
+
+## Alternatives rejected
+
+- **Enrollment per course**, learners and teachers on a course: two classes sharing a course cannot be told apart, so each teacher sees both.
+- **A delivery entity**, a course with its own participants: the same behaviour as a group taking a course, with one more concept, and a class taking several courses repeats its roster in each. A group's course is the delivery; what differs between two groups taking one course (a release date, a pace) goes on it when a school needs it.
+- **A teacher organization role**: says someone teaches, not whom; the scope would still need groups.
+- **Assigning teachers to learners directly**: one row per pair, a class of thirty is thirty rows per teacher, and it says nothing about courses.
+- **Whole replacement at a `revision`**, refused 409 if stale: every edit resends the roster, an agent must read before each write and again after any 409, and a dropped ID still removes someone silently.
+- **A route per edit** (add a learner, remove a teacher, …): what one change route with optional parts does, in four.
+- **Groups a teacher defines themselves**: grants any learner's progress to whoever adds them. Teacher-led groups need the learner's or an administrator's say first, a later decision.
+- **Better Auth's teams**: membership without roles, behind endpoints Braivo would have to close as it closes the organization plugin's.
+
+## Consequences
+
+- A teacher who knows the organization finds what they teach through its groups route; `GET /api/organizations` lists only those a session manages, and neither the console nor `braivo mcp` shows groups, so a teacher who is not an administrator has no page yet.
+- An agent reads progress as the teacher it acts for, through the same use cases, so the planned gate on tools reading others' progress ([#122](https://github.com/braivo/braivo/issues/122)) covers teaching too. Group listings carry names, not progress: whether that gate covers them is its decision. Seeing a learner's standings does not settle sending their dated history to a teacher's AI provider: an agent should ask for standings alone (`includeHistory: false`) unless the question needs the history, and whether it may have the history at all is the gate's to decide.
+- A group change records no actor, as content records no author ([authoring](../specs/authoring.md)): who gave a teacher access, in the console or through which agent, is not answerable yet.
+- Before an agent's tool writes groups: what widens access to learners' progress (a teacher, a learner, or a course added, a role changed) is the people in the console's to approve, as ADR 0039 makes publishing; an approval holds only for the group as it was shown, which needs a precondition the change route then takes; and who made each change is recorded. A retry made after another's change applies again until changes carry an ID of their own. Renaming and removing need none of this.
+- Course access per group (a course only for its groups' learners), release dates, and per-group pacing are later decisions that build on the group's courses. Once a group restricts practice, overlapping groups taking one course need a precedence rule before any setting is enforced.
+- A learner in no group appears in no teacher's overview; administrators still see every member.
+- No route deletes a group: an emptied group grants nothing.
+- `group_member` references the membership through the hand-written unique index on `member (organization_id, user_id)` ([ADR 0005](0005-postgresql-drizzle.md)), so the group migration runs after it, and regenerating the initial migration must keep that order.
