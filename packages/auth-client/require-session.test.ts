@@ -6,7 +6,7 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { needsName, requireSession } from "./require-session.ts";
 
-const at = { href: "/courses/c1?tab=next" };
+const at = { href: "/c/4732?tab=next" };
 
 describe("requireSession", () => {
   test("returns the signed-in user", async () => {
@@ -23,7 +23,7 @@ describe("requireSession", () => {
     expect(isRedirect(thrown)).toBe(true);
     expect((thrown as { options: unknown }).options).toMatchObject({
       to: "/login",
-      search: { redirect: "/courses/c1?tab=next" },
+      search: { redirect: "/c/4732?tab=next" },
     });
   });
 
@@ -35,7 +35,7 @@ describe("requireSession", () => {
     expect(isRedirect(thrown)).toBe(true);
     expect((thrown as { options: unknown }).options).toMatchObject({
       to: "/login",
-      search: { redirect: "/courses/c1?tab=next" },
+      search: { redirect: "/c/4732?tab=next" },
     });
   });
 

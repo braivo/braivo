@@ -3,6 +3,7 @@
 
 import type { Database } from "@braivo/db";
 
+import { isUrlLabel } from "../content/index.ts";
 import {
   type AuthoredTask,
   type CitedPassage,
@@ -18,6 +19,7 @@ import {
   readObjectiveTitles,
   readSources,
   type SourceSummary,
+  updateCourseUrlLabel,
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
@@ -75,6 +77,33 @@ export async function defineCourse(input: {
   return createCourse(database, { organizationId, title, objectiveIds, key });
 }
 
+/**
+ * Sets the label after a course's number in its links (ADR 0044), for whoever
+ * administers its organization, if it is still `previous`, the label the
+ * editor read: not saved, with the label now, when someone else changed it
+ * meanwhile, which saving would undo unseen; `undefined` without such a course.
+ */
+export async function setCourseUrlLabel(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseId: string;
+  urlLabel: string;
+  previous: string;
+}): Promise<{ saved: true } | { saved: false; urlLabel: string } | undefined> {
+  const { database, organizationId, actingAs, courseId, urlLabel, previous } = input;
+  if (!isUrlLabel(urlLabel)) {
+    throw new InvalidDefinition(
+      "The course's URL label",
+      "takes lowercase letters and digits of any script with their marks, single hyphens between, at most 80 characters and 200 UTF-16 code units",
+    );
+  }
+
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  return updateCourseUrlLabel(database, { organizationId, courseId, urlLabel, previous });
+}
+
 /** Every course an organization has, for whoever administers it. */
 export async function listCourses(input: {
   database: Database;
@@ -98,12 +127,19 @@ export async function listLearnerCourses(input: {
   database: Database;
   learnerId: string;
   host: RequestHost;
+  /**
+   * Only the course so numbered. A number is unique within an organization
+   * alone, so on the installation's host, which serves them all, it names none.
+   */
+  number?: number;
 }): Promise<Course[]> {
-  const { database, learnerId, host } = input;
-  if (host.installation) return readLearnerCourses(database, learnerId);
+  const { database, learnerId, host, number } = input;
+  if (host.installation) return number === undefined ? readLearnerCourses(database, learnerId) : [];
 
   const served = await readDomainOrganization(database, host.hostname);
-  return served ? readLearnerCourses(database, learnerId, served.id) : [];
+  return served
+    ? readLearnerCourses(database, learnerId, { organizationId: served.id, number })
+    : [];
 }
 
 /**

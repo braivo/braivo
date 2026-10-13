@@ -39,7 +39,7 @@ msgid "{0} is a teacher."
 msgstr "Rola osoby {0}: nauczyciel."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
 
@@ -48,7 +48,7 @@ msgid "{count, plural, one {# learner} other {# learners}} you teach in this cou
 msgstr "{count, plural, one {# uczeń, którego uczysz} few {# uczniów, których uczysz} many {# uczniów, których uczysz} other {# ucznia, których uczysz}} w tym kursie, w Twoich grupach: {groupNames}."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# learning} other {# learning}}"
 msgstr "{count, plural, one {# w trakcie nauki} few {# w trakcie nauki} many {# w trakcie nauki} other {# w trakcie nauki}}"
 
@@ -62,12 +62,12 @@ msgid "{count, plural, one {# member} other {# members}} of {0}, staff included:
 msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
 msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# nierozpoczętych} other {# nierozpoczętego}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
@@ -91,7 +91,7 @@ msgstr "Adres {hostname} jest zarezerwowany. Wybierz inny."
 msgid "{hostname} is taken. Choose another address."
 msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
 
@@ -273,7 +273,7 @@ msgid "Console address"
 msgstr "Adres w konsoli"
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue"
 msgstr "Dalej"
@@ -306,7 +306,7 @@ msgstr "Kopiuj wartość rekordu {type}"
 msgid "Copy address"
 msgstr "Kopiuj adres"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Correct"
 msgstr "Dobrze"
 
@@ -440,7 +440,7 @@ msgid "Domains"
 msgstr "Domeny"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "due for review"
 msgstr "do powtórki"
 
@@ -454,7 +454,7 @@ msgstr "Do powtórki"
 msgid "Due for review, {recall}% estimated recall"
 msgstr "Do powtórki, szacowane zapamiętanie {recall}%"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Due for review: about {percent}% likely to recall now."
 msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypomnisz."
 
@@ -572,7 +572,7 @@ msgstr "Jesteś tu pierwszy raz? Logowanie utworzy Twoje konto."
 msgid "For example, 7A · English."
 msgstr "Na przykład 7A · Angielski."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "From your lessons"
 msgstr "Z Twoich lekcji"
 
@@ -598,7 +598,7 @@ msgstr "Przejdź do strony regionu: {selectedRegionName}"
 msgid "Groups"
 msgstr "Grupy"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Here it is"
 msgstr "Oto odpowiedź"
 
@@ -609,6 +609,10 @@ msgstr "Jesteś uczniem? Otwórz stronę otrzymaną od szkoły lub organizatora 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "How others in your organizations see you."
 msgstr "Tak widzą Cię inni w Twoich organizacjach."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
+msgstr "Jeśli ktoś wysłał Ci link do tego kursu, sprawdź, czy korzystasz z właściwego konta, albo poproś tę osobę o dostęp."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
@@ -701,12 +705,16 @@ msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Poproś osobę, która 
 msgid "Learners practise at"
 msgstr "Uczniowie ćwiczą na stronie"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Learners practise it at"
+msgstr "Uczniowie uczą się w tym kursie pod adresem"
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Learners' site"
 msgstr "Strona dla uczniów"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "learning"
 msgstr "w trakcie nauki"
 
@@ -742,7 +750,7 @@ msgstr "Jasny"
 msgid "Loading"
 msgstr "Ładowanie"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Ładowanie…"
 
@@ -782,7 +790,7 @@ msgstr "Imię i nazwisko"
 msgid "Navigation"
 msgstr "Nawigacja"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "New"
 msgstr "Nowy temat"
@@ -855,12 +863,12 @@ msgstr "Brak nauczycieli."
 msgid "Not active yet"
 msgstr "Jeszcze nieaktywne"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Not quite"
 msgstr "Nie tym razem"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "not started"
 msgstr "nie rozpoczęto"
 
@@ -874,15 +882,15 @@ msgstr "Nierozpoczęte"
 msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
 msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło, a nie że wciąż się nie udaje: rozwiń wyniki, aby sprawdzić."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Na razie nic nie czeka na powtórkę."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
 msgstr "Na razie nic nie czeka na powtórkę. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing to practise right now"
 msgstr "Na razie nie ma nic do ćwiczenia"
 
@@ -895,7 +903,7 @@ msgstr "Nie ma nic do zapisania: grupa już tak wygląda."
 msgid "Objective"
 msgstr "Cel"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
 
@@ -1027,7 +1035,7 @@ msgid "Removing…"
 msgstr "Usuwanie…"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "retained"
 msgstr "utrwalono"
 
@@ -1041,7 +1049,7 @@ msgstr "Utrwalone"
 msgid "Retained, {recall}% estimated recall"
 msgstr "Utrwalone, szacowane zapamiętanie {recall}%"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "Review"
 msgstr "Powtórka"
@@ -1090,7 +1098,7 @@ msgstr "Zobacz materiały źródłowe"
 msgid "Send a new code"
 msgstr "Wyślij nowy kod"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Send again"
 msgstr "Wyślij ponownie"
 
@@ -1098,7 +1106,7 @@ msgstr "Wyślij ponownie"
 msgid "Send me a code"
 msgstr "Wyślij mi kod"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Sending…"
 msgstr "Wysyłanie…"
 
@@ -1115,7 +1123,7 @@ msgstr "Załóż swoją organizację"
 msgid "Settings"
 msgstr "Ustawienia"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Show answer"
 msgstr "Pokaż odpowiedź"
 
@@ -1160,7 +1168,7 @@ msgstr "Ktoś w międzyczasie zmienił tę grupę. Sprawdź jej aktualny stan i 
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Something went wrong."
 msgstr "Coś poszło nie tak."
 
@@ -1193,7 +1201,7 @@ msgstr "Systemowy"
 msgid "System follows your device's light or dark mode."
 msgstr "Systemowy podąża za jasnym lub ciemnym trybem Twojego urządzenia."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Take a short break"
 msgstr "Zrób krótką przerwę"
 
@@ -1240,11 +1248,11 @@ msgstr "Nie udało się. Spróbuj ponownie."
 msgid "That domain already serves your organization."
 msgstr "Ta domena jest już przypisana do Twojej organizacji."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "That's all the new material for today"
 msgstr "To już cały nowy materiał na dziś"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "The answer: {correctAnswer}"
 msgstr "Poprawna odpowiedź: {correctAnswer}"
 
@@ -1298,7 +1306,7 @@ msgstr "Tego adresu nie można później zmienić."
 msgid "This cancels its setup. You can add it again later."
 msgstr "To anuluje jej konfigurację. Możesz dodać ją ponownie później."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "This course does not exist, or is not one of yours."
 msgstr "Ten kurs nie istnieje albo nie masz do niego dostępu."
 
@@ -1339,7 +1347,7 @@ msgstr "Ten uczeń nie istnieje albo nie masz wglądu w jego postępy."
 msgid "This organization has no courses yet: draft one from a source first."
 msgstr "Ta organizacja nie ma jeszcze kursów: najpierw przygotuj kurs z materiału źródłowego."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "This question can't be answered here yet."
 msgstr "Na to pytanie nie da się jeszcze tu odpowiedzieć."
 
@@ -1358,12 +1366,12 @@ msgstr "Zbyt wiele prób. Poczekaj minutę i spróbuj ponownie."
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Try again"
 msgstr "Spróbuj ponownie"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Jeszcze raz"
@@ -1417,11 +1425,11 @@ msgstr "Ty"
 msgid "You already own an organization. Reload this page to open it."
 msgstr "Masz już organizację. Odśwież stronę, aby ją otworzyć."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Nothing is due right now."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie czeka na powtórkę."
 
@@ -1429,11 +1437,11 @@ msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie cze
 msgid "You don't manage any organizations"
 msgstr "Nie zarządzasz żadną organizacją"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You missed this last time."
 msgstr "Ostatnim razem się nie udało."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
 msgstr "Temat „{objectiveTitle}” był niedawno ćwiczony. Ćwiczenia wznowią się o {continuesAt}, aby kolejna próba pokazała, co pamiętasz."
 
@@ -1456,7 +1464,7 @@ msgstr "Potem przejdziesz na stronę {hostname}."
 msgid "You'll be signed in once all six digits are entered."
 msgstr "Zalogujesz się, gdy tylko wpiszesz wszystkie sześć cyfr."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You're caught up"
 msgstr "Jesteś na bieżąco"
 
@@ -1465,12 +1473,12 @@ msgstr "Jesteś na bieżąco"
 msgid "Your answer"
 msgstr "Twoja odpowiedź"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your answer could not be confirmed."
 msgstr "Nie udało się potwierdzić Twojej odpowiedzi."
 
 #: apps/learn/routes/__root.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Your courses"
 msgstr "Twoje kursy"

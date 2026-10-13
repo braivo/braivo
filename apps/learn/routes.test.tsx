@@ -27,6 +27,12 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
+/**
+ * Spanish by its ID, as the installation's host links it; tests on its
+ * organization's domain visit it as `/c/4732`.
+ */
+const SPANISH_ID = "5a7e0000-0000-4000-8000-000000004732";
+
 /** A typed task: the learner types the word. */
 const typedActivity: Activity = {
   decision: { objectiveId: "o2", modelVersion: "v1", intent: "introduce" },
@@ -94,6 +100,8 @@ function renderAt(
   options: {
     signedIn: boolean;
     learnerCourses?: BraivoClient["learnerCourses"];
+    /** Spanish, `c1`, as 4732, unless given. */
+    learnerCourseByNumber?: BraivoClient["learnerCourseByNumber"];
     /** As the app calls it: standings only, without evidence. */
     learnerProgress?: (
       input: { courseId: string; learnerId: string; includeHistory: false },
@@ -117,6 +125,11 @@ function renderAt(
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
+  const learnerCourseByNumber = vi.fn<BraivoClient["learnerCourseByNumber"]>(
+    options.learnerCourseByNumber ??
+      (async (number) =>
+        number === 4732 ? { id: "c1", number, title: "Spanish", urlLabel: "spanish" } : undefined),
+  );
   const learnerProgress = vi.fn(options.learnerProgress ?? (async () => noProgress));
   const nextActivity = vi.fn(options.nextActivity ?? (async () => undefined));
   const submitAttempt = vi.fn(
@@ -159,6 +172,7 @@ function renderAt(
     nameAccount,
     signOut,
     learnerCourses,
+    learnerCourseByNumber,
     learnerProgress,
     nextActivity,
     submitAttempt,
@@ -173,6 +187,7 @@ function renderAt(
 
   return {
     learnerCourses,
+    learnerCourseByNumber,
     learnerProgress,
     nextActivity,
     submitAttempt,
@@ -187,13 +202,13 @@ function renderAt(
 
 describe("the learn app", () => {
   test("sends a signed-out learner to sign in, and asks Braivo nothing", async () => {
-    const { learnerProgress, nextActivity, router } = renderAt("/courses/c1", {
+    const { learnerProgress, nextActivity, router } = renderAt("/c/4732", {
       signedIn: false,
     });
 
     expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
     expect(router.state.location.pathname).toBe("/login");
-    expect(router.state.location.search).toEqual({ redirect: "/courses/c1" });
+    expect(router.state.location.search).toEqual({ redirect: "/c/4732" });
     expect(nextActivity).not.toHaveBeenCalled();
     expect(learnerProgress).not.toHaveBeenCalled();
   });
@@ -206,7 +221,9 @@ describe("the learn app", () => {
         if (down) throw new TypeError("Failed to fetch");
         return { id: "ada", name: "Ada Learner" };
       },
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
     });
 
     expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
@@ -222,7 +239,9 @@ describe("the learn app", () => {
     const { sendSignInCode, signInWithCode, router, visit } = renderAt("/", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
     });
 
     expect(await screen.findByRole("heading", { name: "Sign in to Fernwood" })).toBeTruthy();
@@ -271,32 +290,30 @@ describe("the learn app", () => {
   });
 
   test("on its organization's domain, leaves for Google through the installation's origin, when offered", async () => {
-    const { visit } = renderAt("/login?redirect=%2Fcourses%2Fc1", {
+    const { visit } = renderAt("/login?redirect=%2Fc%2F4732", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
       signInSettings: async () => ({ google: true, legal: null }),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
-    expect(visit).toHaveBeenCalledWith(
-      "/api/session/sign-in?redirect=%2Fcourses%2Fc1&provider=google",
-    );
+    expect(visit).toHaveBeenCalledWith("/api/session/sign-in?redirect=%2Fc%2F4732&provider=google");
   });
 
   test("on its organization's domain, sends a learner already signed in onward, without a second handoff", async () => {
-    const { router, visit } = renderAt("/login?redirect=%2Fcourses%2Fc1", {
+    const { router, visit } = renderAt("/login?redirect=%2Fc%2F4732", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
     });
 
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/c/4732"));
     expect(visit).not.toHaveBeenCalled();
     await router.navigate({ to: "/login", search: { redirect: "/" } });
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
 
     // The router puts a redirect in `/login`'s place, so Back moves past it.
     router.history.back();
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/courses/c1"));
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/c/4732"));
   });
 
   test("on its organization's domain, asks an unnamed learner signed in there for a name, then goes on", async () => {
@@ -508,7 +525,9 @@ describe("the learn app", () => {
       hostOrganization: async () => {
         throw new BraivoError(500, "down");
       },
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
     });
 
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
@@ -541,7 +560,9 @@ describe("the learn app", () => {
   test("signs a learner in with an emailed code, and returns them where they were headed", async () => {
     const { learnerCourses, router } = renderAt("/", {
       signedIn: false,
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
     });
 
     fireEvent.change(await screen.findByLabelText("Email address"), {
@@ -559,10 +580,13 @@ describe("the learn app", () => {
     expect(learnerCourses).toHaveBeenCalled();
   });
 
-  test("lists the learner's courses, each a way into it", async () => {
+  test("lists the learner's courses, each a way into it by its number", async () => {
     const { learnerCourses, router } = renderAt("/", {
       signedIn: true,
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
       nextActivity: async () => activity,
     });
 
@@ -572,8 +596,88 @@ describe("the learn app", () => {
     fireEvent.click(link);
 
     expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/courses/c1");
+    expect(router.state.location.pathname).toBe("/c/4732-spanish");
   });
+
+  test("leads into a course by its ID where no organization's domain is known", async () => {
+    const { nextActivity, router } = renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [
+        { id: SPANISH_ID, number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
+      nextActivity: async () => activity,
+    });
+
+    fireEvent.click(await screen.findByRole("link", { name: "Spanish" }));
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe(`/c/${SPANISH_ID}`);
+    expect(nextActivity).toHaveBeenCalledWith(SPANISH_ID, { signal: expect.any(AbortSignal) });
+  });
+
+  test("replaces a label changed since the link was sent, before asking anything else, and Back skips it", async () => {
+    const { router, learnerCourseByNumber, nextActivity, submitAttempt } = renderAt("/", {
+      signedIn: true,
+      nextActivity: async () => activity,
+    });
+    await screen.findByText("No courses yet");
+
+    await router.navigate({ to: "/c/$courseRef", params: { courseRef: "4732-hiszpański" } });
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/c/4732-spanish");
+    expect(learnerCourseByNumber).toHaveBeenCalledTimes(2);
+    expect(nextActivity).toHaveBeenCalledTimes(1);
+    expect(submitAttempt).not.toHaveBeenCalled();
+    router.history.back();
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+  });
+
+  test("replaces a label typed decomposed, once, with the composed one", async () => {
+    const { router, learnerCourseByNumber, nextActivity } = renderAt("/c/4732-espan%CC%83ol", {
+      signedIn: true,
+      learnerCourseByNumber: async (number) => ({
+        id: "c1",
+        number,
+        title: "Español",
+        urlLabel: "español",
+      }),
+      nextActivity: async () => activity,
+    });
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/c/4732-espa\u00f1ol");
+    expect(learnerCourseByNumber).toHaveBeenCalledTimes(2);
+    expect(nextActivity).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(["/c/4732", "/c/4732-spanish"])("leaves %s as it is", async (path) => {
+    const { router, learnerCourseByNumber } = renderAt(path, {
+      signedIn: true,
+      nextActivity: async () => activity,
+    });
+
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe(path);
+    expect(learnerCourseByNumber).toHaveBeenCalledTimes(1);
+  });
+
+  test.each(["/c/1234", "/c/04732", "/c/4732-", "/c/c1"])(
+    "reads %s, which names none of the learner's courses, as not found",
+    async (path) => {
+      const { nextActivity } = renderAt(path, { signedIn: true });
+
+      // Said alike for a course on another account, with how to recover.
+      const notice = await screen.findByRole("region", {
+        name: "This course does not exist, or is not one of yours.",
+        description:
+          "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access.",
+      });
+      expect(within(notice).getByRole("link", { name: "Your courses" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+      expect(nextActivity).not.toHaveBeenCalled();
+    },
+  );
 
   test("tells a learner with no courses so, under the page's heading", async () => {
     renderAt("/", { signedIn: true });
@@ -592,7 +696,7 @@ describe("the learn app", () => {
   });
 
   test("asks the task, grades the answer, and moves on", async () => {
-    const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
+    const { nextActivity, submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
@@ -640,7 +744,7 @@ describe("the learn app", () => {
   });
 
   test("asks a typed task in a field, and sends the text exactly as typed", async () => {
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
       // Correct on another accepted spelling than the one Braivo names.
@@ -670,7 +774,7 @@ describe("the learn app", () => {
   });
 
   test("sends nothing while the field is blank: a stray Enter is no answer", async () => {
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
     });
@@ -694,7 +798,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce({ kind: "typed", outcome: "failure", correctAnswer: "bin" });
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
       submitAttempt,
@@ -719,7 +823,7 @@ describe("the learn app", () => {
 
   test("keeps Show answer focused and saying it is loading until the answer comes", async () => {
     let graded!: (grade: Grade) => void;
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
       submitAttempt: () => new Promise((resolve) => (graded = resolve)),
@@ -744,7 +848,7 @@ describe("the learn app", () => {
   });
 
   test("shows the answer when asked, before any is given, as a failure Braivo records", async () => {
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
@@ -768,7 +872,7 @@ describe("the learn app", () => {
   test("on Continue, rechecks the session and reloads the course, not the brand", async () => {
     const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
     const session = vi.fn(async () => ({ id: "ada", name: "Ada Learner" }));
-    const { learnerCourses, learnerProgress, nextActivity } = renderAt("/courses/c1", {
+    const { learnerCourseByNumber, learnerProgress, nextActivity } = renderAt("/c/4732", {
       signedIn: true,
       hostOrganization,
       session,
@@ -782,14 +886,14 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-    for (const read of [session, nextActivity, learnerProgress, learnerCourses]) {
+    for (const read of [session, learnerCourseByNumber, nextActivity, learnerProgress]) {
       expect(read).toHaveBeenCalledTimes(2);
     }
     expect(hostOrganization).toHaveBeenCalledTimes(1);
   });
 
   test("shows the passages a graded task was written from, linking the ones with a link", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: async () => ({
@@ -835,7 +939,7 @@ describe("the learn app", () => {
       .mockRejectedValueOnce(failure)
       .mockRejectedValueOnce(failure)
       .mockReturnValueOnce(new Promise((resolve) => (graded = resolve)));
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     const option = await screen.findByRole("button", { name: "hablé" });
     fireEvent.click(option);
@@ -888,7 +992,7 @@ describe("the learn app", () => {
   });
 
   test("shows an answer's feedback after a reload while it was on its way, sending the same attempt", async () => {
-    const before = renderAt("/courses/c1", {
+    const before = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -897,7 +1001,7 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(before.submitAttempt).toHaveBeenCalledTimes(1));
     cleanup();
 
-    const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
+    const { nextActivity, submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       // The answer was recorded, so Braivo has moved on.
       nextActivity: async () => anotherActivity,
@@ -923,7 +1027,7 @@ describe("the learn app", () => {
     cleanup();
 
     // Continued past, it is not sent again.
-    const after = renderAt("/courses/c1", {
+    const after = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => anotherActivity,
     });
@@ -935,7 +1039,7 @@ describe("the learn app", () => {
     const lost = async () => {
       throw new TypeError("Failed to fetch");
     };
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: lost,
@@ -948,7 +1052,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce(lost)
       .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
-    renderAt("/courses/c1", { signedIn: true, submitAttempt });
+    renderAt("/c/4732", { signedIn: true, submitAttempt });
 
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Your answer/ })).toBeTruthy();
@@ -968,7 +1072,7 @@ describe("the learn app", () => {
   ] as const)(
     "after a reload, resends %s that could not be confirmed, exactly",
     async (_case, response, title) => {
-      const { submitAttempt: lost } = renderAt("/courses/c1", {
+      const { submitAttempt: lost } = renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => typedActivity,
         submitAttempt: async () => {
@@ -990,7 +1094,7 @@ describe("the learn app", () => {
         outcome: "failure",
         correctAnswer: "bin",
       }));
-      renderAt("/courses/c1", { signedIn: true, submitAttempt });
+      renderAt("/c/4732", { signedIn: true, submitAttempt });
 
       expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
       // The same attempt, ID and all, so Braivo records it once.
@@ -1006,7 +1110,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce((_input, options) => stall(options))
       .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
     const option = await screen.findByRole("button", { name: "hablé" });
 
     vi.useFakeTimers();
@@ -1024,7 +1128,7 @@ describe("the learn app", () => {
   });
 
   test("after a reload, offers to send again an answer whose resend Braivo does not answer in time", async () => {
-    const before = renderAt("/courses/c1", {
+    const before = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -1034,7 +1138,7 @@ describe("the learn app", () => {
     cleanup();
 
     vi.useFakeTimers();
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       submitAttempt: (_input, options) => stall(options),
     });
@@ -1054,7 +1158,12 @@ describe("the learn app", () => {
     "asks the question without %s when Braivo does not answer it in time",
     async (_, stubs) => {
       vi.useFakeTimers();
-      renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, ...stubs });
+      // By ID, as the title is read from the list then.
+      renderAt(`/c/${SPANISH_ID}`, {
+        signedIn: true,
+        nextActivity: async () => activity,
+        ...stubs,
+      });
       // Held back meanwhile, so the page does not shift when it arrives.
       await waitOut(OPTIONAL_READ_DEADLINE_MS - 1);
       expect(screen.queryByText("Past tense of 'hablar'?")).toBeNull();
@@ -1067,7 +1176,7 @@ describe("the learn app", () => {
 
   test("gives the question its own deadline, not the shorter one of what it shows without", async () => {
     vi.useFakeTimers();
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: (_input, options) => stall(options),
       // Slower than the summary's deadline, within its own.
@@ -1116,7 +1225,7 @@ describe("the learn app", () => {
     "offers to try again when Braivo does not answer %s in time on Continue",
     async (_, stubs, brandReads) => {
       const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
-      renderAt("/courses/c1", { signedIn: true, hostOrganization, ...stubs });
+      renderAt("/c/4732", { signedIn: true, hostOrganization, ...stubs });
       fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
       const next = await screen.findByRole("button", { name: "Continue" });
 
@@ -1134,7 +1243,7 @@ describe("the learn app", () => {
   test.each([400, 403, 404, 409, 413])(
     "after a reload, forgets an answer refused with %i and loads the course as usual",
     async (status) => {
-      renderAt("/courses/c1", {
+      renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => activity,
         submitAttempt: () => new Promise(() => {}),
@@ -1142,7 +1251,7 @@ describe("the learn app", () => {
       fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
       cleanup();
 
-      const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
+      const { nextActivity, submitAttempt } = renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => anotherActivity,
         submitAttempt: async () => {
@@ -1154,7 +1263,7 @@ describe("the learn app", () => {
       expect(nextActivity).toHaveBeenCalledTimes(1);
       cleanup();
 
-      const again = renderAt("/courses/c1", {
+      const again = renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => anotherActivity,
       });
@@ -1164,7 +1273,7 @@ describe("the learn app", () => {
   );
 
   test("does not resend an answer refused before the reload", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: async () => {
@@ -1175,7 +1284,7 @@ describe("the learn app", () => {
     expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
     cleanup();
 
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
     });
@@ -1184,7 +1293,7 @@ describe("the learn app", () => {
   });
 
   test("sends a learner whose session ended during a reload to sign in, keeping their answer for after", async () => {
-    const before = renderAt("/courses/c1", {
+    const before = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -1193,7 +1302,7 @@ describe("the learn app", () => {
     cleanup();
 
     let signedIn = true;
-    const { router } = renderAt("/courses/c1", {
+    const { router } = renderAt("/c/4732", {
       signedIn: true,
       session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
       submitAttempt: async () => {
@@ -1205,7 +1314,7 @@ describe("the learn app", () => {
     expect(router.state.location.pathname).toBe("/login");
     cleanup();
 
-    const after = renderAt("/courses/c1", { signedIn: true });
+    const after = renderAt("/c/4732", { signedIn: true });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Correct");
     expect(after.submitAttempt.mock.calls[0]![0]).toEqual(before.submitAttempt.mock.calls[0]![0]);
@@ -1218,7 +1327,7 @@ describe("the learn app", () => {
       correctChoice: 0,
       explanation: "Preterite.",
     };
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: async () => graded,
@@ -1227,7 +1336,7 @@ describe("the learn app", () => {
     expect(await screen.findByText("Not quite")).toBeTruthy();
     cleanup();
 
-    const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
+    const { nextActivity, submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => anotherActivity,
       submitAttempt: async () => graded,
@@ -1239,7 +1348,7 @@ describe("the learn app", () => {
   });
 
   test("resends an unfinished answer on a visit, never on a preload", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -1252,10 +1361,10 @@ describe("the learn app", () => {
       nextActivity: async () => activity,
     });
     await screen.findByRole("heading", { name: "Your courses" });
-    await router.preloadRoute({ to: "/courses/$courseId", params: { courseId: "c1" } });
+    await router.preloadRoute({ to: "/c/$courseRef", params: { courseRef: "4732" } });
     expect(submitAttempt).not.toHaveBeenCalled();
 
-    await router.navigate({ to: "/courses/$courseId", params: { courseId: "c1" } });
+    await router.navigate({ to: "/c/$courseRef", params: { courseRef: "4732" } });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(1);
   });
@@ -1265,7 +1374,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new BraivoError(401, "no session"))
       .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
@@ -1284,7 +1393,7 @@ describe("the learn app", () => {
       "braivo.unfinishedAttempt:ada:c1",
       JSON.stringify({ id: "a1", response: { choice: 0 }, activity: saved }),
     );
-    const { nextActivity, submitAttempt } = renderAt("/courses/c1", {
+    const { nextActivity, submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
     });
@@ -1294,7 +1403,7 @@ describe("the learn app", () => {
   });
 
   test("keeps an unfinished answer whose resend was abandoned by leaving, whatever it came to", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -1307,19 +1416,19 @@ describe("the learn app", () => {
       .fn<BraivoClient["submitAttempt"]>()
       .mockReturnValueOnce(new Promise((_, reject) => (refuse = reject)))
       .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
-    const { router } = renderAt("/courses/c1", { signedIn: true, submitAttempt });
+    const { router } = renderAt("/c/4732", { signedIn: true, submitAttempt });
     await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
     await router.navigate({ to: "/" });
     // Settling after the page was left, it decides nothing.
     refuse(new BraivoError(409, "resting"));
 
-    await router.navigate({ to: "/courses/$courseId", params: { courseId: "c1" } });
+    await router.navigate({ to: "/c/$courseRef", params: { courseRef: "4732" } });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(2);
   });
 
   test("never resends one learner's answer as another's", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: () => new Promise(() => {}),
@@ -1327,7 +1436,7 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     cleanup();
 
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       user: { id: "grace", name: "Grace Learner" },
       nextActivity: async () => activity,
@@ -1342,7 +1451,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockReturnValueOnce(new Promise((resolve) => (loaded = resolve)));
-    renderAt("/courses/c1", { signedIn: true, nextActivity });
+    renderAt("/c/4732", { signedIn: true, nextActivity });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     const next = await screen.findByRole("button", { name: "Continue" });
@@ -1362,7 +1471,7 @@ describe("the learn app", () => {
   test.each([400, 403, 413])(
     "gives up on an answer Braivo refuses with %i, rather than inviting another choice",
     async (status) => {
-      renderAt("/courses/c1", {
+      renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => activity,
         submitAttempt: async () => {
@@ -1386,7 +1495,12 @@ describe("the learn app", () => {
     const braivo = {
       hostOrganization: async () => undefined,
       session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
-      learnerCourses: async () => [],
+      learnerCourseByNumber: async () => ({
+        id: "c1",
+        number: 4732,
+        title: "Spanish",
+        urlLabel: "spanish",
+      }),
       learnerProgress: async () => noProgress,
       nextActivity: async () => activity,
       submitAttempt: async () => {
@@ -1395,7 +1509,7 @@ describe("the learn app", () => {
       },
     } as unknown as AppContext["braivo"];
     const router = createLearnRouter({
-      history: createMemoryHistory({ initialEntries: ["/courses/c1"] }),
+      history: createMemoryHistory({ initialEntries: ["/c/4732"] }),
       context: { auth, braivo, visit: () => {} },
     });
     render(<RouterProvider router={router} />);
@@ -1411,7 +1525,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
       .mockResolvedValueOnce(activity);
-    renderAt("/courses/c1", { signedIn: true, nextActivity });
+    renderAt("/c/4732", { signedIn: true, nextActivity });
 
     const notice = await screen.findByRole("region", { name: "Take a short break" });
     expect(document.activeElement).toBe(notice);
@@ -1428,7 +1542,7 @@ describe("the learn app", () => {
   ])("says when practice continues, %is on, as %s", async (retryAfter, shown) => {
     const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-06-01T10:00:00.000Z"));
     onTestFinished(() => now.mockRestore());
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({ objective: activity.objective, retryAfter }),
     });
@@ -1446,7 +1560,7 @@ describe("the learn app", () => {
       ...activity,
       task: { ...activity.task, options: activity.task.options.toReversed() },
     };
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
@@ -1475,7 +1589,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600 });
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity,
       submitAttempt: async () => {
@@ -1490,7 +1604,7 @@ describe("the learn app", () => {
 
   test("shows the learner where they stand in the course, read as themselves", async () => {
     const at = "2026-06-01T00:00:00.000Z";
-    const { learnerProgress } = renderAt("/courses/c1", {
+    const { learnerProgress } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => ({
@@ -1555,7 +1669,7 @@ describe("the learn app", () => {
   });
 
   test("leaves out empty counts", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => ({
@@ -1584,7 +1698,7 @@ describe("the learn app", () => {
       title: "Greetings",
     };
     let reported: LearnerProgressStanding[] = [pastTense, greetings];
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
@@ -1618,7 +1732,7 @@ describe("the learn app", () => {
     cleanup();
 
     // No objectives reported: nothing to say.
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => noProgress,
@@ -1628,7 +1742,7 @@ describe("the learn app", () => {
   });
 
   test("still asks the question when where they stand cannot be read", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => {
@@ -1641,7 +1755,7 @@ describe("the learn app", () => {
   });
 
   test("answers from the keyboard, by the place an option is shown in", async () => {
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
     });
@@ -1682,7 +1796,7 @@ describe("the learn app", () => {
   });
 
   test("says why a question comes now", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({
         ...activity,
@@ -1708,7 +1822,7 @@ describe("the learn app", () => {
   });
 
   test("tells a learner with nothing due that they are caught up", async () => {
-    renderAt("/courses/c1", { signedIn: true });
+    renderAt("/c/4732", { signedIn: true });
 
     const notice = await screen.findByRole("region", {
       name: "You're caught up",
@@ -1718,7 +1832,7 @@ describe("the learn app", () => {
   });
 
   test("tells a learner held back by the day's limit on new material to come back tomorrow, not that they are caught up", async () => {
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => ({ dailyLimit: 20 }) });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => ({ dailyLimit: 20 }) });
 
     expect(
       await screen.findByRole("region", {
@@ -1740,7 +1854,7 @@ describe("the learn app", () => {
       due,
       dueAt,
     });
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
@@ -1767,7 +1881,7 @@ describe("the learn app", () => {
   });
 
   test("says a task of a kind it cannot answer is not supported here, and sends nothing", async () => {
-    const { submitAttempt } = renderAt("/courses/c1", {
+    const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       // A kind a newer Braivo might send, which this app's types do not know.
       nextActivity: async () =>
@@ -1789,7 +1903,7 @@ describe("the learn app", () => {
   });
 
   test("names the objective that has nothing to practise, without claiming the learner is caught up", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({
         decision: activity.decision,
@@ -1806,12 +1920,12 @@ describe("the learn app", () => {
   });
 
   test("names the course, in its tab too, and leads back to the list", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
       learnerCourses: async () => [
-        { id: "c0", title: "French" },
-        { id: "c1", title: "Spanish" },
+        { id: "c0", number: 1000, title: "French", urlLabel: "french" },
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
       ],
       nextActivity: async () => activity,
     });
@@ -1825,9 +1939,12 @@ describe("the learn app", () => {
   });
 
   test("names the course alone in its tab on a domain that serves no organization", async () => {
-    renderAt("/courses/c1", {
+    // By ID, as a number names no course there.
+    renderAt(`/c/${SPANISH_ID}`, {
       signedIn: true,
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: SPANISH_ID, number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
       nextActivity: async () => activity,
     });
 
@@ -1835,7 +1952,7 @@ describe("the learn app", () => {
   });
 
   test("still asks the question when the course's title cannot be read", async () => {
-    renderAt("/courses/c1", {
+    renderAt(`/c/${SPANISH_ID}`, {
       signedIn: true,
       learnerCourses: async () => {
         throw new TypeError("Failed to fetch");
@@ -1852,7 +1969,7 @@ describe("the learn app", () => {
     const learnerCourses = vi
       .fn<BraivoClient["learnerCourses"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValueOnce([{ id: "c1", title: "Spanish" }]);
+      .mockResolvedValueOnce([{ id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" }]);
     renderAt("/", { signedIn: true, learnerCourses });
 
     const notice = await screen.findByRole("region", { name: "Your courses could not be loaded." });
@@ -1866,7 +1983,10 @@ describe("the learn app", () => {
     const loading = Promise.withResolvers<Activity | undefined>();
     renderAt("/", {
       signedIn: true,
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
       nextActivity: () => loading.promise,
     });
     fireEvent.click(await screen.findByRole("link", { name: "Spanish" }));
@@ -1883,7 +2003,7 @@ describe("the learn app", () => {
     const submitAttempt = vi.fn<BraivoClient["submitAttempt"]>(
       () => new Promise((resolve) => (graded = resolve)),
     );
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
@@ -1898,7 +2018,7 @@ describe("the learn app", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(activity);
-    renderAt("/courses/c1", { signedIn: true, nextActivity });
+    renderAt("/c/4732", { signedIn: true, nextActivity });
 
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
 
@@ -1906,9 +2026,9 @@ describe("the learn app", () => {
   });
 
   test("leads back to the list when loading the course failed", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
-      learnerCourses: async () => [{ id: "c0", title: "French" }],
+      learnerCourses: async () => [{ id: "c0", number: 1000, title: "French", urlLabel: "french" }],
       nextActivity: async () => {
         throw new TypeError("Failed to fetch");
       },
@@ -1926,13 +2046,13 @@ describe("the learn app", () => {
       .mockResolvedValueOnce(activity)
       .mockResolvedValueOnce(anotherActivity)
       .mockReturnValueOnce(new Promise((resolve) => (loaded = resolve)));
-    const { router } = renderAt("/courses/c1", { signedIn: true, nextActivity });
+    const { router } = renderAt("/c/4732", { signedIn: true, nextActivity });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
     await screen.findByRole("button", { name: "comí" });
     await router.navigate({ to: "/" });
-    void router.navigate({ to: "/courses/$courseId", params: { courseId: "c1" } });
+    void router.navigate({ to: "/c/$courseRef", params: { courseRef: "4732" } });
 
     // What comes next depends on every answer since, elsewhere too, so the
     // question last shown must not be shown again while the next one loads.
@@ -1949,7 +2069,7 @@ describe("the learn app", () => {
       .mockResolvedValueOnce(activity)
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(undefined);
-    renderAt("/courses/c1", { signedIn: true, nextActivity });
+    renderAt("/c/4732", { signedIn: true, nextActivity });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
@@ -1959,9 +2079,9 @@ describe("the learn app", () => {
   });
 
   test("reads a course Braivo will not show as not found, not as caught up, with a way back", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
-      learnerCourses: async () => [{ id: "c0", title: "French" }],
+      learnerCourses: async () => [{ id: "c0", number: 1000, title: "French", urlLabel: "french" }],
       nextActivity: async () => {
         throw new BraivoError(404, "not found");
       },
@@ -1976,10 +2096,12 @@ describe("the learn app", () => {
 
   test("stops naming a course in its tab once a reload finds it gone", async () => {
     let gone = false;
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
-      learnerCourses: async () => [{ id: "c1", title: "Spanish" }],
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
       nextActivity: async () => {
         if (gone) throw new BraivoError(404, "not found");
         return activity;
@@ -2050,7 +2172,7 @@ describe("the learn app in Polish", () => {
     );
     cleanup();
 
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => {
         throw new TypeError("Failed to fetch");
@@ -2062,7 +2184,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("introduces a new topic, and grades a right answer", async () => {
-    renderAt("/courses/c1", { signedIn: true, nextActivity: async () => activity });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity });
 
     expect(await screen.findByText("Nowy temat · Past tense")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "hablé" }));
@@ -2072,7 +2194,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("says why a missed topic comes again, and when an answer is refused", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => anotherActivity,
       submitAttempt: async () => {
@@ -2088,7 +2210,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("asks the task and grades the answer", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({
         ...activity,
@@ -2129,7 +2251,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("says when an answer could not be confirmed, and resends it", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       submitAttempt: vi
@@ -2150,7 +2272,7 @@ describe("the learn app in Polish", () => {
   test("rests a just-answered task until a time written the Polish way, in the browser's time zone", async () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-06-01T10:00:00.000Z"));
     onTestFinished(() => now.mockRestore());
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({ objective: activity.objective, retryAfter: 340 }),
     });
@@ -2165,7 +2287,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("tells a caught-up learner when their next review falls due, on a Polish date", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
@@ -2199,7 +2321,7 @@ describe("the learn app in Polish", () => {
     expect(screen.getByText("1 utrwalony")).toBeTruthy();
     cleanup();
 
-    renderAt("/courses/c1", { signedIn: true });
+    renderAt("/c/4732", { signedIn: true });
     expect(
       await screen.findByRole("region", {
         name: "Jesteś na bieżąco",
@@ -2214,7 +2336,7 @@ describe("the learn app in Polish", () => {
     [2, "2 nierozpoczęte"],
     [5, "5 nierozpoczętych"],
   ])("counts %i objective(s) not started as %s", async (count, line) => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
       learnerProgress: async () => notStarted(count),
@@ -2226,7 +2348,7 @@ describe("the learn app in Polish", () => {
   });
 
   test("says when a course has nothing to practise, or is not the learner's", async () => {
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => ({ decision: activity.decision, objective: activity.objective }),
     });
@@ -2238,7 +2360,7 @@ describe("the learn app in Polish", () => {
     ).toBeTruthy();
     cleanup();
 
-    renderAt("/courses/c1", {
+    renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => {
         throw new BraivoError(404, "not found");

@@ -19,7 +19,7 @@ const group = {
     { userId: "l1", name: "Lee" },
     { userId: "l2", name: "Lou" },
   ],
-  courses: [{ id: "c1", title: "Beginners" }],
+  courses: [{ id: "c1", number: 1000, title: "Beginners", urlLabel: "beginners" }],
 };
 
 describe("a group form's change", () => {

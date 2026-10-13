@@ -75,7 +75,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
 
     expect(await readCourseObjectives(database, courseId)).toEqual([bravo!, alpha!]);
     expect(await listCourses({ database, organizationId, actingAs: author })).toEqual([
-      { id: courseId, title: "Spanish" },
+      { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
     ]);
   });
 
@@ -118,7 +118,9 @@ describe.skipIf(!connectionString)("defining courses", () => {
     const courseId = await define([alpha], author, "  Trimmed  ");
     expect(await listCourses({ database, organizationId, actingAs: author })).toContainEqual({
       id: courseId,
+      number: expect.any(Number),
       title: "Trimmed",
+      urlLabel: "trimmed",
     });
   });
 

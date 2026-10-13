@@ -48,9 +48,7 @@ describe.skipIf(!connectionString)("the session routes", () => {
   });
 
   test("hands an account over to a learn domain as a learner, back where it started", async () => {
-    const started = await api.request(
-      `${organizationOrigin}/api/session/sign-in?redirect=/courses/c1`,
-    );
+    const started = await api.request(`${organizationOrigin}/api/session/sign-in?redirect=/c/4732`);
     expect(started.status).toBe(302);
     expect(started.headers.get("cache-control")).toBe("private, no-store");
     const login = new URL(started.headers.get("location")!);
@@ -102,7 +100,7 @@ describe.skipIf(!connectionString)("the session routes", () => {
     failed(await api.request(url));
     const redeemed = await api.request(url, { headers: { cookie: nonce } });
     expect(redeemed.status).toBe(302);
-    expect(redeemed.headers.get("location")).toBe("/courses/c1");
+    expect(redeemed.headers.get("location")).toBe("/c/4732");
     expect(redeemed.headers.get("referrer-policy")).toBe("no-referrer");
     const sessionCookie = redeemed.headers
       .getSetCookie()

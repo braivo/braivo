@@ -82,6 +82,7 @@ const routes = [
   "GET  /api/organizations/:organizationId/courses",
   "POST /api/organizations/:organizationId/courses",
   "GET  /api/organizations/:organizationId/courses/:courseId",
+  "POST /api/organizations/:organizationId/courses/:courseId/url-label",
   "POST /api/organizations/:organizationId/citations",
   "GET  /api/organizations/:organizationId/objectives/:objectiveId/citations",
   "GET  /api/organizations/:organizationId/objectives/:objectiveId/tasks",
@@ -314,6 +315,7 @@ POST /api/organizations/:organizationId/tasks/retire                            
 GET  /api/organizations/:organizationId/courses                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/courses                                 401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/courses/:courseId                       401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/courses/:courseId/url-label             401     400     400     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/citations                               401     400     400     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/objectives/:objectiveId/citations       401     403     403     401       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/objectives/:objectiveId/tasks           401     403     403     401       ·       ·       ·       ·       ·
@@ -376,6 +378,7 @@ POST /api/organizations/:organizationId/tasks/retire                            
 GET  /api/organizations/:organizationId/courses                                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/courses                                 404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/courses/:courseId                       404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/courses/:courseId/url-label             404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/citations                               404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/objectives/:objectiveId/citations       404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/objectives/:objectiveId/tasks           404     404     401     404       ·       ·       ·       ·       ·

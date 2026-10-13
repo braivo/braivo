@@ -445,6 +445,46 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     });
   });
 
+  test("changes a course's URL label for its administrators, over the label read", async () => {
+    const id = await createCourse(database, {
+      organizationId,
+      title: "Everyday English",
+      objectiveIds: [],
+    });
+    const label = (urlLabel: unknown, previous: unknown, cookie = teacher.cookie, course = id) =>
+      api.request(`/api/organizations/${organizationId}/courses/${course}/url-label`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ urlLabel, previous }),
+      });
+    const labelNow = async () => {
+      const listed = await api.request(`/api/organizations/${organizationId}/courses`, {
+        headers: { cookie: teacher.cookie },
+      });
+      const { courses } = (await listed.json()) as { courses: { id: string; urlLabel: string }[] };
+      return courses.find((course) => course.id === id)?.urlLabel;
+    };
+
+    expect((await label("english-a1", "everyday-english")).status).toBe(204);
+    // A retry of the same change, as after a lost answer.
+    expect((await label("english-a1", "everyday-english")).status).toBe(204);
+    expect(await labelNow()).toBe("english-a1");
+
+    const stale = await label("english-b1", "everyday-english");
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({
+      error: expect.stringContaining("read it again"),
+      urlLabel: "english-a1",
+    });
+    for (const malformed of ["", "English", "a--b", "a/b", 7]) {
+      expect((await label(malformed, "english-a1")).status).toBe(400);
+    }
+    expect((await label("english-b1", "english-a1", learner.cookie)).status).toBe(403);
+    expect((await label("x", "y", teacher.cookie, "no-such-course")).status).toBe(404);
+    expect((await label("x", "y", teacher.cookie, foreignCourseId)).status).toBe(404);
+    expect(await labelNow()).toBe("english-a1");
+  });
+
   test("lists the courses an organization has", async () => {
     const listed = await api.request(`/api/organizations/${organizationId}/courses`, {
       headers: { cookie: teacher.cookie },
@@ -452,7 +492,9 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     expect(listed.status).toBe(200);
     expect(await listed.json()).toMatchObject({
-      courses: expect.arrayContaining([{ id: courseId, title: "Spanish" }]),
+      courses: expect.arrayContaining([
+        { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+      ]),
     });
   });
 
@@ -641,7 +683,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await reordered.json()).toMatchObject({ error: expect.stringContaining("The course") });
     // The refused request stored nothing: one course has the title, the keyed one.
     expect(courses.filter(({ title }) => title === course.title)).toEqual([
-      { id: keyed, title: course.title },
+      { id: keyed, number: expect.any(Number), title: course.title, urlLabel: expect.any(String) },
     ]);
   });
 
@@ -690,7 +732,9 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(course.status).toBe(200);
     expect(await course.json()).toEqual({
       id: colors,
+      number: expect.any(Number),
       title: "Colores",
+      urlLabel: "colores",
       objectives: [
         { id: blue, title: "Blue", citations: [], tasks: [] },
         {

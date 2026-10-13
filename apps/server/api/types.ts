@@ -85,8 +85,12 @@ export type Grade = content.Grade & { passages?: Passage[] };
 /** A passage a graded task was written from: the words, and where they are from. */
 export type Passage = application.Passage;
 
-/** A course as its organization's content owners see it listed. */
-export type Course = { id: string; title: string };
+/**
+ * A course as its organization's content owners see it listed; `number` names
+ * it in learners' links within its organization, and `urlLabel` follows it
+ * there, to read (`courseRef`).
+ */
+export type Course = { id: string; number: number; title: string; urlLabel: string };
 
 /** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };

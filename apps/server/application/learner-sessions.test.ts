@@ -30,7 +30,7 @@ const at = new Date("2026-01-01T00:00:00.000Z");
 const after = (seconds: number) => new Date(at.getTime() + seconds * 1000);
 
 /** A handoff started on the school's domain and completed by its learner. */
-async function issued(returnPath = "/courses/c1") {
+async function issued(returnPath = "/c/4732") {
   const started = await startHandoff({ database, hostname, returnPath, now: at });
   if (!started) throw new Error("The school's domain started no handoff.");
   const completed = await completeHandoff({
@@ -59,7 +59,7 @@ describe.skipIf(!connectionString)("a learn domain's sign-in, handed over", () =
   });
 
   test("opens a learner session for a member, once, returning where they started", async () => {
-    const { handoffId, nonce, code } = await issued("/courses/c1?tab=next");
+    const { handoffId, nonce, code } = await issued("/c/4732?tab=next");
     expect(await describeHandoff({ database, handoffId, now: at })).toEqual({
       organization: { name: school },
       hostname,
@@ -69,7 +69,7 @@ describe.skipIf(!connectionString)("a learn domain's sign-in, handed over", () =
     expect(await describeHandoff({ database, handoffId, now: after(60) })).toBeUndefined();
 
     const redeemed = await redeem({ code, nonce });
-    expect(redeemed?.returnPath).toBe("/courses/c1?tab=next");
+    expect(redeemed?.returnPath).toBe("/c/4732?tab=next");
     expect(
       await resumeLearnerSession({ database, hostname, token: redeemed!.token, now: at }),
     ).toEqual({

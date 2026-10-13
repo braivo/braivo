@@ -28,6 +28,7 @@ import {
   type QuotedCitation,
   removeDomain,
   renameOrganization,
+  setCourseUrlLabel,
   retireTasks,
   SetUpRefused,
   setUpOrganization,
@@ -650,6 +651,48 @@ export function authoringRoutes(
             tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
           })),
         });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Sets what follows a course's number in its learners' links (ADR 0044),
+   * if it is still `previous`, for whoever administers its organization;
+   * else 409 with the label now.
+   */
+  routes.post(
+    "/api/organizations/:organizationId/courses/:courseId/url-label",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      const body = (await jsonBody(context)) as { urlLabel?: unknown; previous?: unknown } | null;
+      if (typeof body?.urlLabel !== "string" || typeof body.previous !== "string") {
+        return context.body(null, 400);
+      }
+
+      try {
+        const result = await setCourseUrlLabel({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseId: context.req.param("courseId"),
+          urlLabel: body.urlLabel,
+          previous: body.previous,
+        });
+        if (!result) return context.body(null, 404);
+        if (!result.saved) {
+          return context.json(
+            {
+              error:
+                "The course's URL label changed since it was read; read it again before changing it.",
+              urlLabel: result.urlLabel,
+            },
+            409,
+          );
+        }
+        return context.body(null, 204);
       } catch (error) {
         return organizationRefusal(context, error);
       }

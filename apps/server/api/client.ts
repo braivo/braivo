@@ -36,7 +36,8 @@ import type {
 // The client for Braivo's HTTP API, which the learn and console apps import as
 // `@braivo/server/client` and the `braivo` CLI uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
-// server but types (`client.test.ts` checks).
+// server but types and `content/course-ref.ts`, which imports nothing (`client.test.ts`
+// checks).
 //
 // It covers what its callers call, not the whole API: an authoring route with
 // no method here is one no screen or command uses. Add one in the commit whose
@@ -77,6 +78,7 @@ export type {
   TaskDraft,
   TaskResponse,
 } from "./types.ts";
+export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
 
 /**
  * An answer the client could not use: a refusal, a status the method does not
@@ -248,6 +250,13 @@ export type BraivoClient = {
    * that one's.
    */
   learnerCourses(options?: RequestOptions): Promise<Course[]>;
+
+  /**
+   * The signed-in learner's course numbered `number` on this organization's
+   * domain, or `undefined` when they have none so numbered, as on the
+   * installation's host, where a number names no course.
+   */
+  learnerCourseByNumber(number: number, options?: RequestOptions): Promise<Course | undefined>;
 
   /**
    * The organizations the session's user works in, by name: those where they
@@ -535,6 +544,18 @@ export type BraivoClient = {
     input: { organizationId: string; courseId: string },
     options?: RequestOptions,
   ): Promise<AuthoredCourse>;
+
+  /**
+   * Sets what follows a course's number in its learners' links, replacing
+   * `previous`, the label read; a label as `urlLabel` writes one, else 400.
+   * Not saved, with the label now, when someone else changed it meanwhile. A
+   * course the organization does not have is a {@link BraivoError} with
+   * status 404; one the session may not administer, 403.
+   */
+  setCourseUrlLabel(
+    input: { organizationId: string; courseId: string; urlLabel: string; previous: string },
+    options?: RequestOptions,
+  ): Promise<{ saved: true } | { saved: false; urlLabel: string }>;
 
   /**
    * Drafts a course from a source with the installation's own model, for
@@ -832,6 +853,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { courses } = await parsed<{ courses: Course[] }>(response, doing);
       return courses;
+    },
+
+    async learnerCourseByNumber(number, requestOptions) {
+      const response = await get(
+        `/api/courses?${new URLSearchParams({ number: String(number) })}`,
+        requestOptions,
+      );
+
+      const doing = `finding the learner's course ${number}`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      const { courses } = await parsed<{ courses: Course[] }>(response, doing);
+      return courses[0];
     },
 
     async listOrganizations(requestOptions) {
@@ -1141,6 +1175,22 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<AuthoredCourse>(response, doing);
+    },
+
+    async setCourseUrlLabel({ organizationId, courseId, urlLabel, previous }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/courses/${encodeURIComponent(courseId)}/url-label`,
+        { urlLabel, previous },
+        requestOptions,
+      );
+
+      const doing = `changing the URL label of course "${courseId}"`;
+      if (response.status === 409) {
+        const { urlLabel: now } = await parsed<{ urlLabel: string }>(response, doing);
+        return { saved: false, urlLabel: now };
+      }
+      if (response.status !== 204) throw await unexpected(response, doing);
+      return { saved: true };
     },
 
     async draftCourse({ organizationId, sourceId, audience }, requestOptions) {
