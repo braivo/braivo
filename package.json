@@ -9,6 +9,9 @@
   "type": "module",
   "scripts": {
     "dev": "vp run --parallel --filter '@braivo/*' --filter '!@braivo/storybook' dev",
+    "dev:demo": "bun tooling/dev-demo/cli.ts",
+    "dev:demo:verify": "bun tooling/dev-demo/cli.ts verify",
+    "dev:demo:reset": "bun tooling/dev-demo/cli.ts reset",
     "storybook": "vp run @braivo/storybook#dev",
     "build": "vp run -r build",
     "test": "bun --bun vp test",

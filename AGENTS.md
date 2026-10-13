@@ -30,6 +30,7 @@ apps/server            API, use cases, learning model, auth, queries, CLI (one B
   storage/             uploaded files' bytes: a directory or an S3-compatible bucket
   auth/                Better Auth server config
   cli/                 process entry point (serve, db migrate)
+  fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/guides/demo.md)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)
 apps/console           content owners' app
 apps/storybook         catalog of @braivo/ui
@@ -37,7 +38,7 @@ packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
-tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup
+tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo
 docs/                  product, architecture, apps, glossary, adr/, specs/
 ```
 
