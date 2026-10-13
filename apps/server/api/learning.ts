@@ -14,6 +14,7 @@ import {
   submitAttempt,
   withoutHistory,
 } from "../application/index.ts";
+import { parseCourseNumber } from "../content/index.ts";
 import { type Guards, jsonBody } from "./guards.ts";
 import { secondsUntil } from "./refusals.ts";
 
@@ -92,12 +93,19 @@ export function learningRoutes(
     }
   });
 
-  /** The courses the signed-in learner may study, from the session alone. */
+  /**
+   * The courses the signed-in learner may study, from the session alone; with
+   * `?number=`, the one so numbered, as a learn domain's `/c/4732` names it.
+   */
   routes.get("/api/courses", requireLearner, async (context) => {
+    const numbered = context.req.query("number");
+    const number = numbered === undefined ? undefined : parseCourseNumber(numbered);
+    if (numbered !== undefined && number === undefined) return context.body(null, 400);
     const courses = await listLearnerCourses({
       database,
       learnerId: context.var.learner.id,
       host: requestHost(context),
+      number,
     });
     return context.json({ courses });
   });

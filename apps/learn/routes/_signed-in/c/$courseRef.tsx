@@ -11,6 +11,8 @@ import {
   type LearningDecision,
   type LearnerProgressStanding,
   type TaskResponse,
+  courseRef,
+  parseCourseRef,
 } from "@braivo/server/client";
 import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
@@ -18,7 +20,7 @@ import { Button } from "@braivo/ui/components/button";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
@@ -37,7 +39,7 @@ import {
   saveUnfinishedAttempt,
 } from "#lib/unfinished-attempt";
 
-export const Route = createFileRoute("/_signed-in/courses/$courseId")({
+export const Route = createFileRoute("/_signed-in/c/$courseRef")({
   // Dropped on leaving: what comes next depends on every answer since, and a
   // kept activity would show again, unanswered, while the next one loads.
   gcTime: 0,
@@ -48,8 +50,10 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
     const left = abortController.signal;
     const learnerId = context.user.id;
     try {
+      const course = await resolveCourse(context.braivo, params.courseRef, left);
+      const courseId = course.id;
       // First, so the summary below counts it.
-      const resumed = await resume(context.braivo, learnerId, params.courseId, left);
+      const resumed = await resume(context.braivo, learnerId, courseId, left);
       // Timed out, the activity fails the page, whose Try again reloads it.
       const signal = withDeadline(left, READ_DEADLINE_MS);
       // The title and the summary are optional: a failure or their own shorter
@@ -57,26 +61,25 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
       // question back. Awaited with the activity so they cannot arrive later
       // and shift the question down.
       const optional = withDeadline(left, OPTIONAL_READ_DEADLINE_MS);
-      const [activity, progress, course] = await Promise.all([
-        resumed?.attempt.activity ?? context.braivo.nextActivity(params.courseId, { signal }),
+      const [activity, progress, title] = await Promise.all([
+        resumed?.attempt.activity ?? context.braivo.nextActivity(courseId, { signal }),
         context.braivo
           // Standings only: the page never shows the evidence.
-          .learnerProgress(
-            { courseId: params.courseId, learnerId, includeHistory: false },
-            { signal: optional },
-          )
+          .learnerProgress({ courseId, learnerId, includeHistory: false }, { signal: optional })
           .catch(() => undefined),
-        // The title, from the list: one more read per load, sized by the
-        // learner's courses, rather than an endpoint for one string.
-        context.braivo
-          .learnerCourses({ signal: optional })
-          .then((courses) => courses.find(({ id }) => id === params.courseId))
-          .catch(() => undefined),
+        // Unless resolving the number read it: from the list, rather than an
+        // endpoint for one string.
+        course.title ??
+          context.braivo
+            .learnerCourses({ signal: optional })
+            .then((courses) => courses.find(({ id }) => id === courseId)?.title)
+            .catch(() => undefined),
       ]);
       return {
+        courseId,
         activity,
         progress,
-        title: course?.title,
+        title,
         // One attempt per activity shown, so a resend after a lost answer is
         // recorded once.
         attemptId: resumed?.attempt.id ?? crypto.randomUUID(),
@@ -105,6 +108,34 @@ export const Route = createFileRoute("/_signed-in/courses/$courseId")({
  * and a 409 is not retried once the rest ends (ADR 0017).
  */
 const FINAL_REFUSALS = [400, 403, 404, 409, 413];
+
+/**
+ * The course `ref` names: its ID, or its number, resolved to the ID (and
+ * title) within a read's deadline, since everything else asks by ID. A stale
+ * label is replaced in the address before anything else is asked, so the
+ * learning work below runs once; a number alone stays as it is.
+ */
+async function resolveCourse(
+  braivo: BraivoClient,
+  ref: string,
+  left: AbortSignal,
+): Promise<{ id: string; title?: string }> {
+  const named = parseCourseRef(ref);
+  if (!named) throw notFound();
+  if ("id" in named) return named;
+  const course = await braivo.learnerCourseByNumber(named.number, {
+    signal: withDeadline(left, READ_DEADLINE_MS),
+  });
+  if (!course) throw notFound();
+  if (named.urlLabel !== undefined && named.urlLabel !== course.urlLabel) {
+    throw redirect({
+      to: "/c/$courseRef",
+      params: { courseRef: courseRef(course) },
+      replace: true,
+    });
+  }
+  return course;
+}
 
 /** An answer this tab left unfinished, resent: graded, or still unconfirmed. */
 type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
@@ -140,10 +171,22 @@ async function resume(
   }
 }
 
+/**
+ * A link sent to the learner may be for another account of theirs, or a
+ * course not yet open to them: said, with the way back, Sign out above.
+ */
 function CourseNotFound() {
   const { t } = useLingui();
   return (
-    <Notice title={t`This course does not exist, or is not one of yours.`}>
+    <Notice
+      title={t`This course does not exist, or is not one of yours.`}
+      description={
+        <Trans>
+          If someone sent you a link to it, check that you are signed in with the right account, or
+          ask them for access.
+        </Trans>
+      }
+    >
       <Button asChild variant="outline">
         <Link to="/">
           <Trans>Your courses</Trans>
@@ -462,7 +505,8 @@ function Practice({
   nothingStarted: boolean;
 }) {
   const { braivo, user } = Route.useRouteContext();
-  const { courseId } = Route.useParams();
+  // As found, not as the address names it.
+  const { courseId } = Route.useLoaderData();
   const router = useRouter();
   const { t } = useLingui();
   // From the moment it is sent, so the question shows what was sent.

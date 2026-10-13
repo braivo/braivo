@@ -6,7 +6,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { safeRedirect } from "./redirect.ts";
 
 describe("safeRedirect", () => {
-  test.each(["/", "/courses/c1", "/courses/c1?tab=next"])("keeps %o", (value) => {
+  test.each(["/", "/c/4732", "/c/4732?tab=next"])("keeps %o", (value) => {
     expect(safeRedirect(value)).toBe(value);
   });
 

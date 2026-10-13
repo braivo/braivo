@@ -9,7 +9,7 @@ import {
   seedOrganization,
   violatedConstraint,
 } from "@braivo/db/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
@@ -17,6 +17,7 @@ import {
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
+  updateCourseUrlLabel,
 } from "./course.ts";
 import { createObjectives } from "./objective.ts";
 
@@ -27,6 +28,19 @@ const organizationId = "course-test-org";
 const otherOrganizationId = "course-test-other-org";
 const organizationIds = [organizationId, otherOrganizationId];
 const createdAt = new Date("2026-01-01T00:00:00.000Z");
+
+/** Until some statement like `pattern` (SQL `like`) waits for another transaction's lock. */
+async function waitForLock(pattern: string): Promise<void> {
+  for (let tries = 0; tries < 100; tries++) {
+    const waiting = await database.execute(sql`
+      select 1 from pg_stat_activity
+      where datname = current_database() and wait_event_type = 'Lock'
+        and query like ${pattern}`);
+    if (waiting.rows.length > 0) return;
+    await Bun.sleep(20);
+  }
+  throw new Error(`No statement like ${pattern} waited for a lock.`);
+}
 
 /** Requires TEST_DATABASE_URL, since the point is that the schema really applies. */
 describe.skipIf(!connectionString)("courses", () => {
@@ -53,9 +67,163 @@ describe.skipIf(!connectionString)("courses", () => {
     await addCourse(otherOrganizationId, "Mike", theirObjective!);
 
     expect(await readCourses(database, organizationId)).toEqual([
-      { id: alpha, title: "Alpha" },
-      { id: zulu, title: "Zulu" },
+      { id: alpha, number: expect.any(Number), title: "Alpha", urlLabel: "alpha" },
+      { id: zulu, number: expect.any(Number), title: "Zulu", urlLabel: "zulu" },
     ]);
+  });
+
+  describe("numbers", () => {
+    /** Fills `from` to `to` with courses of the organization, as many years of them would. */
+    const occupy = (from: number, to: number) =>
+      database.execute(sql`
+        insert into ${course} (id, organization_id, title, number)
+        select gen_random_uuid()::text, ${organizationId}, 'Earlier', n
+        from generate_series(${from}::integer, ${to}::integer) n`);
+    const numberOf = async (courseId: string) =>
+      (await readCourses(database, organizationId)).find(({ id }) => id === courseId)?.number;
+
+    test("are four digits, each course's its own within the organization", async () => {
+      const created = await Promise.all(
+        Array.from({ length: 20 }, (_, index) =>
+          createCourse(database, { organizationId, title: `Course ${index}`, objectiveIds: [] }),
+        ),
+      );
+      const numbers = (await readCourses(database, organizationId)).map(({ number }) => number);
+
+      expect(numbers).toHaveLength(created.length);
+      expect(new Set(numbers).size).toBe(created.length);
+      for (const number of numbers) expect(number).toSatisfy((n) => n >= 1000 && n <= 9999);
+    });
+
+    test("go to five digits once four are taken", async () => {
+      await occupy(1000, 9998);
+
+      const last = await createCourse(database, {
+        organizationId,
+        title: "Last",
+        objectiveIds: [],
+      });
+      const next = await createCourse(database, {
+        organizationId,
+        title: "Next",
+        objectiveIds: [],
+      });
+
+      expect(await numberOf(last)).toBe(9999);
+      expect(await numberOf(next)).toSatisfy((n) => n !== undefined && n >= 10000 && n <= 99999);
+    });
+
+    test("are drawn again when another creator took the same one meanwhile", async () => {
+      await occupy(1000, 9998);
+      let created: Promise<string> | undefined;
+
+      await database.transaction(async (other) => {
+        await other.execute(sql`
+          insert into ${course} (id, organization_id, title, number)
+          values (gen_random_uuid()::text, ${organizationId}, 'Other', 9999)`);
+        // Draws 9999 too, unseen until this commits, then waits on the index.
+        created = createCourse(database, { organizationId, title: "Mine", objectiveIds: [] });
+        await waitForLock('insert into "course"%');
+      });
+
+      expect(await numberOf(await created!)).toBeGreaterThanOrEqual(10000);
+    });
+
+    test("go past the largest once five digits are taken too", async () => {
+      await occupy(1000, 99999);
+
+      const courseId = await createCourse(database, {
+        organizationId,
+        title: "Late",
+        objectiveIds: [],
+      });
+
+      expect(await numberOf(courseId)).toBe(100000);
+    });
+
+    test("stay as they were when a course is added again under its key", async () => {
+      const add = () =>
+        createCourse(database, { organizationId, title: "Keyed", objectiveIds: [], key: "keyed" });
+      const courseId = await add();
+      const number = await numberOf(courseId);
+
+      expect(await add()).toBe(courseId);
+      expect(await numberOf(courseId)).toBe(number);
+    });
+  });
+
+  test("adds a course once under a key, however many add it at once", async () => {
+    const add = () =>
+      createCourse(database, { organizationId, title: "Keyed", objectiveIds: [], key: "at-once" });
+
+    const ids = await Promise.all([add(), add(), add()]);
+
+    expect(new Set(ids).size).toBe(1);
+    expect(await readCourses(database, organizationId)).toEqual([
+      { id: ids[0], number: expect.any(Number), title: "Keyed", urlLabel: "keyed" },
+    ]);
+  });
+
+  describe("url labels", () => {
+    const create = () =>
+      createCourse(database, { organizationId, title: "Everyday English", objectiveIds: [] });
+    const labelOf = async (courseId: string) =>
+      (await readCourses(database, organizationId)).find(({ id }) => id === courseId)?.urlLabel;
+    const update = (courseId: string, urlLabel: string, previous: string) =>
+      updateCourseUrlLabel(database, { organizationId, courseId, urlLabel, previous });
+
+    test("are the title's until set, over the label read, a retry saved too", async () => {
+      const courseId = await create();
+      expect(await labelOf(courseId)).toBe("everyday-english");
+
+      expect(await update(courseId, "english-a1", "everyday-english")).toEqual({ saved: true });
+      expect(await update(courseId, "english-a1", "everyday-english")).toEqual({ saved: true });
+      expect(await labelOf(courseId)).toBe("english-a1");
+    });
+
+    test("are kept when changed since the label read, saying what they are now", async () => {
+      const courseId = await create();
+      await update(courseId, "english-a1", "everyday-english");
+
+      expect(await update(courseId, "english-b1", "everyday-english")).toEqual({
+        saved: false,
+        urlLabel: "english-a1",
+      });
+      expect(await labelOf(courseId)).toBe("english-a1");
+    });
+
+    test("let one of two edits over the same label win, the other told of it", async () => {
+      const courseId = await create();
+      let mine: ReturnType<typeof update> | undefined;
+
+      await database.transaction(async (other) => {
+        await other.update(course).set({ urlLabel: "english-a1" }).where(eq(course.id, courseId));
+        // Reads the label only once theirs commits, not the one before it.
+        mine = update(courseId, "english-b1", "everyday-english");
+        await waitForLock(`select %from "course"%for update`);
+      });
+
+      expect(await mine).toEqual({ saved: false, urlLabel: "english-a1" });
+      expect(await labelOf(courseId)).toBe("english-a1");
+    });
+
+    test("may repeat across courses, and reach no other organization's course", async () => {
+      const [first, second] = [await create(), await create()];
+      expect([await labelOf(first), await labelOf(second)]).toEqual([
+        "everyday-english",
+        "everyday-english",
+      ]);
+
+      expect(
+        await updateCourseUrlLabel(database, {
+          organizationId: otherOrganizationId,
+          courseId: first,
+          urlLabel: "theirs",
+          previous: "everyday-english",
+        }),
+      ).toBeUndefined();
+      expect(await labelOf(first)).toBe("everyday-english");
+    });
   });
 
   test("returns its objectives in the order given, not by title or ID", async () => {

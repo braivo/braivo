@@ -13,6 +13,7 @@ export {
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
+  updateCourseUrlLabel,
   readLearnerCourses,
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";

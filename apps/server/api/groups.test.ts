@@ -76,7 +76,9 @@ describe.skipIf(!connectionString)("group routes", () => {
           name: "7A",
           learners: [{ userId: ana.id, name: ana.name }],
           teachers: [{ userId: teacher.id, name: teacher.name }],
-          courses: [{ id: courseId, title: "Spanish" }],
+          courses: [
+            { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+          ],
         },
       ] satisfies Group[],
     });

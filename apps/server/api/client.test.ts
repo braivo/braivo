@@ -430,18 +430,24 @@ describe("the Braivo client", () => {
   });
 });
 
-test("loads nothing at runtime, so an app bundling it bundles no server code", async () => {
+test("loads no server code at runtime, so an app bundling it bundles none", async () => {
   // The apps import this file from the server's own package. Types may cross;
   // an import that survives compilation would ship server modules to the
   // browser. Every import is `import type` as written, not only after Bun's
   // transpiler elides it, because an inline `import { type X }` can leave a
-  // side-effect import behind in another compiler's output.
-  const source = await readFile(new URL("client.ts", import.meta.url), "utf8");
+  // side-effect import behind in another compiler's output. What it shares
+  // with the server at runtime, a course's address, is a module importing
+  // nothing itself.
+  const read = (name: string) => readFile(new URL(name, import.meta.url), "utf8");
+  const source = await read("client.ts");
   const imports = source.split("\n").filter((line) => line.startsWith("import "));
+  const scan = (code: string) =>
+    new Bun.Transpiler({ loader: "ts" }).scanImports(code).map(({ path }) => path);
 
   expect(imports.length).toBeGreaterThan(0);
   expect(imports.filter((line) => !line.startsWith("import type "))).toEqual([]);
-  expect(new Bun.Transpiler({ loader: "ts" }).scanImports(source)).toEqual([]);
+  expect(scan(source)).toEqual(["../content/course-ref.ts"]);
+  expect(scan(await read("../content/course-ref.ts"))).toEqual([]);
 });
 
 describe("a refusal's explanation", () => {

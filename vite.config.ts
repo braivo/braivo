@@ -114,7 +114,9 @@ export default defineConfig({
                   message: "A route calls a use case in `application`, not `persistence`.",
                 },
                 {
-                  group: ["../*/**", "!../*/index.ts"],
+                  // Except `content/course-ref.ts`, which imports nothing, so the
+                  // browser client may bundle it (`client.test.ts`).
+                  group: ["../*/**", "!../*/index.ts", "!../content/course-ref.ts"],
                   message: "Another module's API is its `index.ts`.",
                 },
               ],

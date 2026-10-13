@@ -39,7 +39,7 @@ msgid "{0} is a teacher."
 msgstr "{0} is a teacher."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# due for review} other {# due for review}}"
 
@@ -48,7 +48,7 @@ msgid "{count, plural, one {# learner} other {# learners}} you teach in this cou
 msgstr "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# learning} other {# learning}}"
 msgstr "{count, plural, one {# learning} other {# learning}}"
 
@@ -62,12 +62,12 @@ msgid "{count, plural, one {# member} other {# members}} of {0}, staff included:
 msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
 msgstr "{count, plural, one {# not started} other {# not started}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# retained} other {# retained}}"
 
@@ -91,7 +91,7 @@ msgstr "{hostname} is reserved. Choose another address."
 msgid "{hostname} is taken. Choose another address."
 msgstr "{hostname} is taken. Choose another address."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "{objectiveTitle} comes next, but there's no practice for it yet."
 
@@ -273,7 +273,7 @@ msgid "Console address"
 msgstr "Console address"
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue"
 msgstr "Continue"
@@ -306,7 +306,7 @@ msgstr "Copy {type} value"
 msgid "Copy address"
 msgstr "Copy address"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Correct"
 msgstr "Correct"
 
@@ -440,7 +440,7 @@ msgid "Domains"
 msgstr "Domains"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "due for review"
 msgstr "due for review"
 
@@ -454,7 +454,7 @@ msgstr "Due for review"
 msgid "Due for review, {recall}% estimated recall"
 msgstr "Due for review, {recall}% estimated recall"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Due for review: about {percent}% likely to recall now."
 msgstr "Due for review: about {percent}% likely to recall now."
 
@@ -572,7 +572,7 @@ msgstr "First time here? Signing in creates your account."
 msgid "For example, 7A · English."
 msgstr "For example, 7A · English."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "From your lessons"
 msgstr "From your lessons"
 
@@ -598,7 +598,7 @@ msgstr "Go to the {selectedRegionName} site"
 msgid "Groups"
 msgstr "Groups"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Here it is"
 msgstr "Here it is"
 
@@ -609,6 +609,10 @@ msgstr "Here to learn? Open the site your school or training provider gave you."
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "How others in your organizations see you."
 msgstr "How others in your organizations see you."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
+msgstr "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
@@ -701,12 +705,16 @@ msgstr "Learners have no site to practise on yet. Ask whoever set Braivo up for 
 msgid "Learners practise at"
 msgstr "Learners practise at"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Learners practise it at"
+msgstr "Learners practise it at"
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Learners' site"
 msgstr "Learners' site"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "learning"
 msgstr "learning"
 
@@ -742,7 +750,7 @@ msgstr "Light"
 msgid "Loading"
 msgstr "Loading"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Loading…"
 
@@ -782,7 +790,7 @@ msgstr "Name"
 msgid "Navigation"
 msgstr "Navigation"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "New"
 msgstr "New"
@@ -855,12 +863,12 @@ msgstr "No teachers."
 msgid "Not active yet"
 msgstr "Not active yet"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Not quite"
 msgstr "Not quite"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "not started"
 msgstr "not started"
 
@@ -874,15 +882,15 @@ msgstr "Not started"
 msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
 msgstr "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Nothing is due right now."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
 msgstr "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing to practise right now"
 msgstr "Nothing to practise right now"
 
@@ -895,7 +903,7 @@ msgstr "Nothing to save: the group is as shown."
 msgid "Objective"
 msgstr "Objective"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 
@@ -1027,7 +1035,7 @@ msgid "Removing…"
 msgstr "Removing…"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "retained"
 msgstr "retained"
 
@@ -1041,7 +1049,7 @@ msgstr "Retained"
 msgid "Retained, {recall}% estimated recall"
 msgstr "Retained, {recall}% estimated recall"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "Review"
 msgstr "Review"
@@ -1090,7 +1098,7 @@ msgstr "See sources"
 msgid "Send a new code"
 msgstr "Send a new code"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Send again"
 msgstr "Send again"
 
@@ -1098,7 +1106,7 @@ msgstr "Send again"
 msgid "Send me a code"
 msgstr "Send me a code"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Sending…"
 msgstr "Sending…"
 
@@ -1115,7 +1123,7 @@ msgstr "Set up your organization"
 msgid "Settings"
 msgstr "Settings"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Show answer"
 msgstr "Show answer"
 
@@ -1160,7 +1168,7 @@ msgstr "Someone changed this group meanwhile. Check the group as it is now, then
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Something went wrong."
 msgstr "Something went wrong."
 
@@ -1193,7 +1201,7 @@ msgstr "System"
 msgid "System follows your device's light or dark mode."
 msgstr "System follows your device's light or dark mode."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Take a short break"
 msgstr "Take a short break"
 
@@ -1240,11 +1248,11 @@ msgstr "That did not work. Try again."
 msgid "That domain already serves your organization."
 msgstr "That domain already serves your organization."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "That's all the new material for today"
 msgstr "That's all the new material for today"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "The answer: {correctAnswer}"
 msgstr "The answer: {correctAnswer}"
 
@@ -1298,7 +1306,7 @@ msgstr "This address cannot be changed later."
 msgid "This cancels its setup. You can add it again later."
 msgstr "This cancels its setup. You can add it again later."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "This course does not exist, or is not one of yours."
 msgstr "This course does not exist, or is not one of yours."
 
@@ -1339,7 +1347,7 @@ msgstr "This learner does not exist, or their progress is not yours to see."
 msgid "This organization has no courses yet: draft one from a source first."
 msgstr "This organization has no courses yet: draft one from a source first."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "This question can't be answered here yet."
 msgstr "This question can't be answered here yet."
 
@@ -1358,12 +1366,12 @@ msgstr "Too many tries. Wait a minute, then try again."
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Try again"
 msgstr "Try again"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Try again"
@@ -1417,11 +1425,11 @@ msgstr "You"
 msgid "You already own an organization. Reload this page to open it."
 msgstr "You already own an organization. Reload this page to open it."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
 msgstr "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Nothing is due right now."
 msgstr "You can start new material again tomorrow. Nothing is due right now."
 
@@ -1429,11 +1437,11 @@ msgstr "You can start new material again tomorrow. Nothing is due right now."
 msgid "You don't manage any organizations"
 msgstr "You don't manage any organizations"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You missed this last time."
 msgstr "You missed this last time."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
 msgstr "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
 
@@ -1456,7 +1464,7 @@ msgstr "You will continue at {hostname}."
 msgid "You'll be signed in once all six digits are entered."
 msgstr "You'll be signed in once all six digits are entered."
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You're caught up"
 msgstr "You're caught up"
 
@@ -1465,12 +1473,12 @@ msgstr "You're caught up"
 msgid "Your answer"
 msgstr "Your answer"
 
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your answer could not be confirmed."
 msgstr "Your answer could not be confirmed."
 
 #: apps/learn/routes/__root.tsx
-#: apps/learn/routes/_signed-in/courses/$courseId.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "Your courses"
 msgstr "Your courses"

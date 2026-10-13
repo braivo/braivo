@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CourseProgressOverview } from "@braivo/server/client";
+import { type CourseProgressOverview, courseRef } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Field, FieldLabel } from "@braivo/ui/components/field";
 import { NativeSelect, NativeSelectOption } from "@braivo/ui/components/native-select";
@@ -18,6 +18,7 @@ import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useState } from "react";
 
+import { LearnersSite } from "#components/learners-site";
 import { NameTag } from "#components/name-tag";
 import { SearchField } from "#components/search-field";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -64,7 +65,7 @@ function CourseProgress() {
   const search = Route.useSearch();
   const { courseId } = Route.useParams();
   const count = progress.learners.length;
-  const { i18n } = useLingui();
+  const { t, i18n } = useLingui();
   const groupNames =
     groups &&
     new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(
@@ -88,6 +89,12 @@ function CourseProgress() {
           </Trans>
         )}
       </MutedText>
+      {/* What a teacher sends learners to practise it, once there is a site. */}
+      <LearnersSite
+        learnDomain={organization.learnDomain}
+        path={`/c/${courseRef(course)}`}
+        at={t`Learners practise it at`}
+      />
       {/* Another course's list starts from its own URL, not this one's draft. */}
       <Learners key={courseId} learners={progress.learners} />
       <ByObjective objectives={progress.objectives} learners={count} />

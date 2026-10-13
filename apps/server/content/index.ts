@@ -19,3 +19,4 @@ export type { Cue, Timing } from "./transcript.ts";
 export { joinCues, momentOf } from "./transcript.ts";
 export type { Grade, TaskBody, PresentedTask, TaskResponse } from "./task.ts";
 export { gradeResponse, parseTaskBody, parseTaskResponse, presentTask } from "./task.ts";
+export { courseRef, isUrlLabel, parseCourseNumber, urlLabel } from "./course-ref.ts";

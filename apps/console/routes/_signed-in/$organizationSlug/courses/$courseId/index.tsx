@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type AuthoredCourse, BraivoError } from "@braivo/server/client";
+import { type AuthoredCourse, BraivoError, courseRef } from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -27,6 +27,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { CourseUrlLabel } from "#components/course-url-label";
 import { LearnersSite } from "#components/learners-site";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { administratorsOnly, orNotFound } from "#lib/refusals";
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
 
 function Course() {
   const { course } = Route.useLoaderData();
-  const { organization } = Route.useRouteContext();
+  const { organization, braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
 
   return (
@@ -62,8 +63,16 @@ function Course() {
       {/* A course has no draft state: open to learners once created, as accepting a draft does, landing here. */}
       <LearnersSite
         learnDomain={organization.learnDomain}
+        path={`/c/${courseRef(course)}`}
         at={`Open to every learner in ${organization.name} at`}
         none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
+      />
+      {/* Another course's editor starts from its own label, not this one's draft. */}
+      <CourseUrlLabel
+        key={course.id}
+        braivo={braivo}
+        organizationId={organization.id}
+        course={course}
       />
       {/* Its learners' progress, a page shared with teachers (access-39). */}
       <Button asChild variant="outline" className="mb-8 w-fit">

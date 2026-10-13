@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { courseRef } from "@braivo/server/client";
 import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { Item, ItemContent, ItemGroup, ItemTitle } from "@braivo/ui/components/item";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
 
@@ -31,8 +32,13 @@ function CoursesError() {
   );
 }
 
+const root = getRouteApi("__root__");
+
 function Courses() {
   const { courses } = Route.useLoaderData();
+  // A number names a course on its organization's domain alone; elsewhere, or
+  // with the domain's organization unknown, its ID does.
+  const { organization } = root.useLoaderData();
 
   return (
     <section>
@@ -56,7 +62,10 @@ function Courses() {
           {courses.map((course) => (
             <div key={course.id} role="listitem">
               <Item variant="outline" asChild>
-                <Link to="/courses/$courseId" params={{ courseId: course.id }}>
+                <Link
+                  to="/c/$courseRef"
+                  params={{ courseRef: organization ? courseRef(course) : course.id }}
+                >
                   <ItemContent>
                     <ItemTitle>{course.title}</ItemTitle>
                   </ItemContent>

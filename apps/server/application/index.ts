@@ -30,7 +30,13 @@ export {
 /** What a draft is, and the model failing to give one, named so callers need not reach into `ai`. */
 export type { Draft } from "../ai/index.ts";
 export { ModelUnavailable } from "../ai/index.ts";
-export { defineCourse, listCourses, listLearnerCourses, readAuthoredCourse } from "./courses.ts";
+export {
+  defineCourse,
+  listCourses,
+  listLearnerCourses,
+  readAuthoredCourse,
+  setCourseUrlLabel,
+} from "./courses.ts";
 export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } from "./files.ts";
 export { changeGroup, defineGroup, listGroups } from "./groups.ts";
 export type { RequestHost } from "./host.ts";

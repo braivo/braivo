@@ -90,10 +90,21 @@ export const course = pgTable(
     title: text("title").notNull(),
     /** The caller's own name for the course, as on `objective`. */
     key: text("key"),
+    /**
+     * What learners' links name it by, `/c/4732`: random and permanent, unique
+     * within the organization alone (docs/adr/0044-course-numbers.md).
+     */
+    number: integer("number").notNull(),
+    /**
+     * What follows the number in its links, `4732-everyday-english`, as its
+     * owner set it; `null` until then, which reads as the title's.
+     */
+    urlLabel: text("url_label"),
   },
   (table) => [
     index("course_organization_idx").on(table.organizationId),
     uniqueIndex("course_organization_key_uidx").on(table.organizationId, table.key),
+    uniqueIndex("course_organization_number_uidx").on(table.organizationId, table.number),
     /** Referenced together with the organization, for the same reason as on `objective`. */
     unique("course_organization_id_key").on(table.organizationId, table.id),
   ],

@@ -185,7 +185,9 @@ async function signInWithCode() {
 /** A course as authored, one objective taught by a passage and practised by a task. */
 const beginners = {
   id: "course-1",
+  number: 4732,
   title: "Beginners",
+  urlLabel: "beginners",
   objectives: [
     {
       id: "greetings",
@@ -3180,9 +3182,10 @@ describe("the console", () => {
       expect(router.history.location.pathname).toBe("/example/courses/course-1"),
     );
     // Live once created: the page it lands on says so, and where.
-    const site = await screen.findByRole("link", { name: "example.braivo.app" });
+    const site = await screen.findByRole("link", { name: "example.braivo.app/c/4732-beginners" });
+    expect(site.getAttribute("href")).toBe("https://example.braivo.app/c/4732-beginners");
     expect(site.parentElement?.textContent).toBe(
-      "Open to every learner in Example School at example.braivo.app.",
+      "Open to every learner in Example School at example.braivo.app/c/4732-beginners.",
     );
     // What was kept, and only that.
     expect(braivo.acceptDraft).toHaveBeenCalledWith({
@@ -3545,7 +3548,10 @@ describe("the console", () => {
     let created = false;
     const braivo = {
       ...authoring(),
-      listCourses: async () => (created ? [{ id: "course-1", title: "Beginners" }] : []),
+      listCourses: async () =>
+        created
+          ? [{ id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" }]
+          : [],
     };
     braivo.acceptDraft.mockImplementation(async () => {
       const courseId = await creating.promise;
@@ -4119,7 +4125,9 @@ describe("the console", () => {
 
   test("titles an organization's pages so tabs tell apart pages and organizations", async () => {
     const braivo = {
-      listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+      listCourses: async () => [
+        { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+      ],
       listSources: async () => [saludos],
       getSource: async () => saludos,
       readCourse,
@@ -4149,6 +4157,101 @@ describe("the console", () => {
       await screen.findByText("Open to every learner in Annex, once it has a site to practise on."),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
+  });
+
+  test("changes the label after a course's number, showing it as it will be written", async () => {
+    let stored = "beginners";
+    const setCourseUrlLabel = vi.fn<BraivoClient["setCourseUrlLabel"]>(async (input) => {
+      stored = input.urlLabel;
+      return { saved: true };
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          urlLabel: stored,
+        }),
+        setCourseUrlLabel,
+      },
+    });
+    const field = await screen.findByRole("textbox", { name: "Label in its link" });
+
+    fireEvent.change(field, { target: { value: "Angielski  dla Początkujących!" } });
+    expect(
+      screen.getByText(
+        "Its link ends /c/4732-angielski-dla-początkujących. /c/4732 alone reaches it too, short to say aloud, and links sent before keep working.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(setCourseUrlLabel).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        courseId: "course-1",
+        urlLabel: "angielski-dla-początkujących",
+        previous: "beginners",
+      },
+      { signal: expect.any(AbortSignal) },
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getByRole("link", { name: "example.braivo.app/c/4732-angielski-dla-początkujących" })
+          .getAttribute("href"),
+      ).toBe("https://example.braivo.app/c/4732-angielski-dla-początkujących"),
+    );
+  });
+
+  test("keeps a label typed when someone else changed it meanwhile, replacing theirs only when saved again", async () => {
+    let stored = "beginners-2026";
+    const setCourseUrlLabel = vi.fn<BraivoClient["setCourseUrlLabel"]>(async (input) => {
+      if (input.previous !== stored) return { saved: false, urlLabel: stored };
+      stored = input.urlLabel;
+      return { saved: true };
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        // Read as `beginners`, before the other change.
+        readCourse,
+        setCourseUrlLabel,
+      },
+    });
+    const field = (await screen.findByRole("textbox", {
+      name: "Label in its link",
+    })) as HTMLInputElement;
+
+    fireEvent.change(field, { target: { value: "spanish-a1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Someone else changed it to “beginners-2026” meanwhile. Save again to replace theirs.",
+    );
+    expect(field.value).toBe("spanish-a1");
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+    expect(await screen.findByText("Saved.")).toBeTruthy();
+    expect(setCourseUrlLabel.mock.calls.map(([input]) => input.previous)).toEqual([
+      "beginners",
+      "beginners-2026",
+    ]);
+    // Saved again at once, over what it saved, not over the page's reload.
+    fireEvent.change(field, { target: { value: "spanish-a2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+    await vi.waitFor(() => expect(stored).toBe("spanish-a2"));
+  });
+
+  test("refuses a label with no letter or digit before sending it", async () => {
+    const setCourseUrlLabel = vi.fn();
+    renderAt("/example/courses/course-1", { braivo: { readCourse, setCourseUrlLabel } });
+    const field = (await screen.findByRole("textbox", {
+      name: "Label in its link",
+    })) as HTMLInputElement;
+
+    fireEvent.change(field, { target: { value: "?!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+
+    expect(field.validationMessage).toBe("Enter a letter or a digit.");
+    expect(setCourseUrlLabel).not.toHaveBeenCalled();
   });
 
   test("stops naming a course in its tab once a reload finds it gone", async () => {
@@ -4639,7 +4742,9 @@ describe("the console", () => {
     const listMembers = vi.fn(async () => members);
     renderAt("/example/courses/elsewhere/learners/u2", {
       braivo: {
-        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
         learnerProgress,
         listMembers,
       },
@@ -4662,7 +4767,9 @@ describe("the console", () => {
     const progress = vi.fn(courseProgress);
     renderAt("/example/courses/elsewhere/progress", {
       braivo: {
-        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
         courseProgress: progress,
       },
     });
@@ -4676,7 +4783,9 @@ describe("the console", () => {
   test("reads a course's progress as not found when Braivo refuses its learners", async () => {
     renderAt("/example/courses/course-1/progress", {
       braivo: {
-        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
         courseProgress: async () => {
           throw new BraivoError(404, "Braivo answered 404.");
         },
@@ -5086,7 +5195,11 @@ describe("the console", () => {
 
   test("counts each learner's objectives by standing, linking to their progress", async () => {
     renderAt("/example/courses/course-1/progress", {
-      braivo: { listCourses: async () => [{ id: "course-1", title: "Beginners" }] },
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
     });
 
     const learners = await screen.findByRole("table", { name: "Learners" });
@@ -5119,7 +5232,11 @@ describe("the console", () => {
 
   test("counts each objective's learners by standing, in content order", async () => {
     renderAt("/example/courses/course-1/progress", {
-      braivo: { listCourses: async () => [{ id: "course-1", title: "Beginners" }] },
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
     });
 
     const objectives = await screen.findByRole("table", { name: "Progress by objective" });
@@ -5165,7 +5282,9 @@ describe("the console", () => {
       ],
     };
     const learnerProgress = vi.fn(async () => report);
-    const listCourses = vi.fn(async () => [{ id: "course-1", title: "Beginners" }]);
+    const listCourses = vi.fn(async () => [
+      { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+    ]);
     const listMembers = vi.fn(async () => members);
     renderAt("/example/courses/course-1/learners/u2", {
       braivo: { learnerProgress, listCourses, listMembers },
@@ -5226,7 +5345,9 @@ describe("the console", () => {
         learnerProgress: async () => {
           throw new BraivoError(404, "not found");
         },
-        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
       },
     });
 
@@ -5241,7 +5362,9 @@ describe("the console", () => {
     renderAt("/example/courses/course-1/learners/u2", {
       braivo: {
         learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
-        listCourses: async () => [{ id: "course-1", title: "Beginners" }],
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
         listMembers: async () => members,
       },
     });
@@ -5256,7 +5379,7 @@ describe("groups", () => {
   /** `school` to someone who teaches there and administers nothing. */
   const taught: Organization = { ...school, administers: false };
   const person = (userId: string, name: string) => ({ userId, name });
-  const beginners = { id: "course-1", title: "Beginners" };
+  const beginners = { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" };
   /** Two groups sharing a course, as two classes taught the same subject. */
   const sevenA = {
     id: "g1",
@@ -5355,6 +5478,12 @@ describe("groups", () => {
           "2 learners you teach in this course, across your groups: 7A · English and 7B · English.",
         ),
       ).toBeTruthy();
+      // What the teacher sends them, to the course itself.
+      expect(
+        screen
+          .getByRole("link", { name: "example.braivo.app/c/4732-beginners" })
+          .getAttribute("href"),
+      ).toBe("https://example.braivo.app/c/4732-beginners");
       // Found by name, the objectives still counting everyone.
       fireEvent.change(screen.getByRole("searchbox", { name: "Find a learner" }), {
         target: { value: "lou" },
@@ -5477,7 +5606,7 @@ describe("groups", () => {
     });
 
     test("shows the query navigated to, in this course or another, over one typed before", async () => {
-      const advanced = { id: "course-2", title: "Advanced" };
+      const advanced = { id: "course-2", number: 5810, title: "Advanced", urlLabel: "advanced" };
       const progress = async () => ({
         modelVersion: "v1",
         learners: [
@@ -5535,7 +5664,7 @@ describe("groups", () => {
     });
 
     test("leaves a search typed unsent once another page, slow to load, is navigated to", async () => {
-      const advanced = { id: "course-2", title: "Advanced" };
+      const advanced = { id: "course-2", number: 5810, title: "Advanced", urlLabel: "advanced" };
       const listGroups = vi.fn(async () => [{ ...sevenB, courses: [beginners, advanced] }]);
       const progress = vi.fn(courseProgress);
       const { router } = renderAt("", {

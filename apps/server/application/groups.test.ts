@@ -125,7 +125,9 @@ describe.skipIf(!connectionString)("groups", () => {
             { userId: ben, name: ben },
           ],
           teachers: [{ userId: teacherA, name: teacherA }],
-          courses: [{ id: shared, title: "Shared" }],
+          courses: [
+            { id: shared, number: expect.any(Number), title: "Shared", urlLabel: "shared" },
+          ],
         },
       ]);
     });
@@ -239,7 +241,9 @@ describe.skipIf(!connectionString)("groups", () => {
           { userId: ben, name: ben },
         ],
         teachers: [{ userId: teacherA, name: teacherA }],
-        courses: [{ id: untaught, title: "Untaught" }],
+        courses: [
+          { id: untaught, number: expect.any(Number), title: "Untaught", urlLabel: "untaught" },
+        ],
       });
     });
 

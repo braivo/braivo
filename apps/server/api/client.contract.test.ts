@@ -16,7 +16,7 @@ import { activeModel } from "../learning/index.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
 import { BraivoError, createClient } from "./client.ts";
-import { connectionString, createTestApi } from "./testing.ts";
+import { connectionString, createTestApi, learnerSessionOn } from "./testing.ts";
 
 /**
  * The client's types are derived from the server's, which say what the routes
@@ -245,10 +245,35 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const courses = await client.learnerCourses({ headers: { cookie: learnerCookie } });
 
     expect(courses).toEqual([
-      { id: progressCourseId, title: "Every phase" },
-      { id: emptyCourseId, title: "Not started" },
-      { id: courseId, title: "Spanish" },
+      {
+        id: progressCourseId,
+        number: expect.any(Number),
+        title: "Every phase",
+        urlLabel: "every-phase",
+      },
+      {
+        id: emptyCourseId,
+        number: expect.any(Number),
+        title: "Not started",
+        urlLabel: "not-started",
+      },
+      { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
     ]);
+  });
+
+  test("finds a learner's course by number in the shape it declares, on its domain alone", async () => {
+    const signedIn = { headers: { cookie: learnerCookie } };
+    const spanish = (await client.learnerCourses(signedIn)).find(({ id }) => id === courseId)!;
+    const onDomain = {
+      headers: {
+        cookie: await learnerSessionOn(api, `https://${organizationHost}`, learnerCookie),
+      },
+    };
+
+    expect(await onOrganizationDomain.learnerCourseByNumber(spanish.number, onDomain)).toEqual(
+      spanish,
+    );
+    expect(await client.learnerCourseByNumber(spanish.number, signedIn)).toBeUndefined();
   });
 
   test("lists the organizations a content owner manages, and none a learner is only in", async () => {
@@ -377,7 +402,9 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         name: "Tutoring",
         learners: [],
         teachers: [{ userId: learnerId, name: expect.any(String) }],
-        courses: [{ id: courseId, title: "Spanish" }],
+        courses: [
+          { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+        ],
       },
     ]);
     expect(await client.listGroups(organizationId, asAdmin)).toEqual(taught);
@@ -493,9 +520,19 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
 
     expect(courses).toEqual([
-      { id: progressCourseId, title: "Every phase" },
-      { id: emptyCourseId, title: "Not started" },
-      { id: courseId, title: "Spanish" },
+      {
+        id: progressCourseId,
+        number: expect.any(Number),
+        title: "Every phase",
+        urlLabel: "every-phase",
+      },
+      {
+        id: emptyCourseId,
+        number: expect.any(Number),
+        title: "Not started",
+        urlLabel: "not-started",
+      },
+      { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
     ]);
 
     const rejected = await client
@@ -503,6 +540,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       .catch((thrown: unknown) => thrown);
     expect(rejected).toBeInstanceOf(BraivoError);
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
+  });
+
+  test("changes a course's URL label, and answers the label now when it changed meanwhile", async () => {
+    const asTeacher = { headers: { cookie: teacherCookie } };
+    const id = await createCourse(database, {
+      organizationId,
+      title: "Labelled",
+      objectiveIds: [],
+    });
+    const change = (urlLabel: string, previous: string) =>
+      client.setCourseUrlLabel({ organizationId, courseId: id, urlLabel, previous }, asTeacher);
+
+    expect(await change("labelled-a1", "labelled")).toEqual({ saved: true });
+    expect(await change("labelled-b1", "labelled")).toEqual({
+      saved: false,
+      urlLabel: "labelled-a1",
+    });
+    expect(
+      (await client.listCourses(organizationId, asTeacher)).find((course) => course.id === id),
+    ).toMatchObject({ urlLabel: "labelled-a1" });
   });
 
   test("reads a learner caught up as undefined rather than as an error", async () => {
@@ -779,7 +836,9 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     );
     expect(await client.listCourses(organizationId, as)).toContainEqual({
       id: course,
+      number: expect.any(Number),
       title: "Saludos",
+      urlLabel: "saludos",
     });
   });
 

@@ -7,7 +7,7 @@
 // `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
-import { member } from "@braivo/db/schema";
+import { course, member } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -578,6 +578,53 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     const anonymous = await api.request("/api/courses");
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  test("finds a course by its number on its own organization's domain alone", async () => {
+    // A member of both, whose organizations each number a course alike.
+    const both = await signUp();
+    await database.insert(member).values(
+      [organizationId, otherOrganizationId].map((id) => ({
+        id: `${id}:${both.id}`,
+        organizationId: id,
+        userId: both.id,
+        role: "member",
+        createdAt: at,
+      })),
+    );
+    const numberOf = async (id: string) =>
+      (await database.select({ number: course.number }).from(course).where(eq(course.id, id)))[0]!
+        .number;
+    const [number, foreignNumber] = [await numberOf(courseId), await numberOf(foreignCourseId)];
+    await database.update(course).set({ number }).where(eq(course.id, foreignCourseId));
+    const find = async (origin: string, numbered: string) =>
+      api.request(`${origin}/api/courses?${new URLSearchParams({ number: numbered })}`, {
+        headers: {
+          cookie:
+            origin === baseUrl ? both.cookie : await learnerSessionOn(api, origin, both.cookie),
+        },
+      });
+    const found = async (response: Response) =>
+      ((await response.json()) as { courses: { id: string }[] }).courses.map(({ id }) => id);
+
+    try {
+      expect(await found(await find(organizationOrigin, `${number}`))).toEqual([courseId]);
+      expect(await found(await find(otherOrganizationOrigin, `${number}`))).toEqual([
+        foreignCourseId,
+      ]);
+      // Serving both, the installation's host can tell neither by number.
+      expect(await found(await find(baseUrl, `${number}`))).toEqual([]);
+      for (const malformed of ["", "01", "+1", "-1", "1.5", "1e3", "x", "2147483648"]) {
+        expect((await find(organizationOrigin, malformed)).status).toBe(400);
+      }
+    } finally {
+      // As the other tests read them, even when one fails.
+      await database.delete(member).where(eq(member.userId, both.id));
+      await database
+        .update(course)
+        .set({ number: foreignNumber })
+        .where(eq(course.id, foreignCourseId));
+    }
   });
 
   test("serves the learner a task in the documented shape, never its answer", async () => {

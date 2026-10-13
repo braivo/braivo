@@ -7,7 +7,7 @@ import type { Database } from "@braivo/db";
 import { course, group, groupCourse, groupMember, user } from "@braivo/db/schema";
 import { aliasedTable, and, asc, eq, exists, inArray, sql } from "drizzle-orm";
 
-import type { Course } from "./course.ts";
+import { type Course, COURSE_COLUMNS, listedCourse } from "./course.ts";
 import { ConflictingKey } from "./key.ts";
 
 /** Who is in a group and which courses it takes: what creating one sets, whole. */
@@ -282,7 +282,7 @@ export async function readGroups(
         .where(inArray(groupMember.groupId, groupIds))
         .orderBy(asc(user.name), asc(groupMember.userId));
       const courses = await transaction
-        .select({ groupId: groupCourse.groupId, id: course.id, title: course.title })
+        .select({ groupId: groupCourse.groupId, ...COURSE_COLUMNS })
         .from(groupCourse)
         .innerJoin(course, eq(course.id, groupCourse.courseId))
         .where(inArray(groupCourse.groupId, groupIds))
@@ -299,7 +299,7 @@ export async function readGroups(
         ...each,
         learners: peopleIn(each.id, "learner"),
         teachers: peopleIn(each.id, "teacher"),
-        courses: (coursesByGroup.get(each.id) ?? []).map(({ id, title }) => ({ id, title })),
+        courses: (coursesByGroup.get(each.id) ?? []).map(listedCourse),
       }));
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
