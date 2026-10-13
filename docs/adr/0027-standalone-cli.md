@@ -1,4 +1,4 @@
-# 0027: `braivo` ships as one compiled file per platform
+# 0027: `braivo` ships as one compiled file per platform, installed by one command
 
 Status: accepted (2026-09-24)
 
@@ -8,13 +8,21 @@ A teacher preparing material on their own machine signs in, adds sources, and le
 
 ## Decision
 
-- **`bun build --compile` of the same entry point.** The standalone `braivo` is `apps/server/cli/index.ts` with Bun's runtime embedded: one file, no install. Not a second, smaller program: ADR 0022 made the CLI the server's own, and its commands for a remote installation speak only HTTP.
-- **Released from a version tag.** `.github/workflows/cli.yml` cross-compiles for `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, and `windows-x64` on one runner, starts the Linux build to prove it runs, and attaches all five to the tag's GitHub release. `bun run build` builds the local platform's as `apps/server/dist/braivo`.
-- **Content owners' commands, not an operator's.** `login`, `sources add`, and `mcp` work anywhere. `serve` is in the file too, but `db migrate` needs the committed migrations beside it, which the bundle does not carry; it says so and points to Braivo's source or container image, where operators run both.
-- **The MCP SDK loads when `mcp` runs, not before.** Imported statically, the bundle evaluated the SDK before zod, which better-auth loads lazily, had initialized, and every command crashed on start. `cli/build.test.ts` runs the bundled CLI, so a load order that breaks it fails a test rather than a release.
+- **The content owner's program, apart from the server.** `braivo` is `packages/cli`: `login`, `logout`, `sources add`, and `mcp`, each speaking only HTTP to an installation, its tools from `packages/mcp`. The operator's commands (`serve`, `db migrate`, `organization …`) stay the server's, `apps/server/cli/index.ts`, run from Braivo's source or container image beside its migrations.
+- **`bun build --compile` of that entry point.** One file with Bun's runtime embedded, nothing else to install. `bun run build` builds this machine's as `packages/cli/dist/braivo`; `--version` answers the release, or `development`.
+- **Released from a version tag.** `.github/workflows/cli.yml` cross-compiles for `darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, and `windows-x64` on one runner, starts each build on its own system, and only then attaches them, with the installers, to the tag's GitHub release, as a prerelease; it then installs that release on Linux, macOS, and Windows as a content owner would, and only then makes it the latest, the one the installers fetch.
+- **Installed by a script the release carries.** `curl -fsSL https://braivo.app/install.sh | bash`, or `irm https://braivo.app/install.ps1 | iex` on Windows, both redirects to the latest release's copy. Each fetches the build for the machine into a per-user directory (`~/.local/bin`; `%LOCALAPPDATA%\Programs\Braivo`, added to the user's Path), starts it, and only then replaces the one installed; running it again updates. `BRAIVO_VERSION` picks a tag. Anything beyond placing the file belongs in `braivo`, where it is tested. `packages/cli/install.test.ts` runs `install.sh` against stand-ins for the network and the machine.
+- **Bundled whole, and tested so.** Bundling reorders module initialization, which once crashed every command on start; `packages/cli/build.test.ts` runs the bundled CLI, so a load order that breaks it fails a test rather than a release.
+
+## Alternatives rejected
+
+- **The server's entry point compiled whole** (replaced): it carried `serve` and `db migrate` without the migrations the latter needs, and the server's dependencies into every content owner's file.
+- **Checksums beside the files.** Fetched from the same release over the same HTTPS, they catch no tampering a signature would; signing waits with code signing, below.
+- **Homebrew, winget, npm, or a self-update command.** More channels to keep in step before anyone asks; the script already updates.
 
 ## Consequences
 
-- Tens of megabytes per file, nearly all runtime. Acceptable for a tool installed once; a smaller one would be a separate program without the server, which nothing yet needs.
+- Tens of megabytes per file, nearly all runtime. Acceptable for a tool installed once.
+- Linux builds are glibc: Alpine gets none until someone asks for Bun's `-musl` targets. Windows on Arm runs the x64 build emulated.
 - Unsigned: Windows SmartScreen and a browser-downloaded file on macOS warn. `curl` avoids macOS's quarantine; code signing waits for a paying customer's IT department to ask.
-- Embedding migrations would let the file serve a whole installation. Bun's embedded files are not a directory Drizzle's migrator can read, so that waits for an operator who wants a single file over a container.
+- `braivo.app/install.sh` and `install.ps1` are redirects kept by Braivo Cloud, outside this repository; the scripts work from the release's own URL without them.

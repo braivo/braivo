@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 # The standalone `braivo` for each platform a content owner's machine runs,
-# attached to the release a version tag makes, so signing in, adding material,
-# and `braivo mcp` need no clone and no Bun (docs/adr/0027-standalone-cli.md).
+# and the scripts installing it, attached to the release a version tag makes,
+# so signing in, adding material, and `braivo mcp` need no clone and no Bun
+# (docs/adr/0027-standalone-cli.md).
 name: CLI
 
 on:
@@ -12,6 +13,11 @@ on:
 
 permissions:
   contents: read
+
+# One release at a time, so tags pushed in order become `latest` in order.
+concurrency:
+  group: cli-release
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -23,29 +29,53 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
 
-      # Cross-compiled from one runner: Bun embeds its runtime for each target.
+      # Cross-compiled from one runner: Bun embeds its runtime for each target,
+      # and `--version` answers the tag, without its `v`.
       - run: |
           for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64 windows-x64; do
-            bun build --compile --target="bun-$target" apps/server/cli/index.ts \
+            bun build --compile --target="bun-$target" packages/cli/index.ts \
+              --define "BRAIVO_VERSION=\"${GITHUB_REF_NAME#v}\"" \
               --outfile "dist/braivo-$target"
           done
-
-      # The one this runner can run: a build that crashes on start never ships.
-      - run: dist/braivo-linux-x64
+          cp packages/cli/install.sh packages/cli/install.ps1 dist/
 
       - uses: actions/upload-artifact@v7
         with:
           name: cli
-          path: dist/braivo-*
+          path: dist/
           if-no-files-found: error
-          # Only carries the binaries to the release job.
+          # Only carries the files to the jobs below.
           retention-days: 1
 
-  # Its own job, so the token that can write releases never reaches one that
-  # runs project or dependency code.
+  # Each build started on the system it is for, before anything is published.
+  start:
+    name: start (${{ matrix.target }})
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: linux-arm64 }
+          - { os: macos-latest, target: darwin-arm64 }
+          - { os: macos-15-intel, target: darwin-x64 }
+          - { os: windows-latest, target: windows-x64.exe }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: cli
+          path: dist
+      - run: |
+          chmod +x "dist/braivo-${{ matrix.target }}"
+          test "$("dist/braivo-${{ matrix.target }}" --version)" = "braivo ${GITHUB_REF_NAME#v}"
+        shell: bash
+
+  # Its own job, as `publish` is, so the token that can write releases never
+  # reaches one that runs project or dependency code.
   release:
     name: release
-    needs: build
+    needs: start
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -55,7 +85,50 @@ jobs:
         with:
           name: cli
           path: dist
-      - run: gh release create "$GITHUB_REF_NAME" dist/braivo-* --verify-tag --generate-notes
+      # A prerelease, which `releases/latest` skips, until `install` passes.
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes --prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+  # What a content owner runs, as the install commands in
+  # docs/guides/authoring.md do, against the prerelease by its tag. Twice, so
+  # the second replaces an installed braivo, as an update does.
+  install:
+    name: install (${{ matrix.os }})
+    needs: release
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      BRAIVO_VERSION: ${{ github.ref_name }}
+    steps:
+      - if: runner.os != 'Windows'
+        run: |
+          installer="https://github.com/$GITHUB_REPOSITORY/releases/download/$BRAIVO_VERSION/install.sh"
+          curl -fsSL "$installer" | bash
+          curl -fsSL "$installer" | bash
+          test "$("$HOME/.local/bin/braivo" --version)" = "braivo ${BRAIVO_VERSION#v}"
+      # Windows PowerShell 5.1, the one every Windows has.
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $installer = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:BRAIVO_VERSION/install.ps1"
+          irm $installer | iex
+          irm $installer | iex
+          if ((braivo --version) -ne "braivo $($env:BRAIVO_VERSION -replace '^v')") { exit 1 }
+
+  publish:
+    name: publish
+    needs: install
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --prerelease=false --latest
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

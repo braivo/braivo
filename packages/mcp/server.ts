@@ -2,17 +2,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type BraivoClient, BraivoError } from "@braivo/server/client";
+import { isStorableText, MAX_TITLE } from "@braivo/server/content";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod";
 
-import { isStorableText, MAX_TITLE } from "../content/index.ts";
-
-// `braivo mcp`: Braivo as tools a desktop agent — Claude, Codex, Grok — calls
-// while it prepares a content owner's material on their own machine, at their
-// own AI cost (docs/adr/0023-mcp-server.md). Each tool is one call of Braivo's
-// client, as the signed-in content owner; nothing here decides anything the
-// API does not, so the agent is held to the same rules as the console.
+// Braivo as tools an agent — Claude, Codex, Grok — calls while it prepares a
+// content owner's material, at their own AI cost; `braivo mcp` serves them to
+// a desktop agent over stdio (docs/adr/0023-mcp-server.md). Each tool is one
+// call of the Braivo client it is given, as the person that client acts for;
+// nothing here decides anything the API does not, so the agent is held to the
+// same rules as the console.
 
 /**
  * Read once by the agent when it connects: the workflow, and the one rule it
@@ -111,8 +110,6 @@ const READ_ONLY = {
   idempotentHint: true,
   openWorldHint: false,
 } as const;
-
-export { StdioServerTransport };
 
 /** Braivo's tools, reaching it through `client` as the signed-in content owner. */
 export function createMcpServer(client: BraivoClient): McpServer {

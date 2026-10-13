@@ -6,7 +6,7 @@
 // the CLI's, before Braivo — the server takes cues and never a caption format
 // (docs/adr/0020-source-content.md).
 
-import type { Cue } from "../content/index.ts";
+import type { Cue } from "@braivo/server/content";
 
 /** The caption formats read here, by the extension a file of each has. */
 export type CaptionFormat = "vtt" | "srt";

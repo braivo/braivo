@@ -1,0 +1,17 @@
+{
+  "name": "@braivo/mcp",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./server.ts"
+  },
+  "dependencies": {
+    "@braivo/server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@braivo/db": "workspace:*"
+  }
+}

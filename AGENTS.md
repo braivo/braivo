@@ -22,14 +22,14 @@ After the last checkpoint, a context that did not write the change reviews its w
 ## Where things live
 
 ```text
-apps/server            API, use cases, learning model, auth, queries, CLI (one Bun process)
+apps/server            API, use cases, learning model, auth, queries, operator's CLI (one Bun process)
   api/                 Hono routes; api/client.ts is the browser client (@braivo/server/client)
   application/         use cases: resolve scope, check access, then call learning and persistence
   learning/            pure learning model; spec in docs/specs/learning-model.md
   persistence/         queries; tables live in packages/db
   storage/             uploaded files' bytes: a directory or an S3-compatible bucket
   auth/                Better Auth server config
-  cli/                 process entry point (serve, db migrate)
+  cli/                 process entry point (serve, db migrate, organization)
   fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/guides/demo.md)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)
 apps/console           content owners' app
@@ -37,6 +37,8 @@ apps/storybook         catalog of @braivo/ui
 packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
+packages/cli           `braivo`, content owners' CLI over HTTP, compiled per platform; its installers
+packages/mcp           Braivo's MCP tools over the API client
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
 tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo
 docs/                  product, architecture, apps, glossary, adr/, specs/

@@ -9,28 +9,17 @@ import { fileURLToPath } from "node:url";
 import { runMigrations } from "@braivo/db";
 import { organization, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { createTestApi, readSource, signInWithCode } from "@braivo/server/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
-import { createApi } from "../api/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
-import { readSource } from "../persistence/index.ts";
 import { loadCredentials, readServer, saveCredentials } from "./credentials.ts";
 import { login, logout, remoteClient, signIn, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
+const { database, outbox, api } = createTestApi();
 const server = "http://localhost:3000";
-const outbox = createOutbox();
-const auth = createAuth({
-  database,
-  secret: "cli-test-secret-that-is-long-enough-32",
-  baseURL: server,
-  sendMail: outbox.sendMail,
-});
-const api = createApi({ auth, database, baseUrl: server });
 
 /** The network, for these commands: the real app, addressed by full URL as a remote one is. */
 const fetch = ((input: string | URL, init?: RequestInit) =>

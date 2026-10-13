@@ -13,9 +13,9 @@ import { beforeAll, describe, expect, test } from "vite-plus/test";
 import { saveCredentials } from "./credentials.ts";
 
 // The standalone `braivo` is this entry point bundled (docs/adr/0027-standalone-cli.md).
-// Bundling reorders module initialization, which can crash every command before
-// it runs (see the MCP import in index.ts), so the bundle itself is what runs
-// here. `--compile` adds only the runtime, and is left to the release workflow.
+// Bundling can reorder module initialization and crash every command before it
+// runs, so the bundle itself is what runs here. `--compile` adds only the
+// runtime, and is left to the release workflow.
 
 let directory!: string;
 let bundle!: string;
@@ -26,6 +26,8 @@ beforeAll(async () => {
     entrypoints: [fileURLToPath(new URL("./index.ts", import.meta.url))],
     target: "bun",
     outdir: directory,
+    // As the release workflow passes it.
+    define: { BRAIVO_VERSION: JSON.stringify("1.2.3") },
   });
   if (!built.success) throw new AggregateError(built.logs, "The CLI did not bundle.");
   bundle = built.outputs[0]!.path;
@@ -53,6 +55,13 @@ describe("the bundled CLI", () => {
     expect(stdout).toContain("Usage: braivo <command>");
   });
 
+  test("says which release it is", async () => {
+    const { stdout, code } = await run(["--version"]);
+
+    expect(code).toBe(0);
+    expect(stdout).toBe("braivo 1.2.3\n");
+  });
+
   test("serves its tools to a desktop agent", async () => {
     const home = join(directory, "config");
     await saveCredentials(join(home, "braivo", "credentials.json"), {
@@ -74,28 +83,5 @@ describe("the bundled CLI", () => {
     } finally {
       await agent.close();
     }
-  });
-
-  test("refuses to migrate, saying why, having no migrations to apply", async () => {
-    const { stderr, code } = await run(["db", "migrate"], {
-      DATABASE_URL: "postgres://nobody@localhost:1/braivo",
-    });
-
-    expect(code).toBe(1);
-    expect(stderr).toContain("This braivo has no migrations to apply.");
-  });
-
-  test("asks for the hostname of a learn domain left out", async () => {
-    const { stderr, code } = await run(["organization", "add-domain", "--slug", "acme"]);
-
-    expect(code).toBe(1);
-    expect(stderr).toContain("organization add-domain --slug <slug> --hostname <hostname>");
-  });
-
-  test("asks for the email of a member left out", async () => {
-    const { stderr, code } = await run(["organization", "add-member", "--slug", "acme"]);
-
-    expect(code).toBe(1);
-    expect(stderr).toContain("organization add-member --slug <slug> --email <email>");
   });
 });

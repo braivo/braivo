@@ -1,0 +1,18 @@
+{
+  "name": "@braivo/cli",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "bun build --compile index.ts --outfile dist/braivo"
+  },
+  "dependencies": {
+    "@braivo/mcp": "workspace:*",
+    "@braivo/server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.1"
+  },
+  "devDependencies": {
+    "@braivo/db": "workspace:*",
+    "drizzle-orm": "1.0.0-rc.4"
+  }
+}
