@@ -63,6 +63,8 @@ bun apps/server/cli/index.ts organization create \
   --name "My School" --slug my-school --owner owner@example.com
 ```
 
+Or see it populated: `bun run dev:demo` serves a demo school of this worktree's own, with an administrator, a teacher, and a learner to sign in as, never touching `DATABASE_URL`'s database ([the demo guide](docs/guides/demo.md)).
+
 Tests that need a database skip themselves without `TEST_DATABASE_URL`; give them a database of their own, since they create and delete fixture data. A linked worktree's tests use one of their own ([ADR 0014](docs/adr/0014-worktree-setup.md)).
 
 ```bash

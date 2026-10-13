@@ -1,0 +1,58 @@
+# The development demo
+
+A populated Braivo for this worktree: Fernwood School, with an administrator, a teacher, and a learner, a short source-backed course, and a group. Sign in as any of them, exercise the real apps, and reset to the baseline when you choose. It never touches your development database, your test database, or another worktree's demo ([ADR 0043](../adr/0043-development-demo.md)).
+
+## Launch
+
+Requires a local PostgreSQL whose role may create databases (`createdb` works). Name a database on it to connect through, once, in `.env` or your shell; the demo creates its own database beside it:
+
+```bash
+echo 'BRAIVO_DEMO_DATABASE_URL=postgres://localhost/postgres' >> .env
+bun run dev:demo
+```
+
+The first launch checks it can connect and create databases there, then creates the demo's own database, `braivo_demo_<id>`, migrates and seeds it, checks it, and serves it; later launches serve it as you left it. Once the servers listen, it prints:
+
+```text
+Braivo demo 9f3c1a7e5b20, scenario 1, seeded 2026-10-12T09:00:00.000Z
+  Console  http://127.0.0.1:5184
+  Learn    http://fernwood.localhost:5183
+  Sign in with an email below; the server prints its code in the terminal running the demo ("Mail to …").
+  As seeded:
+    administrator admin@fernwood.example     Morgan Hale: owns Fernwood School: …
+    teacher       teacher@fernwood.example   Jordan Price: teaches Class A English: …
+    learner       learner@fernwood.example   Sam Nowak: learns in Class A English: …
+```
+
+Rename the group or change a role, and the console shows your version; the list stays as seeded.
+
+Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator and the teacher use the console; the learner signs in at the learn app's address. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
+
+To see practice reach a report: as the learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. The console's link to where learners practise says `https://fernwood.localhost/`, which does not open locally; use the learn address printed above.
+
+The demo serves on ports 3100, 5183, and 5184, so it runs beside `bun run dev`. Two worktrees' demos use the same ports: the second refuses to start until the first stops. Ctrl-C stops the demo and only what it started.
+
+## Check, migrate, reset
+
+```bash
+bun run dev:demo:verify                              # its state; changes nothing, running or not
+bun run dev:demo --migrate                           # apply migrations this checkout added, then serve it
+bun run dev:demo:reset --environment ENVIRONMENT_ID  # delete it; the next launch makes a new baseline
+```
+
+- **Pending migrations.** A launch stops and names them. Review them (a migration can change data), then `--migrate` applies them with the demo stopped, keeping your edits and practice.
+- **Interrupted first launch.** The demo stays "not finished" and will not launch; reset it with the ID `verify` prints, then launch again.
+- **Interrupted migration.** Nothing was applied: the migrations are still pending, and `--migrate` applies them.
+- **Missing storage.** The launch refuses, as the data may name files that were there: restore `.dev-demo/storage/`, or reset.
+- **Migrations this checkout lacks, or a new scenario.** The launch refuses: keep using the checkout that made the demo, or reset it for the new baseline. Nothing is reset or patched automatically.
+- **A database without the demo's marker** (a crash right after creating it). Never adopted or dropped by the tools: inspect it, and `dropdb` it yourself if it is the demo's.
+- **Wrong `BRAIVO_DEMO_DATABASE_URL` on the first launch.** Nothing is created: fix it and launch again.
+- **An interrupted reset.** Run it again: it finishes what is left. If it then refuses `.dev-demo/` as incomplete, delete that empty directory.
+
+Reset shows the database, ID, and storage it will delete, and needs that ID, the one `verify` prints: typed when asked, or `--environment`. It refuses while the demo runs, anything is connected to its database or listens on its ports, or `.dev-demo/` holds a file the demo did not put there. Afterwards old sign-ins stop working: close the demo's tabs.
+
+## What it holds
+
+Settings and secrets in `.dev-demo/environment.json` (gitignored, readable by you alone, never printed), uploaded files in `.dev-demo/storage/`, data in `braivo_demo_<id>`. The server runs on these alone, never `.env`: no mail server, AI key, Google client, or bucket reaches it. The apps' dev servers still load `.env`, but the demo's values override what their proxy reads from it, `BRAIVO_URL` and `PORT`. Remove a worktree's demo with reset before removing the worktree, or `dropdb` its database afterwards.
+
+The classroom is a fixture, `apps/server/fixtures/classroom.ts`; `tooling/dev-demo/` creates, guards, and serves the demo ([ADR 0043](../adr/0043-development-demo.md)).
