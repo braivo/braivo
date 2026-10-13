@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 
 import type { BraivoClient } from "@braivo/server/client";
+import { joinCues } from "@braivo/server/content";
 
-import { joinCues } from "../content/index.ts";
 import { captionFormat, parseCaptions } from "./captions.ts";
 import { uploadOriginal } from "./originals.ts";
 

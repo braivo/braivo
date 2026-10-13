@@ -93,11 +93,13 @@ The repository is one [Vite+](https://viteplus.dev) workspace ([ADR 0003](docs/a
 ```text
 apps/learn              the learn app, for learners
 apps/console            the console, for content owners
-apps/server             the API, the learning model, and the CLI, plus the browser client the apps import
+apps/server             the API, the learning model, and the operator's CLI, plus the browser client the apps import
 apps/storybook          the component catalog, stories kept beside what they show
 packages/db             schema, migrations, and database client
 packages/ui             shadcn/ui components generated from a preset, and Braivo's own
 packages/auth-client    signing in, for both apps
+packages/cli            braivo, the content owner's command, and its installers
+packages/mcp            Braivo's tools for AI agents
 vite.config.ts          lint, format, test, and pre-commit rules for all of them
 ```
 

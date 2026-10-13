@@ -3,40 +3,33 @@
 
 import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
+import { createClient, type Organization } from "@braivo/server/client";
+import {
+  createCourse,
+  createObjectives,
+  createTestApi,
+  readCourseObjectives,
+  recordEvidence,
+  signInWithCode,
+} from "@braivo/server/testing";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
-import type { Organization } from "../api/client.ts";
-import { createApi } from "../api/index.ts";
-import { createAuth } from "../auth/index.ts";
-import { createOutbox, signInWithCode } from "../auth/testing.ts";
-import {
-  createCourse,
-  createObjectives,
-  readCourseObjectives,
-  recordEvidence,
-} from "../persistence/index.ts";
-import { createMcpServer } from "./mcp.ts";
-import { remoteClient } from "./remote.ts";
+import { createMcpServer } from "./server.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
-const database = testing.sharedDatabase(connectionString ?? "");
-const server = "http://localhost:3000";
-const outbox = createOutbox();
-const auth = createAuth({
-  database,
-  secret: "mcp-test-secret-that-is-long-enough-32",
-  baseURL: server,
-  sendMail: outbox.sendMail,
-});
-const api = createApi({
-  auth,
-  database,
-  baseUrl: server,
-});
-const fetch = ((input: string | URL, init?: RequestInit) =>
-  api.request(input.toString(), init)) as unknown as typeof globalThis.fetch;
+const { database, outbox, api } = createTestApi();
+
+/** Braivo's client acting with `token`'s session, as `braivo mcp` reaches an installation. */
+const clientWith = (token: string) =>
+  createClient({
+    fetch: ((path: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      headers.set("authorization", `Bearer ${token}`);
+      return api.request(path, { ...init, headers });
+    }) as typeof globalThis.fetch,
+  });
 
 const organizationId = "mcp-test-org";
 /** One the content owner only learns in, which list_organizations leaves out. */
@@ -57,7 +50,7 @@ type ToolResult = { isError?: boolean; content: { type: string; text: string }[]
 
 /** An agent connected to `braivo mcp` with `token`'s session. */
 async function connect(token: string): Promise<Client> {
-  const mcp = createMcpServer(remoteClient({ server, token }, fetch));
+  const mcp = createMcpServer(clientWith(token));
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-agent", version: "0" });
   await Promise.all([mcp.connect(serverSide), client.connect(clientSide)]);

@@ -34,7 +34,7 @@ import type {
 } from "./types.ts";
 
 // The client for Braivo's HTTP API, which the learn and console apps import as
-// `@braivo/server/client` and the `braivo` CLI uses to reach a remote
+// `@braivo/server/client` and `braivo` (packages/cli) uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
 // server but types and `content/course-ref.ts`, which imports nothing (`client.test.ts`
 // checks).

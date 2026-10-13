@@ -5,7 +5,7 @@ import { defineConfig } from "drizzle-kit";
 
 /**
  * Drizzle Kit only ever generates here. Migrations are applied by
- * `braivo db migrate`, and `push` is not part of the workflow, so this config
+ * the server's `db migrate`, and `push` is not part of the workflow, so this config
  * needs no database credentials ([ADR 0005](../../docs/adr/0005-postgresql-drizzle.md)).
  */
 export default defineConfig({

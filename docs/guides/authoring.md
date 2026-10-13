@@ -10,7 +10,19 @@ There are three ways to turn material a content owner already has into a course.
 
 Braivo works with source content as text. Extract it with the tools you already use — `pdftotext` for PDFs, `yt-dlp` for video captions, Whisper for speech, or a desktop agent — then add it to any Braivo installation with the `braivo` command, which acts as you over the API.
 
-Releases will carry `braivo` as one file per platform, with nothing else to install ([ADR 0027](../adr/0027-standalone-cli.md)). Until the first, run it from a clone as `bun apps/server/cli/index.ts`, or build it with `bun run build` as `apps/server/dist/braivo`.
+Install it, or update it, with one command ([ADR 0027](../adr/0027-standalone-cli.md)):
+
+```sh
+# macOS and Linux: into ~/.local/bin
+curl -fsSL https://braivo.app/install.sh | bash
+```
+
+```powershell
+# Windows: into %LOCALAPPDATA%\Programs\Braivo, added to your Path
+irm https://braivo.app/install.ps1 | iex
+```
+
+On macOS and Linux, add `~/.local/bin` to your `PATH` if the installer says it is missing, or install elsewhere with `BRAIVO_INSTALL_DIR`. `BRAIVO_VERSION=v0.1.0` installs that release rather than the latest. From a clone, run it as `bun packages/cli/index.ts`, or build this machine's with `bun run build`, as `packages/cli/dist/braivo`.
 
 ```sh
 # Sign in against the installation's API, then open the link it prints, check

@@ -92,7 +92,7 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 - The console retires a task only once the owner confirms. `apps/console/routes.test.tsx`
 - A correction, sent alone for its own objective and the organization's own task, stores and retires in one transaction: resent, it answers the same while its correction is offered; unchanged, it keeps the task; stale, it stores nothing unless what it asks for is offered; and of two different corrections racing on one task, one is refused. `apps/server/application/tasks.test.ts`, `apps/server/api/client.contract.test.ts`
 - The console corrects a task with its passages and option order, its editor disabled while sending and until the course is read again, so the old task is never offered to edit; a reload unanswered within 10 seconds fails the page, offering Try again rather than calling the correction failed. `apps/console/routes.test.tsx`
-- `braivo mcp` offers the authoring tools and returns Braivo's refusal reason to the agent. `apps/server/cli/mcp.test.ts`
+- `braivo mcp` offers the authoring tools and returns Braivo's refusal reason to the agent. `packages/mcp/server.test.ts`
 
 ## Code map
 
@@ -109,7 +109,7 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 | Tables                     | `packages/db/schema/learning.ts` (`objective`, `course`, `courseObjective`, `task`, `taskCitation`)                                                               |
 | Organization delete guard  | `apps/server/auth/auth.ts` (`beforeDeleteOrganization`), `apps/server/persistence/organization.ts`                                                                |
 | Browser client             | `apps/server/api/client.ts`                                                                                                                                       |
-| MCP tools                  | `apps/server/cli/mcp.ts`                                                                                                                                          |
+| MCP tools                  | `packages/mcp/server.ts`                                                                                                                                          |
 | Console screens            | `apps/console/routes/_signed-in/$organizationSlug/` (`index.tsx`, `courses/$courseId/index.tsx`, `sources/`)                                                      |
 
 ## Decisions

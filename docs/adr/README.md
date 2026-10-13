@@ -38,7 +38,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0024: Adding what is already there returns what is there](0024-idempotent-authoring.md)
 - [0025: A recording enters as timed cues, and a passage cited from it names its moment](0025-timed-transcripts.md)
 - [0026: A document enters page by page, and a passage cited from it names its page](0026-paged-documents.md)
-- [0027: `braivo` ships as one compiled file per platform](0027-standalone-cli.md)
+- [0027: `braivo` ships as one compiled file per platform, installed by one command](0027-standalone-cli.md)
 - [0028: Originals are content-addressed files in a store the installation chooses](0028-original-files.md)
 - [0029: Braivo drafts a course from a source on request, checks it, and stores nothing](0029-server-drafting.md)
 - [0030: Braivo reads a PDF or photo into pages on request, and the caller adds them](0030-server-extraction.md)
