@@ -317,7 +317,8 @@ function AddSource() {
               aria-describedby={`${id}-url-hint`}
             />
             <FieldDescription id={`${id}-url-hint`}>
-              Where it is online, such as a YouTube video. Optional.
+              Where it is online, such as a video. Optional, and for reference only: Braivo does not
+              open it, so add its text or transcript above, or its file below.
             </FieldDescription>
           </Field>
           <Field>

@@ -2385,19 +2385,20 @@ describe("the console", () => {
     expect((await screen.findByRole("link", { name: "Sources" })).getAttribute("href")).toBe(
       "/example/sources",
     );
-    // With no course yet, the empty list offers them too.
+    // With no course yet, the empty list offers them, and nothing else does.
     expect(screen.getByRole("link", { name: "Open Sources" }).getAttribute("href")).toBe(
       "/example/sources",
     );
+    expect(screen.queryByRole("link", { name: "Add material" })).toBeNull();
   });
 
-  test("keeps Sources in the sidebar but offers no button once an organization has a course", async () => {
+  test("still leads an owner with courses to where a new one starts, its material", async () => {
     renderAt("/example", {
       braivo: { listCourses: async () => [{ id: "c1", title: "Spanish" }] },
     });
 
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sources" }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: "Add material" }).getAttribute("href")).toBe(
       "/example/sources",
     );
     expect(screen.queryByRole("link", { name: "Open Sources" })).toBeNull();

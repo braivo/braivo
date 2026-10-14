@@ -11,6 +11,7 @@ import {
   EmptyTitle,
 } from "@braivo/ui/components/empty";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { PlusIcon } from "lucide-react";
 
 import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
@@ -40,7 +41,19 @@ function Courses() {
 
   return (
     <>
-      <Heading>Courses</Heading>
+      {/* Beside the heading once there are courses, so a returning owner still
+          finds where a new one starts: its material (the empty state says so). */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <Heading className="mb-0">Courses</Heading>
+        {courses.length > 0 && (
+          <Button asChild>
+            <Link to="/$organizationSlug/sources" params={{ organizationSlug }}>
+              <PlusIcon data-icon="inline-start" aria-hidden="true" />
+              Add material
+            </Link>
+          </Button>
+        )}
+      </div>
       <LearnersSite
         learnDomain={learnDomain}
         at="Learners practise at"
