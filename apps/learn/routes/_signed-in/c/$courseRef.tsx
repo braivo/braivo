@@ -12,6 +12,7 @@ import {
   type LearnerProgressStanding,
   type TaskResponse,
   courseRef,
+  learnerDayIn,
   parseCourseRef,
 } from "@braivo/server/client";
 import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
@@ -336,7 +337,8 @@ function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
  * yet due. The model's time, not a promise of practice: an objective may have
  * no task. A label, since a title may be a phrase ("Greet someone").
  * `limitReached`: caught up but for new objectives, held back by the day's limit.
- * Then today's practice, from evidence on any device: "today", never "this visit".
+ * Then today's practice, from evidence on any device: "today", never "this
+ * visit", in the daily limit's days, so past midnight is still tonight.
  */
 function CaughtUp({
   report,
@@ -364,11 +366,12 @@ function CaughtUp({
       ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`
       : t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
   }
-  const today = new Date().toDateString();
+  const dayOf = learnerDayIn();
+  const today = dayOf(new Date());
   const todaySummary = formatStandingCounts(
     report?.objectives.filter(
       (standing) =>
-        standing.phase !== "unseen" && new Date(standing.lastEvidenceAt).toDateString() === today,
+        standing.phase !== "unseen" && dayOf(new Date(standing.lastEvidenceAt)) === today,
     ) ?? [],
     t,
   );

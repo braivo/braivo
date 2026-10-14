@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Evidence } from "../learning/index.ts";
+import { learnerDayIn } from "./learner-day.ts";
 
 /**
  * How many objectives a learner may start in a day. Each one started brings
@@ -18,10 +19,10 @@ export const NEW_OBJECTIVES_PER_DAY = 20;
  * do is told to come back tomorrow rather than that they are caught up.
  *
  * Counted from evidence, never a counter: an objective is started on the day
- * of its first evidence at the organization, in `timeZone`, so answering again
- * counts nothing, an objective two courses share counts once, and every course
- * at the organization draws on one limit. Evidence from elsewhere counts too:
- * it brings the same reviews.
+ * of its first evidence at the organization, a learner's day in `timeZone`
+ * (`learnerDayIn`), so answering again counts nothing, an objective two courses
+ * share counts once, and every course at the organization draws on one limit.
+ * Evidence from elsewhere counts too: it brings the same reviews.
  */
 export function limitNewObjectives(
   learner: {
@@ -38,18 +39,10 @@ export function limitNewObjectives(
     if (first === undefined || at < first) firstEvidenceAt.set(objectiveId, at);
   }
 
-  // Comparing calendar dates as formatted, so no midnight is ever computed and
-  // a day 23 or 25 hours long is still one day; with the whole year, since a
-  // short date writes 1926 and 2026 alike.
-  const day = new Intl.DateTimeFormat("en-US", {
-    timeZone: input.timeZone,
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  });
-  const today = day.format(input.now);
+  const dayOf = learnerDayIn(input.timeZone);
+  const today = dayOf(input.now);
   let started = 0;
-  for (const at of firstEvidenceAt.values()) if (day.format(at) === today) started++;
+  for (const at of firstEvidenceAt.values()) if (dayOf(at) === today) started++;
   if (started < NEW_OBJECTIVES_PER_DAY) return { candidates: objectiveIds, heldBack: false };
 
   const candidates = objectiveIds.filter((id) => firstEvidenceAt.has(id));
