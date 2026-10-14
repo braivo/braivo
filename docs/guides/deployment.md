@@ -41,14 +41,17 @@ The learn app presents itself as the organization whose domain serves it, per an
 
 ### Remote MCP clients
 
-AI apps such as hosted Claude connect at `<BRAIVO_URL>/mcp` by OAuth, a spike for now ([ADR 0045](../adr/0045-remote-mcp.md)). This server also accepts a client named by the HTTPS URL of its metadata document, fetched only from a public address. A host that cannot pin a connection to the addresses it checked, Workers, passes `createServer({ clientIdMetadataDocuments: false })` and accepts only the clients the operator registers, by these commands, run with the same environment as `serve`:
+AI apps such as ChatGPT and Claude connect at `<BRAIVO_URL>/mcp` by OAuth, a spike for now ([ADR 0045](../adr/0045-remote-mcp.md)). This server accepts a client named by the HTTPS URL of its metadata document (CIMD), fetched only from a public address. An installation fetching them registers none of the clients below: ChatGPT would sign with a key the registration lacks.
+
+A host that cannot pin a connection to the addresses it checked, Workers, passes `createServer({ clientIdMetadataDocuments: false })`: it fetches nothing and accepts only the clients the operator registers, from any machine reaching the installation's database, with its `DATABASE_URL`, `BRAIVO_URL`, and `BETTER_AUTH_SECRET`. Registered under their documents' URLs, these connect with a teacher's sign-in alone, since the host still advertises CIMD and withdraws `private_key_jwt`:
 
 ```bash
-bun apps/server/cli/index.ts oauth-client add --name Claude --redirect-uri https://claude.ai/api/mcp/auth_callback
-bun apps/server/cli/index.ts oauth-client remove --client-id <id>
+bun apps/server/cli/index.ts oauth-client add --name ChatGPT --client-id https://chatgpt.com/oauth/client.json --redirect-uri https://chatgpt.com/connector_platform_oauth_redirect
+bun apps/server/cli/index.ts oauth-client add --name Claude --client-id https://claude.ai/oauth/mcp-oauth-client-metadata --redirect-uri https://claude.ai/api/mcp/auth_callback
+bun apps/server/cli/index.ts oauth-client add --name "Claude Code" --client-id https://claude.ai/oauth/claude-code-client-metadata --redirect-uri http://localhost/callback --redirect-uri http://127.0.0.1/callback
 ```
 
-`add` prints the client ID the AI app must send: entered as its own OAuth client (in Claude, "Use your own OAuth client"), or else the ID the app publishes, such as Claude Code's metadata document URL, set with `--client-id`. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `remove` refuses its refresh tokens at once; its access tokens last until they expire, within an hour. Where metadata documents are on, a removed client named by URL can sign in again.
+The redirect URIs are copied from each document; recheck them there if a client's sign-in fails. On such a host, `invalid_client` at sign-in usually means the app sent an ID no `--client-id` registered. Without `--client-id`, `add` prints a random ID, which a person enters in their AI app as their own OAuth client. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `oauth-client remove --client-id <id>` refuses the client's refresh tokens at once; its access tokens work until they expire, within an hour. Where metadata documents are on, a removed client named by URL can sign in again.
 
 ## Configuration
 

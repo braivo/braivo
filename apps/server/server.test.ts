@@ -142,21 +142,35 @@ describe.skipIf(!connectionString)("createServer", () => {
     expect((await asAdmin(testServer({ files: store }), "GET", "/files/none")).status).toBe(404);
   });
 
-  test("offers clients named by their metadata document's URL unless the host turns them off", async () => {
-    const offers = async (server: ReturnType<typeof testServer>) => {
-      const path = "/api/auth/.well-known/oauth-authorization-server";
-      const metadata = (await (await server.request(`${baseUrl}${path}`)).json()) as {
-        client_id_metadata_document_supported?: boolean;
-        token_endpoint_auth_methods_supported: string[];
-      };
-      // Public clients either way: a registered one too signs in with PKCE alone.
-      expect(metadata.token_endpoint_auth_methods_supported).toContain("none");
-      return metadata.client_id_metadata_document_supported === true;
+  test("advertises CIMD, withdrawing `private_key_jwt` where the host fetches nothing", async () => {
+    const advertisedAuthMethods = async (server: ReturnType<typeof testServer>) => {
+      const documents = ["oauth-authorization-server", "openid-configuration"].map(async (name) => {
+        const url = `${baseUrl}/api/auth/.well-known/${name}`;
+        expect((await server.request(url, { method: "HEAD" })).status).toBe(200);
+        const answer = await server.request(url);
+        expect(answer.status).toBe(200);
+        const metadata = (await answer.json()) as {
+          client_id_metadata_document_supported?: boolean;
+          token_endpoint_auth_methods_supported: string[];
+        };
+        // As ChatGPT and Claude read it: CIMD, with public clients.
+        expect(metadata.client_id_metadata_document_supported).toBe(true);
+        expect(metadata.token_endpoint_auth_methods_supported).toContain("none");
+        return metadata.token_endpoint_auth_methods_supported;
+      });
+      return Promise.all(documents);
     };
 
-    expect(await offers(testServer())).toBe(true);
-    // A Worker's: it cannot connect to the addresses it checked (ADR 0045).
-    expect(await offers(testServer({ clientIdMetadataDocuments: false }))).toBe(false);
+    for (const methods of await advertisedAuthMethods(testServer()))
+      expect(methods).toContain("private_key_jwt");
+    // A Worker's: it fetches no document or keys (ADR 0045), and ChatGPT
+    // would sign with a key wherever `private_key_jwt` is offered.
+    const worker = testServer({ clientIdMetadataDocuments: false });
+    for (const methods of await advertisedAuthMethods(worker))
+      expect(methods).not.toContain("private_key_jwt");
+    // Other answers pass unchanged; this one goes through `auth.handler` too.
+    const resource = await worker.request(`${baseUrl}/.well-known/oauth-protected-resource/mcp`);
+    expect(((await resource.json()) as { resource: string }).resource).toBe(`${baseUrl}/mcp`);
   });
 
   test("enables AI only when configured, and only for the organizations it names", async () => {

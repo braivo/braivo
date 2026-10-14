@@ -44,10 +44,10 @@ type AuthOptions = {
    * Whether an unregistered client is found by its client ID metadata document
    * (CIMD), its ID that document's URL; on unless `false`. Off where the
    * runtime cannot pin a connection to the addresses it checked (Workers):
-   * CIMD is neither advertised nor fetched, and only registered clients sign
-   * in (ADR 0045). Better Auth fetches a registered client's `jwks_uri`
-   * unpinned either way, so clients are registered public, with PKCE and no
-   * keys.
+   * nothing is fetched and only registered clients sign in, CIMD still
+   * advertised for those registered by their document's URL (ADR 0045).
+   * Better Auth fetches a registered client's `jwks_uri` unpinned either way,
+   * so clients are registered public, with PKCE and no keys.
    */
   clientIdMetadataDocuments?: boolean;
 };
@@ -135,7 +135,7 @@ function assertSlugAllowed(slug: string): void {
  * environment at import time and a test can open its own database.
  */
 export function createAuth(options: AuthOptions) {
-  return betterAuth({
+  const auth = betterAuth({
     // `transaction` is off by default. Better Auth's organization delete
     // removes members before the organization, so without it a Braivo foreign
     // key refusing that last step leaves the organization with no members.
@@ -384,7 +384,7 @@ export function createAuth(options: AuthOptions) {
       // fetched resolving its host once, refusing private addresses and
       // redirects, and pinning the addresses checked (`client-metadata.ts`).
       // A registered client is found before this runs, a URL-shaped ID
-      // included.
+      // included; without this plugin, `createAuth` still advertises CIMD.
       ...(options.clientIdMetadataDocuments === false
         ? []
         : [
@@ -461,6 +461,48 @@ export function createAuth(options: AuthOptions) {
     // let tests pass requests a deployment refuses.
     advanced: { disableOriginCheck: false },
   });
+  if (options.clientIdMetadataDocuments !== false) return auth;
+  const { handler } = auth;
+  return Object.assign(auth, {
+    handler: async (request: Request) =>
+      advertiseRegisteredUrlClients(request, await handler(request)),
+  });
+}
+
+/** Where Better Auth answers its authorization server's metadata. */
+const OAUTH_METADATA_PATHS = new Set([
+  "/api/auth/.well-known/oauth-authorization-server",
+  "/api/auth/.well-known/openid-configuration",
+]);
+
+/**
+ * The authorization server's metadata without `cimd()`, rewritten: Better
+ * Auth 1.7.7 has no option for either change, and its after hooks skip these
+ * responses. CIMD advertised, so ChatGPT and Claude send their documents'
+ * URLs, which the operator registered, rather than ask a teacher for a client
+ * ID. `private_key_jwt` withdrawn, since ChatGPT signs with a key wherever it
+ * is offered, and registered clients have none.
+ */
+async function advertiseRegisteredUrlClients(
+  request: Request,
+  response: Response,
+): Promise<Response> {
+  // GET alone: Better Auth answers HEAD with no body to rewrite.
+  if (request.method !== "GET" || response.status !== 200) return response;
+  if (!OAUTH_METADATA_PATHS.has(new URL(request.url).pathname)) return response;
+  const metadata = (await response.json()) as { token_endpoint_auth_methods_supported: string[] };
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  return Response.json(
+    {
+      ...metadata,
+      client_id_metadata_document_supported: true,
+      token_endpoint_auth_methods_supported: metadata.token_endpoint_auth_methods_supported.filter(
+        (method) => method !== "private_key_jwt",
+      ),
+    },
+    { status: response.status, headers },
+  );
 }
 
 export type Auth = ReturnType<typeof createAuth>;

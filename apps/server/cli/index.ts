@@ -42,7 +42,8 @@ Running an installation (a content owner's commands are braivo's):
                 are off (Workers). One --redirect-uri per callback: HTTPS,
                 or HTTP on the loopback, whose port may vary. --client-id
                 sets the ID, such as a client's metadata document URL
-                (Claude Code); random otherwise.
+                (ChatGPT, Claude: docs/guides/deployment.md); random
+                otherwise.
   oauth-client remove --client-id <id>
                 Remove a client and refuse its refresh tokens; access tokens
                 already issued work until they expire, within the hour.
