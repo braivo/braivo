@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { cimd } from "@better-auth/cimd";
-import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { defineRequestState } from "@better-auth/core/context";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { mcp } from "@better-auth/mcp";
@@ -20,6 +19,7 @@ import {
   organizationOwnsLearningContent,
   readOrganizationSlug,
 } from "../persistence/index.ts";
+import { fetchClientMetadata } from "./client-metadata.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -41,18 +41,6 @@ type AuthOptions = {
   /** Google's OAuth client, offering sign-in with Google; without one, codes alone. */
   google?: { clientId: string; clientSecret: string };
 };
-
-/**
- * Fetches a client's metadata for `cimd()`, closing the connection after ten
- * seconds whatever happened to the response: Better Auth leaves the body of
- * one it refuses (a redirect, a non-JSON answer) unread and open, so a client's
- * server could otherwise hold sockets indefinitely.
- */
-const fetchClientMetadata: typeof fetchClientMetadataResource = (input, init) =>
-  fetchClientMetadataResource(input, {
-    ...init,
-    signal: AbortSignal.any([AbortSignal.timeout(10_000), ...(init?.signal ? [init.signal] : [])]),
-  });
 
 /**
  * Sign-in codes, chosen rather than Better Auth's defaults (ADR 0018). Ten
@@ -379,7 +367,7 @@ export function createAuth(options: AuthOptions) {
       }),
       // A client is the HTTPS URL of its metadata document, fetched resolving
       // its host once, refusing private addresses and redirects, and pinning
-      // the address checked; `node:https` does all of that on Bun too.
+      // the addresses checked (`client-metadata.ts`).
       cimd({ fetchClientMetadataResource: fetchClientMetadata, metadataProfile: "mcp-2026-07-28" }),
       verifiedAccounts,
     ],
