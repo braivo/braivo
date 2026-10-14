@@ -14,14 +14,16 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { registerOAuthClient, removeOAuthClient } from "../auth/oauth-client.ts";
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
-// No metadata document is reachable in tests: each fetch is counted and fails.
-const metadata = vi.hoisted(() => ({ fetches: 0 }));
-vi.mock("../auth/client-metadata.ts", () => ({
-  fetchClientMetadata: async () => {
-    metadata.fetches++;
+// No metadata document is reachable in tests: each fetch is recorded, by the
+// transport asked, and fails.
+const metadata = vi.hoisted(() => ({ fetched: [] as string[] }));
+vi.mock("../auth/client-metadata.ts", () => {
+  const recording = (transport: string) => async () => {
+    metadata.fetched.push(transport);
     throw new TypeError("no metadata document in tests");
-  },
-}));
+  };
+  return { fetchPinned: recording("pinned"), fetchStrictlyPublic: recording("strictly public") };
+});
 
 const { database, auth, api, signUp } = createTestApi();
 
@@ -398,7 +400,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(await listed(await signUp())).toEqual([]);
   });
 
-  describe("where client ID metadata documents are off, as on Workers", () => {
+  describe("where client ID metadata documents are not fetched", () => {
     const withoutCimd = createTestApi({ clientIdMetadataDocuments: false });
     const urlClientId = "https://client.example/client.json";
     const authorizeAt = (on: typeof api, client: string) => {
@@ -416,16 +418,17 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     };
 
     beforeEach(() => {
-      metadata.fetches = 0;
+      metadata.fetched = [];
     });
 
-    // That discovery leaves them out is `server.test.ts`'s, through `createServer`.
+    // What discovery advertises, and which transport fetches, is
+    // `server.test.ts`'s, through `createServer`.
 
     test("an unregistered client named by URL is refused, its document never fetched", async () => {
-      // The default API fetches it, so the zero below means something.
+      // The default API fetches it, so the none below means something.
       await authorizeAt(api, urlClientId);
-      expect(metadata.fetches).toBe(1);
-      metadata.fetches = 0;
+      expect(metadata.fetched).toEqual(["pinned"]);
+      metadata.fetched = [];
 
       const refused = await authorizeAt(withoutCimd.api, urlClientId);
 
@@ -433,7 +436,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       expect(
         new URL(refused.headers.get("location") ?? baseUrl, baseUrl).searchParams.get("error"),
       ).toBe("invalid_client");
-      expect(metadata.fetches).toBe(0);
+      expect(metadata.fetched).toEqual([]);
     });
 
     test("a registered client with a URL for its ID reaches consent, nothing fetched", async () => {
@@ -446,7 +449,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       const asked = await authorizeAt(withoutCimd.api, registered);
 
       expect(new URL(asked.headers.get("location")!, baseUrl).pathname).toBe("/api/oauth/consent");
-      expect(metadata.fetches).toBe(0);
+      expect(metadata.fetched).toEqual([]);
     });
   });
 });

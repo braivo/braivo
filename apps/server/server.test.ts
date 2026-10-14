@@ -8,7 +8,7 @@ import { type Database, runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 // Through the package's own name: the entry a Worker imports.
 import { createServer, type FileStore, readServerConfig, smtpMail } from "@braivo/server";
-import { beforeAll, describe, expect, test } from "vite-plus/test";
+import { beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { codeSentTo, createOutbox, signInWithCode } from "./auth/testing.ts";
 
@@ -40,7 +40,7 @@ function testServer(
     legal?: Pick<Env, "BRAIVO_PRIVACY_URL" | "BRAIVO_TERMS_URL">;
     cachedDatabase?: Database;
     files?: FileStore;
-    clientIdMetadataDocuments?: boolean;
+    clientIdMetadataDocuments?: "strictly-public" | false;
   } = {},
 ) {
   const env: Env = {
@@ -142,7 +142,7 @@ describe.skipIf(!connectionString)("createServer", () => {
     expect((await asAdmin(testServer({ files: store }), "GET", "/files/none")).status).toBe(404);
   });
 
-  test("advertises CIMD, withdrawing `private_key_jwt` where the host fetches nothing", async () => {
+  test("advertises CIMD, withdrawing `private_key_jwt` where documents are not fetched", async () => {
     const advertisedAuthMethods = async (server: ReturnType<typeof testServer>) => {
       const documents = ["oauth-authorization-server", "openid-configuration"].map(async (name) => {
         const url = `${baseUrl}/api/auth/.well-known/${name}`;
@@ -161,16 +161,47 @@ describe.skipIf(!connectionString)("createServer", () => {
       return Promise.all(documents);
     };
 
-    for (const methods of await advertisedAuthMethods(testServer()))
-      expect(methods).toContain("private_key_jwt");
-    // A Worker's: it fetches no document or keys (ADR 0045), and ChatGPT
-    // would sign with a key wherever `private_key_jwt` is offered.
+    // Where documents are fetched, a client's keys are too.
+    for (const fetching of [
+      testServer(),
+      testServer({ clientIdMetadataDocuments: "strictly-public" }),
+    ])
+      for (const methods of await advertisedAuthMethods(fetching))
+        expect(methods).toContain("private_key_jwt");
+    // Where none are (ADR 0045), ChatGPT would sign with a key wherever
+    // `private_key_jwt` is offered, and registered clients have none.
     const worker = testServer({ clientIdMetadataDocuments: false });
     for (const methods of await advertisedAuthMethods(worker))
       expect(methods).not.toContain("private_key_jwt");
     // Other answers pass unchanged; this one goes through `auth.handler` too.
     const resource = await worker.request(`${baseUrl}/.well-known/oauth-protected-resource/mcp`);
     expect(((await resource.json()) as { resource: string }).resource).toBe(`${baseUrl}/mcp`);
+  });
+
+  test("fetches client ID metadata documents through a Worker's `fetch` where asked", async () => {
+    vi.stubGlobal("Cloudflare", { compatibilityFlags: { global_fetch_strictly_public: true } });
+    const fetched = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(null, { status: 404 }));
+    const clientId = `https://client.example/${crypto.randomUUID()}.json`;
+    try {
+      const authorizing = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
+      authorizing.search = new URLSearchParams({
+        response_type: "code",
+        client_id: clientId,
+        redirect_uri: "https://client.example/callback",
+        code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        code_challenge_method: "S256",
+      }).toString();
+      await testServer({ clientIdMetadataDocuments: "strictly-public" }).request(authorizing, {
+        headers: { cookie },
+      });
+
+      expect(fetched.mock.calls.map(([asked]) => (asked as Request).url)).toEqual([clientId]);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
   });
 
   test("enables AI only when configured, and only for the organizations it names", async () => {

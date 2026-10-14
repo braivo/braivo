@@ -32,8 +32,8 @@ export function createServer(options: {
   sendMail: SendMail;
   /** Serves organizations' own domains once proven (ADR 0038); without one, they cannot add any. */
   domains?: DomainProvisioner;
-  /** `false` where the runtime cannot pin a connection (Workers); see `createAuth`. */
-  clientIdMetadataDocuments?: boolean;
+  /** How client ID metadata documents are fetched, if at all; see `createAuth`. */
+  clientIdMetadataDocuments?: "strictly-public" | false;
 }) {
   const { config, database } = options;
   return createApi({

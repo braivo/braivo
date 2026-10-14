@@ -24,7 +24,7 @@ export type Signed = { cookie: string; token: string; id: string; email: string;
  */
 export function createTestApi(
   options: Omit<Parameters<typeof createApi>[0], "auth" | "database" | "baseUrl"> & {
-    clientIdMetadataDocuments?: boolean;
+    clientIdMetadataDocuments?: "strictly-public" | false;
   } = {},
 ) {
   const { clientIdMetadataDocuments, ...apiOptions } = options;

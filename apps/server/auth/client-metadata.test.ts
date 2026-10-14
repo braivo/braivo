@@ -9,7 +9,7 @@ import type { Readable } from "node:stream";
 
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { fetchClientMetadata, pinnedLookup } from "./client-metadata.ts";
+import { fetchPinned, fetchStrictlyPublic, pinnedLookup } from "./client-metadata.ts";
 
 // DNS and HTTPS are mocked: what a host resolves to, what the transport asked
 // `node:https` for, and how many times, and the answer, if any (none is a
@@ -106,7 +106,7 @@ describe("a client's metadata", () => {
 
   test("is fetched from the addresses checked, resolved once, as its own host", async () => {
     resolvesTo("2606:4700:4700::1111", "1.1.1.1");
-    const asked = fetchClientMetadata("https://client.example/client.json", {
+    const asked = fetchPinned("https://client.example/client.json", {
       headers: { host: "elsewhere.example" },
     });
     await expect(asked).rejects.toThrow("not connected in tests");
@@ -140,7 +140,7 @@ describe("a client's metadata", () => {
     async (_, address) => {
       // Every address is a fallback the connection may take, so each is checked.
       resolvesTo("1.1.1.1", address);
-      await expect(fetchClientMetadata("https://client.example/client.json")).rejects.toThrow(
+      await expect(fetchPinned("https://client.example/client.json")).rejects.toThrow(
         "public addresses only",
       );
       expect(https.asked).toBeUndefined();
@@ -148,15 +148,13 @@ describe("a client's metadata", () => {
   );
 
   test("is refused over HTTP", async () => {
-    await expect(fetchClientMetadata("http://client.example/client.json")).rejects.toThrow(
-      "over HTTPS",
-    );
+    await expect(fetchPinned("http://client.example/client.json")).rejects.toThrow("over HTTPS");
   });
 
   test("stops waiting for its host to resolve when the request is aborted", async () => {
     dns.answer = new Promise(() => {});
     const aborting = new AbortController();
-    const asked = fetchClientMetadata(
+    const asked = fetchPinned(
       new Request("https://client.example/client.json", { signal: aborting.signal }),
     );
     aborting.abort(new Error("the caller gave up"));
@@ -168,7 +166,7 @@ describe("a client's metadata", () => {
     const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(deadline.signal);
     try {
       dns.answer = new Promise(() => {});
-      const asked = fetchClientMetadata("https://client.example/client.json");
+      const asked = fetchPinned("https://client.example/client.json");
       expect(timeout).toHaveBeenCalledWith(10_000);
       deadline.abort(new Error("ten seconds passed"));
       await expect(asked).rejects.toThrow("ten seconds passed");
@@ -178,7 +176,7 @@ describe("a client's metadata", () => {
   });
 
   test("is refused at once for a request already aborted, its host never resolved", async () => {
-    const asked = fetchClientMetadata(
+    const asked = fetchPinned(
       new Request("https://client.example/client.json", { signal: AbortSignal.abort() }),
     );
     await expect(asked).rejects.toThrow(/abort/i);
@@ -189,7 +187,7 @@ describe("a client's metadata", () => {
     let fail!: (error: Error) => void;
     dns.answer = new Promise((_, reject) => (fail = reject));
     const aborting = new AbortController();
-    const asked = fetchClientMetadata(
+    const asked = fetchPinned(
       new Request("https://client.example/client.json", { signal: aborting.signal }),
     );
     aborting.abort(new Error("the caller gave up"));
@@ -200,7 +198,7 @@ describe("a client's metadata", () => {
   test("answers a redirect as it is, never following it", async () => {
     resolvesTo("1.1.1.1");
     https.answer = { status: 302, headers: { location: "http://127.0.0.1/" } };
-    const answer = await fetchClientMetadata("https://client.example/client.json");
+    const answer = await fetchPinned("https://client.example/client.json");
     expect([answer.status, answer.headers.get("location"), https.requests]).toEqual([
       302,
       "http://127.0.0.1/",
@@ -211,9 +209,88 @@ describe("a client's metadata", () => {
   test("is refused, not thrown at the server, when its server answers a status no Response takes", async () => {
     resolvesTo("1.1.1.1");
     https.answer = { status: 600 };
-    await expect(fetchClientMetadata("https://client.example/client.json")).rejects.toThrow(
-      RangeError,
-    );
+    await expect(fetchPinned("https://client.example/client.json")).rejects.toThrow(RangeError);
     expect(https.response?.destroyed).toBe(true);
+  });
+});
+
+describe("a client's metadata on a Worker", () => {
+  const strictlyPublicWorker = { compatibilityFlags: { global_fetch_strictly_public: true } };
+
+  /** The global `fetch` answering `answer`, keeping what it was asked, beside `Cloudflare`. */
+  const stubFetch = (cloudflare: unknown, answer = () => new Response("{}")) => {
+    vi.stubGlobal("Cloudflare", cloudflare);
+    const fetched: Request[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      fetched.push(input as Request);
+      return answer();
+    });
+    return fetched;
+  };
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  test("is fetched through the runtime, as asked but for redirects, which are returned", async () => {
+    // Better Auth asks for `error`, which Workers refuse, and refuses a 3xx itself.
+    const fetched = stubFetch(strictlyPublicWorker, () =>
+      Response.redirect("https://elsewhere.example/", 302),
+    );
+    const aborting = new AbortController();
+
+    const answer = await fetchStrictlyPublic("https://client.example/client.json", {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: aborting.signal,
+    });
+    aborting.abort();
+
+    const [asked] = fetched;
+    expect([fetched.length, asked!.url, asked!.redirect, asked!.headers.get("accept")]).toEqual([
+      1,
+      "https://client.example/client.json",
+      "manual",
+      "application/json",
+    ]);
+    expect(asked!.signal.aborted).toBe(true);
+    expect([answer.status, answer.headers.get("location")]).toEqual([
+      302,
+      "https://elsewhere.example/",
+    ]);
+  });
+
+  test.each([
+    ["http://client.example/client.json", "over HTTPS"],
+    ["https://127.0.0.1/client.json", "must be public"],
+    ["https://[::1]/client.json", "must be public"],
+    ["https://localhost/client.json", "must be public"],
+  ])("is refused at %s, nothing fetched", async (url, refusal) => {
+    const fetched = stubFetch(strictlyPublicWorker);
+
+    await expect(fetchStrictlyPublic(url)).rejects.toThrow(refusal);
+    expect(fetched).toEqual([]);
+  });
+
+  test.each([
+    ["a Worker without global_fetch_strictly_public", { compatibilityFlags: {} }],
+    ["a Worker telling no flags", {}],
+    ["anything but a Worker", undefined],
+  ])("is never fetched on %s", async (_, cloudflare) => {
+    const fetched = stubFetch(cloudflare);
+
+    await expect(fetchStrictlyPublic("https://client.example/client.json")).rejects.toThrow(
+      "global_fetch_strictly_public",
+    );
+    expect(fetched).toEqual([]);
+  });
+
+  test("is only read", async () => {
+    const fetched = stubFetch(strictlyPublicWorker);
+
+    await expect(
+      fetchStrictlyPublic("https://client.example/client.json", { method: "POST" }),
+    ).rejects.toThrow("only read");
+    expect(fetched).toEqual([]);
   });
 });
