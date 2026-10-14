@@ -8,4 +8,5 @@
 export type { Auth } from "./auth.ts";
 export { createAuth, SIGN_IN_CODE } from "./auth.ts";
 export { addMember, createOrganization, createOwnedOrganization } from "./organization.ts";
+export { registerOAuthClient, removeOAuthClient } from "./oauth-client.ts";
 export { isOrganizationOrigin } from "./origin.ts";

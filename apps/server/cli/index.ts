@@ -7,7 +7,13 @@ import { parseArgs } from "node:util";
 import { createDatabase, runMigrations } from "@braivo/db";
 
 import { registerLearnDomain } from "../application/index.ts";
-import { addMember, createAuth, createOrganization } from "../auth/index.ts";
+import {
+  addMember,
+  createAuth,
+  createOrganization,
+  registerOAuthClient,
+  removeOAuthClient,
+} from "../auth/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "../config.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { createServer } from "../server.ts";
@@ -30,6 +36,16 @@ Running an installation (a content owner's commands are braivo's):
                 one it is named by from now on, its earlier ones still
                 serving; DNS, TLS, and routing it here are set up outside
                 Braivo.
+  oauth-client add --name <name> --redirect-uri <uri>... [--client-id <id>]
+                Register a remote MCP client, public with PKCE, and print
+                its ID; the only way in where client ID metadata documents
+                are off (Workers). One --redirect-uri per callback: HTTPS,
+                or HTTP on the loopback, whose port may vary. --client-id
+                sets the ID, such as a client's metadata document URL
+                (Claude Code); random otherwise.
+  oauth-client remove --client-id <id>
+                Remove a client and refuse its refresh tokens; access tokens
+                already issued work until they expire, within the hour.
   serve         Serve the HTTP API.
 `;
 
@@ -132,6 +148,54 @@ async function main(argv: readonly string[]): Promise<number> {
         hostname,
       });
       console.log(`Registered ${domain.hostname} for ${domain.organization.name}.`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
+  if (argv[0] === "oauth-client" && (argv[1] === "add" || argv[1] === "remove")) {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: {
+        name: { type: "string" },
+        "redirect-uri": { type: "string", multiple: true },
+        "client-id": { type: "string" },
+      },
+    });
+    const { name, "redirect-uri": redirectUris, "client-id": clientId } = values;
+    const adding = argv[1] === "add";
+    if (adding ? !name || !redirectUris : !clientId || name || redirectUris) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const config = readAuthConfig(process.env);
+    const database = createDatabase(config.databaseUrl);
+    try {
+      const auth = createAuth({
+        database,
+        secret: config.secret,
+        baseURL: config.baseUrl,
+        sendMail: sendsNoMail,
+      });
+      if (adding) {
+        const added = await registerOAuthClient(auth, {
+          name: name!,
+          redirectUris: redirectUris!,
+          clientId,
+        });
+        console.log(
+          `Registered ${name!.trim()} for ${config.baseUrl}/mcp. Its client ID:\n${added.clientId}`,
+        );
+      } else if (await removeOAuthClient(auth, clientId!)) {
+        console.log(
+          `Removed ${clientId} from ${config.baseUrl}/mcp. Access tokens already issued work until they expire, within the hour.`,
+        );
+      } else {
+        console.error(`No client is registered as ${clientId} for ${config.baseUrl}/mcp.`);
+        return 1;
+      }
     } finally {
       await database.$client.end();
     }

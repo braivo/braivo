@@ -374,11 +374,17 @@ export function createAuth(options: AuthOptions) {
         // algorithm and the token endpoint refuses a proof, rather than issue
         // a token `/mcp` would refuse.
         dpop: { signingAlgorithms: [] },
+        // Only so the metadata offers `none`, every client's token endpoint
+        // method (public, with PKCE): Better Auth 1.7.7 offers it with this
+        // flag or `cimd()`, which a Worker leaves out. It registers no one:
+        // registration over HTTP is off, its path disabled below.
+        allowUnauthenticatedClientRegistration: true,
       }),
-      // A client is the HTTPS URL of its metadata document, fetched resolving
-      // its host once, refusing private addresses and redirects, and pinning
-      // the addresses checked (`client-metadata.ts`). A registered client is
-      // found before this runs, a URL-shaped ID included.
+      // An unregistered client is the HTTPS URL of its metadata document,
+      // fetched resolving its host once, refusing private addresses and
+      // redirects, and pinning the addresses checked (`client-metadata.ts`).
+      // A registered client is found before this runs, a URL-shaped ID
+      // included.
       ...(options.clientIdMetadataDocuments === false
         ? []
         : [
@@ -396,8 +402,9 @@ export function createAuth(options: AuthOptions) {
       // `jwt()`'s session-for-JWT exchange: only OAuth issues JWTs.
       "/token",
       // Clients name themselves by their metadata document (`cimd()`), or
-      // server code registers one. Over HTTP, anyone signed in, a learner
-      // too, could put a client of their naming on a consent page.
+      // the operator registers one (`oauth-client.ts`). Over HTTP, anyone, a
+      // learner too, could put a client of their naming on a consent page.
+      "/oauth2/register",
       "/oauth2/create-client",
       "/oauth2/get-client",
       "/oauth2/get-clients",

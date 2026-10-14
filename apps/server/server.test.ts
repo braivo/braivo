@@ -147,7 +147,10 @@ describe.skipIf(!connectionString)("createServer", () => {
       const path = "/api/auth/.well-known/oauth-authorization-server";
       const metadata = (await (await server.request(`${baseUrl}${path}`)).json()) as {
         client_id_metadata_document_supported?: boolean;
+        token_endpoint_auth_methods_supported: string[];
       };
+      // Public clients either way: a registered one too signs in with PKCE alone.
+      expect(metadata.token_endpoint_auth_methods_supported).toContain("none");
       return metadata.client_id_metadata_document_supported === true;
     };
 

@@ -39,6 +39,17 @@ bun apps/server/cli/index.ts organization add-member --slug my-school --email le
 
 The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization, and Braivo trusts that origin only while the row exists ([ADR 0004](../adr/0004-one-application-origin.md)). The operator registers each with `organization add-domain --slug <slug> --hostname <hostname>`; an organization may have several, named by the latest registered, the earlier still serving, so its `<slug>.<self-serve domain>` stays a way in when its own domain does not work; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on the domain's own `/login`, by a code that works there alone; with Google, through `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. To try it locally, see [the API guide](api.md#an-organizations-domain-locally).
 
+### Remote MCP clients
+
+AI apps such as hosted Claude connect at `<BRAIVO_URL>/mcp` by OAuth, a spike for now ([ADR 0045](../adr/0045-remote-mcp.md)). This server also accepts a client named by the HTTPS URL of its metadata document, fetched only from a public address. A host that cannot pin a connection to the addresses it checked, Workers, passes `createServer({ clientIdMetadataDocuments: false })` and accepts only the clients the operator registers, by these commands, run with the same environment as `serve`:
+
+```bash
+bun apps/server/cli/index.ts oauth-client add --name Claude --redirect-uri https://claude.ai/api/mcp/auth_callback
+bun apps/server/cli/index.ts oauth-client remove --client-id <id>
+```
+
+`add` prints the client ID the AI app must send: entered as its own OAuth client (in Claude, "Use your own OAuth client"), or else the ID the app publishes, such as Claude Code's metadata document URL, set with `--client-id`. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `remove` refuses its refresh tokens at once; its access tokens last until they expire, within an hour. Where metadata documents are on, a removed client named by URL can sign in again.
+
 ## Configuration
 
 **Origin**
