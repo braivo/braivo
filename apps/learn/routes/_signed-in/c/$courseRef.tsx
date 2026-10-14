@@ -299,14 +299,22 @@ function labelOf(standing: LearnerProgressStanding): ProgressLabel {
   return standing.due ? "dueForReview" : "retained";
 }
 
-function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
-  const { t } = useLingui();
-  const labels = report.objectives.map(labelOf);
-  const line = (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
+/** `standings` counted by label, in the summary's order, those with none left out: "2 retained · 1 learning". */
+function formatStandingCounts(
+  standings: LearnerProgressStanding[],
+  t: ReturnType<typeof useLingui>["t"],
+) {
+  const labels = standings.map(labelOf);
+  return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
     .map((label) => [label, labels.filter((each) => each === label).length] as const)
     .filter(([, count]) => count > 0)
     .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)))
     .join(" · ");
+}
+
+function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
+  const { t } = useLingui();
+  const line = formatStandingCounts(report.objectives, t);
   if (!line) return null;
 
   return (
@@ -328,6 +336,7 @@ function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
  * yet due. The model's time, not a promise of practice: an objective may have
  * no task. A label, since a title may be a phrase ("Greet someone").
  * `limitReached`: caught up but for new objectives, held back by the day's limit.
+ * Then today's practice, from evidence on any device: "today", never "this visit".
  */
 function CaughtUp({
   report,
@@ -342,7 +351,7 @@ function CaughtUp({
   const next = report?.objectives
     .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
     .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
-  let description = limitReached
+  let status = limitReached
     ? t`You can start new material again tomorrow. Nothing is due right now.`
     : t`Nothing is due right now.`;
   if (next) {
@@ -351,12 +360,37 @@ function CaughtUp({
       dateStyle: "full",
       timeStyle: "short",
     }).format(roundUpToMinute(Date.parse(next.dueAt)));
-    description = limitReached
+    status = limitReached
       ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`
       : t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
   }
+  const today = new Date().toDateString();
+  const todaySummary = formatStandingCounts(
+    report?.objectives.filter(
+      (standing) =>
+        standing.phase !== "unseen" && new Date(standing.lastEvidenceAt).toDateString() === today,
+    ) ?? [],
+    t,
+  );
   const title = limitReached ? t`That's all the new material for today` : t`You're caught up`;
-  return <Notice title={title} description={description} />;
+  return (
+    <Notice
+      title={title}
+      description={
+        <>
+          <p>{status}</p>
+          {todaySummary && (
+            <p className="mt-2">
+              {t({
+                message: `Practised today: ${todaySummary}.`,
+                comment: "Objectives practised today, by current standing: 2 retained · 1 learning",
+              })}
+            </p>
+          )}
+        </>
+      }
+    />
+  );
 }
 
 type PresentedTask = Extract<Activity, { task: unknown }>["task"];

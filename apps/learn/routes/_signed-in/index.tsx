@@ -10,10 +10,13 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 
 import { Notice } from "#components/notice";
+import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createFileRoute("/_signed-in/")({
   loader: async ({ context, abortController }) => ({
-    courses: await context.braivo.learnerCourses({ signal: abortController.signal }),
+    courses: await context.braivo.learnerCourses({
+      signal: withDeadline(abortController.signal, READ_DEADLINE_MS),
+    }),
   }),
   component: Courses,
   errorComponent: CoursesError,
