@@ -6,12 +6,12 @@
 // approved it.
 
 import { runMigrations } from "@braivo/db";
-import { oauthClient, oauthClientResource } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { decodeJwt } from "jose";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { registerOAuthClient, removeOAuthClient } from "../auth/oauth-client.ts";
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
 // No metadata document is reachable in tests: each fetch is counted and fails.
@@ -42,7 +42,10 @@ type Tokens = { access_token: string; refresh_token?: string; id_token?: string 
  * or denies it. `signedOut` sends it without their session, as a browser not
  * yet signed in would; signing in on the way is the console's, not tested here.
  */
-async function authorize(person: Signed, { signedOut = false, accept = true } = {}) {
+async function authorize(
+  person: Signed,
+  { signedOut = false, accept = true, client = clientId } = {},
+) {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
@@ -50,7 +53,7 @@ async function authorize(person: Signed, { signedOut = false, accept = true } = 
   const request = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
   request.search = new URLSearchParams({
     response_type: "code",
-    client_id: clientId,
+    client_id: client,
     redirect_uri: redirectUri,
     // `offline_access` for a refresh token, as a connector keeps working with.
     scope: "openid offline_access",
@@ -85,7 +88,7 @@ async function authorize(person: Signed, { signedOut = false, accept = true } = 
 }
 
 /** The token request a client makes with the code it was sent back. */
-const exchange = (code: string, verifier: string) =>
+const exchange = (code: string, verifier: string, client = clientId) =>
   api.request("/api/auth/oauth2/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -93,16 +96,33 @@ const exchange = (code: string, verifier: string) =>
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
-      client_id: clientId,
+      client_id: client,
       code_verifier: verifier,
       resource,
     }).toString(),
   });
 
+/** The token request a client keeps working with. */
+const refresh = (refreshToken: string, client = clientId) =>
+  api.request("/api/auth/oauth2/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: client,
+      resource,
+    }).toString(),
+  });
+
 /** The tokens a client ends with once `person` approves it: an access token for `/mcp`. */
-async function tokensFor(person: Signed, options: { signedOut?: boolean } = {}): Promise<Tokens> {
+async function tokensFor(
+  person: Signed,
+  options: { signedOut?: boolean; client?: string } = {},
+): Promise<Tokens> {
   const { answered, verifier } = await authorize(person, options);
-  const token = await exchange(answered.searchParams.get("code")!, verifier);
+  const token = await exchange(answered.searchParams.get("code")!, verifier, options.client);
+  expect(token.status).toBe(200);
   return (await token.json()) as Tokens;
 }
 
@@ -132,15 +152,11 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       adminIds: [teacher.id],
       at: new Date("2026-06-01T00:00:00.000Z"),
     });
-    const created = await auth.api.adminCreateOAuthClient({
-      headers: new Headers({ cookie: teacher.cookie }),
-      body: {
-        client_name: "MCP test client",
-        redirect_uris: [redirectUri],
-        token_endpoint_auth_method: "none",
-      },
-    });
-    clientId = created.client_id;
+    // As the operator's command does: the one way in where CIMD is off.
+    ({ clientId } = await registerOAuthClient(auth, {
+      name: "MCP test client",
+      redirectUris: [redirectUri],
+    }));
   });
 
   test("approves a request begun without a session", async () => {
@@ -231,16 +247,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     const { refresh_token } = await tokensFor(teacher);
     expect(refresh_token).toBeTruthy();
 
-    const refreshed = await api.request("/api/auth/oauth2/token", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: refresh_token!,
-        client_id: clientId,
-        resource,
-      }).toString(),
-    });
+    const refreshed = await refresh(refresh_token!);
     expect(refreshed.status).toBe(200);
     const tokens = (await refreshed.json()) as Tokens;
     // Rotated; a retry with the old one within 30 s gets this same answer
@@ -269,6 +276,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       "content-type": "application/json",
     };
     const paths = [
+      ["POST", "register"],
       ["POST", "create-client"],
       ["GET", "get-client"],
       ["GET", "get-clients"],
@@ -291,6 +299,86 @@ describe.skipIf(!connectionString)("remote MCP", () => {
             : undefined,
       });
       expect([path, response.status]).toEqual([path, 404]);
+    }
+    // Nor anyone signed out, though the metadata offers `none` by the flag
+    // that would let them (`auth.ts`).
+    const unsigned = await api.request("/api/auth/oauth2/register", {
+      method: "POST",
+      headers: { origin: baseUrl, "content-type": "application/json" },
+      body: JSON.stringify({ redirect_uris: ["https://phish.example/callback"] }),
+    });
+    expect(unsigned.status).toBe(404);
+  });
+
+  test("removing a client refuses its refresh tokens", async () => {
+    const { clientId: removed } = await registerOAuthClient(auth, {
+      name: "Removed",
+      redirectUris: [redirectUri],
+    });
+    const { refresh_token } = await tokensFor(teacher, { client: removed });
+    expect(refresh_token).toBeTruthy();
+
+    expect(await removeOAuthClient(auth, removed)).toBe(true);
+
+    // Its access tokens verify until they expire: `/mcp` does not yet check
+    // the connection per call (ADR 0045).
+    const refused = await refresh(refresh_token!, removed);
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ error: "invalid_grant" });
+    expect(await removeOAuthClient(auth, removed)).toBe(false);
+  });
+
+  test("registers only redirect URIs Better Auth accepts, a loopback's port free", async () => {
+    const register = (uri: string) =>
+      registerOAuthClient(auth, { name: "Refused", redirectUris: [uri] });
+
+    const refused = "https:// off the loopback";
+    await expect(register("http://client.example/callback")).rejects.toThrow(refused);
+    await expect(register("https://localhost/callback")).rejects.toThrow(refused);
+    // Loopback still, however written: Better Auth refuses each.
+    await expect(register("https://localhost./callback")).rejects.toThrow(refused);
+    await expect(register("https://127.0.0.2/callback")).rejects.toThrow(refused);
+    await expect(register("http://127.1/callback")).rejects.toThrow(refused);
+    await expect(register("https://2130706433/callback")).rejects.toThrow(refused);
+    // Parsed as `https://client.example/callback`, never sent as written.
+    await expect(register("https:client.example/callback")).rejects.toThrow(refused);
+    const named = (name: string, id?: string) =>
+      registerOAuthClient(auth, { name, redirectUris: [redirectUri], clientId: id });
+    await expect(named(" ")).rejects.toThrow("name");
+    await expect(named("Blank", "")).rejects.toThrow("blank");
+    await expect(named("Padded", " https://client.example/id")).rejects.toThrow("spaces");
+    await expect(register("https://client.example/callback#x")).rejects.toThrow("fragment");
+    await expect(register("http://localhost:80\\@evil.example/callback")).rejects.toThrow(
+      "backslash",
+    );
+    // Parsed without the tab, so a client sending the parsed URI would never match.
+    await expect(register("https://client.example/ca\tllback")).rejects.toThrow("whitespace");
+    await expect(register("callback")).rejects.toThrow("absolute");
+    await expect(
+      registerOAuthClient(auth, { name: "Taken", redirectUris: [redirectUri], clientId }),
+    ).rejects.toThrow("already registered");
+
+    // Registered portless, asked for on whichever port the client listens on.
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      const { clientId: local } = await registerOAuthClient(auth, {
+        name: "On the loopback",
+        redirectUris: [`http://${host}/callback`],
+      });
+      const asking = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
+      asking.search = new URLSearchParams({
+        response_type: "code",
+        client_id: local,
+        redirect_uri: `http://${host}:53682/callback`,
+        state: "loopback",
+        code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        code_challenge_method: "S256",
+        resource,
+      }).toString();
+      const asked = await api.request(asking, { headers: { cookie: teacher.cookie } });
+      expect([host, new URL(asked.headers.get("location")!, baseUrl).pathname]).toEqual([
+        host,
+        "/api/oauth/consent",
+      ]);
     }
   });
 
@@ -349,21 +437,11 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     });
 
     test("a registered client with a URL for its ID reaches consent, nothing fetched", async () => {
-      const registered = `https://registered.example/${crypto.randomUUID()}.json`;
-      await database.insert(oauthClient).values({
-        id: crypto.randomUUID(),
-        clientId: registered,
+      const { clientId: registered } = await registerOAuthClient(withoutCimd.auth, {
         name: "Registered by URL",
         redirectUris: [redirectUri],
-        tokenEndpointAuthMethod: "none",
-        grantTypes: ["authorization_code", "refresh_token"],
-        responseTypes: ["code"],
-        requirePKCE: true,
+        clientId: `https://registered.example/${crypto.randomUUID()}.json`,
       });
-      // Linked to `/mcp`, as registering does; unlinked, authorizing answers `invalid_target`.
-      await database
-        .insert(oauthClientResource)
-        .values({ id: crypto.randomUUID(), clientId: registered, resourceId: resource });
 
       const asked = await authorizeAt(withoutCimd.api, registered);
 
