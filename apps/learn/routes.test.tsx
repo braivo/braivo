@@ -1880,6 +1880,100 @@ describe("the learn app", () => {
     ).toBeTruthy();
   });
 
+  test("tells a learner where practice stops what they practised today, by their local day", async () => {
+    // Auckland, UTC+12 in June: its 11 June runs from 10 June, 12:00 UTC.
+    vi.stubEnv("TZ", "Pacific/Auckland");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-11T02:00:00.000Z"));
+    const standing = (objectiveId: string, at: string, phase: "acquiring" | "retaining") =>
+      phase === "acquiring"
+        ? { objectiveId, title: objectiveId, phase, lastEvidenceAt: at }
+        : {
+            objectiveId,
+            title: objectiveId,
+            phase,
+            lastEvidenceAt: at,
+            stability: 1,
+            retrievability: 0.95,
+            due: false,
+            dueAt: "2026-06-12T02:00:00.000Z",
+          };
+    const progress: LearnerProgressSummary = {
+      modelVersion: "v1",
+      objectives: [
+        standing("a", "2026-06-11T01:00:00.000Z", "retaining"),
+        // Today locally, though 10 June in UTC.
+        standing("b", "2026-06-10T13:00:00.000Z", "retaining"),
+        standing("c", "2026-06-10T12:00:00.000Z", "acquiring"),
+        // Due again already: due for review, as the summary says (beside "Nothing is due" only in a race).
+        {
+          objectiveId: "f",
+          title: "f",
+          phase: "retaining",
+          lastEvidenceAt: "2026-06-11T00:00:00.000Z",
+          stability: 0.04,
+          retrievability: 0.5,
+          due: true,
+          dueAt: "2026-06-11T01:00:00.000Z",
+        },
+        // Yesterday locally, or never: not today's.
+        standing("d", "2026-06-10T11:59:59.999Z", "retaining"),
+        { objectiveId: "e", title: "e", phase: "unseen" },
+      ],
+    };
+    renderAt("/c/4732", { signedIn: true, learnerProgress: async () => progress });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "You're caught up",
+        description:
+          /^Nothing is due right now\..* Practised today: 2 retained · 1 due for review · 1 learning\.$/,
+      }),
+    ).toBeTruthy();
+    cleanup();
+
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => progress,
+      nextActivity: async () => ({ dailyLimit: 20 }),
+    });
+    expect(
+      await screen.findByRole("region", {
+        name: "That's all the new material for today",
+        description: /Practised today: 2 retained · 1 due for review · 1 learning\.$/,
+      }),
+    ).toBeTruthy();
+  });
+
+  test("says nothing of today's practice when there was none today", async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          {
+            objectiveId: "a",
+            title: "a",
+            phase: "acquiring",
+            lastEvidenceAt: yesterday.toISOString(),
+          },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "You're caught up",
+        description: "Nothing is due right now.",
+      }),
+    ).toBeTruthy();
+  });
+
   test("says a task of a kind it cannot answer is not supported here, and sends nothing", async () => {
     const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
@@ -1976,6 +2070,27 @@ describe("the learn app", () => {
     expect(document.activeElement).toBe(notice);
     fireEvent.click(within(notice).getByRole("button", { name: "Try again" }));
 
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+  });
+
+  test("offers to load the course list again when Braivo does not answer in time", async () => {
+    let answering = false;
+    vi.useFakeTimers();
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: (options) =>
+        answering
+          ? Promise.resolve([{ id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" }])
+          : stall(options),
+    });
+    await waitOut(READ_DEADLINE_MS - 1);
+    expect(screen.queryByRole("region", { name: "Your courses could not be loaded." })).toBeNull();
+    await waitOut(1);
+    vi.useRealTimers();
+
+    answering = true;
+    const notice = await screen.findByRole("region", { name: "Your courses could not be loaded." });
+    fireEvent.click(within(notice).getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
@@ -2140,6 +2255,30 @@ describe("the learn app in Polish", () => {
       title: `Objective ${index}`,
       phase: "unseen" as const,
     })),
+  });
+
+  test("says what was practised today, counted as the summary counts", async () => {
+    // Fixed, so midnight cannot fall between the evidence and the page's "today".
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-01T10:00:00.000Z"));
+    const at = new Date().toISOString();
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          { objectiveId: "a", title: "a", phase: "acquiring", lastEvidenceAt: at },
+          { objectiveId: "b", title: "b", phase: "acquiring", lastEvidenceAt: at },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "Jesteś na bieżąco",
+        description: /Tematy ćwiczone dzisiaj: 2 w trakcie nauki\.$/,
+      }),
+    ).toBeTruthy();
   });
 
   test("lists the courses, and leads from a path that names nothing back to them", async () => {

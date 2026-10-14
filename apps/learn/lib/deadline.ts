@@ -5,7 +5,7 @@
 // school wifi can stall a request with no error at all. Its body counts: the
 // client reads it under the same signal.
 
-/** What a learner waits on: the activity, the session, sign-in's reads, and signing out. */
+/** What a learner waits on: the course list, the activity, the session, sign-in's reads, and signing out. */
 export const READ_DEADLINE_MS = 10_000;
 
 /**

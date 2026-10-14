@@ -964,6 +964,11 @@ msgctxt "domain"
 msgid "Pending"
 msgstr "Pending"
 
+#. Objectives practised today, by current standing: 2 retained · 1 learning
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practised today: {todaySummary}."
+msgstr "Practised today: {todaySummary}."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Preferences"
