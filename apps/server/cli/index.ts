@@ -39,7 +39,7 @@ Running an installation (a content owner's commands are braivo's):
   oauth-client add --name <name> --redirect-uri <uri>... [--client-id <id>]
                 Register a remote MCP client, public with PKCE, and print
                 its ID; the only way in where client ID metadata documents
-                are off (Workers). One --redirect-uri per callback: HTTPS,
+                are not fetched. One --redirect-uri per callback: HTTPS,
                 or HTTP on the loopback, whose port may vary. --client-id
                 sets the ID, such as a client's metadata document URL
                 (ChatGPT, Claude: docs/guides/deployment.md); random

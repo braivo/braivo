@@ -24,7 +24,7 @@ import { isPublicRoutableHost } from "@better-auth/core/utils/host";
  *   caller aborts: Better Auth leaves a refused response's body open, so a
  *   client's server could otherwise hold sockets indefinitely.
  */
-export const fetchClientMetadata: typeof fetchClientMetadataResource = async (input, init) => {
+export const fetchPinned: typeof fetchClientMetadataResource = async (input, init) => {
   const asked = new Request(input, init);
   const url = new URL(asked.url);
   if (url.protocol !== "https:") throw new TypeError("a client's metadata is fetched over HTTPS");
@@ -75,6 +75,40 @@ export const fetchClientMetadata: typeof fetchClientMetadataResource = async (in
       .end();
   });
 };
+
+/**
+ * Fetches a client's metadata document, or a resource it links, for `cimd()`
+ * through a Worker's own `fetch`, with the `global_fetch_strictly_public`
+ * compatibility flag: Cloudflare then routes it as from the public Internet,
+ * observed refusing private destinations (ADR 0045). Without the flag, a URL
+ * on the Worker's own zone would reach its origin, past the zone's security
+ * settings, so nothing is fetched. Redirects are returned for Better Auth to
+ * refuse: Workers reject the `redirect: "error"` it asks for.
+ */
+export const fetchStrictlyPublic: typeof fetchClientMetadataResource = async (input, init) => {
+  if (!fetchIsStrictlyPublic()) {
+    throw new TypeError("a client's metadata is fetched only with global_fetch_strictly_public");
+  }
+  const asked = new Request(input, { ...init, redirect: "manual" });
+  const url = new URL(asked.url);
+  if (url.protocol !== "https:") throw new TypeError("a client's metadata is fetched over HTTPS");
+  if (asked.method !== "GET" && asked.method !== "HEAD") {
+    throw new TypeError("a client's metadata is only read");
+  }
+  // A host written as an address, or `localhost`; a name's addresses are the platform's to refuse.
+  if (!isPublicRoutableHost(url.hostname)) {
+    throw new TypeError("the metadata's host must be public");
+  }
+  return fetch(asked);
+};
+
+/** Whether this Worker has `global_fetch_strictly_public`, read as workerd's own modules read flags. */
+function fetchIsStrictlyPublic(): boolean {
+  const { Cloudflare } = globalThis as {
+    Cloudflare?: { compatibilityFlags?: Record<string, boolean> };
+  };
+  return Cloudflare?.compatibilityFlags?.global_fetch_strictly_public === true;
+}
 
 /**
  * `autoSelectFamily` tries each address the lookup answers even where the

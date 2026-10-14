@@ -19,7 +19,7 @@ import {
   organizationOwnsLearningContent,
   readOrganizationSlug,
 } from "../persistence/index.ts";
-import { fetchClientMetadata } from "./client-metadata.ts";
+import { fetchPinned, fetchStrictlyPublic } from "./client-metadata.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -41,15 +41,19 @@ type AuthOptions = {
   /** Google's OAuth client, offering sign-in with Google; without one, codes alone. */
   google?: { clientId: string; clientSecret: string };
   /**
-   * Whether an unregistered client is found by its client ID metadata document
-   * (CIMD), its ID that document's URL; on unless `false`. Off where the
-   * runtime cannot pin a connection to the addresses it checked (Workers):
-   * nothing is fetched and only registered clients sign in, CIMD still
-   * advertised for those registered by their document's URL (ADR 0045).
-   * Better Auth fetches a registered client's `jwks_uri` unpinned either way,
-   * so clients are registered public, with PKCE and no keys.
+   * How an unregistered client is found by its client ID metadata document
+   * (CIMD), its ID that document's URL (ADR 0045):
+   *
+   * - unset, its host resolved once and only the public addresses checked
+   *   connected to (`fetchPinned`, over `node:https`);
+   * - `"strictly-public"`, through a Worker's `fetch`, with the
+   *   `global_fetch_strictly_public` compatibility flag (`fetchStrictlyPublic`);
+   * - `false`, not at all: only registered clients sign in, CIMD still
+   *   advertised for those registered by their document's URL. Better Auth
+   *   fetches a registered client's `jwks_uri` with the global `fetch`, so
+   *   clients are registered public, with PKCE and no keys.
    */
-  clientIdMetadataDocuments?: boolean;
+  clientIdMetadataDocuments?: "strictly-public" | false;
 };
 
 /**
@@ -376,20 +380,23 @@ export function createAuth(options: AuthOptions) {
         dpop: { signingAlgorithms: [] },
         // Only so the metadata offers `none`, every client's token endpoint
         // method (public, with PKCE): Better Auth 1.7.7 offers it with this
-        // flag or `cimd()`, which a Worker leaves out. It registers no one:
-        // registration over HTTP is off, its path disabled below.
+        // flag or `cimd()`, left out where nothing is fetched. It registers no
+        // one: registration over HTTP is off, its path disabled below.
         allowUnauthenticatedClientRegistration: true,
       }),
-      // An unregistered client is the HTTPS URL of its metadata document,
-      // fetched resolving its host once, refusing private addresses and
-      // redirects, and pinning the addresses checked (`client-metadata.ts`).
       // A registered client is found before this runs, a URL-shaped ID
       // included; without this plugin, `createAuth` still advertises CIMD.
       ...(options.clientIdMetadataDocuments === false
         ? []
         : [
+            // Per instance, so per request on Workers, refetching each time:
+            // shared, it would hand one request a discovery another started,
+            // I/O Workers refuse across requests.
             cimd({
-              fetchClientMetadataResource: fetchClientMetadata,
+              fetchClientMetadataResource:
+                options.clientIdMetadataDocuments === "strictly-public"
+                  ? fetchStrictlyPublic
+                  : fetchPinned,
               metadataProfile: "mcp-2026-07-28",
             }),
           ]),
