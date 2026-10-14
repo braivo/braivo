@@ -302,8 +302,12 @@
 // `GET /api/organizations` — the organizations the signed-in user manages
 // (`owner` or `admin`) or teaches a group in, by name: `{ "organizations": [{
 // "id": "…", "name": "…", "slug": "…", "learnDomain": "…" | null,
-// "administers": true }] }`, `administers` false where they only teach. A
-// member who does neither is not listed. 401 without a session.
+// "administers": true, "aiEnabled": true }] }`, `administers` false where
+// they only teach. `aiEnabled`, only where they administer: whether its owners
+// may have the installation's AI read a file's text and draft courses, there
+// being a model that the organization may use (generation-9), whatever its
+// month's requests. A member who does neither is not listed. 401 without a
+// session.
 //
 // `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
 // | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",
@@ -579,10 +583,11 @@
 // is sending them. Every objective and task kept cites a passage found in the
 // source; `refused` names what the model proposed that Braivo would not
 // accept. Each refusal carries an `error`: 400 for a source over 200,000
-// characters or a long audience; 403 when `BRAIVO_AI_ORGANIZATIONS` is set and
-// does not list the organization; 429, with `Retry-After`, when it has made its
-// month's requests under `BRAIVO_AI_MONTHLY_LIMIT` (ADR 0031), each valid
-// request counting, answered or not; 501 when the installation has no model
+// characters or a long audience; 403 `code` `AI_NOT_ENTITLED` when
+// `BRAIVO_AI_ORGANIZATIONS` is set and does not list the organization; 429,
+// with `Retry-After`, when it has made its month's requests under
+// `BRAIVO_AI_MONTHLY_LIMIT` (ADR 0031), each valid request counting, answered
+// or not; 501 `code` `AI_UNAVAILABLE` when the installation has no model
 // (`ANTHROPIC_API_KEY` unset); 502 when the model failed. 404, bare, when the
 // organization has no such source.
 //
@@ -602,9 +607,9 @@
 // `POST …/sources` as `pages` with the file as `original`. Nothing is stored.
 // Body `{}`. A PDF of at most 24 MB, or a PNG, JPEG, GIF, or WebP image of at
 // most 7.5 MB; anything else is a 400 saying so. Otherwise as drafting — 403,
-// 429, 501, and 502 explained, counted against the same monthly limit — plus
-// 501 when the installation keeps no files and 404 when the organization has
-// no such file.
+// 429, 501, and 502 explained, 403 and 501 coded, counted against the same
+// monthly limit — plus 501, uncoded and answered first, when the installation
+// keeps no files, and 404 when the organization has no such file.
 //
 // `GET /api/organizations/:organizationId/files/:fileId` — the file's bytes as
 // its type, always as a download (`Content-Disposition: attachment`). 404 when

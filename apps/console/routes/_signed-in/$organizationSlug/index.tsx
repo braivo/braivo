@@ -11,6 +11,7 @@ import {
   EmptyTitle,
 } from "@braivo/ui/components/empty";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { PlusIcon } from "lucide-react";
 
 import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
@@ -36,11 +37,23 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
 function Courses() {
   const { courses } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
-  const { learnDomain } = Route.useRouteContext().organization;
+  const { learnDomain, aiEnabled } = Route.useRouteContext().organization;
 
   return (
     <>
-      <Heading>Courses</Heading>
+      {/* Beside the heading once there are courses, so a returning owner still
+          finds where a new one starts: its material (the empty state says so). */}
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <Heading className="mb-0">Courses</Heading>
+        {courses.length > 0 && (
+          <Button asChild>
+            <Link to="/$organizationSlug/sources" params={{ organizationSlug }} hash="add-material">
+              <PlusIcon data-icon="inline-start" aria-hidden="true" />
+              Add material
+            </Link>
+          </Button>
+        )}
+      </div>
       <LearnersSite
         learnDomain={learnDomain}
         at="Learners practise at"
@@ -51,8 +64,9 @@ function Courses() {
           <EmptyHeader>
             <EmptyTitle>No courses published yet</EmptyTitle>
             <EmptyDescription>
-              Add material under Sources and draft a course from it there, or with your desktop
-              agent through braivo mcp.
+              {aiEnabled === false
+                ? "Braivo's AI is off for this organization. Add material under Sources, and ask whoever runs Braivo for you to turn it on to draft a course from it, or draft one with your desktop agent through braivo mcp."
+                : "Add material under Sources and draft a course from it there, or with your desktop agent through braivo mcp."}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

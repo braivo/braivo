@@ -302,6 +302,7 @@ export function createApi(options: ApiOptions) {
       domains,
       dataRegion,
       otherRegions,
+      ai,
     }),
   );
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));

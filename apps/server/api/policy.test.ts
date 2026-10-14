@@ -322,7 +322,7 @@ GET  /api/organizations/:organizationId/objectives/:objectiveId/tasks           
 GET  /api/organizations/:organizationId/sources                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/sources                                 401     400     400     401     403     403     403     403    10MB
 GET  /api/organizations/:organizationId/sources/:sourceId                       401     403     403     401       ·       ·       ·       ·       ·
-POST /api/organizations/:organizationId/sources/:sourceId/draft                 401     501     501     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/sources/:sourceId/draft                 401     403     403     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/files                                   401     501     501     401     403     403     403     401    50MB
 GET  /api/organizations/:organizationId/files/:fileId                           401     501     501     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/files/:fileId/text                      401     501     501     401     403     403     403     403     1MB

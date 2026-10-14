@@ -14,23 +14,33 @@ import {
   readOrganizationBySlug,
   updateOrganizationName,
 } from "../persistence/index.ts";
+import { type Ai, aiEnabledFor } from "./ai.ts";
 import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains.ts";
 import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
+
+type OrganizationListEntry = ListedOrganization & { administers: boolean; aiEnabled?: boolean };
 
 /**
  * The organizations someone works in, by name, each with where its learners
  * practise: those they administer (`owner` or `admin`), and those where they
  * teach a group (ADR 0042), `administers` telling the two apart. Not every
- * membership, since a learner is a member too.
+ * membership, since a learner is a member too. Those they administer say
+ * whether they may use the installation's AI, so the console offers it only
+ * where it works; a teacher learns nothing of it (generation-8).
  */
 export async function listOrganizations(input: {
   database: Database;
   actingAs: string;
-}): Promise<(ListedOrganization & { administers: boolean })[]> {
+  ai?: Ai;
+}): Promise<OrganizationListEntry[]> {
   const memberships = await readMemberships(input.database, input.actingAs);
-  return memberships.flatMap(({ organization, roles, teaches }) => {
-    const administering = administers(roles);
-    return administering || teaches ? [{ ...organization, administers: administering }] : [];
+  return memberships.flatMap(({ organization, roles, teaches }): OrganizationListEntry[] => {
+    if (administers(roles)) {
+      return [
+        { ...organization, administers: true, aiEnabled: aiEnabledFor(input.ai, organization.id) },
+      ];
+    }
+    return teaches ? [{ ...organization, administers: false }] : [];
   });
 }
 

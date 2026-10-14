@@ -2385,22 +2385,41 @@ describe("the console", () => {
     expect((await screen.findByRole("link", { name: "Sources" })).getAttribute("href")).toBe(
       "/example/sources",
     );
-    // With no course yet, the empty list offers them too.
+    // With no course yet, the empty list offers them, and nothing else does.
     expect(screen.getByRole("link", { name: "Open Sources" }).getAttribute("href")).toBe(
       "/example/sources",
     );
+    expect(screen.queryByRole("link", { name: "Add material" })).toBeNull();
+    expect(screen.getByText(/draft a course from it there/)).toBeTruthy();
   });
 
-  test("keeps Sources in the sidebar but offers no button once an organization has a course", async () => {
+  test("promises no drafting in the console, with no course yet, where Braivo's AI is off", async () => {
     renderAt("/example", {
-      braivo: { listCourses: async () => [{ id: "c1", title: "Spanish" }] },
+      organizations: [{ ...school, aiEnabled: false }],
+      braivo: { listCourses: async () => [] },
+    });
+
+    const said = await screen.findByText(/off for this organization/);
+    expect(said.textContent).toMatch(/ask whoever runs Braivo.*desktop agent through braivo mcp/);
+    expect(screen.queryByText(/draft a course from it there/)).toBeNull();
+  });
+
+  test("still leads an owner with courses to where a new one starts, its material", async () => {
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [{ id: "c1", title: "Spanish" }],
+        listSources: async () => [],
+      },
     });
 
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sources" }).getAttribute("href")).toBe(
-      "/example/sources",
+    // To the form itself, past the sources listed above it.
+    expect(screen.getByRole("link", { name: "Add material" }).getAttribute("href")).toBe(
+      "/example/sources#add-material",
     );
     expect(screen.queryByRole("link", { name: "Open Sources" })).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Add material" }));
+    expect((await screen.findByRole("form", { name: "Add material" })).id).toBe("add-material");
   });
 
   test("says where an organization's learners practise, or that they have nowhere yet", async () => {
@@ -2726,6 +2745,8 @@ describe("the console", () => {
       braivo: { ...added, uploadFile, readFileText, addSource },
     });
     await screen.findByText("No material yet");
+    // A link is kept for reference: nothing promises it is fetched.
+    expect(screen.getByText(/Braivo does not import what it links to/)).toBeTruthy();
 
     addMaterial({
       title: "Mi libro",
@@ -2772,6 +2793,90 @@ describe("the console", () => {
     await vi.waitFor(() => expect(status.textContent).toBe("Adding…"));
     adding.resolve("s1");
     expect(await screen.findByRole("heading", { name: "Unidad 1" })).toBeTruthy();
+  });
+
+  test("asks for a file's text, uploading nothing, where Braivo's AI is off", async () => {
+    const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
+    const addSource = vi.fn(async () => "s1");
+    renderAt("/example/sources", {
+      organizations: [{ ...school, aiEnabled: false }],
+      braivo: { ...added, uploadFile, addSource },
+    });
+    await screen.findByText("No material yet");
+    // Said before anything is prepared: material can be added, not drafted from here.
+    const form = screen.getByRole("form", { name: "Add material" });
+    expect(form.textContent).toMatch(/off for this organization.*not draft a course from it here/);
+    // Neither the hint nor an empty form's refusal promises reading.
+    expect(screen.queryByText(/for Braivo's AI to read/)).toBeNull();
+    addMaterial({ title: "Mi libro", text: "" });
+    expect(await screen.findByText("Paste the material's text.")).toBeTruthy();
+    const pdf = new File(["%PDF"], "libro.pdf", { type: "application/pdf" });
+
+    addMaterial({ title: "Mi libro", text: "", file: pdf });
+    const refused = await screen.findByText(/It cannot read the file/);
+    expect(refused.textContent).toMatch(
+      /off for this organization.*paste its text in the Text field/,
+    );
+    expect(uploadFile).not.toHaveBeenCalled();
+
+    // Its text pasted, the file is kept beside it, unread.
+    addMaterial({ title: "Mi libro", text: "Hola.", file: pdf });
+    await vi.waitFor(() =>
+      expect(addSource).toHaveBeenCalledWith(
+        expect.objectContaining({ text: "Hola.", original: "f".repeat(64) }),
+      ),
+    );
+  });
+
+  test("says Braivo's AI is off, not the operator's settings, when it refuses reading", async () => {
+    const off = new BraivoError(
+      501,
+      "Braivo answered 501 reading a file's text.",
+      "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own desktop agent through braivo mcp.",
+      "AI_UNAVAILABLE",
+    );
+    renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        uploadFile: async () => ({ fileId: "f".repeat(64) }),
+        readFileText: vi.fn().mockRejectedValue(off),
+      },
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({
+      title: "Mi libro",
+      text: "",
+      file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
+    });
+
+    const alert = await screen.findByText(/off for this organization/);
+    expect(alert.textContent).toMatch(/Ask whoever runs Braivo for you to turn it on/);
+    expect(alert.textContent).not.toMatch(/ANTHROPIC_API_KEY/);
+  });
+
+  test("keeps Braivo's words when storage, not its AI, refuses reading", async () => {
+    const unstored =
+      "This Braivo installation stores no files: its operator has not set BRAIVO_FILES.";
+    renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        uploadFile: async () => ({ fileId: "f".repeat(64) }),
+        readFileText: vi
+          .fn()
+          .mockRejectedValue(new BraivoError(501, "Braivo answered 501.", unstored)),
+      },
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({
+      title: "Mi libro",
+      text: "",
+      file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
+    });
+
+    expect(await screen.findByText(unstored)).toBeTruthy();
+    expect(screen.queryByText(/off for this organization/)).toBeNull();
   });
 
   test("says a proxy cut off reading a file, and not an upload", async () => {
@@ -3271,6 +3376,114 @@ describe("the console", () => {
     );
   });
 
+  test("keeps a draft under review when Braivo's AI is turned off meanwhile", async () => {
+    const organizations = [{ ...school, aiEnabled: true }];
+    const { router } = renderAt("/example/sources/s1", { organizations, braivo: authoring() });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Hello?”" }));
+
+    organizations[0] = { ...school, aiEnabled: false };
+    await router.invalidate();
+
+    expect(screen.getByRole("button", { name: "Create course" })).toBeTruthy();
+    // The owner's choices too: unticked stays unticked.
+    expect(
+      screen.getByRole("checkbox", { name: "Keep “Hello?”" }).getAttribute("aria-checked"),
+    ).toBe("false");
+
+    // Discarded, there is no button to return to: the focus goes to why.
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Draft a course" }));
+    expect(screen.queryByRole("button", { name: "Draft a course" })).toBeNull();
+  });
+
+  test("keeps a draft under way when Braivo's AI is turned off meanwhile", async () => {
+    const drafting = Promise.withResolvers<typeof drafted>();
+    const organizations = [{ ...school, aiEnabled: true }];
+    const { router } = renderAt("/example/sources/s1", {
+      organizations,
+      braivo: { ...authoring(), draftCourse: vi.fn(() => drafting.promise) },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+
+    organizations[0] = { ...school, aiEnabled: false };
+    await router.invalidate();
+    // Still said to be under way: it was asked for, and may still count.
+    expect(screen.getByRole("status").textContent).toMatch(/drafting the course/);
+
+    drafting.resolve(drafted);
+    expect(await screen.findByRole("heading", { name: "Review the draft" })).toBeTruthy();
+  });
+
+  test("says why a draft under way failed once Braivo's AI was turned off, focusing why", async () => {
+    const drafting = Promise.withResolvers<typeof drafted>();
+    const organizations = [{ ...school, aiEnabled: true }];
+    const { router } = renderAt("/example/sources/s1", {
+      organizations,
+      braivo: { ...authoring(), draftCourse: vi.fn(() => drafting.promise) },
+    });
+    const button = await screen.findByRole("button", { name: "Draft a course" });
+    button.focus();
+    fireEvent.click(button);
+    organizations[0] = { ...school, aiEnabled: false };
+    await router.invalidate();
+
+    drafting.reject(new BraivoError(524, "Braivo answered 524."));
+
+    expectProxyTimeoutExplained(await screen.findByText(/timed out/));
+    expect(screen.queryByRole("button", { name: "Draft a course" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Draft a course" }));
+  });
+
+  test("offers no draft where Braivo's AI is off, saying what to do instead", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { organizations: [{ ...school, aiEnabled: false }], braivo });
+
+    const heading = await screen.findByRole("heading", { name: "Draft a course" });
+    expect(screen.queryByRole("button", { name: "Draft a course" })).toBeNull();
+    expect(screen.queryByLabelText("Learners")).toBeNull();
+    const said = heading.nextElementSibling!.textContent;
+    expect(said).toMatch(/off for this organization/);
+    expect(said).toMatch(/Ask whoever runs Braivo/);
+    expect(said).toMatch(/braivo mcp/);
+    expect(braivo.draftCourse).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    [
+      "has no model",
+      new BraivoError(
+        501,
+        "Braivo answered 501.",
+        "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own desktop agent through braivo mcp.",
+        "AI_UNAVAILABLE",
+      ),
+    ],
+    [
+      "does not let the organization use it",
+      new BraivoError(
+        403,
+        "Braivo answered 403.",
+        "This organization may not use this installation's AI; ask its operator, or use your own desktop agent through braivo mcp.",
+        "AI_NOT_ENTITLED",
+      ),
+    ],
+  ])(
+    "says Braivo's AI is off when the installation %s, though the listing said it was on",
+    async (_case, refusal) => {
+      renderAt("/example/sources/s1", {
+        organizations: [{ ...school, aiEnabled: true }],
+        braivo: { ...authoring(), draftCourse: vi.fn().mockRejectedValue(refusal) },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+
+      const alert = await screen.findByText(/off for this organization/);
+      expect(alert.textContent).toMatch(/Ask whoever runs Braivo for you to turn it on/);
+      expect(alert.textContent).not.toMatch(/ANTHROPIC_API_KEY|operator/);
+    },
+  );
+
   test("says a proxy cut off drafting, rather than to try again", async () => {
     renderAt("/example/sources/s1", {
       braivo: {
@@ -3408,19 +3621,13 @@ describe("the console", () => {
     const braivo = {
       ...authoring(),
       draftCourse: vi.fn(async (): Promise<typeof drafted> => {
-        throw new BraivoError(
-          403,
-          "Braivo answered 403.",
-          "This organization may not draft with this installation's AI.",
-        );
+        throw new BraivoError(400, "Braivo answered 400.", "The source is too long to draft from.");
       }),
     };
     renderAt("/example/sources/s1", { braivo });
 
     fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
-    expect(
-      await screen.findByText("This organization may not draft with this installation's AI."),
-    ).toBeTruthy();
+    expect(await screen.findByText("The source is too long to draft from.")).toBeTruthy();
 
     braivo.draftCourse.mockImplementation(async () => drafted);
     braivo.acceptDraft.mockImplementation(async () => {

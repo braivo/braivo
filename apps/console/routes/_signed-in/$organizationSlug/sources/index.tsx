@@ -21,7 +21,7 @@ import { type SubmitEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { administratorsOnly, explainAiProxyTimeout, orNotFound } from "#lib/refusals";
+import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
@@ -206,10 +206,19 @@ function AddSource() {
       );
     }
     if (text.trim() === "" && !file) {
-      return setError("Paste the material's text, or attach the file for Braivo's AI to read.");
+      return setError(
+        organization.aiEnabled === false
+          ? "Paste the material's text."
+          : "Paste the material's text, or attach the file for Braivo's AI to read.",
+      );
     }
     // Only without pasted text: beside it, the file is kept unread.
-    const unreadable = text.trim() === "" && file ? readingProblem(file) : undefined;
+    const unreadable =
+      text.trim() === "" && file
+        ? organization.aiEnabled === false
+          ? `${AI_OFF_MESSAGE} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`
+          : readingProblem(file)
+        : undefined;
     if (unreadable) return setError(unreadable);
 
     const signal = abortOnUnmount();
@@ -237,7 +246,7 @@ function AddSource() {
           setStatus("Braivo's AI is reading the file, which can take a few minutes…");
           read.current = {
             fileId,
-            pages: await explainAiProxyTimeout(
+            pages: await explainAiFailure(
               braivo.readFileText({ organizationId, fileId }, { signal }),
             ),
           };
@@ -270,10 +279,18 @@ function AddSource() {
   }
 
   return (
-    <form onSubmit={submit} aria-labelledby={`${id}-heading`}>
+    // Linked to from Courses, past however many sources are listed above it.
+    <form id="add-material" onSubmit={submit} aria-labelledby={`${id}-heading`}>
       <Heading level={2} id={`${id}-heading`}>
         Add material
       </Heading>
+      {/* Before the fields, so no one prepares material expecting a draft. */}
+      {organization.aiEnabled === false && (
+        <p className="mb-4">
+          {AI_OFF_MESSAGE} You can add material, but not draft a course from it here: ask whoever
+          runs Braivo for you to turn it on, or draft with your desktop agent through braivo mcp.
+        </p>
+      )}
       {/* Read-only while sending, as what is typed meanwhile would not be what
           was added; not disabled, which drops the focus. */}
       <FieldSet>
@@ -302,9 +319,9 @@ function AddSource() {
               aria-describedby={`${id}-text-hint`}
             />
             <FieldDescription id={`${id}-text-hint`}>
-              The material's words as they read: what questions will quote. Paste them, or leave
-              this empty and attach the PDF or a photo below for Braivo's AI to read — which can
-              take a few minutes.
+              {organization.aiEnabled === false
+                ? "The material's words as they read: what questions will quote. Paste them; a file attached below is kept as their original, not read."
+                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below for Braivo's AI to read — which can take a few minutes."}
             </FieldDescription>
           </Field>
           <Field>
@@ -317,7 +334,8 @@ function AddSource() {
               aria-describedby={`${id}-url-hint`}
             />
             <FieldDescription id={`${id}-url-hint`}>
-              Where it is online, such as a YouTube video. Optional.
+              Where it is online, such as a video. Optional, for reference only: Braivo does not
+              import what it links to.
             </FieldDescription>
           </Field>
           <Field>

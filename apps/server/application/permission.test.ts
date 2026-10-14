@@ -7,6 +7,7 @@ import { seedOrganization, sharedDatabase } from "@braivo/db/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
+import type { Model } from "../ai/index.ts";
 import { listOrganizations } from "./organizations.ts";
 import { assertMayAdminister, isMember, mayAdminister, NotPermitted } from "./permission.ts";
 
@@ -41,6 +42,19 @@ describe.skipIf(!connectionString)("permission", () => {
 
     const managed = await listOrganizations({ database, actingAs: memberAndAdmin });
     expect(managed.map((organization) => organization.id)).toEqual([organizationId]);
+  });
+
+  test("says whether an organization administered may use the installation's AI", async () => {
+    const model = {} as Model;
+    const ai = async (ai?: Parameters<typeof listOrganizations>[0]["ai"]) =>
+      (await listOrganizations({ database, actingAs: memberAndAdmin, ai }))[0]!.aiEnabled;
+
+    expect(await ai()).toBe(false);
+    expect(await ai({ model, organizations: "all" })).toBe(true);
+    expect(await ai({ model, organizations: new Set([organizationId]) })).toBe(true);
+    expect(await ai({ model, organizations: new Set(["another-org"]) })).toBe(false);
+    // A monthly limit leaves it on: requests renew, and one past the limit says when.
+    expect(await ai({ model, organizations: "all", monthlyLimit: 1 })).toBe(true);
   });
 
   test("refuses a member who holds no other role", async () => {

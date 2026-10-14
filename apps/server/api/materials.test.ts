@@ -619,7 +619,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     });
     const refused = await draft(sourceId, teacher.cookie, {}, elsewhere);
     expect(refused.status).toBe(403);
-    expect(((await refused.json()) as { error: string }).error).toContain("ask its operator");
+    expect(await refused.json()).toEqual({
+      error: expect.stringContaining("ask its operator"),
+      code: "AI_NOT_ENTITLED",
+    });
     expect(asked).toHaveLength(2);
   });
 
@@ -679,11 +682,34 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       error: "Braivo's AI reads a PDF of at most 24 MB; send it a chapter at a time.",
     });
     expect((await read("0".repeat(64))).status).toBe(404);
-    // No file store: nothing to read from, said as for uploading.
-    expect(
-      (await read(pdf, createApi({ auth, database, baseUrl, ai: { model, organizations: "all" } })))
-        .status,
-    ).toBe(501);
+    // No file store: nothing to read from, said as for uploading, and uncoded: not its AI.
+    const unstored = await read(
+      pdf,
+      createApi({ auth, database, baseUrl, ai: { model, organizations: "all" } }),
+    );
+    expect(unstored.status).toBe(501);
+    expect(await unstored.json()).not.toHaveProperty("code");
+    // No model, or not this organization's to use: coded, for a client to tell from the above.
+    const noModel = createApi({ auth, database, baseUrl, files });
+    const none = await read(pdf, noModel);
+    expect(none.status).toBe(501);
+    expect(await none.json()).toEqual({ error: expect.any(String), code: "AI_UNAVAILABLE" });
+    const elsewhere = createApi({
+      auth,
+      database,
+      baseUrl,
+      files,
+      ai: { model, organizations: new Set(["another-org"]) },
+    });
+    const notLet = await read(pdf, elsewhere);
+    expect(notLet.status).toBe(403);
+    expect(await notLet.json()).toEqual({ error: expect.any(String), code: "AI_NOT_ENTITLED" });
+    // A learner learns neither: the role is refused first, bare.
+    for (const app of [noModel, elsewhere]) {
+      const learnerRead = await read(pdf, app, learner.cookie);
+      expect(learnerRead.status).toBe(403);
+      expect(await learnerRead.text()).toBe("");
+    }
   });
 
   test("stops an organization at its month's AI requests, counting only those asked", async () => {
@@ -831,7 +857,21 @@ describe.skipIf(!connectionString)("the materials routes", () => {
 
     const none = await draft(api);
     expect(none.status).toBe(501);
-    expect(((await none.json()) as { error: string }).error).toContain("braivo mcp");
+    // To a learner, no model is not said: the role is refused first, bare.
+    const learnerDraft = await api.request(
+      `/api/organizations/${organizationId}/sources/${sourceId}/draft`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: learner.cookie },
+        body: "{}",
+      },
+    );
+    expect(learnerDraft.status).toBe(403);
+    expect(await learnerDraft.text()).toBe("");
+    expect(await none.json()).toEqual({
+      error: expect.stringContaining("braivo mcp"),
+      code: "AI_UNAVAILABLE",
+    });
     const failed = await draft(failing);
     expect(failed.status).toBe(502);
     expect(await failed.json()).toEqual({ error: "The model answered 529." });
