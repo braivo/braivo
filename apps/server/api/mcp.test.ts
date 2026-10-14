@@ -6,12 +6,22 @@
 // approved it.
 
 import { runMigrations } from "@braivo/db";
+import { oauthClient, oauthClientResource } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { decodeJwt } from "jose";
-import { beforeAll, describe, expect, test } from "vite-plus/test";
+import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
+
+// No metadata document is reachable in tests: each fetch is counted and fails.
+const metadata = vi.hoisted(() => ({ fetches: 0 }));
+vi.mock("../auth/client-metadata.ts", () => ({
+  fetchClientMetadata: async () => {
+    metadata.fetches++;
+    throw new TypeError("no metadata document in tests");
+  },
+}));
 
 const { database, auth, api, signUp } = createTestApi();
 
@@ -298,5 +308,67 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(await listed(teacher)).toEqual([organizationId]);
     // Someone managing none, through the same client: the token's person, not the client's.
     expect(await listed(await signUp())).toEqual([]);
+  });
+
+  describe("where client ID metadata documents are off, as on Workers", () => {
+    const withoutCimd = createTestApi({ clientIdMetadataDocuments: false });
+    const urlClientId = "https://client.example/client.json";
+    const authorizeAt = (on: typeof api, client: string) => {
+      const asking = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
+      asking.search = new URLSearchParams({
+        response_type: "code",
+        client_id: client,
+        redirect_uri: redirectUri,
+        state: "workers",
+        code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        code_challenge_method: "S256",
+        resource,
+      }).toString();
+      return on.request(asking, { headers: { cookie: teacher.cookie } });
+    };
+
+    beforeEach(() => {
+      metadata.fetches = 0;
+    });
+
+    // That discovery leaves them out is `server.test.ts`'s, through `createServer`.
+
+    test("an unregistered client named by URL is refused, its document never fetched", async () => {
+      // The default API fetches it, so the zero below means something.
+      await authorizeAt(api, urlClientId);
+      expect(metadata.fetches).toBe(1);
+      metadata.fetches = 0;
+
+      const refused = await authorizeAt(withoutCimd.api, urlClientId);
+
+      expect(refused.headers.get("location") ?? "").not.toContain(redirectUri);
+      expect(
+        new URL(refused.headers.get("location") ?? baseUrl, baseUrl).searchParams.get("error"),
+      ).toBe("invalid_client");
+      expect(metadata.fetches).toBe(0);
+    });
+
+    test("a registered client with a URL for its ID reaches consent, nothing fetched", async () => {
+      const registered = `https://registered.example/${crypto.randomUUID()}.json`;
+      await database.insert(oauthClient).values({
+        id: crypto.randomUUID(),
+        clientId: registered,
+        name: "Registered by URL",
+        redirectUris: [redirectUri],
+        tokenEndpointAuthMethod: "none",
+        grantTypes: ["authorization_code", "refresh_token"],
+        responseTypes: ["code"],
+        requirePKCE: true,
+      });
+      // Linked to `/mcp`, as registering does; unlinked, authorizing answers `invalid_target`.
+      await database
+        .insert(oauthClientResource)
+        .values({ id: crypto.randomUUID(), clientId: registered, resourceId: resource });
+
+      const asked = await authorizeAt(withoutCimd.api, registered);
+
+      expect(new URL(asked.headers.get("location")!, baseUrl).pathname).toBe("/api/oauth/consent");
+      expect(metadata.fetches).toBe(0);
+    });
   });
 });

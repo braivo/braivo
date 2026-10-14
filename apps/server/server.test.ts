@@ -40,6 +40,7 @@ function testServer(
     legal?: Pick<Env, "BRAIVO_PRIVACY_URL" | "BRAIVO_TERMS_URL">;
     cachedDatabase?: Database;
     files?: FileStore;
+    clientIdMetadataDocuments?: boolean;
   } = {},
 ) {
   const env: Env = {
@@ -56,6 +57,7 @@ function testServer(
     cachedDatabase: options.cachedDatabase,
     files: options.files,
     sendMail: outbox.sendMail,
+    clientIdMetadataDocuments: options.clientIdMetadataDocuments,
   });
 }
 
@@ -138,6 +140,20 @@ describe.skipIf(!connectionString)("createServer", () => {
 
     expect((await asAdmin(testServer(), "GET", "/files/none")).status).toBe(501);
     expect((await asAdmin(testServer({ files: store }), "GET", "/files/none")).status).toBe(404);
+  });
+
+  test("offers clients named by their metadata document's URL unless the host turns them off", async () => {
+    const offers = async (server: ReturnType<typeof testServer>) => {
+      const path = "/api/auth/.well-known/oauth-authorization-server";
+      const metadata = (await (await server.request(`${baseUrl}${path}`)).json()) as {
+        client_id_metadata_document_supported?: boolean;
+      };
+      return metadata.client_id_metadata_document_supported === true;
+    };
+
+    expect(await offers(testServer())).toBe(true);
+    // A Worker's: it cannot connect to the addresses it checked (ADR 0045).
+    expect(await offers(testServer({ clientIdMetadataDocuments: false }))).toBe(false);
   });
 
   test("enables AI only when configured, and only for the organizations it names", async () => {
