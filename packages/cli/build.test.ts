@@ -80,6 +80,7 @@ describe("the bundled CLI", () => {
     try {
       const { tools } = await agent.listTools();
       expect(tools.map((tool) => tool.name)).toContain("add_document");
+      expect(agent.getServerVersion()?.version).toBe("1.2.3");
     } finally {
       await agent.close();
     }

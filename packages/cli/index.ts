@@ -16,6 +16,7 @@ import { addSourceFromFile } from "./sources.ts";
  * when run from source or built locally.
  */
 declare const BRAIVO_VERSION: string | undefined;
+const VERSION = typeof BRAIVO_VERSION === "string" ? BRAIVO_VERSION : "development";
 
 const USAGE = `Usage: braivo <command>
 
@@ -40,7 +41,7 @@ Working with a Braivo installation, as yourself:
  */
 async function main(argv: readonly string[]): Promise<number> {
   if (argv.length === 1 && argv[0] === "--version") {
-    console.log(`braivo ${typeof BRAIVO_VERSION === "string" ? BRAIVO_VERSION : "development"}`);
+    console.log(`braivo ${VERSION}`);
     return 0;
   }
 
@@ -68,7 +69,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const credentials = await loadCredentials(credentialsPath(process.env));
     if (!credentials) throw new Error("Not signed in. Run `braivo login <url>` first.");
 
-    const server = createMcpServer(remoteClient(credentials, fetch));
+    const server = createMcpServer(remoteClient(credentials, fetch), VERSION);
     await server.connect(new StdioServerTransport());
     // Returning does not end the process: the open standard input keeps it alive.
     return 0;
