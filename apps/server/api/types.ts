@@ -100,9 +100,9 @@ export type Objective = { id: string; title: string };
  * address, `learnDomain` the hostname its learners practise on, the latest
  * of its learn domains registered, `null` until one is. `administers`: the
  * reader holds `owner` or `admin` there; otherwise they teach one of its
- * groups (ADR 0042). `ai`, only where they administer: whether its owners may
- * read files and draft with the installation's AI (generation-9), absent from
- * a server older than it, so unknown.
+ * groups (ADR 0042). `aiEnabled`, only where they administer: whether its
+ * owners may have the installation's AI read a file's text and draft courses
+ * (generation-9); absent from an older server, so unknown.
  */
 export type Organization = {
   id: string;
@@ -110,7 +110,7 @@ export type Organization = {
   slug: string;
   learnDomain: string | null;
   administers: boolean;
-  ai?: boolean;
+  aiEnabled?: boolean;
 };
 
 /** Self-serve setup (ADR 0018), and its data regions (ADR 0040), as `api/index.ts` documents. */

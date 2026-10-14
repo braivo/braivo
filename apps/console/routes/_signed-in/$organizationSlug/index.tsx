@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
 function Courses() {
   const { courses } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
-  const { learnDomain } = Route.useRouteContext().organization;
+  const { learnDomain, aiEnabled } = Route.useRouteContext().organization;
 
   return (
     <>
@@ -47,7 +47,7 @@ function Courses() {
         <Heading className="mb-0">Courses</Heading>
         {courses.length > 0 && (
           <Button asChild>
-            <Link to="/$organizationSlug/sources" params={{ organizationSlug }}>
+            <Link to="/$organizationSlug/sources" params={{ organizationSlug }} hash="add-material">
               <PlusIcon data-icon="inline-start" aria-hidden="true" />
               Add material
             </Link>
@@ -64,8 +64,9 @@ function Courses() {
           <EmptyHeader>
             <EmptyTitle>No courses published yet</EmptyTitle>
             <EmptyDescription>
-              Add material under Sources and draft a course from it there, or with your desktop
-              agent through braivo mcp.
+              {aiEnabled === false
+                ? "Braivo's AI is off for this organization. Add material under Sources, and ask whoever runs Braivo for you to turn it on to draft a course from it, or draft one with your desktop agent through braivo mcp."
+                : "Add material under Sources and draft a course from it there, or with your desktop agent through braivo mcp."}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

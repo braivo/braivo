@@ -27,7 +27,7 @@ import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState }
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { AI_OFF, administratorsOnly, explainAiRefusal, orNotFound } from "#lib/refusals";
+import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
@@ -139,7 +139,8 @@ function SourceText({ text }: { text: string }) {
  * Asks Braivo's AI for a course drafted from this source, then lets the
  * content owner keep what is right and author it (docs/adr/0029-server-drafting.md).
  * Nothing is stored until they do. Where its AI is off, says so instead of
- * offering a form that could only fail (generation-19).
+ * offering a form that could only fail (generation-19); a draft already asked
+ * for stays, since it was sent, and creating the course asks nothing of the AI.
  */
 function DraftCourse(props: { source: Source }) {
   const { source } = props;
@@ -152,14 +153,16 @@ function DraftCourse(props: { source: Source }) {
   const [error, setError] = useState<string>();
   const id = useId();
   const abortOnUnmount = useAbortOnUnmount();
-  // Back from a discarded review, the button that drafted it takes the focus.
+  // After a discarded review, or a failed draft that held the focus, it goes to
+  // the Draft button or, the AI turned off meanwhile, the heading saying why.
   const draftButton = useRef<HTMLButtonElement>(null);
-  const [discarded, setDiscarded] = useState(false);
+  const aiOffHeading = useRef<HTMLHeadingElement>(null);
+  const [returnFocus, setReturnFocus] = useState(false);
   useLayoutEffect(() => {
-    if (!discarded) return;
-    draftButton.current?.focus();
-    setDiscarded(false);
-  }, [discarded]);
+    if (!returnFocus) return;
+    (draftButton.current ?? aiOffHeading.current)?.focus();
+    setReturnFocus(false);
+  }, [returnFocus]);
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,7 +175,7 @@ function DraftCourse(props: { source: Source }) {
     setDrafting(true);
     setError(undefined);
     try {
-      const drafted = await explainAiRefusal(
+      const drafted = await explainAiFailure(
         braivo.draftCourse(
           { organizationId, sourceId: source.id, audience: audience || undefined },
           { signal },
@@ -182,24 +185,11 @@ function DraftCourse(props: { source: Source }) {
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
+      setReturnFocus(form.contains(document.activeElement));
       setError(reasonOf(thrown, "The course could not be drafted. Try again."));
     } finally {
       setDrafting(false);
     }
-  }
-
-  if (organization.ai === false) {
-    return (
-      <section aria-labelledby={`${id}-heading`}>
-        <Heading level={2} id={`${id}-heading`}>
-          Draft a course
-        </Heading>
-        <p>
-          {AI_OFF} Ask whoever runs Braivo for you to turn it on, or draft the course with your
-          desktop agent through braivo mcp.
-        </p>
-      </section>
-    );
   }
 
   if (draft) {
@@ -210,9 +200,30 @@ function DraftCourse(props: { source: Source }) {
         takeFocus={focusReview}
         onDiscard={() => {
           setDraft(undefined);
-          setDiscarded(true);
+          setReturnFocus(true);
         }}
       />
+    );
+  }
+
+  // Not while a draft is under way: it was sent, and may yet be reviewed.
+  if (organization.aiEnabled === false && !drafting) {
+    return (
+      <section aria-labelledby={`${id}-heading`}>
+        <Heading level={2} id={`${id}-heading`} ref={aiOffHeading} tabIndex={-1}>
+          Draft a course
+        </Heading>
+        <p>
+          {AI_OFF_MESSAGE} Ask whoever runs Braivo for you to turn it on, or draft the course with
+          your desktop agent through braivo mcp.
+        </p>
+        {/* A draft under way when it was turned off may still fail: said here, its form gone. */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </section>
     );
   }
 

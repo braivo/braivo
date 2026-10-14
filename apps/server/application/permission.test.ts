@@ -47,13 +47,13 @@ describe.skipIf(!connectionString)("permission", () => {
   test("says whether an organization administered may use the installation's AI", async () => {
     const model = {} as Model;
     const ai = async (ai?: Parameters<typeof listOrganizations>[0]["ai"]) =>
-      (await listOrganizations({ database, actingAs: memberAndAdmin, ai }))[0]!.ai;
+      (await listOrganizations({ database, actingAs: memberAndAdmin, ai }))[0]!.aiEnabled;
 
     expect(await ai()).toBe(false);
     expect(await ai({ model, organizations: "all" })).toBe(true);
     expect(await ai({ model, organizations: new Set([organizationId]) })).toBe(true);
     expect(await ai({ model, organizations: new Set(["another-org"]) })).toBe(false);
-    // Its month's requests used or not: those renew, and a refusal says when.
+    // A monthly limit leaves it on: requests renew, and one past the limit says when.
     expect(await ai({ model, organizations: "all", monthlyLimit: 1 })).toBe(true);
   });
 

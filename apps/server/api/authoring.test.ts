@@ -10,10 +10,12 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import type { Model } from "../ai/index.ts";
 import { createCourse, createObjectives, createTasks } from "../persistence/index.ts";
-import { connectionString, createTestApi, type Signed } from "./testing.ts";
+import { createApi } from "./app.ts";
+import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
-const { database, api, signUp } = createTestApi();
+const { database, auth, api, signUp } = createTestApi();
 
 const stored = (learnerId: string) => testing.readStoredEvidence(database, learnerId);
 
@@ -120,7 +122,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           learnDomain: null,
           administers: true,
           // This API has no model.
-          ai: false,
+          aiEnabled: false,
         },
       ],
     });
@@ -129,6 +131,21 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     for (const response of [managed, anonymous]) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
+  });
+
+  test("says whether an organization's owners may use the installation's AI, as configured", async () => {
+    const model = {} as Model;
+    const listed = async (organizations: "all" | Set<string>) => {
+      const app = createApi({ auth, database, baseUrl, ai: { model, organizations } });
+      const response = await app.request("/api/organizations", {
+        headers: { cookie: teacher.cookie },
+      });
+      return ((await response.json()) as { organizations: { aiEnabled?: boolean }[] })
+        .organizations;
+    };
+
+    expect(await listed(new Set([organizationId]))).toMatchObject([{ aiEnabled: true }]);
+    expect(await listed(new Set([otherOrganizationId]))).toMatchObject([{ aiEnabled: false }]);
   });
 
   test("records what an admin says a learner did, and answers differently after", async () => {

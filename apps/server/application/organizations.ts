@@ -14,11 +14,11 @@ import {
   readOrganizationBySlug,
   updateOrganizationName,
 } from "../persistence/index.ts";
-import { type Ai, mayUseAi } from "./ai.ts";
+import { type Ai, aiEnabledFor } from "./ai.ts";
 import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains.ts";
 import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
 
-type ListedOrganizationWithRole = ListedOrganization & { administers: boolean; ai?: boolean };
+type OrganizationListEntry = ListedOrganization & { administers: boolean; aiEnabled?: boolean };
 
 /**
  * The organizations someone works in, by name, each with where its learners
@@ -32,11 +32,13 @@ export async function listOrganizations(input: {
   database: Database;
   actingAs: string;
   ai?: Ai;
-}): Promise<ListedOrganizationWithRole[]> {
+}): Promise<OrganizationListEntry[]> {
   const memberships = await readMemberships(input.database, input.actingAs);
-  return memberships.flatMap(({ organization, roles, teaches }): ListedOrganizationWithRole[] => {
+  return memberships.flatMap(({ organization, roles, teaches }): OrganizationListEntry[] => {
     if (administers(roles)) {
-      return [{ ...organization, administers: true, ai: mayUseAi(input.ai, organization.id) }];
+      return [
+        { ...organization, administers: true, aiEnabled: aiEnabledFor(input.ai, organization.id) },
+      ];
     }
     return teaches ? [{ ...organization, administers: false }] : [];
   });
