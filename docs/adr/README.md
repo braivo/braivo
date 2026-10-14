@@ -35,6 +35,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)
 - [0022: A content owner's tools sign in through the device flow and act as them](0022-machine-access.md)
 - [0023: `braivo mcp` serves Braivo's API as tools, through the official SDK](0023-mcp-server.md)
+- [0045: Remote MCP at `/mcp`: the same tools in-process, as an OAuth connection bound to one school](0045-remote-mcp.md)
 - [0024: Adding what is already there returns what is there](0024-idempotent-authoring.md)
 - [0025: A recording enters as timed cues, and a passage cited from it names its moment](0025-timed-transcripts.md)
 - [0026: A document enters page by page, and a passage cited from it names its page](0026-paged-documents.md)
