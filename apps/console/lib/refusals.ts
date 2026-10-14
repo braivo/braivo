@@ -83,17 +83,37 @@ export async function readCourseForProgress(
 }
 
 /**
- * An AI request, with a proxy's timeout explained. A proxy in front of Braivo
+ * Why Braivo's AI cannot work for an organization, in its owner's terms: the
+ * server's own words name the operator's settings (generation-9), which are
+ * not theirs to change.
+ */
+export const AI_OFF = "Braivo's AI is off for this organization.";
+
+/**
+ * An AI request, with the refusals a content owner cannot act on explained.
+ * The installation without a model or not letting this organization use it,
+ * told by their codes: the page offered it from a listing read before the
+ * operator changed that. A proxy in front of Braivo
  * that waits less than the model may answers 504, or Cloudflare's 524, with no
  * reason of its own. The status cannot tell whether the model ran: if it did,
  * the request counted (docs/specs/generation.md, generation-13), and sent
  * unchanged it would likely spend another and be cut off again, so "try again"
  * is the wrong advice. Wrap only an AI request: an upload cut off spends none.
  */
-export async function explainAiProxyTimeout<T>(request: Promise<T>): Promise<T> {
+export async function explainAiRefusal<T>(request: Promise<T>): Promise<T> {
   try {
     return await request;
   } catch (error) {
+    if (
+      error instanceof BraivoError &&
+      (error.code === "AI_UNAVAILABLE" || error.code === "AI_NOT_ENTITLED")
+    ) {
+      throw new BraivoError(
+        error.status,
+        error.message,
+        `${AI_OFF} Ask whoever runs Braivo for you to turn it on.`,
+      );
+    }
     if (
       error instanceof BraivoError &&
       !error.reason &&

@@ -27,7 +27,7 @@ import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState }
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { administratorsOnly, explainAiProxyTimeout, orNotFound } from "#lib/refusals";
+import { AI_OFF, administratorsOnly, explainAiRefusal, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
@@ -138,7 +138,8 @@ function SourceText({ text }: { text: string }) {
 /**
  * Asks Braivo's AI for a course drafted from this source, then lets the
  * content owner keep what is right and author it (docs/adr/0029-server-drafting.md).
- * Nothing is stored until they do.
+ * Nothing is stored until they do. Where its AI is off, says so instead of
+ * offering a form that could only fail (generation-19).
  */
 function DraftCourse(props: { source: Source }) {
   const { source } = props;
@@ -171,7 +172,7 @@ function DraftCourse(props: { source: Source }) {
     setDrafting(true);
     setError(undefined);
     try {
-      const drafted = await explainAiProxyTimeout(
+      const drafted = await explainAiRefusal(
         braivo.draftCourse(
           { organizationId, sourceId: source.id, audience: audience || undefined },
           { signal },
@@ -185,6 +186,20 @@ function DraftCourse(props: { source: Source }) {
     } finally {
       setDrafting(false);
     }
+  }
+
+  if (organization.ai === false) {
+    return (
+      <section aria-labelledby={`${id}-heading`}>
+        <Heading level={2} id={`${id}-heading`}>
+          Draft a course
+        </Heading>
+        <p>
+          {AI_OFF} Ask whoever runs Braivo for you to turn it on, or draft the course with your
+          desktop agent through braivo mcp.
+        </p>
+      </section>
+    );
   }
 
   if (draft) {

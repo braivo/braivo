@@ -6,6 +6,7 @@ import { Hono } from "hono";
 
 import {
   activateDomain,
+  type Ai,
   citeSources,
   claimDomain,
   defineCourse,
@@ -251,6 +252,7 @@ export function authoringRoutes(
     domains: provisioner,
     dataRegion,
     otherRegions = [],
+    ai,
   }: {
     auth: Auth;
     database: Database;
@@ -259,6 +261,7 @@ export function authoringRoutes(
     domains?: DomainProvisioner;
     dataRegion?: string;
     otherRegions?: OrganizationSetup["otherRegions"];
+    ai?: Ai;
   },
 ) {
   const routes = new Hono();
@@ -412,6 +415,7 @@ export function authoringRoutes(
     const organizations = await listOrganizations({
       database,
       actingAs: context.var.userId,
+      ai,
     });
     return context.json({ organizations });
   });

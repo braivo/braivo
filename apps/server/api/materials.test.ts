@@ -619,7 +619,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     });
     const refused = await draft(sourceId, teacher.cookie, {}, elsewhere);
     expect(refused.status).toBe(403);
-    expect(((await refused.json()) as { error: string }).error).toContain("ask its operator");
+    expect(await refused.json()).toEqual({
+      error: expect.stringContaining("ask its operator"),
+      code: "AI_NOT_ENTITLED",
+    });
     expect(asked).toHaveLength(2);
   });
 
@@ -679,11 +682,13 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       error: "Braivo's AI reads a PDF of at most 24 MB; send it a chapter at a time.",
     });
     expect((await read("0".repeat(64))).status).toBe(404);
-    // No file store: nothing to read from, said as for uploading.
-    expect(
-      (await read(pdf, createApi({ auth, database, baseUrl, ai: { model, organizations: "all" } })))
-        .status,
-    ).toBe(501);
+    // No file store: nothing to read from, said as for uploading, its AI not off.
+    const unstored = await read(
+      pdf,
+      createApi({ auth, database, baseUrl, ai: { model, organizations: "all" } }),
+    );
+    expect(unstored.status).toBe(501);
+    expect(await unstored.json()).not.toHaveProperty("code");
   });
 
   test("stops an organization at its month's AI requests, counting only those asked", async () => {
@@ -831,7 +836,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
 
     const none = await draft(api);
     expect(none.status).toBe(501);
-    expect(((await none.json()) as { error: string }).error).toContain("braivo mcp");
+    expect(await none.json()).toEqual({
+      error: expect.stringContaining("braivo mcp"),
+      code: "AI_UNAVAILABLE",
+    });
     const failed = await draft(failing);
     expect(failed.status).toBe(502);
     expect(await failed.json()).toEqual({ error: "The model answered 529." });

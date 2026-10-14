@@ -21,7 +21,7 @@ import { type SubmitEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { administratorsOnly, explainAiProxyTimeout, orNotFound } from "#lib/refusals";
+import { AI_OFF, administratorsOnly, explainAiRefusal, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/")({
@@ -209,7 +209,12 @@ function AddSource() {
       return setError("Paste the material's text, or attach the file for Braivo's AI to read.");
     }
     // Only without pasted text: beside it, the file is kept unread.
-    const unreadable = text.trim() === "" && file ? readingProblem(file) : undefined;
+    const unreadable =
+      text.trim() === "" && file
+        ? organization.ai === false
+          ? `${AI_OFF} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`
+          : readingProblem(file)
+        : undefined;
     if (unreadable) return setError(unreadable);
 
     const signal = abortOnUnmount();
@@ -237,7 +242,7 @@ function AddSource() {
           setStatus("Braivo's AI is reading the file, which can take a few minutes…");
           read.current = {
             fileId,
-            pages: await explainAiProxyTimeout(
+            pages: await explainAiRefusal(
               braivo.readFileText({ organizationId, fileId }, { signal }),
             ),
           };
@@ -302,9 +307,9 @@ function AddSource() {
               aria-describedby={`${id}-text-hint`}
             />
             <FieldDescription id={`${id}-text-hint`}>
-              The material's words as they read: what questions will quote. Paste them, or leave
-              this empty and attach the PDF or a photo below for Braivo's AI to read — which can
-              take a few minutes.
+              {organization.ai === false
+                ? "The material's words as they read: what questions will quote. Paste them; a file attached below is kept as their original, not read."
+                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below for Braivo's AI to read — which can take a few minutes."}
             </FieldDescription>
           </Field>
           <Field>
@@ -318,7 +323,7 @@ function AddSource() {
             />
             <FieldDescription id={`${id}-url-hint`}>
               Where it is online, such as a video. Optional, and for reference only: Braivo does not
-              open it, so add its text or transcript above, or its file below.
+              open it, so add its words above.
             </FieldDescription>
           </Field>
           <Field>

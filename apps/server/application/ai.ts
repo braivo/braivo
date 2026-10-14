@@ -19,6 +19,14 @@ export type Ai = {
   monthlyLimit?: number;
 };
 
+/**
+ * Whether `organizationId` may use the installation's model: there is one, and
+ * its operator lets that organization. Not its month's requests, which renew.
+ */
+export function mayUseAi(ai: Ai | undefined, organizationId: string): boolean {
+  return ai !== undefined && (ai.organizations === "all" || ai.organizations.has(organizationId));
+}
+
 /** An organization that has made its month's requests; it may again from `renewsAt`. */
 export class AiLimitReached extends Error {
   constructor(
@@ -79,9 +87,7 @@ export async function modelFor(
   const { organizationId, actingAs } = actor;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
   // After permission, so a stranger learns nothing of which organizations may.
-  if (ai.organizations !== "all" && !ai.organizations.has(organizationId)) {
-    throw new AiNotEntitled();
-  }
+  if (!mayUseAi(ai, organizationId)) throw new AiNotEntitled();
 
   const { model, monthlyLimit } = ai;
   async function charge(kind: "read" | "draft", now: Date): Promise<void> {

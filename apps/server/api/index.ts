@@ -302,8 +302,11 @@
 // `GET /api/organizations` — the organizations the signed-in user manages
 // (`owner` or `admin`) or teaches a group in, by name: `{ "organizations": [{
 // "id": "…", "name": "…", "slug": "…", "learnDomain": "…" | null,
-// "administers": true }] }`, `administers` false where they only teach. A
-// member who does neither is not listed. 401 without a session.
+// "administers": true, "ai": true }] }`, `administers` false where they only
+// teach. `ai`, only where they administer: whether its owners may read files
+// and draft with the installation's AI, a key set and the organization let
+// (generation-9); its month's requests are not counted. A member who does
+// neither is not listed. 401 without a session.
 //
 // `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
 // | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",
@@ -579,11 +582,11 @@
 // is sending them. Every objective and task kept cites a passage found in the
 // source; `refused` names what the model proposed that Braivo would not
 // accept. Each refusal carries an `error`: 400 for a source over 200,000
-// characters or a long audience; 403 when `BRAIVO_AI_ORGANIZATIONS` is set and
-// does not list the organization; 429, with `Retry-After`, when it has made its
+// characters or a long audience; 403 `code` `AI_NOT_ENTITLED` when
+// `BRAIVO_AI_ORGANIZATIONS` is set and does not list the organization; 429, with `Retry-After`, when it has made its
 // month's requests under `BRAIVO_AI_MONTHLY_LIMIT` (ADR 0031), each valid
-// request counting, answered or not; 501 when the installation has no model
-// (`ANTHROPIC_API_KEY` unset); 502 when the model failed. 404, bare, when the
+// request counting, answered or not; 501 `code` `AI_UNAVAILABLE` when the
+// installation has no model (`ANTHROPIC_API_KEY` unset); 502 when the model failed. 404, bare, when the
 // organization has no such source.
 //
 // `POST /api/organizations/:organizationId/files` — keeps a file, the request's

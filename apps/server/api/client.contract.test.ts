@@ -284,6 +284,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         slug: organizationId,
         learnDomain: organizationHost,
         administers: true,
+        ai: false,
       },
     ]);
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
@@ -313,7 +314,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       learnDomain: `${slug}.${selfServeDomain}`,
       administers: true,
     });
-    expect(await client.listOrganizations({ headers: { cookie } })).toEqual([organization]);
+    // Listed, it also says whether its owners may use the installation's AI.
+    expect(await client.listOrganizations({ headers: { cookie } })).toEqual([
+      { ...organization, ai: false },
+    ]);
 
     const refused = client.setUpOrganization(
       { name: "Second", slug: `${slug}-2` },
@@ -412,6 +416,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.listOrganizations(asLearner)).toEqual([
       expect.objectContaining({ id: organizationId, administers: false }),
     ]);
+    // A teacher learns nothing of whether its owners may use the installation's AI.
+    expect((await client.listOrganizations(asLearner))[0]).not.toHaveProperty("ai");
 
     expect(
       await client.changeGroup(

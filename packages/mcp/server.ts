@@ -136,7 +136,17 @@ export function createMcpServer(client: BraivoClient, version: string): McpServe
         "The organizations the signed-in person works in: those they manage (administers: true), where material and courses are managed, and those where they only teach groups, whose progress list_groups leads to. With each, the hostname its learners practise on (learnDomain, null until one is registered).",
       annotations: READ_ONLY,
     },
-    () => answer(client.listOrganizations()),
+    // Not `ai`, whether Braivo's own AI is offered: the agent is the AI here.
+    async () =>
+      answer(
+        (await client.listOrganizations()).map(({ id, name, slug, learnDomain, administers }) => ({
+          id,
+          name,
+          slug,
+          learnDomain,
+          administers,
+        })),
+      ),
   );
 
   server.registerTool(

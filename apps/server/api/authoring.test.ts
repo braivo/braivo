@@ -119,6 +119,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           name: organizationId,
           learnDomain: null,
           administers: true,
+          // This API has no model.
+          ai: false,
         },
       ],
     });

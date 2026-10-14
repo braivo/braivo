@@ -60,10 +60,14 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   ) {
     return context.json({ error: error.message }, 409);
   }
-  if (error instanceof AiUnavailable || error instanceof FilesUnavailable) {
-    return context.json({ error: error.message }, 501);
+  // Coded, so a client tells its AI being off from other refusals of the same status.
+  if (error instanceof AiUnavailable) {
+    return context.json({ error: error.message, code: "AI_UNAVAILABLE" }, 501);
   }
-  if (error instanceof AiNotEntitled) return context.json({ error: error.message }, 403);
+  if (error instanceof FilesUnavailable) return context.json({ error: error.message }, 501);
+  if (error instanceof AiNotEntitled) {
+    return context.json({ error: error.message, code: "AI_NOT_ENTITLED" }, 403);
+  }
   if (error instanceof AiLimitReached) {
     context.header("retry-after", String(secondsUntil(error.renewsAt, new Date())));
     return context.json({ error: error.message }, 429);
