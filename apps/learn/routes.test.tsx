@@ -1881,7 +1881,7 @@ describe("the learn app", () => {
   });
 
   test("tells a learner where practice stops what they practised today, by their local day", async () => {
-    // Auckland, UTC+12 in June: its 11 June runs from 10 June, 12:00 UTC.
+    // Auckland, UTC+12 in June: its 11 June begins at 04:00, 10 June, 16:00 UTC.
     vi.stubEnv("TZ", "Pacific/Auckland");
     onTestFinished(() => {
       vi.unstubAllEnvs();
@@ -1906,8 +1906,8 @@ describe("the learn app", () => {
       objectives: [
         standing("a", "2026-06-11T01:00:00.000Z", "retaining"),
         // Today locally, though 10 June in UTC.
-        standing("b", "2026-06-10T13:00:00.000Z", "retaining"),
-        standing("c", "2026-06-10T12:00:00.000Z", "acquiring"),
+        standing("b", "2026-06-10T17:00:00.000Z", "retaining"),
+        standing("c", "2026-06-10T16:00:00.000Z", "acquiring"),
         // Due again already: due for review, as the summary says (beside "Nothing is due" only in a race).
         {
           objectiveId: "f",
@@ -1919,8 +1919,8 @@ describe("the learn app", () => {
           due: true,
           dueAt: "2026-06-11T01:00:00.000Z",
         },
-        // Yesterday locally, or never: not today's.
-        standing("d", "2026-06-10T11:59:59.999Z", "retaining"),
+        // Before 04:00 locally, still 10 June's, or never: not today's.
+        standing("d", "2026-06-10T15:59:59.999Z", "retaining"),
         { objectiveId: "e", title: "e", phase: "unseen" },
       ],
     };
@@ -1944,6 +1944,37 @@ describe("the learn app", () => {
       await screen.findByRole("region", {
         name: "That's all the new material for today",
         description: /Practised today: 2 retained · 1 due for review · 1 learning\.$/,
+      }),
+    ).toBeTruthy();
+  });
+
+  test("counts practice past midnight as the evening's, until four", async () => {
+    vi.stubEnv("TZ", "Pacific/Auckland");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 00:30 on 11 June in Auckland; the evidence, 23:00 on 10 June.
+    vi.setSystemTime(new Date("2026-06-10T12:30:00.000Z"));
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          {
+            objectiveId: "a",
+            title: "a",
+            phase: "acquiring",
+            lastEvidenceAt: "2026-06-10T11:00:00.000Z",
+          },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "You're caught up",
+        description: "Nothing is due right now. Practised today: 1 learning.",
       }),
     ).toBeTruthy();
   });

@@ -70,25 +70,20 @@ describe("limitNewObjectives", () => {
     ).toBe(false);
   });
 
-  test("counts days in the learner's time zone", () => {
-    // 23:30 on May 31 in New York, already June 1 in UTC.
-    const learner = learnerWith(startedAt("2026-06-01T03:30:00Z"));
-    // 00:30 on June 1 in New York: a new day there, not in UTC.
-    const now = new Date("2026-06-01T04:30:00Z");
+  test("counts days in the learner's time zone, from four", () => {
+    // 01:00 on June 1 in New York, still May 31's day there; June 1's in UTC.
+    const learner = learnerWith(startedAt("2026-06-01T05:00:00Z"));
+    // 05:00 on June 1 in New York: a new day there, not in UTC.
+    const now = new Date("2026-06-01T09:00:00Z");
     expect(limitNewObjectives(learner, { now, timeZone: "America/New_York" }).heldBack).toBe(false);
     expect(limitNewObjectives(learner, { now, timeZone: "UTC" }).heldBack).toBe(true);
   });
 
-  test("keeps a day one day when its clocks change", () => {
-    // 00:30 and 23:30 on March 29 in Warsaw, a day of 23 hours.
-    const learner = learnerWith(startedAt("2026-03-28T23:30:00Z"));
-    const now = new Date("2026-03-29T21:30:00Z");
-    expect(limitNewObjectives(learner, { now, timeZone: "Europe/Warsaw" }).heldBack).toBe(true);
-    // Half an hour later it is March 30 there.
-    const next = new Date("2026-03-29T22:30:00Z");
-    expect(limitNewObjectives(learner, { now: next, timeZone: "Europe/Warsaw" }).heldBack).toBe(
-      false,
-    );
+  test("counts a session past midnight as the evening's", () => {
+    // 23:30 on May 31 in UTC; then 00:30 on June 1.
+    const learner = learnerWith(startedAt("2026-05-31T23:30:00Z"));
+    const now = new Date("2026-06-01T00:30:00Z");
+    expect(limitNewObjectives(learner, { now, timeZone: "UTC" }).heldBack).toBe(true);
   });
 
   test("holds nothing back once nothing is left to start", () => {

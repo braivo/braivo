@@ -36,7 +36,8 @@ import type {
 // The client for Braivo's HTTP API, which the learn and console apps import as
 // `@braivo/server/client` and `braivo` (packages/cli) uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
-// server but types and `content/course-ref.ts`, which imports nothing (`client.test.ts`
+// server but types and modules importing nothing themselves,
+// `content/course-ref.ts` and `application/learner-day.ts` (`client.test.ts`
 // checks).
 //
 // It covers what its callers call, not the whole API: an authoring route with
@@ -79,6 +80,7 @@ export type {
   TaskResponse,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
+export { learnerDayIn } from "../application/learner-day.ts";
 
 /**
  * An answer the client could not use: a refusal, a status the method does not

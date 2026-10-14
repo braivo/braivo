@@ -584,7 +584,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         now,
         timeZone,
       });
-    // Missed at the start of June 1, UTC, then twenty more started elsewhere.
+    // Missed at midnight on June 1, UTC, then twenty more started elsewhere.
     await answer("missed", wordTasks[0]!, 1, start, { course: wordsCourseId });
     await recordEvidence(
       database,
@@ -608,13 +608,14 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "daily-limit",
       limit: NEW_OBJECTIVES_PER_DAY,
     });
-    // 23:30 on June 1 in UTC is June 2 in Tokyo.
-    const lateEvening = new Date("2026-06-01T23:30:00Z");
-    expect(await inWords(lateEvening)).toEqual({
+    // 03:30 on June 1 in UTC, still the night of May 31 there, is 05:30 in
+    // Warsaw, past four: a new day.
+    const beforeFourInUtc = new Date("2026-06-01T03:30:00Z");
+    expect(await inWords(beforeFourInUtc)).toEqual({
       kind: "daily-limit",
       limit: NEW_OBJECTIVES_PER_DAY,
     });
-    expect(await inWords(lateEvening, "Asia/Tokyo")).toMatchObject({
+    expect(await inWords(beforeFourInUtc, "Europe/Warsaw")).toMatchObject({
       kind: "decided",
       decision: { objectiveId: words[1], intent: "introduce" },
     });
