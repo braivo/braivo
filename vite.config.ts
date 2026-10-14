@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { lingui } from "@lingui/vite-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import { configDefaults, defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
@@ -198,7 +199,8 @@ export default defineConfig({
       localized("i18n", "packages/i18n"),
       localized("ui", "packages/ui"),
       {
-        plugins: [lingui({ macroTransform: true })],
+        // Tailwind too, so a test there measures the controls as the apps style them.
+        plugins: [lingui({ macroTransform: true }), tailwindcss()],
         test: {
           name: "ui-browser",
           root: "packages/ui",

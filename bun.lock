@@ -8,6 +8,7 @@
         "@lingui/conf": "6.9.0",
         "@lingui/format-po": "6.9.0",
         "@lingui/vite-plugin": "6.9.0",
+        "@tailwindcss/vite": "^4.3.3",
         "@types/bun": "latest",
         "@types/pg": "^8.23.1",
         "@vitest/browser-playwright": "4.1.11",

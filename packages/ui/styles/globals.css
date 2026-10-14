@@ -155,16 +155,25 @@
  * Tokens beyond shadcn's, which the rules below use: the main action's hover,
  * and a field's fill, apart from `--input`, its border. Neutral here, as the
  * learn app is; the console sets Braivo's (`apps/console/styles.css`).
+ *
+ * `--input`, what bounds a field, and `--ring`, focus, at 3:1 or more on the
+ * page, a card, and a field's fill (WCAG 1.4.11), where the preset's are
+ * about 1.3:1 and 2.6:1; `contrast.browser.test.tsx` measures each control.
+ * Dark sets its own `--input`, softer than light's, which would otherwise
+ * apply there too: this rule follows the preset's `.dark`.
  */
 :root {
   color-scheme: light;
   --radius: 0.3125rem;
+  --input: oklch(0.62 0 0);
+  --ring: oklch(0.556 0 0);
   --primary-hover: color-mix(in oklab, var(--primary) 88%, var(--foreground));
   --input-background: var(--background);
 }
 
 .dark {
   color-scheme: dark;
+  --input: oklch(1 0 0 / 40%);
   --input-background: oklch(1 0 0 / 5%);
 }
 
@@ -198,6 +207,42 @@
   [data-slot="input-group"]
 ):not(:focus-visible, :has(:focus-visible), [aria-invalid="true"], :has([aria-invalid="true"])) {
   border-color: var(--input);
+}
+
+/*
+ * An unchecked checkbox or radio button is bounded as a field is, rather than
+ * filled with `--input`, which at 3:1 would read as checked.
+ */
+:is([data-slot="checkbox"], [data-slot="radio-group-item"])[data-state="unchecked"] {
+  background-color: var(--input-background);
+}
+
+:is([data-slot="checkbox"], [data-slot="radio-group-item"])[data-state="unchecked"]:not(
+    :focus-visible,
+    [aria-invalid="true"]
+  ) {
+  border-color: var(--input);
+}
+
+/*
+ * Focus is an opaque `--ring`, so it shows at 3:1 where the components' rings
+ * are 20% to 50% of it; an invalid control's too, its border still red.
+ * Unlayered, over each ring utility's colour; its width and place are theirs.
+ * A group's or a code slot's ring is for the input inside it. The browser's
+ * outline, on what draws no ring (a plain link), is opaque too.
+ */
+:is(
+  :focus-visible,
+  [data-slot="input-group"]:has(:focus-visible),
+  [data-slot="input-otp-slot"][data-active="true"]
+) {
+  --tw-ring-color: var(--ring);
+}
+
+@layer base {
+  * {
+    outline-color: var(--ring);
+  }
 }
 
 /*
