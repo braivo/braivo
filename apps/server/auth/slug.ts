@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
- * The console's root-level paths, which `/<slug>` would shadow (ADR 0004).
+ * The application's root-level paths, which `/<slug>` would shadow (ADR 0004).
  * Marketing lives on another host, so only application routes are here; a new
  * one joins before it ships, which slug.test.ts checks against the console's
- * route tree. `invitations` is ADR 0018's, reserved ahead of its route.
+ * route tree. `invitations` is ADR 0018's, reserved ahead of its route; `mcp`
+ * is the server's remote MCP endpoint (ADR 0045).
  */
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "api",
@@ -15,6 +16,7 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "invitations",
   "join",
   "login",
+  "mcp",
 ]);
 
 /**

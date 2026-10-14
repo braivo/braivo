@@ -23,8 +23,11 @@ export type Signed = { cookie: string; token: string; id: string; email: string;
  * organizations and courses, and passes the file store or model it needs.
  */
 export function createTestApi(
-  options: Omit<Parameters<typeof createApi>[0], "auth" | "database" | "baseUrl"> = {},
+  options: Omit<Parameters<typeof createApi>[0], "auth" | "database" | "baseUrl"> & {
+    clientIdMetadataDocuments?: boolean;
+  } = {},
 ) {
+  const { clientIdMetadataDocuments, ...apiOptions } = options;
   const database = testing.sharedDatabase(connectionString ?? "");
   const outbox = createOutbox();
   const auth = createAuth({
@@ -32,8 +35,9 @@ export function createTestApi(
     secret: "api-test-secret-that-is-long-enough-32",
     baseURL: baseUrl,
     sendMail: outbox.sendMail,
+    clientIdMetadataDocuments,
   });
-  const api = createApi({ sendMail: outbox.sendMail, ...options, auth, database, baseUrl });
+  const api = createApi({ sendMail: outbox.sendMail, ...apiOptions, auth, database, baseUrl });
 
   /**
    * Makes a new account and signs it in by code through the mounted Better
