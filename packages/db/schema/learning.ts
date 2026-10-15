@@ -100,6 +100,11 @@ export const course = pgTable(
      * owner set it; `null` until then, which reads as the title's.
      */
     urlLabel: text("url_label"),
+    /**
+     * When a person published it in the console; `null` while it waits, as a
+     * tool's course does, reached by no learner (docs/adr/0039-published-in-the-console.md).
+     */
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     index("course_organization_idx").on(table.organizationId),

@@ -49,6 +49,7 @@ describe.skipIf(!connectionString)("group routes", () => {
       string,
     ];
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Spanish",
       objectiveIds: [greetings],

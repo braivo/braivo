@@ -9,6 +9,8 @@ import {
   type CitedPassage,
   type Course,
   createCourse,
+  type ManagedCourse,
+  publishCourses,
   findObjectivesOutsideOrganization,
   readCourseObjectives,
   readCourses,
@@ -46,8 +48,14 @@ export async function defineCourse(input: {
    * adding the same course again under it returns it (docs/adr/0024-idempotent-authoring.md).
    */
   key?: string;
+  /**
+   * Whether learners reach it at once: a person in the console reviewing it,
+   * yes; a tool, no, it waits to be published (ADR 0039). One found under its
+   * key keeps its state.
+   */
+  published: boolean;
 }): Promise<string> {
-  const { database, organizationId, actingAs, objectiveIds, key } = input;
+  const { database, organizationId, actingAs, objectiveIds, key, published } = input;
 
   // Checked first, since it depends only on what was sent.
   const title = checkNames("The course", input);
@@ -74,7 +82,36 @@ export async function defineCourse(input: {
     );
   }
 
-  return createCourse(database, { organizationId, title, objectiveIds, key });
+  return createCourse(database, { organizationId, title, objectiveIds, key, published });
+}
+
+/** The organization lacks a course to publish, as from a stale page: reload and publish what it shows. */
+export class StalePublication extends Error {
+  constructor() {
+    super(
+      "A course to publish is not in this organization; reload the page and publish what it shows.",
+    );
+    this.name = "StalePublication";
+  }
+}
+
+/**
+ * Publishes the courses a person reviewed, all or none, so learners reach them
+ * (ADR 0039): for whoever administers the organization, from the console only,
+ * which the route decides. Publishing one already published changes nothing.
+ */
+export async function publish(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseIds: readonly string[];
+  now: Date;
+}): Promise<void> {
+  const { database, organizationId, actingAs, courseIds, now } = input;
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  if (!(await publishCourses(database, { organizationId, courseIds, now }))) {
+    throw new StalePublication();
+  }
 }
 
 /**
@@ -109,7 +146,7 @@ export async function listCourses(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
-}): Promise<Course[]> {
+}): Promise<ManagedCourse[]> {
   const { database, organizationId, actingAs } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
@@ -147,7 +184,7 @@ export async function listLearnerCourses(input: {
  * learners meet them, each with the passages that teach it and the tasks that
  * practise it — answers included — and the sources those passages are from.
  */
-export type AuthoredCourse = Course & {
+export type AuthoredCourse = ManagedCourse & {
   objectives: {
     id: string;
     title: string;

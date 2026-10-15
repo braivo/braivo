@@ -141,6 +141,14 @@ const storableJson = createMiddleware(
 );
 
 /**
+ * Whether a tool sent the request, with its token, rather than a person in
+ * their browser: a course a tool creates waits to be published, and only a
+ * browser publishes (ADR 0039). As `sessionFor` treats a bearer: an `Authorization`
+ * header at all, a cookie beside it included.
+ */
+export const sentByTool = (context: Context) => context.req.header("authorization") !== undefined;
+
+/**
  * A learn domain's cookies (ADR 0018), each `__Host-`: Secure, on that host
  * alone, for every path. `Lax`, since the handoff arrives by a navigation from
  * the installation's origin.

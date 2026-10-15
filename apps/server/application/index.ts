@@ -34,8 +34,10 @@ export {
   defineCourse,
   listCourses,
   listLearnerCourses,
+  publish,
   readAuthoredCourse,
   setCourseUrlLabel,
+  StalePublication,
 } from "./courses.ts";
 export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } from "./files.ts";
 export { changeGroup, defineGroup, listGroups } from "./groups.ts";

@@ -78,6 +78,7 @@ describe.skipIf(!connectionString)("groups", () => {
       string,
     ];
     foreignCourse = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [theirs],
@@ -94,11 +95,13 @@ describe.skipIf(!connectionString)("groups", () => {
     });
     [greetings] = (await createObjectives(database, organizationId, ["Greetings"])) as [string];
     shared = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Shared",
       objectiveIds: [greetings],
     });
     untaught = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Untaught",
       objectiveIds: [greetings],

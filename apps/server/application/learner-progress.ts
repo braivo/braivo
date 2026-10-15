@@ -48,10 +48,13 @@ export async function readLearnerProgress(input: {
     learnerId,
     host,
     now,
-    authorize: async (organizationId) =>
-      viewedBy === learnerId ||
-      (await mayAdminister(database, { organizationId, userId: viewedBy })) ||
-      teaches(database, { teacherId: viewedBy, learnerId, courseId }),
+    // Reading for oneself is a learner's reach, whatever else the reader is:
+    // only a published course.
+    authorize: async ({ organizationId, published }) =>
+      viewedBy === learnerId
+        ? published
+        : (await mayAdminister(database, { organizationId, userId: viewedBy })) ||
+          teaches(database, { teacherId: viewedBy, learnerId, courseId }),
   });
   if (learner === undefined) return { kind: "unavailable" };
 

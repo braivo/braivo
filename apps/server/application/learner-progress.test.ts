@@ -86,11 +86,13 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       "Fractions",
     ])) as [string, string];
     course = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Both",
       objectiveIds: [pastTense, fractions],
     });
     emptyCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Empty",
       objectiveIds: [],
@@ -99,6 +101,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       string,
     ];
     foreignCourse = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [theirPastTense],

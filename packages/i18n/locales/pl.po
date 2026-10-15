@@ -58,6 +58,11 @@ msgstr "{count, plural, one {# osoba.} few {# osoby.} many {# osób.} other {# o
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
+msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek będzie mógł uczyć się w tym kursie po jego opublikowaniu."
+
+#. placeholder {0}: organization.name
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
 
@@ -692,6 +697,10 @@ msgstr "Uczniowie nie będą mogli już tam ćwiczyć: linki do niej przestaną 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
 msgstr "Uczniowie mogą ćwiczyć pod każdym z tych adresów. Nowe linki, które wysyła im Braivo, także w zaproszeniach, prowadzą do domeny głównej."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Learners can't see this course until it is published."
+msgstr "Uczniowie nie widzą tego kursu, dopóki nie zostanie opublikowany."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."

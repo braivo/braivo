@@ -51,6 +51,7 @@ async function vocabularyCourse(words: number, records: number): Promise<Practic
     Array.from({ length: words }, (_unused, index) => `word ${index}`),
   );
   const courseId = await createCourse(database, {
+    published: true,
     organizationId,
     title: `${words} words`,
     objectiveIds,

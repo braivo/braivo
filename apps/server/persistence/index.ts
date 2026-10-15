@@ -7,11 +7,12 @@
 
 export type { Citation, CitedPassage } from "./citation.ts";
 export { createCitations, readObjectiveCitations, readSourceTexts } from "./citation.ts";
-export type { Course } from "./course.ts";
+export type { Course, ManagedCourse } from "./course.ts";
 export {
   createCourse,
   readCourseObjectives,
   readCourseOrganization,
+  publishCourses,
   readCourses,
   updateCourseUrlLabel,
   readLearnerCourses,

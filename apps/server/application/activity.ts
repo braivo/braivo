@@ -79,7 +79,8 @@ export async function chooseNextActivity(input: {
     learnerId,
     host,
     now,
-    authorize: () => true,
+    // The learner themselves: only a published course.
+    authorize: ({ published }) => published,
   });
   if (learner === undefined) return { kind: "unavailable" };
 
@@ -212,8 +213,10 @@ export async function submitAttempt(input: {
   const { database, learnerId, courseId, host, attemptId, taskId, now } = input;
   if (attemptId === "" || attemptId.length > MAX_ATTEMPT_ID_LENGTH) return { kind: "invalid" };
 
-  const organizationId = await readCourseOrganization(database, courseId);
-  if (organizationId === undefined) return { kind: "unavailable" };
+  const course = await readCourseOrganization(database, courseId);
+  // Unpublished, as missing: learners reach only what is published (ADR 0039).
+  if (course === undefined || !course.published) return { kind: "unavailable" };
+  const { organizationId } = course;
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
   if (!(await isMember(database, { organizationId, userId: learnerId }))) {
     return { kind: "unavailable" };

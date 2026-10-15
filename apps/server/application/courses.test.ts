@@ -29,7 +29,7 @@ let bravo!: string;
 let theirs!: string;
 
 function define(objectiveIds: readonly string[], actingAs = author, title = "Spanish") {
-  return defineCourse({ database, organizationId, actingAs, title, objectiveIds });
+  return defineCourse({ database, organizationId, actingAs, title, objectiveIds, published: true });
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -75,7 +75,13 @@ describe.skipIf(!connectionString)("defining courses", () => {
 
     expect(await readCourseObjectives(database, courseId)).toEqual([bravo!, alpha!]);
     expect(await listCourses({ database, organizationId, actingAs: author })).toEqual([
-      { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+      {
+        id: courseId,
+        number: expect.any(Number),
+        title: "Spanish",
+        urlLabel: "spanish",
+        published: true,
+      },
     ]);
   });
 
@@ -121,6 +127,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       number: expect.any(Number),
       title: "Trimmed",
       urlLabel: "trimmed",
+      published: true,
     });
   });
 

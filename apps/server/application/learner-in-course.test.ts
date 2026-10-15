@@ -74,6 +74,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
       "Fractions",
     ])) as [string, string];
     course = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Both",
       objectiveIds: [fractions, pastTense],
@@ -85,6 +86,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
 
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignCourse = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [theirs!],
@@ -155,7 +157,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
       learnerId: learner,
       host: { hostname: "localhost", installation: true },
       now,
-      authorize: async (id) => (asked.push(id), false),
+      authorize: async ({ organizationId }) => (asked.push(organizationId), false),
     });
 
     expect(asked).toEqual([otherOrganizationId]);
@@ -169,7 +171,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
         learnerId: learner,
         host: { hostname: otherHostname, installation: false },
         now,
-        authorize: (id) => (asked.push(id), true),
+        authorize: ({ organizationId }) => (asked.push(organizationId), true),
       });
 
     expect(await load(course)).toBeUndefined();
@@ -188,7 +190,7 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
       learnerId: learner,
       host: { hostname: "learner-in-course-test-unknown.example.com", installation: false },
       now,
-      authorize: (id) => (asked.push(id), true),
+      authorize: ({ organizationId }) => (asked.push(organizationId), true),
     });
 
     expect(loaded).toBeUndefined();

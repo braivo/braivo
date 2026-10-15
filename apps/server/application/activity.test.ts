@@ -154,11 +154,13 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       "Fractions",
     ])) as [string, string, string];
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Loop",
       objectiveIds: [pastTense, untaught, fractions],
     });
     untaughtCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Nothing to practise",
       objectiveIds: [untaught],
@@ -179,6 +181,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
     [letters] = (await createObjectives(database, organizationId, ["Letters"])) as [string];
     shuffleCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Shuffle",
       objectiveIds: [letters],
@@ -198,11 +201,13 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       "fünf",
     ]);
     wordsCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Words",
       objectiveIds: words,
     });
     twoWordsCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Two words",
       objectiveIds: words.slice(0, 2),
@@ -224,6 +229,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       createdAt: start,
     });
     foreignCourseId = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [theirs!],
@@ -350,6 +356,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   test("shows the passages a grounded task was written from, once it is graded", async () => {
     const [greetings] = await createObjectives(database, organizationId, ["Greetings"]);
     const greetingsCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Greetings",
       objectiveIds: [greetings!],
@@ -664,6 +671,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   test("grades a typed answer, records the text as sent, and matches a resend on it", async () => {
     const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
     const wordCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Typed",
       objectiveIds: [word],

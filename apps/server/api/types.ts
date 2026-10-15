@@ -86,11 +86,18 @@ export type Grade = content.Grade & { passages?: Passage[] };
 export type Passage = application.Passage;
 
 /**
- * A course as its organization's content owners see it listed; `number` names
- * it in learners' links within its organization, and `urlLabel` follows it
- * there, to read (`courseRef`).
+ * A course as its learners see it listed; `number` names it in learners' links
+ * within its organization, and `urlLabel` follows it there, to read
+ * (`courseRef`).
  */
 export type Course = { id: string; number: number; title: string; urlLabel: string };
+
+/**
+ * A course as its organization's administrators see it: `published` once a
+ * person published it in the console, before which no learner reaches it
+ * (ADR 0039).
+ */
+export type ManagedCourse = Course & { published: boolean };
 
 /** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };
@@ -202,7 +209,7 @@ export type Draft = application.Draft;
  * A course as authored: its objectives in the order learners meet them, each
  * with the passages that teach it and its tasks, answers included.
  */
-export type AuthoredCourse = Course & {
+export type AuthoredCourse = ManagedCourse & {
   objectives: {
     id: string;
     title: string;

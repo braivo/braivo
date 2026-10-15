@@ -62,6 +62,7 @@ const routes = [
   "POST /api/courses/:courseId/attempts",
   "GET  /api/courses/:courseId/learners/:learnerId/progress",
   "GET  /api/courses/:courseId/progress",
+  "POST /api/organizations/:organizationId/publish",
   "GET  /api/organizations",
   "GET  /api/organization-setup",
   "POST /api/organization-setup",
@@ -295,6 +296,7 @@ GET  /api/courses/:courseId/activity                                            
 POST /api/courses/:courseId/attempts                                            401     400     400     401     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     404     404     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/progress                                            401     404     404     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/publish                                 401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations                                                         401     200     200     401       ·       ·       ·       ·       ·
 GET  /api/organization-setup                                                    401     200     200     401       ·       ·       ·       ·       ·
 POST /api/organization-setup                                                    401     404     404     401     403     403     403     403     1MB
@@ -358,6 +360,7 @@ GET  /api/courses/:courseId/activity                                            
 POST /api/courses/:courseId/attempts                                            401     401     401     400     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     401     401     404       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/progress                                            401     401     401     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/publish                                 404     404     401     404     404     404     404     404     404
 GET  /api/organizations                                                         404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organization-setup                                                    404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organization-setup                                                    404     404     401     404     404     404     404     404     404

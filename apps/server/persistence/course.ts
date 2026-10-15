@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { course, courseObjective, member } from "@braivo/db/schema";
-import { and, asc, eq, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 
 import { urlLabel } from "../content/index.ts";
 import { ConflictingKey } from "./key.ts";
@@ -13,6 +13,9 @@ import { ConflictingKey } from "./key.ts";
  * `urlLabel` follows it there, to read (`courseRef`).
  */
 export type Course = { id: string; number: number; title: string; urlLabel: string };
+
+/** A course as its organization's administrators see it: whether learners reach it yet. */
+export type ManagedCourse = Course & { published: boolean };
 
 /** What a course is listed from. */
 export const COURSE_COLUMNS = {
@@ -39,11 +42,18 @@ export function listedCourse(row: {
  * One transaction, because a course whose membership failed to insert is not a
  * shorter course — it is an empty one that selection would silently treat as
  * having nothing to teach. Two at once drawing the same number: the second
- * starts over, drawing another.
+ * starts over, drawing another. `published` only for a new course: one found
+ * under its key keeps its state.
  */
 export async function createCourse(
   database: Database,
-  input: { organizationId: string; title: string; objectiveIds: readonly string[]; key?: string },
+  input: {
+    organizationId: string;
+    title: string;
+    objectiveIds: readonly string[];
+    key?: string;
+    published: boolean;
+  },
 ): Promise<string> {
   for (let attempt = 1; ; attempt++) {
     try {
@@ -74,7 +84,7 @@ function freeNumber(organizationId: string): SQL<number> {
 
 async function insertCourse(
   database: Database,
-  input: { organizationId: string; title: string; objectiveIds: readonly string[]; key?: string },
+  input: Parameters<typeof createCourse>[1],
 ): Promise<string> {
   const id = crypto.randomUUID();
 
@@ -88,6 +98,7 @@ async function insertCourse(
         title: input.title,
         key: input.key,
         number: freeNumber(input.organizationId),
+        publishedAt: input.published ? new Date() : null,
       })
       .onConflictDoNothing({ target: [course.organizationId, course.key] })
       .returning({ id: course.id });
@@ -135,21 +146,22 @@ async function insertCourse(
 }
 
 /**
- * The organization a course belongs to, or `undefined` when there is no such
- * course. A workflow needs it before anything else of the course's, because
- * entitlement is decided against the organization rather than the course.
+ * The organization a course belongs to and whether it is published, or
+ * `undefined` when there is no such course. A workflow needs it before anything
+ * else of the course's, because entitlement is decided against the
+ * organization rather than the course, and learners reach only what is published.
  */
 export async function readCourseOrganization(
   database: Database,
   courseId: string,
-): Promise<string | undefined> {
+): Promise<{ organizationId: string; published: boolean } | undefined> {
   const [row] = await database
-    .select({ organizationId: course.organizationId })
+    .select({ organizationId: course.organizationId, publishedAt: course.publishedAt })
     .from(course)
     .where(eq(course.id, courseId))
     .limit(1);
 
-  return row?.organizationId;
+  return row && { organizationId: row.organizationId, published: row.publishedAt !== null };
 }
 
 /**
@@ -158,13 +170,49 @@ export async function readCourseOrganization(
  * A listing order, like the one for objectives: what a course orders is its own
  * objectives, and nothing orders the courses themselves.
  */
-export async function readCourses(database: Database, organizationId: string): Promise<Course[]> {
+export async function readCourses(
+  database: Database,
+  organizationId: string,
+): Promise<ManagedCourse[]> {
   const rows = await database
-    .select(COURSE_COLUMNS)
+    .select({ ...COURSE_COLUMNS, publishedAt: course.publishedAt })
     .from(course)
     .where(eq(course.organizationId, organizationId))
     .orderBy(asc(course.title), asc(course.id));
-  return rows.map(listedCourse);
+  return rows.map((row) => ({ ...listedCourse(row), published: row.publishedAt !== null }));
+}
+
+/**
+ * Publishes the organization's courses `courseIds`, all or none: `false`, and
+ * nothing written, when it has not every one. One published already keeps
+ * when it was, so a retry changes nothing.
+ */
+export async function publishCourses(
+  database: Database,
+  input: { organizationId: string; courseIds: readonly string[]; now: Date },
+): Promise<boolean> {
+  const { organizationId, courseIds, now } = input;
+  return database.transaction(async (transaction) => {
+    const found = await transaction
+      .select({ id: course.id })
+      .from(course)
+      .where(and(eq(course.organizationId, organizationId), inArray(course.id, [...courseIds])))
+      // In one order, so overlapping batches wait for each other, not deadlock.
+      .orderBy(course.id)
+      .for("update");
+    if (found.length !== new Set(courseIds).size) return false;
+    await transaction
+      .update(course)
+      .set({ publishedAt: now })
+      .where(
+        and(
+          eq(course.organizationId, organizationId),
+          inArray(course.id, [...courseIds]),
+          isNull(course.publishedAt),
+        ),
+      );
+    return true;
+  });
 }
 
 /**
@@ -196,7 +244,7 @@ export async function updateCourseUrlLabel(
 }
 
 /**
- * Every course of every organization this user belongs to, or of just
+ * Every published course of every organization this user belongs to, or of just
  * `organizationId` when given, and of those just the one numbered `number`, by
  * title. A user is a member of an organization at most once, so the join cannot
  * repeat a course; the index enforcing it is hand-written in migrations, not in
@@ -214,6 +262,7 @@ export async function readLearnerCourses(
     .where(
       and(
         eq(member.userId, learnerId),
+        isNotNull(course.publishedAt),
         only.organizationId === undefined
           ? undefined
           : eq(course.organizationId, only.organizationId),

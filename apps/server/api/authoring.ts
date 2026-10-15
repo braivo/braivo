@@ -22,6 +22,7 @@ import {
   listObjectiveTasks,
   listOrganizations,
   maySetUpOrganization,
+  publish,
   NameRefused,
   ProvisioningFailed,
   readAuthoredCourse,
@@ -36,7 +37,7 @@ import {
 } from "../application/index.ts";
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
-import { type Guards, jsonBody } from "./guards.ts";
+import { type Guards, jsonBody, sentByTool } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 import type { OrganizationSetup } from "./types.ts";
 
@@ -123,6 +124,16 @@ function parseSetup(body: unknown): { name: string; slug: string } | undefined {
   if (typeof name !== "string" || typeof slug !== "string") return undefined;
 
   return { name, slug };
+}
+
+/** Reads `courseIds` out of a request body: at least one, each nonempty. */
+function parseCourseIds(body: unknown): string[] | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const ids = (body as { courseIds?: unknown }).courseIds;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_ITEMS_PER_REQUEST) {
+    return undefined;
+  }
+  return ids.every((id) => typeof id === "string" && id !== "") ? ids : undefined;
 }
 
 /** Reads a course out of a request body: only the types, as for objectives. */
@@ -401,9 +412,45 @@ export function authoringRoutes(
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
           ...course,
+          // A tool proposes; a person in the console publishes (ADR 0039).
+          published: !sentByTool(context),
         });
 
         return context.json({ courseId }, 201);
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Publishes what a person reviewed in the console, all or none (ADR 0039).
+   * Only from a browser: a tool's token is refused, so no tool makes its own
+   * work reach learners.
+   */
+  routes.post(
+    "/api/organizations/:organizationId/publish",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (sentByTool(context)) {
+        return context.json(
+          { error: "Publish in Braivo's console, where a person reviews it." },
+          403,
+        );
+      }
+      const courseIds = parseCourseIds(await jsonBody(context));
+      if (courseIds === undefined) return context.body(null, 400);
+
+      try {
+        await publish({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseIds,
+          now: new Date(),
+        });
+        return context.body(null, 204);
       } catch (error) {
         return organizationRefusal(context, error);
       }

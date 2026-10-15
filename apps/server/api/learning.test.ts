@@ -131,11 +131,13 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Spanish",
       objectiveIds: [pastTense],
     });
     emptyCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Not started",
       objectiveIds: [],
@@ -143,6 +145,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
 
     const theirs = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignCourseId = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Somebody else's",
       objectiveIds: [theirs[0]!],
@@ -507,6 +510,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     };
     // Exact at the top, so no field joins unnoticed; other tests add members.
     expect(await response.json()).toEqual({
+      published: true,
       modelVersion: activeModel.version,
       learners: expect.arrayContaining([
         {
@@ -544,6 +548,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       at,
     });
     const secondCourseId = await createCourse(database, {
+      published: true,
       organizationId: secondOrganizationId,
       title: "Portuguese",
       objectiveIds: [],
@@ -691,6 +696,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
   test("answers the decision without a task when its objective has none", async () => {
     const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
     const untaughtCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Untaught",
       objectiveIds: [untaught!],
@@ -745,6 +751,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
   test("grades a typed answer, and answers a resend of it alike", async () => {
     const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
     const wordCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "German",
       objectiveIds: [word],

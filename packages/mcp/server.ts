@@ -37,13 +37,14 @@ To build a course:
 3. cite_sources: for each objective, the exact words of the source that teach it.
 4. author_tasks: questions that practise each objective, each citing the words
    it was written from.
-5. create_course: the objectives in the order learners should meet them.
+5. create_course: the objectives in the order learners should meet them. It
+   waits for its owner to publish it in Braivo's console; no tool can.
 
 To review a course, read_course shows it whole, and list_tasks one objective's
 tasks, with their answers and quotes. Tasks are never edited: author_tasks with
 replaces, one task a call, writes a wrong one's correction and retires it, and
 retire_tasks withdraws one. Either changes every course the objective is in,
-and neither regrades what learners already answered.
+reaching learners at once in a published one, and neither regrades what learners already answered.
 
 For progress, course_progress gives a course's overview and learner_progress
 one learner's report; list_groups and course_progress give the userId it takes.
@@ -374,7 +375,7 @@ export function createMcpServer(client: BraivoClient, version: string): McpServe
     {
       title: "Author tasks",
       description:
-        "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Returns their IDs in order; a task offered already returns its ID, so retrying is safe, and a retired one is added anew. Tasks are never edited: one task sent alone with replaces corrects an existing one. A task serves every course its objective is in; a correction regrades nothing already answered.",
+        "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Returns their IDs in order; a task offered already returns its ID, so retrying is safe, and a retired one is added anew. Tasks are never edited: one task sent alone with replaces corrects an existing one. A task serves every course its objective is in, reaching learners at once in a published one; a correction regrades nothing already answered.",
       inputSchema: {
         organizationId,
         tasks: z
@@ -451,7 +452,7 @@ export function createMcpServer(client: BraivoClient, version: string): McpServe
     {
       title: "Retire tasks",
       description:
-        "Withdraws tasks from practice: learners are never asked them again; the evidence they already graded stays as it was. A task serves every course its objective is in. Returns the tasks' IDs, each once, those retired earlier included. To correct a task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
+        "Withdraws tasks from practice: learners are never asked them again; the evidence they already graded stays as it was. A task serves every course its objective is in, so retiring it changes published ones at once. Returns the tasks' IDs, each once, those retired earlier included. To correct a task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
       inputSchema: {
         organizationId,
         taskIds: z.array(z.string().min(1)).min(1).max(1000),
@@ -475,7 +476,7 @@ export function createMcpServer(client: BraivoClient, version: string): McpServe
     "list_courses",
     {
       title: "List courses",
-      description: "An organization's courses, by title.",
+      description: "An organization's courses, by title, each saying whether it is published.",
       inputSchema: { organizationId },
       annotations: READ_ONLY,
     },
@@ -499,7 +500,7 @@ export function createMcpServer(client: BraivoClient, version: string): McpServe
     {
       title: "Create a course",
       description:
-        "Creates a course over existing objectives, in the order learners meet them. Learners are then taught and reviewed adaptively. Give it a key; creating it again under that key returns it.",
+        "Creates a course over existing objectives, in the order learners meet them. Learners reach it once its owner publishes it in Braivo's console, which you cannot do; then they are taught and reviewed adaptively. Give it a key; creating it again under that key returns it, published or not.",
       inputSchema: {
         organizationId,
         title,

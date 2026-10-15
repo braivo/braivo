@@ -62,6 +62,7 @@ const members = [
 
 /** Braivo's overview of `course-1`: every member counted, by name, and every objective. */
 const courseProgress = async () => ({
+  published: true,
   modelVersion: "v1",
   learners: [
     { ...members[1]!, standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 } },
@@ -188,6 +189,7 @@ const beginners = {
   number: 4732,
   title: "Beginners",
   urlLabel: "beginners",
+  published: true,
   objectives: [
     {
       id: "greetings",
@@ -274,7 +276,7 @@ describe("the console", () => {
     const organizations = [school, annex];
     const braivo = { listCourses: async () => [] };
     renderAt("/annex", { organizations, braivo });
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     cleanup();
 
     const { router } = renderAt("/", { organizations, braivo });
@@ -305,7 +307,7 @@ describe("the console", () => {
     expect(router.history.location.pathname).toBe("/login");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     expect(auth.updateUser).toHaveBeenCalledWith(expect.objectContaining({ name: "Olive" }));
     expect(router.history.location.pathname).toBe("/example");
   });
@@ -321,7 +323,7 @@ describe("the console", () => {
     expect(router.state.location.search).toEqual({ redirect: "/example" });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     expect(auth.emailOtp.sendVerificationOtp).not.toHaveBeenCalled();
   });
 
@@ -2347,7 +2349,7 @@ describe("the console", () => {
     const { router } = renderAt("/login?redirect=%2Fexample", {
       braivo: { listCourses: async () => [], signInSettings: () => new Promise(() => {}) },
     });
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     expect(router.history.location.pathname).toBe("/example");
     expect(screen.queryByLabelText("Email address")).toBeNull();
   });
@@ -2362,7 +2364,7 @@ describe("the console", () => {
     expect(router.history.location.pathname).toBe("/login");
     await signInWithCode();
 
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledWith(
       expect.objectContaining({
         email: "owner@example.com",
@@ -2407,7 +2409,7 @@ describe("the console", () => {
   test("still leads an owner with courses to where a new one starts, its material", async () => {
     renderAt("/example", {
       braivo: {
-        listCourses: async () => [{ id: "c1", title: "Spanish" }],
+        listCourses: async () => [{ id: "c1", title: "Spanish", published: true }],
         listSources: async () => [],
       },
     });
@@ -2420,6 +2422,27 @@ describe("the console", () => {
     expect(screen.queryByRole("link", { name: "Open Sources" })).toBeNull();
     fireEvent.click(screen.getByRole("link", { name: "Add material" }));
     expect((await screen.findByRole("form", { name: "Add material" })).id).toBe("add-material");
+  });
+
+  test("marks a course waiting for review in the list", async () => {
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [
+          { id: "c1", number: 1001, title: "Spanish", urlLabel: "spanish", published: true },
+          { id: "c2", number: 1002, title: "French", urlLabel: "french", published: false },
+        ],
+      },
+    });
+
+    const french = (await screen.findByRole("link", { name: "French (needs review)" })).closest(
+      "li",
+    )!;
+    expect(french.textContent).toContain("Needs review");
+    // Heard once, in the link's name, not again from the badge.
+    expect(within(french).getByText("Needs review").getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByRole("link", { name: "Spanish" }).closest("li")!.textContent).not.toContain(
+      "Needs review",
+    );
   });
 
   test("says where an organization's learners practise, or that they have nowhere yet", async () => {
@@ -3757,7 +3780,15 @@ describe("the console", () => {
       ...authoring(),
       listCourses: async () =>
         created
-          ? [{ id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" }]
+          ? [
+              {
+                id: "course-1",
+                number: 4732,
+                title: "Beginners",
+                urlLabel: "beginners",
+                published: true,
+              },
+            ]
           : [],
     };
     braivo.acceptDraft.mockImplementation(async () => {
@@ -3929,7 +3960,7 @@ describe("the console", () => {
       braivo: { organizationSetup: () => new Promise(() => {}), listCourses: async () => [] },
     });
 
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     // Switching, meanwhile, offered as for anyone managing several.
     fireEvent.keyDown(screen.getByRole("button", { name: /^Organization: / }), {
       key: "Enter",
@@ -3942,7 +3973,7 @@ describe("the console", () => {
     renderAt("/example", {
       braivo: { organizationSetup: () => new Promise(() => {}), listCourses: async () => [] },
     });
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     fireEvent.keyDown(screen.getByRole("button", { name: "Organization: Example School" }), {
       key: "Enter",
     });
@@ -3963,7 +3994,7 @@ describe("the console", () => {
     const { router } = renderAt("/example", {
       braivo: { organizationSetup, listCourses: async () => [], listSources: async () => [] },
     });
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     const setUp = { name: "Set up an organization" };
     const openSwitcher = async () => {
       fireEvent.keyDown(screen.getByRole("button", { name: /^Organization: / }), { key: "Enter" });
@@ -4366,6 +4397,133 @@ describe("the console", () => {
     expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
   });
 
+  test("holds a tool's course for review until published, then says it was", async () => {
+    let published = false;
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {
+      published = true;
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published,
+        }),
+        publish,
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Review what it teaches below: learners can't see this course until you publish it.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Open to every learner/)).toBeNull();
+    // Nor a label for a link that reaches no learner yet.
+    expect(screen.queryByRole("textbox", { name: "Label in its link" })).toBeNull();
+    // The first on the page, under its title; the label's editor has its own.
+    const status = screen.getAllByRole("status")[0]!;
+    expect(status.textContent).toBe("");
+    const button = screen.getByRole("button", { name: "Publish" });
+    button.focus();
+    fireEvent.click(button);
+
+    expect(await screen.findByText(/Open to every learner in Example School at/)).toBeTruthy();
+    expect(publish).toHaveBeenCalledWith(
+      { organizationId: "org-1", courseIds: ["course-1"] },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
+    // The button gone, the focus goes to the course's title, and the change is said.
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1, name: "Beginners" }),
+    );
+    expect(status.textContent).toBe("Course published.");
+    expect(screen.getByRole("textbox", { name: "Label in its link" })).toBeTruthy();
+  });
+
+  test("lets Publish be tried again once Braivo does not answer in time", async () => {
+    const publish = vi.fn<BraivoClient["publish"]>(async (_input, options) => stall(options));
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published: false,
+        }),
+        publish,
+      },
+    });
+    const button = await screen.findByRole("button", { name: "Publish" });
+
+    vi.useFakeTimers();
+    fireEvent.click(button);
+    expect(button.textContent).toBe("Publishing…");
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not publish. Try again.");
+    expect(button.getAttribute("aria-disabled")).not.toBe("true");
+    // Trying again, the alert goes until this attempt is known.
+    fireEvent.click(button);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(publish).toHaveBeenCalledTimes(2);
+  });
+
+  test("carries nothing of publishing one course over to another's page", async () => {
+    const publishing = Promise.withResolvers<void>();
+    // Read once per course, then again when the first's publication reloads the page.
+    let reads = 0;
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async ({ courseId }: { courseId: string }) => {
+          reads += 1;
+          const title = courseId === "course-1" ? "Beginners" : "Advanced";
+          return { ...beginners, id: courseId, title, published: false };
+        },
+        publish: vi.fn(() => publishing.promise),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Publish" }));
+
+    await router.navigate({ href: "/example/courses/course-2" });
+    const heading = await screen.findByRole("heading", { level: 1, name: "Advanced" });
+    const button = screen.getByRole("button", { name: "Publish" });
+    expect(button.getAttribute("aria-disabled")).not.toBe("true");
+    // The first course's publication, done, neither speaks nor moves focus here.
+    await act(async () => publishing.resolve());
+    await vi.waitFor(() => expect(reads).toBe(3));
+    expect(screen.getAllByRole("status")[0]!.textContent).toBe("");
+    expect(document.activeElement).not.toBe(heading);
+  });
+
+  test("says publishing failed, keeping the button to try again, or reloads what changed", async () => {
+    const publish = vi
+      .fn<BraivoClient["publish"]>()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockRejectedValueOnce(new BraivoError(409, "Braivo answered 409."));
+    const reading = vi.fn(async (input: { courseId: string }) => ({
+      ...(await readCourse(input)),
+      published: false,
+    }));
+    renderAt("/example/courses/course-1", { braivo: { readCourse: reading, publish } });
+    const button = await screen.findByRole("button", { name: "Publish" });
+    button.focus();
+
+    fireEvent.click(button);
+    const first = await screen.findByRole("alert");
+    expect(first.textContent).toBe("Could not publish. Try again.");
+    expect(document.activeElement).toBe(button);
+    // Another failure, another alert: announced again.
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+
+    // Something on the page no longer there: it is read again.
+    const reads = reading.mock.calls.length;
+    fireEvent.click(button);
+    await vi.waitFor(() => expect(reading.mock.calls.length).toBe(reads + 1));
+  });
+
   test("changes the label after a course's number, showing it as it will be written", async () => {
     let stored = "beginners";
     const setCourseUrlLabel = vi.fn<BraivoClient["setCourseUrlLabel"]>(async (input) => {
@@ -4485,7 +4643,7 @@ describe("the console", () => {
   test("tells an owner an organization has no courses yet, under the page's heading", async () => {
     renderAt("/example", { braivo: { listCourses: async () => [] } });
 
-    expect(await screen.findByText("No courses published yet")).toBeTruthy();
+    expect(await screen.findByText("No courses yet")).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "Courses" })).toBeTruthy();
   });
 
@@ -5437,6 +5595,32 @@ describe("the console", () => {
     );
   });
 
+  test("sends no one to an unpublished course's link, nor says its members study it", async () => {
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          {
+            id: "course-1",
+            number: 4732,
+            title: "Beginners",
+            urlLabel: "beginners",
+            published: false,
+          },
+        ],
+        courseProgress: async () => ({ ...(await courseProgress()), published: false }),
+      },
+    });
+
+    expect(
+      await screen.findByText("Learners can't see this course until it is published."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/every member can study this course once it is published\./),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Learners practise it at/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
+  });
+
   test("counts each objective's learners by standing, in content order", async () => {
     renderAt("/example/courses/course-1/progress", {
       braivo: {
@@ -5648,6 +5832,7 @@ describe("groups", () => {
     test("reports a course across every group a teacher teaches it to, then one learner, and back as left", async () => {
       const reads = administratorReads();
       const courseProgress = vi.fn(async () => ({
+        published: true,
         modelVersion: "v1",
         learners: [
           {
@@ -5733,6 +5918,7 @@ describe("groups", () => {
           listOrganizations,
           listGroups: async () => [sevenB],
           courseProgress: async () => ({
+            published: true,
             modelVersion: "v1",
             learners: [
               {
@@ -5781,6 +5967,7 @@ describe("groups", () => {
           listGroups: async () => [sevenB],
           learnerProgress: async () => report,
           courseProgress: async () => ({
+            published: true,
             modelVersion: "v1",
             learners: [
               {
@@ -5815,6 +6002,7 @@ describe("groups", () => {
     test("shows the query navigated to, in this course or another, over one typed before", async () => {
       const advanced = { id: "course-2", number: 5810, title: "Advanced", urlLabel: "advanced" };
       const progress = async () => ({
+        published: true,
         modelVersion: "v1",
         learners: [
           {
@@ -6004,6 +6192,7 @@ describe("groups", () => {
         braivo: {
           listGroups: async () => [sevenB],
           courseProgress: async () => ({
+            published: true,
             modelVersion: "v1",
             learners: [
               { userId: "u2", name: "Lee Learner", standings: standings(2, 0) },
@@ -6029,6 +6218,7 @@ describe("groups", () => {
 
     test("reads nothing about a course or learner a teacher's groups do not hold", async () => {
       const courseProgress = vi.fn(async () => ({
+        published: true,
         modelVersion: "v1",
         learners: [],
         objectives: [],

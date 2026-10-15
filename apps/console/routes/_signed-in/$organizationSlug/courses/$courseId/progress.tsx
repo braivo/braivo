@@ -82,19 +82,31 @@ function CourseProgress() {
             <Plural value={count} one="# learner" other="# learners" /> you teach in this course,
             across your groups: {groupNames}.
           </Trans>
-        ) : (
+        ) : progress.published ? (
           <Trans>
             <Plural value={count} one="# member" other="# members" /> of {organization.name}, staff
             included: every member can study this course.
           </Trans>
+        ) : (
+          <Trans>
+            <Plural value={count} one="# member" other="# members" /> of {organization.name}, staff
+            included: every member can study this course once it is published.
+          </Trans>
         )}
       </MutedText>
-      {/* What a teacher sends learners to practise it, once there is a site. */}
-      <LearnersSite
-        learnDomain={organization.learnDomain}
-        path={`/c/${courseRef(course)}`}
-        at={t`Learners practise it at`}
-      />
+      {/* What a teacher sends learners to practise it, once there is a site and
+          the course is published (ADR 0039). */}
+      {progress.published ? (
+        <LearnersSite
+          learnDomain={organization.learnDomain}
+          path={`/c/${courseRef(course)}`}
+          at={t`Learners practise it at`}
+        />
+      ) : (
+        <MutedText className="mb-4 block wrap-break-word">
+          <Trans>Learners can't see this course until it is published.</Trans>
+        </MutedText>
+      )}
       {/* Another course's list starts from its own URL, not this one's draft. */}
       <Learners key={courseId} learners={progress.learners} />
       <ByObjective objectives={progress.objectives} learners={count} />
