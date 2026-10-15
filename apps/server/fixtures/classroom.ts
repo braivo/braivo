@@ -205,6 +205,8 @@ async function seedClassroom(input: {
     key: "everyday-english",
     title: "Everyday English",
     objectiveIds,
+    // As the console's review publishes it: the demo's learner practises it.
+    published: true,
   });
   const groupClassA = await defineGroup({
     ...authoring,

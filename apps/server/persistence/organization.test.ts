@@ -45,7 +45,12 @@ describe.skipIf(!connectionString)("what an organization still owns", () => {
     // A course restricts the organization delete on its own, so checking only
     // objectives would report nothing to lose and leave the delete to fail on a
     // constraint — the outcome the check exists to replace.
-    await createCourse(database, { organizationId, title: "Empty", objectiveIds: [] });
+    await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Empty",
+      objectiveIds: [],
+    });
 
     expect(await owns()).toBe(true);
   });
@@ -76,6 +81,7 @@ describe.skipIf(!connectionString)("what an organization still owns", () => {
   test("does not count another organization's content", async () => {
     await createObjectives(database, otherOrganizationId, ["Theirs"]);
     await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [],

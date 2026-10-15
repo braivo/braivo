@@ -66,16 +66,19 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     fractions = objectives[1]!;
 
     bothCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Both",
       objectiveIds: [pastTense, fractions],
     });
     soloCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Solo",
       objectiveIds: [pastTense],
     });
     emptyCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Empty",
       objectiveIds: [],

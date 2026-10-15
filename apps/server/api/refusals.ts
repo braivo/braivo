@@ -24,6 +24,7 @@ import {
   ModelUnavailable,
   NotPermitted,
   StaleCorrection,
+  StalePublication,
 } from "../application/index.ts";
 
 /**
@@ -56,6 +57,7 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   if (
     error instanceof ConflictingKey ||
     error instanceof StaleCorrection ||
+    error instanceof StalePublication ||
     error instanceof ConflictingGroupRole
   ) {
     return context.json({ error: error.message }, 409);

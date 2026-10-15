@@ -130,6 +130,7 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "Numbers",
     ])) as [string, string];
     progressCourseId = await createCourse(database, {
+      published: true,
       organizationId: progressOrganizationId,
       title: "Beginners",
       objectiveIds: [greetings, numbers],

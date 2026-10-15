@@ -14,6 +14,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
   createCourse,
+  publishCourses,
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
@@ -61,14 +62,19 @@ describe.skipIf(!connectionString)("courses", () => {
     const [objectiveId] = await createObjectives(database, organizationId, ["Past tense"]);
     const [theirObjective] = await createObjectives(database, otherOrganizationId, ["Past tense"]);
     const addCourse = (owner: string, title: string, objectiveId: string) =>
-      createCourse(database, { organizationId: owner, title, objectiveIds: [objectiveId] });
+      createCourse(database, {
+        published: true,
+        organizationId: owner,
+        title,
+        objectiveIds: [objectiveId],
+      });
     const zulu = await addCourse(organizationId, "Zulu", objectiveId!);
     const alpha = await addCourse(organizationId, "Alpha", objectiveId!);
     await addCourse(otherOrganizationId, "Mike", theirObjective!);
 
     expect(await readCourses(database, organizationId)).toEqual([
-      { id: alpha, number: expect.any(Number), title: "Alpha", urlLabel: "alpha" },
-      { id: zulu, number: expect.any(Number), title: "Zulu", urlLabel: "zulu" },
+      { id: alpha, number: expect.any(Number), title: "Alpha", urlLabel: "alpha", published: true },
+      { id: zulu, number: expect.any(Number), title: "Zulu", urlLabel: "zulu", published: true },
     ]);
   });
 
@@ -85,7 +91,12 @@ describe.skipIf(!connectionString)("courses", () => {
     test("are four digits, each course's its own within the organization", async () => {
       const created = await Promise.all(
         Array.from({ length: 20 }, (_, index) =>
-          createCourse(database, { organizationId, title: `Course ${index}`, objectiveIds: [] }),
+          createCourse(database, {
+            published: true,
+            organizationId,
+            title: `Course ${index}`,
+            objectiveIds: [],
+          }),
         ),
       );
       const numbers = (await readCourses(database, organizationId)).map(({ number }) => number);
@@ -99,11 +110,13 @@ describe.skipIf(!connectionString)("courses", () => {
       await occupy(1000, 9998);
 
       const last = await createCourse(database, {
+        published: true,
         organizationId,
         title: "Last",
         objectiveIds: [],
       });
       const next = await createCourse(database, {
+        published: true,
         organizationId,
         title: "Next",
         objectiveIds: [],
@@ -122,7 +135,12 @@ describe.skipIf(!connectionString)("courses", () => {
           insert into ${course} (id, organization_id, title, number)
           values (gen_random_uuid()::text, ${organizationId}, 'Other', 9999)`);
         // Draws 9999 too, unseen until this commits, then waits on the index.
-        created = createCourse(database, { organizationId, title: "Mine", objectiveIds: [] });
+        created = createCourse(database, {
+          published: true,
+          organizationId,
+          title: "Mine",
+          objectiveIds: [],
+        });
         await waitForLock('insert into "course"%');
       });
 
@@ -133,6 +151,7 @@ describe.skipIf(!connectionString)("courses", () => {
       await occupy(1000, 99999);
 
       const courseId = await createCourse(database, {
+        published: true,
         organizationId,
         title: "Late",
         objectiveIds: [],
@@ -143,7 +162,13 @@ describe.skipIf(!connectionString)("courses", () => {
 
     test("stay as they were when a course is added again under its key", async () => {
       const add = () =>
-        createCourse(database, { organizationId, title: "Keyed", objectiveIds: [], key: "keyed" });
+        createCourse(database, {
+          published: true,
+          organizationId,
+          title: "Keyed",
+          objectiveIds: [],
+          key: "keyed",
+        });
       const courseId = await add();
       const number = await numberOf(courseId);
 
@@ -154,19 +179,36 @@ describe.skipIf(!connectionString)("courses", () => {
 
   test("adds a course once under a key, however many add it at once", async () => {
     const add = () =>
-      createCourse(database, { organizationId, title: "Keyed", objectiveIds: [], key: "at-once" });
+      createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Keyed",
+        objectiveIds: [],
+        key: "at-once",
+      });
 
     const ids = await Promise.all([add(), add(), add()]);
 
     expect(new Set(ids).size).toBe(1);
     expect(await readCourses(database, organizationId)).toEqual([
-      { id: ids[0], number: expect.any(Number), title: "Keyed", urlLabel: "keyed" },
+      {
+        id: ids[0],
+        number: expect.any(Number),
+        title: "Keyed",
+        urlLabel: "keyed",
+        published: true,
+      },
     ]);
   });
 
   describe("url labels", () => {
     const create = () =>
-      createCourse(database, { organizationId, title: "Everyday English", objectiveIds: [] });
+      createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Everyday English",
+        objectiveIds: [],
+      });
     const labelOf = async (courseId: string) =>
       (await readCourses(database, organizationId)).find(({ id }) => id === courseId)?.urlLabel;
     const update = (courseId: string, urlLabel: string, previous: string) =>
@@ -235,6 +277,7 @@ describe.skipIf(!connectionString)("courses", () => {
       "Mike",
     ]);
     const courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Ordered",
       objectiveIds: [mike!, zulu!, alpha!],
@@ -248,11 +291,13 @@ describe.skipIf(!connectionString)("courses", () => {
     // taught in two courses is still one objective and one estimate.
     const [alpha, bravo] = await createObjectives(database, organizationId, ["Alpha", "Bravo"]);
     const first = await createCourse(database, {
+      published: true,
       organizationId,
       title: "First",
       objectiveIds: [alpha!, bravo!],
     });
     const second = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Second",
       objectiveIds: [bravo!, alpha!],
@@ -266,6 +311,7 @@ describe.skipIf(!connectionString)("courses", () => {
     const [alpha] = await createObjectives(database, organizationId, ["Alpha"]);
 
     const error = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Duplicated",
       objectiveIds: [alpha!, alpha!],
@@ -282,6 +328,7 @@ describe.skipIf(!connectionString)("courses", () => {
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
 
     const error = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Borrowed",
       objectiveIds: [theirs!],
@@ -295,6 +342,7 @@ describe.skipIf(!connectionString)("courses", () => {
     // database refusing it.
     const [alpha, bravo] = await createObjectives(database, organizationId, ["Alpha", "Bravo"]);
     const courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Clash",
       objectiveIds: [alpha!],
@@ -313,6 +361,7 @@ describe.skipIf(!connectionString)("courses", () => {
     // organization's, and the course is not.
     const [mine] = await createObjectives(database, organizationId, ["Mine"]);
     const theirs = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [],
@@ -329,6 +378,7 @@ describe.skipIf(!connectionString)("courses", () => {
   test("refuses to delete an objective a course uses, but not the course", async () => {
     const [objectiveId] = await createObjectives(database, organizationId, ["Past tense"]);
     const courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Grammar",
       objectiveIds: [objectiveId!],
@@ -346,7 +396,12 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   test("refuses to delete an organization that still owns a course", async () => {
-    await createCourse(database, { organizationId, title: "Empty", objectiveIds: [] });
+    await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Empty",
+      objectiveIds: [],
+    });
 
     const error = await database
       .delete(organization)
@@ -360,6 +415,7 @@ describe.skipIf(!connectionString)("courses", () => {
     // A course that lost its membership is not a shorter course; selection would
     // read it as a course with nothing left to teach.
     const error = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Doomed",
       objectiveIds: ["no-such-objective"],
@@ -375,6 +431,7 @@ describe.skipIf(!connectionString)("courses", () => {
 
   test("allows a course with no objectives yet", async () => {
     const courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Empty",
       objectiveIds: [],
@@ -389,12 +446,59 @@ describe.skipIf(!connectionString)("courses", () => {
 
   test("reports which organization owns a course", async () => {
     const courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Owned",
       objectiveIds: [],
     });
 
-    expect(await readCourseOrganization(database, courseId)).toBe(organizationId);
+    expect(await readCourseOrganization(database, courseId)).toEqual({
+      organizationId,
+      published: true,
+    });
+  });
+
+  test("publishes an organization's courses all or none, keeping when each first was", async () => {
+    const add = (title: string, published = false) =>
+      createCourse(database, { published, organizationId, title, objectiveIds: [] });
+    const waiting = await add("Waiting");
+    const also = await add("Also waiting");
+    const theirs = await createCourse(database, {
+      published: false,
+      organizationId: otherOrganizationId,
+      title: "Theirs",
+      objectiveIds: [],
+    });
+    const publishedAt = async (courseId: string) =>
+      (
+        await database
+          .select({ at: course.publishedAt })
+          .from(course)
+          .where(eq(course.id, courseId))
+      )[0]!.at;
+    expect(await readCourseOrganization(database, waiting)).toEqual({
+      organizationId,
+      published: false,
+    });
+
+    const now = new Date("2026-02-01T00:00:00.000Z");
+    // Another organization's course among them: nothing is published.
+    expect(
+      await publishCourses(database, { organizationId, courseIds: [waiting, theirs], now }),
+    ).toBe(false);
+    expect(await publishedAt(waiting)).toBeNull();
+
+    expect(
+      await publishCourses(database, { organizationId, courseIds: [waiting, also, waiting], now }),
+    ).toBe(true);
+    expect(await publishedAt(waiting)).toEqual(now);
+    expect(await publishedAt(also)).toEqual(now);
+    // Again later: when it first was stays.
+    const later = new Date("2026-03-01T00:00:00.000Z");
+    expect(
+      await publishCourses(database, { organizationId, courseIds: [waiting], now: later }),
+    ).toBe(true);
+    expect(await publishedAt(waiting)).toEqual(now);
   });
 
   test("reports no owner for a course that does not exist", async () => {

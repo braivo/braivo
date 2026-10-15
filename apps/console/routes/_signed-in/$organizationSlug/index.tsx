@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Heading } from "@braivo/ui";
+import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import {
   Empty,
@@ -62,7 +63,7 @@ function Courses() {
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No courses published yet</EmptyTitle>
+            <EmptyTitle>No courses yet</EmptyTitle>
             <EmptyDescription>
               {aiEnabled === false
                 ? "Braivo's AI is off for this organization. Add material under Sources, and ask whoever runs Braivo for you to turn it on to draft a course from it, or draft one with your desktop agent through braivo mcp."
@@ -87,7 +88,15 @@ function Courses() {
                 className="underline wrap-anywhere"
               >
                 {course.title}
+                {/* In the link's name, so it is heard while moving from link to link. */}
+                {!course.published && <span className="sr-only"> (needs review)</span>}
               </Link>
+              {/* A tool's course, reached by no learner until published on its page. */}
+              {!course.published && (
+                <Badge variant="outline" className="ms-2" aria-hidden="true">
+                  Needs review
+                </Badge>
+              )}
             </li>
           ))}
         </ul>

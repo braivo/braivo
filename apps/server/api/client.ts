@@ -20,6 +20,7 @@ import type {
   LearnerProgressReport,
   LearnerProgressSummary,
   LocatedCitation,
+  ManagedCourse,
   Member,
   Objective,
   Organization,
@@ -65,6 +66,7 @@ export type {
   LearnerProgressSummary,
   LearningDecision,
   LocatedCitation,
+  ManagedCourse,
   Member,
   Objective,
   LearnerProgressStanding,
@@ -239,7 +241,8 @@ export type BraivoClient = {
    * Where each learner in a course stands, counted, by name: every member of
    * its organization, with their roles, for a session holding `owner` or
    * `admin` there; for a teacher, without roles, the learners of the groups
-   * they teach that take the course.
+   * they teach that take the course. `published` says whether those learners
+   * reach it yet.
    *
    * A missing course and one the session may not read are one
    * {@link BraivoError} with status 404.
@@ -389,7 +392,18 @@ export type BraivoClient = {
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
    * throws a {@link BraivoError} with status 403.
    */
-  listCourses(organizationId: string, options?: RequestOptions): Promise<Course[]>;
+  listCourses(organizationId: string, options?: RequestOptions): Promise<ManagedCourse[]>;
+
+  /**
+   * Publishes what a person reviewed, the organization's courses `courseIds`,
+   * all or none, so learners reach them (ADR 0039). Only from a browser: a
+   * tool's token is refused, 403. One the organization has not fails it all, a
+   * {@link BraivoError} with status 409: reload and publish what is shown.
+   */
+  publish(
+    input: { organizationId: string; courseIds: string[] },
+    options?: RequestOptions,
+  ): Promise<void>;
 
   /**
    * Every objective an organization has registered, by title — a listing
@@ -1028,8 +1042,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `listing the courses of organization "${organizationId}"`;
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { courses } = await parsed<{ courses: Course[] }>(response, doing);
+      const { courses } = await parsed<{ courses: ManagedCourse[] }>(response, doing);
       return courses;
+    },
+
+    async publish({ organizationId, courseIds }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/publish`,
+        { courseIds },
+        requestOptions,
+      );
+
+      const doing = `publishing courses of organization "${organizationId}"`;
+      if (response.status !== 204) throw await unexpected(response, doing);
     },
 
     async listObjectives(organizationId, requestOptions) {

@@ -37,8 +37,10 @@ export async function readCourseProgress(input: {
 }): Promise<CourseProgress> {
   const { database, viewedBy, courseId, host, now } = input;
 
-  const organizationId = await readCourseOrganization(database, courseId);
-  if (organizationId === undefined) return { kind: "unavailable" };
+  // Published or not: whoever reads it here reads for the learners.
+  const course = await readCourseOrganization(database, courseId);
+  if (course === undefined) return { kind: "unavailable" };
+  const { organizationId, published } = course;
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
   // `undefined` for every member: an administrator's view.
   let taught: CourseLearner[] | undefined;
@@ -77,6 +79,7 @@ export async function readCourseProgress(input: {
   return {
     kind: "assessed",
     overview: {
+      published,
       modelVersion: activeModel.version,
       learners: assessed.map(({ member, standings }) => ({
         ...member,
@@ -117,9 +120,11 @@ function countStandings(standings: readonly ObjectiveStanding[]): StandingCounts
  * The course's learners as the reader may see them, by name, with their
  * objectives counted; and every objective of the course, in content order,
  * with those learners counted. Both count the same learner-objective
- * standings.
+ * standings. `published`, so a teacher is not sent to a link no learner
+ * reaches yet (ADR 0039).
  */
 export type CourseProgressOverview = {
+  published: boolean;
   modelVersion: string;
   learners: (CourseLearner & { standings: StandingCounts })[];
   objectives: { objectiveId: string; title: string; standings: StandingCounts }[];

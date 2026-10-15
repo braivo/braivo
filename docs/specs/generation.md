@@ -31,7 +31,7 @@ A content owner without a desktop agent turns their material into a course with 
 - What a source is, its pages, original file, immutability, and how a quote is located and cited: [sources](sources.md).
 - Objectives, courses, tasks, their keys and idempotence, and the MCP tools a desktop agent drafts with: [authoring](authoring.md). Drafting with one's own agent through `braivo mcp` is the alternative to this area, at the owner's own AI cost, and needs no key on the installation.
 - Who is an `owner` or `admin`, and sign-in: [access](access.md).
-- Review before learners see a course is the console's workflow, not yet a state the server enforces: the authoring API and `braivo mcp` create courses directly, as the person they act for, until [ADR 0039](../adr/0039-published-in-the-console.md) holds them for publishing in the console.
+- Accepting a draft in the console publishes its course as it is created, the console being where a person reviews; a course the authoring API or `braivo mcp` creates with a token waits for publishing there ([ADR 0039](../adr/0039-published-in-the-console.md)), though its tasks do not yet.
 - Not here yet: AI grading and feedback on a learner's answer ([learner loop](learner-loop.md) until it outgrows it), a vocabulary lesson of more than twelve words in one draft (each word is an objective), video and audio, which reach Braivo as captions.
 
 ## Decisions

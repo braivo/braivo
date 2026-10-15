@@ -90,6 +90,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     pastTense = (await createObjectives(database, organizationId, ["Past tense"]))[0]!;
     theirObjective = (await createObjectives(database, otherOrganizationId, ["Theirs"]))[0]!;
     course = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Spanish",
       objectiveIds: [pastTense],

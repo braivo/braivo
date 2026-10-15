@@ -82,6 +82,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       string,
     ];
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Course",
       objectiveIds: [objective],

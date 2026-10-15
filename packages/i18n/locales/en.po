@@ -58,6 +58,11 @@ msgstr "{count, plural, one {# member.} other {# members.}}"
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
+msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
+
+#. placeholder {0}: organization.name
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 
@@ -692,6 +697,10 @@ msgstr "Learners can no longer practise there: links to it stop working, and any
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
 msgstr "Learners can practise at any of these addresses. New links Braivo sends them, invitations included, use the primary one."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Learners can't see this course until it is published."
+msgstr "Learners can't see this course until it is published."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."

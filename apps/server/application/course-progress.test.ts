@@ -90,11 +90,13 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       "Weather",
     ])) as [string, string, string, string];
     course = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Beginners",
       objectiveIds: [greetings, numbers, colours],
     });
     emptyCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Empty",
       objectiveIds: [],
@@ -103,6 +105,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       string,
     ];
     foreignCourse = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
       objectiveIds: [theirGreetings],
@@ -137,6 +140,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
     expect(read).toEqual({
       kind: "assessed",
       overview: {
+        published: true,
         modelVersion: activeModel.version,
         learners: [
           {

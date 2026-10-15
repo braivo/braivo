@@ -89,6 +89,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Spanish",
       objectiveIds: [pastTense],
@@ -96,6 +97,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     const theirs = await createObjectives(database, otherOrganizationId, ["Theirs"]);
     foreignCourseId = await createCourse(database, {
+      published: true,
       organizationId: otherOrganizationId,
       title: "Somebody else's",
       objectiveIds: [theirs[0]!],
@@ -466,6 +468,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
   test("changes a course's URL label for its administrators, over the label read", async () => {
     const id = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Everyday English",
       objectiveIds: [],
@@ -504,6 +507,102 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await labelNow()).toBe("english-a1");
   });
 
+  test("keeps a tool's course from learners until a person publishes it in the console", async () => {
+    const [proposedObjective] = await createObjectives(database, organizationId, ["Proposed"]);
+    const [taskId] = await createTasks(
+      database,
+      organizationId,
+      [
+        {
+          objectiveId: proposedObjective!,
+          body: { kind: "choice", prompt: "¿Sí?", options: ["yes", "no"], answer: 0 },
+        },
+      ],
+      at,
+    );
+    const asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
+    const inConsole = { "content-type": "application/json", cookie: teacher.cookie };
+    const create = (headers: Record<string, string>) =>
+      api.request(`/api/organizations/${organizationId}/courses`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          title: "Proposed",
+          objectiveIds: [proposedObjective],
+          key: "proposed",
+        }),
+      });
+    const publish = (headers: Record<string, string>, courseIds: string[]) =>
+      api.request(`/api/organizations/${organizationId}/publish`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ courseIds }),
+      });
+    const listed = async () =>
+      (
+        (await (
+          await api.request("/api/courses", { headers: { cookie: learner.cookie } })
+        ).json()) as {
+          courses: { id: string }[];
+        }
+      ).courses.map(({ id }) => id);
+    // What the console shows its administrators: in the list, then on its page.
+    const shownAsPublished = async () => {
+      const read = async <T>(path: string) =>
+        (await (await api.request(path, { headers: { cookie: teacher.cookie } })).json()) as T;
+      const { courses } = await read<{ courses: { id: string; published: boolean }[] }>(
+        `/api/organizations/${organizationId}/courses`,
+      );
+      const course = await read<{ published: boolean }>(
+        `/api/organizations/${organizationId}/courses/${proposed}`,
+      );
+      return [courses.find(({ id }) => id === proposed)?.published, course.published];
+    };
+    const asLearner = { headers: { cookie: learner.cookie } };
+    const progress = (cookie: string) =>
+      api.request(`/api/courses/${proposed}/learners/${learner.id}/progress`, {
+        headers: { cookie },
+      });
+
+    const created = await create(asTool);
+    expect(created.status).toBe(201);
+    const { courseId: proposed } = (await created.json()) as { courseId: string };
+
+    // To its learners, as if there were no such course.
+    expect(await listed()).not.toContain(proposed);
+    expect((await next(proposed, learner.cookie)).status).toBe(404);
+    expect((await api.request(`/api/courses/${proposed}/activity`, asLearner)).status).toBe(404);
+    const attempt = { id: "unpublished-attempt", taskId, response: { choice: 0 } };
+    expect((await postAttempt(proposed, attempt, learner.cookie)).status).toBe(404);
+    expect(await stored(learner.id)).toEqual([]);
+    expect((await progress(learner.cookie)).status).toBe(404);
+    // Those reading for learners still read it, told it waits.
+    expect((await progress(teacher.cookie)).status).toBe(200);
+    const overview = await api.request(`/api/courses/${proposed}/progress`, {
+      headers: { cookie: teacher.cookie },
+    });
+    expect(await overview.json()).toMatchObject({ published: false });
+    // A keyed retry from the console finds it, still waiting.
+    expect(await (await create(inConsole)).json()).toEqual({ courseId: proposed });
+    expect(await listed()).not.toContain(proposed);
+
+    // Only a person in the console publishes, all or none: not a tool, even
+    // alongside the session, nor a member who does not administer it.
+    expect((await publish(asTool, [proposed])).status).toBe(403);
+    expect((await publish({ ...inConsole, ...asTool }, [proposed])).status).toBe(403);
+    expect((await publish({ ...inConsole, cookie: learner.cookie }, [proposed])).status).toBe(403);
+    expect((await publish(inConsole, [proposed, foreignCourseId])).status).toBe(409);
+    expect(await listed()).not.toContain(proposed);
+    expect(await shownAsPublished()).toEqual([false, false]);
+    expect((await publish(inConsole, [proposed])).status).toBe(204);
+    expect(await shownAsPublished()).toEqual([true, true]);
+
+    expect(await listed()).toContain(proposed);
+    expect((await next(proposed, learner.cookie)).status).toBe(200);
+    expect((await postAttempt(proposed, attempt, learner.cookie)).status).toBe(200);
+    expect(await stored(learner.id)).toHaveLength(1);
+  });
+
   test("lists the courses an organization has", async () => {
     const listed = await api.request(`/api/organizations/${organizationId}/courses`, {
       headers: { cookie: teacher.cookie },
@@ -512,7 +611,13 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(listed.status).toBe(200);
     expect(await listed.json()).toMatchObject({
       courses: expect.arrayContaining([
-        { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+        {
+          id: courseId,
+          number: expect.any(Number),
+          title: "Spanish",
+          urlLabel: "spanish",
+          published: true,
+        },
       ]),
     });
   });
@@ -702,7 +807,13 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await reordered.json()).toMatchObject({ error: expect.stringContaining("The course") });
     // The refused request stored nothing: one course has the title, the keyed one.
     expect(courses.filter(({ title }) => title === course.title)).toEqual([
-      { id: keyed, number: expect.any(Number), title: course.title, urlLabel: expect.any(String) },
+      {
+        id: keyed,
+        number: expect.any(Number),
+        title: course.title,
+        urlLabel: expect.any(String),
+        published: true,
+      },
     ]);
   });
 
@@ -738,6 +849,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       at,
     );
     const colors = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Colores",
       objectiveIds: [blue!, red!],
@@ -754,6 +866,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       number: expect.any(Number),
       title: "Colores",
       urlLabel: "colores",
+      published: true,
       objectives: [
         { id: blue, title: "Blue", citations: [], tasks: [] },
         {
@@ -821,6 +934,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     // An objective and course of its own, so the task joins no other test's rotation.
     const [colours] = await createObjectives(database, organizationId, ["Colours"]);
     const coloursCourse = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Colours",
       objectiveIds: [colours!],

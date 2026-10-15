@@ -22,7 +22,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@braivo/ui/components/alert-dialog";
+import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
+import { Spinner } from "@braivo/ui/components/spinner";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -48,32 +50,54 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
     return { course };
   },
   head: (head) => pageHead(head, head.loaderData?.course.title),
-  component: Course,
+  component: CoursePage,
   notFoundComponent: () => <p>This course does not exist, or you do not manage it.</p>,
 });
+
+/** Keyed by course, so nothing said or pending on one course's page carries to another's. */
+function CoursePage() {
+  return <Course key={Route.useParams().courseId} />;
+}
 
 function Course() {
   const { course } = Route.useLoaderData();
   const { organization, braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
+  // Focusable, to receive focus from Publish, gone once it is.
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Present from the start, so saying it was published is announced.
+  const [statusMessage, setStatusMessage] = useState("");
 
   return (
     <>
-      <Heading>{course.title}</Heading>
-      {/* A course has no draft state: open to learners once created, as accepting a draft does, landing here. */}
-      <LearnersSite
-        learnDomain={organization.learnDomain}
-        path={`/c/${courseRef(course)}`}
-        at={`Open to every learner in ${organization.name} at`}
-        none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
-      />
-      {/* Another course's editor starts from its own label, not this one's draft. */}
-      <CourseUrlLabel
-        key={course.id}
-        braivo={braivo}
-        organizationId={organization.id}
-        course={course}
-      />
+      <Heading ref={heading} tabIndex={-1}>
+        {course.title}
+      </Heading>
+      {/* A tool's course waits for a person's review here (ADR 0039); the
+          console's own, accepted from a draft, is published as it is created. */}
+      {course.published ? (
+        <LearnersSite
+          learnDomain={organization.learnDomain}
+          path={`/c/${courseRef(course)}`}
+          at={`Open to every learner in ${organization.name} at`}
+          none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
+        />
+      ) : (
+        <PublishCourse
+          courseId={course.id}
+          onPublished={() => {
+            heading.current?.focus();
+            setStatusMessage("Course published.");
+          }}
+        />
+      )}
+      <MutedText role="status" className="mb-4 block empty:mb-0">
+        {statusMessage}
+      </MutedText>
+      {/* Its link's label, once the link reaches learners. */}
+      {course.published && (
+        <CourseUrlLabel braivo={braivo} organizationId={organization.id} course={course} />
+      )}
       {/* Its learners' progress, a page shared with teachers (access-39). */}
       <Button asChild variant="outline" className="mb-8 w-fit">
         <Link
@@ -94,6 +118,68 @@ function Course() {
         ))}
       </section>
     </>
+  );
+}
+
+/** Publishing a course that waits for review, so learners reach it (ADR 0039). */
+function PublishCourse(props: { courseId: string; onPublished: () => void }) {
+  const { courseId, onPublished } = props;
+  const { braivo, organization } = Route.useRouteContext();
+  const router = useRouter();
+  const [publishing, setPublishing] = useState(false);
+  // Counted, so a second failure mounts a new alert, announced again.
+  const [failures, setFailures] = useState(0);
+
+  async function publish() {
+    setPublishing(true);
+    try {
+      await braivo.publish(
+        { organizationId: organization.id, courseIds: [courseId] },
+        { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+      );
+      // Focus moves once the page shows it published (`sync`, as a correction's).
+      await router.invalidate({ sync: true });
+      onPublished();
+    } catch (thrown) {
+      // Signed out or no longer administering it meanwhile, the guard's check,
+      // run again, says so; on 409, the page shows what is there now.
+      if (thrown instanceof BraivoError && [401, 403, 409].includes(thrown.status)) {
+        await router.invalidate();
+      } else {
+        setFailures((count) => count + 1);
+      }
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Badge variant="outline">Needs review</Badge>
+        <MutedText className="wrap-break-word">
+          Review what it teaches below: learners can't see this course until you publish it.
+        </MutedText>
+        {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+        <Button size="sm" aria-disabled={publishing} onClick={() => !publishing && publish()}>
+          {publishing ? (
+            <>
+              {/* Hidden: "Publishing…" already says it. */}
+              <Spinner data-icon="inline-start" aria-hidden="true" />
+              Publishing…
+            </>
+          ) : (
+            "Publish"
+          )}
+        </Button>
+      </div>
+      {/* Gone while trying again, so it never speaks of the attempt under way. */}
+      {failures > 0 && !publishing && (
+        <Alert key={failures} variant="destructive">
+          <AlertDescription>Could not publish. Try again.</AlertDescription>
+        </Alert>
+      )}
+    </div>
   );
 }
 

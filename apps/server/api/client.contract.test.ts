@@ -106,6 +106,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     pastTense = (await createObjectives(database, organizationId, ["Past tense"]))[0]!;
     courseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Spanish",
       objectiveIds: [pastTense],
@@ -124,6 +125,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       createdAt: at,
     });
     emptyCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Not started",
       objectiveIds: [],
@@ -133,6 +135,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       "Decimals",
     ])) as [string, string];
     progressCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Every phase",
       objectiveIds: [pastTense, fractions, decimals],
@@ -531,14 +534,22 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         number: expect.any(Number),
         title: "Every phase",
         urlLabel: "every-phase",
+        published: true,
       },
       {
         id: emptyCourseId,
         number: expect.any(Number),
         title: "Not started",
         urlLabel: "not-started",
+        published: true,
       },
-      { id: courseId, number: expect.any(Number), title: "Spanish", urlLabel: "spanish" },
+      {
+        id: courseId,
+        number: expect.any(Number),
+        title: "Spanish",
+        urlLabel: "spanish",
+        published: true,
+      },
     ]);
 
     const rejected = await client
@@ -551,6 +562,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   test("changes a course's URL label, and answers the label now when it changed meanwhile", async () => {
     const asTeacher = { headers: { cookie: teacherCookie } };
     const id = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Labelled",
       objectiveIds: [],
@@ -568,6 +580,33 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     ).toMatchObject({ urlLabel: "labelled-a1" });
   });
 
+  test("publishes a course its learners then find by number, and refuses a stale list", async () => {
+    const asTeacher = { headers: { cookie: teacherCookie } };
+    const id = await createCourse(database, {
+      published: false,
+      organizationId,
+      title: "Proposed",
+      objectiveIds: [],
+    });
+    const { number } = (await client.listCourses(organizationId, asTeacher)).find(
+      (course) => course.id === id,
+    )!;
+    const onDomain = {
+      headers: {
+        cookie: await learnerSessionOn(api, `https://${organizationHost}`, learnerCookie),
+      },
+    };
+
+    expect(await onOrganizationDomain.learnerCourseByNumber(number, onDomain)).toBeUndefined();
+    await expect(
+      client.publish({ organizationId, courseIds: [id, "no-such-course"] }, asTeacher),
+    ).rejects.toMatchObject({ status: 409 });
+    await client.publish({ organizationId, courseIds: [id] }, asTeacher);
+    expect(await onOrganizationDomain.learnerCourseByNumber(number, onDomain)).toMatchObject({
+      id,
+    });
+  });
+
   test("reads a learner caught up as undefined rather than as an error", async () => {
     const activity = await client.nextActivity(emptyCourseId, {
       headers: { cookie: learnerCookie },
@@ -579,6 +618,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   test("reads an objective with nothing to practise as the decision without a task", async () => {
     const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
     const untaughtCourseId = await createCourse(database, {
+      published: true,
       organizationId,
       title: "Untaught",
       objectiveIds: [untaught!],
@@ -845,6 +885,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       number: expect.any(Number),
       title: "Saludos",
       urlLabel: "saludos",
+      // Created with a person's session, as the console does: published at once.
+      published: true,
     });
   });
 
