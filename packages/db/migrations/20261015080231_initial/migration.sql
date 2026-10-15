@@ -287,6 +287,9 @@ CREATE TABLE "course" (
 	"organization_id" text NOT NULL,
 	"title" text NOT NULL,
 	"key" text,
+	"number" integer NOT NULL,
+	"url_label" text,
+	"published_at" timestamp with time zone,
 	CONSTRAINT "course_organization_id_key" UNIQUE("organization_id","id")
 );
 --> statement-breakpoint
@@ -405,6 +408,7 @@ CREATE INDEX "ai_request_organization_created_idx" ON "ai_request" ("organizatio
 CREATE INDEX "attempt_learner_task_idx" ON "attempt" ("learner_id","task_id","at");--> statement-breakpoint
 CREATE INDEX "course_organization_idx" ON "course" ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "course_organization_key_uidx" ON "course" ("organization_id","key");--> statement-breakpoint
+CREATE UNIQUE INDEX "course_organization_number_uidx" ON "course" ("organization_id","number");--> statement-breakpoint
 CREATE UNIQUE INDEX "course_objective_position_uidx" ON "course_objective" ("course_id","position");--> statement-breakpoint
 CREATE INDEX "learner_evidence_replay_idx" ON "learner_evidence" ("learner_id","organization_id","at","id");--> statement-breakpoint
 CREATE INDEX "objective_organization_idx" ON "objective" ("organization_id");--> statement-breakpoint
