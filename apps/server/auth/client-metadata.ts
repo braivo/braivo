@@ -10,6 +10,9 @@ import { Readable } from "node:stream";
 import type { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { isPublicRoutableHost } from "@better-auth/core/utils/host";
 
+/** How `cimd()` fetches a client's metadata document and the `jwks_uri` it names. */
+export type ClientMetadataFetch = typeof fetchClientMetadataResource;
+
 /**
  * Fetches a client's metadata document, or a resource it links, for `cimd()`,
  * keeping Better Auth's transport contract: HTTPS; the host resolved once and
@@ -24,7 +27,7 @@ import { isPublicRoutableHost } from "@better-auth/core/utils/host";
  *   caller aborts: Better Auth leaves a refused response's body open, so a
  *   client's server could otherwise hold sockets indefinitely.
  */
-export const fetchPinned: typeof fetchClientMetadataResource = async (input, init) => {
+export const fetchPinned: ClientMetadataFetch = async (input, init) => {
   const asked = new Request(input, init);
   const url = new URL(asked.url);
   if (url.protocol !== "https:") throw new TypeError("a client's metadata is fetched over HTTPS");
@@ -85,7 +88,7 @@ export const fetchPinned: typeof fetchClientMetadataResource = async (input, ini
  * settings, so nothing is fetched. Redirects are returned for Better Auth to
  * refuse: Workers reject the `redirect: "error"` it asks for.
  */
-export const fetchStrictlyPublic: typeof fetchClientMetadataResource = async (input, init) => {
+export const fetchStrictlyPublic: ClientMetadataFetch = async (input, init) => {
   if (!fetchIsStrictlyPublic()) {
     throw new TypeError("a client's metadata is fetched only with global_fetch_strictly_public");
   }

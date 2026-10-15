@@ -19,7 +19,7 @@ import {
   organizationOwnsLearningContent,
   readOrganizationSlug,
 } from "../persistence/index.ts";
-import { fetchPinned, fetchStrictlyPublic } from "./client-metadata.ts";
+import { type ClientMetadataFetch, fetchPinned, fetchStrictlyPublic } from "./client-metadata.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -54,6 +54,16 @@ type AuthOptions = {
    *   clients are registered public, with PKCE and no keys.
    */
   clientIdMetadataDocuments?: "strictly-public" | false;
+  /**
+   * Wraps the fetch chosen above, for a client's document and its `jwks_uri`
+   * alike, with a host's own limits or cache (ADR 0045). The wrapper is
+   * trusted: every network request goes through the fetch it is given, with
+   * the input and options it got (headers, abort signal), never the global
+   * `fetch`, which would skip the refusal of private addresses; a cached answer
+   * is one that fetch returned, kept no longer than its `Cache-Control`
+   * allows. Unused where nothing is fetched.
+   */
+  wrapClientMetadataFetch?: (fetch: ClientMetadataFetch) => ClientMetadataFetch;
 };
 
 /**
@@ -139,6 +149,8 @@ function assertSlugAllowed(slug: string): void {
  * environment at import time and a test can open its own database.
  */
 export function createAuth(options: AuthOptions) {
+  const metadataFetch =
+    options.clientIdMetadataDocuments === "strictly-public" ? fetchStrictlyPublic : fetchPinned;
   const auth = betterAuth({
     // `transaction` is off by default. Better Auth's organization delete
     // removes members before the organization, so without it a Braivo foreign
@@ -394,9 +406,7 @@ export function createAuth(options: AuthOptions) {
             // I/O Workers refuse across requests.
             cimd({
               fetchClientMetadataResource:
-                options.clientIdMetadataDocuments === "strictly-public"
-                  ? fetchStrictlyPublic
-                  : fetchPinned,
+                options.wrapClientMetadataFetch?.(metadataFetch) ?? metadataFetch,
               metadataProfile: "mcp-2026-07-28",
             }),
           ]),
