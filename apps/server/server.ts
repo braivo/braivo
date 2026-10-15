@@ -11,7 +11,7 @@ import type { Database } from "@braivo/db";
 import { anthropicModel } from "./ai/index.ts";
 import { createApi } from "./api/index.ts";
 import type { DomainProvisioner } from "./application/index.ts";
-import { createAuth } from "./auth/index.ts";
+import { type ClientMetadataFetch, createAuth } from "./auth/index.ts";
 import type { ServerConfig } from "./config.ts";
 import type { SendMail } from "./mail/index.ts";
 import type { FileStore } from "./storage/index.ts";
@@ -19,6 +19,7 @@ import type { FileStore } from "./storage/index.ts";
 export { readServerConfig } from "./config.ts";
 export { type SendMail, smtpMail } from "./mail/index.ts";
 export type { FileStore } from "./storage/index.ts";
+export type { ClientMetadataFetch } from "./auth/index.ts";
 export type { DnsRecord, DomainProvisioner, DomainStatus } from "./application/index.ts";
 
 export function createServer(options: {
@@ -34,6 +35,8 @@ export function createServer(options: {
   domains?: DomainProvisioner;
   /** How client ID metadata documents are fetched, if at all; see `createAuth`. */
   clientIdMetadataDocuments?: "strictly-public" | false;
+  /** The host's limits or cache around that fetch; see `createAuth`. */
+  wrapClientMetadataFetch?: (fetch: ClientMetadataFetch) => ClientMetadataFetch;
 }) {
   const { config, database } = options;
   return createApi({
@@ -59,6 +62,7 @@ export function createServer(options: {
       sendMail: options.sendMail,
       google: config.google,
       clientIdMetadataDocuments: options.clientIdMetadataDocuments,
+      wrapClientMetadataFetch: options.wrapClientMetadataFetch,
     }),
   });
 }

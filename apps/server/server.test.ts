@@ -41,6 +41,7 @@ function testServer(
     cachedDatabase?: Database;
     files?: FileStore;
     clientIdMetadataDocuments?: "strictly-public" | false;
+    wrapClientMetadataFetch?: Parameters<typeof createServer>[0]["wrapClientMetadataFetch"];
   } = {},
 ) {
   const env: Env = {
@@ -58,6 +59,7 @@ function testServer(
     files: options.files,
     sendMail: outbox.sendMail,
     clientIdMetadataDocuments: options.clientIdMetadataDocuments,
+    wrapClientMetadataFetch: options.wrapClientMetadataFetch,
   });
 }
 
@@ -198,6 +200,59 @@ describe.skipIf(!connectionString)("createServer", () => {
       });
 
       expect(fetched.mock.calls.map(([asked]) => (asked as Request).url)).toEqual([clientId]);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("wraps the fetch of a client's document and of its keys, through the fetch given", async () => {
+    vi.stubGlobal("Cloudflare", { compatibilityFlags: { global_fetch_strictly_public: true } });
+    const clientId = `https://client.example/${crypto.randomUUID()}.json`;
+    // A client authenticating with a key, so its `jwks_uri` is fetched too:
+    // on the document's origin, as Better Auth requires.
+    const jwksUri = "https://client.example/jwks.json";
+    const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      (input as Request).url === clientId
+        ? Response.json({
+            client_id: clientId,
+            client_name: "Keyed",
+            redirect_uris: ["https://client.example/callback"],
+            token_endpoint_auth_method: "private_key_jwt",
+            jwks_uri: jwksUri,
+          })
+        : new Response(null, { status: 404 }),
+    );
+    const wrapped: string[] = [];
+    try {
+      const server = testServer({
+        clientIdMetadataDocuments: "strictly-public",
+        wrapClientMetadataFetch: (fetch) => async (input, init) => {
+          wrapped.push(new Request(input).url);
+          return fetch(input, init);
+        },
+      });
+      const claims = { iss: clientId, sub: clientId, aud: `${baseUrl}/api/auth`, jti: "j" };
+      const unsigned = [
+        { alg: "RS256", kid: "k" },
+        { ...claims, exp: Date.now() / 1000 + 60 },
+      ]
+        .map((part) => Buffer.from(JSON.stringify(part)).toString("base64url"))
+        .join(".");
+      await server.request(`${baseUrl}/api/auth/oauth2/introspect`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          token: "t",
+          client_id: clientId,
+          client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          client_assertion: `${unsigned}.c2ln`,
+        }),
+      });
+
+      expect(wrapped).toEqual([clientId, jwksUri]);
+      // Each through the strictly public fetch the wrapper was given.
+      expect(fetched.mock.calls.map(([asked]) => (asked as Request).url)).toEqual(wrapped);
     } finally {
       vi.restoreAllMocks();
       vi.unstubAllGlobals();
