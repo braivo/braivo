@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "bdbd0368-e9ec-432f-98ba-f151568886aa",
+  "id": "2d29a1bf-fa4e-4c1b-8d9a-6813f7a5d379",
   "prevIds": [
-    "80fcf048-608f-46a0-b62c-613a52473c90"
+    "48223334-e7da-4298-b215-768f0ac17c9d"
   ],
   "ddl": [
     {
@@ -3182,6 +3182,45 @@
       "table": "course"
     },
     {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "number",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "course"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "url_label",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "course"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "course"
+    },
+    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -4699,6 +4738,34 @@
       "method": "btree",
       "concurrently": false,
       "name": "course_organization_key_uidx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "course"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "organization_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "number",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "course_organization_number_uidx",
       "entityType": "indexes",
       "schema": "public",
       "table": "course"
