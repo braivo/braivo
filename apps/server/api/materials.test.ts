@@ -291,6 +291,59 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(missing.status).toBe(404);
   });
 
+  test("reads a long source a bounded part at a time, and whole when no part is asked", async () => {
+    // Fifty pages of about a thousand characters: more than one part holds.
+    // No character outside the BMP, so a string's length counts code points.
+    const pages = Array.from({ length: 50 }, (_, index) => ({
+      page: String(index + 1),
+      text: `Página ${index + 1}. ${"Hola, ¿qué tal? ".repeat(60)}`,
+    }));
+    const added = await postSource(
+      { title: "Un libro largo", pages, language: "es" },
+      teacher.cookie,
+    );
+    const { sourceId } = (await added.json()) as { sourceId: string };
+    const read = (query: string, cookie = teacher.cookie) =>
+      api.request(`/api/organizations/${organizationId}/sources/${sourceId}${query}`, {
+        headers: { cookie },
+      });
+
+    const whole = await read("");
+    const part = await read("?pages=2-3");
+    const first = await read("?characters=0-");
+    const outside = await read("?pages=51-");
+    const learners = await read("?pages=2-3", learner.cookie);
+
+    // Without a part asked, the whole text, as the console reads it.
+    const all = (await whole.json()) as { text: string; pagination: unknown[] };
+    expect(all.pagination).toHaveLength(50);
+    expect(all).not.toHaveProperty("next");
+    const two = (await part.json()) as Record<string, unknown> & { text: string };
+    expect(two).toMatchObject({
+      id: sourceId,
+      title: "Un libro largo",
+      language: "es",
+      start: 971,
+      end: 2913,
+      length: all.text.length,
+      pagination: [
+        { start: 971, page: "2" },
+        { start: 1942, page: "3" },
+      ],
+    });
+    expect(two.text.startsWith("Página 2.")).toBe(true);
+    expect(two).not.toHaveProperty("next");
+    expect(part.headers.get("cache-control")).toBe("private, no-store");
+    const opening = (await first.json()) as { text: string; end: number; next: unknown };
+    expect(opening.text.length).toBeLessThanOrEqual(20_000);
+    expect(opening.next).toEqual({ characters: `${opening.end}-${all.text.length}` });
+    expect(outside.status).toBe(400);
+    expect(await outside.json()).toEqual({
+      error: "This source has 50 pages: ask for pages 1 to 50.",
+    });
+    expect(learners.status).toBe(403);
+  });
+
   test("keeps a video's link and language beside its transcript", async () => {
     const added = await postSource(
       {

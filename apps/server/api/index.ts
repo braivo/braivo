@@ -61,6 +61,13 @@
 //   learn domain's learner session alone; 204, or 403 possibly forged or a
 //   bearer token.
 //
+// `GET /api/connections` — the AI apps the signed-in person connected at
+// `/mcp` (ADR 0045), oldest first: `{ "connections": [{ "id", "client": { "id",
+// "name" | null }, "organization": { "id", "name" }, "connectedAt" }] }`.
+// `POST /api/connections/:id/disconnect`, a JSON write, ends one: 204, or 404
+// none of theirs by that ID. Both a browser's alone: 401 no session, 403 a
+// bearer token or a connection, or a write possibly forged (access-42).
+//
 // `GET /api/organization` — the organization the request's host serves, for the
 // learn app on that domain to present itself as. No session needed. 200 answers
 // `{ "name": "…" }`; 404 means the host serves no organization. The host is the
@@ -559,6 +566,17 @@
 // sent as pages its `pagination`: `[{ "start": 0, "page": "11" }, …]`,
 // positions in code points, and `original` when it has one. 404 when the
 // organization has no such source.
+//
+// `?pages=12-16`, `?seconds=60-300`, or `?characters=20000-40000` (one; `12-`
+// reads on to the end) reads part of it instead, for an agent that cannot take
+// a whole book in one answer: pages by position from 1, both ends included;
+// seconds from the cue being said at the first; characters in code points.
+// Answers the source as listed with at most 20,000 characters of its `text`,
+// their `start` and `end`, the whole text's `length`, and the `timing` or
+// `pagination` entries they overlap, all in the whole text's positions; when
+// what was asked runs on, `next`, such as `{ "characters": "19742-48589" }`,
+// to ask next. A range the source cannot answer — page 40 of 30, pages of a
+// source without them — answers 400 with an `error` saying what it can.
 //
 // Any source may also name its `original`, the file its text was extracted
 // from, by the `fileId` uploading it answered (below); a source naming another

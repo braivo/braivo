@@ -41,7 +41,7 @@ The learn app presents itself as the organization whose domain serves it, per an
 
 ### Remote MCP clients
 
-AI apps such as ChatGPT and Claude connect at `<BRAIVO_URL>/mcp` by OAuth, a spike for now ([ADR 0045](../adr/0045-remote-mcp.md)). This server accepts any client named by the HTTPS URL of its metadata document (CIMD), fetched only from a public address. Supported are the clients tested end to end: ChatGPT, Claude, and Claude Code; another CIMD client may connect, unsupported until tested. An installation fetching them registers none of the clients below: ChatGPT would sign with a key the registration lacks.
+AI apps such as ChatGPT and Claude connect at `<BRAIVO_URL>/mcp` by OAuth ([ADR 0045](../adr/0045-remote-mcp.md)), each connection to one organization the teacher manages, chosen as they sign in (access-40); what a connection can do is in the [assistants guide](assistants.md). This server accepts a client named by the HTTPS URL of its metadata document (CIMD), fetched only from a public address. It is built for ChatGPT, Claude, and Claude Code; another CIMD client may connect, unsupported. An installation fetching them registers none of the clients below: ChatGPT would sign with a key the registration lacks.
 
 On Workers, `createServer({ clientIdMetadataDocuments: "strictly-public" })` fetches them through the Worker's `fetch`, but only with the `global_fetch_strictly_public` compatibility flag in its configuration; without it, every client named by URL is refused `invalid_client`, since a document's URL on the Worker's own zone would reach the zone's origin, past its security settings. The flag applies to every `fetch` the Worker makes: one to its own zone goes through Cloudflare's public routing, and may reach the Worker again, never the origin directly. To switch from registered clients to fetching, deploy fetching, then at once remove the clients registered below (`oauth-client remove`), since a registration is found before any document; teachers then connect again. Better Auth's limits on fetching documents, and its cache of them, are held by the server, so a Worker building it per request has neither, and any sender could make it fetch from a host of their choosing: it must limit those fetches across requests itself. Either limit `/api/auth/oauth2/*` at the edge, as a request there may fetch a document and its `jwks_uri`, or count the fetches themselves with `wrapClientMetadataFetch`, which wraps each one; the wrapper makes every network request through the fetch it is given, never the global `fetch`, which would skip the refusal of private addresses.
 
@@ -53,7 +53,17 @@ bun apps/server/cli/index.ts oauth-client add --name Claude --client-id https://
 bun apps/server/cli/index.ts oauth-client add --name "Claude Code" --client-id https://claude.ai/oauth/claude-code-client-metadata --redirect-uri http://localhost/callback --redirect-uri http://127.0.0.1/callback
 ```
 
-The redirect URIs are copied from each document; recheck them there if a client's sign-in fails. Where nothing is fetched, `invalid_client` at sign-in usually means the app sent an ID no `--client-id` registered. Without `--client-id`, `add` prints a random ID, which a person enters in their AI app as their own OAuth client. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `oauth-client remove --client-id <id>` refuses the client's refresh tokens at once; its access tokens work until they expire, within an hour. Where metadata documents are on, a removed client named by URL can sign in again.
+The redirect URIs are copied from each document; recheck them there if a client's sign-in fails. Where nothing is fetched, `invalid_client` at sign-in usually means the app sent an ID no `--client-id` registered. Without `--client-id`, `add` prints a random ID, which a person enters in their AI app as their own OAuth client. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `oauth-client remove --client-id <id>` refuses the client's tokens at once, its consents going with it. Where metadata documents are on, a removed client named by URL can sign in again.
+
+### An app directory's reviewer
+
+A directory's review, such as OpenAI's for ChatGPT's, needs an account that signs in without a code ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). Sign in once with an address you read, name the account, and add it to an organization (`organization add-member --role admin`); then list it in `BRAIVO_REVIEWER_EMAILS` and give it a password:
+
+```bash
+bun apps/server/cli/index.ts reviewer set-password --email reviewer@fernwood.example
+```
+
+It prints a random password once; `--password-stdin` reads one instead, 16 characters or more: a password manager's random one, since only length is checked. The reviewer signs in at `<BRAIVO_URL>/login?method=password`, which nothing links, before connecting their AI app; `/login` reached from a connection takes `&method=password` added too. Afterwards, `reviewer remove-password --email <email>` deletes the password and ends the account's sessions; disconnect its apps in the console (`Connected apps`), and drop the address from `BRAIVO_REVIEWER_EMAILS`.
 
 ## Configuration
 
@@ -79,6 +89,8 @@ Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `lo
 AI requests may run for up to five minutes, so configure the proxy for that; nginx's `proxy_read_timeout`, for one, defaults to 60 seconds. A request the proxy cuts off may still count toward the organization's limit.
 
 **Google sign-in.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, an OAuth client from Google Cloud's console, add "Continue with Google" to `/login`; set both or neither. The client's authorized redirect URI is `BRAIVO_URL` followed by `/api/auth/callback/google`, such as `http://localhost:5174/api/auth/callback/google` locally. Only a Google account whose email Google has verified makes or signs in to an account this way ([ADR 0018](../adr/0018-sign-in-and-invitations.md)).
+
+**Reviewers.** `BRAIVO_REVIEWER_EMAILS`, comma-separated, lists the accounts that may sign in with a password the operator set, for an app directory's review (above). Unset, no password signs in.
 
 **Files.** `BRAIVO_FILES` is where uploaded original files, such as the PDFs sources were extracted from, are stored ([ADR 0028](../adr/0028-original-files.md)):
 

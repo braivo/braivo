@@ -52,9 +52,12 @@ const routes = [
   "POST /api/session/sign-out",
   "GET  /api/handoffs/:handoffId",
   "POST /api/handoffs/:handoffId",
+  "GET  /api/connections",
+  "POST /api/connections/:connectionId/disconnect",
   "GET  /api/organization",
   "GET  /.well-known/oauth-protected-resource/mcp",
   "POST /mcp",
+  "GET  /api/oauth/organization",
   "GET  /api/oauth/consent",
   "GET  /api/courses",
   "GET  /api/courses/:courseId/next",
@@ -286,9 +289,12 @@ GET  /api/session                                                               
 POST /api/session/sign-out                                                      204     204     403     204     403     403     403     403     204
 GET  /api/handoffs/:handoffId                                                   404     404     404     404       ·       ·       ·       ·       ·
 POST /api/handoffs/:handoffId                                                   401     404     403     401     403     403     403     403     401
+GET  /api/connections                                                           401     200     403     401       ·       ·       ·       ·       ·
+POST /api/connections/:connectionId/disconnect                                  401     404     403     401     403     403     403     403     1MB
 GET  /api/organization                                                          404     404     404     404       ·       ·       ·       ·       ·
 GET  /.well-known/oauth-protected-resource/mcp                                 200+    200+    200+    200+       ·       ·       ·       ·       ·
 POST /mcp                                                                       401     401     401     401     403     403     403     403     1MB
+GET  /api/oauth/organization                                                    302     302     302     302       ·       ·       ·       ·       ·
 GET  /api/oauth/consent                                                         302     302     302     302       ·       ·       ·       ·       ·
 GET  /api/courses                                                               401     200     200     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     404     404     401       ·       ·       ·       ·       ·
@@ -350,9 +356,12 @@ GET  /api/session                                                               
 POST /api/session/sign-out                                                      204     204     401     204     403     403     403     403     204
 GET  /api/handoffs/:handoffId                                                   404     404     401     404       ·       ·       ·       ·       ·
 POST /api/handoffs/:handoffId                                                   404     404     401     404     404     404     404     404     404
+GET  /api/connections                                                           404     404     401     404       ·       ·       ·       ·       ·
+POST /api/connections/:connectionId/disconnect                                  404     404     401     404     404     404     404     404     404
 GET  /api/organization                                                          200     200     401     200       ·       ·       ·       ·       ·
 GET  /.well-known/oauth-protected-resource/mcp                                 404*    404*    404*    404*       ·       ·       ·       ·       ·
 POST /mcp                                                                       404     404     404     404     404     404     404     404     404
+GET  /api/oauth/organization                                                    404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/oauth/consent                                                         404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/courses                                                               401     401     401     200       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     401     401     404       ·       ·       ·       ·       ·

@@ -2,16 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler } from "@modelcontextprotocol/server";
 import { createLocalJWKSet, errors, jwtVerify, type JWTPayload } from "jose";
 
-import { listOrganizations } from "../application/index.ts";
-import type { Auth } from "../auth/index.ts";
+import { isConnectionStanding } from "../application/index.ts";
+import { type Auth, AUTHOR_SCOPE, ORGANIZATION_CLAIM } from "../auth/index.ts";
+import { createMcpServer } from "../mcp/index.ts";
+import { createConnectionClient, type Principal } from "./principal.ts";
+
+/** No release is stamped into the server yet; `braivo mcp` says the same unbuilt. */
+const VERSION = "development";
 
 /**
- * Spike (#113): `/mcp` for remote MCP clients, signed in through Braivo's OAuth
- * (`mcp()` in `auth.ts`). MCP 2026-07-28 alone, stateless: one server per
- * request, for the person the verified token names.
+ * `/mcp` for remote MCP clients, signed in through Braivo's OAuth (`mcp()` in
+ * `auth.ts`; ADR 0045). MCP 2026-07-28 alone, stateless: one server per
+ * request, its tools calling Braivo's API in this process as the connection
+ * (`createConnectionClient`), so every rule is the API's.
  *
  * Tokens are checked here rather than by `requireMcpAuth`, which fetches this
  * server's own JWKS over HTTP: no listener in tests, and a Worker calling its
@@ -20,14 +26,23 @@ import type { Auth } from "../auth/index.ts";
 export function mcpEndpoint(options: {
   auth: Auth;
   database: Database;
+  /** Where the catalog's calls go, in this process: the API serving `/mcp`. */
+  api: { fetch: (request: Request) => Response | Promise<Response> };
+  /** The installation's origin, which those calls are addressed to. */
+  baseUrl: string;
   /** `/mcp`'s URL: the audience its tokens are issued for. */
   resource: string;
   /** Better Auth's issuer, `<BRAIVO_URL>/api/auth`. */
   issuer: string;
 }) {
-  const { auth, database, resource, issuer } = options;
-  // RFC 9728, 5.1: where a client without a valid token learns how to get one.
-  const challenge = `Bearer resource_metadata="${new URL(`/.well-known/oauth-protected-resource${new URL(resource).pathname}`, resource).href}"`;
+  const { auth, database, api, baseUrl, resource, issuer } = options;
+  // RFC 9728, 5.1: where a client without a valid token learns how to get one,
+  // and with which scope (RFC 6750, 3).
+  const metadata = new URL(
+    `/.well-known/oauth-protected-resource${new URL(resource).pathname}`,
+    resource,
+  ).href;
+  const challenge = `Bearer resource_metadata="${metadata}", scope="${AUTHOR_SCOPE}"`;
 
   /** The verified claims of an access token for `/mcp`, or none. */
   async function verify(request: Request): Promise<JWTPayload | undefined> {
@@ -54,35 +69,52 @@ export function mcpEndpoint(options: {
       throw error;
     }
   }
+
+  /**
+   * Who a verified token acts for, while its grant stands: a token outlives
+   * a disconnect by up to its hour, so the consent it was issued under is
+   * looked up on every call, by person, client, organization, and when it
+   * was given (ADR 0045).
+   */
+  async function principalOf(claims: JWTPayload): Promise<Principal | undefined> {
+    const { sub: userId, client_id: clientId, scope, iat } = claims;
+    const organizationId = claims[ORGANIZATION_CLAIM];
+    if (typeof userId !== "string" || typeof clientId !== "string") return undefined;
+    if (typeof organizationId !== "string" || !organizationId) return undefined;
+    // Issued under this grant, not one disconnected before it was given again.
+    if (typeof iat !== "number") return undefined;
+    const issuedAt = new Date(iat * 1000);
+    const granted = await isConnectionStanding(database, {
+      userId,
+      clientId,
+      organizationId,
+      issuedAt,
+    });
+    if (!granted) return undefined;
+    const scopes = typeof scope === "string" ? scope.split(" ") : [];
+    return { userId, clientId, scopes, organizationId };
+  }
+
+  // Without the tools learners would see, until ADR 0039's review exists, and
+  // those reading about them, until `braivo:progress` does.
   const handler = createMcpHandler(
-    ({ authInfo }) => {
-      const userId = String(authInfo?.extra?.userId);
-      const server = new McpServer({ name: "braivo", version: "0.0.0" });
-      server.registerTool(
-        "list_organizations",
-        {
-          title: "List organizations",
-          description: "The organizations you manage, by ID and name.",
-          annotations: { readOnlyHint: true, openWorldHint: false },
-        },
-        async () => {
-          // Managed, as described: teaching a group is not managing.
-          const organizations = (await listOrganizations({ database, actingAs: userId })).filter(
-            (organization) => organization.administers,
-          );
-          return {
-            content: [{ type: "text", text: JSON.stringify({ organizations }) }],
-          };
-        },
-      );
-      return server;
-    },
+    ({ authInfo }) =>
+      createMcpServer(
+        createConnectionClient({
+          api,
+          baseUrl,
+          principal: authInfo?.extra?.principal as Principal,
+        }),
+        VERSION,
+        { catalog: "preparing" },
+      ),
     { legacy: "reject" },
   );
 
   return async (request: Request): Promise<Response> => {
     const claims = await verify(request);
-    if (!claims) {
+    const principal = claims && (await principalOf(claims));
+    if (!principal) {
       const presented = request.headers.has("authorization");
       return new Response(null, {
         status: 401,
@@ -91,12 +123,22 @@ export function mcpEndpoint(options: {
         },
       });
     }
+    // Every tool served here authors (ADR 0045): refused before any runs,
+    // naming the scope a client steps up to.
+    if (!principal.scopes.includes(AUTHOR_SCOPE)) {
+      return new Response(null, {
+        status: 403,
+        headers: {
+          "www-authenticate": `Bearer resource_metadata="${metadata}", error="insufficient_scope", scope="${AUTHOR_SCOPE}"`,
+        },
+      });
+    }
     return handler.fetch(request, {
       authInfo: {
         token: "",
-        clientId: typeof claims.azp === "string" ? claims.azp : "",
-        scopes: typeof claims.scope === "string" ? claims.scope.split(" ") : [],
-        extra: { userId: claims.sub },
+        clientId: principal.clientId,
+        scopes: [...principal.scopes],
+        extra: { principal },
       },
     });
   };

@@ -8,10 +8,16 @@ import { mcp } from "@better-auth/mcp";
 import type { Database } from "@braivo/db";
 import * as authTables from "@braivo/db/schema/auth";
 import { betterAuth, type BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthEndpoint, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthEndpoint,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better-auth/plugins";
 import * as z from "zod";
 
+import { mayAdminister } from "../application/permission.ts";
 import { describeLogCall } from "../logging.ts";
 import { mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
@@ -29,6 +35,16 @@ import { slugProblem } from "./slug.ts";
  * whether to trust it (docs/adr/0022-machine-access.md).
  */
 export const DEVICE_CLIENTS: ReadonlySet<string> = new Set(["braivo-cli"]);
+
+/**
+ * What a remote MCP connection may be granted (ADR 0045): `braivo:author`,
+ * an organization's material, objectives, and courses. `braivo:progress`,
+ * learners' data, waits for its tools.
+ */
+export const AUTHOR_SCOPE = "braivo:author";
+
+/** The access token's claim naming the organization its grant is for. */
+export const ORGANIZATION_CLAIM = "organization_id";
 
 type AuthOptions = {
   database: Database;
@@ -64,6 +80,12 @@ type AuthOptions = {
    * allows. Unused where nothing is fetched.
    */
   wrapClientMetadataFetch?: (fetch: ClientMetadataFetch) => ClientMetadataFetch;
+  /**
+   * The accounts that may sign in with a password, lowercased: an app
+   * directory's reviewers, who cannot receive a code (ADR 0018). Empty or
+   * unset, no password signs in.
+   */
+  reviewerEmails?: ReadonlySet<string>;
 };
 
 /**
@@ -74,6 +96,23 @@ type AuthOptions = {
  * domain's own codes keep the same (`application/learner-sign-in.ts`).
  */
 export const SIGN_IN_CODE = { digits: 6, seconds: 600, attempts: 5, cooldownSeconds: 60 };
+
+/**
+ * A reviewer's password (ADR 0018): set by the operator alone, so long enough
+ * that the sign-in limit below, not its length, is never what stops a guess.
+ * Better Auth's own maximum, 128, stays.
+ */
+export const MIN_REVIEWER_PASSWORD_LENGTH = 16;
+
+/**
+ * Better Auth's answer to a wrong email or password, given as well to an
+ * address `reviewerEmails` does not list, so the two read alike.
+ */
+const INVALID_EMAIL_OR_PASSWORD = {
+  // In Better Auth's order, so even the bytes match.
+  message: "Invalid email or password",
+  code: "INVALID_EMAIL_OR_PASSWORD",
+};
 
 /**
  * The most members an organization holds, staff included: a guard against
@@ -89,6 +128,53 @@ export const MEMBERSHIP_LIMIT = 1_000;
  * send is awaited, that is while `advanced.backgroundTasks` is unset.
  */
 const signInCodeSendFailed = defineRequestState(() => false);
+
+/**
+ * Whether this request is a client's `/oauth2/authorize`, the first pass of an
+ * authorization, which always asks which organization to grant: one chosen
+ * for an earlier grant stays on the session. The passes after choosing
+ * (`/oauth2/continue`, `/oauth2/consent`) do not ask.
+ */
+const authorizing = defineRequestState(() => false);
+
+/** What a Better Auth hook is given. */
+type AuthContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
+
+/** The organization `session` chose for a connection, if its user still administers it. */
+async function chosenOrganization(
+  database: Database,
+  user: { id: string } | undefined,
+  session: Record<string, unknown> | undefined,
+): Promise<string | undefined> {
+  const organizationId = session?.activeOrganizationId;
+  if (typeof organizationId !== "string" || !user) return undefined;
+  return (await mayAdminister(database, { organizationId, userId: user.id }))
+    ? organizationId
+    : undefined;
+}
+
+/**
+ * Refuses granting an organization other than the one the page showed: the
+ * console sends the one it names with `/oauth2/continue` and an accepting
+ * `/oauth2/consent`, and the session's choice, which Better Auth binds the
+ * grant to, may have changed since in another tab.
+ */
+async function refuseAnotherOrganization(context: AuthContext): Promise<void> {
+  const body = (context.body ?? {}) as Record<string, unknown>;
+  const granting =
+    (context.path === "/oauth2/continue" && body.postLogin === true) ||
+    (context.path === "/oauth2/consent" && body.accept === true);
+  if (!granting) return;
+  const session = await getSessionFromCtx(context);
+  const chosen = (session?.session as Record<string, unknown> | undefined)?.activeOrganizationId;
+  if (typeof body.organizationId === "string" && body.organizationId === chosen) return;
+  throw new APIError("FORBIDDEN", {
+    // Read by the console: only this refusal is another tab's doing.
+    code: "ACTIVE_ORGANIZATION_CHANGED",
+    error: "access_denied",
+    error_description: "The organization chosen has changed. Start again in the app.",
+  });
+}
 
 /**
  * Whether `error` is PostgreSQL refusing a second account with an email
@@ -151,6 +237,7 @@ function assertSlugAllowed(slug: string): void {
 export function createAuth(options: AuthOptions) {
   const metadataFetch =
     options.clientIdMetadataDocuments === "strictly-public" ? fetchStrictlyPublic : fetchPinned;
+  const reviewerEmails = options.reviewerEmails ?? new Set<string>();
   const auth = betterAuth({
     // `transaction` is off by default. Better Auth's organization delete
     // removes members before the organization, so without it a Braivo foreign
@@ -165,9 +252,16 @@ export function createAuth(options: AuthOptions) {
     // and a learn domain holds Braivo's learner sessions instead (ADR 0018).
     baseURL: options.baseURL,
 
-    // No passwords: an account is made, and signed in to, by proving its email
-    // (ADR 0018).
-    emailAndPassword: { enabled: false },
+    // An account is made, and signed in to, by proving its email (ADR 0018).
+    // A password signs in only an account `reviewerEmails` lists (the before
+    // hook), with one the operator set (`reviewer.ts`); it makes none, and
+    // nothing over HTTP sets, changes, or resets one (`disabledPaths`). Off
+    // with no reviewers, so `/sign-in/email` refuses every request.
+    emailAndPassword: {
+      enabled: reviewerEmails.size > 0,
+      disableSignUp: true,
+      minPasswordLength: MIN_REVIEWER_PASSWORD_LENGTH,
+    },
 
     // Google's callback is `<baseURL>/api/auth/callback/google`, the redirect
     // URI its OAuth client must list. Asked to choose an account every time,
@@ -230,6 +324,33 @@ export function createAuth(options: AuthOptions) {
 
     hooks: {
       before: createAuthMiddleware(async (context) => {
+        // The client's own request, not the provider resuming it from
+        // `/oauth2/continue` or `/oauth2/consent` under the same path.
+        if (
+          context.request &&
+          new URL(context.request.url).pathname.endsWith("/oauth2/authorize")
+        ) {
+          await authorizing.set(true);
+        }
+        await refuseAnotherOrganization(context);
+        if (context.path === "/sign-in/email") {
+          const { email, password } = (context.body ?? {}) as {
+            email?: unknown;
+            password?: unknown;
+          };
+          // A password Better Auth would refuse for its form (past its
+          // maximum, 128) is refused here for every email alike, before the
+          // list is read: its own answer, a 400, would tell listed emails apart.
+          if (typeof email !== "string" || typeof password !== "string" || password.length > 128) {
+            throw new APIError("UNAUTHORIZED", INVALID_EMAIL_OR_PASSWORD);
+          }
+          if (reviewerEmails.has(email.toLowerCase())) return;
+          // Hashed as Better Auth does for an unknown email, so the answer's
+          // time differs from a listed email's by one database lookup alone:
+          // a residual hint, accepted for a list of reviewers (ADR 0018).
+          await context.context.password.hash(password);
+          throw new APIError("UNAUTHORIZED", INVALID_EMAIL_OR_PASSWORD);
+        }
         if (context.path !== "/email-otp/send-verification-otp") return;
         const { email, type } = (context.body ?? {}) as { email?: unknown; type?: unknown };
         // Its other kinds serve flows that are off (`disabledPaths`).
@@ -369,17 +490,46 @@ export function createAuth(options: AuthOptions) {
       // Unsigned tokens accepted, since the device flow hands out the session
       // token itself; it is as secret as the cookie it stands in for.
       bearer(),
-      // Spike (#113): the OAuth 2.1 authorization server remote MCP clients
+      // The OAuth 2.1 authorization server remote MCP clients (ADR 0045)
       // sign in through, its access tokens JWTs bound to `/mcp`. Only OAuth
       // signs JWTs: a session gets none, so signing in never needs the
       // signing key, which the auth secret encrypts.
       jwt({ disableSettingJwtHeader: true }),
       mcp({
-        // Braivo's, which hands the request to the console's `/consent`; under
-        // its signed-in layout, someone signed out signs in on the way.
-        loginPage: "/api/oauth/consent",
+        // Braivo's, which hand the request to the console's `/consent`, to
+        // choose an organization or to consent; under its signed-in layout,
+        // someone signed out signs in on the way, then chooses.
+        loginPage: "/api/oauth/organization",
         consentPage: "/api/oauth/consent",
         resource: new URL("/mcp", options.baseURL).href,
+        // Better Auth's defaults, and Braivo's own.
+        scopes: ["openid", "profile", "email", "offline_access", AUTHOR_SCOPE],
+        // A grant is to one organization (ADR 0045), chosen before consent
+        // and kept on the session (the organization plugin's `set-active`):
+        // `consentReferenceId` is given no request to read it from. Each
+        // authorization asks again, so a second grant can name another
+        // organization. Read from the database: the session cookie cache,
+        // which would answer an old choice, is off.
+        postLogin: {
+          page: "/api/oauth/organization",
+          shouldRedirect: async ({ user, session }) =>
+            (await authorizing.get()) ||
+            !(await chosenOrganization(options.database, user, session)),
+          // The consent's reference ID, so consents, codes, and refresh
+          // tokens are per organization; refused, not left out, for an
+          // organization the person does not administer.
+          consentReferenceId: async ({ user, session }) => {
+            const organizationId = await chosenOrganization(options.database, user, session);
+            if (organizationId) return organizationId;
+            throw new APIError("FORBIDDEN", {
+              error: "access_denied",
+              error_description: "Choose an organization you manage.",
+            });
+          },
+        },
+        // Where `/mcp` reads which organization the token's grant is for.
+        customAccessTokenClaims: ({ referenceId }) =>
+          referenceId ? { [ORGANIZATION_CLAIM]: referenceId } : {},
         // A person signs each client in; `client_credentials`, a client acting
         // as no one, waits for its own decision (ADR 0022).
         grantTypes: ["authorization_code", "refresh_token"],
@@ -431,6 +581,18 @@ export function createAuth(options: AuthOptions) {
       // Google signs in, making or finding the account by its email; nothing
       // links a provider to an account by hand.
       "/link-social",
+      // Nor unlinks one: a reviewer would drop their password, outliving
+      // `reviewer remove-password`'s look for it (ADR 0018). Nothing of Braivo's calls it.
+      "/unlink-account",
+      // A password is the operator's to set and remove (`reviewer.ts`): none
+      // is made, changed, reset, or checked over HTTP. `/set-password` is
+      // server-only already; `/reset-password/:token`, a pattern this list
+      // cannot name, is refused by the API (`app.ts`).
+      "/sign-up/email",
+      "/change-password",
+      "/request-password-reset",
+      "/reset-password",
+      "/verify-password",
       // Email codes sign in and nothing else: resetting a password would give
       // an account made by code a password, and the rest serve flows Braivo
       // does not offer.
@@ -468,7 +630,12 @@ export function createAuth(options: AuthOptions) {
     // The device flow paces each code itself (`slow_down` to a poll within its
     // interval), and a device code is too random to guess, so this limit would
     // add nothing but that failure.
-    rateLimit: { customRules: { "/device/token": false } },
+    //
+    // A password, by contrast, is one reviewer's (ADR 0018): ten tries a
+    // minute per client address, not the 120 a class needs for codes.
+    rateLimit: {
+      customRules: { "/device/token": false, "/sign-in/email": { window: 60, max: 10 } },
+    },
 
     // Stated, not left to a default: a self-hosted installation does not phone
     // home.

@@ -1,6 +1,6 @@
 # 0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain
 
-Status: accepted (2026-09-25), amended (2026-10-11: a learn domain signs in by its own code), partly implemented (see Consequences)
+Status: accepted (2026-09-25), amended (2026-10-11: a learn domain signs in by its own code; 2026-10-15: an app directory's reviewer signs in with a password), partly implemented (see Consequences)
 
 ## Context
 
@@ -16,6 +16,7 @@ Today the console signs people in with email and password at `/login` and `/sign
 **Signing in establishes identity; membership and organization creation establish access.** One global identity on the installation's origin; on each learn domain, a session scoped to its organization.
 
 - **One `/login` on the installation's origin** (`braivo.app` on Cloud), for everyone: an **email code** (Better Auth's `emailOTP`) and **Google**. No passwords, no `/signup`. Google is optional per installation. A code, not a link: it works across devices, and mail scanners cannot spend it.
+- **One exception, for an app directory's reviewer:** OpenAI's review of an app for ChatGPT's directory needs an account that signs in without email or SMS codes, MFA, or links. At `/login?method=password`, which nothing links, the console takes an email and a password, then continues as a code's sign-in does, an OAuth authorization included; learn domains never offer it. A password signs in only an account `BRAIVO_REVIEWER_EMAILS` lists, and an unlisted one is refused exactly as a wrong password, so the answer says nothing of the list; its timing differs by one database lookup, accepted for a list of reviewers. The operator sets the password (`reviewer set-password`) for an account that has signed in once, and removes it (`reviewer remove-password`), ending its sessions; nothing over HTTP makes, sets, changes, resets, or checks one ([access](../specs/access.md), access-1). The list is configuration, not a table: an installation takes no password unless it sets one, a database write alone opens nothing, and no migration is needed.
 - **Any verified identity may have an account; an account alone reaches nothing.** Proving an email signs someone in and makes their account if needed; `/login` never says whether one existed. After a first sign-in, a user without a display name supplies one before continuing.
 - **The operator creates organizations, or lets people set up their own.** The operator creates one from the command line for an account that has signed in once, its owner. An installation that sets `BRAIVO_SELF_SERVE_DOMAIN` (`braivo.app` on Cloud) also lets anyone signed in who owns no organization set one up in the console, its owner, at `<slug>.<that domain>`: a name and that address, nothing more. Off by default: a self-hosted school's `/login` takes any email, and its organizations are its operator's to make. One per owner, a limit of this path alone, not a defence against squatting (whoever has many emails has many accounts): more take the operator. The operator serves the domain's subdomains (wildcard DNS and certificate) before setting it. Better Auth's own creation endpoint stays closed (`allowUserToCreateOrganization: false` refuses sessions only); both paths call it naming the user, which runs every hook.
 - **Invitations add people to an existing organization**, as one of two things: a learner (`member`) or an administrator (`admin`). No owner invitations; ownership comes from creation. The invitee opens `/invitations/<invitation>` on Braivo's origin, signs in, and accepts — only as a verified identity whose email matches the invitation (Better Auth's `requireEmailVerificationOnInvitation`; on mismatch, "This invitation was sent to another email"). A learner then goes to the organization's learn domain, an administrator to its console.
@@ -46,7 +47,9 @@ Today the console signs people in with email and password at `/login` and `/sign
 - **An invitation naming a learn domain.** It freezes a hostname that may change before acceptance.
 - **A return URL from the browser.** The handoff records the hostname from the domain mapping.
 - **Password sign-in on learn domains until the handoff** (replaced): an account made by email code has no password, so it could not learn until step 2.
-- **Passwords alongside**, needing verification and reset; **a separate `/signup`**, a question Braivo need not ask; **signing in on each learn domain with the account's credentials** (replaced by codes good there alone), which would give the account's session to whoever controls the hostname; **magic links**, which fail across devices and are spent by mail scanners; **course enrollment now**, a second access model with no customer asking.
+- **No password at all** (replaced): a directory's reviewer could not sign in.
+- **A reviewer's allowlist in the database**, a flag or a table the operator's command writes: one command instead of two, but a migration, and a database write would then open a password sign-in; **a password's existence as the allowlist**, which would open sign-in to whatever wrote one; **a mailbox for the reviewer**, which the review forbids.
+- **Passwords alongside**, for everyone, needing verification and reset; **a separate `/signup`**, a question Braivo need not ask; **signing in on each learn domain with the account's credentials** (replaced by codes good there alone), which would give the account's session to whoever controls the hostname; **magic links**, which fail across devices and are spent by mail scanners; **course enrollment now**, a second access model with no customer asking.
 
 ## Consequences
 
@@ -62,5 +65,6 @@ Today the console signs people in with email and password at `/login` and `/sign
   2. done: the learner session and handoff, replacing learn-domain sign-in and no longer accepting the account sessions learn domains held, and learn domains dropped from Better Auth's trusted origins; `/login?handoff=` names the organization and the domain it returns to ("Sign in to Acme Learning"), without Braivo's branding. A handoff lasts 15 minutes, its code 60 seconds within them; a learner session a week, renewed by use, as Better Auth's are. In development the learn app runs on the installation's own host, where it signs in by code;
   3. done: Google at `/login`, a learn domain's included, for an installation with an OAuth client; back from Google for a learn domain, the account is offered as any open session is;
      3b. done: a learn domain's own `/login`, by its own codes, with Google started at once when chosen there;
+     3c. done: a reviewer's password at `/login?method=password`;
   4. learner and administrator invitations;
   5. the pilot.

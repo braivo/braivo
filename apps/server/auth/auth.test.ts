@@ -267,7 +267,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(accounts).toMatchObject([{ id: again.id, name: "Owner" }]);
   });
 
-  test("takes no password, to make an account or to sign in", async () => {
+  // A reviewer's password, for an installation that lists one: `api/reviewer.test.ts`.
+  test("without reviewers, takes no password, to make an account or to sign in", async () => {
     const credentials = { email: newcomer, password: "correct horse battery", name: "Newcomer" };
 
     const answers = await Promise.all([
@@ -275,7 +276,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       post("/sign-in/email", credentials),
     ]);
 
-    expect(answers.map((answer) => answer.status)).toEqual([400, 400]);
+    expect(answers.map((answer) => answer.status)).toEqual([404, 401]);
   });
 
   test("sends one code a minute per address, however its guesses are spent", async () => {

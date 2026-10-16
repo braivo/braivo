@@ -5,15 +5,21 @@ import { fileURLToPath } from "node:url";
 
 import { createDatabase, runMigrations } from "@braivo/db";
 import { oauthClient, oauthClientResource } from "@braivo/db/schema";
-import { eq } from "drizzle-orm";
+import { account, session, user } from "@braivo/db/schema/auth";
+import { verifyPassword } from "better-auth/crypto";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vite-plus/test";
 
 const entry = fileURLToPath(new URL("./index.ts", import.meta.url));
 
-/** The operator's command, run as from a clone, with only `env` beside `PATH`. */
-async function run(args: string[], env: Record<string, string> = {}) {
+/**
+ * The operator's command, run as from a clone, with only `env` beside `PATH`,
+ * and `stdin` piped in, or nothing.
+ */
+async function run(args: string[], env: Record<string, string> = {}, stdin = "") {
   const child = Bun.spawn([process.execPath, entry, ...args], {
     env: { PATH: process.env.PATH ?? "", ...env },
+    stdin: new Blob([stdin]),
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -38,6 +44,21 @@ describe("the server's commands", () => {
 
     expect(code).toBe(1);
     expect(stderr).toContain("oauth-client add --name <name> --redirect-uri <uri>...");
+  });
+
+  test("ask for the email of a reviewer left out, and take a password from stdin alone", async () => {
+    const left = await run(["reviewer", "set-password"]);
+    const inArgv = await run([
+      "reviewer",
+      "set-password",
+      "--email",
+      "a@example.com",
+      "--password",
+      "x",
+    ]);
+
+    expect([left.code, inArgv.code]).toEqual([1, 1]);
+    expect(left.stderr).toContain("reviewer set-password --email <email> [--password-stdin]");
   });
 
   test("ask for the email of a member left out", async () => {
@@ -100,6 +121,83 @@ describe.skipIf(!connectionString)("the server's commands, on a database", () =>
       try {
         // Left by a failure above, not by a pass, which removed it.
         await database.delete(oauthClient).where(eq(oauthClient.clientId, clientId));
+      } finally {
+        await database.$client.end();
+      }
+    }
+  });
+
+  test("set a reviewer's password, random or from stdin, then remove it and its sessions", async () => {
+    await runMigrations(connectionString ?? "");
+    const env = {
+      DATABASE_URL: connectionString ?? "",
+      BETTER_AUTH_SECRET: "cli-test-secret-that-is-long-enough",
+      BRAIVO_URL: "https://cli-test.example.com",
+    };
+    const id = crypto.randomUUID();
+    const email = `cli-test-reviewer-${id}@example.com`;
+    const database = createDatabase(connectionString ?? "");
+    const stored = async () =>
+      (
+        await database
+          .select({ password: account.password })
+          .from(account)
+          .where(and(eq(account.userId, id), eq(account.providerId, "credential")))
+      ).map((row) => row.password!);
+    try {
+      const now = new Date();
+      await database.insert(user).values({
+        id,
+        email,
+        name: "Reviewer",
+        emailVerified: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await database.insert(session).values({
+        id,
+        userId: id,
+        token: id,
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const generated = await run(["reviewer", "set-password", "--email", email], env);
+      expect(generated).toMatchObject({ code: 0, stderr: "" });
+      // Alone on the last line, to copy.
+      const shown = generated.stdout.trim().split("\n").at(-1)!;
+      expect(shown.length).toBeGreaterThanOrEqual(16);
+      const [first] = await stored();
+      expect(await verifyPassword({ hash: first!, password: shown })).toBe(true);
+
+      const short = await run(
+        ["reviewer", "set-password", "--email", email, "--password-stdin"],
+        env,
+        "short\n",
+      );
+      expect(short.code).toBe(1);
+      expect(short.stderr).toContain("at least 16 characters");
+      const chosen = "a reviewer's password, long enough";
+      const piped = await run(
+        ["reviewer", "set-password", "--email", email, "--password-stdin"],
+        env,
+        `${chosen}\n`,
+      );
+      expect(piped).toMatchObject({ code: 0, stderr: "" });
+      expect(piped.stdout).not.toContain(chosen);
+      const replaced = await stored();
+      expect(replaced).toHaveLength(1);
+      expect(await verifyPassword({ hash: replaced[0]!, password: chosen })).toBe(true);
+
+      const removed = await run(["reviewer", "remove-password", "--email", email], env);
+      expect(removed.code).toBe(0);
+      expect(await stored()).toEqual([]);
+      expect(await database.select().from(session).where(eq(session.userId, id))).toEqual([]);
+      expect((await run(["reviewer", "remove-password", "--email", email], env)).code).toBe(1);
+    } finally {
+      try {
+        await database.delete(user).where(eq(user.id, id));
       } finally {
         await database.$client.end();
       }

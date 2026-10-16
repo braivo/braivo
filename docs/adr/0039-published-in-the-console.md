@@ -31,6 +31,7 @@ An assistant's work arrives over many conversations, often in a course learners 
 - **Refusing a token's writes to anything published.** Simpler, but an assistant could then never extend or correct a course learners are in, the request teachers make most once a course exists.
 - **Course-only publication.** A task added to a shared objective would reach a published course unreviewed.
 - **Changesets**, one proposal of additions, corrections, and removals approved together: storage, identity mapping, and conflicts of their own, until teachers need several kinds of change approved as one.
+- **Remote MCP only once all of this exists** (replaced): reading material and citing it needs no publication, and teachers could connect sooner.
 - **A fingerprint of the course reviewed**, refusing Publish once anything changed: publishing the IDs shown leaves new work waiting instead of refusing the work reviewed.
 
 ## Open
@@ -45,5 +46,5 @@ An assistant's work arrives over many conversations, often in a course learners 
 - ADR 0029's "a publish step would be a state machine no customer has asked for" is replaced: the product's own loop asks for it. It stays two states, published or not, with no workflow.
 - Courses and tasks each record when they were published, as tasks record when they were retired; a waiting correction records the task it replaces.
 - Editing an unpublished course's title and order is the review's first missing piece ([authoring](../specs/authoring.md), Gaps); hiding a course published by mistake is due before a pilot with real learners.
-- Remote MCP ships after this, so nothing it writes is live on arrival.
+- Remote MCP ships before this is complete, without what this protects: until tasks' publication exists, `/mcp` offers no tool writing them (`author_tasks`, `retire_tasks`, and with them task corrections; [access](../specs/access.md), access-41), only reads, the writes no learner reaches, sources, objectives, and citations, and `create_course`, whose course waits to be published. Each joins `/mcp` with its own publication, so nothing a connection writes is live on arrival. Learners' progress waits for its own permission, apart from this.
 - The authoring spec's "there is no draft state", the learner loop's spec, `braivo mcp`'s tools, and the console's "Open to every learner" notice change with it.

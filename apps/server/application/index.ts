@@ -73,6 +73,13 @@ export {
   SetUpRefused,
   setUpOrganization,
 } from "./organizations.ts";
+export {
+  type Connection,
+  disconnectConnection,
+  isConnectionStanding,
+  mayRefresh,
+  listConnections,
+} from "./connections.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";

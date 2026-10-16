@@ -4,8 +4,8 @@
 
 import { parseArgs } from "node:util";
 
-import { createMcpServer } from "@braivo/mcp";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createMcpServer } from "@braivo/server/mcp";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
 import { credentialsPath, loadCredentials } from "./credentials.ts";
 import { login, logout, remoteClient, whoAmI } from "./remote.ts";
@@ -69,8 +69,10 @@ async function main(argv: readonly string[]): Promise<number> {
     const credentials = await loadCredentials(credentialsPath(process.env));
     if (!credentials) throw new Error("Not signed in. Run `braivo login <url>` first.");
 
-    const server = createMcpServer(remoteClient(credentials, fetch), VERSION);
-    await server.connect(new StdioServerTransport());
+    const client = remoteClient(credentials, fetch);
+    // Both protocol eras, the opening message picking one, since local agents
+    // predating 2026-07-28 remain (ADR 0023).
+    serveStdio(() => createMcpServer(client, VERSION));
     // Returning does not end the process: the open standard input keeps it alive.
     return 0;
   }

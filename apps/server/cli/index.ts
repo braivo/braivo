@@ -11,8 +11,11 @@ import {
   addMember,
   createAuth,
   createOrganization,
+  generateReviewerPassword,
   registerOAuthClient,
   removeOAuthClient,
+  removeReviewerPassword,
+  setReviewerPassword,
 } from "../auth/index.ts";
 import { readAuthConfig, readDatabaseUrl, readServeConfig } from "../config.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
@@ -45,8 +48,17 @@ Running an installation (a content owner's commands are braivo's):
                 (ChatGPT, Claude: docs/guides/deployment.md); random
                 otherwise.
   oauth-client remove --client-id <id>
-                Remove a client and refuse its refresh tokens; access tokens
-                already issued work until they expire, within the hour.
+                Remove a client and its connections: at once, /mcp refuses
+                its access tokens and refreshing refuses its refresh tokens.
+  reviewer set-password --email <email> [--password-stdin]
+                Let an existing account sign in with a password at
+                /login?method=password, for an app directory's reviewer, while
+                BRAIVO_REVIEWER_EMAILS lists it. Prints a random password
+                once, or reads one from stdin (16 characters or more);
+                replaces any it had.
+  reviewer remove-password --email <email>
+                Remove the account's password and end its sessions. Its
+                connected AI apps remain: disconnect them in the console.
   serve         Serve the HTTP API.
 `;
 
@@ -191,10 +203,54 @@ async function main(argv: readonly string[]): Promise<number> {
         );
       } else if (await removeOAuthClient(auth, clientId!)) {
         console.log(
-          `Removed ${clientId} from ${config.baseUrl}/mcp. Access tokens already issued work until they expire, within the hour.`,
+          `Removed ${clientId} from ${config.baseUrl}/mcp. Its connections can no longer reach /mcp, nor refresh their tokens.`,
         );
       } else {
         console.error(`No client is registered as ${clientId} for ${config.baseUrl}/mcp.`);
+        return 1;
+      }
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
+  if (argv[0] === "reviewer" && (argv[1] === "set-password" || argv[1] === "remove-password")) {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: { email: { type: "string" }, "password-stdin": { type: "boolean" } },
+    });
+    const { email, "password-stdin": fromStdin } = values;
+    const setting = argv[1] === "set-password";
+    if (!email || (!setting && fromStdin)) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const config = readAuthConfig(process.env);
+    const database = createDatabase(config.databaseUrl);
+    try {
+      const auth = createAuth({
+        database,
+        secret: config.secret,
+        baseURL: config.baseUrl,
+        sendMail: sendsNoMail,
+      });
+      if (setting) {
+        // Never an argument, which the shell's history and `ps` would keep.
+        // Its line's end is not part of it.
+        const password = fromStdin
+          ? (await new Response(Bun.stdin.stream()).text()).replace(/\r?\n$/, "")
+          : generateReviewerPassword();
+        await setReviewerPassword(auth, { email, password });
+        console.log(
+          `${email} signs in at ${config.baseUrl}/login?method=password while BRAIVO_REVIEWER_EMAILS lists it.`,
+        );
+        if (!fromStdin) console.log(`Its password, shown this once:\n${password}`);
+      } else if (await removeReviewerPassword(auth, email)) {
+        console.log(`Removed the password of ${email} and ended its sessions.`);
+      } else {
+        console.error(`${email} has no password; any sessions it had were ended.`);
         return 1;
       }
     } finally {

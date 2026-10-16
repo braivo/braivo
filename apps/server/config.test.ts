@@ -13,6 +13,22 @@ const valid = {
   BRAIVO_MAIL_FROM: "Braivo <signin@example.com>",
 };
 
+describe("reviewers", () => {
+  test("are none unless listed, each an email, lowercased", () => {
+    expect(readServeConfig(valid).reviewerEmails).toBeUndefined();
+    expect(readServeConfig({ ...valid, BRAIVO_REVIEWER_EMAILS: " , " }).reviewerEmails).toBe(
+      undefined,
+    );
+    expect(
+      readServeConfig({ ...valid, BRAIVO_REVIEWER_EMAILS: " Review@Example.com, b@example.com " })
+        .reviewerEmails,
+    ).toEqual(new Set(["review@example.com", "b@example.com"]));
+    expect(() => readServeConfig({ ...valid, BRAIVO_REVIEWER_EMAILS: "review@example" })).toThrow(
+      "BRAIVO_REVIEWER_EMAILS lists emails",
+    );
+  });
+});
+
 describe("self-serve onboarding", () => {
   test("is off unless a domain is set, which is read as a hostname", () => {
     expect(readServeConfig(valid).selfServeDomain).toBeUndefined();

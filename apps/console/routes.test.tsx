@@ -112,6 +112,8 @@ function renderAt(
     organizations?: Organization[];
     /** Better Auth's device flow: `device(query)`, with `approve` and `deny` on it. */
     device?: object;
+    /** Better Auth's own requests, `$fetch(path, options)`: the OAuth consent's. */
+    $fetch?: object;
     /** Better Auth's session read, in place of one answering at once. */
     getSession?: () => Promise<unknown>;
     /** The browser's, whose Back a blocker can stop, unlike a memory history's; `path` is then ignored. */
@@ -130,6 +132,12 @@ function renderAt(
         return { data: { user: { ...account } }, error: null };
       }),
       social: vi.fn(async (): Promise<{ error: { status: number } | null }> => ({ error: null })),
+      // A reviewer's password (ADR 0018): `REVIEWER_PASSWORD` alone signs in.
+      email: vi.fn(async ({ password }: { password: string }) => {
+        if (password !== REVIEWER_PASSWORD) return { data: null, error: { status: 401 } };
+        signedIn = true;
+        return { data: { user: { ...account } }, error: null };
+      }),
     },
     updateUser: vi.fn(
       async ({ name }: { name: string; fetchOptions?: { signal?: AbortSignal } }) => {
@@ -142,6 +150,7 @@ function renderAt(
       return { error: null };
     }),
     device: stubs.device,
+    $fetch: stubs.$fetch,
     ...(stubs.getSession && { getSession: stubs.getSession }),
   };
   const visit = vi.fn<AppContext["visit"]>();
@@ -181,6 +190,17 @@ async function signInWithCode() {
   });
   fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
   fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "123456" } });
+}
+
+const REVIEWER_PASSWORD = "a reviewer's password, long enough";
+
+/** Signs in from `/login?method=password` as a reviewer would, with `password`. */
+async function signInWithPassword(password = REVIEWER_PASSWORD) {
+  fireEvent.change(await screen.findByLabelText("Email address"), {
+    target: { value: "reviewer@example.com" },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: password } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 /** A course as authored, one objective taught by a passage and practised by a task. */
@@ -1233,6 +1253,139 @@ describe("the console", () => {
       await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
     });
 
+    test("list the account's connected apps, and disconnect one, keeping the other", async () => {
+      let connections = [
+        {
+          id: "c1",
+          client: { id: "https://claude.ai/oauth/mcp-oauth-client-metadata", name: "Claude" },
+          organization: { id: "org-1", name: "Example School" },
+          connectedAt: "2026-10-01T09:00:00.000Z",
+        },
+        {
+          id: "c2",
+          client: { id: "https://claude.ai/oauth/mcp-oauth-client-metadata", name: "Claude" },
+          organization: { id: "org-2", name: "Annex" },
+          connectedAt: "2026-10-02T09:00:00.000Z",
+        },
+      ];
+      const disconnect = vi.fn(async (id: string) => {
+        connections = connections.filter((connection) => connection.id !== id);
+      });
+      renderAt("/example/settings/connections", {
+        braivo: { listConnections: async () => connections, disconnectConnection: disconnect },
+      });
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Connected apps" })).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Connected apps · Example School"));
+      const [first, second] = within(screen.getByRole("main")).getAllByRole("listitem");
+      expect(within(first!).getByText("Claude")).toBeTruthy();
+      expect(first!.textContent).toMatch(
+        /https:\/\/claude\.ai\/oauth\/mcp-oauth-client-metadata · Example School · connected/,
+      );
+      expect(second!.textContent).toMatch(/Annex/);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Disconnect Claude from Example School" }),
+      );
+      const dialog = await screen.findByRole("alertdialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
+
+      await vi.waitFor(() =>
+        expect(screen.getByRole("status").textContent).toBe(
+          "Disconnected Claude from Example School.",
+        ),
+      );
+      expect(disconnect.mock.calls.map(([id]) => id)).toEqual(["c1"]);
+      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
+      const [kept, ...rest] = within(screen.getByRole("main")).getAllByRole("listitem");
+      expect(kept!.textContent).toMatch(/Annex/);
+      expect(rest).toEqual([]);
+
+      // The same app again: focus moves again, and the status says something new.
+      const button = screen.getByRole("button", { name: "Disconnect Claude from Annex" });
+      button.focus();
+      fireEvent.click(button);
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Disconnect" }),
+      );
+      await vi.waitFor(() =>
+        expect(screen.getByRole("status").textContent).toBe("Disconnected Claude from Annex."),
+      );
+      expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
+    });
+
+    test("say when an app could not be disconnected, a new alert each time, keeping it", async () => {
+      const connection = {
+        id: "c1",
+        client: { id: "client-1", name: "Claude" },
+        organization: { id: "org-1", name: "Example School" },
+        connectedAt: "2026-10-01T09:00:00.000Z",
+      };
+      // Refused, then unanswered: each says which.
+      const disconnect = vi
+        .fn()
+        .mockRejectedValueOnce(new BraivoError(500, "Failed."))
+        .mockRejectedValue(new TypeError("Failed to fetch"));
+      renderAt("/example/settings/connections", {
+        braivo: { listConnections: async () => [connection], disconnectConnection: disconnect },
+      });
+
+      const button = await screen.findByRole("button", {
+        name: "Disconnect Claude from Example School",
+      });
+      fireEvent.click(button);
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Disconnect" }),
+      );
+      const first = await screen.findByRole("alert");
+      expect(first.textContent).toBe("Could not disconnect the app. Try again.");
+      fireEvent.click(button);
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Disconnect" }),
+      );
+      await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Could not disconnect. Check your connection and try again.",
+      );
+      expect(within(screen.getByRole("main")).getAllByRole("listitem")).toHaveLength(1);
+    });
+
+    test("say an app is disconnected without reading the list again, which could fail", async () => {
+      const connection = {
+        id: "c1",
+        client: { id: "client-1", name: "Claude" },
+        organization: { id: "org-1", name: "Example School" },
+        connectedAt: "2026-10-01T09:00:00.000Z",
+      };
+      const listConnections = vi
+        .fn()
+        .mockResolvedValueOnce([connection])
+        .mockRejectedValue(new TypeError("Failed to fetch"));
+      renderAt("/example/settings/connections", {
+        braivo: { listConnections, disconnectConnection: async () => {} },
+      });
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Disconnect Claude from Example School" }),
+      );
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Disconnect" }),
+      );
+
+      await vi.waitFor(() =>
+        expect(screen.getByRole("status").textContent).toBe(
+          "Disconnected Claude from Example School.",
+        ),
+      );
+      expect(screen.getByText("No AI app is connected to your account.")).toBeTruthy();
+    });
+
+    test("say no app is connected", async () => {
+      renderAt("/example/settings/connections", { braivo: { listConnections: async () => [] } });
+      expect(await screen.findByText("No AI app is connected to your account.")).toBeTruthy();
+      expect(within(screen.getByRole("main")).queryByRole("listitem")).toBeNull();
+    });
+
     test("lead back to the page they were opened from, by their link or by Escape", async () => {
       const { router } = renderAt("/example/sources", { braivo: { listSources: async () => [] } });
 
@@ -1437,6 +1590,28 @@ describe("the console", () => {
     answering = true;
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("button", { name: "Account: Olive Owner" })).toBeTruthy();
+  });
+
+  describe("signing in with a password", () => {
+    test("is offered at /login?method=password alone, and nothing links there", async () => {
+      renderAt("/login", {
+        signedIn: false,
+        braivo: { signInSettings: async () => ({ google: true }) },
+      });
+      await screen.findByLabelText("Email address");
+      expect(screen.queryByLabelText("Password")).toBeNull();
+      expect(document.querySelector('a[href*="password"]')).toBeNull();
+      cleanup();
+
+      const { router } = renderAt("/login?method=password&redirect=%2Fexample", {
+        signedIn: false,
+        braivo: { listCourses: async () => [] },
+      });
+      await signInWithPassword();
+
+      expect(await screen.findByText("No courses yet")).toBeTruthy();
+      expect(router.history.location.pathname).toBe("/example");
+    });
   });
 
   describe("signing in with Google", () => {
@@ -2139,6 +2314,175 @@ describe("the console", () => {
       await router.navigate({ to: "/login" });
       await screen.findByRole("heading", { name: "Sign in" });
       expect(document.documentElement.hasAttribute("data-learn-domain")).toBe(false);
+    });
+  });
+
+  describe("connecting an AI app", () => {
+    /** The signed query Better Auth sent the browser with, as `/api/oauth/*` wraps it. */
+    const query = "client_id=c1&scope=braivo%3Aauthor&sig=s";
+    const request = `r.${btoa(query).replaceAll("+", "-").replaceAll("/", "_")}`;
+    /** Better Auth answering the page: the client named Claude, then `answers` by path. */
+    const betterAuth = (answers: Record<string, unknown> = {}) =>
+      vi.fn(async (path: string, _options?: object) =>
+        path === "/oauth2/public-client-prelogin"
+          ? { data: { client_name: "Claude" }, error: null }
+          : { data: answers[path] ?? {}, error: null },
+      );
+    const learnerOnly: Organization = {
+      ...annex,
+      id: "org-3",
+      name: "Night School",
+      administers: false,
+    };
+
+    test("asks which organization the app works in, among those the person manages", async () => {
+      const $fetch = betterAuth({ "/oauth2/continue": { url: "/api/oauth/consent?next" } });
+      const { visit } = renderAt(`/consent?step=organization&request=${request}`, {
+        $fetch,
+        organizations: [school, annex, learnerOnly],
+      });
+
+      expect(
+        await screen.findByRole("heading", { name: "Which organization should Claude work in?" }),
+      ).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Example School" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Night School" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Annex" }));
+
+      // Kept on the session first, then the authorization resumed.
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/oauth/consent?next"));
+      expect($fetch.mock.calls.slice(1)).toEqual([
+        ["/organization/set-active", { method: "POST", body: { organizationId: annex.id } }],
+        [
+          "/oauth2/continue",
+          {
+            method: "POST",
+            body: { postLogin: true, oauth_query: query, organizationId: annex.id },
+          },
+        ],
+      ]);
+    });
+
+    test("resumes after a reviewer signs in with a password, as after a code", async () => {
+      const consent = `/consent?step=organization&request=${request}`;
+      const { auth } = renderAt(`/login?method=password&redirect=${encodeURIComponent(consent)}`, {
+        signedIn: false,
+        $fetch: betterAuth(),
+      });
+
+      await signInWithPassword("wrong");
+      expect(await screen.findByRole("alert")).toHaveProperty(
+        "textContent",
+        "That email and password do not match.",
+      );
+      await signInWithPassword();
+
+      expect(
+        await screen.findByRole("heading", { name: "Which organization should Claude work in?" }),
+      ).toBeTruthy();
+      expect(auth.signIn.email).toHaveBeenLastCalledWith(
+        expect.objectContaining({ email: "reviewer@example.com", password: REVIEWER_PASSWORD }),
+      );
+    });
+
+    test("tells someone managing none, and lets them send the app back", async () => {
+      const $fetch = betterAuth({ "/oauth2/consent": { url: "https://claude.ai/back?error=x" } });
+      const { visit } = renderAt(`/consent?step=organization&request=${request}`, {
+        $fetch,
+        organizations: [learnerOnly],
+      });
+
+      expect(
+        await screen.findByRole("heading", { name: "You don't manage any organizations" }),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("https://claude.ai/back?error=x"));
+      expect($fetch).toHaveBeenLastCalledWith("/oauth2/consent", {
+        method: "POST",
+        body: { accept: false, oauth_query: query },
+      });
+    });
+
+    test("names the organization chosen when asking for consent", async () => {
+      const $fetch = betterAuth({ "/oauth2/consent": { url: "https://claude.ai/back?code=c" } });
+      const { visit } = renderAt(`/consent?request=${request}`, {
+        $fetch,
+        organizations: [school, annex],
+        getSession: async () => ({
+          data: {
+            user: { id: "u1", name: "Olive Owner" },
+            session: { activeOrganizationId: annex.id },
+          },
+          error: null,
+        }),
+      });
+
+      expect(
+        await screen.findByRole("heading", { name: "Let Claude work in Annex?" }),
+      ).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("https://claude.ai/back?code=c"));
+      expect($fetch).toHaveBeenLastCalledWith("/oauth2/consent", {
+        method: "POST",
+        body: { accept: true, oauth_query: query, organizationId: annex.id },
+      });
+    });
+
+    /** Approving, refused with `error`; where the page then stands. */
+    async function refusedWith(error: object) {
+      const $fetch = vi.fn(async (path: string, _options?: object) =>
+        path === "/oauth2/public-client-prelogin"
+          ? { data: { client_name: "Claude" }, error: null }
+          : { data: null, error },
+      );
+      const { visit } = renderAt(`/consent?request=${request}`, {
+        $fetch,
+        organizations: [school, annex],
+        getSession: async () => ({
+          data: {
+            user: { id: "u1", name: "Olive Owner" },
+            session: { activeOrganizationId: annex.id },
+          },
+          error: null,
+        }),
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+      return visit;
+    }
+
+    test("says so when another tab chose another organization since", async () => {
+      const visit = await refusedWith({ status: 403, code: "ACTIVE_ORGANIZATION_CHANGED" });
+
+      expect(
+        await screen.findByRole("heading", {
+          name: "Another organization was chosen in another tab. Start again in Claude.",
+        }),
+      ).toBeTruthy();
+      expect(visit).not.toHaveBeenCalled();
+    });
+
+    test("blames no other tab for another refusal, such as no longer managing it", async () => {
+      const visit = await refusedWith({ status: 403, error: "access_denied" });
+
+      expect(
+        await screen.findByRole("heading", {
+          name: "Could not connect Claude. Check your access, then start again in Claude.",
+        }),
+      ).toBeTruthy();
+      expect(visit).not.toHaveBeenCalled();
+    });
+
+    test("shows a client's ID when it is a URL, which identifies it, and claims no more", async () => {
+      const byUrl = "client_id=https%3A%2F%2Fclaude.ai%2Foauth%2Fmetadata&sig=s";
+      renderAt(`/consent?step=organization&request=r.${btoa(byUrl)}`, {
+        $fetch: betterAuth(),
+        organizations: [school],
+      });
+
+      expect(await screen.findByText("Client ID: https://claude.ai/oauth/metadata")).toBeTruthy();
+      expect(screen.queryByText(/details come from/)).toBeNull();
     });
   });
 
@@ -6280,7 +6624,7 @@ describe("groups", () => {
         within(nav)
           .getAllByRole("link")
           .map((link) => link.textContent),
-      ).toEqual(["Back to Example School", "Profile", "Preferences"]);
+      ).toEqual(["Back to Example School", "Profile", "Preferences", "Connected apps"]);
     });
 
     test("takes a report away, its learner's name included, once the teacher no longer teaches them", async () => {

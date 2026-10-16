@@ -6,18 +6,26 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 
-import { type Ai, readHostOrganization } from "../application/index.ts";
+import { type Ai, mayRefresh, readHostOrganization } from "../application/index.ts";
 import type { DomainProvisioner } from "../application/index.ts";
 import type { Auth } from "../auth/index.ts";
 import { describeError } from "../logging.ts";
 import type { SendMail } from "../mail/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { authoringRoutes } from "./authoring.ts";
+import { connectionRoutes } from "./connections.ts";
 import { groupRoutes } from "./groups.ts";
-import { createGuards, limitBody, MAX_BODY_BYTES, refuseUnstorable } from "./guards.ts";
+import {
+  createGuards,
+  limitBody,
+  MAX_BODY_BYTES,
+  presentsToolCredential,
+  refuseUnstorable,
+} from "./guards.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { mcpEndpoint } from "./mcp.ts";
+import { principalOf } from "./principal.ts";
 import { sessionRoutes } from "./session.ts";
 import type { OrganizationSetup, SignInSettings } from "./types.ts";
 
@@ -83,6 +91,8 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/email-otp/send-verification-otp",
   "/api/auth/sign-in/email-otp",
   "/api/auth/sign-in/social",
+  // A reviewer's password (ADR 0018).
+  "/api/auth/sign-in/email",
 ]);
 
 /**
@@ -147,7 +157,15 @@ export function createApi(options: ApiOptions) {
     return context.text("Internal Server Error", 500);
   });
 
-  // First, so it reaches every answer under `/api`, the refusals below and
+  // A connection's principal, moved from the request `/mcp` built into the
+  // context before anything else runs: a body limit may replace `c.req.raw`
+  // with a copy, which carries none (`principal.ts`).
+  api.use("*", async (context, next) => {
+    context.set("connection", principalOf(context.req.raw));
+    await next();
+  });
+
+  // Next, so it reaches every answer under `/api`, the refusals below and
   // Hono's 404 included: none is meant for a shared cache (ADR 0010).
   api.use("/api/*", noStore);
 
@@ -159,7 +177,7 @@ export function createApi(options: ApiOptions) {
   // could do.
   api.use("/api/*", async (context, next) => {
     if (requestHost(context).installation) return next();
-    if (context.req.header("authorization") !== undefined) return context.body(null, 401);
+    if (presentsToolCredential(context)) return context.body(null, 401);
     const { path } = context.req;
     const installationOnly = [
       "/api/organizations",
@@ -167,6 +185,7 @@ export function createApi(options: ApiOptions) {
       "/api/auth",
       "/api/handoffs",
       "/api/oauth",
+      "/api/connections",
     ];
     if (installationOnly.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) {
       return context.body(null, 404);
@@ -193,12 +212,17 @@ export function createApi(options: ApiOptions) {
   api.on(["GET", "POST"], "/api/auth/*", limitBody(MAX_BODY_BYTES), async (context) => {
     // A tool's token is for Braivo's API and for finding its way there, not
     // for managing the account — approving another device, changing an
-    // email — which takes the person in their browser.
+    // email — which takes the person in their browser. A connection reaches
+    // none of it: it has no session here to read or end.
+    if (context.get("connection")) return context.body(null, 403);
     const authorization = context.req.header("authorization");
     const clientBasicAuth =
       OAUTH_CLIENT_PATHS.has(context.req.path) && /^basic /i.test(authorization ?? "");
     const bearer = authorization !== undefined && !clientBasicAuth;
     if (bearer && !BEARER_AUTH_PATHS.has(context.req.path)) return context.body(null, 403);
+    // A password reset's link, which `disabledPaths` cannot name, being a
+    // pattern: nothing issues one (ADR 0018).
+    if (context.req.path.startsWith("/api/auth/reset-password/")) return context.body(null, 404);
     if (SIGN_IN_PATHS.has(context.req.path) && !(await isTrustedWrite(context))) {
       return context.body(null, 403);
     }
@@ -220,6 +244,34 @@ export function createApi(options: ApiOptions) {
         ).get("client_id");
         if (client_id !== signedFor) return context.body(null, 400);
       }
+      // A refresh only while its grant stands (`mayRefresh`),
+      // which Better Auth never checks. Only the form media type, which Better
+      // Auth parses as this does (another may parse as JSON there), and each
+      // field once (RFC 6749, 3.2), so this check and Better Auth never read
+      // different values.
+      if (context.req.path === "/api/auth/oauth2/token") {
+        const mediaType = (context.req.header("content-type") ?? "").split(";")[0]!;
+        const form = new URLSearchParams(await context.req.raw.clone().text());
+        if (
+          mediaType.trim().toLowerCase() !== "application/x-www-form-urlencoded" ||
+          form.getAll("grant_type").length > 1 ||
+          form.getAll("refresh_token").length > 1
+        ) {
+          return context.json({ error: "invalid_request" }, 400);
+        }
+        const grantType = form.get("grant_type");
+        const refreshToken = form.get("refresh_token");
+        if (
+          grantType?.trim() === "refresh_token" &&
+          refreshToken !== null &&
+          !(await mayRefresh(database, refreshToken))
+        ) {
+          return context.json(
+            { error: "invalid_grant", error_description: "The grant was disconnected." },
+            400,
+          );
+        }
+      }
     }
 
     // Copied, since a library's response may carry immutable headers.
@@ -235,14 +287,20 @@ export function createApi(options: ApiOptions) {
     return response;
   });
 
-  // Where Better Auth sends a person to sign in and consent: on to the
-  // console's `/consent`, the signed query as one opaque value. The console's
-  // router reparses a query (JSON values, repeated keys), which would break
-  // the signature over it; `r.` keeps the value from parsing as JSON.
-  api.get("/api/oauth/consent", (context) => {
-    const signed = new URL(context.req.url).search.slice(1);
-    return context.redirect(`/consent?request=r.${Buffer.from(signed).toString("base64url")}`);
-  });
+  // Where Better Auth sends a person to sign in and choose an organization,
+  // or to consent: on to the console's `/consent`, its step named, the signed
+  // query as one opaque value. The console's router reparses a query (JSON
+  // values, repeated keys), which would break the signature over it; `r.`
+  // keeps the value from parsing as JSON.
+  for (const step of ["organization", "consent"] as const) {
+    api.get(`/api/oauth/${step}`, (context) => {
+      const signed = new URL(context.req.url).search.slice(1);
+      const request = `request=r.${Buffer.from(signed).toString("base64url")}`;
+      return context.redirect(
+        step === "organization" ? `/consent?step=organization&${request}` : `/consent?${request}`,
+      );
+    });
+  }
 
   // Where `/mcp`'s tokens come from (RFC 9728), on the installation's host
   // alone, as `/mcp` is. The authorization server's own metadata is Better
@@ -255,6 +313,9 @@ export function createApi(options: ApiOptions) {
   const mcp = mcpEndpoint({
     auth,
     database,
+    // This API, built by the time `/mcp` is called.
+    api: { fetch: (request) => api.fetch(request) },
+    baseUrl,
     resource: new URL("/mcp", baseUrl).href,
     issuer: new URL("/api/auth", baseUrl).href,
   });
@@ -307,6 +368,7 @@ export function createApi(options: ApiOptions) {
   );
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
   api.route("/", groupRoutes(guards, { database }));
+  api.route("/", connectionRoutes(guards, { database }));
 
   return api;
 }

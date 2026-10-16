@@ -839,6 +839,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.getSource({ organizationId, sourceId }, as)).toMatchObject({
       text: "Hola significa hello. Adiós significa goodbye.",
     });
+    expect(await client.getSourceSlice({ organizationId, sourceId }, as)).toEqual({
+      id: sourceId,
+      title: "Unidad 1",
+      url: "https://example.com/u1",
+      language: "es",
+      createdAt: expect.any(String),
+      text: "Hola significa hello. Adiós significa goodbye.",
+      start: 0,
+      end: 46,
+      length: 46,
+    });
+    expect(
+      await client.getSourceSlice({ organizationId, sourceId, characters: "22-27" }, as),
+    ).toMatchObject({ text: "Adiós", start: 22, end: 27 });
+    await expect(
+      client.getSourceSlice({ organizationId, sourceId, pages: "1-" }, as),
+    ).rejects.toMatchObject({
+      status: 400,
+      reason: "This source has no pages: read it by characters.",
+    });
 
     const [greetings] = await client.defineObjectives(
       { organizationId, objectives: [{ title: "Greetings" }] },
