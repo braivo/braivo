@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import * as z from "zod";
+
 /**
  * Everything the server reads from the environment, and every rule about what
  * those values may be. Every host reads `readServerConfig`'s part; `serve` the
@@ -322,7 +324,8 @@ function readReviewerEmails(environment: Environment): { reviewerEmails?: Readon
     .map((email) => email.trim().toLowerCase())
     .filter((email) => email !== "");
   if (listed.length === 0) return {};
-  const malformed = listed.find((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+  // As sign-in checks an address (`session.ts`), so a listed one can sign in.
+  const malformed = listed.find((email) => !z.email().safeParse(email).success);
   if (malformed !== undefined) {
     throw new Error(`BRAIVO_REVIEWER_EMAILS lists emails, comma-separated, got "${malformed}".`);
   }
