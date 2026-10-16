@@ -18,6 +18,7 @@ import {
 import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
+import { cn } from "@braivo/ui/lib/utils";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -138,6 +139,8 @@ async function resolveCourse(
   return course;
 }
 
+type CourseLoad = ReturnType<typeof Route.useLoaderData>;
+
 /** An answer this tab left unfinished, resent: graded, or still unconfirmed. */
 type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
 
@@ -198,7 +201,9 @@ function CourseNotFound() {
 }
 
 function NextStep() {
-  const { activity, progress, title, attemptId, resumed } = Route.useLoaderData();
+  const load = Route.useLoaderData();
+  const { activity, progress, title, attemptId, resumed } = load;
+  const summary = useProgressAfterGrade(load);
 
   return (
     <>
@@ -206,7 +211,7 @@ function NextStep() {
         <Trans>Your courses</Trans>
       </Link>
       {title && <Heading>{title}</Heading>}
-      {progress && <ProgressSummary report={progress} />}
+      {summary.report && <ProgressSummary report={summary.report} stale={summary.stale} />}
       {!activity ? (
         <CaughtUp report={progress} />
       ) : "dailyLimit" in activity ? (
@@ -231,6 +236,7 @@ function NextStep() {
           activity={activity}
           attemptId={attemptId}
           resumed={resumed}
+          onGraded={summary.onGraded}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -242,6 +248,44 @@ function NextStep() {
       )}
     </>
   );
+}
+
+/**
+ * Where the learner stands, read again once an answer given here is graded, so
+ * the counts agree with its feedback before Continue (progress-8). Meanwhile the
+ * earlier counts are `stale`, hidden in place so the page does not jump; a failed
+ * read leaves the summary out. A read belongs to the load it followed, not the
+ * attempt: a reload resending the same attempt reads its own, and aborts this one.
+ * A grade that resend found needs none: the loader read after it.
+ */
+function useProgressAfterGrade(load: CourseLoad) {
+  const { braivo, user } = Route.useRouteContext();
+  // By identity: each load returns a new object, its loader data unshared.
+  const [gradedLoad, setGradedLoad] = useState<CourseLoad>();
+  const [read, setRead] = useState<{ load: CourseLoad; report?: LearnerProgressSummary }>();
+  const graded = gradedLoad === load;
+  const readForLoad = read?.load === load;
+
+  useEffect(() => {
+    if (!graded) return;
+    const left = new AbortController();
+    void braivo
+      .learnerProgress(
+        { courseId: load.courseId, learnerId: user.id, includeHistory: false },
+        { signal: withDeadline(left.signal, OPTIONAL_READ_DEADLINE_MS) },
+      )
+      .catch(() => undefined)
+      .then((report) => {
+        if (!left.signal.aborted) setRead({ load, report });
+      });
+    return () => left.abort();
+  }, [graded, braivo, user.id, load]);
+
+  return {
+    report: graded && readForLoad ? read?.report : load.progress,
+    stale: graded && !readForLoad,
+    onGraded: () => setGradedLoad(load),
+  };
 }
 
 /**
@@ -313,13 +357,17 @@ function formatStandingCounts(
     .join(" · ");
 }
 
-function ProgressSummary({ report }: { report: LearnerProgressSummary }) {
+/** `stale`: hidden, from sight and screen readers, keeping its place. */
+function ProgressSummary({ report, stale }: { report: LearnerProgressSummary; stale: boolean }) {
   const { t } = useLingui();
   const line = formatStandingCounts(report.objectives, t);
   if (!line) return null;
 
   return (
-    <details className="mb-6 text-sm wrap-break-word text-muted-foreground">
+    <details
+      className={cn("mb-6 text-sm wrap-break-word text-muted-foreground", stale && "invisible")}
+      aria-hidden={stale || undefined}
+    >
       <summary className="cursor-pointer">{line}</summary>
       <ul className="mt-2 flex flex-col gap-1">
         {report.objectives.map((standing) => (
@@ -496,7 +544,8 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
 
 /**
  * Why this comes now, from the values the decision was made on: decisions are
- * explainable. A reteach always follows a miss: only a failure keeps an objective acquiring.
+ * explainable. A reteach follows a failure, from a wrong answer or Show answer,
+ * which the decision does not tell apart, so the wording claims neither.
  */
 function Reason({ decision }: { decision: LearningDecision }) {
   switch (decision.intent) {
@@ -505,7 +554,7 @@ function Reason({ decision }: { decision: LearningDecision }) {
     case "reteach":
       return (
         <MutedText>
-          <Trans>You missed this last time.</Trans>
+          <Trans>Let's practise this again.</Trans>
         </MutedText>
       );
     case "review": {
@@ -532,12 +581,15 @@ function Practice({
   activity,
   attemptId,
   resumed,
+  onGraded,
   nothingStarted,
 }: {
   activity: Extract<Activity, { task: unknown }>;
   attemptId: string;
   /** The answer a reload resent, shown graded or unconfirmed. */
   resumed?: Resumed;
+  /** Braivo graded an answer sent here, by Send again too; not one a reload's resend found. */
+  onGraded: () => void;
   /** No objective started yet: says how practice goes. */
   nothingStarted: boolean;
 }) {
@@ -586,8 +638,11 @@ function Practice({
         { courseId, id: attemptId, taskId: task.id, response },
         { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
       );
+      // Left meanwhile: marking that page graded would cancel the next one's reread.
+      if (left?.aborted) return;
       setGrade(answered);
       setUnconfirmedCount(0);
+      onGraded();
     } catch (error) {
       // Kept unless refused (below): it may have been recorded. Left, not timed
       // out: a timeout is unconfirmed, below.
