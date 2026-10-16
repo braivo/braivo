@@ -162,6 +162,7 @@ function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
+        listGroups: async () => [],
         listDomains: async () => ({
           domains: [{ hostname: "example.braivo.app" }],
           claims: [],
@@ -1184,14 +1185,25 @@ describe("the console", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     });
 
-    test("list the members by name with their roles, marking the account's own", async () => {
+    test("list the members by name with their roles and the groups they teach, marking the account's own", async () => {
+      // Every teacher is named as u4 is, so matching by name would make u4 teach.
+      const group = (name: string, ...teacherIds: string[]) => ({
+        id: name,
+        organizationId: "org-1",
+        name,
+        teachers: teacherIds.map((userId) => ({ userId, name: "Lee Learner" })),
+        learners: [],
+        courses: [],
+      });
       renderAt("/example/settings", {
         braivo: {
           listMembers: async () => [
             { userId: "u1", name: "Olive Owner", roles: ["owner", "admin"] },
             { userId: "u2", name: "Lee Learner", roles: ["member"] },
             { userId: "u3", name: "Ada Admin", roles: ["admin"] },
+            { userId: "u4", name: "Lee Learner", roles: ["member"] },
           ],
+          listGroups: async () => [group("7A", "u2"), group("7B", "u2", "u3", "u1"), group("8A")],
         },
       });
 
@@ -1199,15 +1211,24 @@ describe("the console", () => {
       fireEvent.click(within(nav).getByRole("link", { name: "Members" }));
       expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("Members · Example School"));
-      expect(screen.getByText(/^3 members\./)).toBeTruthy();
+      expect(screen.getByText(/^4 members\./)).toBeTruthy();
 
       const rows = screen.getAllByRole("row").map((row) => row.textContent);
       expect(rows).toEqual([
         "NameRole",
-        "Olive OwnerYouOwner and Admin",
+        "Olive OwnerYouOwner and AdminTeaches 7B",
+        "Lee LearnerLearnerTeaches 7A and 7B",
+        "Ada AdminAdminTeaches 7B",
         "Lee LearnerLearner",
-        "Ada AdminAdmin",
       ]);
+    });
+
+    test("show no members when Braivo refuses the groups, rather than teachers as only learners", async () => {
+      renderAt("/example/settings/members", {
+        braivo: { listGroups: vi.fn().mockRejectedValue(new BraivoError(403, "Not permitted.")) },
+      });
+      expect(await screen.findByRole("heading", { name: "There is no such setting" })).toBeTruthy();
+      expect(screen.queryByRole("table")).toBeNull();
     });
 
     test("choose the theme and the language, each kept in this browser", async () => {

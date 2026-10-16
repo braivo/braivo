@@ -22,15 +22,20 @@ import { pageHead } from "#lib/title";
 /**
  * Who belongs to the organization, by name, with their roles (access-26):
  * read-only until ADR 0018's invitations, the operator adding and removing
- * them meanwhile (access-20).
+ * them meanwhile (access-20). Teaching belongs to groups, not roles
+ * (access-38), so each role shows with the groups its member teaches.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/members")({
   beforeLoad: administratorsOnly,
-  loader: async ({ context, abortController }) => ({
-    members: await orNotFound(
-      context.braivo.listMembers(context.organization.id, { signal: abortController.signal }),
-    ),
-  }),
+  loader: async ({ context, abortController }) => {
+    const options = { signal: abortController.signal };
+    // Both or neither: without the groups, a teacher would read as only a learner.
+    const [members, groups] = await Promise.all([
+      orNotFound(context.braivo.listMembers(context.organization.id, options)),
+      orNotFound(context.braivo.listGroups(context.organization.id, options)),
+    ]);
+    return { members, groups };
+  },
   head: (head) => pageHead(head, t`Members`),
   component: Members,
   notFoundComponent: NoSuchSetting,
@@ -44,12 +49,16 @@ const ROLE_NAMES = {
 } as const;
 
 function Members() {
-  const { members } = Route.useLoaderData();
+  const { members, groups } = Route.useLoaderData();
   const { user, organization } = Route.useRouteContext();
   const { i18n } = useLingui();
   const count = members.length;
   // "Owner and Admin", in the reader's language.
-  const roles = new Intl.ListFormat(i18n.locale, { type: "conjunction" });
+  const listFormat = new Intl.ListFormat(i18n.locale, { type: "conjunction" });
+  const groupsTaughtBy = (userId: string) =>
+    groups
+      .filter(({ teachers }) => teachers.some((teacher) => teacher.userId === userId))
+      .map(({ name }) => name);
   return (
     <>
       <Heading>
@@ -94,18 +103,36 @@ function Members() {
                 )}
               </TableCell>
               <TableCell className="align-top whitespace-normal">
-                {roles.format(
+                {listFormat.format(
                   member.roles.map((role) =>
                     Object.hasOwn(ROLE_NAMES, role)
                       ? i18n._(ROLE_NAMES[role as keyof typeof ROLE_NAMES])
                       : role,
                   ),
                 )}
+                <Teaching groupNames={groupsTaughtBy(member.userId)} listFormat={listFormat} />
               </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
     </>
+  );
+}
+
+/** The groups a member teaches, by name, if any (access-38). */
+function Teaching({
+  groupNames,
+  listFormat,
+}: {
+  groupNames: string[];
+  listFormat: Intl.ListFormat;
+}) {
+  if (groupNames.length === 0) return null;
+  const names = listFormat.format(groupNames);
+  return (
+    <MutedText className="block wrap-anywhere">
+      <Trans>Teaches {names}</Trans>
+    </MutedText>
   );
 }

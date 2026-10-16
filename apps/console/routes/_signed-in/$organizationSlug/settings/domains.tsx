@@ -97,8 +97,8 @@ function Domains() {
         <>
           <MutedText className="mb-4 block wrap-break-word">
             <Trans>
-              Learners can practise at any of these addresses. New links Braivo sends them,
-              invitations included, use the primary one.
+              Learners can practise at any of these addresses. Links to share with them use the
+              primary one.
             </Trans>
           </MutedText>
           <ItemGroup className="gap-2">
