@@ -38,6 +38,7 @@ import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react"
 import { CopyButton } from "#components/copy-button";
 import { NoSuchSetting } from "#components/no-such-setting";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { learnUrl } from "#lib/learn-url";
 import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -112,7 +113,7 @@ function Domains() {
                           ? activatedLink
                           : undefined
                       }
-                      href={`https://${hostname}`}
+                      href={learnUrl(hostname)}
                       target="_blank"
                       rel="noreferrer"
                       className="underline underline-offset-4"

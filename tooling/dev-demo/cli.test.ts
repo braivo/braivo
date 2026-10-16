@@ -64,6 +64,7 @@ test("a child gets the demo's settings and a few to run by, nothing else inherit
     BRAIVO_URL: "http://127.0.0.1:5184",
     PORT: "3100",
     BRAIVO_FILES: "/work/.dev-demo/storage",
+    BRAIVO_LEARN_PORT: "5183",
   });
 });
 

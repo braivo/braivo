@@ -2879,6 +2879,47 @@ describe("the console", () => {
     await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(missing));
   });
 
+  test("on the dev server, links to and copies a .localhost learn domain at the learn app's port", async () => {
+    vi.stubEnv("BRAIVO_LEARN_PORT", "5199");
+    onTestFinished(() => void vi.unstubAllEnvs());
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    });
+    const local = { ...school, learnDomain: "example.localhost" };
+    renderAt("/example/courses/course-1", { organizations: [local], braivo: { readCourse } });
+
+    // The organization's hostname and the course's reference kept, over HTTP.
+    const url = "http://example.localhost:5199/c/4732-beginners";
+    const site = await screen.findByRole("link", {
+      name: "example.localhost:5199/c/4732-beginners",
+    });
+    expect(site.getAttribute("href")).toBe(url);
+    fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledExactlyOnceWith(url));
+    cleanup();
+
+    renderAt("/example/settings/domains", {
+      organizations: [local],
+      braivo: {
+        listDomains: async () => ({
+          domains: [{ hostname: "example.localhost" }, { hostname: "learn.example.com" }],
+          claims: [],
+          canAdd: false,
+        }),
+      },
+    });
+    const domain = await screen.findByRole("link", { name: "example.localhost" });
+    expect(domain.getAttribute("href")).toBe("http://example.localhost:5199");
+    // Not .localhost: HTTPS, as it is not the learn app's dev server.
+    expect(screen.getByRole("link", { name: "learn.example.com" }).getAttribute("href")).toBe(
+      "https://learn.example.com",
+    );
+  });
+
   test("lists an organization's material, saying what each keeps", async () => {
     renderAt("/example/sources", {
       braivo: {
