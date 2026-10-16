@@ -20,7 +20,14 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { prepareClassroom } from "../../apps/server/fixtures/classroom.ts";
+import {
+  chooseNextActivity,
+  readCourseProgress,
+  submitAttempt,
+} from "../../apps/server/application/index.ts";
+import { LEARN_HOSTNAME, prepareClassroom } from "../../apps/server/fixtures/classroom.ts";
+import { createDatabase } from "../../packages/db/index.ts";
+import { attempt, member, organization, user } from "../../packages/db/schema/index.ts";
 import {
   createMarkedDatabase,
   type Demo,
@@ -132,7 +139,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     const lock = await locked(demo);
 
     const prepared = await prepareDemo(lock, { now: ANCHOR });
-    expect(prepared).toMatchObject({ state: "ready", scenario: 1, anchor: ANCHOR });
+    expect(prepared).toMatchObject({ state: "ready", scenario: 2, anchor: ANCHOR });
     expect(await inspectDemo(demo)).toMatchObject({
       kind: "ready",
       migrations: { pending: [], diverged: [] },
@@ -161,6 +168,129 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
       "this demo's storage, is missing",
     );
     expect(existsSync(demo.storage)).toBe(false);
+  });
+
+  test("its learners take different paths from the anchor, the same in every new demo", async () => {
+    const learnHost = { hostname: LEARN_HOSTNAME, installation: false };
+    /** A new demo: where the teacher sees each learner stand, and what each is offered next. */
+    const prepareBaseline = async (demo: Demo) => {
+      const { handles } = await prepareDemo(await locked(demo), { now: ANCHOR });
+      const database = createDatabase(demoUrl(demo));
+      cleanups.push(() => database.$client.end());
+      const { courseEnglish: courseId } = handles!;
+      const progress = await readCourseProgress({
+        database,
+        viewedBy: handles!.teacherClassA,
+        courseId,
+        host: { hostname: "localhost", installation: true },
+        now: ANCHOR,
+      });
+      const next = async (learnerId: string) => {
+        const activity = await chooseNextActivity({
+          database,
+          learnerId,
+          courseId,
+          host: learnHost,
+          now: ANCHOR,
+          timeZone: "UTC",
+        });
+        return activity.kind === "decided"
+          ? `${activity.decision.intent} ${activity.objective.title}: ${activity.task.prompt}`
+          : activity.kind;
+      };
+      return {
+        database,
+        handles: handles!,
+        learnerStandings:
+          progress.kind === "assessed"
+            ? progress.overview.learners.map(({ name, standings }) => ({ name, ...standings }))
+            : progress.kind,
+        objectiveStandings:
+          progress.kind === "assessed"
+            ? progress.overview.objectives.map(({ title, standings }) => ({ title, ...standings }))
+            : progress.kind,
+        next: { sam: await next(handles!.sam), zofia: await next(handles!.zofia) },
+      };
+    };
+
+    const first = await prepareBaseline(await newDemo());
+    expect(first.learnerStandings).toEqual([
+      { name: "Sam Nowak", unseen: 1, acquiring: 1, retained: 1, due: 0 },
+      { name: "Zofia Wójcik", unseen: 0, acquiring: 0, retained: 3, due: 0 },
+    ]);
+    // The report's objective rows count the same standings.
+    expect(first.objectiveStandings).toEqual([
+      { title: "Greet someone for the time of day", unseen: 0, acquiring: 0, retained: 2, due: 0 },
+      { title: "Ask for something politely", unseen: 0, acquiring: 1, retained: 1, due: 0 },
+      { title: "Say goodbye", unseen: 1, acquiring: 0, retained: 1, due: 0 },
+    ]);
+    expect(first.next).toEqual({
+      sam: 'reteach Ask for something politely: Complete the polite request: "Could I have a glass of water, ___?"',
+      zofia: "caught-up",
+    });
+    // Nobody practised before their user, organization, or membership was
+    // created. Read as written, through Drizzle: Better Auth's are timestamps
+    // without a time zone, which SQL would compare in the session's.
+    const made = await Promise.all(
+      [user, organization, member].map((table) =>
+        first.database.select({ at: table.createdAt }).from(table),
+      ),
+    );
+    const practised = await first.database.select({ at: attempt.at }).from(attempt);
+    expect(practised).toHaveLength(6);
+    const firstPractised = Math.min(...practised.map(({ at }) => at.getTime()));
+    expect(made.flat().filter(({ at }) => at.getTime() >= firstPractised)).toEqual([]);
+    const { learnerStandings, objectiveStandings, next } = await prepareBaseline(await newDemo());
+    expect({ learnerStandings, objectiveStandings, next }).toEqual({
+      learnerStandings: first.learnerStandings,
+      objectiveStandings: first.objectiveStandings,
+      next: first.next,
+    });
+
+    // Sam types the request right: it is retained, with its passage to read, and goodbyes come next.
+    const { database, handles } = first;
+    const course = { database, learnerId: handles.sam, courseId: handles.courseEnglish };
+    const retry = await chooseNextActivity({
+      ...course,
+      host: learnHost,
+      now: ANCHOR,
+      timeZone: "UTC",
+    });
+    const answered = await submitAttempt({
+      ...course,
+      host: learnHost,
+      attemptId: "retry",
+      taskId: retry.kind === "decided" ? retry.task.id : "",
+      response: { text: "please" },
+      now: new Date(ANCHOR.getTime() + 60_000),
+    });
+    expect(answered).toMatchObject({
+      kind: "graded",
+      grade: { outcome: "success", correctAnswer: "please" },
+      passages: [{ quote: 'To ask for something politely, add "please"' }],
+    });
+    const after = await chooseNextActivity({
+      ...course,
+      host: learnHost,
+      now: new Date(ANCHOR.getTime() + 2 * 60_000),
+      timeZone: "UTC",
+    });
+    expect(after).toMatchObject({ kind: "decided", decision: { intent: "introduce" } });
+    expect(after.kind === "decided" && after.objective.title).toBe("Say goodbye");
+
+    // A day on, Zofia's first objective is due for review.
+    const review = await chooseNextActivity({
+      database,
+      learnerId: handles.zofia,
+      courseId: handles.courseEnglish,
+      host: learnHost,
+      now: new Date(ANCHOR.getTime() + 25 * 60 * 60_000),
+      timeZone: "UTC",
+    });
+    expect(review).toMatchObject({ kind: "decided", decision: { intent: "review" } });
+    expect(review.kind === "decided" && review.objective.title).toBe(
+      "Greet someone for the time of day",
+    );
   });
 
   test("an interrupted preparation is never ready, and only a reset recovers it", async () => {
@@ -362,7 +492,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     await query(demoUrl(demo), "delete from drizzle.__braivo_migrations where hash = 'elsewhere'");
     await query(demoUrl(demo), "update dev_demo.environment set scenario = 0");
     await expect(prepareDemo(lock, { now: ANCHOR, migrate: true })).rejects.toThrow(
-      "it was seeded as scenario 0, and this checkout's is 1",
+      "it was seeded as scenario 0, and this checkout's is 2",
     );
   });
 

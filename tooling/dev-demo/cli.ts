@@ -251,7 +251,8 @@ async function verify(): Promise<number> {
       } catch (error) {
         problems.push((error as Error).message);
       }
-      // Only on the schema this checkout knows, which its queries assume.
+      // Only on the schema and scenario this checkout knows, which its queries
+      // and handles assume.
       if (problems.length === 0) {
         notes.push(...(await missingBaseline(demo, marker)));
         printDemo(demo, marker);

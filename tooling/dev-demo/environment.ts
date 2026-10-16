@@ -702,9 +702,10 @@ export async function createMarkedDatabase(lock: DemoLock): Promise<void> {
 }
 
 /**
- * What a ready demo was seeded with and may have since lost: its organization
- * and its people. Notes, not faults: the demo is the contributor's to change,
- * deleting what the baseline made included.
+ * What a ready demo of this checkout's scenario was seeded with and may have
+ * since lost: its organization and its people, by the handles this scenario
+ * names. Notes, not faults: the demo is the contributor's to change, deleting
+ * what the baseline made included.
  */
 export async function missingBaseline(demo: Demo, marker: Marker): Promise<string[]> {
   const { handles } = marker;
@@ -712,7 +713,7 @@ export async function missingBaseline(demo: Demo, marker: Marker): Promise<strin
   return withClient(databaseUrl(demo, { readOnly: true }), async (client) => {
     const count = async (sql: string, ids: string[]) =>
       (await client.query<{ count: number }>(sql, [ids])).rows[0]?.count ?? 0;
-    const people = [handles.administrator, handles.teacherClassA, handles.learner];
+    const people = [handles.administrator, handles.teacherClassA, handles.sam, handles.zofia];
     return [
       ...((await count("select count(*)::int as count from organization where id = any($1)", [
         handles.organization,

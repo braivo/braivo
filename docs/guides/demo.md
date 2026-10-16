@@ -1,6 +1,6 @@
 # The development demo
 
-A populated Braivo for this worktree: Fernwood School, with an administrator, a teacher, and a learner, a short source-backed course, and a group. Sign in as any of them, exercise the real apps, and reset to the baseline when you choose. It never touches your development database, your test database, or another worktree's demo ([ADR 0043](../adr/0043-development-demo.md)).
+A populated Braivo for this worktree: Fernwood School, with an administrator, a teacher, and two learners who have practised, a short source-backed course, and a group. Sign in as any of them, exercise the real apps, and reset to the baseline when you choose. It never touches your development database, your test database, or another worktree's demo ([ADR 0043](../adr/0043-development-demo.md)).
 
 ## Launch
 
@@ -14,21 +14,24 @@ bun run dev:demo
 The first launch checks it can connect and create databases there, then creates the demo's own database, `braivo_demo_<id>`, migrates and seeds it, checks it, and serves it; later launches serve it as you left it. Once the servers listen, it prints:
 
 ```text
-Braivo demo 9f3c1a7e5b20, scenario 1, seeded 2026-10-12T09:00:00.000Z
+Braivo demo 9f3c1a7e5b20, scenario 2, seeded 2026-10-12T09:00:00.000Z
   Console  http://127.0.0.1:5184
   Learn    http://fernwood.localhost:5183
   Sign in with an email below; the server prints its code in the terminal running the demo ("Mail to …").
   As seeded:
     administrator admin@fernwood.example     Morgan Hale: owns Fernwood School: …
     teacher       teacher@fernwood.example   Jordan Price: teaches Class A English: …
-    learner       learner@fernwood.example   Sam Nowak: learns in Class A English: …
+    sam           sam@fernwood.example       Sam Nowak: learns in Class A English: …
+    zofia         zofia@fernwood.example     Zofia Wójcik: learns in Class A English: …
 ```
 
 Rename the group or change a role, and the console shows your version; the list stays as seeded.
 
-Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator and the teacher use the console; the learner signs in at the learn app's address. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
+Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator and the teacher use the console; the learners sign in at the learn app's address. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
 
-To see practice reach a report: as the learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. The console's links to where learners practise open the learn app at that address.
+The two learners practised in the hour before the demo was seeded, through the use cases the learn app calls (no browser), so they take different paths from there. Zofia answered each objective right the first time: caught up, with reviews falling due about a day later. Sam missed a greeting, typed one right when asked again, then missed a polite request: the learn app asks for it again next, this time typed, and shows the passage it comes from once answered. Their standings age with real time, as anyone's do.
+
+To see practice reach a report: as a learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. The console's links to where learners practise open the learn app at that address.
 
 The demo serves on ports 3100, 5183, and 5184, so it runs beside `bun run dev`. Two worktrees' demos use the same ports: the second refuses to start until the first stops. Ctrl-C stops the demo and only what it started.
 
