@@ -837,6 +837,10 @@ msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Zezwolić aplikacji {clientName} na pracę w organizacji „{organizationName}”?"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Let's practise this again."
+msgstr "Przećwiczmy to ponownie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Light"
@@ -1577,10 +1581,6 @@ msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie cze
 #: apps/console/routes/_signed-in/join.tsx
 msgid "You don't manage any organizations"
 msgstr "Nie zarządzasz żadną organizacją"
-
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "You missed this last time."
-msgstr "Ostatnim razem się nie udało."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You practised {objectiveTitle} recently. Practice continues at {continuesAt}, so the next try shows what you remember."
