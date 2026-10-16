@@ -26,11 +26,10 @@ irm https://braivo.app/install.ps1 | iex
 On macOS and Linux, add `~/.local/bin` to your `PATH` if the installer says it is missing, or install elsewhere with `BRAIVO_INSTALL_DIR`. `BRAIVO_VERSION=v0.1.0` installs that release rather than the latest. From a clone, run it as `bun packages/cli/index.ts`, or build this machine's with `bun run build`, as `packages/cli/dist/braivo`.
 
 ```sh
-# Sign in against the installation's API, then open the link it prints, check
-# the code, and approve.
-braivo login http://localhost:3000
-# Under `bun run dev`, replace :3000 with :5174 in the approval URL it prints;
-# the console runs on :5174, while :3000 serves only the API.
+# Sign in at the address you open Braivo's console at: braivo.app, as below, your
+# installation's if you run one, http://localhost:5174 under `bun run dev`.
+# Then open the link it prints, check the code, and approve.
+braivo login https://braivo.app
 
 # Fetch a video's Spanish captions.
 yt-dlp --skip-download --write-auto-subs --sub-langs es --sub-format vtt -o lesson \
@@ -65,13 +64,13 @@ The command keeps your session in `~/.config/braivo/credentials.json` and acts w
 
 ## Let your desktop agent build the course
 
-`braivo mcp` exposes Braivo's authoring as tools to clients that speak the Model Context Protocol, such as Claude Desktop, Codex, and Grok, using your Braivo session: run `braivo login` first. For Claude Desktop, add to `claude_desktop_config.json`, with the path to your `braivo`:
+`braivo mcp` exposes Braivo's authoring as tools to clients that speak the Model Context Protocol, such as Claude Desktop, Codex, and Grok, using your Braivo session: [install `braivo`](#the-braivo-command) and sign in with `braivo login` and your console's address first. For Claude Desktop, add to `claude_desktop_config.json`, with the full path `command -v braivo` prints (`(Get-Command braivo).Source` in PowerShell):
 
 ```json
 {
   "mcpServers": {
     "braivo": {
-      "command": "/usr/local/bin/braivo",
+      "command": "/Users/you/.local/bin/braivo",
       "args": ["mcp"]
     }
   }

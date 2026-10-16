@@ -269,6 +269,16 @@ function expectProxyTimeoutExplained(alert: HTMLElement) {
   expect(alert.textContent).not.toMatch(/Try again/);
 }
 
+/** Where drafting with a desktop agent is offered, a link to setting one up, in a new tab. */
+function expectDesktopAgentGuide(scope: HTMLElement = document.body) {
+  const link = within(scope).getByRole("link", { name: "your desktop agent through braivo mcp" });
+  expect(link.getAttribute("href")).toBe(
+    "https://github.com/braivo/braivo/blob/main/docs/guides/authoring.md#let-your-desktop-agent-build-the-course",
+  );
+  expect(link.getAttribute("target")).toBe("_blank");
+  expect(link.getAttribute("rel")).toBe("noreferrer");
+}
+
 /** A moment as the learner report shows it, compact. */
 function dated(at: string) {
   return new Date(at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" });
@@ -2758,6 +2768,7 @@ describe("the console", () => {
     );
     expect(screen.queryByRole("link", { name: "Add material" })).toBeNull();
     expect(screen.getByText(/draft a course from it there/)).toBeTruthy();
+    expectDesktopAgentGuide();
   });
 
   test("promises no drafting in the console, with no course yet, where Braivo's AI is off", async () => {
@@ -2768,6 +2779,7 @@ describe("the console", () => {
 
     const said = await screen.findByText(/off for this organization/);
     expect(said.textContent).toMatch(/ask whoever runs Braivo.*desktop agent through braivo mcp/);
+    expectDesktopAgentGuide(said);
     expect(screen.queryByText(/draft a course from it there/)).toBeNull();
   });
 
@@ -3302,6 +3314,7 @@ describe("the console", () => {
     // Said before anything is prepared: material can be added, not drafted from here.
     const form = screen.getByRole("form", { name: "Add material" });
     expect(form.textContent).toMatch(/off for this organization.*not draft a course from it here/);
+    expectDesktopAgentGuide(form);
     // Neither the hint nor an empty form's refusal promises reading.
     expect(screen.queryByText(/for Braivo's AI to read/)).toBeNull();
     addMaterial({ title: "Mi libro", text: "" });
@@ -3941,7 +3954,7 @@ describe("the console", () => {
     const said = heading.nextElementSibling!.textContent;
     expect(said).toMatch(/off for this organization/);
     expect(said).toMatch(/Ask whoever runs Braivo/);
-    expect(said).toMatch(/braivo mcp/);
+    expectDesktopAgentGuide(heading.nextElementSibling as HTMLElement);
     expect(braivo.draftCourse).not.toHaveBeenCalled();
   });
 

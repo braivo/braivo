@@ -19,6 +19,7 @@ import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useId, useRef, useState } from "react";
 
+import { DesktopAgentLink } from "#components/desktop-agent-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
@@ -308,7 +309,7 @@ function AddSource() {
       {organization.aiEnabled === false && (
         <p className="mb-4">
           {AI_OFF_MESSAGE} You can add material, but not draft a course from it here: ask whoever
-          runs Braivo for you to turn it on, or draft with your desktop agent through braivo mcp.
+          runs Braivo for you to turn the AI on, or draft with <DesktopAgentLink />.
         </p>
       )}
       {/* Read-only while sending, as what is typed meanwhile would not be what
