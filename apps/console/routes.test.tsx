@@ -3066,6 +3066,114 @@ describe("the console", () => {
     expect(await screen.findByRole("link", { name: "Unidad 1" })).toBeTruthy();
   });
 
+  const LEAVE_MATERIAL = "Leave this page? The material you entered will be lost.";
+
+  test("asks before leaving material entered but not added, and keeps it if the owner stays", async () => {
+    const confirm = answerLeaving(false);
+    const { router } = renderAt("/example/sources", {
+      braivo: { listSources: async () => [], listCourses: async () => [] },
+      organizations: [school, annex],
+    });
+    const text = (await screen.findByLabelText("Text")) as HTMLTextAreaElement;
+    const toCourses = () =>
+      router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+
+    // Blank, there is nothing to lose.
+    fireEvent.change(text, { target: { value: "  " } });
+    await toCourses();
+    expect(confirm).not.toHaveBeenCalled();
+    await router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "example" },
+    });
+
+    const pasted = (await screen.findByLabelText("Text")) as HTMLTextAreaElement;
+    fireEvent.change(pasted, { target: { value: "Hola." } });
+    // Blocked, the navigation never settles.
+    void toCourses();
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_MATERIAL));
+    expect(router.history.location.pathname).toBe("/example/sources");
+    expect(screen.getByLabelText("Text")).toBe(pasted);
+    expect(pasted.value).toBe("Hola.");
+
+    // Another organization's Sources is another page, though the same route.
+    void router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "annex" },
+    });
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(router.history.location.pathname).toBe("/example/sources");
+    expect(pasted.value).toBe("Hola.");
+    // A changed hash is not.
+    await router.navigate({ to: ".", hash: "add-material" });
+    expect(router.history.location.hash).toBe("#add-material");
+    expect(confirm).toHaveBeenCalledTimes(2);
+
+    // A file alone is material too, the title it filled in cleared; agreeing leaves.
+    fireEvent.change(pasted, { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Original file"), {
+      target: { files: [new File(["%PDF"], "Unidad_1.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "" } });
+    confirm.mockReturnValue(true);
+    await toCourses();
+    expect(confirm).toHaveBeenCalledTimes(3);
+    expect(router.history.location.pathname).toBe("/example");
+  });
+
+  test("asks before going back, reloading, or closing the tab from material entered but not added", async () => {
+    const confirm = answerLeaving(false);
+    // The browser's Back, which a memory history never blocks.
+    window.history.replaceState(null, "", "/example");
+    const history = createBrowserHistory();
+    onTestFinished(() => {
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    });
+    const { router } = renderAt("/example", {
+      braivo: { listSources: async () => [], listCourses: async () => [] },
+      history,
+    });
+    await router.navigate({
+      to: "/$organizationSlug/sources",
+      params: { organizationSlug: "example" },
+    });
+    // Reloading or closing the tab asks when `beforeunload` is cancelled.
+    const asksOnUnload = () =>
+      !window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+    const title = await screen.findByLabelText("Title");
+    expect(asksOnUnload()).toBe(false);
+    fireEvent.change(title, { target: { value: "Unidad 1" } });
+    expect(asksOnUnload()).toBe(true);
+
+    window.history.back();
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_MATERIAL));
+    await vi.waitFor(() => expect(window.location.pathname).toBe("/example/sources"));
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Unidad 1");
+  });
+
+  test("asks to leave material a failed add kept, but not material it opened once added", async () => {
+    const confirm = answerLeaving(false);
+    const addSource = vi
+      .fn()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockResolvedValueOnce("s1");
+    const { router } = renderAt("/example/sources", {
+      braivo: { ...added, addSource, listCourses: async () => [] },
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({ title: "Unidad 1", text: "Hola." });
+    await screen.findByText("The material could not be added. Try again.");
+    void router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_MATERIAL));
+    expect(router.history.location.pathname).toBe("/example/sources");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add material" }));
+    await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
   test("stops uploading and reading a file nobody is waiting for once the owner leaves", async () => {
     let signal: AbortSignal | undefined;
     let uploading: AbortSignal | undefined;
