@@ -3,7 +3,12 @@
 
 import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
-import { createClient, type Organization } from "@braivo/server/client";
+import { Client } from "@modelcontextprotocol/client";
+import { InMemoryTransport } from "@modelcontextprotocol/server";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
+import { beforeAll, describe, expect, test } from "vite-plus/test";
+
+import { createClient, type Organization } from "../api/client.ts";
 import {
   createCourse,
   createObjectives,
@@ -11,11 +16,7 @@ import {
   readCourseObjectives,
   recordEvidence,
   signInWithCode,
-} from "@braivo/server/testing";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { beforeAll, describe, expect, test } from "vite-plus/test";
-
+} from "../testing.ts";
 import { createMcpServer } from "./server.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -45,6 +46,8 @@ const at = new Date("2026-06-01T00:00:00.000Z");
 
 /** An agent, connected to `braivo mcp` as a desktop app would be, signed in as a content owner. */
 let agent!: Client;
+/** The content owner's session, for agents connected apart from `agent`. */
+let ownerToken!: string;
 /** An agent signed in as a learner of the progress organization, who may read only their own report. */
 let learnerAgent!: Client;
 /** An agent signed in as a member of the progress organization who teaches Ana's group. */
@@ -54,12 +57,22 @@ let learnerId!: string;
 
 type ToolResult = { isError?: boolean; content: { type: string; text: string }[] };
 
-/** An agent connected to `braivo mcp` with `token`'s session. */
-async function connect(token: string): Promise<Client> {
-  const mcp = createMcpServer(clientWith(token), "1.2.3");
+/** The protocol revisions an agent may speak to `braivo mcp`: before and after 2026-07-28's stateless one. */
+type Revision = "2025-11-25" | "2026-07-28";
+
+/**
+ * An agent connected to `braivo mcp` with `token`'s session, speaking `revision`.
+ * Served as `braivo mcp` serves it, by `serveStdio`, which picks the era from the
+ * opening exchange; only its pipe is in memory.
+ */
+async function connect(token: string, revision: Revision = "2026-07-28"): Promise<Client> {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "test-agent", version: "0" });
-  await Promise.all([mcp.connect(serverSide), client.connect(clientSide)]);
+  serveStdio(() => createMcpServer(clientWith(token), "1.2.3"), { transport: serverSide });
+  const client = new Client(
+    { name: "test-agent", version: "0" },
+    revision === "2025-11-25" ? {} : { versionNegotiation: { mode: { pin: revision } } },
+  );
+  await client.connect(clientSide);
   return client;
 }
 
@@ -91,6 +104,7 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       outbox,
       { email, name: email },
     );
+    ownerToken = token;
     await testing.seedOrganization(database, {
       organizationId,
       learnerIds: [],
@@ -158,6 +172,22 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
     teacherAgent = await connect(teacher.token);
   });
 
+  test.each(["2025-11-25", "2026-07-28"] as const)(
+    "serves an agent speaking %s, which lists and calls tools",
+    async (revision) => {
+      const revisionAgent = await connect(ownerToken, revision);
+      try {
+        expect(revisionAgent.getNegotiatedProtocolVersion()).toBe(revision);
+        const { tools } = await revisionAgent.listTools();
+        expect(tools.map((tool) => tool.name)).toContain("list_organizations");
+        const organizations = await json<Organization[]>("list_organizations", {}, revisionAgent);
+        expect(organizations.map((organization) => organization.id)).toContain(organizationId);
+      } finally {
+        await revisionAgent.close();
+      }
+    },
+  );
+
   test("names the release serving it", () => {
     expect(agent.getServerVersion()).toMatchObject({ name: "braivo", version: "1.2.3" });
   });
@@ -196,6 +226,39 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       "read_source",
       "retire_tasks",
     ]);
+  });
+
+  test("leaves out, and never names, the tools reaching learners where asked", async () => {
+    const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+    serveStdio(() => createMcpServer(clientWith(ownerToken), "1.2.3", { catalog: "preparing" }), {
+      transport: serverSide,
+    });
+    const preparing = new Client(
+      { name: "test-agent", version: "0" },
+      { versionNegotiation: { mode: { pin: "2026-07-28" } } },
+    );
+    await preparing.connect(clientSide);
+
+    const offered = new Set((await preparing.listTools()).tools.map((tool) => tool.name));
+    const everyTool = (await agent.listTools()).tools.map((tool) => tool.name);
+    const absent = everyTool.filter((name) => !offered.has(name));
+    const instructions = preparing.getInstructions() ?? "";
+    const words = `${instructions} ${(await preparing.listTools()).tools.map((tool) => tool.description).join(" ")}`;
+    await preparing.close();
+
+    // What it cannot do, in the opening a client may keep alone.
+    const opening = instructions.slice(0, instructions.indexOf("\n\n"));
+    expect(opening.length).toBeLessThanOrEqual(512);
+    expect(opening).toContain("You cannot write its practice tasks.");
+
+    expect(absent.toSorted()).toEqual([
+      "author_tasks",
+      "course_progress",
+      "learner_progress",
+      "list_groups",
+      "retire_tasks",
+    ]);
+    for (const name of absent) expect(words, name).not.toContain(name);
   });
 
   test("says in each progress tool's description that what it reads goes to the AI", async () => {
@@ -387,6 +450,56 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
         { start: 0, page: "11" },
         { start: 23, page: "12" },
       ],
+    });
+  });
+
+  test("reads a long book a bounded part at a time, following next to its end", async () => {
+    const { sourceId } = await json<{ sourceId: string }>("add_document", {
+      organizationId,
+      title: "Un libro largo",
+      pages: Array.from({ length: 60 }, (_, index) => ({
+        page: String(index + 1),
+        text: `Página ${index + 1}. ${"Hola, ¿qué tal? ".repeat(60)}`,
+      })),
+    });
+    type Slice = {
+      title: string;
+      text: string;
+      start: number;
+      end: number;
+      length: number;
+      pagination: { start: number; page: string }[];
+      next?: { characters: string };
+    };
+
+    const parts = [await json<Slice>("read_source", { organizationId, sourceId })];
+    while (parts.at(-1)!.next) {
+      parts.push(
+        await json<Slice>("read_source", { organizationId, sourceId, ...parts.at(-1)!.next }),
+      );
+    }
+    const pages = await json<Slice>("read_source", { organizationId, sourceId, pages: "30-31" });
+    const outside = await call("read_source", { organizationId, sourceId, pages: "61-" });
+    const both = await call("read_source", {
+      organizationId,
+      sourceId,
+      pages: "1-2",
+      characters: "0-",
+    });
+
+    expect(parts.length).toBeGreaterThan(2);
+    expect(parts.every(({ text }) => text.length <= 20_000)).toBe(true);
+    expect(parts[0]).toMatchObject({ title: "Un libro largo", start: 0 });
+    expect(parts.at(-1)!.end).toBe(parts[0]!.length);
+    expect(pages.pagination.map(({ page }) => page)).toEqual(["30", "31"]);
+    expect(pages.text.startsWith("Página 30.")).toBe(true);
+    expect(outside).toEqual({
+      isError: true,
+      text: expect.stringContaining("This source has 60 pages: ask for pages 1 to 60."),
+    });
+    expect(both).toEqual({
+      isError: true,
+      text: expect.stringContaining("Send at most one of pages, seconds, or characters."),
     });
   });
 

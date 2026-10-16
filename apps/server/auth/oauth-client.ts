@@ -64,9 +64,9 @@ export async function registerOAuthClient(
 
 /**
  * Removes a client and, by cascade, its refresh tokens and consents; `false`
- * if none had the ID. Its access tokens verify until they expire, within the
- * hour, while `/mcp` does not check the connection per call (ADR 0045). Where
- * client ID metadata documents are on, a URL-named one can sign in again.
+ * if none had the ID. Its access tokens still verify until they expire,
+ * within the hour, but `/mcp` refuses them, finding no consent (ADR 0045).
+ * Where client ID metadata documents are on, a URL-named one can sign in again.
  */
 export async function removeOAuthClient(auth: Auth, clientId: string): Promise<boolean> {
   const { adapter } = await auth.$context;

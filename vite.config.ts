@@ -24,12 +24,7 @@ const beside = ["!packages/ui/components/**/*.stories.tsx"];
  * Workers' Node compatibility anyway; whether workerd runs a given one is for a
  * deployment to prove.
  */
-const bunFree = [
-  "apps/server/**/*.ts",
-  "packages/db/**/*.ts",
-  "packages/i18n/locales.ts",
-  "packages/mcp/**/*.ts",
-];
+const bunFree = ["apps/server/**/*.ts", "packages/db/**/*.ts", "packages/i18n/locales.ts"];
 const bunFreeMessage =
   "A Bun-only API, kept out of code the server runs: see bunFree in vite.config.ts.";
 
@@ -174,15 +169,11 @@ export default defineConfig({
         test: {
           name: "server",
           root: "apps/server",
-          // With the CLI's and MCP's, whose suites drive a real server: one
-          // project, so the setup below runs once. `dir` resolves from the
-          // workspace's root, not `root`.
+          // With the CLI's, whose suites drive a real server: one project, so
+          // the setup below runs once. `dir` resolves from the workspace's
+          // root, not `root`.
           dir: ".",
-          include: [
-            "apps/server/**/*.test.ts",
-            "packages/cli/**/*.test.ts",
-            "packages/mcp/**/*.test.ts",
-          ],
+          include: ["apps/server/**/*.test.ts", "packages/cli/**/*.test.ts"],
           // The database suites share one PostgreSQL database, so one file at
           // a time keeps them from cutting across each other.
           fileParallelism: false,

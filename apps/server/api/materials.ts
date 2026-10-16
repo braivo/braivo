@@ -14,6 +14,7 @@ import {
   readFileText,
   uploadFile,
 } from "../application/index.ts";
+import { sliceSource } from "../content/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { type Guards, jsonBody, limitBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
@@ -171,7 +172,12 @@ export function materialsRoutes(
     }
   });
 
-  /** One source, text included, for whoever administers its organization. */
+  /**
+   * One source, text included, for whoever administers its organization; with
+   * `pages`, `seconds`, or `characters`, a bounded part of its text instead,
+   * for an agent that cannot take a whole book in one answer. Without them it
+   * stays whole: the console shows all of a source on request (sources-20).
+   */
   routes.get(
     "/api/organizations/:organizationId/sources/:sourceId",
     requireAccount,
@@ -187,7 +193,17 @@ export function materialsRoutes(
 
         // Reached only by an administrator, so a 404 confirms nothing they could
         // not already list.
-        return source ? context.json(source) : context.body(null, 404);
+        if (!source) return context.body(null, 404);
+
+        const { pages, seconds, characters } = context.req.query();
+        if (pages === undefined && seconds === undefined && characters === undefined) {
+          return context.json(source);
+        }
+        const { text, timing, pagination, ...summary } = source;
+        const slice = sliceSource({ text, timing, pagination }, { pages, seconds, characters });
+        return "problem" in slice
+          ? context.json({ error: slice.problem }, 400)
+          : context.json({ ...summary, ...slice });
       } catch (error) {
         return organizationRefusal(context, error);
       }

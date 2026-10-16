@@ -37,7 +37,7 @@ import {
 } from "../application/index.ts";
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
-import { type Guards, jsonBody, sentByTool } from "./guards.ts";
+import { type Guards, jsonBody, presentsToolCredential } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 import type { OrganizationSetup } from "./types.ts";
 
@@ -413,7 +413,7 @@ export function authoringRoutes(
           actingAs: context.var.userId,
           ...course,
           // A tool proposes; a person in the console publishes (ADR 0039).
-          published: !sentByTool(context),
+          published: !presentsToolCredential(context),
         });
 
         return context.json({ courseId }, 201);
@@ -433,7 +433,7 @@ export function authoringRoutes(
     ...trustedJsonWrite(),
     requireAccount,
     async (context) => {
-      if (sentByTool(context)) {
+      if (presentsToolCredential(context)) {
         return context.json(
           { error: "Publish in Braivo's console, where a person reviews it." },
           403,
@@ -457,14 +457,23 @@ export function authoringRoutes(
     },
   );
 
-  /** The organizations the session's user administers or teaches in. */
+  /**
+   * The organizations the session's user administers or teaches in; to a
+   * connection, its grant's alone, while they administer it (ADR 0045).
+   */
   routes.get("/api/organizations", requireAccount, async (context) => {
     const organizations = await listOrganizations({
       database,
       actingAs: context.var.userId,
       ai,
     });
-    return context.json({ organizations });
+    const connection = context.get("connection");
+    if (!connection) return context.json({ organizations });
+    return context.json({
+      organizations: organizations.filter(
+        ({ id, administers }) => id === connection.organizationId && administers,
+      ),
+    });
   });
 
   /**

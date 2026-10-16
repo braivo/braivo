@@ -19,6 +19,13 @@ export {
 } from "./course.ts";
 export { recordAiRequest } from "./ai-request.ts";
 export {
+  type Connection,
+  deleteConnection,
+  hasConsent,
+  hasRefreshTokenConsent,
+  readConnections,
+} from "./connection.ts";
+export {
   activateDomainClaim,
   deleteDomain,
   type HostnameHolder,

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import * as z from "zod";
+
 /**
  * Everything the server reads from the environment, and every rule about what
  * those values may be. Every host reads `readServerConfig`'s part; `serve` the
@@ -41,6 +43,11 @@ export type ServerConfig = {
    */
   dataRegion?: string;
   otherRegions?: OtherRegion[];
+  /**
+   * The accounts that may sign in with a password the operator set, for an
+   * app directory's reviewer (ADR 0018), or none: codes and Google alone.
+   */
+  reviewerEmails?: ReadonlySet<string>;
 };
 
 /** Another region's installation, setting up at `setupUrl`, or `null` not yet open. */
@@ -97,7 +104,8 @@ type VariableName =
   | "BRAIVO_TERMS_URL"
   | "BRAIVO_SELF_SERVE_DOMAIN"
   | "BRAIVO_DATA_REGION"
-  | "BRAIVO_OTHER_REGIONS";
+  | "BRAIVO_OTHER_REGIONS"
+  | "BRAIVO_REVIEWER_EMAILS";
 
 /**
  * A Worker's `env`, bindings beside the variables, or `process.env`, which
@@ -139,6 +147,7 @@ export function readServerConfig(environment: Environment): ServerConfig {
     ...readLegal(environment),
     ...selfServe,
     ...readRegions(environment, selfServe.selfServeDomain !== undefined),
+    ...readReviewerEmails(environment),
   };
 }
 
@@ -302,6 +311,25 @@ function readSelfServeDomain(environment: Environment): { selfServeDomain?: stri
     );
   }
   return { selfServeDomain: value };
+}
+
+/**
+ * `BRAIVO_REVIEWER_EMAILS`, comma-separated, lowercased as accounts' emails
+ * are stored: who may sign in with a password (ADR 0018). Unset or blank, no
+ * one; each address a valid email, so a typo fails here, not at sign-in.
+ */
+function readReviewerEmails(environment: Environment): { reviewerEmails?: ReadonlySet<string> } {
+  const listed = (environment.BRAIVO_REVIEWER_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email !== "");
+  if (listed.length === 0) return {};
+  // As sign-in checks an address (`session.ts`), so a listed one can sign in.
+  const malformed = listed.find((email) => !z.email().safeParse(email).success);
+  if (malformed !== undefined) {
+    throw new Error(`BRAIVO_REVIEWER_EMAILS lists emails, comma-separated, got "${malformed}".`);
+  }
+  return { reviewerEmails: new Set(listed) };
 }
 
 const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region", fallback: "none" });

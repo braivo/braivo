@@ -14,13 +14,13 @@ import { useState } from "react";
  */
 type AuthError = { code?: string; status?: number; message?: string };
 
-type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null };
+export type AuthResult<Data = unknown> = { data?: Data | null; error: AuthError | null };
 
 /**
  * Better Auth's per-request options: the deadline's signal, all a step sets
  * but sending a code, which adds the page's language.
  */
-type Bounded = { fetchOptions?: { signal?: AbortSignal } };
+export type Bounded = { fetchOptions?: { signal?: AbortSignal } };
 
 /**
  * The part of a Better Auth client, with its email code plugin, that signing in
@@ -55,7 +55,7 @@ export type SignInAuth = {
 const SIGN_IN_DEADLINE_MS = 10_000;
 
 /** A request's options, aborting it after `SIGN_IN_DEADLINE_MS`. */
-function deadline(): Bounded["fetchOptions"] {
+export function deadline(): Bounded["fetchOptions"] {
   const controller = new AbortController();
   // A timer rather than `AbortSignal.timeout`, which test fake timers cannot advance.
   setTimeout(
@@ -95,7 +95,7 @@ const WAIT_AGAIN = new Set(["SIGN_IN_CODE_COOLDOWN", "SIGN_IN_CODE_SEND_FAILED"]
 
 /** Refusals asking only to wait, a limit rather than a fault: shown calm. */
 const COOLDOWN = msg`Wait a minute before asking for a code again.`;
-const RATE_LIMITED = msg`Too many tries. Wait a minute, then try again.`;
+export const RATE_LIMITED = msg`Too many tries. Wait a minute, then try again.`;
 // "Requested", not "sent": the minute proves an ask, and another tab's send may have failed.
 const SENT_RECENTLY = msg`A code was requested less than a minute ago. Check your email.`;
 const WAITS = new Set([COOLDOWN, RATE_LIMITED, SENT_RECENTLY]);
@@ -126,7 +126,7 @@ function refusal(error: AuthError): MessageDescriptor {
  * name: the learn app runs under the organization's brand, not Braivo's
  * (ADR 0004).
  */
-const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
+export const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
 
 /**
  * Why Google's round trip came back to `errorCallbackURL`, from its `error`.

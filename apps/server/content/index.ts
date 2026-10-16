@@ -13,6 +13,8 @@ export { locateQuote, QUOTE_REFUSALS } from "./citation.ts";
 export { isKey, KEY_RULE } from "./key.ts";
 export type { Page, Pagination } from "./pages.ts";
 export { joinPages, pageOf } from "./pages.ts";
+export type { SourceRange, SourceSlice } from "./slice.ts";
+export { MAX_SLICE_CODE_POINTS, sliceSource } from "./slice.ts";
 export { normalizeSourceText, parseLanguageTag, parseSourceUrl, sourceDigest } from "./source.ts";
 export { isStorable, isStorableText, MAX_TITLE } from "./text.ts";
 export type { Cue, Timing } from "./transcript.ts";

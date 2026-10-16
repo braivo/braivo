@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { safeRedirect, SignIn } from "@braivo/auth-client";
+import { PasswordSignIn, safeRedirect, SignIn } from "@braivo/auth-client";
 import { BraivoError } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -30,14 +30,22 @@ const expiredTitle = msg`This sign-in has expired`;
 export const Route = createFileRoute("/login")({
   // `error`: why Google's round trip came back here rather than signed in.
   // `provider`: a learn domain's learner chose Google there, which this page
-  // starts (ADR 0018).
+  // starts (ADR 0018). `method`: `password` for an app directory's reviewer, who
+  // signs in with the password the operator gave them; nothing links here (ADR 0018).
   validateSearch: (
     search,
-  ): { redirect?: string; handoff?: string; error?: string; provider?: "google" } => ({
+  ): {
+    redirect?: string;
+    handoff?: string;
+    error?: string;
+    provider?: "google";
+    method?: "password";
+  } => ({
     redirect: safeRedirect(search.redirect),
     handoff: typeof search.handoff === "string" && search.handoff ? search.handoff : undefined,
     error: typeof search.error === "string" ? search.error : undefined,
     provider: search.provider === "google" ? "google" : undefined,
+    method: search.method === "password" ? "password" : undefined,
   }),
   beforeLoad: async ({ context, search, abortController }) => {
     // Asked alongside the session, but awaited only for a form to show it.
@@ -110,9 +118,11 @@ function useGoogleSignIn(to: string) {
 
 function Login() {
   const { auth, needsName, legal } = Route.useRouteContext();
-  const { redirect, handoff } = Route.useSearch();
+  const { redirect, handoff, method } = Route.useSearch();
   const router = useRouter();
   const google = useGoogleSignIn(redirect ?? "/");
+  // In `/login`'s place, so Back does not return to it.
+  const onSignedIn = () => router.navigate({ href: redirect ?? "/", replace: true });
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
   return (
@@ -121,14 +131,18 @@ function Login() {
       aside={<ConsoleStory />}
       footer={`© ${new Date().getFullYear()} Braivo`}
     >
-      <SignIn
-        auth={auth}
-        needsName={needsName}
-        google={google}
-        legal={legal}
-        // In `/login`'s place, so Back does not return to it.
-        onSignedIn={() => router.navigate({ href: redirect ?? "/", replace: true })}
-      />
+      {/* An account still without a name is named by `SignIn`'s step. */}
+      {method === "password" && !needsName ? (
+        <PasswordSignIn auth={auth} onSignedIn={onSignedIn} />
+      ) : (
+        <SignIn
+          auth={auth}
+          needsName={needsName}
+          google={google}
+          legal={legal}
+          onSignedIn={onSignedIn}
+        />
+      )}
       <LearnerNote />
     </ConsoleSignInPage>
   );

@@ -9,5 +9,6 @@
 
 export { createBrowserAuth } from "./client.ts";
 export { SignIn, type SignInAuth } from "./sign-in.tsx";
+export { PasswordSignIn, type PasswordSignInAuth } from "./password-sign-in.tsx";
 export { safeRedirect } from "./redirect.ts";
 export { needsName, requireSession, type SessionAuth } from "./require-session.ts";

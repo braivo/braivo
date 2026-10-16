@@ -5,6 +5,7 @@ import type {
   Activity,
   AuthoredCourse,
   AuthoredTask,
+  Connection,
   Course,
   CourseProgressOverview,
   DomainClaim,
@@ -29,6 +30,8 @@ import type {
   SessionUser,
   SignInSettings,
   Source,
+  SourceRange,
+  SourceSlice,
   SourceSummary,
   TaskDraft,
   TaskResponse,
@@ -49,6 +52,7 @@ export type {
   Activity,
   AuthoredCourse,
   AuthoredTask,
+  Connection,
   Course,
   CourseProgressOverview,
   Domain,
@@ -77,6 +81,8 @@ export type {
   SessionUser,
   SignInSettings,
   Source,
+  SourceRange,
+  SourceSlice,
   SourceSummary,
   TaskDraft,
   TaskResponse,
@@ -307,6 +313,20 @@ export type BraivoClient = {
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
 
   /**
+   * The AI apps the signed-in person connected (ADR 0045), one per app and
+   * organization. A browser's session alone: a token gets a
+   * {@link BraivoError} with status 403.
+   */
+  listConnections(options?: RequestOptions): Promise<Connection[]>;
+
+  /**
+   * Ends one of the signed-in person's connections, by its `id`: its app's
+   * next call is refused, and it must ask for consent again. A
+   * {@link BraivoError} with status 404 when they have none by that ID.
+   */
+  disconnectConnection(connectionId: string, options?: RequestOptions): Promise<void>;
+
+  /**
    * An organization's groups, by name: every one to a session holding `owner`
    * or `admin` there, and to any other member those they teach, whose
    * progress in which courses they may read (ADR 0042). Anyone else gets a
@@ -498,6 +518,18 @@ export type BraivoClient = {
     input: { organizationId: string; sourceId: string },
     options?: RequestOptions,
   ): Promise<Source>;
+
+  /**
+   * A bounded part of a source: at most 20,000 characters of its text, from
+   * where `range` asks (the start when it asks nothing), and `next`, the range
+   * to ask next, while what was asked runs on. A range the source cannot
+   * answer — page 40 of 30, pages of a text without them — is a
+   * {@link BraivoError} with status 400 whose `reason` says which it can.
+   */
+  getSourceSlice(
+    input: { organizationId: string; sourceId: string } & SourceRange,
+    options?: RequestOptions,
+  ): Promise<SourceSlice>;
 
   /**
    * Registers learning targets and resolves to their IDs, in the order given.
@@ -948,6 +980,26 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return members;
     },
 
+    async listConnections(requestOptions) {
+      const response = await get("/api/connections", requestOptions);
+
+      const doing = "listing connected apps";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ connections: Connection[] }>(response, doing)).connections;
+    },
+
+    async disconnectConnection(connectionId, requestOptions) {
+      const response = await post(
+        `/api/connections/${encodeURIComponent(connectionId)}/disconnect`,
+        {},
+        requestOptions,
+      );
+      if (response.status !== 204) {
+        throw await unexpected(response, `disconnecting connection "${connectionId}"`);
+      }
+    },
+
     async listGroups(organizationId, requestOptions) {
       const response = await get(
         `/api/organizations/${encodeURIComponent(organizationId)}/groups`,
@@ -1135,6 +1187,22 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<Source>(response, doing);
+    },
+
+    async getSourceSlice({ organizationId, sourceId, ...range }, requestOptions) {
+      const query = new URLSearchParams(
+        Object.entries(range).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      );
+      if (query.size === 0) query.set("characters", "0-");
+      const response = await get(
+        `${organizationPath(organizationId)}/sources/${encodeURIComponent(sourceId)}?${query}`,
+        requestOptions,
+      );
+
+      const doing = `reading source "${sourceId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<SourceSlice>(response, doing);
     },
 
     async defineObjectives(input, requestOptions) {

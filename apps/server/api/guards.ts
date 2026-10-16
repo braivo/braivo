@@ -16,6 +16,7 @@ import { createMiddleware } from "hono/factory";
 import { resumeLearnerSession, type RequestHost } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
 import { isStorable } from "../content/index.ts";
+import type { Principal } from "./principal.ts";
 
 /**
  * Whether a state-changing request came from somewhere allowed to make it.
@@ -141,14 +142,6 @@ const storableJson = createMiddleware(
 );
 
 /**
- * Whether a tool sent the request, with its token, rather than a person in
- * their browser: a course a tool creates waits to be published, and only a
- * browser publishes (ADR 0039). As `sessionFor` treats a bearer: an `Authorization`
- * header at all, a cookie beside it included.
- */
-export const sentByTool = (context: Context) => context.req.header("authorization") !== undefined;
-
-/**
  * A learn domain's cookies (ADR 0018), each `__Host-`: Secure, on that host
  * alone, for every path. `Lax`, since the handoff arrives by a navigation from
  * the installation's origin.
@@ -162,6 +155,44 @@ export const cookieOptions = (expiresAt: Date) =>
     sameSite: "Lax",
     expires: expiresAt,
   }) as const;
+
+/**
+ * Who a request on the installation's host is, by the credential it came
+ * with: a browser's cookie, a device-flow token (ADR 0022), or a connection's
+ * principal (ADR 0045).
+ */
+export type Session =
+  | { credential: "browser" | "token"; userId: string }
+  | ({ credential: "connection" } & Principal);
+
+/**
+ * Whether a request comes with a tool's credential, a token or a connection,
+ * which is refused what takes the person's browser (ADR 0022): a course it
+ * creates waits to be published, and only a browser publishes (ADR 0039). A
+ * connection carries no `Authorization` header, so never test that alone.
+ * Read before anything resolves who it is.
+ */
+export const presentsToolCredential = (context: Context): boolean =>
+  context.get("connection") !== undefined || context.req.header("authorization") !== undefined;
+
+/**
+ * The routes a connection's `braivo:author` reaches (access-41). No task
+ * writes: learners would see them at once until ADR 0039 holds tasks too.
+ */
+const AUTHOR_ROUTES: ReadonlySet<string> = new Set([
+  "GET /api/organizations",
+  "GET /api/organizations/:organizationId/sources",
+  "POST /api/organizations/:organizationId/sources",
+  "GET /api/organizations/:organizationId/sources/:sourceId",
+  "GET /api/organizations/:organizationId/objectives",
+  "POST /api/organizations/:organizationId/objectives",
+  "POST /api/organizations/:organizationId/citations",
+  "GET /api/organizations/:organizationId/objectives/:objectiveId/citations",
+  "GET /api/organizations/:organizationId/objectives/:objectiveId/tasks",
+  "GET /api/organizations/:organizationId/courses",
+  "POST /api/organizations/:organizationId/courses",
+  "GET /api/organizations/:organizationId/courses/:courseId",
+]);
 
 /** What the guards need: the installation's sessions, database, and public origin. */
 type GuardOptions = { auth: Auth; database: Database; baseUrl: string };
@@ -180,15 +211,13 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
   };
 
   /**
-   * The session behind a request, with Better Auth's renewal cookies forwarded.
-   * It renews past the update interval and answers with a replacement cookie;
-   * calling its API directly means that header arrives here, and dropping it
-   * would sign out a client that only ever calls these routes, however active.
+   * The account's session behind a request, cookie or token, with Better
+   * Auth's renewal cookies forwarded. It renews past the update interval and
+   * answers with a replacement cookie; calling its API directly means that
+   * header arrives here, and dropping it would sign out a client that only
+   * ever calls these routes, however active.
    */
-  async function sessionFor(context: Context) {
-    // A learn domain holds learner sessions alone (ADR 0018): an account's
-    // cookie there counts for nothing.
-    if (!requestHost(context).installation) return null;
+  async function accountSession(context: Context) {
     const { headers, response } = await auth.api.getSession({
       headers: context.req.raw.headers,
       returnHeaders: true,
@@ -204,15 +233,34 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
   }
 
   /**
+   * Who is asking on the installation's host, and by which credential (ADR
+   * 0022, ADR 0045): a connection by the principal its request was built with,
+   * before and instead of any header; otherwise the account's session.
+   */
+  async function sessionFor(context: Context): Promise<Session | null> {
+    // A learn domain holds learner sessions alone (ADR 0018): an account's
+    // cookie there counts for nothing.
+    if (!requestHost(context).installation) return null;
+    const connection = context.get("connection");
+    if (connection) return { credential: "connection", ...connection };
+    const found = await accountSession(context);
+    if (!found) return null;
+    const credential = context.req.header("authorization") === undefined ? "browser" : "token";
+    return { credential, userId: found.user.id };
+  }
+
+  /**
    * The learner behind a request to a learner route: on a learn domain, its
    * learner session's user, renewed as it is used; on the installation's host,
    * the account's (the console reading a learner's progress; the learn app in
-   * development).
+   * development). Never a connection's: its grant is to author and read
+   * progress, not to study.
    */
   async function learnerFor(context: Context): Promise<{ id: string; name: string } | undefined> {
     const host = requestHost(context);
     if (host.installation) {
-      const user = (await sessionFor(context))?.user;
+      if (context.get("connection")) return undefined;
+      const user = (await accountSession(context))?.user;
       return user && { id: user.id, name: user.name };
     }
 
@@ -254,14 +302,33 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
   });
 
   /**
-   * An account's session on the installation's host, cookie or token
-   * (`sessionFor`); 401 without one. Its user is `userId`.
+   * A connection's refusal, `403`, unless its route is one `braivo:author`
+   * grants and names its grant's organization, or none (ADR 0045). Here,
+   * where each route's credential is resolved, so no tool's arguments reach
+   * past it; what a route names beside the organization is that
+   * organization's by the route's own lookup.
+   */
+  function refuseOutsideGrant(context: Context, organizationId: string): Response | undefined {
+    const route = `${context.req.method} ${context.req.routePath}`;
+    if (!AUTHOR_ROUTES.has(route)) return context.body(null, 403);
+    const named = context.req.param("organizationId");
+    return named === undefined || named === organizationId ? undefined : context.body(null, 403);
+  }
+
+  /**
+   * An account's session on the installation's host, cookie, token, or
+   * connection (`sessionFor`), a connection only within its grant; 401
+   * without one. Its user is `userId`.
    */
   const requireAccount = createMiddleware<{ Variables: { userId: string } }>(
     async (context, next) => {
       const session = await sessionFor(context);
       if (!session) return context.body(null, 401);
-      context.set("userId", session.user.id);
+      if (session.credential === "connection") {
+        const refused = refuseOutsideGrant(context, session.organizationId);
+        if (refused) return refused;
+      }
+      context.set("userId", session.userId);
       await next();
     },
   );

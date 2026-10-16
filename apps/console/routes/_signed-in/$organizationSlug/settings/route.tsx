@@ -44,6 +44,7 @@ const SECTIONS = [
     pages: [
       { to: "/$organizationSlug/settings/account", label: msg`Profile` },
       { to: "/$organizationSlug/settings/preferences", label: msg`Preferences` },
+      { to: "/$organizationSlug/settings/connections", label: msg`Connected apps` },
     ],
   },
   {

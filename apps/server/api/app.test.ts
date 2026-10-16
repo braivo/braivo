@@ -252,6 +252,7 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
       authorization_servers: [`${baseUrl}/api/auth`],
       // `/mcp` takes bearer tokens alone.
       dpop_signing_alg_values_supported: [],
+      scopes_supported: expect.arrayContaining(["braivo:author"]),
     });
     expect(elsewhere.status).toBe(404);
     expect(server.status).toBe(200);

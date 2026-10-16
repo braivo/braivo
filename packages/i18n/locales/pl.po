@@ -38,6 +38,10 @@ msgstr "Rola osoby {0}: uczeń."
 msgid "{0} is a teacher."
 msgstr "Rola osoby {0}: nauczyciel."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
+msgstr "{clientName} działa w organizacji, którą zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię, a potem połącz ponownie."
+
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
@@ -99,6 +103,10 @@ msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."
 msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "{organization} · connected {date}"
+msgstr "{organization} · połączono {date}"
 
 #: apps/console/routes/login.tsx
 msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
@@ -186,6 +194,10 @@ msgstr "Dodawanie…"
 msgid "Admin"
 msgstr "Administrator"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "AI apps you let work in Braivo for you, each in one organization. Disconnecting one stops it at once; to use it there again, connect it again."
+msgstr "Aplikacje AI, którym pozwalasz działać w Braivo w Twoim imieniu, każda w jednej organizacji. Odłączenie aplikacji od razu ją zatrzymuje; aby znów jej tam używać, połącz ją ponownie."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Another code can be sent a minute after the last."
 msgstr "Kolejny kod można wysłać minutę po poprzednim."
@@ -193,6 +205,18 @@ msgstr "Kolejny kod można wysłać minutę po poprzednim."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Another organization already uses that domain."
 msgstr "Tej domeny używa już inna organizacja."
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Another organization was chosen in another tab. Start again in {clientName}."
+msgstr "W innej karcie wybrano inną organizację. Zacznij od nowa w aplikacji {clientName}."
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Approve"
+msgstr "Zezwól"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
+msgstr "Działając w Twoim imieniu, będzie mogła czytać materiały i kursy organizacji „{organizationName}” oraz dodawać materiały i cele nauczania, których dotyczą."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
@@ -221,6 +245,10 @@ msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "By name"
 msgstr "Alfabetycznie"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Cancel"
+msgstr "Anuluj"
 
 #: apps/console/components/group-form.tsx
 msgid "Change to learner"
@@ -260,6 +288,10 @@ msgstr "Sprawdzanie…"
 msgid "Choose one from the list."
 msgstr "Wybierz jedno z listy."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Client ID: {clientId}"
+msgstr "Identyfikator klienta: {clientId}"
+
 #: apps/console/components/organization-sidebar.tsx
 msgid "Close navigation"
 msgstr "Zamknij nawigację"
@@ -272,6 +304,11 @@ msgstr "Kod"
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Collapse sidebar"
 msgstr "Zwiń panel boczny"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
+msgid "Connected apps"
+msgstr "Połączone aplikacje"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Console address"
@@ -355,6 +392,10 @@ msgstr "Nie udało się potwierdzić utworzenia grupy. Spróbuj ponownie: zostan
 msgid "Could not confirm the organization was created. Reload this page to check before trying again."
 msgstr "Nie udało się potwierdzić, że organizacja została utworzona. Odśwież stronę, aby to sprawdzić, zanim spróbujesz ponownie."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Could not connect {clientName}. Check your access, then start again in {clientName}."
+msgstr "Nie udało się połączyć aplikacji {clientName}. Sprawdź swoje uprawnienia, a potem zacznij od nowa w aplikacji {clientName}."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
@@ -364,6 +405,18 @@ msgstr "Nie udało się połączyć. Sprawdź połączenie i spróbuj ponownie."
 #: apps/console/components/copy-button.tsx
 msgid "Could not copy. Select it instead."
 msgstr "Nie udało się skopiować. Zaznacz tekst i skopiuj go ręcznie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Could not disconnect the app. Try again."
+msgstr "Nie udało się odłączyć aplikacji. Spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Could not disconnect. Check your connection and try again."
+msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Could not record your answer. Try again."
+msgstr "Nie udało się zapisać Twojej odpowiedzi. Spróbuj ponownie."
 
 #: apps/console/components/group-form.tsx
 msgid "Could not reload the group. Try again."
@@ -435,6 +488,30 @@ msgstr "Ciemny"
 msgid "Data region"
 msgstr "Region danych"
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Deny"
+msgstr "Odmów"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Disconnect"
+msgstr "Odłącz"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Disconnect {app} from {organization}"
+msgstr "Odłącz {app} od organizacji {organization}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Disconnect {app} from {organization}?"
+msgstr "Odłączyć {app} od organizacji {organization}?"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Disconnected {app} from {organization}."
+msgstr "Odłączono {app} od organizacji {organization}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Disconnecting…"
+msgstr "Odłączanie…"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Domain"
 msgstr "Domena"
@@ -494,6 +571,7 @@ msgid "Edit learners' site"
 msgstr "Zmień adres strony dla uczniów"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
+#: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email address"
 msgstr "Adres e-mail"
@@ -624,6 +702,10 @@ msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "za {time}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "It can no longer work in Braivo for you there, from its next request. To use it again, connect it again."
+msgstr "Od następnego żądania nie będzie już mogła działać tam w Braivo w Twoim imieniu. Aby znów jej używać, połącz ją ponownie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "It cannot be changed yet."
 msgstr "Na razie nie można go zmienić."
@@ -640,6 +722,10 @@ msgstr "Domena nie jest jeszcze gotowa: wykrycie jej rekordów i wydanie certyfi
 msgid "It is the only domain your learners have. Add another first."
 msgstr "To jedyna domena Twoich uczniów. Najpierw dodaj inną."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "It works in one. To use it in another too, connect it again."
+msgstr "Działa w jednej. Aby używać jej także w innej, połącz ją ponownie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Its records are not available yet."
 msgstr "Jej rekordy nie są jeszcze dostępne."
@@ -652,6 +738,7 @@ msgstr "Nauczyciele tej grupy nie zobaczą postępów, dopóki nie będzie w nie
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Keep it"
 msgstr "Zostaw"
@@ -746,6 +833,10 @@ msgstr "Uczysz się? Otwórz stronę otrzymaną od szkoły lub organizatora szko
 msgid "Leave this page? Your changes to this group will be lost."
 msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Let {clientName} work in {organizationName}?"
+msgstr "Zezwolić aplikacji {clientName} na pracę w organizacji „{organizationName}”?"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
 msgid "Light"
@@ -753,6 +844,7 @@ msgstr "Jasny"
 
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
+#: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/choice-question.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 #: packages/ui/compositions/typed-question.tsx
@@ -808,6 +900,10 @@ msgstr "Nowy temat"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/new.tsx
 msgid "New group"
 msgstr "Nowa grupa"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "No AI app is connected to your account."
+msgstr "Z Twoim kontem nie jest połączona żadna aplikacja AI."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No code? Check your spam folder."
@@ -967,6 +1063,10 @@ msgstr "Właściciel"
 #: packages/ui/compositions/source-passage.tsx
 msgid "p. {page}"
 msgstr "s. {page}"
+
+#: packages/auth-client/password-sign-in.tsx
+msgid "Password"
+msgstr "Hasło"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgctxt "domain"
@@ -1146,6 +1246,7 @@ msgid "Shown to the people you work with, in every organization."
 msgstr "Widzą je osoby, z którymi pracujesz, w każdej organizacji."
 
 #: apps/learn/routes/login.tsx
+#: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sign in"
 msgstr "Zaloguj się"
@@ -1158,6 +1259,10 @@ msgstr "Zaloguj się ponownie"
 #: apps/learn/routes/login.tsx
 msgid "Sign in to {organizationName}"
 msgstr "Logowanie: {organizationName}"
+
+#: packages/auth-client/password-sign-in.tsx
+msgid "Sign in with a password"
+msgstr "Zaloguj się hasłem"
 
 #: apps/console/components/account-menu.tsx
 #: apps/learn/routes/_signed-in/route.tsx
@@ -1254,6 +1359,7 @@ msgid "That code was tried too many times. Send a new one."
 msgstr "Ten kod wpisano zbyt wiele razy. Wyślij nowy."
 
 #: apps/console/components/organization-setup-form.tsx
+#: packages/auth-client/password-sign-in.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "That did not work. Try again."
 msgstr "Nie udało się. Spróbuj ponownie."
@@ -1261,6 +1367,10 @@ msgstr "Nie udało się. Spróbuj ponownie."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "That domain already serves your organization."
 msgstr "Ta domena jest już przypisana do Twojej organizacji."
+
+#: packages/auth-client/password-sign-in.tsx
+msgid "That email and password do not match."
+msgstr "Ten adres e-mail i hasło nie pasują do siebie."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "That's all the new material for today"
@@ -1365,6 +1475,14 @@ msgstr "Ta organizacja nie ma jeszcze kursów: najpierw przygotuj kurs z materia
 msgid "This question can't be answered here yet."
 msgstr "Na to pytanie nie da się jeszcze tu odpowiedzieć."
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "This request is not valid. Start again in {clientName}."
+msgstr "To żądanie jest nieprawidłowe. Zacznij od nowa w aplikacji {clientName}."
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "This request is not valid. Start again in the app."
+msgstr "To żądanie jest nieprawidłowe. Zacznij od nowa w aplikacji."
+
 #: apps/console/routes/login.tsx
 msgid "This sign-in has expired"
 msgstr "To logowanie wygasło"
@@ -1431,6 +1549,10 @@ msgstr "Poczekaj minutę, zanim ponownie poprosisz o kod."
 msgid "What should we call you?"
 msgstr "Jak mamy się do Ciebie zwracać?"
 
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Which organization should {clientName} work in?"
+msgstr "W której organizacji ma działać {clientName}?"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "You"
 msgstr "Ty"
@@ -1447,6 +1569,7 @@ msgstr "Jutro możesz rozpocząć naukę nowego materiału. Następna powtórka:
 msgid "You can start new material again tomorrow. Nothing is due right now."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie czeka na powtórkę."
 
+#: apps/console/routes/_signed-in/consent.tsx
 #: apps/console/routes/_signed-in/join.tsx
 msgid "You don't manage any organizations"
 msgstr "Nie zarządzasz żadną organizacją"
@@ -1464,6 +1587,7 @@ msgid "You sign in with it. It cannot be changed yet."
 msgstr "Logujesz się nim. Na razie nie można go zmienić."
 
 #: apps/console/components/organization-setup-form.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 #: apps/console/routes/login.tsx
 #: packages/auth-client/sign-in.tsx

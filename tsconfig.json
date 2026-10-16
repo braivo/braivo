@@ -29,6 +29,6 @@
   },
   // Browser code has tsconfigs of its own that extend this one; what is listed
   // below is everything that runs on Bun.
-  "include": ["*.ts", "tooling", "apps/server", "packages/cli", "packages/db", "packages/mcp"],
+  "include": ["*.ts", "tooling", "apps/server", "packages/cli", "packages/db"],
   "exclude": ["**/node_modules", "**/dist"]
 }

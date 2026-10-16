@@ -132,6 +132,9 @@ export type OrganizationSetup = {
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 
+/** One of a person's remote MCP connections, as `GET /api/connections` lists it (access-42). */
+export type Connection = Json<application.Connection>;
+
 /**
  * An organization's learners and teachers taking some of its courses together
  * (ADR 0042), as listed: people by name, courses by title.
@@ -180,6 +183,12 @@ export type SourceSummary = Json<application.SourceSummary>;
 
 /** A source, text included, as `GET …/sources/:sourceId` answers it. */
 export type Source = Json<application.Source>;
+
+/** A bounded part of a source, as `GET …/sources/:sourceId?pages=…` answers it. */
+export type SourceSlice = SourceSummary & content.SourceSlice;
+
+/** What part of a source to read: one of `pages`, `seconds`, or `characters`, as `A-B` or `A-`. */
+export type SourceRange = content.SourceRange;
 
 /** A quote to cite for an objective, as it is posted: Braivo finds where it is. */
 export type QuotedCitation = application.QuotedCitation;

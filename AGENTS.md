@@ -29,6 +29,7 @@ apps/server            API, use cases, learning model, auth, queries, operator's
   persistence/         queries; tables live in packages/db
   storage/             uploaded files' bytes: a directory or an S3-compatible bucket
   auth/                Better Auth server config
+  mcp/                 Braivo's MCP tools over the API client (@braivo/server/mcp)
   cli/                 process entry point (serve, db migrate, organization)
   fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/guides/demo.md)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)
@@ -38,7 +39,6 @@ packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
 packages/cli           `braivo`, content owners' CLI over HTTP, compiled per platform; its installers
-packages/mcp           Braivo's MCP tools over the API client
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
 tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo
 docs/                  product, architecture, apps, glossary, adr/, specs/

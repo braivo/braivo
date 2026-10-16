@@ -20,7 +20,14 @@ import {
 } from "../application/index.ts";
 import { type Auth, SIGN_IN_CODE } from "../auth/index.ts";
 import { mailLocale, type SendMail } from "../mail/index.ts";
-import { cookieOptions, type Guards, HANDOFF_COOKIE, jsonBody, LEARNER_COOKIE } from "./guards.ts";
+import {
+  cookieOptions,
+  type Guards,
+  HANDOFF_COOKIE,
+  jsonBody,
+  LEARNER_COOKIE,
+  presentsToolCredential,
+} from "./guards.ts";
 import type { SignInSettings } from "./types.ts";
 
 type SessionOptions = {
@@ -291,10 +298,11 @@ export function sessionRoutes(
 
   /**
    * Signs out of the host asked: a learn domain's learner session, or the
-   * account. A browser's only: a tool's token manages no account (ADR 0022).
+   * account. A browser's only: a tool's token or connection manages no
+   * account (ADR 0022).
    */
   routes.post("/api/session/sign-out", async (context) => {
-    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
+    if (presentsToolCredential(context)) return context.body(null, 403);
     if (!(await isTrustedWrite(context))) return context.body(null, 403);
 
     if (requestHost(context).installation) {
@@ -331,10 +339,11 @@ export function sessionRoutes(
    * Hands the signed-in account over to a learn domain as a learner, if it is
    * a member there: answers the URL to go to. A write from a click on
    * `/login`, never a navigation, so no link hands someone over unasked; and
-   * a browser's, since a tool's token manages no account (ADR 0022).
+   * a browser's, since a tool's token or connection manages no account
+   * (ADR 0022).
    */
   routes.post("/api/handoffs/:handoffId", async (context) => {
-    if (context.req.header("authorization") !== undefined) return context.body(null, 403);
+    if (presentsToolCredential(context)) return context.body(null, 403);
     if (!(await isTrustedWrite(context))) return context.body(null, 403);
 
     const session = await sessionFor(context);
@@ -343,7 +352,7 @@ export function sessionRoutes(
     const completed = await completeHandoff({
       database,
       handoffId: context.req.param("handoffId"),
-      userId: session.user.id,
+      userId: session.userId,
       now: new Date(),
     });
     switch (completed.kind) {

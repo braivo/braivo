@@ -25,9 +25,10 @@ export type Signed = { cookie: string; token: string; id: string; email: string;
 export function createTestApi(
   options: Omit<Parameters<typeof createApi>[0], "auth" | "database" | "baseUrl"> & {
     clientIdMetadataDocuments?: "strictly-public" | false;
+    reviewerEmails?: ReadonlySet<string>;
   } = {},
 ) {
-  const { clientIdMetadataDocuments, ...apiOptions } = options;
+  const { clientIdMetadataDocuments, reviewerEmails, ...apiOptions } = options;
   const database = testing.sharedDatabase(connectionString ?? "");
   const outbox = createOutbox();
   const auth = createAuth({
@@ -36,6 +37,7 @@ export function createTestApi(
     baseURL: baseUrl,
     sendMail: outbox.sendMail,
     clientIdMetadataDocuments,
+    reviewerEmails,
   });
   const api = createApi({ sendMail: outbox.sendMail, ...apiOptions, auth, database, baseUrl });
 
@@ -47,13 +49,16 @@ export function createTestApi(
    */
   async function signUp(): Promise<Signed> {
     const id = crypto.randomUUID();
-    const email = `api-test-${id}@example.com`;
-    const name = `Learner ${id.slice(0, 8)}`;
+    return signUpAs(`api-test-${id}@example.com`, `Learner ${id.slice(0, 8)}`);
+  }
+
+  /** As `signUp`, with the email and name given. */
+  async function signUpAs(email: string, name: string): Promise<Signed> {
     const request = (path: string, init: RequestInit) => api.request(`/api/auth${path}`, init);
     return { ...(await signInWithCode(request, outbox, { email, name })), email, name };
   }
 
-  return { database, outbox, auth, api, signUp };
+  return { database, outbox, auth, api, signUp, signUpAs };
 }
 
 /**

@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { saveCredentials } from "./credentials.ts";
@@ -62,27 +62,36 @@ describe("the bundled CLI", () => {
     expect(stdout).toBe("braivo 1.2.3\n");
   });
 
-  test("serves its tools to a desktop agent", async () => {
-    const home = join(directory, "config");
-    await saveCredentials(join(home, "braivo", "credentials.json"), {
-      server: "http://localhost:3000",
-      token: "unused: listing tools asks nothing of the server",
-    });
-    const agent = new Client({ name: "test", version: "0" });
+  // An agent from before MCP's 2026-07-28 revision opens with `initialize`, a
+  // newer one with `server/discover`; both are served.
+  test.each(["2025-11-25", "2026-07-28"])(
+    "serves its tools to an agent speaking %s",
+    async (revision) => {
+      const home = join(directory, "config");
+      await saveCredentials(join(home, "braivo", "credentials.json"), {
+        server: "http://localhost:3000",
+        token: "unused: listing tools asks nothing of the server",
+      });
+      const agent = new Client(
+        { name: "test", version: "0" },
+        revision === "2025-11-25" ? {} : { versionNegotiation: { mode: { pin: revision } } },
+      );
 
-    await agent.connect(
-      new StdioClientTransport({
-        command: process.execPath,
-        args: [bundle, "mcp"],
-        env: { PATH: process.env.PATH ?? "", XDG_CONFIG_HOME: home },
-      }),
-    );
-    try {
-      const { tools } = await agent.listTools();
-      expect(tools.map((tool) => tool.name)).toContain("add_document");
-      expect(agent.getServerVersion()?.version).toBe("1.2.3");
-    } finally {
-      await agent.close();
-    }
-  });
+      await agent.connect(
+        new StdioClientTransport({
+          command: process.execPath,
+          args: [bundle, "mcp"],
+          env: { PATH: process.env.PATH ?? "", XDG_CONFIG_HOME: home },
+        }),
+      );
+      try {
+        const { tools } = await agent.listTools();
+        expect(tools.map((tool) => tool.name)).toContain("add_document");
+        expect(agent.getNegotiatedProtocolVersion()).toBe(revision);
+        expect(agent.getServerVersion()?.version).toBe("1.2.3");
+      } finally {
+        await agent.close();
+      }
+    },
+  );
 });
