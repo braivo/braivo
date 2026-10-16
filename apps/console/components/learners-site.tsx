@@ -5,6 +5,7 @@ import { MutedText } from "@braivo/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { CopyButton } from "#components/copy-button";
+import { learnUrl } from "#lib/learn-url";
 
 /**
  * Where an organization's learners practise: `at` and a link to its learn
@@ -22,18 +23,18 @@ export function LearnersSite(props: {
   if (!learnDomain)
     return props.none && <MutedText className="mb-4 block wrap-break-word">{props.none}</MutedText>;
 
-  const address = `${learnDomain}${props.path ?? ""}`;
+  const url = learnUrl(learnDomain, props.path);
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-2">
       <MutedText className="wrap-anywhere">
         {props.at}{" "}
-        <a href={`https://${address}`} target="_blank" rel="noreferrer" className="underline">
-          {address}
+        <a href={url} target="_blank" rel="noreferrer" className="underline">
+          {url.replace(/^https?:\/\//, "")}
         </a>
         .
       </MutedText>
       {/* A teacher passes it on by chat or email. */}
-      <CopyButton value={`https://${address}`} label={t`Copy address`} />
+      <CopyButton value={url} label={t`Copy address`} />
     </div>
   );
 }

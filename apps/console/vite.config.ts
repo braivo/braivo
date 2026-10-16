@@ -38,6 +38,13 @@ export default defineConfig(({ command, mode }) => {
       bootLanguage(),
       tailwindcss(),
     ],
+    // Links to a `.localhost` learn domain reach the learn app's dev server, at the demo's
+    // port or `bun run dev`'s (`lib/learn-url.ts`); a build's are HTTPS alone.
+    ...(command === "serve" && {
+      define: {
+        "import.meta.env.BRAIVO_LEARN_PORT": JSON.stringify(env.BRAIVO_LEARN_PORT || "5173"),
+      },
+    }),
     server: {
       port: 5174,
       strictPort: true,

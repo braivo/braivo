@@ -65,7 +65,12 @@ export function childEnvironment(
     const value = inherited[name];
     if (value !== undefined) environment[name] = value;
   }
-  return { ...environment, ...serverEnvironment(demo) };
+  return {
+    ...environment,
+    ...serverEnvironment(demo),
+    // For the console's links to the learn app; the server reads none of it.
+    BRAIVO_LEARN_PORT: String(demo.ports.learn),
+  };
 }
 
 async function launch(migrate: boolean): Promise<number> {

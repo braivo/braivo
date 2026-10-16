@@ -28,7 +28,7 @@ Rename the group or change a role, and the console shows your version; the list 
 
 Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator and the teacher use the console; the learner signs in at the learn app's address. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
 
-To see practice reach a report: as the learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. The console's link to where learners practise says `https://fernwood.localhost/`, which does not open locally; use the learn address printed above.
+To see practice reach a report: as the learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. The console's links to where learners practise open the learn app at that address.
 
 The demo serves on ports 3100, 5183, and 5184, so it runs beside `bun run dev`. Two worktrees' demos use the same ports: the second refuses to start until the first stops. Ctrl-C stops the demo and only what it started.
 
