@@ -16,7 +16,7 @@ import {
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
 import { Textarea } from "@braivo/ui/components/textarea";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useId, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
@@ -173,6 +173,26 @@ function AddSource() {
   // and sending again does not pay for reading the same file twice.
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
   const abortOnUnmount = useAbortOnUnmount();
+  const form = useRef<HTMLFormElement>(null);
+
+  // Pasted material is long to gather again and only the form holds it, so
+  // leaving with anything entered asks first, as does reloading or closing the
+  // tab where the browser allows; a changed hash or query is no leaving. Not
+  // while adding: leaving then stops it, and success opens the source. A file
+  // is told by `files`, as not every DOM fills a file input's `value`.
+  const unsaved = () =>
+    Boolean(original.current?.files?.length) ||
+    Array.from(form.current?.elements ?? []).some((field) =>
+      (field as HTMLInputElement).value?.trim(),
+    );
+  useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      unsaved() &&
+      current.pathname !== next.pathname &&
+      !window.confirm("Leave this page? The material you entered will be lost."),
+    enableBeforeUnload: unsaved,
+    disabled: adding,
+  });
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -280,7 +300,7 @@ function AddSource() {
 
   return (
     // Linked to from Courses, past however many sources are listed above it.
-    <form id="add-material" onSubmit={submit} aria-labelledby={`${id}-heading`}>
+    <form id="add-material" ref={form} onSubmit={submit} aria-labelledby={`${id}-heading`}>
       <Heading level={2} id={`${id}-heading`}>
         Add material
       </Heading>
