@@ -3,17 +3,11 @@
 
 import type { LearnerProgressReport, LearnerProgressStanding } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@braivo/ui/components/table";
+import { cn } from "@braivo/ui/lib/utils";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
 import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { validateProgressSearch } from "#lib/progress-search";
@@ -90,6 +84,13 @@ function LearnerProgress() {
   const search = Route.useSearch();
   const { i18n } = useLingui();
   const when = (at: string) => dated(at, i18n.locale);
+  // The fields' names, in each objective and in the columns' header.
+  const labels = {
+    standing: <Trans>Standing</Trans>,
+    lastEvidence: <Trans>Last evidence</Trans>,
+    evidence: <Trans>Evidence</Trans>,
+    reviewDue: <Trans>Review due</Trans>,
+  };
 
   return (
     <>
@@ -129,52 +130,81 @@ function LearnerProgress() {
               </Trans>
             </p>
           </div>
-          <Table aria-labelledby="learner">
-            <TableHeader>
-              <TableRow>
-                <TableHead>
+          {/* A list, not a table, whose last columns start off screen on a
+              phone: each objective's fields stacked beside their names, or,
+              where five columns fit, aligned under one header. */}
+          <div className="@container">
+            <div className="@2xl:grid @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] @2xl:gap-x-4">
+              {/* Each value is named already; this only draws the columns. */}
+              <div
+                aria-hidden="true"
+                className="hidden border-b pb-2 text-sm font-medium @2xl:col-span-5 @2xl:grid @2xl:grid-cols-subgrid"
+              >
+                <span>
                   <Trans>Objective</Trans>
-                </TableHead>
-                <TableHead>
-                  <Trans>Standing</Trans>
-                </TableHead>
-                <TableHead>
-                  <Trans>Last evidence</Trans>
-                </TableHead>
-                <TableHead>
-                  <Trans>Evidence</Trans>
-                </TableHead>
-                <TableHead>
-                  <Trans>Review due</Trans>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.objectives.map((standing) => (
-                <TableRow key={standing.objectiveId}>
-                  {/* A row header, so each value is announced with its objective. */}
-                  <TableHead scope="row" className="font-normal whitespace-normal">
-                    {standing.title}
-                  </TableHead>
-                  <TableCell>
-                    <Standing standing={standing} />
-                  </TableCell>
-                  <TableCell>
-                    {standing.phase === "unseen" ? "—" : when(standing.lastEvidenceAt)}
-                  </TableCell>
-                  <TableCell>
-                    <Evidence objective={standing.title} evidence={standing.evidence} />
-                  </TableCell>
-                  {/* Only what is retained falls due; what is learning comes back first. */}
-                  <TableCell>
-                    {standing.phase === "retaining" ? when(standing.dueAt) : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                </span>
+                {Object.entries(labels).map(([key, label]) => (
+                  <span key={key}>{label}</span>
+                ))}
+              </div>
+              {/* `list`: Safari drops the role of a list styled without markers. */}
+              <ul
+                role="list"
+                aria-labelledby="learner"
+                className="@2xl:col-span-5 @2xl:grid @2xl:grid-cols-subgrid"
+              >
+                {report.objectives.map((standing) => (
+                  <li
+                    key={standing.objectiveId}
+                    className="border-b py-3 @2xl:col-span-5 @2xl:grid @2xl:grid-cols-subgrid"
+                  >
+                    {/* A heading, so each objective can be found and its fields read under it. */}
+                    <Heading level={2} className="wrap-anywhere @2xl:mb-0">
+                      {standing.title}
+                    </Heading>
+                    <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm @2xl:col-span-4 @2xl:grid-cols-subgrid">
+                      <Field label={labels.standing}>
+                        <Standing standing={standing} />
+                      </Field>
+                      <Field label={labels.lastEvidence}>
+                        {standing.phase !== "unseen" && when(standing.lastEvidenceAt)}
+                      </Field>
+                      <Field label={labels.evidence}>
+                        {standing.evidence.length > 0 && (
+                          <Evidence objective={standing.title} evidence={standing.evidence} />
+                        )}
+                      </Field>
+                      {/* Only what is retained falls due; what is learning comes back first. */}
+                      <Field label={labels.reviewDue}>
+                        {standing.phase === "retaining" && when(standing.dueAt)}
+                      </Field>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </>
       )}
+    </>
+  );
+}
+
+/**
+ * A field of an objective, its name shown beside it only where the fields
+ * stack. One with no value is a dash in its column, and left out where the
+ * fields stack: under "Not started", three dashes would say nothing more.
+ */
+function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
+  const none = children === false;
+  return (
+    <>
+      <dt className={cn("text-muted-foreground @2xl:sr-only", none && "@max-2xl:hidden")}>
+        {label}
+      </dt>
+      <dd className={cn("min-w-0 wrap-break-word", none && "@max-2xl:hidden")}>
+        {none ? "—" : children}
+      </dd>
     </>
   );
 }
@@ -192,7 +222,6 @@ function Evidence({
   evidence: LearnerProgressReport["objectives"][number]["evidence"];
 }) {
   const { t, i18n } = useLingui();
-  if (evidence.length === 0) return "—";
   const successes = evidence.filter(({ outcome }) => outcome === "success").length;
   const failures = evidence.length - successes;
   const counted = [
