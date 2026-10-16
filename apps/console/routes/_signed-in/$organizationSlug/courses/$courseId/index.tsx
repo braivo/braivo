@@ -70,6 +70,14 @@ function Course() {
 
   return (
     <>
+      {/* The way back to every course, above its heading (docs/apps.md). */}
+      <Link
+        to="/$organizationSlug"
+        params={{ organizationSlug: organization.slug }}
+        className="mb-2 inline-block text-sm text-muted-foreground underline"
+      >
+        Courses
+      </Link>
       <Heading ref={heading} tabIndex={-1}>
         {course.title}
       </Heading>

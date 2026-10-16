@@ -22,7 +22,7 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
-import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
@@ -62,6 +62,14 @@ function SourcePage() {
 
   return (
     <>
+      {/* The way back to every source, above its heading (docs/apps.md). */}
+      <Link
+        to="/$organizationSlug/sources"
+        params={{ organizationSlug: organization.slug }}
+        className="mb-2 inline-block text-sm text-muted-foreground underline"
+      >
+        Sources
+      </Link>
       <Heading>{source.title}</Heading>
       <p className="mb-4 flex flex-wrap gap-2">
         {source.language && <Badge variant="secondary">{source.language}</Badge>}

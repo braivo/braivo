@@ -5516,6 +5516,24 @@ describe("the console", () => {
     expect(progress.mock.calls).toEqual([]);
   });
 
+  test("leads from a course or a source back to its list, without the sidebar", async () => {
+    // In the page, as the sidebar is a closed drawer on a phone, and just above its heading.
+    const parentOf = async (name: string) => {
+      const main = await screen.findByRole("main");
+      const heading = await within(main).findByRole("heading", { level: 1 });
+      const link = within(main).getByRole("link", { name });
+      expect(link.nextElementSibling).toBe(heading);
+      return link.getAttribute("href");
+    };
+
+    renderAt("/example/courses/course-1", { braivo: { readCourse } });
+    expect(await parentOf("Courses")).toBe("/example");
+    cleanup();
+
+    renderAt("/example/sources/s1", { braivo: { ...authoring(), getSource: async () => saludos } });
+    expect(await parentOf("Sources")).toBe("/example/sources");
+  });
+
   test("shows what a course teaches: each objective's passages, and its tasks' answers", async () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse } });
 
@@ -6031,17 +6049,31 @@ describe("the console", () => {
       "/example/courses/course-1/progress",
     );
     expect(screen.queryByText(/no objectives yet/i)).toBeNull();
-    const table = screen.getByRole("table", { name: "Lee Learner" });
-    const [header, greetings, numbers] = within(table).getAllByRole("row");
+    // A list, each objective a heading over its fields, named beside their
+    // values: on a phone, no column of a table starts off screen.
+    const list = screen.getByRole("list", { name: "Lee Learner" });
+    const objective = (title: string) => {
+      const item = screen.getByRole("heading", { level: 2, name: title }).closest("li")!;
+      expect(item.parentElement).toBe(list);
+      return item;
+    };
+    const fields = (item: HTMLElement) =>
+      Object.fromEntries(
+        [...item.querySelectorAll(":scope > dl > dt")].map((term) => [
+          term.textContent,
+          term.nextElementSibling!.tagName === "DD" ? term.nextElementSibling!.textContent : null,
+        ]),
+      );
+    const greetings = objective("Greetings");
+    const numbers = objective("Numbers");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
-    expect(within(header!).getByRole("columnheader", { name: "Last evidence" })).toBeTruthy();
-    expect(within(greetings!).getByRole("rowheader", { name: "Greetings" })).toBeTruthy();
-    expect(within(greetings!).getByText("Due for review, 42% estimated recall")).toBeTruthy();
-    expect(within(header!).getByRole("columnheader", { name: "Review due" })).toBeTruthy();
-    expect(within(greetings!).getByText(dated("2026-06-02T00:00:00.001Z"))).toBeTruthy();
+    expect(fields(greetings)).toMatchObject({
+      Standing: "Due for review, 42% estimated recall",
+      "Last evidence": dated("2026-06-01T00:00:00.000Z"),
+      "Review due": dated("2026-06-02T00:00:00.001Z"),
+    });
     // Counted, so a learner who failed many times does not read like one who failed once.
-    expect(within(header!).getByRole("columnheader", { name: "Evidence" })).toBeTruthy();
-    const counted = within(greetings!).getByLabelText("Greetings: 1 success, 2 failures");
+    const counted = within(greetings).getByLabelText("Greetings: 1 success, 2 failures");
     expect(counted.textContent).toBe("1 success, 2 failures");
     // Dated on request, newest first.
     const details = counted.closest("details")!;
@@ -6049,7 +6081,7 @@ describe("the console", () => {
     fireEvent.click(counted);
     expect(details.open).toBe(true);
     expect(
-      within(greetings!)
+      within(details)
         .getAllByRole("listitem")
         .map((item) => item.textContent),
     ).toEqual([
@@ -6057,12 +6089,12 @@ describe("the console", () => {
       `${dated("2026-05-31T00:00:00.000Z")}: failure`,
       `${dated("2026-05-30T00:00:00.000Z")}: failure`,
     ]);
-    expect(within(numbers!).getByText("Not started")).toBeTruthy();
-    expect(
-      within(numbers!)
-        .getAllByRole("cell")
-        .map((cell) => cell.textContent),
-    ).toEqual(["Not started", "—", "—", "—"]);
+    expect(fields(numbers)).toEqual({
+      Standing: "Not started",
+      "Last evidence": "—",
+      Evidence: "—",
+      "Review due": "—",
+    });
     // Every id here is an interchangeable string, so a read scoped to the wrong
     // one type-checks; these assertions are what hold the tenant boundary.
     const options = { signal: expect.any(AbortSignal) };
@@ -6093,7 +6125,7 @@ describe("the console", () => {
     ).toBeTruthy();
   });
 
-  test("says a course without objectives has nothing to report, rather than an empty table", async () => {
+  test("says a course without objectives has nothing to report, rather than an empty list", async () => {
     renderAt("/example/courses/course-1/learners/u2", {
       braivo: {
         learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
@@ -6106,7 +6138,7 @@ describe("the console", () => {
 
     expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
     expect(screen.getByText(/no objectives yet/i)).toBeTruthy();
-    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Lee Learner" })).toBeNull();
   });
 });
 
