@@ -25,6 +25,7 @@ import { Input } from "@braivo/ui/components/input";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { DesktopAgentLink } from "#components/desktop-agent-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
@@ -222,8 +223,8 @@ function DraftCourse(props: { source: Source }) {
           Draft a course
         </Heading>
         <p>
-          {AI_OFF_MESSAGE} Ask whoever runs Braivo for you to turn it on, or draft the course with
-          your desktop agent through braivo mcp.
+          {AI_OFF_MESSAGE} Ask whoever runs Braivo for you to turn it on, or draft one with{" "}
+          <DesktopAgentLink />.
         </p>
         {/* A draft under way when it was turned off may still fail: said here, its form gone. */}
         {error && (

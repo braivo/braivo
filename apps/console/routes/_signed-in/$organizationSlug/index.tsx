@@ -14,6 +14,7 @@ import {
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 
+import { DesktopAgentLink } from "#components/desktop-agent-link";
 import { LearnersSite } from "#components/learners-site";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -65,9 +66,18 @@ function Courses() {
           <EmptyHeader>
             <EmptyTitle>No courses yet</EmptyTitle>
             <EmptyDescription>
-              {aiEnabled === false
-                ? "Braivo's AI is off for this organization. Add material under Sources, and ask whoever runs Braivo for you to turn it on to draft a course from it, or draft one with your desktop agent through braivo mcp."
-                : "Add material under Sources and draft a course from it there, or with your desktop agent through braivo mcp."}
+              {aiEnabled === false ? (
+                <>
+                  Braivo's AI is off for this organization. You can still add material under
+                  Sources. To draft a course from it, ask whoever runs Braivo for you to turn the AI
+                  on, or use <DesktopAgentLink />.
+                </>
+              ) : (
+                <>
+                  Add material under Sources and draft a course from it there, or with{" "}
+                  <DesktopAgentLink />.
+                </>
+              )}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
