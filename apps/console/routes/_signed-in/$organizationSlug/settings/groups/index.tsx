@@ -117,8 +117,10 @@ function Groups() {
               <TableBody>
                 {shown.map((group) => (
                   <TableRow key={group.id}>
-                    {/* A row header, so each count is announced with its group. */}
-                    <TableHead scope="row" className="font-normal whitespace-normal">
+                    {/* A row header, so each count is announced with its group; a
+                        minimum width, or `wrap-anywhere` lets the counts crush it
+                        to a letter a line. */}
+                    <TableHead scope="row" className="min-w-36 font-normal whitespace-normal">
                       <Link
                         to="/$organizationSlug/settings/groups/$groupId"
                         params={{ organizationSlug, groupId: group.id }}
