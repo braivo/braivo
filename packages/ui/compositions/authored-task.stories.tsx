@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { AuthoredTask, SourcePassage } from "@braivo/ui";
+import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -72,6 +73,22 @@ export const Waiting: Story = {
       <Button variant="outline" size="sm">
         Retire
       </Button>
+    ),
+  },
+};
+
+/** An action that failed: said first, under the row, by the button that failed. */
+export const ActionFailed: Story = {
+  args: {
+    action: (
+      <Button variant="outline" size="sm">
+        Retire
+      </Button>
+    ),
+    notice: (
+      <Alert variant="destructive">
+        <AlertDescription>The task could not be retired. Try again.</AlertDescription>
+      </Alert>
     ),
   },
 };

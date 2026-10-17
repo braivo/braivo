@@ -13,8 +13,9 @@ import { MutedText } from "./muted-text.tsx";
  * options in their order, the correct one marked in words; a typed task's
  * accepted answers, the one a learner who missed is shown marked. `status`
  * says where it stands (waiting for review, say); `action` is what the
- * reviewer can do with it (retire it, say); `children` the passages it was
- * written from, as `SourcePassage`s.
+ * reviewer can do with it (retire it, say); `notice` what came of that, first
+ * under the row, not beside `action`, where it squeezes the prompt; `children`
+ * the passages it was written from, as `SourcePassage`s.
  */
 export function AuthoredTask(props: {
   task:
@@ -29,9 +30,10 @@ export function AuthoredTask(props: {
     | { kind: "typed"; prompt: string; accepted: readonly string[]; explanation?: string };
   status?: ReactNode;
   action?: ReactNode;
+  notice?: ReactNode;
   children?: ReactNode;
 }) {
-  const { task, status, action, children } = props;
+  const { task, status, action, notice, children } = props;
 
   return (
     <Card size="sm">
@@ -41,6 +43,7 @@ export function AuthoredTask(props: {
         {status && <div>{status}</div>}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {notice}
         {task.kind === "choice" ? (
           <ol className="flex list-[upper-alpha] flex-col gap-1 pl-6">
             {task.options.map((option, index) => (

@@ -4,7 +4,7 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { OPTIONAL_READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { rememberOrganization } from "#lib/last-organization";
 
 /**
@@ -19,7 +19,8 @@ import { rememberOrganization } from "#lib/last-organization";
 export const Route = createFileRoute("/_signed-in/$organizationSlug")({
   beforeLoad: async ({ context, params, abortController }) => {
     const organizations = await context.braivo.listOrganizations({
-      signal: abortController.signal,
+      // Bounded: an action that reads its page again waits on this too.
+      signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS),
     });
 
     const organization = organizations.find(({ slug }) => slug === params.organizationSlug);
