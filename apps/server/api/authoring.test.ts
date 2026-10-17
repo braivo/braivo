@@ -90,20 +90,24 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Spanish",
-      objectiveIds: [pastTense],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Spanish",
+        objectiveIds: [pastTense],
+      })
+    ).id;
 
     const theirs = await createObjectives(database, otherOrganizationId, ["Theirs"]);
-    foreignCourseId = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Somebody else's",
-      objectiveIds: [theirs[0]!],
-    });
+    foreignCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Somebody else's",
+        objectiveIds: [theirs[0]!],
+      })
+    ).id;
   });
 
   beforeEach(async () => {
@@ -379,7 +383,10 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     const added = await post({ tasks: [{ ...task, answer: 1 }] }, teacher.cookie);
     expect(added.status).toBe(201);
-    expect(await added.json()).toEqual({ taskIds: [expect.any(String)] });
+    // Added in the console, so published at once (ADR 0039).
+    expect(await added.json()).toEqual({
+      tasks: [{ id: expect.any(String), added: true, published: true }],
+    });
 
     // An invalid task is explained; a body that is not tasks at all, below,
     // answers a bare 400.
@@ -469,7 +476,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
   });
 
   test("changes a course's URL label for its administrators, over the label read", async () => {
-    const id = await createCourse(database, {
+    const { id } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Everyday English",
@@ -511,18 +518,20 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
   test("keeps a tool's course from learners until a person publishes it in the console", async () => {
     const [proposedObjective] = await createObjectives(database, organizationId, ["Proposed"]);
-    const [taskId] = await createTasks(
-      database,
-      organizationId,
-      [
-        {
-          objectiveId: proposedObjective!,
-          body: { kind: "choice", prompt: "¿Sí?", options: ["yes", "no"], answer: 0 },
-        },
-      ],
-      at,
-      { published: true },
-    );
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId: proposedObjective!,
+            body: { kind: "choice", prompt: "¿Sí?", options: ["yes", "no"], answer: 0 },
+          },
+        ],
+        at,
+        { published: true },
+      )
+    ).map(({ id }) => id);
     const asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
     const inConsole = { "content-type": "application/json", cookie: teacher.cookie };
     const create = (headers: Record<string, string>) =>
@@ -569,7 +578,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
     const created = await create(asTool);
     expect(created.status).toBe(201);
-    const { courseId: proposed } = (await created.json()) as { courseId: string };
+    const { courseId: proposed, ...answered } = (await created.json()) as { courseId: string };
+    expect(answered).toEqual({ added: true, published: false });
 
     // To its learners, as if there were no such course.
     expect(await listed()).not.toContain(proposed);
@@ -586,7 +596,11 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     });
     expect(await overview.json()).toMatchObject({ published: false });
     // A keyed retry from the console finds it, still waiting.
-    expect(await (await create(inConsole)).json()).toEqual({ courseId: proposed });
+    expect(await (await create(inConsole)).json()).toEqual({
+      courseId: proposed,
+      added: false,
+      published: false,
+    });
     expect(await listed()).not.toContain(proposed);
 
     // Only a person in the console publishes, all or none: not a tool, even
@@ -599,6 +613,12 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await shownAsPublished()).toEqual([false, false]);
     expect((await publish(inConsole, [proposed])).status).toBe(204);
     expect(await shownAsPublished()).toEqual([true, true]);
+    // A tool's retry now finds it published, as it stands, not published by the retry.
+    expect(await (await create(asTool)).json()).toEqual({
+      courseId: proposed,
+      added: false,
+      published: true,
+    });
 
     expect(await listed()).toContain(proposed);
     expect((await next(proposed, learner.cookie)).status).toBe(200);
@@ -628,7 +648,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const written = async (headers: Record<string, string>, tasks: unknown[]) => {
       const response = await write(headers, tasks);
       expect(response.status).toBe(201);
-      return ((await response.json()) as { taskIds: string[] }).taskIds;
+      return ((await response.json()) as { tasks: { id: string }[] }).tasks.map(({ id }) => id);
     };
     const retire = (headers: Record<string, string>, taskIds: string[]) =>
       api.request(`/api/organizations/${organizationId}/tasks/retire`, {
@@ -706,7 +726,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           }),
         ),
       );
-      return { objectiveId, courses: courses as [string, string] };
+      return { objectiveId, courses: courses.map(({ id }) => id) as [string, string] };
     };
 
     test("keeps a tool's tasks from learners in every course until a person publishes them", async () => {
@@ -819,6 +839,52 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await lateRetirement.json()).toEqual({ error: expect.stringContaining("retired") });
     });
 
+    test("answers each correction with what it did and what learners reach", async () => {
+      const { objectiveId } = await sharedObjective("Answered");
+      const answered = async (headers: Record<string, string>, tasks: unknown[]) => {
+        const response = await write(headers, tasks);
+        expect(response.status).toBe(201);
+        return ((await response.json()) as { tasks: unknown[] }).tasks;
+      };
+      const [live] = (await written(inConsole, [{ objectiveId, ...choice("Live") }])) as [string];
+      const [proposed] = (await written(asTool, [{ objectiveId, ...choice("Proposed") }])) as [
+        string,
+      ];
+
+      // Unchanged, a correction answers the task itself, as it stands.
+      expect(await answered(asTool, [{ objectiveId, ...choice("Live"), replaces: live }])).toEqual([
+        { id: live, added: false, published: true },
+      ]);
+      expect(
+        await answered(asTool, [{ objectiveId, ...choice("Proposed"), replaces: proposed }]),
+      ).toEqual([{ id: proposed, added: false, published: false }]);
+
+      // A published task's correction waits, naming it, sent again as well.
+      const correction = { objectiveId, ...choice("Live"), answer: 1, replaces: live };
+      const [pending] = await answered(asTool, [correction]);
+      expect(pending).toEqual({
+        id: expect.any(String),
+        added: true,
+        published: false,
+        replaces: live,
+      });
+      expect(await answered(asTool, [correction])).toEqual([
+        { ...(pending as object), added: false },
+      ]);
+      // A waiting task's correction waits too, replacing nothing still offered.
+      expect(
+        await answered(inConsole, [
+          { objectiveId, ...choice("Proposed"), answer: 1, replaces: proposed },
+        ]),
+      ).toEqual([{ id: expect.any(String), added: true, published: false }]);
+
+      // Corrected in the console meanwhile, a stale correction answers the task it asks for.
+      const fixed = { objectiveId, ...choice("Live"), prompt: "Live, fixed", replaces: live };
+      const [published] = await answered(inConsole, [fixed]);
+      expect(published).toEqual({ id: expect.any(String), added: true, published: true });
+      expect(await answered(asTool, [fixed])).toEqual([{ ...(published as object), added: false }]);
+    });
+
     test("publishes a waiting correction and retires its task together", async () => {
       const { objectiveId, courses } = await sharedObjective("Corrected");
       const [live] = (await written(inConsole, [{ objectiveId, ...choice("Before") }])) as [string];
@@ -916,7 +982,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         organizationId,
         Array.from({ length: 25 }, (_, index) => `Quesito ${index + 1}`),
       );
-      const course = await createCourse(database, {
+      const { id: course } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Patente: primi 25 quesiti",
@@ -1161,7 +1227,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const { courses } = (await listed.json()) as { courses: { id: string; title: string }[] };
 
     const { courseId: keyed } = (await created.json()) as { courseId: string };
-    expect(await recreated.json()).toEqual({ courseId: keyed });
+    expect(await recreated.json()).toEqual({ courseId: keyed, added: false, published: true });
     expect(reordered.status).toBe(409);
     expect(await reordered.json()).toMatchObject({ error: expect.stringContaining("The course") });
     // The refused request stored nothing: one course has the title, the keyed one.
@@ -1197,19 +1263,21 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         citations: [{ objectiveId: red, sourceId, quote: "Rojo es red." }],
       }),
     });
-    const [taskId] = await createTasks(
-      database,
-      organizationId,
-      [
-        {
-          objectiveId: red!,
-          body: { kind: "choice", prompt: "¿Rojo?", options: ["red", "blue"], answer: 0 },
-        },
-      ],
-      at,
-      { published: true },
-    );
-    const colors = await createCourse(database, {
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId: red!,
+            body: { kind: "choice", prompt: "¿Rojo?", options: ["red", "blue"], answer: 0 },
+          },
+        ],
+        at,
+        { published: true },
+      )
+    ).map(({ id }) => id);
+    const { id: colors } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Colores",
@@ -1257,18 +1325,20 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
 
   test("shows an objective's tasks, as authored, only to who administers it", async () => {
     const [counting] = await createObjectives(database, organizationId, ["Counting"]);
-    const [taskId] = await createTasks(
-      database,
-      organizationId,
-      [
-        {
-          objectiveId: counting!,
-          body: { kind: "choice", prompt: "¿Tres?", options: ["three", "four"], answer: 0 },
-        },
-      ],
-      at,
-      { published: true },
-    );
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId: counting!,
+            body: { kind: "choice", prompt: "¿Tres?", options: ["three", "four"], answer: 0 },
+          },
+        ],
+        at,
+        { published: true },
+      )
+    ).map(({ id }) => id);
     const read = (objectiveId: string, cookie: string) =>
       api.request(`/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`, {
         headers: { cookie },
@@ -1298,7 +1368,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
   test("authors a task grounded in a source, and shows its passage once it is answered", async () => {
     // An objective and course of its own, so the task joins no other test's rotation.
     const [colours] = await createObjectives(database, organizationId, ["Colours"]);
-    const coloursCourse = await createCourse(database, {
+    const { id: coloursCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Colours",
@@ -1333,7 +1403,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     });
     expect([tooMany.status, malformed.status]).toEqual([400, 400]);
 
-    const [taskId] = ((await grounded.json()) as { taskIds: string[] }).taskIds;
+    const [{ id: taskId }] = ((await grounded.json()) as { tasks: [{ id: string }] }).tasks;
     const answered = await postAttempt(
       coloursCourse,
       { id: crypto.randomUUID(), taskId, response: { choice: 1 } },

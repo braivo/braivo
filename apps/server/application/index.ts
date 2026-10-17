@@ -87,12 +87,14 @@ export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";
 export type {
   AuthoredTask,
   Citation,
+  CourseWriteResult,
   Group,
   GroupChange,
   GroupDefinition,
   Source,
   SourceSummary,
   StoredFile,
+  TaskWriteResult,
 } from "../persistence/index.ts";
 export { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tasks.ts";
 /**

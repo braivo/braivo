@@ -268,12 +268,14 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       at,
     });
     const course = async (organization: string) =>
-      createCourse(database, {
-        published: true,
-        organizationId: organization,
-        title: "Greetings",
-        objectiveIds: await createObjectives(database, organization, ["Greet someone"]),
-      });
+      (
+        await createCourse(database, {
+          published: true,
+          organizationId: organization,
+          title: "Greetings",
+          objectiveIds: await createObjectives(database, organization, ["Greet someone"]),
+        })
+      ).id;
     courseId = await course(organizationId);
     otherCourseId = await course(otherOrganizationId);
     // As the teacher's own tools would, in the console's organization.
@@ -602,19 +604,19 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     }
   });
 
-  test("serves the tools learners never see, in the organization chosen alone", async () => {
+  test("serves the authoring tools, in the organization chosen alone", async () => {
     const client = await connect((await tokensFor(teacher)).access_token);
 
     const { tools } = await client.listTools();
     const organizations = JSON.parse(await text(client, "list_organizations")) as { id: string }[];
     await client.close();
 
-    // No task writing, group, or progress: task-writing tools join once a
-    // tool's correction can wait and answers say what waits (ADR 0039).
+    // No group or progress tool until `braivo:progress` (ADR 0045).
     expect(tools.map((tool) => tool.name).toSorted()).toEqual([
       "add_document",
       "add_source",
       "add_transcript",
+      "author_tasks",
       "cite_sources",
       "create_course",
       "define_objectives",
@@ -625,6 +627,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       "list_tasks",
       "read_course",
       "read_source",
+      "retire_tasks",
     ]);
     // The teacher manages two; the grant is for one.
     expect(organizations.map(({ id }) => id)).toEqual([organizationId]);
@@ -648,6 +651,32 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     // Its own organization beside another's course or source.
     expect(await refused("read_course", { organizationId, courseId: otherCourseId })).toBe(true);
     expect(await refused("read_source", { organizationId, sourceId: otherSourceId })).toBe(true);
+    // Nor writes there, or retires a task there it could retire in its own:
+    // one waiting, so only the organization refuses it.
+    const [theirs] = await createObjectives(database, otherOrganizationId, ["Count to two"]);
+    const task = { kind: "choice", prompt: "1, …?", options: ["1", "2"], answer: 1 };
+    const waiting = await testing.createTask(database, {
+      organizationId: otherOrganizationId,
+      objectiveId: theirs!,
+      body: task,
+      createdAt: new Date(),
+      publishedAt: null,
+    });
+    expect(
+      await refused("author_tasks", {
+        organizationId: otherOrganizationId,
+        tasks: [{ ...task, objectiveId: theirs, prompt: "2, …?" }],
+      }),
+    ).toBe(true);
+    expect(
+      await refused("retire_tasks", { organizationId: otherOrganizationId, taskIds: [waiting] }),
+    ).toBe(true);
+    expect(
+      await inConsole(teacher).listTasks({
+        organizationId: otherOrganizationId,
+        objectiveId: theirs!,
+      }),
+    ).toEqual([expect.objectContaining({ id: waiting, published: false })]);
     await client.close();
 
     // Routes no tool here calls: a course by its ID alone, its own
@@ -738,6 +767,83 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     // A person publishes it in the console; then learners reach it.
     await inConsole(teacher).publish({ organizationId, courseIds: [proposed] });
     expect(await listed()).toContain(proposed);
+  });
+
+  test("holds the tasks a connection writes from learners, and leaves published ones to the console", async () => {
+    const learner = await signUp();
+    await database.insert(member).values({
+      id: `${learner.id}-member`,
+      organizationId,
+      userId: learner.id,
+      role: "member",
+      createdAt: new Date(),
+    });
+    const [objectiveId] = await createObjectives(database, organizationId, ["Count to three"]);
+    const courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Counting",
+        objectiveIds: [objectiveId!],
+      })
+    ).id;
+    /** The task the learner is asked next in the course, if any. */
+    const asked = async () => {
+      const activity = await inConsole(learner).nextActivity(courseId);
+      return activity && "task" in activity ? activity.task.id : undefined;
+    };
+    const task = (prompt: string) => ({
+      objectiveId,
+      kind: "choice",
+      prompt,
+      options: ["one", "three"],
+      answer: 1,
+    });
+    const client = await connect((await tokensFor(teacher)).access_token);
+    const call = async (name: string, args: Record<string, unknown>) =>
+      JSON.parse(await text(client, name, { organizationId, ...args })) as unknown;
+    const reviewUrl = `${baseUrl}/${organizationId}`;
+
+    const written = (await call("author_tasks", {
+      tasks: [task("1, 2, …?"), task("One, two, …?")],
+    })) as { tasks: { id: string }[] };
+    const [withdrawn, kept] = written.tasks.map(({ id }) => id) as [string, string];
+    expect(written).toEqual({
+      tasks: [
+        { id: withdrawn, added: true, published: false },
+        { id: kept, added: true, published: false },
+      ],
+      reviewUrl,
+    });
+    expect(await asked()).toBeUndefined();
+
+    // Its own proposal, still waiting, it may withdraw; the other the teacher publishes.
+    expect(await call("retire_tasks", { taskIds: [withdrawn] })).toEqual({ retired: [withdrawn] });
+    await inConsole(teacher).publish({ organizationId, taskIds: [kept] });
+    expect(await asked()).toBe(kept);
+    expect(await call("author_tasks", { tasks: [task("One, two, …?")] })).toEqual({
+      tasks: [{ id: kept, added: false, published: true }],
+      reviewUrl,
+    });
+
+    // Published, it is the console's to retire; a correction waits beside it.
+    const retiring = await client.callTool({
+      name: "retire_tasks",
+      arguments: { organizationId, taskIds: [kept] },
+    });
+    expect(retiring.isError).toBe(true);
+    const correction = (await call("author_tasks", {
+      tasks: [{ ...task("One, two, and then?"), replaces: kept }],
+    })) as { tasks: [{ id: string }] };
+    expect(correction).toEqual({
+      tasks: [{ id: expect.any(String), added: true, published: false, replaces: kept }],
+      reviewUrl,
+    });
+    await client.close();
+    expect(await asked()).toBe(kept);
+
+    await inConsole(teacher).publish({ organizationId, taskIds: [correction.tasks[0].id] });
+    expect(await asked()).toBe(correction.tasks[0].id);
   });
 
   test("refuses a token without braivo:author before any tool runs, naming that scope", async () => {

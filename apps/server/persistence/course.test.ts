@@ -62,13 +62,15 @@ describe.skipIf(!connectionString)("courses", () => {
   test("lists an organization's own courses by title", async () => {
     const [objectiveId] = await createObjectives(database, organizationId, ["Past tense"]);
     const [theirObjective] = await createObjectives(database, otherOrganizationId, ["Past tense"]);
-    const addCourse = (owner: string, title: string, objectiveId: string) =>
-      createCourse(database, {
+    const addCourse = async (owner: string, title: string, objectiveId: string) => {
+      const { id } = await createCourse(database, {
         published: true,
         organizationId: owner,
         title,
         objectiveIds: [objectiveId],
       });
+      return id;
+    };
     const zulu = await addCourse(organizationId, "Zulu", objectiveId!);
     const alpha = await addCourse(organizationId, "Alpha", objectiveId!);
     await addCourse(otherOrganizationId, "Mike", theirObjective!);
@@ -110,13 +112,13 @@ describe.skipIf(!connectionString)("courses", () => {
     test("go to five digits once four are taken", async () => {
       await occupy(1000, 9998);
 
-      const last = await createCourse(database, {
+      const { id: last } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Last",
         objectiveIds: [],
       });
-      const next = await createCourse(database, {
+      const { id: next } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Next",
@@ -141,7 +143,7 @@ describe.skipIf(!connectionString)("courses", () => {
           organizationId,
           title: "Mine",
           objectiveIds: [],
-        });
+        }).then(({ id }) => id);
         await waitForLock('insert into "course"%');
       });
 
@@ -151,7 +153,7 @@ describe.skipIf(!connectionString)("courses", () => {
     test("go past the largest once five digits are taken too", async () => {
       await occupy(1000, 99999);
 
-      const courseId = await createCourse(database, {
+      const { id: courseId } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Late",
@@ -162,14 +164,16 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("stay as they were when a course is added again under its key", async () => {
-      const add = () =>
-        createCourse(database, {
+      const add = async () => {
+        const { id } = await createCourse(database, {
           published: true,
           organizationId,
           title: "Keyed",
           objectiveIds: [],
           key: "keyed",
         });
+        return id;
+      };
       const courseId = await add();
       const number = await numberOf(courseId);
 
@@ -179,14 +183,16 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   test("adds a course once under a key, however many add it at once", async () => {
-    const add = () =>
-      createCourse(database, {
+    const add = async () => {
+      const { id } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Keyed",
         objectiveIds: [],
         key: "at-once",
       });
+      return id;
+    };
 
     const ids = await Promise.all([add(), add(), add()]);
 
@@ -203,13 +209,15 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   describe("url labels", () => {
-    const create = () =>
-      createCourse(database, {
+    const create = async () => {
+      const { id } = await createCourse(database, {
         published: true,
         organizationId,
         title: "Everyday English",
         objectiveIds: [],
       });
+      return id;
+    };
     const labelOf = async (courseId: string) =>
       (await readCourses(database, organizationId)).find(({ id }) => id === courseId)?.urlLabel;
     const update = (courseId: string, urlLabel: string, previous: string) =>
@@ -277,7 +285,7 @@ describe.skipIf(!connectionString)("courses", () => {
       "Alpha",
       "Mike",
     ]);
-    const courseId = await createCourse(database, {
+    const { id: courseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Ordered",
@@ -291,13 +299,13 @@ describe.skipIf(!connectionString)("courses", () => {
     // A course orders objectives, it does not own them — the same knowledge
     // taught in two courses is still one objective and one estimate.
     const [alpha, bravo] = await createObjectives(database, organizationId, ["Alpha", "Bravo"]);
-    const first = await createCourse(database, {
+    const { id: first } = await createCourse(database, {
       published: true,
       organizationId,
       title: "First",
       objectiveIds: [alpha!, bravo!],
     });
-    const second = await createCourse(database, {
+    const { id: second } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Second",
@@ -342,7 +350,7 @@ describe.skipIf(!connectionString)("courses", () => {
     // `createCourse` never writes this, so only a direct insert can show the
     // database refusing it.
     const [alpha, bravo] = await createObjectives(database, organizationId, ["Alpha", "Bravo"]);
-    const courseId = await createCourse(database, {
+    const { id: courseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Clash",
@@ -361,7 +369,7 @@ describe.skipIf(!connectionString)("courses", () => {
     // The other half of matching organizations: the objective is this
     // organization's, and the course is not.
     const [mine] = await createObjectives(database, organizationId, ["Mine"]);
-    const theirs = await createCourse(database, {
+    const { id: theirs } = await createCourse(database, {
       published: true,
       organizationId: otherOrganizationId,
       title: "Theirs",
@@ -378,7 +386,7 @@ describe.skipIf(!connectionString)("courses", () => {
 
   test("refuses to delete an objective a course uses, but not the course", async () => {
     const [objectiveId] = await createObjectives(database, organizationId, ["Past tense"]);
-    const courseId = await createCourse(database, {
+    const { id: courseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Grammar",
@@ -431,7 +439,7 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   test("allows a course with no objectives yet", async () => {
-    const courseId = await createCourse(database, {
+    const { id: courseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Empty",
@@ -446,7 +454,7 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   test("reports which organization owns a course", async () => {
-    const courseId = await createCourse(database, {
+    const { id: courseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Owned",
@@ -460,11 +468,11 @@ describe.skipIf(!connectionString)("courses", () => {
   });
 
   test("publishes an organization's courses all or none, keeping when each first was", async () => {
-    const add = (title: string, published = false) =>
-      createCourse(database, { published, organizationId, title, objectiveIds: [] });
+    const add = async (title: string, published = false) =>
+      (await createCourse(database, { published, organizationId, title, objectiveIds: [] })).id;
     const waiting = await add("Waiting");
     const also = await add("Also waiting");
-    const theirs = await createCourse(database, {
+    const { id: theirs } = await createCourse(database, {
       published: false,
       organizationId: otherOrganizationId,
       title: "Theirs",
@@ -521,23 +529,25 @@ describe.skipIf(!connectionString)("courses", () => {
     const [objectiveId] = (await createObjectives(database, organizationId, ["Reviewed"])) as [
       string,
     ];
-    const proposed = await createCourse(database, {
+    const { id: proposed } = await createCourse(database, {
       published: false,
       organizationId,
       title: "Proposed",
       objectiveIds: [objectiveId],
     });
     const now = new Date("2026-02-01T00:00:00.000Z");
-    const [kept, withdrawn] = (await createTasks(
-      database,
-      organizationId,
-      ["Kept", "Withdrawn"].map((prompt) => ({
-        objectiveId,
-        body: { kind: "choice", prompt, options: ["a", "b"], answer: 0 },
-      })),
-      now,
-      { published: false },
-    )) as [string, string];
+    const [kept, withdrawn] = (
+      await createTasks(
+        database,
+        organizationId,
+        ["Kept", "Withdrawn"].map((prompt) => ({
+          objectiveId,
+          body: { kind: "choice", prompt, options: ["a", "b"], answer: 0 },
+        })),
+        now,
+        { published: false },
+      )
+    ).map(({ id }) => id) as [string, string];
     await markTasksRetired(database, [withdrawn], now, { byTool: true });
     const states = async () => [
       (await readCourseOrganization(database, proposed))?.published,

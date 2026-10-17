@@ -255,3 +255,18 @@ export type AuthoredTask = content.TaskBody & {
   published: boolean;
   replaces?: string;
 };
+
+/**
+ * What adding a task did, and what learners reach of it (ADR 0039): `added`,
+ * false for an unretired twin answered instead (ADR 0024), as is a task
+ * repeated within the request after its first; `published`, false while it
+ * waits for Publish in the console; `replaces`, only while it is a waiting
+ * correction, the published task it will retire, offered meanwhile.
+ */
+export type TaskWriteResult = { id: string; added: boolean; published: boolean; replaces?: string };
+
+/**
+ * What creating a course did: `added`, false for the one already under its
+ * key; and whether it is `published`, as it stands (ADR 0039).
+ */
+export type CourseWriteResult = { courseId: string; added: boolean; published: boolean };

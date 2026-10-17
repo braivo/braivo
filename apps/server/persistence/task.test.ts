@@ -135,13 +135,11 @@ describe.skipIf(!connectionString)("storing a task and an attempt", () => {
   test("keeps the body and the response as JSON values, read back as written", async () => {
     const [objective] = (await createObjectives(database, organizationId, ["Storing"])) as [string];
     const body: TaskBody = { kind: "choice", prompt: "¿Uno?", options: ["one", "two"], answer: 0 };
-    const [stored] = (await createTasks(
-      database,
-      organizationId,
-      [{ objectiveId: objective, body }],
-      at,
-      { published: true },
-    )) as [string];
+    const [stored] = (
+      await createTasks(database, organizationId, [{ objectiveId: objective, body }], at, {
+        published: true,
+      })
+    ).map(({ id }) => id) as [string];
     await recordAttempt(database, {
       learnerId: learner,
       organizationId,
@@ -191,13 +189,15 @@ describe.skipIf(!connectionString)("task invariants", () => {
       text: "¡Hola! Adiós.",
       createdAt: at,
     });
-    const [taskId] = (await createTasks(
-      database,
-      ownerId,
-      [{ objectiveId, body, citations: [{ sourceId, start: 0, end: 6 }] }],
-      at,
-      { published: true },
-    )) as [string];
+    const [taskId] = (
+      await createTasks(
+        database,
+        ownerId,
+        [{ objectiveId, body, citations: [{ sourceId, start: 0, end: 6 }] }],
+        at,
+        { published: true },
+      )
+    ).map(({ id }) => id) as [string];
     const stored = () =>
       Promise.all([
         database.select().from(task).where(eq(task.id, taskId)),
@@ -220,9 +220,11 @@ describe.skipIf(!connectionString)("task invariants", () => {
 
   test("refuses to delete an objective even after its task is retired", async () => {
     const [assessed] = (await createObjectives(database, ownerId, ["Assessed"])) as [string];
-    const [taskId] = (await createTasks(database, ownerId, [{ objectiveId: assessed, body }], at, {
-      published: true,
-    })) as [string];
+    const [taskId] = (
+      await createTasks(database, ownerId, [{ objectiveId: assessed, body }], at, {
+        published: true,
+      })
+    ).map(({ id }) => id) as [string];
     await markTasksRetired(database, [taskId], at, { byTool: false });
 
     const error = await database
@@ -269,9 +271,11 @@ describe.skipIf(!connectionString)("task invariants", () => {
     // A retirement taken around an adder's lock could retire a twin the adder
     // has just answered as live (`markTasksRetired`).
     const [locked] = (await createObjectives(database, ownerId, ["Locked"])) as [string];
-    const [taskId] = (await createTasks(database, ownerId, [{ objectiveId: locked, body }], at, {
-      published: true,
-    })) as [string];
+    const [taskId] = (
+      await createTasks(database, ownerId, [{ objectiveId: locked, body }], at, {
+        published: true,
+      })
+    ).map(({ id }) => id) as [string];
     // As `lockObjectiveTasks` names it.
     const key = sql`hashtextextended(${`braivo:task:${locked}`}, 0)`;
     let held!: () => void;

@@ -48,12 +48,14 @@ describe.skipIf(!connectionString)("group routes", () => {
     const [greetings] = (await createObjectives(database, organizationId, ["Greetings"])) as [
       string,
     ];
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Spanish",
-      objectiveIds: [greetings],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Spanish",
+        objectiveIds: [greetings],
+      })
+    ).id;
   });
 
   test("lets an administrator set up a class whose teacher reads its learners alone", async () => {

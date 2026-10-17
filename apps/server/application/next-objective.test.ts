@@ -65,24 +65,30 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     pastTense = objectives[0]!;
     fractions = objectives[1]!;
 
-    bothCourse = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Both",
-      objectiveIds: [pastTense, fractions],
-    });
-    soloCourse = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Solo",
-      objectiveIds: [pastTense],
-    });
-    emptyCourse = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Empty",
-      objectiveIds: [],
-    });
+    bothCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Both",
+        objectiveIds: [pastTense, fractions],
+      })
+    ).id;
+    soloCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Solo",
+        objectiveIds: [pastTense],
+      })
+    ).id;
+    emptyCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Empty",
+        objectiveIds: [],
+      })
+    ).id;
 
     await database
       .insert(authTables.user)

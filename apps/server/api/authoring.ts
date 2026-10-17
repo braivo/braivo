@@ -40,7 +40,7 @@ import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import { type Guards, jsonBody, presentsToolCredential } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
-import type { OrganizationSetup } from "./types.ts";
+import type { CourseWriteResult, OrganizationSetup, TaskWriteResult } from "./types.ts";
 
 /**
  * Reads evidence out of a request body, or nothing when the body is not
@@ -369,7 +369,7 @@ export function authoringRoutes(
       if (tasks === undefined) return context.body(null, 400);
 
       try {
-        const taskIds = await defineTasks({
+        const written = await defineTasks({
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
@@ -379,7 +379,7 @@ export function authoringRoutes(
           byTool: presentsToolCredential(context),
         });
 
-        return context.json({ taskIds }, 201);
+        return context.json({ tasks: written } satisfies { tasks: TaskWriteResult[] }, 201);
       } catch (error) {
         return organizationRefusal(context, error);
       }
@@ -430,7 +430,7 @@ export function authoringRoutes(
       if (course === undefined) return context.body(null, 400);
 
       try {
-        const courseId = await defineCourse({
+        const { id, added, published } = await defineCourse({
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
@@ -439,7 +439,7 @@ export function authoringRoutes(
           published: !presentsToolCredential(context),
         });
 
-        return context.json({ courseId }, 201);
+        return context.json({ courseId: id, added, published } satisfies CourseWriteResult, 201);
       } catch (error) {
         return organizationRefusal(context, error);
       }

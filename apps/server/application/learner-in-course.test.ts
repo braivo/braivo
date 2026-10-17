@@ -73,24 +73,28 @@ describe.skipIf(!connectionString)("loading a learner in a course", () => {
       "Past tense",
       "Fractions",
     ])) as [string, string];
-    course = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Both",
-      objectiveIds: [fractions, pastTense],
-    });
+    course = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Both",
+        objectiveIds: [fractions, pastTense],
+      })
+    ).id;
     await database
       .insert(organizationDomain)
       .values({ hostname: otherHostname, organizationId: otherOrganizationId })
       .onConflictDoNothing();
 
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
-    foreignCourse = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Theirs",
-      objectiveIds: [theirs!],
-    });
+    foreignCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Theirs",
+        objectiveIds: [theirs!],
+      })
+    ).id;
   });
 
   beforeEach(async () => {

@@ -89,27 +89,33 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       "Colours",
       "Weather",
     ])) as [string, string, string, string];
-    course = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Beginners",
-      objectiveIds: [greetings, numbers, colours],
-    });
-    emptyCourse = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Empty",
-      objectiveIds: [],
-    });
+    course = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Beginners",
+        objectiveIds: [greetings, numbers, colours],
+      })
+    ).id;
+    emptyCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Empty",
+        objectiveIds: [],
+      })
+    ).id;
     [theirGreetings] = (await createObjectives(database, otherOrganizationId, ["Greetings"])) as [
       string,
     ];
-    foreignCourse = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Theirs",
-      objectiveIds: [theirGreetings],
-    });
+    foreignCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Theirs",
+        objectiveIds: [theirGreetings],
+      })
+    ).id;
   });
 
   beforeEach(async () => {

@@ -280,20 +280,22 @@ async function seedClassroom(input: {
   });
   const fixtureTasks = OBJECTIVES.flatMap(({ tasks }): readonly FixtureTask[] => tasks);
   // Stored in this order, which is the order each objective offers them in (learner-loop-6).
-  const taskIds = await defineTasks({
-    ...authoring,
-    tasks: OBJECTIVES.flatMap(({ tasks }, index) =>
-      tasks.map(({ quote, ...body }) => ({
-        objectiveId: objectiveId(index),
-        body,
-        citations: [{ sourceId, quote }],
-      })),
-    ),
-    now: createdAt,
-    // As the console writes them: the demo's learners practise them.
-    byTool: false,
-  });
-  const courseEnglish = await defineCourse({
+  const taskIds = (
+    await defineTasks({
+      ...authoring,
+      tasks: OBJECTIVES.flatMap(({ tasks }, index) =>
+        tasks.map(({ quote, ...body }) => ({
+          objectiveId: objectiveId(index),
+          body,
+          citations: [{ sourceId, quote }],
+        })),
+      ),
+      now: createdAt,
+      // As the console writes them: the demo's learners practise them.
+      byTool: false,
+    })
+  ).map(({ id }) => id);
+  const { id: courseEnglish } = await defineCourse({
     ...authoring,
     key: "everyday-english",
     title: "Everyday English",

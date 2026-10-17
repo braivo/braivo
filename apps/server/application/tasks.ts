@@ -6,6 +6,7 @@ import type { Database } from "@braivo/db";
 import { parseTaskBody, type TaskBody } from "../content/index.ts";
 import {
   type AuthoredTask,
+  type TaskWriteResult,
   createTasks,
   findObjectivesOutsideOrganization,
   findTasksOutsideOrganization,
@@ -33,9 +34,9 @@ export class InvalidTask extends Error {
 }
 
 /**
- * Adds tasks to an organization's objectives, returning their IDs in the order
- * given; a task the objective already has returns its existing ID
- * (docs/adr/0024-idempotent-authoring.md). Refuses the whole batch on any
+ * Adds tasks to an organization's objectives, answering what it did with each
+ * in the order given (`TaskWriteResult`); a task the objective already has
+ * answers its existing ID and state (ADR 0024). Refuses the whole batch on any
  * invalid task, a caller who may not author, or an objective that is not the
  * organization's.
  *
@@ -71,7 +72,7 @@ export async function defineTasks(input: {
   now: Date;
   /** Sent with a tool's token rather than from the console. */
   byTool: boolean;
-}): Promise<string[]> {
+}): Promise<TaskWriteResult[]> {
   const { database, organizationId, actingAs, tasks, now, byTool } = input;
 
   const parsed: { objectiveId: string; body: TaskBody }[] = [];

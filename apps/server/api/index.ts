@@ -387,15 +387,20 @@
 // it was written from, located as on the citations route and stored with the
 // task. A task the objective already has, unretired — the same body and
 // passages — is not added again: its ID is answered, so a retry duplicates
-// nothing (ADR 0024). Answers 201 with `{ "taskIds": [...] }`,
-// positionally matching; 400 with an `error` when a task is not a valid one of
+// nothing (ADR 0024). Answers 201 with `{ "tasks": [{ "id": "…", "added":
+// true, "published": false }] }`, positionally matching: `added` false for a
+// task already there, `published` whether it is published now or waits for
+// Publish (ADR 0039), and `replaces` for a correction waiting to replace a
+// published task; 400 with an `error` when a task is not a valid one of
 // its kind or cites a quote Braivo cannot find — "Task 1, citation 0: the
 // quote does not occur in the source." — and 403 when an objective or a
 // source is not this organization's. Any refusal stores nothing in the batch.
 //
 // Tasks are immutable. A task with `"replaces": "<taskId>"`, sent alone and for
 // the replaced task's objective (else 400, explained), is that task's
-// correction: stored, and the task retired, in one transaction. A correction
+// correction: stored, and the task retired, in one transaction; from a tool,
+// a published task's correction instead waits beside it, answered with
+// `replaces`, until Publish retires the task (ADR 0039). A correction
 // equal to the task answers the task's ID, retiring nothing. Once the task is
 // retired, a correction answers the task already offered that it asks for, as
 // on a retry after a lost answer, and otherwise 409 with an `error`: it was
@@ -420,11 +425,12 @@
 // the objectives at most 1000; position in that list is content order, and
 // that list is what selection chooses from. A title refused as for objectives,
 // or an objective listed twice, answers 400 with an `error`. Answers 201 with
-// `{ "courseId": "…" }`, or 403 when an objective is not this organization's —
-// also the answer for one that does not exist, so neither confirms the other's.
+// `{ "courseId": "…", "added": true, "published": false }`, or 403 when an
+// objective is not this organization's — also the answer for one that does
+// not exist, so neither confirms the other's.
 // An optional `key` works as for objectives: the same course again — title and
-// objectives in the same order — answers its ID, and another under the same
-// key answers 409 with an `error`.
+// objectives in the same order — answers it, `added` false, published or not
+// as it stands, and another under the same key answers 409 with an `error`.
 //
 // `GET /api/organizations/:organizationId/courses` — answers
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, by title.

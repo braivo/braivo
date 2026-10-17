@@ -38,6 +38,12 @@ export function listedCourse(row: {
 }
 
 /**
+ * What creating a course did: `added`, false for the one already under its
+ * key; and whether it is `published`, as it stands (ADR 0039).
+ */
+export type CourseWriteResult = { id: string; added: boolean; published: boolean };
+
+/**
  * Creates a course over objectives that already exist, in the order given.
  *
  * One transaction, because a course whose membership failed to insert is not a
@@ -55,7 +61,7 @@ export async function createCourse(
     key?: string;
     published: boolean;
   },
-): Promise<string> {
+): Promise<CourseWriteResult> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await insertCourse(database, input);
@@ -86,7 +92,7 @@ function freeNumber(organizationId: string): SQL<number> {
 async function insertCourse(
   database: Database,
   input: Parameters<typeof createCourse>[1],
-): Promise<string> {
+): Promise<CourseWriteResult> {
   const id = crypto.randomUUID();
 
   return database.transaction(async (transaction) => {
@@ -109,7 +115,7 @@ async function insertCourse(
     // anything else would make the key mean two courses (docs/adr/0024-idempotent-authoring.md).
     if (!inserted) {
       const [existing] = await transaction
-        .select({ id: course.id, title: course.title })
+        .select({ id: course.id, title: course.title, publishedAt: course.publishedAt })
         .from(course)
         .where(and(eq(course.organizationId, input.organizationId), eq(course.key, input.key!)));
       const arranged = await transaction
@@ -128,7 +134,7 @@ async function insertCourse(
           "a course with another title or other objectives",
         );
       }
-      return existing!.id;
+      return { id: existing!.id, added: false, published: existing!.publishedAt !== null };
     }
 
     if (input.objectiveIds.length > 0) {
@@ -142,7 +148,7 @@ async function insertCourse(
       );
     }
 
-    return id;
+    return { id, added: true, published: input.published };
   });
 }
 

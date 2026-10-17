@@ -527,8 +527,14 @@ describe("a refusal's explanation", () => {
     const answers: Record<string, Response> = {
       objectives: Response.json({ objectiveIds: ["objective-1"] }, { status: 201 }),
       citations: Response.json({ citations: [] }),
-      tasks: Response.json({ taskIds: ["task-1"] }, { status: 201 }),
-      courses: Response.json({ courseId: "course-1" }, { status: 201 }),
+      tasks: Response.json(
+        { tasks: [{ id: "task-1", added: true, published: true }] },
+        { status: 201 },
+      ),
+      courses: Response.json(
+        { courseId: "course-1", added: true, published: true },
+        { status: 201 },
+      ),
     };
     const signals: [string, AbortSignal | null | undefined][] = [];
     const fetch = async (url: string, init?: RequestInit) => {

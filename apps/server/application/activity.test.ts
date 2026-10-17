@@ -153,18 +153,22 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       "Untaught",
       "Fractions",
     ])) as [string, string, string];
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Loop",
-      objectiveIds: [pastTense, untaught, fractions],
-    });
-    untaughtCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Nothing to practise",
-      objectiveIds: [untaught],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Loop",
+        objectiveIds: [pastTense, untaught, fractions],
+      })
+    ).id;
+    untaughtCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Nothing to practise",
+        objectiveIds: [untaught],
+      })
+    ).id;
 
     const task = (objectiveId: string, prompt: string, createdAt: Date) =>
       testing.createTask(database, {
@@ -180,12 +184,14 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     ];
 
     [letters] = (await createObjectives(database, organizationId, ["Letters"])) as [string];
-    shuffleCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Shuffle",
-      objectiveIds: [letters],
-    });
+    shuffleCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Shuffle",
+        objectiveIds: [letters],
+      })
+    ).id;
     shuffleTask = await testing.createTask(database, {
       organizationId,
       objectiveId: letters,
@@ -200,18 +206,22 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       "vier",
       "fünf",
     ]);
-    wordsCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Words",
-      objectiveIds: words,
-    });
-    twoWordsCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Two words",
-      objectiveIds: words.slice(0, 2),
-    });
+    wordsCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Words",
+        objectiveIds: words,
+      })
+    ).id;
+    twoWordsCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Two words",
+        objectiveIds: words.slice(0, 2),
+      })
+    ).id;
     wordTasks = [];
     for (const word of words) wordTasks.push(await task(word, `${word}?`, start));
     fifthWordSibling = await task(words[4]!, "fünf, again?", later(1));
@@ -228,12 +238,14 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       body: question("Theirs?"),
       createdAt: start,
     });
-    foreignCourseId = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Theirs",
-      objectiveIds: [theirs!],
-    });
+    foreignCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Theirs",
+        objectiveIds: [theirs!],
+      })
+    ).id;
   });
 
   beforeEach(async () => {
@@ -355,7 +367,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
   test("shows the passages a grounded task was written from, once it is graded", async () => {
     const [greetings] = await createObjectives(database, organizationId, ["Greetings"]);
-    const greetingsCourse = await createCourse(database, {
+    const { id: greetingsCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Greetings",
@@ -374,22 +386,24 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       text: "Di hola a tu compañero.",
       createdAt: start,
     });
-    const [taskId] = await createTasks(
-      database,
-      organizationId,
-      [
-        {
-          objectiveId: greetings!,
-          body: question("Hola?"),
-          citations: [
-            { sourceId: video, start: 0, end: 21 },
-            { sourceId: workbook, start: 0, end: 7 },
-          ],
-        },
-      ],
-      start,
-      { published: true },
-    );
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId: greetings!,
+            body: question("Hola?"),
+            citations: [
+              { sourceId: video, start: 0, end: 21 },
+              { sourceId: workbook, start: 0, end: 7 },
+            ],
+          },
+        ],
+        start,
+        { published: true },
+      )
+    ).map(({ id }) => id);
 
     // Before answering, the task alone: a passage could give the answer away.
     expect((await activity(start, learner, greetingsCourse)) as object).not.toHaveProperty(
@@ -671,7 +685,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
 
   test("grades a typed answer, records the text as sent, and matches a resend on it", async () => {
     const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
-    const wordCourse = await createCourse(database, {
+    const { id: wordCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Typed",

@@ -18,10 +18,11 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Find the organization's sources and courses, and read a source in parts, a range of pages, seconds, or characters at a time.
 - Add material as text: a document page by page, a transcript with its timings. A document too large for one request is refused; add it in Braivo's console or with [`braivo sources add`](authoring.md#the-braivo-command).
 - Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks word for word against the source.
-- Arrange objectives into a course outline, which waits for you to review and publish it in Braivo's console before learners see it.
+- Write practice tasks that cite those passages, correct one, or withdraw one still waiting.
+- Arrange objectives into a course.
 - Read a course's objectives and tasks.
 
-So it prepares a course; it does not finish one. It cannot write practice tasks, publish, or read learners' names or progress: tasks come to it once Braivo's answers say what waits for review, which Braivo already holds a tool's new courses, tasks, and corrections for ([ADR 0039](../adr/0039-published-in-the-console.md)), and learners' data once it has its own permission. A course of new objectives teaches nothing until they have tasks: add them in Braivo, drafted in its console where your installation offers that, or with [`braivo mcp`](authoring.md#let-your-desktop-agent-build-the-course) from a desktop agent, which has every tool.
+What it adds waits for you: a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](../adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [authoring](authoring.md#let-your-desktop-agent-build-the-course). It cannot publish anything or retire a published task: both stay yours in the console. Nor can it read learners' names or progress, which wait for their own permission.
 
 What the app reads from Braivo, your material included, goes to the AI provider whose app it is, under its terms.
 
