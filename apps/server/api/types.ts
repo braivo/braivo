@@ -238,10 +238,13 @@ export type AuthoredCourse = ManagedCourse & {
  * A task read back as it was authored, answer included, with its ID and the
  * passages it cites — where Braivo found each, and the words there. Not
  * `published` while it waits for its owner to publish it in the console,
- * offered in no course (ADR 0039).
+ * offered in no course (ADR 0039). A waiting correction of a published task
+ * names that task in `replaces`; the task stays offered until the correction
+ * is published.
  */
 export type AuthoredTask = content.TaskBody & {
   id: string;
   citations: { sourceId: string; start: number; end: number; quote: string }[];
   published: boolean;
+  replaces?: string;
 };

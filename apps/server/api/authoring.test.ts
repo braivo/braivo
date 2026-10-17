@@ -642,15 +642,38 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         headers,
         body: JSON.stringify(body),
       });
-    /** An objective's tasks as its administrators read them: ID and whether it is published. */
+    /**
+     * An objective's tasks as its administrators read them: ID, whether it is
+     * published, and the task a waiting correction replaces.
+     */
     const states = async (objectiveId: string) => {
       const response = await api.request(
         `/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`,
         { headers: { cookie: teacher.cookie } },
       );
       expect(response.status).toBe(200);
-      const { tasks } = (await response.json()) as { tasks: { id: string; published: boolean }[] };
-      return tasks.map(({ id, published }) => [id, published]);
+      const { tasks } = (await response.json()) as {
+        tasks: { id: string; published: boolean; replaces?: string }[];
+      };
+      return tasks.map(({ id, published, replaces }) =>
+        replaces === undefined ? [id, published] : [id, published, replaces],
+      );
+    };
+    /** A course's tasks as its page reads them, by objective: as `states` gives them. */
+    const courseStates = async (courseId: string) => {
+      const response = await api.request(
+        `/api/organizations/${organizationId}/courses/${courseId}`,
+        { headers: { cookie: teacher.cookie } },
+      );
+      expect(response.status).toBe(200);
+      const { objectives } = (await response.json()) as {
+        objectives: { tasks: { id: string; published: boolean; replaces?: string }[] }[];
+      };
+      return objectives.flatMap(({ tasks }) =>
+        tasks.map(({ id, published, replaces }) =>
+          replaces === undefined ? [id, published] : [id, published, replaces],
+        ),
+      );
     };
     /** The task a learner is offered in a course, if any. */
     const offered = async (courseId: string) => {
@@ -723,59 +746,57 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect((await postAttempt(courses[1], attempt, learner.cookie)).status).toBe(200);
     });
 
-    test("refuses a tool changing published practice, letting it change its own waiting tasks", async () => {
+    test("holds a tool's correction of published practice and refuses its retirement", async () => {
       const { objectiveId, courses } = await sharedObjective("Guarded");
       const [live] = (await written(inConsole, [{ objectiveId, ...choice("Live") }])) as [string];
       const [proposed] = (await written(asTool, [{ objectiveId, ...choice("Proposed") }])) as [
         string,
       ];
+
+      // A correction of a published task waits beside it, the task still offered in every course.
+      const [pending] = (await written(asTool, [
+        { objectiveId, ...choice("Live"), answer: 1, replaces: live },
+      ])) as [string];
       expect(await states(objectiveId)).toEqual([
         [live, true],
         [proposed, false],
+        [pending, false, live],
       ]);
-
-      // Correcting or retiring a published task is the console's, explained.
-      const correction = await write(asTool, [
-        { objectiveId, ...choice("Live"), answer: 1, replaces: live },
+      for (const courseId of courses) expect(await offered(courseId)).toBe(live);
+      expect(await courseStates(courses[0]!)).toEqual(await states(objectiveId));
+      // One waits at a time: another is refused, coded, naming the one to correct instead.
+      const second = await write(asTool, [
+        { objectiveId, ...choice("Live, again"), replaces: live },
       ]);
-      expect(correction.status).toBe(403);
-      expect(await correction.json()).toEqual({
-        error: expect.stringContaining("Braivo's console"),
+      expect(second.status).toBe(409);
+      expect(await second.json()).toEqual({
+        error: expect.stringContaining(`replaces "${pending}"`),
+        code: "CORRECTION_WAITING",
       });
-      // Refused first, whatever it asks for: the task unchanged, or another one's twin.
-      for (const unchanged of [choice("Live"), choice("Proposed")]) {
-        const refused = await write(asTool, [{ objectiveId, ...unchanged, replaces: live }]);
-        expect(refused.status).toBe(403);
-      }
+      // Retiring a published task is the console's, explained.
       const retirement = await retire(asTool, [proposed, live]);
       expect(retirement.status).toBe(403);
       expect(await retirement.json()).toEqual({
         error: expect.stringContaining("Braivo's console"),
       });
-      // Nothing changed: the published task still offered, the proposal still there.
-      expect(await states(objectiveId)).toEqual([
-        [live, true],
-        [proposed, false],
-      ]);
-      expect(await offered(courses[0])).toBe(live);
       // Its own waiting task, a tool may correct and retire; the correction waits too.
       const [corrected] = (await written(asTool, [
         { objectiveId, ...choice("Proposed"), answer: 1, replaces: proposed },
       ])) as [string];
+      expect((await retire(asTool, [corrected])).status).toBe(204);
       expect(await states(objectiveId)).toEqual([
         [live, true],
-        [corrected, false],
+        [pending, false, live],
       ]);
-      expect((await retire(asTool, [corrected])).status).toBe(204);
-      expect(await states(objectiveId)).toEqual([[live, true]]);
 
-      // In the console, a correction takes the state of the task it replaces.
+      // In the console, a correction takes the state of the task it replaces,
+      // and replacing a published one retires its waiting correction too.
       const [draft] = (await written(asTool, [{ objectiveId, ...choice("Draft") }])) as [string];
       const [redrafted] = (await written(inConsole, [
         { objectiveId, ...choice("Draft"), answer: 1, replaces: draft },
       ])) as [string];
       const [fixed] = (await written(inConsole, [
-        { objectiveId, ...choice("Live"), answer: 1, replaces: live },
+        { objectiveId, ...choice("Live"), answer: 1, prompt: "Live, fixed", replaces: live },
       ])) as [string];
       expect(await states(objectiveId)).toEqual([
         [redrafted, false],
@@ -789,15 +810,33 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await duplicate.json()).toMatchObject({ code: "DUPLICATE_CORRECTION" });
       expect((await retire(inConsole, [fixed])).status).toBe(204);
 
-      // Retired since, a published task is still not a tool's to change.
-      const late = [
-        await write(asTool, [{ objectiveId, ...choice("Live"), answer: 0, replaces: fixed }]),
-        await retire(asTool, [fixed]),
-      ];
-      expect(late.map(({ status }) => status)).toEqual([403, 403]);
-      for (const response of late) {
-        expect(await response.json()).toEqual({ error: expect.stringContaining("retired") });
-      }
+      // Retired since, a published task's correction is stale, and its retirement still refused.
+      const late = await write(asTool, [{ objectiveId, ...choice("Live"), replaces: fixed }]);
+      expect(late.status).toBe(409);
+      expect(await late.json()).toEqual({ error: expect.stringContaining("already retired") });
+      const lateRetirement = await retire(asTool, [fixed]);
+      expect(lateRetirement.status).toBe(403);
+      expect(await lateRetirement.json()).toEqual({ error: expect.stringContaining("retired") });
+    });
+
+    test("publishes a waiting correction and retires its task together", async () => {
+      const { objectiveId, courses } = await sharedObjective("Corrected");
+      const [live] = (await written(inConsole, [{ objectiveId, ...choice("Before") }])) as [string];
+      const [pending] = (await written(asTool, [
+        { objectiveId, ...choice("Before"), answer: 1, replaces: live },
+      ])) as [string];
+
+      expect(await courseStates(courses[0]!)).toEqual([
+        [live, true],
+        [pending, false, live],
+      ]);
+      expect((await publish(inConsole, { taskIds: [pending] })).status).toBe(204);
+      // Published, it no longer reads as a correction.
+      expect(await courseStates(courses[0]!)).toEqual([[pending, true]]);
+      for (const courseId of courses) expect(await offered(courseId)).toBe(pending);
+      // A retry changes nothing.
+      expect((await publish(inConsole, { taskIds: [pending] })).status).toBe(204);
+      expect(await states(objectiveId)).toEqual([[pending, true]]);
     });
 
     test("publishes all or nothing, only from the console, a retry changing nothing", async () => {

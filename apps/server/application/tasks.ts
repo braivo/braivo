@@ -45,8 +45,8 @@ export class InvalidTask extends Error {
  *
  * A tool proposes; a person publishes (docs/adr/0039-published-in-the-console.md):
  * a task a tool adds waits for Publish, one added in the console is published
- * at once, and a correction takes the state of the task it replaces, a tool
- * never replacing one once published.
+ * at once; a tool's correction of a published task waits beside it, and any
+ * other takes the state of the task it replaces.
  *
  * Bodies are checked first, reading only the payload, so a refused caller
  * learns nothing about the organization. A task is immutable once stored, so

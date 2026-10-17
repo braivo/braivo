@@ -302,6 +302,9 @@ function Objective(props: {
   // The task whose Edit button takes focus back once its editor closes unsaved.
   const refocus = useRef<string>(undefined);
   const sources = new Map(course.sources.map((source) => [source.id, source]));
+  const prompts = new Map(objective.tasks.map((task) => [task.id, task.prompt]));
+  // Published tasks a tool's correction waits to replace (ADR 0039).
+  const withWaitingCorrection = new Set(objective.tasks.flatMap((task) => task.replaces ?? []));
   const passages = (citations: AuthoredCourse["objectives"][number]["citations"]) =>
     citations.map((citation) => {
       const source = sources.get(citation.sourceId);
@@ -335,6 +338,7 @@ function Objective(props: {
               key={task.id}
               objectiveId={objective.id}
               task={task}
+              hasWaitingCorrection={withWaitingCorrection.has(task.id)}
               onDone={() => {
                 setEditing(undefined);
                 heading.current?.focus();
@@ -366,6 +370,8 @@ function Objective(props: {
                   Edit
                 </Button>
               )}
+              hasWaitingCorrection={withWaitingCorrection.has(task.id)}
+              corrects={task.replaces && prompts.get(task.replaces)}
               onRetired={() => heading.current?.focus()}
             >
               {passages(task.citations)}
@@ -385,11 +391,13 @@ function Objective(props: {
 function CorrectTask(props: {
   objectiveId: string;
   task: AuthoredCourse["objectives"][number]["tasks"][number];
+  /** A correction waits to replace it, which saving retires. */
+  hasWaitingCorrection: boolean;
   /** Corrected, or reloaded to find it changed: the course as stored is shown. */
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { objectiveId, task, onDone, onCancel } = props;
+  const { objectiveId, task, hasWaitingCorrection, onDone, onCancel } = props;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -440,7 +448,7 @@ function CorrectTask(props: {
           ? { text: "The task could not be corrected. Try again." }
           : thrown.code === "DUPLICATE_CORRECTION"
             ? {
-                text: "Another task of this objective is already the same. Change the correction, or retire this task.",
+                text: "Another task of this objective is already the same. Review its tasks before editing or publishing.",
               }
             : { text: "Someone changed or retired this task since the page loaded.", stale: true },
       );
@@ -460,6 +468,7 @@ function CorrectTask(props: {
         {task.published
           ? "Saving replaces the task: learners are asked the corrected one from now on, and what they already answered stays."
           : "Saving replaces the task: the corrected one waits for review, as this one does."}
+        {hasWaitingCorrection && " The correction waiting for review is retired with it."}
       </MutedText>
       {error && (
         <Alert variant="destructive" ref={alert} tabIndex={-1}>
@@ -497,11 +506,15 @@ function RetirableTask(props: {
   task: AuthoredCourse["objectives"][number]["tasks"][number];
   /** The task's Edit button, given whether it is retiring. */
   renderEdit: (retiring: boolean) => ReactNode;
+  /** A correction waits to replace it, which retiring retires too. */
+  hasWaitingCorrection: boolean;
+  /** While it waits to correct a published task, that task's prompt. */
+  corrects?: string;
   onRetired: () => void;
   /** The passages it was written from. */
   children: ReactNode;
 }) {
-  const { task, renderEdit, onRetired, children } = props;
+  const { task, renderEdit, hasWaitingCorrection, corrects, onRetired, children } = props;
   const { prompt } = task;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
@@ -541,7 +554,18 @@ function RetirableTask(props: {
   return (
     <AuthoredTask
       task={task}
-      status={!task.published && <Badge variant="outline">Waiting</Badge>}
+      status={
+        !task.published && (
+          <>
+            <Badge variant="outline">Waiting</Badge>
+            {corrects !== undefined && (
+              <MutedText className="mt-1 block">
+                Corrects “{corrects}”, which stays published until you publish this.
+              </MutedText>
+            )}
+          </>
+        )
+      }
       action={
         <span className="flex items-start gap-2">
           {renderEdit(retiring)}
@@ -571,8 +595,10 @@ function RetirableTask(props: {
                 <AlertDialogTitle>Retire “{prompt}”?</AlertDialogTitle>
                 <AlertDialogDescription>
                   {task.published
-                    ? "Learners will not be asked it again; what they already answered stays. To change it instead, edit it."
-                    : "It was never published, so learners have not been asked it. To change it instead, edit it."}
+                    ? "Learners will not be asked it again; what they already answered stays."
+                    : "It was never published, so learners have not been asked it."}
+                  {hasWaitingCorrection && " The correction waiting for review is retired with it."}{" "}
+                  To change it instead, edit it.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

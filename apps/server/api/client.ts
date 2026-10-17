@@ -565,13 +565,16 @@ export type BraivoClient = {
    * cite is a 400 whose `reason` names the task and citation.
    *
    * A task naming one it `replaces`, sent alone for the same objective, is its
-   * correction: that task is retired with it. Repeating one is safe; a 409
+   * correction: that task is retired with it, unless a tool corrects a
+   * published one (below). Repeating one is safe; a 409
    * means someone changed the task first, or, coded `DUPLICATE_CORRECTION`,
    * that another task is the same.
    *
    * Added with a tool's token, a task waits until its owner publishes it in
-   * Braivo's console; a correction keeps the state of the task it replaces,
-   * and a tool's of a task once published is a 403 whose `reason` says so.
+   * Braivo's console, and so does a correction of a published task, which
+   * stays offered until then; a 409 coded `CORRECTION_WAITING` names the
+   * correction already waiting for it, the one to correct instead. Otherwise
+   * a correction keeps the state of the task it replaces.
    */
   defineTasks(
     input: { organizationId: string; tasks: readonly TaskDraft[] },
@@ -580,7 +583,8 @@ export type BraivoClient = {
 
   /**
    * An objective's unretired tasks, published or waiting, oldest first, as
-   * authored — answers included — with the passages each cites. An objective
+   * authored — answers included — with the passages each cites, and for a
+   * waiting correction, the published task it `replaces`. An objective
    * the organization does not have is a {@link BraivoError} with status 404;
    * one the session may not administer, 403.
    */

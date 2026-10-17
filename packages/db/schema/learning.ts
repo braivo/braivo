@@ -282,6 +282,11 @@ export const task = pgTable(
      * offered in no course (docs/adr/0039-published-in-the-console.md).
      */
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    /**
+     * The published task this one corrects while it waits: offered until this
+     * is published, then retired with it (ADR 0039). Kept after, as a record.
+     */
+    replacesTaskId: text("replaces_task_id"),
   },
   (table) => [
     // Matching the organization, as `course_objective` does, so a task cannot
@@ -291,6 +296,13 @@ export const task = pgTable(
       columns: [table.organizationId, table.objectiveId],
       foreignColumns: [objective.organizationId, objective.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "task_replaces_task_fk",
+      columns: [table.organizationId, table.replacesTaskId],
+      foreignColumns: [table.organizationId, table.id],
+    }).onDelete("restrict"),
+    // Finds a task's waiting correction, and serves the key's checks.
+    index("task_replaces_task_idx").on(table.replacesTaskId),
     index("task_objective_idx").on(table.objectiveId, table.createdAt, table.id),
     /** Referenced together with the organization, for the same reason as on `objective`. */
     unique("task_organization_id_key").on(table.organizationId, table.id),
