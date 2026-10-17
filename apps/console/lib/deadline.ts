@@ -13,6 +13,15 @@ export const REQUEST_DEADLINE_MS = 10_000;
  */
 export const OPTIONAL_READ_DEADLINE_MS = 3_000;
 
+/** The slowest upload waited for: 100 KB/s. */
+const MIN_BYTES_PER_MS = 100;
+
+/**
+ * For a request sending `bytes`: {@link REQUEST_DEADLINE_MS}, plus their time at
+ * the slowest upload waited for, so 50 MB gets about eight minutes.
+ */
+export const bodyDeadline = (bytes: number) => REQUEST_DEADLINE_MS + bytes / MIN_BYTES_PER_MS;
+
 /** `signal`, also aborted after `ms`; a timer, which test fake timers advance. */
 export function withDeadline(signal: AbortSignal | undefined, ms: number): AbortSignal {
   const deadline = new AbortController();
