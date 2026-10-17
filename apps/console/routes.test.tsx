@@ -225,10 +225,12 @@ const beginners = {
           answer: 0,
           explanation: "Adiós is goodbye.",
           citations: [{ sourceId: "s1", start: 0, end: 5, quote: "Hola." }],
+          published: true,
         },
       ],
+      otherPublishedCourses: [],
     },
-    { id: "numbers", title: "Numbers", citations: [], tasks: [] },
+    { id: "numbers", title: "Numbers", citations: [], tasks: [], otherPublishedCourses: [] },
   ],
   sources: [{ id: "s1", title: "Unidad 1", createdAt: "2026-06-01T00:00:00.000Z" }],
 };
@@ -4956,7 +4958,7 @@ describe("the console", () => {
 
     expect(await screen.findByText(/Open to every learner in Example School at/)).toBeTruthy();
     expect(publish).toHaveBeenCalledWith(
-      { organizationId: "org-1", courseIds: ["course-1"] },
+      { organizationId: "org-1", courseIds: ["course-1"], taskIds: [] },
       { signal: expect.any(AbortSignal) },
     );
     expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
@@ -4966,6 +4968,110 @@ describe("the console", () => {
     );
     expect(status.textContent).toBe("Course published.");
     expect(screen.getByRole("textbox", { name: "Label in its link" })).toBeTruthy();
+  });
+
+  test("holds a tool's tasks in a published course until published, naming the other courses first", async () => {
+    let published = false;
+    const publishing = Promise.withResolvers<void>();
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {
+      await publishing.promise;
+      published = true;
+    });
+    const [greetings, numbers] = beginners.objectives;
+    const proposed = {
+      id: "t2",
+      kind: "choice" as const,
+      prompt: "Goodbye, in Spanish?",
+      options: ["Hola", "Adiós"],
+      answer: 1,
+      citations: [],
+    };
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [
+            {
+              ...greetings!,
+              tasks: [...greetings!.tasks, { ...proposed, published }],
+              otherPublishedCourses: [{ id: "course-9", title: "Holiday Spanish" }],
+            },
+            numbers!,
+          ],
+        }),
+        publish,
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "1 task below waits for review: learners aren't asked it until you publish.",
+      ),
+    ).toBeTruthy();
+    // The course itself is published: its link is shown, and only the new task waits.
+    expect(screen.getByText(/Open to every learner in Example School at/)).toBeTruthy();
+    expect(screen.getAllByText("Waiting")).toHaveLength(1);
+    // Retiring a waiting task takes nothing from learners, and says so.
+    fireEvent.click(screen.getAllByRole("button", { name: "Retire" })[1]!);
+    expect((await screen.findByRole("alertdialog")).textContent).toContain(
+      "It was never published, so learners have not been asked it.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+
+    // Its objective is in another published course, which it reaches too: asked first.
+    fireEvent.click(screen.getByRole("button", { name: "Publish 1 task" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Publish 1 task?");
+    expect(within(dialog).getByRole("listitem").textContent).toBe("Holiday Spanish");
+    expect(publish).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
+    // While it publishes, its button opens no second confirmation.
+    const pending = await screen.findByRole("button", { name: "Publishing…" });
+    expect(pending.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(pending);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await act(async () => publishing.resolve());
+
+    expect((await screen.findByText("Published 1 task.")).getAttribute("role")).toBe("status");
+    expect(publish).toHaveBeenCalledWith(
+      { organizationId: "org-1", courseIds: [], taskIds: ["t2"] },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Publish/ })).toBeNull();
+  });
+
+  test("publishes a tool's course with its waiting tasks, counting them", async () => {
+    let published = false;
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {
+      published = true;
+    });
+    const [greetings, numbers] = beginners.objectives;
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          published,
+          objectives: [
+            {
+              ...greetings!,
+              tasks: greetings!.tasks.map((task) => ({ ...task, published })),
+            },
+            numbers!,
+          ],
+        }),
+        publish,
+      },
+    });
+
+    // No other course shares its objectives: published without asking.
+    fireEvent.click(await screen.findByRole("button", { name: "Publish the course and 1 task" }));
+
+    expect(await screen.findByText("Published the course and 1 task.")).toBeTruthy();
+    expect(publish).toHaveBeenCalledWith(
+      { organizationId: "org-1", courseIds: ["course-1"], taskIds: ["t1"] },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   test("lets Publish be tried again once Braivo does not answer in time", async () => {
@@ -5045,10 +5151,27 @@ describe("the console", () => {
     fireEvent.click(button);
     await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
 
-    // Something on the page no longer there: it is read again.
+    // Something on the page no longer there: it is read again, and that is said.
     const reads = reading.mock.calls.length;
     fireEvent.click(button);
     await vi.waitFor(() => expect(reading.mock.calls.length).toBe(reads + 1));
+    expect(
+      await screen.findByText(
+        "Nothing was published: this page changed since it loaded. Review it, then publish.",
+      ),
+    ).toBeTruthy();
+    // The earlier failures' alert is not said beside it.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1, name: "Beginners" }),
+    );
+    // Tried again, what the refusal said goes while the new attempt is under way.
+    const status = screen.getByText(
+      "Nothing was published: this page changed since it loaded. Review it, then publish.",
+    );
+    publish.mockImplementationOnce(() => new Promise(() => {}));
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(status.textContent).toBe("");
   });
 
   test("changes the label after a course's number, showing it as it will be written", async () => {
@@ -6012,6 +6135,9 @@ describe("the console", () => {
     const defineTasks = vi
       .fn()
       .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockRejectedValueOnce(
+        new BraivoError(409, "Braivo answered 409.", "Task 0 is the same…", "DUPLICATE_CORRECTION"),
+      )
       .mockRejectedValueOnce(new BraivoError(409, "Braivo answered 409.", "Task 0 replaces…"));
     renderAt("/example/courses/course-1", { braivo: { readCourse, defineTasks } });
 
@@ -6031,11 +6157,21 @@ describe("the console", () => {
     expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
     expect(document.activeElement).toBe(failed.closest("[role=alert]"));
 
+    // The same as another task: the edit's to change, not the page's to reload.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByText(
+        "Another task of this objective is already the same. Change the correction, or retire this task.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reload the course" })).toBeNull();
+    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(
       await screen.findByText("Someone changed or retired this task since the page loaded."),
     ).toBeTruthy();
-    expect(defineTasks).toHaveBeenCalledTimes(2);
+    expect(defineTasks).toHaveBeenCalledTimes(3);
     // Saving again cannot help: reloading shows the course as stored.
     fireEvent.click(screen.getByRole("button", { name: "Reload the course" }));
     await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());

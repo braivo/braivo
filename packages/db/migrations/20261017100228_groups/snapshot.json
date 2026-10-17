@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "2d29a1bf-fa4e-4c1b-8d9a-6813f7a5d379",
+  "id": "b3ae710f-6c09-4ced-8487-8d78fa1f6b7d",
   "prevIds": [
-    "48223334-e7da-4298-b215-768f0ac17c9d"
+    "17664a1e-00fb-4847-8b7a-196c9eb6d741"
   ],
   "ddl": [
     {
@@ -3749,6 +3749,19 @@
       "generated": null,
       "identity": null,
       "name": "retired_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "task"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_at",
       "entityType": "columns",
       "schema": "public",
       "table": "task"

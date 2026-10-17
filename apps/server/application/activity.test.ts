@@ -388,6 +388,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         },
       ],
       start,
+      { published: true },
     );
 
     // Before answering, the task alone: a passage could give the answer away.

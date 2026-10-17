@@ -43,6 +43,11 @@ export class InvalidTask extends Error {
  * sent alone for the same objective: moving a task changes which courses ask
  * it, so that is retiring and adding.
  *
+ * A tool proposes; a person publishes (docs/adr/0039-published-in-the-console.md):
+ * a task a tool adds waits for Publish, one added in the console is published
+ * at once, and a correction takes the state of the task it replaces, a tool
+ * never replacing one once published.
+ *
  * Bodies are checked first, reading only the payload, so a refused caller
  * learns nothing about the organization. A task is immutable once stored, so
  * this is the only chance to catch a broken answer key (docs/adr/0015-tasks.md).
@@ -64,8 +69,10 @@ export async function defineTasks(input: {
     replaces?: string;
   }[];
   now: Date;
+  /** Sent with a tool's token rather than from the console. */
+  byTool: boolean;
 }): Promise<string[]> {
-  const { database, organizationId, actingAs, tasks, now } = input;
+  const { database, organizationId, actingAs, tasks, now, byTool } = input;
 
   const parsed: { objectiveId: string; body: TaskBody }[] = [];
   for (const [index, task] of tasks.entries()) {
@@ -127,13 +134,14 @@ export async function defineTasks(input: {
   });
 
   return replaces === undefined
-    ? createTasks(database, organizationId, grounded, now)
-    : [await replaceTask(database, organizationId, replaces, grounded[0]!, now)];
+    ? createTasks(database, organizationId, grounded, now, { published: !byTool })
+    : [await replaceTask(database, organizationId, replaces, grounded[0]!, now, { byTool })];
 }
 
 /**
  * Withdraws tasks from practice (docs/adr/0015-tasks.md). Refuses the whole
- * batch when the caller may not administer or a task is not the organization's.
+ * batch when the caller may not administer or a task is not the organization's,
+ * and a tool's naming one once published: retiring that is the console's (ADR 0039).
  */
 export async function retireTasks(input: {
   database: Database;
@@ -141,8 +149,10 @@ export async function retireTasks(input: {
   actingAs: string;
   taskIds: readonly string[];
   now: Date;
+  /** Sent with a tool's token rather than from the console. */
+  byTool: boolean;
 }): Promise<void> {
-  const { database, organizationId, actingAs, taskIds, now } = input;
+  const { database, organizationId, actingAs, taskIds, now, byTool } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
@@ -154,12 +164,12 @@ export async function retireTasks(input: {
     );
   }
 
-  await markTasksRetired(database, taskIds, now);
+  await markTasksRetired(database, taskIds, now, { byTool });
 }
 
 /**
- * An objective's unretired tasks as authored, answers included, with the
- * passages each cites, for whoever administers its organization; or
+ * An objective's unretired tasks as authored, published or waiting, answers
+ * included, with the passages each cites, for whoever administers its organization; or
  * `undefined` when the organization has no such objective. A task is changed
  * only by a correction replacing it, so this is what review starts from.
  */

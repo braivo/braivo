@@ -609,8 +609,8 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     const organizations = JSON.parse(await text(client, "list_organizations")) as { id: string }[];
     await client.close();
 
-    // No task, group, or progress: a task a connection writes would reach
-    // learners at once until ADR 0039 holds tasks as it does courses.
+    // No task writing, group, or progress: task-writing tools join once a
+    // tool's correction can wait and answers say what waits (ADR 0039).
     expect(tools.map((tool) => tool.name).toSorted()).toEqual([
       "add_document",
       "add_source",

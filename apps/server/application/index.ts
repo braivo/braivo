@@ -104,5 +104,7 @@ export {
   ConflictingEvidence,
   ConflictingGroupRole,
   ConflictingKey,
+  DuplicateCorrection,
+  PublishedTask,
   StaleCorrection,
 } from "../persistence/index.ts";

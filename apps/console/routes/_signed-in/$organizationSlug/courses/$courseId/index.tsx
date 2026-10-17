@@ -63,9 +63,9 @@ function Course() {
   const { course } = Route.useLoaderData();
   const { organization, braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
-  // Focusable, to receive focus from Publish, gone once it is.
+  // Focusable, to receive focus once Publish is done, its button gone or the page changed.
   const heading = useRef<HTMLHeadingElement>(null);
-  // Present from the start, so saying it was published is announced.
+  // Present from the start, so what Publish did is announced.
   const [statusMessage, setStatusMessage] = useState("");
 
   return (
@@ -81,21 +81,23 @@ function Course() {
       <Heading ref={heading} tabIndex={-1}>
         {course.title}
       </Heading>
-      {/* A tool's course waits for a person's review here (ADR 0039); the
-          console's own, accepted from a draft, is published as it is created. */}
-      {course.published ? (
+      {/* A tool's course and tasks wait for a person's review here (ADR 0039);
+          the console's own, accepted from a draft, are published as created. */}
+      {course.published && (
         <LearnersSite
           learnDomain={organization.learnDomain}
           path={`/c/${courseRef(course)}`}
           at={`Open to every learner in ${organization.name} at`}
           none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
         />
-      ) : (
-        <PublishCourse
-          courseId={course.id}
-          onPublished={() => {
+      )}
+      {(!course.published || waitingTasks(course).length > 0) && (
+        <PublishWaiting
+          course={course}
+          onStart={() => setStatusMessage("")}
+          onDone={(message) => {
             heading.current?.focus();
-            setStatusMessage("Course published.");
+            setStatusMessage(message);
           }}
         />
       )}
@@ -129,29 +131,77 @@ function Course() {
   );
 }
 
-/** Publishing a course that waits for review, so learners reach it (ADR 0039). */
-function PublishCourse(props: { courseId: string; onPublished: () => void }) {
-  const { courseId, onPublished } = props;
+/** The course's tasks still waiting for review, in the order the page shows them. */
+function waitingTasks(course: AuthoredCourse) {
+  return course.objectives.flatMap(({ tasks }) => tasks.filter(({ published }) => !published));
+}
+
+/**
+ * Publishing what waits for review on this page, so learners reach it (ADR
+ * 0039): the course, if it waits, and every waiting task shown, in one
+ * request, all or nothing, so work written since the page loaded waits for
+ * the next look. Asked first when the tasks reach other courses too, since a
+ * task serves every course its objective is in.
+ */
+function PublishWaiting(props: {
+  course: AuthoredCourse;
+  /** Sending: what an earlier attempt said no longer holds, and the next result is announced anew. */
+  onStart: () => void;
+  /** Published, or refused as stale: the page shown again, and what happened to announce. */
+  onDone: (message: string) => void;
+}) {
+  const { course, onStart, onDone } = props;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
   const [publishing, setPublishing] = useState(false);
   // Counted, so a second failure mounts a new alert, announced again.
   const [failures, setFailures] = useState(0);
+  const tasks = waitingTasks(course);
+  const taskCountLabel = tasks.length === 1 ? "1 task" : `${tasks.length} tasks`;
+  // What Publish sends, named in its button and confirmation.
+  const summary = course.published
+    ? taskCountLabel
+    : tasks.length === 0
+      ? "the course"
+      : `the course and ${taskCountLabel}`;
+  // The other published courses its waiting tasks reach, each once, by title.
+  const otherPublishedCourses = [
+    ...new Map(
+      course.objectives
+        .filter((objective) => objective.tasks.some(({ published }) => !published))
+        .flatMap(({ otherPublishedCourses }) => otherPublishedCourses)
+        .map((other) => [other.id, other]),
+    ).values(),
+  ].toSorted((a, b) => a.title.localeCompare(b.title));
 
   async function publish() {
+    if (publishing) return;
     setPublishing(true);
+    // What earlier attempts said goes: this one's result is what the page says.
+    setFailures(0);
+    onStart();
     try {
       await braivo.publish(
-        { organizationId: organization.id, courseIds: [courseId] },
+        {
+          organizationId: organization.id,
+          courseIds: course.published ? [] : [course.id],
+          taskIds: tasks.map(({ id }) => id),
+        },
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
       // Focus moves once the page shows it published (`sync`, as a correction's).
       await router.invalidate({ sync: true });
-      onPublished();
+      onDone(summary === "the course" ? "Course published." : `Published ${summary}.`);
     } catch (thrown) {
-      // Signed out or no longer administering it meanwhile, the guard's check,
-      // run again, says so; on 409, the page shows what is there now.
-      if (thrown instanceof BraivoError && [401, 403, 409].includes(thrown.status)) {
+      if (thrown instanceof BraivoError && thrown.status === 409) {
+        // Something it named was retired or corrected meanwhile: the page shows
+        // what is there now, saying why, so nothing is published unseen.
+        await router.invalidate({ sync: true });
+        onDone(
+          "Nothing was published: this page changed since it loaded. Review it, then publish.",
+        );
+      } else if (thrown instanceof BraivoError && [401, 403].includes(thrown.status)) {
+        // Signed out or no longer administering it meanwhile: the guard's check, run again, says so.
         await router.invalidate();
       } else {
         setFailures((count) => count + 1);
@@ -161,25 +211,69 @@ function PublishCourse(props: { courseId: string; onPublished: () => void }) {
     }
   }
 
+  const label = course.published || tasks.length > 0 ? `Publish ${summary}` : "Publish";
+  // aria-disabled, not disabled, so that it keeps the focus meanwhile; its
+  // click ignored then, opening no confirmation either.
+  const button = (onClick?: () => void) => (
+    <Button
+      size="sm"
+      aria-disabled={publishing}
+      onClick={(event) => (publishing ? event.preventDefault() : onClick?.())}
+    >
+      {publishing ? (
+        <>
+          {/* Hidden: "Publishing…" already says it. */}
+          <Spinner data-icon="inline-start" aria-hidden="true" />
+          Publishing…
+        </>
+      ) : (
+        label
+      )}
+    </Button>
+  );
+
   return (
     <div className="mb-4 flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Badge variant="outline">Needs review</Badge>
         <MutedText className="wrap-break-word">
-          Review what it teaches below: learners can't see this course until you publish it.
+          {course.published
+            ? `${taskCountLabel} below ${tasks.length === 1 ? "waits" : "wait"} for review: learners aren't asked ${tasks.length === 1 ? "it" : "them"} until you publish.`
+            : "Review what it teaches below: learners can't see this course until you publish it."}
         </MutedText>
-        {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-        <Button size="sm" aria-disabled={publishing} onClick={() => !publishing && publish()}>
-          {publishing ? (
-            <>
-              {/* Hidden: "Publishing…" already says it. */}
-              <Spinner data-icon="inline-start" aria-hidden="true" />
-              Publishing…
-            </>
-          ) : (
-            "Publish"
-          )}
-        </Button>
+        {otherPublishedCourses.length === 0 ? (
+          button(publish)
+        ) : (
+          <AlertDialog>
+            {/* Radix opens it unless the click was prevented, as while publishing. */}
+            <AlertDialogTrigger asChild>{button()}</AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Publish {summary}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Learners of{" "}
+                  {otherPublishedCourses.length === 1 ? "another course" : "other courses"} will be
+                  asked {tasks.length === 1 ? "it" : "some of them"} too:
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {/* Bounded and wrapped, so however many titles, and however long, the
+                  buttons stay in view; focusable, so a keyboard scrolls it too. */}
+              <ul
+                aria-label="Other courses"
+                tabIndex={0}
+                className="max-h-40 min-w-0 list-disc overflow-y-auto pl-6 text-sm wrap-break-word"
+              >
+                {otherPublishedCourses.map(({ id, title }) => (
+                  <li key={id}>{title}</li>
+                ))}
+              </ul>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Not yet</AlertDialogCancel>
+                <AlertDialogAction onClick={publish}>Publish</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
       {/* Gone while trying again, so it never speaks of the attempt under way. */}
       {failures > 0 && !publishing && (
@@ -254,6 +348,7 @@ function Objective(props: {
             <AuthoredTask
               key={task.id}
               task={task}
+              status={!task.published && <Badge variant="outline">Waiting</Badge>}
               action={
                 <span className="flex items-start gap-2">
                   <Button
@@ -271,11 +366,7 @@ function Objective(props: {
                   >
                     Edit
                   </Button>
-                  <RetireTask
-                    taskId={task.id}
-                    prompt={task.prompt}
-                    onRetired={() => heading.current?.focus()}
-                  />
+                  <RetireTask task={task} onRetired={() => heading.current?.focus()} />
                 </span>
               }
             >
@@ -341,9 +432,13 @@ function CorrectTask(props: {
     } catch (thrown) {
       setSaving(false);
       setError(
-        thrown instanceof BraivoError && thrown.status === 409
-          ? { text: "Someone changed or retired this task since the page loaded.", stale: true }
-          : { text: "The task could not be corrected. Try again." },
+        !(thrown instanceof BraivoError) || thrown.status !== 409
+          ? { text: "The task could not be corrected. Try again." }
+          : thrown.code === "DUPLICATE_CORRECTION"
+            ? {
+                text: "Another task of this objective is already the same. Change the correction, or retire this task.",
+              }
+            : { text: "Someone changed or retired this task since the page loaded.", stale: true },
       );
     }
   }
@@ -358,8 +453,9 @@ function CorrectTask(props: {
   return (
     <div className="flex flex-col gap-3">
       <MutedText>
-        Saving replaces the task: learners are asked the corrected one from now on, and what they
-        already answered stays.
+        {task.published
+          ? "Saving replaces the task: learners are asked the corrected one from now on, and what they already answered stays."
+          : "Saving replaces the task: the corrected one waits for review, as this one does."}
       </MutedText>
       {error && (
         <Alert variant="destructive" ref={alert} tabIndex={-1}>
@@ -391,8 +487,11 @@ function CorrectTask(props: {
  * learners stop seeing it at once. Once retired, the task and this button are
  * gone, so `onRetired` says where focus goes instead.
  */
-function RetireTask(props: { taskId: string; prompt: string; onRetired: () => void }) {
-  const { taskId, prompt, onRetired } = props;
+function RetireTask(props: {
+  task: AuthoredCourse["objectives"][number]["tasks"][number];
+  onRetired: () => void;
+}) {
+  const { task, onRetired } = props;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -406,7 +505,7 @@ function RetireTask(props: { taskId: string; prompt: string; onRetired: () => vo
     retiring.current = true;
     setError(undefined);
     try {
-      await braivo.retireTasks({ organizationId: organization.id, taskIds: [taskId] });
+      await braivo.retireTasks({ organizationId: organization.id, taskIds: [task.id] });
       // Focus moves once the task is gone from the page (`sync`, as a correction's).
       await router.invalidate({ sync: true });
       onRetired();
@@ -431,10 +530,11 @@ function RetireTask(props: { taskId: string; prompt: string; onRetired: () => vo
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Retire “{prompt}”?</AlertDialogTitle>
+            <AlertDialogTitle>Retire “{task.prompt}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              Learners will not be asked it again; what they already answered stays. To change it
-              instead, edit it.
+              {task.published
+                ? "Learners will not be asked it again; what they already answered stays. To change it instead, edit it."
+                : "It was never published, so learners have not been asked it. To change it instead, edit it."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

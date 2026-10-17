@@ -224,6 +224,11 @@ export type AuthoredCourse = ManagedCourse & {
     title: string;
     citations: { sourceId: string; start: number; end: number; quote: string }[];
     tasks: AuthoredTask[];
+    /**
+     * The organization's other published courses it is in: a task of it,
+     * once published, reaches their learners too.
+     */
+    otherPublishedCourses: { id: string; title: string }[];
   }[];
   /** Every source the passages above are from, once. */
   sources: SourceSummary[];
@@ -231,9 +236,12 @@ export type AuthoredCourse = ManagedCourse & {
 
 /**
  * A task read back as it was authored, answer included, with its ID and the
- * passages it cites — where Braivo found each, and the words there.
+ * passages it cites — where Braivo found each, and the words there. Not
+ * `published` while it waits for its owner to publish it in the console,
+ * offered in no course (ADR 0039).
  */
 export type AuthoredTask = content.TaskBody & {
   id: string;
   citations: { sourceId: string; start: number; end: number; quote: string }[];
+  published: boolean;
 };

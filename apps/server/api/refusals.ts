@@ -13,6 +13,7 @@ import {
   ConflictingEvidence,
   ConflictingGroupRole,
   ConflictingKey,
+  DuplicateCorrection,
   FilesUnavailable,
   InvalidAiRequest,
   InvalidCitation,
@@ -23,6 +24,7 @@ import {
   InvalidTask,
   ModelUnavailable,
   NotPermitted,
+  PublishedTask,
   StaleCorrection,
   StalePublication,
 } from "../application/index.ts";
@@ -62,6 +64,10 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   ) {
     return context.json({ error: error.message }, 409);
   }
+  // Coded, so the console tells it from a stale correction, the other 409 an edit meets.
+  if (error instanceof DuplicateCorrection) {
+    return context.json({ error: error.message, code: "DUPLICATE_CORRECTION" }, 409);
+  }
   // Coded, so a client tells its AI being off from other refusals of the same status.
   if (error instanceof AiUnavailable) {
     return context.json({ error: error.message, code: "AI_UNAVAILABLE" }, 501);
@@ -75,6 +81,8 @@ export function organizationRefusal(context: Context, error: unknown): Response 
     return context.json({ error: error.message }, 429);
   }
   if (error instanceof ModelUnavailable) return context.json({ error: error.message }, 502);
+  // Explained, unlike other 403s: the same person may do it in the console (ADR 0039).
+  if (error instanceof PublishedTask) return context.json({ error: error.message }, 403);
   if (error instanceof NotPermitted) return context.body(null, 403);
   throw error;
 }

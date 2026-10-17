@@ -290,6 +290,8 @@ async function seedClassroom(input: {
       })),
     ),
     now: createdAt,
+    // As the console writes them: the demo's learners practise them.
+    byTool: false,
   });
   const courseEnglish = await defineCourse({
     ...authoring,

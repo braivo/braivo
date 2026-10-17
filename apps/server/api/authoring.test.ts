@@ -7,7 +7,9 @@
 // route, and each write's refusals and body limit, is `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
+import { task as taskTable } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
@@ -519,6 +521,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         },
       ],
       at,
+      { published: true },
     );
     const asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
     const inConsole = { "content-type": "application/json", cookie: teacher.cookie };
@@ -601,6 +604,322 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect((await next(proposed, learner.cookie)).status).toBe(200);
     expect((await postAttempt(proposed, attempt, learner.cookie)).status).toBe(200);
     expect(await stored(learner.id)).toHaveLength(1);
+  });
+
+  describe("task publication", () => {
+    let asTool!: Record<string, string>;
+    let inConsole!: Record<string, string>;
+    beforeAll(() => {
+      asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
+      inConsole = { "content-type": "application/json", cookie: teacher.cookie };
+    });
+    const choice = (prompt: string) => ({
+      kind: "choice",
+      prompt,
+      options: ["yes", "no"],
+      answer: 0,
+    });
+    const write = (headers: Record<string, string>, tasks: unknown[]) =>
+      api.request(`/api/organizations/${organizationId}/tasks`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ tasks }),
+      });
+    const written = async (headers: Record<string, string>, tasks: unknown[]) => {
+      const response = await write(headers, tasks);
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { taskIds: string[] }).taskIds;
+    };
+    const retire = (headers: Record<string, string>, taskIds: string[]) =>
+      api.request(`/api/organizations/${organizationId}/tasks/retire`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ taskIds }),
+      });
+    const publish = (headers: Record<string, string>, body: unknown) =>
+      api.request(`/api/organizations/${organizationId}/publish`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    /** An objective's tasks as its administrators read them: ID and whether it is published. */
+    const states = async (objectiveId: string) => {
+      const response = await api.request(
+        `/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`,
+        { headers: { cookie: teacher.cookie } },
+      );
+      expect(response.status).toBe(200);
+      const { tasks } = (await response.json()) as { tasks: { id: string; published: boolean }[] };
+      return tasks.map(({ id, published }) => [id, published]);
+    };
+    /** The task a learner is offered in a course, if any. */
+    const offered = async (courseId: string) => {
+      const response = await api.request(`/api/courses/${courseId}/activity?timeZone=UTC`, {
+        headers: { cookie: learner.cookie },
+      });
+      expect(response.status).toBe(200);
+      return ((await response.json()) as { task?: { id: string } }).task?.id;
+    };
+    const publishedAt = async (taskIds: string[]) =>
+      (
+        await database
+          .select({ id: taskTable.id, publishedAt: taskTable.publishedAt })
+          .from(taskTable)
+          .where(inArray(taskTable.id, taskIds))
+          .orderBy(taskTable.id)
+      ).map((row) => row.publishedAt?.getTime() ?? null);
+    const published = async (taskIds: string[]) =>
+      (await publishedAt(taskIds)).map((time) => time !== null);
+    /** An objective of its own in two published courses, so nothing here reaches another test. */
+    const sharedObjective = async (title: string) => {
+      const [objectiveId] = (await createObjectives(database, organizationId, [title])) as [string];
+      const courses = await Promise.all(
+        ["One", "Two"].map((course) =>
+          createCourse(database, {
+            published: true,
+            organizationId,
+            title: `${title}: ${course}`,
+            objectiveIds: [objectiveId],
+          }),
+        ),
+      );
+      return { objectiveId, courses: courses as [string, string] };
+    };
+
+    test("keeps a tool's tasks from learners in every course until a person publishes them", async () => {
+      const { objectiveId, courses } = await sharedObjective("Shared");
+      const tasks = await written(
+        asTool,
+        ["1", "2", "3", "4", "5"].map((prompt) => ({ objectiveId, ...choice(prompt) })),
+      );
+
+      // Waiting: in neither course an activity, nor answerable by naming it.
+      for (const course of courses) expect(await offered(course)).toBeUndefined();
+      const attempt = { id: "waiting-attempt", taskId: tasks[0], response: { choice: 0 } };
+      expect((await postAttempt(courses[0], attempt, learner.cookie)).status).toBe(404);
+      expect(await stored(learner.id)).toEqual([]);
+      // Its administrators read them, told they wait, and which other course they would reach.
+      expect(await states(objectiveId)).toEqual(tasks.map((id) => [id, false]));
+      const page = (await (
+        await api.request(`/api/organizations/${organizationId}/courses/${courses[0]}`, {
+          headers: { cookie: teacher.cookie },
+        })
+      ).json()) as {
+        objectives: { tasks: { published: boolean }[]; otherPublishedCourses: { id: string }[] }[];
+      };
+      expect(page.objectives[0]!.tasks.map(({ published }) => published)).toEqual(
+        tasks.map(() => false),
+      );
+      expect(page.objectives[0]!.otherPublishedCourses).toEqual([
+        { id: courses[1], title: "Shared: Two" },
+      ]);
+
+      // Two of them published, in the console: both courses offer them, the rest still wait.
+      expect((await publish(inConsole, { taskIds: tasks.slice(0, 2) })).status).toBe(204);
+      for (const course of courses) expect(tasks.slice(0, 2)).toContain(await offered(course));
+      expect(await states(objectiveId)).toEqual(tasks.map((id, index) => [id, index < 2]));
+      const waiting = { id: "still-waiting", taskId: tasks[2], response: { choice: 0 } };
+      expect((await postAttempt(courses[1], waiting, learner.cookie)).status).toBe(404);
+      expect((await postAttempt(courses[1], attempt, learner.cookie)).status).toBe(200);
+    });
+
+    test("refuses a tool changing published practice, letting it change its own waiting tasks", async () => {
+      const { objectiveId, courses } = await sharedObjective("Guarded");
+      const [live] = (await written(inConsole, [{ objectiveId, ...choice("Live") }])) as [string];
+      const [proposed] = (await written(asTool, [{ objectiveId, ...choice("Proposed") }])) as [
+        string,
+      ];
+      expect(await states(objectiveId)).toEqual([
+        [live, true],
+        [proposed, false],
+      ]);
+
+      // Correcting or retiring a published task is the console's, explained.
+      const correction = await write(asTool, [
+        { objectiveId, ...choice("Live"), answer: 1, replaces: live },
+      ]);
+      expect(correction.status).toBe(403);
+      expect(await correction.json()).toEqual({
+        error: expect.stringContaining("Braivo's console"),
+      });
+      // Refused first, whatever it asks for: the task unchanged, or another one's twin.
+      for (const unchanged of [choice("Live"), choice("Proposed")]) {
+        const refused = await write(asTool, [{ objectiveId, ...unchanged, replaces: live }]);
+        expect(refused.status).toBe(403);
+      }
+      const retirement = await retire(asTool, [proposed, live]);
+      expect(retirement.status).toBe(403);
+      expect(await retirement.json()).toEqual({
+        error: expect.stringContaining("Braivo's console"),
+      });
+      // Nothing changed: the published task still offered, the proposal still there.
+      expect(await states(objectiveId)).toEqual([
+        [live, true],
+        [proposed, false],
+      ]);
+      expect(await offered(courses[0])).toBe(live);
+      // Its own waiting task, a tool may correct and retire; the correction waits too.
+      const [corrected] = (await written(asTool, [
+        { objectiveId, ...choice("Proposed"), answer: 1, replaces: proposed },
+      ])) as [string];
+      expect(await states(objectiveId)).toEqual([
+        [live, true],
+        [corrected, false],
+      ]);
+      expect((await retire(asTool, [corrected])).status).toBe(204);
+      expect(await states(objectiveId)).toEqual([[live, true]]);
+
+      // In the console, a correction takes the state of the task it replaces.
+      const [draft] = (await written(asTool, [{ objectiveId, ...choice("Draft") }])) as [string];
+      const [redrafted] = (await written(inConsole, [
+        { objectiveId, ...choice("Draft"), answer: 1, replaces: draft },
+      ])) as [string];
+      const [fixed] = (await written(inConsole, [
+        { objectiveId, ...choice("Live"), answer: 1, replaces: live },
+      ])) as [string];
+      expect(await states(objectiveId)).toEqual([
+        [redrafted, false],
+        [fixed, true],
+      ]);
+      // Equal to another task of the objective: refused, coded apart from a stale correction.
+      const duplicate = await write(inConsole, [
+        { objectiveId, ...choice("Draft"), answer: 1, replaces: fixed },
+      ]);
+      expect(duplicate.status).toBe(409);
+      expect(await duplicate.json()).toMatchObject({ code: "DUPLICATE_CORRECTION" });
+      expect((await retire(inConsole, [fixed])).status).toBe(204);
+
+      // Retired since, a published task is still not a tool's to change.
+      const late = [
+        await write(asTool, [{ objectiveId, ...choice("Live"), answer: 0, replaces: fixed }]),
+        await retire(asTool, [fixed]),
+      ];
+      expect(late.map(({ status }) => status)).toEqual([403, 403]);
+      for (const response of late) {
+        expect(await response.json()).toEqual({ error: expect.stringContaining("retired") });
+      }
+    });
+
+    test("publishes all or nothing, only from the console, a retry changing nothing", async () => {
+      const { objectiveId } = await sharedObjective("Atomic");
+      const create = await api.request(`/api/organizations/${organizationId}/courses`, {
+        method: "POST",
+        headers: asTool,
+        body: JSON.stringify({ title: "Atomic: proposed", objectiveIds: [objectiveId] }),
+      });
+      const { courseId: proposed } = (await create.json()) as { courseId: string };
+      const [first, second, withdrawn, superseded] = (await written(
+        asTool,
+        ["1", "2", "3", "4"].map((prompt) => ({ objectiveId, ...choice(prompt) })),
+      )) as [string, string, string, string];
+      expect((await retire(asTool, [withdrawn])).status).toBe(204);
+      await written(inConsole, [{ objectiveId, ...choice("4"), answer: 1, replaces: superseded }]);
+      const [theirs] = (await createObjectives(database, otherOrganizationId, ["Theirs too"])) as [
+        string,
+      ];
+      const foreign = await testing.createTask(database, {
+        organizationId: otherOrganizationId,
+        objectiveId: theirs,
+        body: choice("Theirs"),
+        createdAt: at,
+        publishedAt: null,
+      });
+      const courseShown = async () =>
+        (
+          (await (
+            await api.request(`/api/organizations/${organizationId}/courses/${proposed}`, {
+              headers: { cookie: teacher.cookie },
+            })
+          ).json()) as { published: boolean }
+        ).published;
+
+      // Refused whole: a task retired or replaced since, another organization's, a tool.
+      for (const stale of [withdrawn, superseded]) {
+        const response = await publish(inConsole, {
+          courseIds: [proposed],
+          taskIds: [first, stale],
+        });
+        expect(response.status).toBe(409);
+      }
+      expect((await publish(inConsole, { taskIds: [first, foreign] })).status).toBe(403);
+      expect((await publish(asTool, { courseIds: [proposed], taskIds: [first] })).status).toBe(403);
+      expect(await published([first, foreign])).toEqual([false, false]);
+      expect(await courseShown()).toBe(false);
+      // Up to 10,000 IDs in all: a course page's whole waiting work, in one request.
+      const tooMany = {
+        courseIds: [proposed],
+        taskIds: Array.from({ length: 10_000 }, () => first),
+      };
+      for (const body of [{}, { taskIds: [] }, { taskIds: [""] }, { taskIds: "x" }, tooMany]) {
+        expect((await publish(inConsole, body)).status).toBe(400);
+      }
+
+      // The course and its tasks together; sent again, the same answer and nothing changed.
+      const both = { courseIds: [proposed], taskIds: [first, second] };
+      expect((await publish(inConsole, both)).status).toBe(204);
+      expect(await courseShown()).toBe(true);
+      const when = await publishedAt([first, second]);
+      expect(when.every((time) => time !== null)).toBe(true);
+      expect((await publish(inConsole, both)).status).toBe(204);
+      expect(await publishedAt([first, second])).toEqual(when);
+      // 10,000 IDs in all are taken, a repeat counted as often as it is sent.
+      const atLimit = {
+        courseIds: [proposed],
+        taskIds: Array.from({ length: 9_999 }, () => first),
+      };
+      expect((await publish(inConsole, atLimit)).status).toBe(204);
+      expect(await publishedAt([first, second])).toEqual(when);
+    });
+
+    test("holds a bank's import at its size: 257 tasks in two batches, 20 published", async () => {
+      const objectiveIds = await createObjectives(
+        database,
+        organizationId,
+        Array.from({ length: 25 }, (_, index) => `Quesito ${index + 1}`),
+      );
+      const course = await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Patente: primi 25 quesiti",
+        objectiveIds,
+      });
+      const statements = Array.from({ length: 257 }, (_, index) => ({
+        objectiveId: objectiveIds[index % 25],
+        ...choice(`Statement ${index + 1}`),
+        options: ["Vero", "Falso"],
+        keepOrder: true,
+      }));
+      const taskIds = [
+        ...(await written(asTool, statements.slice(0, 130))),
+        ...(await written(asTool, statements.slice(130))),
+      ];
+      const waiting = async () => {
+        const response = await api.request(
+          `/api/organizations/${organizationId}/courses/${course}`,
+          { headers: { cookie: teacher.cookie } },
+        );
+        expect(response.status).toBe(200);
+        const { objectives } = (await response.json()) as {
+          objectives: { tasks: { published: boolean }[] }[];
+        };
+        return objectives.flatMap(({ tasks }) => tasks).filter(({ published }) => !published)
+          .length;
+      };
+      expect(new Set(taskIds).size).toBe(257);
+      expect(await waiting()).toBe(257);
+
+      // The reviewer's selection, captured before a later task arrives.
+      const selection = taskIds.slice(0, 20);
+      await written(asTool, [{ objectiveId: objectiveIds[0], ...choice("Arrived later") }]);
+      expect((await publish(inConsole, { taskIds: selection })).status).toBe(204);
+      expect(await waiting()).toBe(238);
+      expect(await published(taskIds)).toEqual(
+        taskIds
+          .map((id, index) => [id, index < 20] as const)
+          .toSorted(([a], [b]) => (a < b ? -1 : 1))
+          .map(([, state]) => state),
+      );
+    });
   });
 
   test("lists the courses an organization has", async () => {
@@ -847,6 +1166,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         },
       ],
       at,
+      { published: true },
     );
     const colors = await createCourse(database, {
       published: true,
@@ -868,7 +1188,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       urlLabel: "colores",
       published: true,
       objectives: [
-        { id: blue, title: "Blue", citations: [], tasks: [] },
+        { id: blue, title: "Blue", citations: [], tasks: [], otherPublishedCourses: [] },
         {
           id: red,
           title: "Red",
@@ -881,8 +1201,10 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
               options: ["red", "blue"],
               answer: 0,
               citations: [],
+              published: true,
             },
           ],
+          otherPublishedCourses: [],
         },
       ],
       sources: [{ id: sourceId, title: "Colores", createdAt: expect.any(String) }],
@@ -904,6 +1226,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         },
       ],
       at,
+      { published: true },
     );
     const read = (objectiveId: string, cookie: string) =>
       api.request(`/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`, {
@@ -921,6 +1244,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           options: ["three", "four"],
           answer: 0,
           citations: [],
+          published: true,
         },
       ],
     });

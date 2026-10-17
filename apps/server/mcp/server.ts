@@ -59,15 +59,17 @@ exactly once.
 To build a course:
 ${PREPARING}
 4. author_tasks: questions that practise each objective, each citing the words
-   it was written from.
+   it was written from. They wait for its owner to publish them in Braivo's
+   console; no tool can.
 5. create_course: the objectives in the order learners should meet them. It
-   waits for its owner to publish it in Braivo's console; no tool can.
+   waits for publishing too.
 
 To review a course, read_course shows it whole, and list_tasks one objective's
-tasks, with their answers and quotes. Tasks are never edited: author_tasks with
-replaces, one task a call, writes a wrong one's correction and retires it, and
-retire_tasks withdraws one. Either changes every course the objective is in,
-reaching learners at once in a published one, and neither regrades what learners already answered.
+tasks, with their answers and quotes, each saying whether it is published.
+Tasks are never edited: author_tasks with replaces, one task a call, writes a
+waiting one's correction and retires it, and retire_tasks withdraws a waiting
+one. A published task is corrected or retired in Braivo's console, by its
+owner; neither regrades what learners already answered.
 
 For progress, course_progress gives a course's overview and learner_progress
 one learner's report; list_groups and course_progress give the userId it takes.
@@ -75,8 +77,8 @@ Send includeHistory: false unless the dated outcomes are needed.
 
 ${QUOTING}
 
-A repeated call adds nothing twice: a source, or a task offered now, is
-returned; a retired task sent again is added anew.
+A repeated call adds nothing twice: a source, or a task there now, waiting or
+published, is returned; a retired task sent again is added anew.
 ${KEYS}`;
 
 /** `INSTRUCTIONS` for a catalog without the tools that reach learners, naming none of them. */
@@ -451,7 +453,7 @@ export function createMcpServer(
       .min(1)
       .optional()
       .describe(
-        "The ID of the task this corrects, of the same objective, retired in the same step. Send it alone; repeating it is safe. If that task is already retired, this succeeds only when exactly this task is offered; otherwise list the tasks again.",
+        "The ID of the waiting task this corrects, of the same objective, retired in the same step; a published one is corrected in Braivo's console. Send it alone; repeating it is safe. If that task is already retired, this succeeds only when exactly this task is there; otherwise list the tasks again.",
       ),
   };
 
@@ -461,7 +463,7 @@ export function createMcpServer(
       {
         title: "Author tasks",
         description:
-          "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Returns their IDs in order; a task offered already returns its ID, so retrying is safe, and a retired one is added anew. Tasks are never edited: one task sent alone with replaces corrects an existing one. A task serves every course its objective is in, reaching learners at once in a published one; a correction regrades nothing already answered.",
+          "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Returns their IDs in order; a task there already, waiting or published, returns its ID, so retrying is safe, and a retired one is added anew. New tasks wait for the content owner to publish them in Braivo's console, which you cannot do; published, a task serves every course its objective is in. Tasks are never edited: one task sent alone with replaces corrects a waiting one; a correction regrades nothing already answered.",
         inputSchema: z.object({
           organizationId,
           tasks: z
@@ -527,7 +529,7 @@ export function createMcpServer(
     {
       title: "List tasks",
       description:
-        "An objective's tasks learners are offered, oldest first, each with its ID, answer, and the passages it cites. Read them before writing more, to review a course or to avoid near-duplicates.",
+        "An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it. Read them before writing more, to review a course or to avoid near-duplicates.",
       inputSchema: z.object({ organizationId, objectiveId: z.string().min(1) }),
       annotations: READ_ONLY,
     },
@@ -540,7 +542,7 @@ export function createMcpServer(
       {
         title: "Retire tasks",
         description:
-          "Withdraws tasks from practice: learners are never asked them again; the evidence they already graded stays as it was. A task serves every course its objective is in, so retiring it changes published ones at once. Returns the tasks' IDs, each once, those retired earlier included. To correct a task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
+          "Withdraws tasks still waiting to be published: learners are never asked them. A published task is retired in Braivo's console, by its owner; naming one refuses the whole call. Returns the tasks' IDs, each once, waiting ones retired earlier included. To correct a waiting task instead, use author_tasks with replaces. Ask the content owner before retiring tasks you did not just write.",
         inputSchema: z.object({
           organizationId,
           taskIds: z.array(z.string().min(1)).min(1).max(1000),

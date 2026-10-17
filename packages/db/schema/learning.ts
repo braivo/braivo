@@ -277,6 +277,11 @@ export const task = pgTable(
      * after, and accepts no new attempt; kept, since attempts point at it.
      */
     retiredAt: timestamp("retired_at", { withTimezone: true, mode: "date" }),
+    /**
+     * When it was published; `null` while it waits, as a tool's task does,
+     * offered in no course (docs/adr/0039-published-in-the-console.md).
+     */
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     // Matching the organization, as `course_objective` does, so a task cannot

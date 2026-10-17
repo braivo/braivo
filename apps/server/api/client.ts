@@ -415,13 +415,15 @@ export type BraivoClient = {
   listCourses(organizationId: string, options?: RequestOptions): Promise<ManagedCourse[]>;
 
   /**
-   * Publishes what a person reviewed, the organization's courses `courseIds`,
-   * all or none, so learners reach them (ADR 0039). Only from a browser: a
-   * tool's token is refused, 403. One the organization has not fails it all, a
-   * {@link BraivoError} with status 409: reload and publish what is shown.
+   * Publishes what a person reviewed, the organization's courses `courseIds`
+   * and tasks `taskIds`, all or none, so learners reach them (ADR 0039). Only
+   * from a browser: a tool's token is refused, 403. A course the organization
+   * has not, or a task retired or corrected since, fails it all, a
+   * {@link BraivoError} with status 409: reload and publish what is shown;
+   * another organization's task, 403.
    */
   publish(
-    input: { organizationId: string; courseIds: string[] },
+    input: { organizationId: string; courseIds?: string[]; taskIds?: string[] },
     options?: RequestOptions,
   ): Promise<void>;
 
@@ -564,7 +566,12 @@ export type BraivoClient = {
    *
    * A task naming one it `replaces`, sent alone for the same objective, is its
    * correction: that task is retired with it. Repeating one is safe; a 409
-   * means someone changed the task first.
+   * means someone changed the task first, or, coded `DUPLICATE_CORRECTION`,
+   * that another task is the same.
+   *
+   * Added with a tool's token, a task waits until its owner publishes it in
+   * Braivo's console; a correction keeps the state of the task it replaces,
+   * and a tool's of a task once published is a 403 whose `reason` says so.
    */
   defineTasks(
     input: { organizationId: string; tasks: readonly TaskDraft[] },
@@ -572,10 +579,10 @@ export type BraivoClient = {
   ): Promise<string[]>;
 
   /**
-   * An objective's tasks still offered, oldest first, as authored — answers
-   * included — with the passages each cites. An objective the organization
-   * does not have is a {@link BraivoError} with status 404; one the session
-   * may not administer, 403.
+   * An objective's unretired tasks, published or waiting, oldest first, as
+   * authored — answers included — with the passages each cites. An objective
+   * the organization does not have is a {@link BraivoError} with status 404;
+   * one the session may not administer, 403.
    */
   listTasks(
     input: { organizationId: string; objectiveId: string },
@@ -653,7 +660,8 @@ export type BraivoClient = {
    * Withdraws tasks from practice: never offered or answered again, their
    * evidence kept. To correct one instead, add its correction with `replaces`.
    * All or nothing: a task not the organization's is a {@link BraivoError}
-   * with status 403.
+   * with status 403, as is one once published, retired with a tool's token,
+   * whose `reason` says why.
    */
   retireTasks(
     input: { organizationId: string; taskIds: readonly string[] },
@@ -1098,14 +1106,14 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return courses;
     },
 
-    async publish({ organizationId, courseIds }, requestOptions) {
+    async publish({ organizationId, courseIds = [], taskIds = [] }, requestOptions) {
       const response = await post(
         `${organizationPath(organizationId)}/publish`,
-        { courseIds },
+        { courseIds, taskIds },
         requestOptions,
       );
 
-      const doing = `publishing courses of organization "${organizationId}"`;
+      const doing = `publishing in organization "${organizationId}"`;
       if (response.status !== 204) throw await unexpected(response, doing);
     },
 

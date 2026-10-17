@@ -11,9 +11,10 @@ import { MutedText } from "./muted-text.tsx";
 /**
  * A task as written, for reviewing rather than answering: a choice task's
  * options in their order, the correct one marked in words; a typed task's
- * accepted answers, the one a learner who missed is shown marked. `action` is
- * what the reviewer can do with it (retire it, say); `children` the passages
- * it was written from, as `SourcePassage`s.
+ * accepted answers, the one a learner who missed is shown marked. `status`
+ * says where it stands (waiting for review, say); `action` is what the
+ * reviewer can do with it (retire it, say); `children` the passages it was
+ * written from, as `SourcePassage`s.
  */
 export function AuthoredTask(props: {
   task:
@@ -26,16 +27,18 @@ export function AuthoredTask(props: {
         explanation?: string;
       }
     | { kind: "typed"; prompt: string; accepted: readonly string[]; explanation?: string };
+  status?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
 }) {
-  const { task, action, children } = props;
+  const { task, status, action, children } = props;
 
   return (
     <Card size="sm">
       <CardHeader>
         <CardTitle>{task.prompt}</CardTitle>
         {action && <CardAction>{action}</CardAction>}
+        {status && <div>{status}</div>}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {task.kind === "choice" ? (

@@ -80,15 +80,15 @@ describe.skipIf(!connectionString)("recording an attempt", () => {
   });
 
   test("refuses one on a retired task, recording nothing", async () => {
-    await markTasksRetired(database, [taskId], at);
+    await markTasksRetired(database, [taskId], at, { byTool: false });
 
     await expect(record("after")).rejects.toBeInstanceOf(RetiredTask);
     expect(await database.select().from(attempt).where(eq(attempt.taskId, taskId))).toEqual([]);
   });
 
   test("retiring again keeps the first date", async () => {
-    await markTasksRetired(database, [taskId], at);
-    await markTasksRetired(database, [taskId], new Date(at.getTime() + 1000));
+    await markTasksRetired(database, [taskId], at, { byTool: false });
+    await markTasksRetired(database, [taskId], new Date(at.getTime() + 1000), { byTool: false });
 
     const [stored] = await database
       .select({ retiredAt: task.retiredAt })
@@ -140,6 +140,7 @@ describe.skipIf(!connectionString)("storing a task and an attempt", () => {
       organizationId,
       [{ objectiveId: objective, body }],
       at,
+      { published: true },
     )) as [string];
     await recordAttempt(database, {
       learnerId: learner,
@@ -195,6 +196,7 @@ describe.skipIf(!connectionString)("task invariants", () => {
       ownerId,
       [{ objectiveId, body, citations: [{ sourceId, start: 0, end: 6 }] }],
       at,
+      { published: true },
     )) as [string];
     const stored = () =>
       Promise.all([
@@ -209,22 +211,19 @@ describe.skipIf(!connectionString)("task invariants", () => {
     // organization is what refuses it, as for a course's objectives.
     const [theirs] = (await createObjectives(database, otherId, ["Theirs"])) as [string];
 
-    const error = await createTasks(database, ownerId, [{ objectiveId: theirs, body }], at).catch(
-      (thrown: unknown) => thrown,
-    );
+    const error = await createTasks(database, ownerId, [{ objectiveId: theirs, body }], at, {
+      published: true,
+    }).catch((thrown: unknown) => thrown);
 
     expect(violatedConstraint(error)).toBe("task_objective_fk");
   });
 
   test("refuses to delete an objective even after its task is retired", async () => {
     const [assessed] = (await createObjectives(database, ownerId, ["Assessed"])) as [string];
-    const [taskId] = (await createTasks(
-      database,
-      ownerId,
-      [{ objectiveId: assessed, body }],
-      at,
-    )) as [string];
-    await markTasksRetired(database, [taskId], at);
+    const [taskId] = (await createTasks(database, ownerId, [{ objectiveId: assessed, body }], at, {
+      published: true,
+    })) as [string];
+    await markTasksRetired(database, [taskId], at, { byTool: false });
 
     const error = await database
       .delete(objective)
@@ -240,7 +239,7 @@ describe.skipIf(!connectionString)("task invariants", () => {
     const { taskId, stored } = await citedTask("Retired");
     const [[before], cited] = await stored();
 
-    await markTasksRetired(database, [taskId], at);
+    await markTasksRetired(database, [taskId], at, { byTool: false });
 
     expect(await stored()).toEqual([[{ ...before, retiredAt: at }], cited]);
   });
@@ -260,6 +259,7 @@ describe.skipIf(!connectionString)("task invariants", () => {
         citations: [{ sourceId, start: 7, end: 13 }],
       },
       later,
+      { byTool: false },
     );
 
     expect(await stored()).toEqual([[{ ...before, retiredAt: later }], cited]);
@@ -269,12 +269,9 @@ describe.skipIf(!connectionString)("task invariants", () => {
     // A retirement taken around an adder's lock could retire a twin the adder
     // has just answered as live (`markTasksRetired`).
     const [locked] = (await createObjectives(database, ownerId, ["Locked"])) as [string];
-    const [taskId] = (await createTasks(
-      database,
-      ownerId,
-      [{ objectiveId: locked, body }],
-      at,
-    )) as [string];
+    const [taskId] = (await createTasks(database, ownerId, [{ objectiveId: locked, body }], at, {
+      published: true,
+    })) as [string];
     // As `lockObjectiveTasks` names it.
     const key = sql`hashtextextended(${`braivo:task:${locked}`}, 0)`;
     let held!: () => void;
@@ -289,7 +286,7 @@ describe.skipIf(!connectionString)("task invariants", () => {
     await isHeld;
 
     let done = false;
-    const retiring = markTasksRetired(database, [taskId], at);
+    const retiring = markTasksRetired(database, [taskId], at, { byTool: false });
     retiring.then(
       () => (done = true),
       () => (done = true),

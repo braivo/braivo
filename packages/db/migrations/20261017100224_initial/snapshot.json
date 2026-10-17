@@ -1,10 +1,10 @@
 {
-  "id": "48223334-e7da-4298-b215-768f0ac17c9d",
-  "prevIds": [
-    "8095e49f-508a-4f60-bd8f-70d8c38bdc80"
-  ],
   "version": "8",
   "dialect": "postgres",
+  "id": "f61e4402-8d05-4334-826e-9dec2b1a8878",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
       "values": [
@@ -3566,6 +3566,19 @@
       "generated": null,
       "identity": null,
       "name": "retired_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "task"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "published_at",
       "entityType": "columns",
       "schema": "public",
       "table": "task"
