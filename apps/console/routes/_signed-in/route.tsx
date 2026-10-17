@@ -177,10 +177,12 @@ function SignedIn() {
             {/* Radix lays the content out as a table (inline style), which
                 grows with its widest line, a long word or a list, past the
                 viewport, which clips it: as a block, it takes the viewport's
-                width and wraps. */}
+                width and wraps. Below `md` the page scrolls, not the viewport,
+                whose inline overflow would still hold a sticky element inside
+                it, unstuck: visible there. */}
             <ScrollArea
               data-page-scroller=""
-              className="md:min-h-0 md:flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!"
+              className="md:min-h-0 md:flex-1 max-md:[&>[data-slot=scroll-area-viewport]]:overflow-visible! [&>[data-slot=scroll-area-viewport]>div]:block!"
             >
               <div className="mx-auto w-full max-w-3xl p-6 pt-2">
                 <Outlet />

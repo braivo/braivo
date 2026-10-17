@@ -975,6 +975,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           title: "Spanish",
           urlLabel: "spanish",
           published: true,
+          waitingTaskCount: 0,
         },
       ]),
     });
@@ -1171,6 +1172,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         title: course.title,
         urlLabel: expect.any(String),
         published: true,
+        waitingTaskCount: 0,
       },
     ]);
   });

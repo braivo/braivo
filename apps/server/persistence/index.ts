@@ -14,6 +14,7 @@ export {
   readCourseOrganization,
   readCourses,
   readPublishedCoursesByObjective,
+  readWaitingTaskCounts,
   updateCourseUrlLabel,
   readLearnerCourses,
 } from "./course.ts";

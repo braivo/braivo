@@ -22,6 +22,7 @@ import {
   readObjectiveTitles,
   readPublishedCoursesByObjective,
   readSources,
+  readWaitingTaskCounts,
   type SourceSummary,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
@@ -156,17 +157,27 @@ export async function setCourseUrlLabel(input: {
   return updateCourseUrlLabel(database, { organizationId, courseId, urlLabel, previous });
 }
 
+/**
+ * A course as its organization lists it: with how many of its tasks wait for
+ * review, so a published course with new work is found from the list.
+ */
+export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
+
 /** Every course an organization has, for whoever administers it. */
 export async function listCourses(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
-}): Promise<ManagedCourse[]> {
+}): Promise<CourseSummary[]> {
   const { database, organizationId, actingAs } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
-  return readCourses(database, organizationId);
+  const [courses, waiting] = await Promise.all([
+    readCourses(database, organizationId),
+    readWaitingTaskCounts(database, organizationId),
+  ]);
+  return courses.map((course) => ({ ...course, waitingTaskCount: waiting.get(course.id) ?? 0 }));
 }
 
 /**

@@ -12,6 +12,7 @@ import { createObjectives, readCourseObjectives } from "../persistence/index.ts"
 import { defineCourse, listCourses } from "./courses.ts";
 import { InvalidDefinition } from "./objectives.ts";
 import { NotPermitted } from "./permission.ts";
+import { defineTasks, retireTasks } from "./tasks.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -81,8 +82,53 @@ describe.skipIf(!connectionString)("defining courses", () => {
         title: "Spanish",
         urlLabel: "spanish",
         published: true,
+        waitingTaskCount: 0,
       },
     ]);
+  });
+
+  test("lists each course with the tasks of its objectives waiting for review", async () => {
+    const both = await define([alpha, bravo], author, "Both");
+    const shared = await define([bravo], author, "Shared");
+    const none = await define([alpha], author, "None");
+    const write = (objectiveId: string, prompts: string[], byTool: boolean) =>
+      defineTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        tasks: prompts.map((prompt) => ({
+          objectiveId,
+          body: { kind: "choice", prompt, options: ["Yes", "No"], answer: 0 },
+        })),
+        now: at,
+        byTool,
+      });
+    // Published, from the console: nothing to review.
+    await write(alpha, ["Published?"], false);
+    const [, retired] = await write(bravo, ["Waiting?", "Retired?", "Also waiting?"], true);
+    await retireTasks({
+      database,
+      organizationId,
+      actingAs: author,
+      taskIds: [retired!],
+      now: at,
+      byTool: true,
+    });
+
+    const waiting = new Map(
+      (await listCourses({ database, organizationId, actingAs: author })).map((course) => [
+        course.id,
+        course.waitingTaskCount,
+      ]),
+    );
+    // A task of an objective two courses share waits in both.
+    expect(waiting).toEqual(
+      new Map([
+        [both, 2],
+        [shared, 2],
+        [none, 0],
+      ]),
+    );
   });
 
   test("refuses an objective another organization owns, as a refusal", async () => {
@@ -128,6 +174,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       title: "Trimmed",
       urlLabel: "trimmed",
       published: true,
+      waitingTaskCount: 0,
     });
   });
 
