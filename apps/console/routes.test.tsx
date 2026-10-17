@@ -19,7 +19,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "./lib/context.ts";
-import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS } from "./lib/deadline.ts";
+import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, bodyDeadline } from "./lib/deadline.ts";
 import { PAGE_SCROLLER } from "./lib/page-scroller.ts";
 import { createConsoleRouter } from "./router.tsx";
 
@@ -2990,14 +2990,17 @@ describe("the console", () => {
     });
 
     await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
-    expect(addSource).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      title: "Unidad 1",
-      text: "Hola.",
-      url: "https://example.com/unidad-1",
-      language: "es",
-      original: undefined,
-    });
+    expect(addSource).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        title: "Unidad 1",
+        text: "Hola.",
+        url: "https://example.com/unidad-1",
+        language: "es",
+        original: undefined,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   test("titles material from its file's name, never over a title typed", async () => {
@@ -3284,7 +3287,7 @@ describe("the console", () => {
     });
 
     await vi.waitFor(() => expect(signal?.aborted).toBe(true));
-    expect(uploading).toBe(signal);
+    expect(uploading?.aborted).toBe(true);
   });
 
   test("has Braivo's AI read an attached file when no text is pasted", async () => {
@@ -3312,6 +3315,7 @@ describe("the console", () => {
     );
     expect(addSource).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Mi libro", pages, original: "f".repeat(64) }),
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -3376,6 +3380,7 @@ describe("the console", () => {
     await vi.waitFor(() =>
       expect(addSource).toHaveBeenCalledWith(
         expect.objectContaining({ text: "Hola.", original: "f".repeat(64) }),
+        { signal: expect.any(AbortSignal) },
       ),
     );
   });
@@ -3477,20 +3482,189 @@ describe("the console", () => {
     expect(readFileText).toHaveBeenCalledTimes(1);
   });
 
-  test("asks for text or a file, having neither", async () => {
+  test("asks for text or a file, having neither, at the Text field and anew each time", async () => {
     const addSource = vi.fn();
     renderAt("/example/sources", { braivo: { ...added, addSource } });
     await screen.findByText("No material yet");
 
     addMaterial({ title: "Nada", text: "  " });
 
-    expect(
-      await screen.findByText(
-        "Paste the material's text, or attach the file for Braivo's AI to read.",
-      ),
-    ).toBeTruthy();
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe(
+      "Paste the material's text, or attach the file for Braivo's AI to read.",
+    );
+    const text = screen.getByLabelText("Text");
+    expect(document.activeElement).toBe(text);
+    expect(text.getAttribute("aria-invalid")).toBe("true");
+    expect(text.getAttribute("aria-describedby")?.split(" ")).toContain(alert.id);
+    // Said under the field, where the focus is, not at the form's end.
+    expect(text.closest("[data-slot=field]")?.contains(alert)).toBe(true);
+    // The same check again is a new alert, announced again.
+    addMaterial({ title: "Nada", text: "  " });
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(alert));
+    expect(addSource).not.toHaveBeenCalled();
+    // Typing answers it: the field is no longer marked.
+    fireEvent.input(text, { target: { value: "Hola." } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text.getAttribute("aria-invalid")).toBeNull();
+    expect(text.getAttribute("aria-describedby")?.split(" ")).toHaveLength(1);
+    // So does attaching the file instead.
+    addMaterial({ title: "Nada", text: "  " });
+    await screen.findByRole("alert");
+    fireEvent.change(screen.getByLabelText("Original file"), {
+      target: { files: [new File(["%PDF"], "nada.pdf", { type: "application/pdf" })] },
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  test("adds nothing of a file whose pages are over what Braivo adds at once", async () => {
+    const addSource = vi.fn();
+    renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        uploadFile: async () => ({ fileId: "f".repeat(64) }),
+        readFileText: async () => [{ page: "1", text: "a".repeat(10_000_000) }],
+        addSource,
+      },
+    });
+    await screen.findByText("No material yet");
+
+    addMaterial({
+      title: "Libro",
+      text: "",
+      file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Braivo's AI read the file, but its text is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.",
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      "Adding the same material again adds nothing.",
+    );
     expect(addSource).not.toHaveBeenCalled();
   });
+
+  test("refuses more than Braivo adds at once before sending it, at the Text field", async () => {
+    const addSource = vi.fn();
+    renderAt("/example/sources", { braivo: { ...added, addSource } });
+    await screen.findByText("No material yet");
+
+    addMaterial({ title: "Libro", text: "a".repeat(10_000_000) });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe(
+      "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
+    );
+    expect(screen.getByLabelText("Text").closest("[data-slot=field]")?.contains(alert)).toBe(true);
+    expect(addSource).not.toHaveBeenCalled();
+  });
+
+  test("marks the file a check refuses, and no field once Braivo refuses", async () => {
+    renderAt("/example/sources", {
+      braivo: {
+        ...added,
+        uploadFile: async () => ({ fileId: "f".repeat(64) }),
+        addSource: vi.fn().mockRejectedValue(new BraivoError(400, "Braivo answered 400.")),
+      },
+    });
+    await screen.findByText("No material yet");
+    const plain = new File(["Unit"], "unit.txt", { type: "text/plain" });
+
+    addMaterial({ title: "Unit", text: "", file: plain });
+
+    await screen.findByRole("alert");
+    const file = screen.getByLabelText("Original file");
+    expect(document.activeElement).toBe(file);
+    expect(file.closest("[data-slot=field]")?.contains(screen.getByRole("alert"))).toBe(true);
+    expect(file.getAttribute("aria-invalid")).toBe("true");
+    addMaterial({
+      title: "Unit",
+      text: "Pasted.",
+      file: new File(["%PDF"], "unit.pdf", { type: "application/pdf" }),
+    });
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The material could not be added. Try again.",
+    );
+    expect(file.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  test("gives up on adding material Braivo does not answer, keeping it to add again", async () => {
+    const addSource = vi
+      .fn()
+      .mockImplementationOnce((_input, options?: { signal?: AbortSignal }) => stall(options))
+      .mockResolvedValue("s1");
+    const { router } = renderAt("/example/sources", { braivo: { ...added, addSource } });
+    await screen.findByText("No material yet");
+
+    vi.useFakeTimers();
+    addMaterial({ title: "Unidad 1", text: "Hola." });
+    expect(screen.getByRole("status").textContent).toBe("Adding…");
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The material could not be added. Check your connection and try again.",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Title").value).toBe("Unidad 1");
+    fireEvent.click(screen.getByRole("button", { name: "Add material" }));
+    await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
+  });
+
+  test("waits for a file's upload as long as its size needs, then gives up", async () => {
+    const uploadFile = vi.fn((_input, options?: { signal?: AbortSignal }) => stall(options));
+    renderAt("/example/sources", { braivo: { ...added, uploadFile } });
+    await screen.findByText("No material yet");
+    const pdf = new File([new Uint8Array(2_000_000)], "libro.pdf", { type: "application/pdf" });
+
+    // 10 seconds, and 20 for 2 MB at 100 KB/s.
+    expect(bodyDeadline(pdf.size)).toBe(30_000);
+    vi.useFakeTimers();
+    addMaterial({ title: "Mi libro", text: "Pasted.", file: pdf });
+    await waitOut(29_999);
+    expect(screen.getByRole("status").textContent).toBe("Uploading the file…");
+    expect(screen.queryByRole("alert")).toBeNull();
+    await waitOut(1);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The material could not be added. Check your connection and try again.",
+    );
+  });
+
+  test.each(["uploadFile", "readFileText", "addSource"] as const)(
+    "keeps the material of an owner signed out meanwhile, at %s, offering to sign in elsewhere",
+    async (step) => {
+      const { router } = renderAt("/example/sources", {
+        braivo: {
+          ...added,
+          uploadFile: async () => ({ fileId: "f".repeat(64) }),
+          readFileText: async () => [{ page: "1", text: "Hola." }],
+          addSource: async () => "s1",
+          [step]: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+        },
+      });
+      await screen.findByText("No material yet");
+
+      // No text, so the file is uploaded and read before the source is added.
+      addMaterial({
+        title: "Unidad 1",
+        text: "",
+        file: new File(["%PDF"], "unidad.pdf", { type: "application/pdf" }),
+      });
+
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toBe(
+        "You were signed out. Sign in again in a new tab, then add the material again: what you entered stays here.",
+      );
+      const signIn = within(alert).getByRole("link", { name: "Sign in again in a new tab" });
+      expect(signIn.getAttribute("href")).toBe("/login");
+      expect(signIn.getAttribute("target")).toBe("_blank");
+      expect(signIn.getAttribute("rel")).toBe("noopener");
+      expect(router.history.location.pathname).toBe("/example/sources");
+      expect(screen.getByLabelText<HTMLInputElement>("Title").value).toBe("Unidad 1");
+    },
+  );
 
   test("uploads the original first, and adds the source naming it, leaving out what was left blank", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
@@ -3510,6 +3684,7 @@ describe("the console", () => {
     );
     expect(addSource).toHaveBeenCalledWith(
       expect.objectContaining({ url: undefined, language: undefined, original: "f".repeat(64) }),
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -3534,16 +3709,24 @@ describe("the console", () => {
     addMaterial({ title: "Mi libro", text: "Hola.", file: pdf });
     expect(await screen.findByText("This Braivo installation stores no files.")).toBeTruthy();
 
+    // Removed, as one too large is, so adding again keeps the text without it.
+    const emptied = vi.spyOn(
+      screen.getByLabelText("Original file") as HTMLInputElement,
+      "value",
+      "set",
+    );
     for (const file of [
       new File(["?"], "libro"),
       new File(["Hola."], "libro.txt", { type: "text/plain" }),
     ]) {
+      emptied.mockClear();
       addMaterial({ title: "Mi libro", text: "Hola.", file });
       expect(
         await screen.findByText(
-          "This type of file cannot be kept as an original: choose a document, image, audio, or video file, or paste plain text in the Text field.",
+          "Braivo cannot keep a plain-text file, or a file of unknown type, as an original, so it was removed. Add the material again to keep its text without it.",
         ),
       ).toBeTruthy();
+      expect(emptied).toHaveBeenCalledWith("");
     }
     expect(addSource).not.toHaveBeenCalled();
   });
@@ -3657,6 +3840,7 @@ describe("the console", () => {
           ? { pages: [{ page: "1", text: "Leído." }], original: "f".repeat(64) }
           : { text, original: "f".repeat(64) },
       ),
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -3672,8 +3856,12 @@ describe("the console", () => {
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "  " } });
     fireEvent.click(screen.getByRole("button", { name: "Add material" }));
 
-    expect(await screen.findByText("Give the material a title.")).toBeTruthy();
+    const title = screen.getByLabelText<HTMLInputElement>("Title");
+    expect(title.validationMessage).toBe("Give the material a title.");
     expect(uploadFile).not.toHaveBeenCalled();
+    // Typing clears it.
+    fireEvent.input(title, { target: { value: "Mi libro" } });
+    expect(title.validationMessage).toBe("");
   });
 
   const saludos = {

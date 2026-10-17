@@ -10,6 +10,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/com
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
@@ -17,10 +18,11 @@ import {
 import { Input } from "@braivo/ui/components/input";
 import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
-import { type SubmitEvent, useId, useRef, useState } from "react";
+import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { DesktopAgentLink } from "#components/desktop-agent-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
+import { bodyDeadline, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -84,6 +86,9 @@ function Sources() {
 
 /** Braivo's limit on an uploaded file (docs/adr/0028-original-files.md). */
 const MAX_FILE_BYTES = 50_000_000;
+
+/** Braivo's limit on a source's request, as JSON (the server's `MAX_SOURCE_BYTES`). */
+const MAX_SOURCE_BYTES = 10_000_000;
 
 /**
  * Types Braivo refuses to upload, since a page elsewhere could send them
@@ -156,6 +161,9 @@ function titleOf(fileName: string): string {
   return stem.replaceAll("_", " ").replace(/\s+/g, " ").trim();
 }
 
+/** A field a failure can be about. */
+type FieldName = "text" | "original";
+
 function AddSource() {
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
@@ -163,10 +171,33 @@ function AddSource() {
   // The step under way while adding: reading a file can take a few minutes.
   const [status, setStatus] = useState<string>();
   const adding = status !== undefined;
-  const [error, setError] = useState<string>();
+  // The last failure; its count keys the alert, so a repeat is announced too.
+  // One about a field is said under it, and the focus goes there, to the fix.
+  const [error, setError] = useState<{ message: ReactNode; field?: FieldName; count: number }>();
+  const fail = (message: ReactNode, field?: FieldName) =>
+    setError((last) => ({ message, field, count: (last?.count ?? 0) + 1 }));
+  // Either field answers a failure about the other too: a file attached is
+  // what text was missing for, and text pasted, what an unread file needed.
+  const clearFieldError = () => setError((last) => (last?.field ? undefined : last));
   const id = useId();
   const original = useRef<HTMLInputElement>(null);
   const title = useRef<HTMLInputElement>(null);
+  const text = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    if (error?.field) ({ text, original })[error.field].current?.focus();
+  }, [error]);
+  /** ARIA for `field`'s control, marked while the failure is about it. */
+  const ariaFor = (field: FieldName, hintId: string) =>
+    error?.field === field
+      ? { "aria-invalid": true, "aria-describedby": `${hintId} ${id}-error` }
+      : { "aria-describedby": hintId };
+  /** The failure about `field`, said under it. */
+  const fieldError = (field: FieldName) =>
+    error?.field === field && (
+      <FieldError key={error.count} id={`${id}-error`}>
+        {error.message}
+      </FieldError>
+    );
   // Whether the title was filled in from a file's name and not edited since,
   // so the next file's may replace it; one typed is never replaced.
   const titleFromFile = useRef(false);
@@ -206,41 +237,49 @@ function AddSource() {
     // `required` lets a blank title through, which Braivo would refuse only
     // after the upload and the reading.
     const titled = titleProblem(data.get("title") as string, "the material");
-    if (titled) return setError(titled);
+    if (titled) {
+      setError(undefined);
+      title.current!.setCustomValidity(titled);
+      return title.current!.reportValidity();
+    }
     const text = data.get("text") as string;
-    // Said before sending: Braivo would answer both with a bare status. Size
-    // first, whatever the type, since that file is cleared and the text can go.
-    if (file && file.size > MAX_FILE_BYTES) {
+    // Said before sending: Braivo would answer both with a bare status. The
+    // file is removed, so adding again keeps the text without it.
+    const refusal =
+      file &&
+      (file.size > MAX_FILE_BYTES
+        ? "The file is over 50 MB, the most Braivo keeps, so it was removed."
+        : REFUSED_TYPES.includes(file.type)
+          ? "Braivo cannot keep a plain-text file, or a file of unknown type, as an original, so it was removed."
+          : undefined);
+    if (refusal) {
       // A file input has no other way to empty it.
       original.current!.value = "";
       const nextStep =
         text.trim() === ""
           ? "Paste its text in the Text field to add the material without it."
           : "Add the material again to keep its text without it.";
-      return setError(
-        `The file is over 50 MB, the most Braivo keeps, so it was removed. ${nextStep}`,
-      );
-    }
-    if (file && REFUSED_TYPES.includes(file.type)) {
-      return setError(
-        "This type of file cannot be kept as an original: choose a document, image, audio, or video file, or paste plain text in the Text field.",
-      );
+      return fail(`${refusal} ${nextStep}`, "original");
     }
     if (text.trim() === "" && !file) {
-      return setError(
+      return fail(
         organization.aiEnabled === false
           ? "Paste the material's text."
           : "Paste the material's text, or attach the file for Braivo's AI to read.",
+        "text",
       );
     }
     // Only without pasted text: beside it, the file is kept unread.
-    const unreadable =
-      text.trim() === "" && file
-        ? organization.aiEnabled === false
-          ? `${AI_OFF_MESSAGE} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`
-          : readingProblem(file)
-        : undefined;
-    if (unreadable) return setError(unreadable);
+    if (text.trim() === "" && file) {
+      if (organization.aiEnabled === false) {
+        return fail(
+          `${AI_OFF_MESSAGE} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`,
+          "text",
+        );
+      }
+      const unreadable = readingProblem(file);
+      if (unreadable) return fail(unreadable, "original");
+    }
 
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
@@ -248,10 +287,18 @@ function AddSource() {
     setStatus(file ? "Uploading the file…" : "Adding…");
     setError(undefined);
     try {
-      // The file first, so the source can name it; the same file again is stored once.
-      // Aborted too on leaving: a file uploaded for nobody stays stored, since nothing deletes files.
+      // The file first, so the source can name it. Aborted too on leaving: a
+      // file uploaded for nobody stays stored, since nothing deletes files.
+      // Each request bounded by its size, as wifi can stall with no error;
+      // retrying is safe, as the same file or source again stores nothing new
+      // (docs/adr/0024-idempotent-authoring.md).
       const fileId = file
-        ? (await braivo.uploadFile({ organizationId, file }, { signal })).fileId
+        ? (
+            await braivo.uploadFile(
+              { organizationId, file },
+              { signal: withDeadline(signal, bodyDeadline(file.size)) },
+            )
+          ).fileId
         : undefined;
       const source = {
         organizationId,
@@ -261,6 +308,7 @@ function AddSource() {
         original: fileId,
       };
       // No text pasted: the file's own, read page by page, so passages name their pages.
+      // Unbounded: reading takes minutes, and a retry spends another AI request.
       let pages: { page: string; text: string }[] | undefined;
       if (fileId && text.trim() === "") {
         if (read.current?.fileId !== fileId) {
@@ -275,7 +323,22 @@ function AddSource() {
         pages = read.current.pages;
       }
       setStatus("Adding…");
-      const sourceId = await braivo.addSource(pages ? { ...source, pages } : { ...source, text });
+      const input = pages ? { ...source, pages } : { ...source, text };
+      const bytes = new Blob([JSON.stringify(input)]).size;
+      // Said before sending, which Braivo would refuse with a bare 413.
+      if (bytes > MAX_SOURCE_BYTES) {
+        return pages
+          ? fail(
+              "Braivo's AI read the file, but its text is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.",
+            )
+          : fail(
+              "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
+              "text",
+            );
+      }
+      const sourceId = await braivo.addSource(input, {
+        signal: withDeadline(signal, bodyDeadline(bytes)),
+      });
       // To the source's page, where a course is drafted from it, unless the
       // owner left meanwhile: the page they are on is read again, since it may
       // have been read before the source was stored.
@@ -289,10 +352,25 @@ function AddSource() {
       });
     } catch (thrown) {
       if (signal?.aborted) return;
+      // Signed out: the material stays here, as only this form holds it, for
+      // adding again once signed in elsewhere; the guard would leave the page.
+      if (thrown instanceof BraivoError && thrown.status === 401) {
+        return fail(
+          <>
+            You were signed out.{" "}
+            <a href="/login" target="_blank" rel="noopener" className="underline">
+              Sign in again in a new tab
+            </a>
+            , then add the material again: what you entered stays here.
+          </>,
+        );
+      }
       // Braivo's own words when it gave any: which field, and what would fix it.
-      setError(
-        (thrown instanceof BraivoError && thrown.reason) ||
-          "The material could not be added. Try again.",
+      // No answer at all, a lost connection or the deadline, is likely the wifi.
+      fail(
+        thrown instanceof BraivoError
+          ? thrown.reason || "The material could not be added. Try again."
+          : "The material could not be added. Check your connection and try again.",
       );
     } finally {
       setStatus(undefined);
@@ -324,26 +402,32 @@ function AddSource() {
               name="title"
               // `onInput`, not `onChange`, which React skips when what is typed
               // equals the value a file's name set.
-              onInput={() => (titleFromFile.current = false)}
+              onInput={(event) => {
+                titleFromFile.current = false;
+                event.currentTarget.setCustomValidity("");
+              }}
               required
               maxLength={MAX_TITLE}
               readOnly={adding}
             />
           </Field>
-          <Field>
+          <Field data-invalid={error?.field === "text" || undefined}>
             <FieldLabel htmlFor={`${id}-text`}>Text</FieldLabel>
             <Textarea
               id={`${id}-text`}
+              ref={text}
               name="text"
               rows={10}
               readOnly={adding}
-              aria-describedby={`${id}-text-hint`}
+              onInput={clearFieldError}
+              {...ariaFor("text", `${id}-text-hint`)}
             />
             <FieldDescription id={`${id}-text-hint`}>
               {organization.aiEnabled === false
                 ? "The material's words as they read: what questions will quote. Paste them; a file attached below is kept as their original, not read."
                 : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below for Braivo's AI to read — which can take a few minutes."}
             </FieldDescription>
+            {fieldError("text")}
           </Field>
           <Field>
             <FieldLabel htmlFor={`${id}-url`}>Link</FieldLabel>
@@ -379,7 +463,7 @@ function AddSource() {
               Its language, such as Spanish, or a tag such as es or en-US. Optional.
             </FieldDescription>
           </Field>
-          <Field>
+          <Field data-invalid={error?.field === "original" || undefined}>
             <FieldLabel htmlFor={`${id}-original`}>Original file</FieldLabel>
             <Input
               id={`${id}-original`}
@@ -388,24 +472,27 @@ function AddSource() {
               // A file input cannot be read-only.
               disabled={adding}
               onChange={(event) => {
+                clearFieldError();
                 const file = event.currentTarget.files?.[0];
                 const field = title.current;
                 if (!file || !field) return;
                 if (field.value.trim() !== "" && !titleFromFile.current) return;
                 field.value = titleOf(file.name);
+                field.setCustomValidity("");
                 titleFromFile.current = true;
               }}
               accept="application/pdf,image/*,audio/*,video/*,.docx,.pptx,.odt,.odp,.epub"
-              aria-describedby={`${id}-original-hint`}
+              {...ariaFor("original", `${id}-original-hint`)}
             />
             <FieldDescription id={`${id}-original-hint`}>
               The PDF, slides, image, or recording the text comes from. Optional, at most 50 MB.
               Only those who manage the organization can open it; learners never see it.
             </FieldDescription>
+            {fieldError("original")}
           </Field>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+          {error && !error.field && (
+            <Alert key={error.count} variant="destructive">
+              <AlertDescription>{error.message}</AlertDescription>
             </Alert>
           )}
           <Field>
