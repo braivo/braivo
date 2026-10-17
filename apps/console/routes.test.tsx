@@ -6215,6 +6215,18 @@ describe("the console", () => {
           ],
         },
         { objectiveId: "o2", title: "Numbers", phase: "unseen", evidence: [] },
+        // Retained, not due: its recall shows under it too, 100% included.
+        {
+          objectiveId: "o3",
+          title: "Colours",
+          phase: "retaining",
+          lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+          stability: 1,
+          retrievability: 1,
+          due: false,
+          dueAt: "2026-06-02T00:00:00.001Z",
+          evidence: [{ outcome: "success", at: "2026-06-01T00:00:00.000Z" }],
+        },
       ],
     };
     const learnerProgress = vi.fn(async () => report);
@@ -6232,6 +6244,8 @@ describe("the console", () => {
       "/example/courses/course-1/progress",
     );
     expect(screen.queryByText(/no objectives yet/i)).toBeNull();
+    // Once for the page, not beside each percentage.
+    expect(screen.getAllByText(/a model estimate, not a test score/)).toHaveLength(1);
     // A list, each objective a heading over its fields, named beside their
     // values: on a phone, no column of a table starts off screen.
     const list = screen.getByRole("list", { name: "Lee Learner" });
@@ -6251,7 +6265,8 @@ describe("the console", () => {
     const numbers = objective("Numbers");
     // The last evidence may have been graded outside Braivo, so not "Last attempted".
     expect(fields(greetings)).toMatchObject({
-      Standing: "Due for review, 42% estimated recall",
+      // The standing, then the recall predicted under it, labelled as such.
+      Standing: "Due for reviewEstimated recall now: 42%",
       "Last evidence": dated("2026-06-01T00:00:00.000Z"),
       "Review due": dated("2026-06-02T00:00:00.001Z"),
     });
@@ -6272,6 +6287,7 @@ describe("the console", () => {
       `${dated("2026-05-31T00:00:00.000Z")}: failure`,
       `${dated("2026-05-30T00:00:00.000Z")}: failure`,
     ]);
+    expect(fields(objective("Colours")).Standing).toBe("RetainedEstimated recall now: 100%");
     expect(fields(numbers)).toEqual({
       Standing: "Not started",
       "Last evidence": "—",
@@ -6455,7 +6471,7 @@ describe("groups", () => {
 
       fireEvent.click(within(learners).getByRole("link", { name: "Lou Learner" }));
       expect(await screen.findByRole("heading", { name: "Lou Learner" })).toBeTruthy();
-      expect(screen.getByText(/Knowledge estimates include learning across/)).toBeTruthy();
+      expect(screen.getByText(/Estimates include learning across/)).toBeTruthy();
       fireEvent.click(screen.getByRole("link", { name: "Beginners" }));
       expect(await screen.findByRole("searchbox", { name: "Find a learner" })).toHaveProperty(
         "value",

@@ -527,14 +527,11 @@ msgid "due for review"
 msgstr "due for review"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Due for review"
 msgstr "Due for review"
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Due for review, {recall}% estimated recall"
-msgstr "Due for review, {recall}% estimated recall"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Due for review: about {percent}% likely to recall now."
@@ -614,6 +611,14 @@ msgstr "Enter your name."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Enter your organization's name."
 msgstr "Enter your organization's name."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Estimated recall is a model estimate, not a test score. Estimates include learning across this organization's courses that cover these objectives."
+msgstr "Estimated recall is a model estimate, not a test score. Estimates include learning across this organization's courses that cover these objectives."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Estimated recall now: {recall}%"
+msgstr "Estimated recall now: {recall}%"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Evidence"
@@ -746,10 +751,6 @@ msgstr "Keep it"
 #: apps/console/components/group-form.tsx
 msgid "Keep the name to {MAX_TITLE} characters."
 msgstr "Keep the name to {MAX_TITLE} characters."
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Knowledge estimates include learning across this organization's courses that cover these objectives."
-msgstr "Knowledge estimates include learning across this organization's courses that cover these objectives."
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/components/language-menu.tsx
@@ -1158,14 +1159,11 @@ msgid "retained"
 msgstr "retained"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Retained"
 msgstr "Retained"
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Retained, {recall}% estimated recall"
-msgstr "Retained, {recall}% estimated recall"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"

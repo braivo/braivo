@@ -527,14 +527,11 @@ msgid "due for review"
 msgstr "do powtórki"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Due for review"
 msgstr "Do powtórki"
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Due for review, {recall}% estimated recall"
-msgstr "Do powtórki, szacowane zapamiętanie {recall}%"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Due for review: about {percent}% likely to recall now."
@@ -614,6 +611,14 @@ msgstr "Wpisz swoje imię i nazwisko."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Enter your organization's name."
 msgstr "Wpisz nazwę organizacji."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Estimated recall is a model estimate, not a test score. Estimates include learning across this organization's courses that cover these objectives."
+msgstr "Szacowana szansa na przypomnienie sobie pochodzi z modelu, a nie z testu. Szacunki obejmują naukę we wszystkich kursach tej organizacji, które dotyczą tych celów."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Estimated recall now: {recall}%"
+msgstr "Szacowana szansa na przypomnienie sobie teraz: {recall}%"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Evidence"
@@ -746,10 +751,6 @@ msgstr "Zostaw"
 #: apps/console/components/group-form.tsx
 msgid "Keep the name to {MAX_TITLE} characters."
 msgstr "Nazwa może mieć najwyżej {MAX_TITLE} znaków."
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Knowledge estimates include learning across this organization's courses that cover these objectives."
-msgstr "Szacunki wiedzy obejmują naukę we wszystkich kursach tej organizacji, które dotyczą tych celów."
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/components/language-menu.tsx
@@ -1158,14 +1159,11 @@ msgid "retained"
 msgstr "utrwalono"
 
 #: apps/console/components/sign-in-page.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
 msgid "Retained"
 msgstr "Utrwalone"
-
-#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Retained, {recall}% estimated recall"
-msgstr "Utrwalone, szacowane zapamiętanie {recall}%"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
