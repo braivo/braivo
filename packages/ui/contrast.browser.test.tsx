@@ -21,6 +21,7 @@ import { NativeSelect, NativeSelectOption } from "./components/native-select.tsx
 import { RadioGroup, RadioGroupItem } from "./components/radio-group.tsx";
 import { Textarea } from "./components/textarea.tsx";
 import { ChoiceQuestion } from "./compositions/choice-question.tsx";
+import { Heading } from "./compositions/heading.tsx";
 import { TypedQuestion } from "./compositions/typed-question.tsx";
 
 afterEach(() => {
@@ -348,6 +349,32 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     expect(outlineContrast(question)).toBeGreaterThanOrEqual(LEAST);
     // The options' borders run along the question's edges: at no offset, the outline sits on them.
     expect(parseFloat(settled(question).outlineOffset)).toBeGreaterThan(0);
+  });
+
+  test("a heading given focus shows it at 3:1, clear of its text", async () => {
+    setTheme();
+    // As the console does: an action pressed by keyboard leaves focus on its section's heading.
+    const heading = createRef<HTMLHeadingElement>();
+    render(
+      <>
+        <Button onClick={() => heading.current?.focus()}>Save</Button>
+        <Heading ref={heading} tabIndex={-1}>
+          Everyday English
+        </Heading>
+      </>,
+    );
+    await focusByKeyboard(screen.getByRole("button", { name: "Save" }));
+    await userEvent.keyboard("{Enter}");
+
+    const focused = screen.getByRole("heading");
+    expect(document.activeElement).toBe(focused);
+    expect(focused.matches(":focus-visible"), "focus shown as for a keyboard").toBe(true);
+    expect(outlineContrast(focused)).toBeGreaterThanOrEqual(LEAST);
+    const style = settled(focused);
+    // At no offset, the outline touches the first and last letters.
+    expect(parseFloat(style.outlineOffset)).toBeGreaterThan(0);
+    // Not `auto`, which steps around the text where its line box overhangs.
+    expect(style.outlineStyle).toBe("solid");
   });
 
   test("a plain link shows focus by its outline at 3:1", async () => {

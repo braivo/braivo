@@ -24,6 +24,15 @@ export function Heading({
 }: ComponentProps<"h1"> & { level?: keyof typeof levels }) {
   const Tag = tags[level];
   return (
-    <Tag className={cn("font-heading wrap-break-word", levels[level], className)} {...props} />
+    <Tag
+      // Given focus after an action, the outline clears the text. Solid, as `outline-2`
+      // sets: Chrome's `auto` outline steps around the text's line box where it overhangs.
+      className={cn(
+        "rounded-sm font-heading wrap-break-word outline-offset-4 focus-visible:outline-2",
+        levels[level],
+        className,
+      )}
+      {...props}
+    />
   );
 }

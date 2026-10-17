@@ -80,7 +80,7 @@ function Domains() {
 
   return (
     <>
-      <Heading ref={heading} tabIndex={-1} className="outline-none">
+      <Heading ref={heading} tabIndex={-1}>
         <Trans>Domains</Trans>
       </Heading>
       {domains.length === 0 ? (

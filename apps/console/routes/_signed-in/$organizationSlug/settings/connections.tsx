@@ -64,7 +64,7 @@ function Connections() {
 
   return (
     <>
-      <Heading ref={heading} tabIndex={-1} className="outline-none">
+      <Heading ref={heading} tabIndex={-1}>
         <Trans>Connected apps</Trans>
       </Heading>
       {connections.length === 0 ? (
