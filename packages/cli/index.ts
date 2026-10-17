@@ -72,7 +72,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const client = remoteClient(credentials, fetch);
     // Both protocol eras, the opening message picking one, since local agents
     // predating 2026-07-28 remain (ADR 0023).
-    serveStdio(() => createMcpServer(client, VERSION));
+    serveStdio(() => createMcpServer(client, VERSION, { consoleUrl: credentials.server }));
     // Returning does not end the process: the open standard input keeps it alive.
     return 0;
   }

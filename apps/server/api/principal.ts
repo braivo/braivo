@@ -64,7 +64,18 @@ export function createConnectionClient(options: {
   const fetch = async (path: string, init?: RequestInit) => {
     const url = new URL(path, origin);
     if (url.origin !== origin) throw new Error(`Not a path on ${origin}: ${path}`);
-    return api.fetch(createConnectionRequest(principal, url.href, init));
+    const signal = init?.signal;
+    signal?.throwIfAborted();
+    const answered = api.fetch(createConnectionRequest(principal, url.href, init));
+    if (!signal) return answered;
+    // Settled on abort, as `fetch` is, or a caller's deadline would wait out the
+    // route; in this process, the route still runs to its end.
+    return Promise.race([
+      answered,
+      new Promise<never>((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+    ]);
   };
   return createClient({ fetch: fetch as unknown as typeof globalThis.fetch });
 }

@@ -450,7 +450,7 @@ describe("the console", () => {
       citations: [{ sourceId: "s1", start: 0, end: 5, quote: "Hola." }],
       published: true,
     };
-    const defineTasks = vi.fn(async () => ({ taskIds: ["t3"] }));
+    const defineTasks = vi.fn(async () => [{ id: "t3", added: true, published: true }]);
     renderAt("/example/courses/course-1", {
       braivo: {
         readCourse: async () => ({
@@ -757,7 +757,7 @@ describe("the console", () => {
         readCourse,
         defineTasks: async () => {
           corrected = true;
-          return ["t2"];
+          return [{ id: "t2", added: true, published: true }];
         },
       },
     });
@@ -890,7 +890,7 @@ describe("the console", () => {
         readCourse: reading,
         defineTasks: async () => {
           corrected = true;
-          return ["t2"];
+          return [{ id: "t2", added: true, published: true }];
         },
       },
     });

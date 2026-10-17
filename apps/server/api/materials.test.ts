@@ -395,7 +395,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
 
   test("takes a learner to the moment of a video a passage is said at", async () => {
     const [animals] = await createObjectives(database, organizationId, ["Animals"]);
-    const animalsCourse = await createCourse(database, {
+    const { id: animalsCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Animals",
@@ -444,7 +444,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         ],
       }),
     });
-    const [taskId] = ((await authored.json()) as { taskIds: string[] }).taskIds;
+    const [{ id: taskId }] = ((await authored.json()) as { tasks: [{ id: string }] }).tasks;
     const answered = await postAttempt(
       animalsCourse,
       { id: crypto.randomUUID(), taskId, response: { choice: 1 } },
@@ -460,7 +460,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
 
   test("tells a learner which page of their book a passage is on", async () => {
     const [colors] = await createObjectives(database, organizationId, ["Colors"]);
-    const colorsCourse = await createCourse(database, {
+    const { id: colorsCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Colors",
@@ -507,7 +507,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         ],
       }),
     });
-    const [taskId] = ((await authored.json()) as { taskIds: string[] }).taskIds;
+    const [{ id: taskId }] = ((await authored.json()) as { tasks: [{ id: string }] }).tasks;
     const answered = await postAttempt(
       colorsCourse,
       { id: crypto.randomUUID(), taskId, response: { choice: 1 } },

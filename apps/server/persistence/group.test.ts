@@ -41,12 +41,14 @@ describe.skipIf(!connectionString)("groups", () => {
       learnerIds: [stranger],
       at,
     });
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Spanish",
-      objectiveIds: [],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Spanish",
+        objectiveIds: [],
+      })
+    ).id;
   });
 
   test("refuses, in the schema, a group member who is not the organization's", async () => {
@@ -62,7 +64,7 @@ describe.skipIf(!connectionString)("groups", () => {
 
   test("refuses, in the schema, a group course that is not the organization's", async () => {
     const groupId = await createGroup(database, { organizationId, definition: definition() });
-    const foreignCourseId = await createCourse(database, {
+    const { id: foreignCourseId } = await createCourse(database, {
       published: true,
       organizationId: otherOrganizationId,
       title: "French",

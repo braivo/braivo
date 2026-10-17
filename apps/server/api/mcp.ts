@@ -95,8 +95,7 @@ export function mcpEndpoint(options: {
     return { userId, clientId, scopes, organizationId };
   }
 
-  // Without the tools learners would see, until ADR 0039's review exists, and
-  // those reading about them, until `braivo:progress` does.
+  // Without the tools reading about learners, until `braivo:progress` exists.
   const handler = createMcpHandler(
     ({ authInfo }) =>
       createMcpServer(
@@ -106,7 +105,7 @@ export function mcpEndpoint(options: {
           principal: authInfo?.extra?.principal as Principal,
         }),
         VERSION,
-        { catalog: "preparing" },
+        { consoleUrl: baseUrl, catalog: "authoring" },
       ),
     { legacy: "reject" },
   );

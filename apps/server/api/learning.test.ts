@@ -130,26 +130,32 @@ describe.skipIf(!connectionString)("the learning routes", () => {
 
     const objectives = await createObjectives(database, organizationId, ["Past tense"]);
     pastTense = objectives[0]!;
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Spanish",
-      objectiveIds: [pastTense],
-    });
-    emptyCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Not started",
-      objectiveIds: [],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Spanish",
+        objectiveIds: [pastTense],
+      })
+    ).id;
+    emptyCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Not started",
+        objectiveIds: [],
+      })
+    ).id;
 
     const theirs = await createObjectives(database, otherOrganizationId, ["Theirs"]);
-    foreignCourseId = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Somebody else's",
-      objectiveIds: [theirs[0]!],
-    });
+    foreignCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Somebody else's",
+        objectiveIds: [theirs[0]!],
+      })
+    ).id;
 
     pastTenseTask = await testing.createTask(database, {
       organizationId,
@@ -547,7 +553,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       learnerIds: [learner.id],
       at,
     });
-    const secondCourseId = await createCourse(database, {
+    const { id: secondCourseId } = await createCourse(database, {
       published: true,
       organizationId: secondOrganizationId,
       title: "Portuguese",
@@ -695,7 +701,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
 
   test("answers the decision without a task when its objective has none", async () => {
     const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
-    const untaughtCourseId = await createCourse(database, {
+    const { id: untaughtCourseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Untaught",
@@ -750,7 +756,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
 
   test("grades a typed answer, and answers a resend of it alike", async () => {
     const [word] = (await createObjectives(database, organizationId, ["To be"])) as [string];
-    const wordCourse = await createCourse(database, {
+    const { id: wordCourse } = await createCourse(database, {
       published: true,
       organizationId,
       title: "German",

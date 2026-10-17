@@ -105,12 +105,14 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       .onConflictDoNothing();
 
     pastTense = (await createObjectives(database, organizationId, ["Past tense"]))[0]!;
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Spanish",
-      objectiveIds: [pastTense],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Spanish",
+        objectiveIds: [pastTense],
+      })
+    ).id;
     pastTenseTask = await testing.createTask(database, {
       organizationId,
       objectiveId: pastTense,
@@ -124,22 +126,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       },
       createdAt: at,
     });
-    emptyCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Not started",
-      objectiveIds: [],
-    });
+    emptyCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Not started",
+        objectiveIds: [],
+      })
+    ).id;
     [fractions, decimals] = (await createObjectives(database, organizationId, [
       "Fractions",
       "Decimals",
     ])) as [string, string];
-    progressCourseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Every phase",
-      objectiveIds: [pastTense, fractions, decimals],
-    });
+    progressCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Every phase",
+        objectiveIds: [pastTense, fractions, decimals],
+      })
+    ).id;
   });
 
   beforeEach(async () => {
@@ -564,7 +570,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
   test("changes a course's URL label, and answers the label now when it changed meanwhile", async () => {
     const asTeacher = { headers: { cookie: teacherCookie } };
-    const id = await createCourse(database, {
+    const { id } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Labelled",
@@ -588,24 +594,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const [objectiveId] = (await createObjectives(database, organizationId, ["Proposed"])) as [
       string,
     ];
-    const id = await createCourse(database, {
+    const { id } = await createCourse(database, {
       published: false,
       organizationId,
       title: "Proposed",
       objectiveIds: [objectiveId],
     });
-    const [taskId] = (await createTasks(
-      database,
-      organizationId,
-      [
-        {
-          objectiveId,
-          body: { kind: "choice", prompt: "Ready?", options: ["yes", "no"], answer: 0 },
-        },
-      ],
-      new Date(),
-      { published: false },
-    )) as [string];
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId,
+            body: { kind: "choice", prompt: "Ready?", options: ["yes", "no"], answer: 0 },
+          },
+        ],
+        new Date(),
+        { published: false },
+      )
+    ).map(({ id }) => id) as [string];
     const published = async () =>
       (await client.listTasks({ organizationId, objectiveId }, asTeacher)).map(
         (task) => task.published,
@@ -644,7 +652,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
   test("reads an objective with nothing to practise as the decision without a task", async () => {
     const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
-    const untaughtCourseId = await createCourse(database, {
+    const { id: untaughtCourseId } = await createCourse(database, {
       published: true,
       organizationId,
       title: "Untaught",
@@ -905,25 +913,27 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       ),
     ).toEqual([{ objectiveId: greetings, sourceId, start: 0, end: 21 }]);
 
-    const taskIds = await client.defineTasks(
-      {
-        organizationId,
-        tasks: [
-          {
-            objectiveId: greetings!,
-            kind: "choice",
-            prompt: "Hola?",
-            options: ["hello", "goodbye"],
-            answer: 0,
-            citations: [{ sourceId, quote: "Hola significa hello." }],
-          },
-        ],
-      },
-      as,
-    );
+    const taskIds = (
+      await client.defineTasks(
+        {
+          organizationId,
+          tasks: [
+            {
+              objectiveId: greetings!,
+              kind: "choice",
+              prompt: "Hola?",
+              options: ["hello", "goodbye"],
+              answer: 0,
+              citations: [{ sourceId, quote: "Hola significa hello." }],
+            },
+          ],
+        },
+        as,
+      )
+    ).map(({ id }) => id);
     expect(taskIds).toEqual([expect.any(String)]);
 
-    const course = await client.defineCourse(
+    const { courseId: course } = await client.defineCourse(
       { organizationId, title: "Saludos", objectiveIds: [greetings!] },
       as,
     );
@@ -956,10 +966,14 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       answer: 1,
       citations: [{ sourceId, quote: "Gracias significa thank you." }],
     };
-    const [taskId] = await client.defineTasks({ organizationId, tasks: [wrong] }, as);
+    const [taskId] = (await client.defineTasks({ organizationId, tasks: [wrong] }, as)).map(
+      ({ id }) => id,
+    );
 
     const correction = { ...wrong, answer: 0, replaces: taskId! };
-    const [correctedId] = await client.defineTasks({ organizationId, tasks: [correction] }, as);
+    const [correctedId] = (
+      await client.defineTasks({ organizationId, tasks: [correction] }, as)
+    ).map(({ id }) => id);
     expect(await client.listTasks({ organizationId, objectiveId: thanks! }, as)).toEqual([
       {
         id: correctedId,

@@ -7,7 +7,7 @@
 
 export type { Citation, CitedPassage } from "./citation.ts";
 export { createCitations, readObjectiveCitations, readSourceTexts } from "./citation.ts";
-export type { Course, ManagedCourse } from "./course.ts";
+export type { Course, CourseWriteResult, ManagedCourse } from "./course.ts";
 export {
   createCourse,
   readCourseObjectives,
@@ -98,7 +98,7 @@ export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export { markPublished } from "./publication.ts";
-export type { AuthoredTask, CitedTaskPassage, TaskCitation } from "./task.ts";
+export type { AuthoredTask, CitedTaskPassage, TaskCitation, TaskWriteResult } from "./task.ts";
 export {
   ConflictingAttempt,
   countOtherAttempts,

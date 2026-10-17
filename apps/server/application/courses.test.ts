@@ -29,8 +29,17 @@ let alpha!: string;
 let bravo!: string;
 let theirs!: string;
 
-function define(objectiveIds: readonly string[], actingAs = author, title = "Spanish") {
-  return defineCourse({ database, organizationId, actingAs, title, objectiveIds, published: true });
+/** The ID `defineCourse` answers. */
+async function define(objectiveIds: readonly string[], actingAs = author, title = "Spanish") {
+  const { id } = await defineCourse({
+    database,
+    organizationId,
+    actingAs,
+    title,
+    objectiveIds,
+    published: true,
+  });
+  return id;
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -110,7 +119,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       database,
       organizationId,
       actingAs: author,
-      taskIds: [retired!],
+      taskIds: [retired!.id],
       now: at,
       byTool: true,
     });

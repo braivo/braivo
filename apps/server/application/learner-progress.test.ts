@@ -85,27 +85,33 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       "Past tense",
       "Fractions",
     ])) as [string, string];
-    course = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Both",
-      objectiveIds: [pastTense, fractions],
-    });
-    emptyCourse = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Empty",
-      objectiveIds: [],
-    });
+    course = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Both",
+        objectiveIds: [pastTense, fractions],
+      })
+    ).id;
+    emptyCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Empty",
+        objectiveIds: [],
+      })
+    ).id;
     [theirPastTense] = (await createObjectives(database, otherOrganizationId, ["Past tense"])) as [
       string,
     ];
-    foreignCourse = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Theirs",
-      objectiveIds: [theirPastTense],
-    });
+    foreignCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Theirs",
+        objectiveIds: [theirPastTense],
+      })
+    ).id;
   });
 
   beforeEach(async () => {

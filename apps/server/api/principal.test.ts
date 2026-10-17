@@ -190,4 +190,18 @@ describe.skipIf(!connectionString)("a connection on the API's routes", () => {
 
     expect(organizations.map((organization) => organization.id)).toContain(organizationId);
   });
+
+  test("gives up on a call when its signal aborts, as `fetch` does", async () => {
+    const stalled = { fetch: () => new Promise<Response>(() => {}) };
+    const client = createConnectionClient({ api: stalled, baseUrl, principal });
+    const reason = new Error("Too late.");
+
+    await expect(client.listOrganizations({ signal: AbortSignal.abort(reason) })).rejects.toBe(
+      reason,
+    );
+    const deadline = new AbortController();
+    const listing = client.listOrganizations({ signal: deadline.signal });
+    deadline.abort(reason);
+    await expect(listing).rejects.toBe(reason);
+  });
 });

@@ -117,16 +117,24 @@ const offeredTask = and(isNotNull(task.publishedAt), isNull(task.retiredAt));
 type NewTask = { objectiveId: string; body: TaskBody; citations?: readonly TaskCitation[] };
 
 /**
- * Stores tasks with the passages they cite and returns their IDs, positionally
- * matching the tasks given. Bodies must already be valid and citations located
- * — `content` does both — since a stored task is never corrected, only
- * replaced (`replaceTask`).
+ * What a write did with one task, and what learners reach of it (ADR 0039):
+ * `added`, false for an unretired twin found instead; `published`, false while
+ * it waits for Publish; `replaces`, only while it is a waiting correction, the
+ * published task it will retire, offered meanwhile.
+ */
+export type TaskWriteResult = { id: string; added: boolean; published: boolean; replaces?: string };
+
+/**
+ * Stores tasks with the passages they cite and returns what it did with each
+ * (`TaskWriteResult`), positionally matching the tasks given. Bodies must
+ * already be valid and citations located — `content` does both — since a
+ * stored task is never corrected, only replaced (`replaceTask`).
  *
  * A task the objective already has, unretired — the same body and the same
- * passages — is not stored again: its ID is returned, so an agent or script
- * retrying after a lost answer duplicates nothing, and the same holds for a
- * task repeated within one batch (docs/adr/0024-idempotent-authoring.md). A
- * retired twin does not count: adding a task again is how to bring it back.
+ * passages — is not stored again but answered, `added` false, so an agent or
+ * script retrying after a lost answer duplicates nothing, and the same holds
+ * for a task repeated within one batch (ADR 0024). A retired twin does not
+ * count: adding a task again is how to bring it back.
  *
  * One transaction, because a task is immutable: one stored without the
  * citations it was written with could never be given them afterwards. Each
@@ -148,7 +156,7 @@ export async function createTasks(
   tasks: readonly NewTask[],
   createdAt: Date,
   { published }: { published: boolean },
-): Promise<string[]> {
+): Promise<TaskWriteResult[]> {
   if (tasks.length === 0) return [];
 
   return database.transaction(async (transaction) => {
@@ -156,7 +164,7 @@ export async function createTasks(
       transaction,
       tasks.map((item) => item.objectiveId),
     );
-    return (await storeTasks(transaction, organizationId, tasks, createdAt, { published })).ids;
+    return storeTasks(transaction, organizationId, tasks, createdAt, { published });
   });
 }
 
@@ -190,7 +198,7 @@ export async function replaceTask(
   correction: NewTask,
   createdAt: Date,
   { byTool }: { byTool: boolean },
-): Promise<string> {
+): Promise<TaskWriteResult> {
   return database.transaction(async (transaction) => {
     await lockObjectiveTasks(transaction, [correction.objectiveId]);
     // Links change only under that lock, so they can be read before the rows are locked.
@@ -209,60 +217,57 @@ export async function replaceTask(
     const waiting = rows.find((row) => corrections.includes(row.id) && isWaiting(row))?.id;
 
     if (byTool && published) {
-      const {
-        ids: [id],
-        added,
-      } = await storeTasks(transaction, organizationId, [correction], createdAt, {
+      const [written] = await storeTasks(transaction, organizationId, [correction], createdAt, {
         published: false,
         replacesTaskId: replaces,
       });
-      if (id === replaces || id === waiting) return id!;
+      if (written!.id === replaces || written!.id === waiting) return written!;
       // Thrown inside the transaction, so a correction just stored goes with it.
-      if (!added) throw new DuplicateCorrection();
+      if (!written!.added) throw new DuplicateCorrection();
       if (waiting) throw new CorrectionWaiting(waiting);
-      return id!;
+      return written!;
     }
 
-    const {
-      ids: [id],
-      added,
-    } = await storeTasks(transaction, organizationId, [correction], createdAt, {
+    const [written] = await storeTasks(transaction, organizationId, [correction], createdAt, {
       published,
       // A waiting correction's replacement corrects the same published task.
       replacesTaskId: (live && !published && replaced.replacesTaskId) || undefined,
     });
-    if (id === replaces) return id;
+    if (written!.id === replaces) return written!;
     if (!live) {
-      if (added) throw new StaleCorrection();
-      return id!;
+      if (written!.added) throw new StaleCorrection();
+      return written!;
     }
-    if (!added) throw new DuplicateCorrection();
+    if (!written!.added) throw new DuplicateCorrection();
     await transaction
       .update(task)
       .set({ retiredAt: createdAt })
       .where(inArray(task.id, waiting ? [replaces, waiting] : [replaces]));
-    return id!;
+    return written!;
   });
 }
 
-/**
- * `createTasks`' writes, under its locks: the IDs, and whether any task was
- * newly stored rather than found.
- */
+/** `createTasks`' writes, under its locks, and what each did. */
 async function storeTasks(
   transaction: Transaction,
   organizationId: string,
   tasks: readonly NewTask[],
   createdAt: Date,
   { published, replacesTaskId }: { published: boolean; replacesTaskId?: string },
-): Promise<{ ids: string[]; added: boolean }> {
+): Promise<TaskWriteResult[]> {
   const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))];
 
   // Every unretired task these objectives have, published or waiting, with
   // its passages: few per objective, and compared here since jsonb equality alone would not
   // compare the citations beside it.
   const stored = await transaction
-    .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
+    .select({
+      id: task.id,
+      objectiveId: task.objectiveId,
+      body: task.body,
+      publishedAt: task.publishedAt,
+      replacesTaskId: task.replacesTaskId,
+    })
     .from(task)
     .where(
       and(
@@ -292,11 +297,13 @@ async function storeTasks(
     objectiveId: row.objectiveId,
     body: row.body,
     cited: citedKey(passages.filter((passage) => passage.taskId === row.id)),
+    published: row.publishedAt !== null,
+    replacesTaskId: row.replacesTaskId ?? undefined,
   }));
 
   const rows: (typeof task.$inferInsert)[] = [];
   const citations: (typeof taskCitation.$inferInsert)[] = [];
-  const ids = tasks.map((item) => {
+  const written = tasks.map((item): TaskWriteResult => {
     // Compared as it will be stored: `jsonb` keeps what JSON can say, so a
     // value JSON cannot — an answer of -0, stored as 0 — must not make a
     // retry look like another task.
@@ -309,7 +316,7 @@ async function storeTasks(
         // Key order does not matter, option order does: it is what `answer` indexes.
         isDeepStrictEqual(candidate.body, body),
     );
-    if (twin) return twin.id;
+    if (twin) return { ...stateOf(twin), id: twin.id, added: false };
 
     const id = crypto.randomUUID();
     const stamped = new Date(createdAt.getTime() + rows.length);
@@ -325,8 +332,9 @@ async function storeTasks(
     for (const citation of item.citations ?? []) {
       citations.push({ organizationId, taskId: id, ...citation });
     }
-    known.push({ id, objectiveId: item.objectiveId, body, cited });
-    return id;
+    // Found again later in this batch as a twin, not as added.
+    known.push({ id, objectiveId: item.objectiveId, body, cited, published, replacesTaskId });
+    return { ...stateOf({ published, replacesTaskId }), id, added: true };
   });
 
   if (rows.length > 0) await transaction.insert(task).values(rows);
@@ -334,7 +342,16 @@ async function storeTasks(
   if (citations.length > 0) {
     await transaction.insert(taskCitation).values(citations).onConflictDoNothing();
   }
-  return { ids, added: rows.length > 0 };
+  return written;
+}
+
+/** What learners reach of a stored task: `TaskWriteResult`'s `published` and `replaces`. */
+function stateOf(row: { published: boolean; replacesTaskId: string | undefined }) {
+  return {
+    published: row.published,
+    // The column outlives Publish as a record; the answer names it only while waiting.
+    ...(!row.published && row.replacesTaskId !== undefined && { replaces: row.replacesTaskId }),
+  };
 }
 
 /** A task's passages as one comparable value: the same set, however listed or repeated. */

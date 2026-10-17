@@ -8,6 +8,8 @@ import type {
   Connection,
   Course,
   CourseProgressOverview,
+  CourseSummary,
+  CourseWriteResult,
   DomainClaim,
   DomainList,
   Draft,
@@ -21,7 +23,6 @@ import type {
   LearnerProgressReport,
   LearnerProgressSummary,
   LocatedCitation,
-  CourseSummary,
   Member,
   Objective,
   Organization,
@@ -35,6 +36,7 @@ import type {
   SourceSummary,
   TaskDraft,
   TaskResponse,
+  TaskWriteResult,
 } from "./types.ts";
 
 // The client for Braivo's HTTP API, which the learn and console apps import as
@@ -55,6 +57,8 @@ export type {
   Connection,
   Course,
   CourseProgressOverview,
+  CourseSummary,
+  CourseWriteResult,
   Domain,
   DomainClaim,
   DomainList,
@@ -67,14 +71,13 @@ export type {
   Handoff,
   HostOrganization,
   LearnerProgressReport,
+  LearnerProgressStanding,
   LearnerProgressSummary,
   LearningDecision,
   LocatedCitation,
-  CourseSummary,
   ManagedCourse,
   Member,
   Objective,
-  LearnerProgressStanding,
   Organization,
   OrganizationSetup,
   Passage,
@@ -87,6 +90,7 @@ export type {
   SourceSummary,
   TaskDraft,
   TaskResponse,
+  TaskWriteResult,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
 export { learnerDayIn } from "../application/learner-day.ts";
@@ -562,8 +566,9 @@ export type BraivoClient = {
 
   /**
    * Adds tasks, each with the passages it was written from, and resolves to
-   * their IDs in the order given. A task already there, unretired, resolves to
-   * its ID instead, so a retry is safe. All or nothing; a quote Braivo cannot
+   * what it did with each, in the order given ({@link TaskWriteResult}). A task
+   * already there, unretired, resolves to its ID and state instead, so a retry
+   * is safe. All or nothing; a quote Braivo cannot
    * cite is a 400 whose `reason` names the task and citation.
    *
    * A task naming one it `replaces`, sent alone for the same objective, is its
@@ -581,7 +586,7 @@ export type BraivoClient = {
   defineTasks(
     input: { organizationId: string; tasks: readonly TaskDraft[] },
     options?: RequestOptions,
-  ): Promise<string[]>;
+  ): Promise<TaskWriteResult[]>;
 
   /**
    * An objective's unretired tasks, published or waiting, oldest first, as
@@ -676,8 +681,9 @@ export type BraivoClient = {
 
   /**
    * Creates a course over existing objectives, in the order learners meet them,
-   * and resolves to its ID. With a `key`, sending the same course again —
-   * title and objectives in the same order — resolves to the same ID, and
+   * and resolves to its ID and whether it is published ({@link CourseWriteResult}).
+   * With a `key`, sending the same course again — title and objectives in the
+   * same order — resolves to the same course, as it stands now, and
    * sending another under it is a {@link BraivoError} with status 409. A title
    * or key Braivo will not store, or an objective listed twice, is a 400 whose
    * `reason` says which.
@@ -690,7 +696,7 @@ export type BraivoClient = {
       key?: string;
     },
     options?: RequestOptions,
-  ): Promise<string>;
+  ): Promise<CourseWriteResult>;
 };
 
 /**
@@ -1257,8 +1263,8 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `adding tasks in organization "${input.organizationId}"`;
       if (response.status !== 201) throw await unexpected(response, doing);
 
-      const { taskIds } = await parsed<{ taskIds: string[] }>(response, doing);
-      return taskIds;
+      const { tasks } = await parsed<{ tasks: TaskWriteResult[] }>(response, doing);
+      return tasks;
     },
 
     async listTasks({ organizationId, objectiveId }, requestOptions) {
@@ -1351,8 +1357,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `creating course "${input.title}" in organization "${organizationId}"`;
       if (response.status !== 201) throw await unexpected(response, doing);
 
-      const { courseId } = await parsed<{ courseId: string }>(response, doing);
-      return courseId;
+      return parsed<CourseWriteResult>(response, doing);
     },
 
     async acceptDraft({ organizationId, sourceId, title, objectives }, requestOptions) {
@@ -1374,7 +1379,11 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (tasks.length > 0) await client.defineTasks({ organizationId, tasks }, requestOptions);
 
       const key = `${sourceId}/course-${await digest([title, ...objectives.map(({ key }) => key)])}`;
-      return client.defineCourse({ organizationId, title, objectiveIds, key }, requestOptions);
+      const { courseId } = await client.defineCourse(
+        { organizationId, title, objectiveIds, key },
+        requestOptions,
+      );
+      return courseId;
     },
   };
   return client;

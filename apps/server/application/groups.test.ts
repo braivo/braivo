@@ -77,12 +77,14 @@ describe.skipIf(!connectionString)("groups", () => {
     const [theirs] = (await createObjectives(database, otherOrganizationId, ["Theirs"])) as [
       string,
     ];
-    foreignCourse = await createCourse(database, {
-      published: true,
-      organizationId: otherOrganizationId,
-      title: "Theirs",
-      objectiveIds: [theirs],
-    });
+    foreignCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId: otherOrganizationId,
+        title: "Theirs",
+        objectiveIds: [theirs],
+      })
+    ).id;
   });
 
   beforeEach(async () => {
@@ -94,18 +96,22 @@ describe.skipIf(!connectionString)("groups", () => {
       at: now,
     });
     [greetings] = (await createObjectives(database, organizationId, ["Greetings"])) as [string];
-    shared = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Shared",
-      objectiveIds: [greetings],
-    });
-    untaught = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Untaught",
-      objectiveIds: [greetings],
-    });
+    shared = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Shared",
+        objectiveIds: [greetings],
+      })
+    ).id;
+    untaught = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Untaught",
+        objectiveIds: [greetings],
+      })
+    ).id;
     await testing.clearLearnerHistory(database, [ana, ben, cleo]);
   });
 

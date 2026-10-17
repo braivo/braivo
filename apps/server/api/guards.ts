@@ -176,8 +176,9 @@ export const presentsToolCredential = (context: Context): boolean =>
   context.get("connection") !== undefined || context.req.header("authorization") !== undefined;
 
 /**
- * The routes a connection's `braivo:author` reaches (access-41). No task
- * writes: learners would see them at once until ADR 0039 holds tasks too.
+ * The routes a connection's `braivo:author` reaches (access-41). Its writes
+ * reach no learner: what it writes waits, and it never publishes or retires a
+ * published task, being a tool (`presentsToolCredential`, ADR 0039).
  */
 const AUTHOR_ROUTES: ReadonlySet<string> = new Set([
   "GET /api/organizations",
@@ -189,6 +190,8 @@ const AUTHOR_ROUTES: ReadonlySet<string> = new Set([
   "POST /api/organizations/:organizationId/citations",
   "GET /api/organizations/:organizationId/objectives/:objectiveId/citations",
   "GET /api/organizations/:organizationId/objectives/:objectiveId/tasks",
+  "POST /api/organizations/:organizationId/tasks",
+  "POST /api/organizations/:organizationId/tasks/retire",
   "GET /api/organizations/:organizationId/courses",
   "POST /api/organizations/:organizationId/courses",
   "GET /api/organizations/:organizationId/courses/:courseId",

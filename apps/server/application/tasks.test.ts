@@ -48,8 +48,10 @@ type Draft = {
 };
 
 /** As a person in the console, unless `byTool`, as through a token (ADR 0039). */
-function define(tasks: readonly Draft[], actingAs = author, { byTool = false } = {}) {
-  return defineTasks({ database, organizationId, actingAs, tasks, now, byTool });
+/** The IDs `defineTasks` answers, in order. */
+async function define(tasks: readonly Draft[], actingAs = author, { byTool = false } = {}) {
+  const written = await defineTasks({ database, organizationId, actingAs, tasks, now, byTool });
+  return written.map(({ id }) => id);
 }
 
 /** A lesson with a character outside the BMP, so code points and UTF-16 differ. */
@@ -109,12 +111,14 @@ describe.skipIf(!connectionString)("tasks", () => {
     [foreignObjective] = (await createObjectives(database, otherOrganizationId, ["Theirs"])) as [
       string,
     ];
-    courseId = await createCourse(database, {
-      published: true,
-      organizationId,
-      title: "Course",
-      objectiveIds: [objective],
-    });
+    courseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Course",
+        objectiveIds: [objective],
+      })
+    ).id;
   });
 
   test("stores tasks a learner is then offered, without their answer", async () => {
@@ -273,13 +277,15 @@ describe.skipIf(!connectionString)("tasks", () => {
   test("refuses to retire for a learner, or a task another organization owns", async () => {
     const [ours] = (await define([{ objectiveId: objective, body: choice }])) as [string];
     // Stored directly: nobody here may author for the other organization.
-    const [theirs] = (await createTasks(
-      database,
-      otherOrganizationId,
-      [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
-      now,
-      { published: true },
-    )) as [string];
+    const [theirs] = (
+      await createTasks(
+        database,
+        otherOrganizationId,
+        [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
+        now,
+        { published: true },
+      )
+    ).map(({ id }) => id) as [string];
     const retire = (taskIds: string[], actingAs = author) =>
       retireTasks({ database, organizationId, actingAs, taskIds, now, byTool: false });
 
@@ -514,7 +520,9 @@ describe.skipIf(!connectionString)("tasks", () => {
             ),
           ),
         )
-      ).flat();
+      )
+        .flat()
+        .map(({ id }) => id);
 
       expect(new Set(ids).size).toBe(1);
       expect(await stored()).toHaveLength(1);
@@ -609,13 +617,15 @@ describe.skipIf(!connectionString)("tasks", () => {
       const [elsewhere] = (await createObjectives(database, organizationId, ["Elsewhere"])) as [
         string,
       ];
-      const [theirs] = (await createTasks(
-        database,
-        otherOrganizationId,
-        [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
-        now,
-        { published: true },
-      )) as [string];
+      const [theirs] = (
+        await createTasks(
+          database,
+          otherOrganizationId,
+          [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
+          now,
+          { published: true },
+        )
+      ).map(({ id }) => id) as [string];
       const lesson = await addLesson();
       const refusal = (tasks: Draft[], actingAs = author) =>
         define(tasks, actingAs).catch((error: unknown) => error);

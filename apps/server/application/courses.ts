@@ -8,11 +8,13 @@ import {
   type AuthoredTask,
   type CitedPassage,
   type Course,
-  createCourse,
-  findTasksOutsideOrganization,
+  type CourseWriteResult,
   type ManagedCourse,
-  markPublished,
+  type SourceSummary,
+  createCourse,
   findObjectivesOutsideOrganization,
+  findTasksOutsideOrganization,
+  markPublished,
   readCourseObjectives,
   readCourses,
   readDomainOrganization,
@@ -23,7 +25,6 @@ import {
   readPublishedCoursesByObjective,
   readSources,
   readWaitingTaskCounts,
-  type SourceSummary,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
@@ -32,7 +33,8 @@ import { assertMayAdminister, NotPermitted } from "./permission.ts";
 
 /**
  * Creates a course over the organization's own objectives, in the order given;
- * that order is the candidate list selection works from.
+ * that order is the candidate list selection works from. Answers what it did
+ * (`CourseWriteResult`).
  *
  * Ownership is checked here although composite foreign keys enforce it too, so a
  * foreign objective is a named refusal rather than a constraint violation. A
@@ -57,7 +59,7 @@ export async function defineCourse(input: {
    * key keeps its state.
    */
   published: boolean;
-}): Promise<string> {
+}): Promise<CourseWriteResult> {
   const { database, organizationId, actingAs, objectiveIds, key, published } = input;
 
   // Checked first, since it depends only on what was sent.
