@@ -5012,7 +5012,7 @@ describe("the console", () => {
     expect(screen.getByText(/Open to every learner in Example School at/)).toBeTruthy();
     expect(screen.getAllByText("Waiting")).toHaveLength(1);
     // Retiring a waiting task takes nothing from learners, and says so.
-    fireEvent.click(screen.getAllByRole("button", { name: "Retire" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Retire “Goodbye, in Spanish?”" }));
     expect((await screen.findByRole("alertdialog")).textContent).toContain(
       "It was never published, so learners have not been asked it.",
     );
@@ -5881,7 +5881,9 @@ describe("the console", () => {
       "adiós Shown after a miss",
     );
     expect(within(greetings).getByText("adios")).toBeTruthy();
-    expect(within(greetings).getByRole("button", { name: "Retire" })).toBeTruthy();
+    expect(
+      within(greetings).getByRole("button", { name: "Retire “Goodbye, in Spanish?”" }),
+    ).toBeTruthy();
 
     fireEvent.click(within(greetings).getByRole("button", { name: "Edit “Goodbye, in Spanish?”" }));
     fireEvent.change(screen.getByLabelText("Accepted answers, one a line"), {
@@ -5890,20 +5892,23 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() =>
-      expect(defineTasks).toHaveBeenCalledWith({
-        organizationId: "org-1",
-        tasks: [
-          {
-            objectiveId: "greetings",
-            kind: "typed",
-            prompt: "Goodbye, in Spanish?",
-            accepted: ["adiós", "adios", "chao"],
-            answerLanguage: "es",
-            citations: [{ sourceId: "s1", quote: "Hola." }],
-            replaces: "t2",
-          },
-        ],
-      }),
+      expect(defineTasks).toHaveBeenCalledWith(
+        {
+          organizationId: "org-1",
+          tasks: [
+            {
+              objectiveId: "greetings",
+              kind: "typed",
+              prompt: "Goodbye, in Spanish?",
+              accepted: ["adiós", "adios", "chao"],
+              answerLanguage: "es",
+              citations: [{ sourceId: "s1", quote: "Hola." }],
+              replaces: "t2",
+            },
+          ],
+        },
+        { signal: expect.any(AbortSignal) },
+      ),
     );
   });
 
@@ -5923,17 +5928,20 @@ describe("the console", () => {
       braivo: { readCourse: reading, retireTasks },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Retire “Hello, in Spanish?”?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Keep it" }));
     expect(retireTasks).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Retire" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retire “Hello, in Spanish?”" }));
     const confirming = await screen.findByRole("alertdialog");
     fireEvent.click(within(confirming).getByRole("button", { name: "Retire" }));
 
     await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
-    expect(retireTasks).toHaveBeenCalledWith({ organizationId: "org-1", taskIds: ["t1"] });
+    expect(retireTasks).toHaveBeenCalledWith(
+      { organizationId: "org-1", taskIds: ["t1"] },
+      { signal: expect.any(AbortSignal) },
+    );
     // The task is gone with its button, so a keyboard user resumes at its objective.
     await vi.waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" })),
@@ -5959,7 +5967,7 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
     fireEvent.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
     );
@@ -5969,7 +5977,7 @@ describe("the console", () => {
 
     reloaded.resolve();
     await vi.waitFor(() => expect(document.activeElement).toBe(heading));
-    expect(screen.queryByRole("button", { name: "Retire" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retire “Hello, in Spanish?”" })).toBeNull();
   });
 
   test("says so when a task could not be retired", async () => {
@@ -5982,14 +5990,200 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
     fireEvent.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
     );
 
     expect(await screen.findByText("The task could not be retired. Try again.")).toBeTruthy();
     // Still there to try again, and focused to.
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Retire" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Retire “Hello, in Spanish?”" }),
+    );
+  });
+
+  test("says a task is retiring, focused, until Braivo fails to answer in time, a new alert each time", async () => {
+    const retireTasks = vi.fn((_input: unknown, options?: { signal?: AbortSignal }) =>
+      stall(options),
+    );
+    renderAt("/example/courses/course-1", { braivo: { readCourse, retireTasks } });
+
+    async function confirm() {
+      fireEvent.click(screen.getByRole("button", { name: "Retire “Hello, in Spanish?”" }));
+      const dialog = await screen.findByRole("alertdialog");
+      vi.useFakeTimers();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Retire" }));
+      // The dialog hands focus back on a timer.
+      await waitOut(0);
+    }
+
+    await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" });
+    await confirm();
+    // Still named for its task, one of several that may be retiring.
+    const retiring = screen.getByRole("button", { name: "Retiring “Hello, in Spanish?”" });
+    expect(retiring.textContent).toBe("Retiring…");
+    expect(retiring.getAttribute("aria-disabled")).toBe("true");
+    expect(document.activeElement).toBe(retiring);
+    // Asked once: clicked again meanwhile, it opens nothing.
+    fireEvent.click(retiring);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    // Not edited meanwhile: the retirement could land under the edit, or fail unsaid.
+    const edit = screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" });
+    expect((edit as HTMLButtonElement).disabled).toBe(true);
+
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+    const failed = screen.getByRole("alert");
+    expect(failed.textContent).toBe("The task could not be retired. Try again.");
+    // Not beside the buttons, where at 320px it squeezes the question.
+    expect(failed.closest("[data-slot=card-action]")).toBeNull();
+    const retire = screen.getByRole("button", { name: "Retire “Hello, in Spanish?”" });
+    expect(document.activeElement).toBe(retire);
+    expect((edit as HTMLButtonElement).disabled).toBe(false);
+
+    await confirm();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+    expect(screen.getByRole("alert")).not.toBe(failed);
+    expect(retireTasks).toHaveBeenCalledTimes(2);
+  });
+
+  test("leaves the focus in another task's editor when a retirement lands meanwhile", async () => {
+    const retired = Promise.withResolvers<void>();
+    let gone = false;
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      const other = { ...task!, id: "t3", prompt: "Goodbye, in Spanish?" };
+      const tasks = gone ? [other] : [task!, other];
+      return { ...course, objectives: [{ ...greetings!, tasks }, ...rest] };
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: reading,
+        retireTasks: async () => {
+          await retired.promise;
+          gone = true;
+        },
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Edit “Goodbye, in Spanish?”" }));
+    const question = screen.getByLabelText("Question");
+    question.focus();
+
+    retired.resolve();
+    await vi.waitFor(() => expect(screen.queryByText("Hello, in Spanish?")).toBeNull());
+    expect(document.activeElement).toBe(question);
+  });
+
+  test("says nothing failed when a retry finds its owner signed out", async () => {
+    const retireTasks = vi
+      .fn()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockRejectedValueOnce(new BraivoError(401, "Signed out."));
+    const { auth } = renderAt("/example/courses/course-1", { braivo: { readCourse, retireTasks } });
+    async function confirm() {
+      fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+      );
+    }
+
+    await confirm();
+    await screen.findByRole("alert");
+    await auth.signOut();
+    await confirm();
+
+    // Until sign-in shows, the earlier failure is not said again.
+    await vi.waitFor(() => expect(retireTasks).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("The task could not be retired. Try again.")).toBeNull();
+    expect(await screen.findByLabelText("Email address")).toBeTruthy();
+  });
+
+  test("sends someone signed out before retiring a task to sign in, and back", async () => {
+    const { auth, router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse,
+        retireTasks: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Retire “Hello, in Spanish?”" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await auth.signOut();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retire" }));
+    expect(await screen.findByLabelText("Email address")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ redirect: "/example/courses/course-1" });
+  });
+
+  test("sends someone signed out before correcting a task to sign in, and back", async () => {
+    const { auth, router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse,
+        defineTasks: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    await auth.signOut();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByLabelText("Email address")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ redirect: "/example/courses/course-1" });
+  });
+
+  test("keeps a correction Braivo does not answer in time, to save again or cancel", async () => {
+    const defineTasks = vi.fn((_input: unknown, options?: { signal?: AbortSignal }) =>
+      stall(options),
+    );
+    renderAt("/example/courses/course-1", { braivo: { readCourse, defineTasks } });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "Hi, in Spanish?" } });
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    const failed = screen.getByText("The task could not be corrected. Try again.");
+    expect(document.activeElement).toBe(failed.closest("[role=alert]"));
+    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+    expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
+
+  test("fails the page in its place when a correction's reload cannot read the organization in time", async () => {
+    let corrected = false;
+    const listOrganizations = vi.fn(async (options?: { signal?: AbortSignal }) =>
+      corrected ? stall(options) : [school],
+    );
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        listOrganizations,
+        readCourse,
+        defineTasks: async () => {
+          corrected = true;
+          return ["t2"];
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
   });
 
   test("corrects a task with its passages, then reads the course again", async () => {
@@ -6021,22 +6215,25 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("radio", { name: "B is correct" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(defineTasks).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      tasks: [
-        {
-          objectiveId: "greetings",
-          kind: "choice",
-          prompt: "Hello, in Spanish?",
-          options: ["Hola", "Adiós"],
-          answer: 1,
-          explanation: "Adiós is goodbye.",
-          keepOrder: true,
-          citations: [{ sourceId: "s1", quote: "Hola." }],
-          replaces: "t1",
-        },
-      ],
-    });
+    expect(defineTasks).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        tasks: [
+          {
+            objectiveId: "greetings",
+            kind: "choice",
+            prompt: "Hello, in Spanish?",
+            options: ["Hola", "Adiós"],
+            answer: 1,
+            explanation: "Adiós is goodbye.",
+            keepOrder: true,
+            citations: [{ sourceId: "s1", quote: "Hola." }],
+            replaces: "t1",
+          },
+        ],
+      },
+      { signal: expect.any(AbortSignal) },
+    );
     // While it is sent, the edit can be neither changed nor cancelled.
     expect(screen.getByRole("button", { name: "Cancel" }).closest("fieldset")?.disabled).toBe(true);
 
@@ -6229,7 +6426,7 @@ describe("the console", () => {
     renderAt("/example/courses/course-1", { braivo: { readCourse: reading, retireTasks } });
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
-    fireEvent.click(screen.getByRole("button", { name: "Retire" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retire “Goodbye, in Spanish?”" }));
     fireEvent.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
     );

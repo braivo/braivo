@@ -27,7 +27,7 @@ import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { CourseUrlLabel } from "#components/course-url-label";
 import { LearnersSite } from "#components/learners-site";
@@ -345,33 +345,31 @@ function Objective(props: {
               }}
             />
           ) : (
-            <AuthoredTask
+            <RetirableTask
               key={task.id}
               task={task}
-              status={!task.published && <Badge variant="outline">Waiting</Badge>}
-              action={
-                <span className="flex items-start gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Edit “${task.prompt}”`}
-                    ref={(button) => {
-                      if (button && refocus.current === task.id) {
-                        refocus.current = undefined;
-                        button.focus();
-                      }
-                    }}
-                    disabled={open !== undefined}
-                    onClick={() => setEditing(task.id)}
-                  >
-                    Edit
-                  </Button>
-                  <RetireTask task={task} onRetired={() => heading.current?.focus()} />
-                </span>
-              }
+              renderEdit={(retiring) => (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Edit “${task.prompt}”`}
+                  ref={(button) => {
+                    if (button && refocus.current === task.id) {
+                      refocus.current = undefined;
+                      button.focus();
+                    }
+                  }}
+                  // Not while retiring it: the retirement could land under the edit.
+                  disabled={retiring || open !== undefined}
+                  onClick={() => setEditing(task.id)}
+                >
+                  Edit
+                </Button>
+              )}
+              onRetired={() => heading.current?.focus()}
             >
               {passages(task.citations)}
-            </AuthoredTask>
+            </RetirableTask>
           ),
         )
       )}
@@ -408,29 +406,35 @@ function CorrectTask(props: {
     setSaving(true);
     setError(undefined);
     try {
-      await braivo.defineTasks({
-        organizationId: organization.id,
-        tasks: [
-          {
-            objectiveId,
-            ...(edit.kind === "choice"
-              ? {
-                  ...edit,
-                  options: [...edit.options],
-                  ...(task.kind === "choice" && task.keepOrder && { keepOrder: true }),
-                }
-              : { ...edit, accepted: [...edit.accepted] }),
-            citations: task.citations.map(({ sourceId, quote }) => ({ sourceId, quote })),
-            replaces: task.id,
-          },
-        ],
-      });
+      await braivo.defineTasks(
+        {
+          organizationId: organization.id,
+          tasks: [
+            {
+              objectiveId,
+              ...(edit.kind === "choice"
+                ? {
+                    ...edit,
+                    options: [...edit.options],
+                    ...(task.kind === "choice" && task.keepOrder && { keepOrder: true }),
+                  }
+                : { ...edit, accepted: [...edit.accepted] }),
+              citations: task.citations.map(({ sourceId, quote }) => ({ sourceId, quote })),
+              replaces: task.id,
+            },
+          ],
+        },
+        // Bounded: an identical correction retried after a lost answer returns the stored task.
+        { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+      );
       // `sync`: resolved once the course is read again, not with the old one
       // while it reloads in the background, which would offer the old task to edit.
       await router.invalidate({ sync: true });
       onDone();
     } catch (thrown) {
       setSaving(false);
+      // Signed out meanwhile: the guard's check, run again, sends them to sign in.
+      if (thrown instanceof BraivoError && thrown.status === 401) return router.invalidate();
       setError(
         !(thrown instanceof BraivoError) || thrown.status !== 409
           ? { text: "The task could not be corrected. Try again." }
@@ -483,73 +487,114 @@ function CorrectTask(props: {
 }
 
 /**
- * Retiring takes a task out of practice for good: asked first, because
- * learners stop seeing it at once. Once retired, the task and this button are
- * gone, so `onRetired` says where focus goes instead.
+ * A task with its Edit button, from `renderEdit`, and Retire. Retiring takes
+ * a task out of practice for good: asked first, because learners stop seeing
+ * it at once. The dialog hands focus back to Retire, which says Retiring…
+ * meanwhile; once the task is gone, `onRetired` moves focus, unless it is
+ * already elsewhere, as in another task's editor opened meanwhile.
  */
-function RetireTask(props: {
+function RetirableTask(props: {
   task: AuthoredCourse["objectives"][number]["tasks"][number];
+  /** The task's Edit button, given whether it is retiring. */
+  renderEdit: (retiring: boolean) => ReactNode;
   onRetired: () => void;
+  /** The passages it was written from. */
+  children: ReactNode;
 }) {
-  const { task, onRetired } = props;
+  const { task, renderEdit, onRetired, children } = props;
+  const { prompt } = task;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
-  const trigger = useRef<HTMLButtonElement>(null);
-  // Set as the owner confirms, before the dialog closes, so that closing does
-  // not hand focus back to a button about to disappear.
-  const retiring = useRef(false);
-  const [error, setError] = useState<string>();
+  // A ref, set at once, refuses a second confirmation before `retiring` renders.
+  const pending = useRef(false);
+  const [retiring, setRetiring] = useState(false);
+  /** The last failure's count keys the alert, so a repeat is announced too. */
+  const [failures, setFailures] = useState(0);
 
   async function retire() {
-    if (retiring.current) return;
-    retiring.current = true;
-    setError(undefined);
+    if (pending.current) return;
+    pending.current = true;
+    setRetiring(true);
     try {
-      await braivo.retireTasks({ organizationId: organization.id, taskIds: [task.id] });
-      // Focus moves once the task is gone from the page (`sync`, as a correction's).
-      await router.invalidate({ sync: true });
-      onRetired();
-    } catch {
-      retiring.current = false;
-      setError("The task could not be retired. Try again.");
-      trigger.current?.focus();
+      // Bounded: retried after a lost answer, it keeps the first retirement.
+      await braivo.retireTasks(
+        { organizationId: organization.id, taskIds: [task.id] },
+        { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+      );
+    } catch (thrown) {
+      pending.current = false;
+      setRetiring(false);
+      // Signed out meanwhile: the guard's check, run again, sends them to sign in.
+      if (thrown instanceof BraivoError && thrown.status === 401) {
+        // Not an earlier failure said again on the way to sign in.
+        setFailures(0);
+        return router.invalidate();
+      }
+      setFailures((count) => count + 1);
+      return;
     }
+    // Focus moves once the task is gone (`sync`, as a correction's), if it went with it.
+    await router.invalidate({ sync: true });
+    if (document.activeElement === document.body) onRetired();
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm" ref={trigger}>
-            Retire
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            if (retiring.current) event.preventDefault();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>Retire “{task.prompt}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {task.published
-                ? "Learners will not be asked it again; what they already answered stays. To change it instead, edit it."
-                : "It was never published, so learners have not been asked it. To change it instead, edit it."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={retire}>
-              Retire
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+    <AuthoredTask
+      task={task}
+      status={!task.published && <Badge variant="outline">Waiting</Badge>}
+      action={
+        <span className="flex items-start gap-2">
+          {renderEdit(retiring)}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              {/* Named for its task, as Edit is, retiring too. Focusable meanwhile, opening nothing. */}
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={`${retiring ? "Retiring" : "Retire"} “${prompt}”`}
+                aria-disabled={retiring}
+                onClick={(event) => retiring && event.preventDefault()}
+              >
+                {retiring ? (
+                  <>
+                    {/* Hidden: the name says it. */}
+                    <Spinner data-icon="inline-start" aria-hidden="true" />
+                    Retiring…
+                  </>
+                ) : (
+                  "Retire"
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Retire “{prompt}”?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {task.published
+                    ? "Learners will not be asked it again; what they already answered stays. To change it instead, edit it."
+                    : "It was never published, so learners have not been asked it. To change it instead, edit it."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep it</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={retire}>
+                  Retire
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </span>
+      }
+      notice={
+        failures > 0 &&
+        !retiring && (
+          <Alert variant="destructive" key={failures}>
+            <AlertDescription>The task could not be retired. Try again.</AlertDescription>
+          </Alert>
+        )
+      }
+    >
+      {children}
+    </AuthoredTask>
   );
 }

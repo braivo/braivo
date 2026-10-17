@@ -58,4 +58,20 @@ describe("a task under review", () => {
     expect(screen.getByText("Dos significa two.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retire" })).toBeTruthy();
   });
+
+  test("shows a notice first, under the row, before the task's options", () => {
+    render(
+      <AuthoredTask
+        task={{ kind: "choice", prompt: "¿Dos?", options: ["one", "two"], answer: 1 }}
+        action={<button type="button">Retire</button>}
+        notice={<p role="alert">Could not retire it.</p>}
+      />,
+    );
+
+    const notice = screen.getByRole("alert");
+    expect(notice.closest("[data-slot=card-action]")).toBeNull();
+    expect(
+      notice.compareDocumentPosition(screen.getByRole("list")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
