@@ -86,7 +86,8 @@ export function TypedQuestion(props: {
           enterKeyHint="send"
           className={cn(
             "h-11 text-base",
-            sent !== undefined && outcome === "success" && "border-primary bg-primary/10",
+            // Important: the theme's unlayered field border and fill (globals.css) would win.
+            sent !== undefined && outcome === "success" && "border-primary! bg-primary/10!",
           )}
         />
         <Button

@@ -4,6 +4,8 @@
 /// <reference types="vite-plus/client" />
 // The theme as the apps load it, compiled by Tailwind (the root config).
 import "./styles/globals.css";
+import { i18n } from "@lingui/core";
+import { I18nProvider } from "@lingui/react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser/context";
@@ -17,6 +19,8 @@ import { Item } from "./components/item.tsx";
 import { NativeSelect, NativeSelectOption } from "./components/native-select.tsx";
 import { RadioGroup, RadioGroupItem } from "./components/radio-group.tsx";
 import { Textarea } from "./components/textarea.tsx";
+import { ChoiceQuestion } from "./compositions/choice-question.tsx";
+import { TypedQuestion } from "./compositions/typed-question.tsx";
 
 afterEach(() => {
   cleanup();
@@ -278,6 +282,45 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     expect(borderContrast(field)).toBeGreaterThanOrEqual(LEAST);
     await focusByKeyboard(field);
     expect(ringContrast(field)).toBeGreaterThanOrEqual(LEAST);
+  });
+
+  // Marks are utilities, which the theme's unlayered rules for fields and
+  // outline buttons (globals.css) would otherwise override.
+  test("graded answers have distinct colour marks; a correct typed answer matches the correct option", () => {
+    setTheme();
+    render(
+      <I18nProvider i18n={i18n}>
+        <ChoiceQuestion
+          prompt="Ich ___ müde."
+          options={[
+            { choice: 1, text: "bin" },
+            { choice: 2, text: "bist" },
+            { choice: 3, text: "ist" },
+          ]}
+          chosen={2}
+          correctChoice={1}
+          onChoose={() => {}}
+        />
+        <TypedQuestion prompt="Ich ___ müde." sent="bin" outcome="success" onSubmit={() => {}} />
+      </I18nProvider>,
+    );
+    // Border and fill as seen: each over what is under it.
+    const drawn = (element: HTMLElement) => {
+      const { borderTopColor, backgroundColor } = settled(element);
+      const fill = over(paint(backgroundColor), surface(element));
+      return { border: over(paint(borderTopColor), fill), fill };
+    };
+    const option = (text: string) =>
+      drawn(screen.getByRole("button", { name: new RegExp(`^${text}\\b`) }));
+
+    // By border and by fill alone, each mark stands apart from no mark and the other.
+    const [unmarked, correct, wrong] = [option("ist"), option("bin"), option("bist")];
+    for (const part of ["border", "fill"] as const) {
+      expect(correct[part], part).not.toEqual(unmarked[part]);
+      expect(wrong[part], part).not.toEqual(unmarked[part]);
+      expect(wrong[part], part).not.toEqual(correct[part]);
+    }
+    expect(drawn(screen.getByRole("textbox"))).toEqual(correct);
   });
 
   test("a plain link shows focus by its outline at 3:1", async () => {
