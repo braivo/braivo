@@ -215,6 +215,10 @@ msgid "Approve"
 msgstr "Zezwól"
 
 #: apps/console/routes/_signed-in/consent.tsx
+msgid "Approving…"
+msgstr "Zezwalanie…"
+
+#: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "Działając w Twoim imieniu, będzie mogła czytać materiały i kursy organizacji „{organizationName}” oraz dodawać materiały i cele nauczania, których dotyczą."
 
@@ -249,6 +253,10 @@ msgstr "Alfabetycznie"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Cancel"
 msgstr "Anuluj"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Cancelling…"
+msgstr "Anulowanie…"
 
 #: apps/console/components/group-form.tsx
 msgid "Change to learner"
@@ -486,6 +494,10 @@ msgstr "Region danych"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Deny"
 msgstr "Odmów"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Denying…"
+msgstr "Odmawianie…"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Disconnect"

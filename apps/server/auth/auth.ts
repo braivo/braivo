@@ -166,7 +166,10 @@ async function refuseAnotherOrganization(context: AuthContext): Promise<void> {
     (context.path === "/oauth2/consent" && body.accept === true);
   if (!granting) return;
   const session = await getSessionFromCtx(context);
-  const chosen = (session?.session as Record<string, unknown> | undefined)?.activeOrganizationId;
+  // Signed out since the page was shown, as Better Auth's own check would say:
+  // the console then sends them to sign in, not blaming another tab.
+  if (!session) throw new APIError("UNAUTHORIZED");
+  const chosen = (session.session as Record<string, unknown>).activeOrganizationId;
   if (typeof body.organizationId === "string" && body.organizationId === chosen) return;
   throw new APIError("FORBIDDEN", {
     // Read by the console: only this refusal is another tab's doing.

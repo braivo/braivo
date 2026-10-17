@@ -1009,6 +1009,37 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(granted).toEqual([]);
   });
 
+  test("answers someone signed out meanwhile as signed out, not as another tab's choice", async () => {
+    const { clientId: client } = await registerOAuthClient(auth, {
+      name: "Signed out",
+      redirectUris: [redirectUri],
+    });
+    const asking = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
+    asking.search = new URLSearchParams({
+      response_type: "code",
+      client_id: client,
+      redirect_uri: redirectUri,
+      scope: "braivo:author",
+      state: "signed-out",
+      code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+      code_challenge_method: "S256",
+      resource,
+    }).toString();
+    const asked = await api.request(asking, { headers: { cookie: teacher.cookie } });
+    const query = await signedQuery(
+      new URL(asked.headers.get("location")!, baseUrl),
+      "organization",
+    );
+    const signedOut = { ...teacher, cookie: "" };
+
+    for (const [path, body] of [
+      ["/oauth2/continue", { postLogin: true, oauth_query: query, organizationId }],
+      ["/oauth2/consent", { accept: true, oauth_query: query, organizationId }],
+    ] as const) {
+      expect((await fromBrowser(signedOut, path, body)).status).toBe(401);
+    }
+  });
+
   test("keeps a person's grants to one client for two organizations apart", async () => {
     const { clientId: client } = await registerOAuthClient(auth, {
       name: "Two organizations",

@@ -5,23 +5,40 @@ import type { Organization } from "@braivo/server/client";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
+import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { school, annex } from "./fixtures.ts";
-import { renderAt, signInWithCode, REVIEWER_PASSWORD, signInWithPassword } from "./render.tsx";
+import {
+  renderAt,
+  signInWithCode,
+  REVIEWER_PASSWORD,
+  signInWithPassword,
+  stall,
+  waitOut,
+} from "./render.tsx";
+
+/** What approving or denying a code sends Better Auth. */
+type Decision = { userCode: string; fetchOptions?: { signal?: AbortSignal } };
 
 /** A device-flow stub: `status` for a known code, an error for any other. */
 function deviceFlow(status = "pending") {
   const device = Object.assign(
-    vi.fn(async ({ query }: { query: { user_code: string } }) =>
-      ["ABCD2345", "EFGH6789"].includes(query.user_code)
-        ? { data: { user_code: query.user_code, status, client_id: "braivo-cli" }, error: null }
-        : {
-            data: null,
-            error: { status: 400, error: "invalid_request", error_description: "Invalid" },
-          },
+    vi.fn(
+      async ({
+        query,
+      }: {
+        query: { user_code: string };
+        fetchOptions?: { signal?: AbortSignal };
+      }) =>
+        ["ABCD2345", "EFGH6789"].includes(query.user_code)
+          ? { data: { user_code: query.user_code, status, client_id: "braivo-cli" }, error: null }
+          : {
+              data: null,
+              error: { status: 400, error: "invalid_request", error_description: "Invalid" },
+            },
     ),
     {
-      approve: vi.fn(async () => ({ data: { success: true }, error: null })),
-      deny: vi.fn(async () => ({ data: { success: true }, error: null })),
+      approve: vi.fn(async (_decision: Decision) => ({ data: { success: true }, error: null })),
+      deny: vi.fn(async (_decision: Decision) => ({ data: { success: true }, error: null })),
     },
   );
   return device;
@@ -63,12 +80,16 @@ describe("the console", () => {
       // Kept on the session first, then the authorization resumed.
       await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/api/oauth/consent?next"));
       expect($fetch.mock.calls.slice(1)).toEqual([
-        ["/organization/set-active", { method: "POST", body: { organizationId: annex.id } }],
+        [
+          "/organization/set-active",
+          { method: "POST", body: { organizationId: annex.id }, signal: expect.any(AbortSignal) },
+        ],
         [
           "/oauth2/continue",
           {
             method: "POST",
             body: { postLogin: true, oauth_query: query, organizationId: annex.id },
+            signal: expect.any(AbortSignal),
           },
         ],
       ]);
@@ -112,6 +133,7 @@ describe("the console", () => {
       expect($fetch).toHaveBeenLastCalledWith("/oauth2/consent", {
         method: "POST",
         body: { accept: false, oauth_query: query },
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -138,6 +160,7 @@ describe("the console", () => {
       expect($fetch).toHaveBeenLastCalledWith("/oauth2/consent", {
         method: "POST",
         body: { accept: true, oauth_query: query, organizationId: annex.id },
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -185,6 +208,109 @@ describe("the console", () => {
       expect(visit).not.toHaveBeenCalled();
     });
 
+    test("gives up on an answer Braivo does not take in time, saying which was being sent", async () => {
+      const $fetch = vi.fn(async (path: string, options?: { signal?: AbortSignal }) =>
+        path === "/oauth2/public-client-prelogin"
+          ? { data: { client_name: "Claude" }, error: null }
+          : stall(options),
+      );
+      const { visit } = renderAt(`/consent?request=${request}`, {
+        $fetch,
+        organizations: [school, annex],
+        getSession: async () => ({
+          data: {
+            user: { id: "u1", name: "Olive Owner" },
+            session: { activeOrganizationId: annex.id },
+          },
+          error: null,
+        }),
+      });
+      const approve = await screen.findByRole("button", { name: "Approve" });
+
+      vi.useFakeTimers();
+      fireEvent.click(approve);
+      expect(approve.textContent).toBe("Approving…");
+      expect(screen.getByRole("button", { name: "Deny" }).getAttribute("aria-disabled")).toBe(
+        "true",
+      );
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not record your answer. Try again.",
+      );
+      expect(approve.textContent).toBe("Approve");
+      expect(approve.getAttribute("aria-disabled")).toBe("false");
+      expect(visit).not.toHaveBeenCalled();
+    });
+
+    test("marks the organization being chosen, and gives up on it in time", async () => {
+      const $fetch = vi.fn(async (path: string, options?: { signal?: AbortSignal }) =>
+        path === "/oauth2/public-client-prelogin"
+          ? { data: { client_name: "Claude" }, error: null }
+          : stall(options),
+      );
+      renderAt(`/consent?step=organization&request=${request}`, {
+        $fetch,
+        organizations: [school, annex],
+      });
+
+      const chosen = await screen.findByRole("button", { name: "Annex" });
+
+      vi.useFakeTimers();
+      fireEvent.click(chosen);
+      expect(chosen.getAttribute("aria-busy")).toBe("true");
+      const other = screen.getByRole("button", { name: "Example School" });
+      expect(other.getAttribute("aria-busy")).toBe("false");
+      expect(other.getAttribute("aria-disabled")).toBe("true");
+      await waitOut(REQUEST_DEADLINE_MS);
+      vi.useRealTimers();
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Could not record your answer. Try again.",
+      );
+      expect(chosen.getAttribute("aria-busy")).toBe("false");
+    });
+
+    test.each([
+      ["choosing an organization", "/consent?step=organization", "Annex"],
+      // A new session has no organization chosen to consent for.
+      ["approving", "/consent?", "Approve"],
+    ])(
+      "sends someone signed out before %s to sign in, then back to choosing",
+      async (_case, page, button) => {
+        let signedIn = true;
+        const $fetch = vi.fn(async (path: string, _options?: object) =>
+          path === "/oauth2/public-client-prelogin"
+            ? { data: { client_name: "Claude" }, error: null }
+            : { data: null, error: { status: 401 } },
+        );
+        const { router, visit } = renderAt(`${page}&request=${request}`, {
+          $fetch,
+          organizations: [school, annex],
+          getSession: async () => ({
+            data: signedIn
+              ? {
+                  user: { id: "u1", name: "Olive Owner" },
+                  session: { activeOrganizationId: annex.id },
+                }
+              : null,
+            error: null,
+          }),
+        });
+        const target = await screen.findByRole("button", { name: button });
+        signedIn = false;
+
+        fireEvent.click(target);
+
+        expect(await screen.findByLabelText("Email address")).toBeTruthy();
+        expect(router.state.location.search).toEqual({
+          redirect: `/consent?step=organization&request=${encodeURIComponent(request)}`,
+        });
+        expect(visit).not.toHaveBeenCalled();
+      },
+    );
+
     test("shows a client's ID when it is a URL, which identifies it, and claims no more", async () => {
       const byUrl = "client_id=https%3A%2F%2Fclaude.ai%2Foauth%2Fmetadata&sig=s";
       renderAt(`/consent?step=organization&request=r.${btoa(byUrl)}`, {
@@ -208,7 +334,10 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
     expect(await screen.findByText("Signed in. You can go back to your terminal.")).toBeTruthy();
-    expect(device.approve).toHaveBeenCalledWith({ userCode: "ABCD2345" });
+    expect(device.approve).toHaveBeenCalledWith({
+      userCode: "ABCD2345",
+      fetchOptions: { signal: expect.any(AbortSignal) },
+    });
     expect(device.deny).not.toHaveBeenCalled();
   });
 
@@ -244,6 +373,102 @@ describe("the console", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     expect(await screen.findByText("Signed in. You can go back to your terminal.")).toBeTruthy();
+  });
+
+  test("gives up on a decision Braivo does not take in time, showing it meanwhile", async () => {
+    const device = deviceFlow();
+    device.approve.mockImplementationOnce(({ fetchOptions }) => stall(fetchOptions));
+    renderAt("/device?user_code=ABCD2345", { device });
+    const approve = await screen.findByRole("button", { name: "Approve" });
+
+    vi.useFakeTimers();
+    fireEvent.click(approve);
+    expect(approve.textContent).toBe("Approving…");
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Braivo could not record your answer. Try again.",
+    );
+    expect(approve.textContent).toBe("Approve");
+    fireEvent.click(approve);
+    expect(await screen.findByText("Signed in. You can go back to your terminal.")).toBeTruthy();
+  });
+
+  test("says a code given up on was approved after all, when it reached Braivo late", async () => {
+    let status = "pending";
+    const device = deviceFlow();
+    device.mockImplementation(async ({ query }) => ({
+      data: { user_code: query.user_code, status, client_id: "braivo-cli" },
+      error: null,
+    }));
+    device.approve
+      .mockImplementationOnce(({ fetchOptions }) => stall(fetchOptions))
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          status: 400,
+          error: "invalid_request",
+          error_description: "Device code already processed",
+        },
+      } as never);
+    renderAt("/device?user_code=ABCD2345", { device });
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    vi.useFakeTimers();
+    fireEvent.click(approve);
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+    await screen.findByRole("alert");
+    // The approval given up on reaches Braivo now.
+    status = "approved";
+
+    fireEvent.click(approve);
+
+    const outcome = await screen.findByRole("heading", {
+      name: "Signed in. You can go back to your terminal.",
+    });
+    expect(document.activeElement).toBe(outcome);
+  });
+
+  test.each([
+    ["still pending", undefined],
+    [
+      "unread in time",
+      ({ fetchOptions }: { fetchOptions?: { signal?: AbortSignal } }) => stall(fetchOptions),
+    ],
+  ])("keeps a refusal whose code is %s, unlocked to decide again", async (_case, reread) => {
+    const device = deviceFlow();
+    device.approve.mockResolvedValueOnce({
+      data: null,
+      error: { status: 400, error: "invalid_request", error_description: "Invalid" },
+    } as never);
+    renderAt("/device?user_code=ABCD2345", { device });
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    if (reread) device.mockImplementationOnce(reread);
+
+    vi.useFakeTimers();
+    fireEvent.click(approve);
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Invalid");
+    expect(approve.getAttribute("aria-disabled")).toBe("false");
+  });
+
+  test("sends an owner signed out meanwhile to sign in, and back to the code", async () => {
+    const device = deviceFlow();
+    device.approve.mockResolvedValueOnce({
+      data: null,
+      error: { status: 401, error: "unauthorized", error_description: "" },
+    } as never);
+    const { auth, router } = renderAt("/device?user_code=ABCD2345", { device });
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    await auth.signOut();
+
+    fireEvent.click(approve);
+
+    expect(await screen.findByLabelText("Email address")).toBeTruthy();
+    expect(router.state.location.search).toEqual({ redirect: "/device?user_code=ABCD2345" });
   });
 
   test("lets an owner deny a code they did not start", async () => {

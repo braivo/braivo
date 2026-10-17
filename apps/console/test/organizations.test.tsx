@@ -5,8 +5,9 @@ import { BraivoError, type Organization } from "@braivo/server/client";
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
+import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { school, annex, readCourse } from "./fixtures.ts";
-import { renderAt } from "./render.tsx";
+import { renderAt, stall, waitOut } from "./render.tsx";
 
 describe("the console", () => {
   test("sends an owner from /join to their organization, setup being theirs already", async () => {
@@ -391,10 +392,10 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Courses" })).toBeTruthy();
-    expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith({
-      name: "Szkoła Łąka w Lesie",
-      slug: "laka",
-    });
+    expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith(
+      { name: "Szkoła Łąka w Lesie", slug: "laka" },
+      { signal: expect.any(AbortSignal) },
+    );
     expect(screen.getByRole("link", { name: "laka.braivo.app" })).toBeTruthy();
   });
 
@@ -424,10 +425,10 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
     await vi.waitFor(() =>
-      expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith({
-        name: "Pimsleur",
-        slug: "pimsleur",
-      }),
+      expect(setUpOrganization).toHaveBeenCalledExactlyOnceWith(
+        { name: "Pimsleur", slug: "pimsleur" },
+        { signal: expect.any(AbortSignal) },
+      ),
     );
   });
 
@@ -468,6 +469,36 @@ describe("the console", () => {
       "Could not confirm the organization was created. Reload this page to check before trying again.",
     );
     expect(screen.getByRole("button", { name: "Create organization" })).toBeTruthy();
+  });
+
+  test("gives up on a setup Braivo does not answer in time, as it may have been made", async () => {
+    const setUpOrganization = vi.fn((_organization: object, options?: { signal?: AbortSignal }) =>
+      stall(options),
+    );
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Pimsleur" },
+    });
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Could not confirm the organization was created. Reload this page to check before trying again.",
+    );
   });
 
   test.each([

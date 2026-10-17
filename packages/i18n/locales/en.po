@@ -215,6 +215,10 @@ msgid "Approve"
 msgstr "Approve"
 
 #: apps/console/routes/_signed-in/consent.tsx
+msgid "Approving…"
+msgstr "Approving…"
+
+#: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 
@@ -249,6 +253,10 @@ msgstr "By name"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Cancel"
 msgstr "Cancel"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Cancelling…"
+msgstr "Cancelling…"
 
 #: apps/console/components/group-form.tsx
 msgid "Change to learner"
@@ -486,6 +494,10 @@ msgstr "Data region"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Deny"
 msgstr "Deny"
+
+#: apps/console/routes/_signed-in/consent.tsx
+msgid "Denying…"
+msgstr "Denying…"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Disconnect"
