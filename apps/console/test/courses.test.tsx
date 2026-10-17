@@ -287,6 +287,57 @@ describe("the console", () => {
     await vi.waitFor(() => expect(stored).toBe("spanish-a2"));
   });
 
+  test.each([403, 404])(
+    "says a course is gone or no longer managed when its label is refused with %i",
+    async (status) => {
+      let refused = false;
+      renderAt("/example/courses/course-1", {
+        braivo: {
+          readCourse: async (input: { courseId: string }) => {
+            if (refused) throw new BraivoError(status, "refused");
+            return readCourse(input);
+          },
+          setCourseUrlLabel: async () => {
+            refused = true;
+            throw new BraivoError(status, "refused");
+          },
+        },
+      });
+      const field = await screen.findByRole("textbox", { name: "Label in its link" });
+
+      fireEvent.change(field, { target: { value: "spanish-a1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+
+      expect(
+        await screen.findByText("This course does not exist, or you do not manage it."),
+      ).toBeTruthy();
+    },
+  );
+
+  test.each([400, 403])(
+    "says a label refused with %i needs a reload, reading the course again",
+    async (status) => {
+      const reading = vi.fn(readCourse);
+      renderAt("/example/courses/course-1", {
+        braivo: {
+          readCourse: reading,
+          setCourseUrlLabel: async () => {
+            throw new BraivoError(status, "refused");
+          },
+        },
+      });
+      const field = await screen.findByRole("textbox", { name: "Label in its link" });
+
+      fireEvent.change(field, { target: { value: "spanish-a1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save label" }));
+
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "The label was not saved. Reload the page, then try again.",
+      );
+      await vi.waitFor(() => expect(reading).toHaveBeenCalledTimes(2));
+    },
+  );
+
   test("refuses a label with no letter or digit before sending it", async () => {
     const setCourseUrlLabel = vi.fn();
     renderAt("/example/courses/course-1", { braivo: { readCourse, setCourseUrlLabel } });

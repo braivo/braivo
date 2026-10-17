@@ -64,6 +64,14 @@ export function CourseUrlLabel(props: {
       setPending(false);
       // Signed out meanwhile: the guard's check, run again, sends them to sign in.
       if (thrown instanceof BraivoError && thrown.status === 401) return router.invalidate();
+      // Refused as sent, so retrying unchanged would not help: the course gone
+      // or no longer theirs, which the page, read again, says; the write alone
+      // refused (its same-origin check); or Braivo normalizing the label
+      // differently from this page.
+      if (thrown instanceof BraivoError && [400, 403, 404].includes(thrown.status)) {
+        failed("The label was not saved. Reload the page, then try again.");
+        return router.invalidate();
+      }
       return failed("Could not save the label. Try again.");
     }
     setPending(false);

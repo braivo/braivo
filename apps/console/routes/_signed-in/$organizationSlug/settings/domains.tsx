@@ -441,6 +441,7 @@ function AddDomain() {
               onChange={(event) => {
                 event.currentTarget.setCustomValidity("");
                 setAdded(undefined);
+                setFailure(undefined);
               }}
             />
             <Button type="submit" aria-disabled={adding} className="shrink-0">

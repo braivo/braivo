@@ -269,6 +269,23 @@ describe("the console", () => {
       expect(screen.getByLabelText<HTMLInputElement>("Domain").value).toBe("learn.example.com");
     });
 
+    test("drop why a domain was refused once the domain is edited", async () => {
+      const braivo = domainsStub();
+      braivo.claimDomain.mockRejectedValueOnce(
+        new BraivoError(400, "invalid", undefined, "DOMAIN_INVALID"),
+      );
+      renderAt("/example/settings/domains", { braivo });
+      await screen.findByLabelText("Domain");
+
+      addDomain("https://learn.example.com");
+      await screen.findByRole("alert");
+      fireEvent.change(screen.getByLabelText("Domain"), {
+        target: { value: "learn.example.com" },
+      });
+
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
     test("list a domain kept though it could not be served yet, saying to try again", async () => {
       const braivo = domainsStub();
       braivo.claimDomain.mockImplementationOnce(async (_organizationId, hostname) => {
