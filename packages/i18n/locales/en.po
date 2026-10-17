@@ -357,11 +357,6 @@ msgctxt "Marks the correct option"
 msgid "Correct"
 msgstr "Correct"
 
-#: packages/ui/compositions/typed-question.tsx
-msgctxt "Marks the typed answer"
-msgid "Correct"
-msgstr "Correct"
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Could not add the domain. Try again."
 msgstr "Could not add the domain. Try again."

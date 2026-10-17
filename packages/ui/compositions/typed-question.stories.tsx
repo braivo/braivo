@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { TypedQuestion } from "@braivo/ui";
+import { Alert, AlertTitle } from "@braivo/ui/components/alert";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 const meta = {
@@ -31,7 +32,18 @@ export const Pending: Story = { args: { sent: "bin", pending: true } };
 /** Sent, but the grade never came back. */
 export const Unconfirmed: Story = { args: { sent: "bin" } };
 
-export const Right: Story = { args: { sent: "bin", outcome: "success" } };
+/** With its caller's feedback: on its own, the field only colours a success. */
+export const Right: Story = {
+  args: { sent: "bin", outcome: "success" },
+  render: (args) => (
+    <div className="flex flex-col gap-6">
+      <TypedQuestion {...args} />
+      <Alert>
+        <AlertTitle>Correct</AlertTitle>
+      </Alert>
+    </div>
+  ),
+};
 
 export const Wrong: Story = { args: { sent: "ben", outcome: "failure" } };
 
