@@ -7,6 +7,7 @@ import "./styles/globals.css";
 import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { cleanup, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser/context";
 
@@ -321,6 +322,32 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
       expect(wrong[part], part).not.toEqual(correct[part]);
     }
     expect(drawn(screen.getByRole("textbox"))).toEqual(correct);
+  });
+
+  test("a choice question shows focus at 3:1, clear of its options", async () => {
+    setTheme();
+    // As the learn app does: Continue, pressed by keyboard, focuses the next question.
+    const next = createRef<HTMLDivElement>();
+    render(
+      <I18nProvider i18n={i18n}>
+        <Button onClick={() => next.current?.focus()}>Continue</Button>
+        <ChoiceQuestion
+          ref={next}
+          prompt="Ich ___ müde."
+          options={[{ choice: 1, text: "bin" }]}
+          onChoose={() => {}}
+        />
+      </I18nProvider>,
+    );
+    await focusByKeyboard(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.keyboard("{Enter}");
+
+    const question = screen.getByRole("group");
+    expect(document.activeElement).toBe(question);
+    expect(question.matches(":focus-visible"), "focus shown as for a keyboard").toBe(true);
+    expect(outlineContrast(question)).toBeGreaterThanOrEqual(LEAST);
+    // The options' borders run along the question's edges: at no offset, the outline sits on them.
+    expect(parseFloat(settled(question).outlineOffset)).toBeGreaterThan(0);
   });
 
   test("a plain link shows focus by its outline at 3:1", async () => {
