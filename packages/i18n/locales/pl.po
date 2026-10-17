@@ -314,6 +314,10 @@ msgid "Collapse sidebar"
 msgstr "Zwiń panel boczny"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Connect an app"
+msgstr "Połącz aplikację"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Connected apps"
 msgstr "Połączone aplikacje"
@@ -353,6 +357,7 @@ msgid "Copy {type} value"
 msgstr "Kopiuj wartość rekordu {type}"
 
 #: apps/console/components/learners-site.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Copy address"
 msgstr "Kopiuj adres"
 
@@ -713,6 +718,10 @@ msgstr "Jeśli ktoś wysłał Ci link do tego kursu, sprawdź, czy korzystasz z 
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "za {time}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign in and approve it. <0>Step by step</0>"
+msgstr "W Claude, ChatGPT lub innej aplikacji AI dodaj niestandardowy konektor o tym adresie, a potem zaloguj się i zezwól na dostęp. <0>Krok po kroku</0>"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "It can no longer work in Braivo for you there, from its next request. To use it again, connect it again."

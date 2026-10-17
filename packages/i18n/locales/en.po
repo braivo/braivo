@@ -314,6 +314,10 @@ msgid "Collapse sidebar"
 msgstr "Collapse sidebar"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "Connect an app"
+msgstr "Connect an app"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Connected apps"
 msgstr "Connected apps"
@@ -353,6 +357,7 @@ msgid "Copy {type} value"
 msgstr "Copy {type} value"
 
 #: apps/console/components/learners-site.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Copy address"
 msgstr "Copy address"
 
@@ -713,6 +718,10 @@ msgstr "If someone sent you a link to it, check that you are signed in with the 
 msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
 msgid "in {time}"
 msgstr "in {time}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
+msgid "In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign in and approve it. <0>Step by step</0>"
+msgstr "In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign in and approve it. <0>Step by step</0>"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "It can no longer work in Braivo for you there, from its next request. To use it again, connect it again."
