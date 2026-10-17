@@ -13,7 +13,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { codeSentTo } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
-import { createCourse, createObjectives } from "../persistence/index.ts";
+import { createCourse, createObjectives, createTasks } from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
 import { BraivoError, createClient } from "./client.ts";
 import { connectionString, createTestApi, learnerSessionOn } from "./testing.ts";
@@ -580,14 +580,33 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     ).toMatchObject({ urlLabel: "labelled-a1" });
   });
 
-  test("publishes a course its learners then find by number, and refuses a stale list", async () => {
+  test("publishes a course and its tasks, which learners then reach, and refuses a stale list", async () => {
     const asTeacher = { headers: { cookie: teacherCookie } };
+    const [objectiveId] = (await createObjectives(database, organizationId, ["Proposed"])) as [
+      string,
+    ];
     const id = await createCourse(database, {
       published: false,
       organizationId,
       title: "Proposed",
-      objectiveIds: [],
+      objectiveIds: [objectiveId],
     });
+    const [taskId] = (await createTasks(
+      database,
+      organizationId,
+      [
+        {
+          objectiveId,
+          body: { kind: "choice", prompt: "Ready?", options: ["yes", "no"], answer: 0 },
+        },
+      ],
+      new Date(),
+      { published: false },
+    )) as [string];
+    const published = async () =>
+      (await client.listTasks({ organizationId, objectiveId }, asTeacher)).map(
+        (task) => task.published,
+      );
     const { number } = (await client.listCourses(organizationId, asTeacher)).find(
       (course) => course.id === id,
     )!;
@@ -599,12 +618,17 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     expect(await onOrganizationDomain.learnerCourseByNumber(number, onDomain)).toBeUndefined();
     await expect(
-      client.publish({ organizationId, courseIds: [id, "no-such-course"] }, asTeacher),
+      client.publish(
+        { organizationId, courseIds: [id, "no-such-course"], taskIds: [taskId] },
+        asTeacher,
+      ),
     ).rejects.toMatchObject({ status: 409 });
-    await client.publish({ organizationId, courseIds: [id] }, asTeacher);
+    expect(await published()).toEqual([false]);
+    await client.publish({ organizationId, courseIds: [id], taskIds: [taskId] }, asTeacher);
     expect(await onOrganizationDomain.learnerCourseByNumber(number, onDomain)).toMatchObject({
       id,
     });
+    expect(await published()).toEqual([true]);
   });
 
   test("reads a learner caught up as undefined rather than as an error", async () => {
@@ -940,6 +964,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         options: ["thank you", "please"],
         answer: 0,
         citations: [{ sourceId, start: 0, end: 28, quote: "Gracias significa thank you." }],
+        published: true,
       },
     ]);
 

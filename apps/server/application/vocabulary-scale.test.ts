@@ -66,6 +66,7 @@ async function vocabularyCourse(words: number, records: number): Promise<Practic
         body: { kind: "choice", prompt: "?", options: ["a", "b"], answer: 0 },
       })),
       start,
+      { published: true },
     );
   }
   // Every word started and revisited every `words` results, one result in five

@@ -4,7 +4,7 @@
 import { runMigrations } from "@braivo/db";
 import { task as taskTable } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
@@ -15,9 +15,10 @@ import {
   readObjectivesWithTasks,
   readTaskCitations,
 } from "../persistence/index.ts";
-import { StaleCorrection } from "../persistence/index.ts";
+import { DuplicateCorrection, PublishedTask, StaleCorrection } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import { InvalidCitation } from "./citations.ts";
+import { publish, StalePublication } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
 import { NotPermitted } from "./permission.ts";
 import { defineTasks, InvalidTask, retireTasks } from "./tasks.ts";
@@ -45,8 +46,9 @@ type Draft = {
   replaces?: string;
 };
 
-function define(tasks: readonly Draft[], actingAs = author) {
-  return defineTasks({ database, organizationId, actingAs, tasks, now });
+/** As a person in the console, unless `byTool`, as through a token (ADR 0039). */
+function define(tasks: readonly Draft[], actingAs = author, { byTool = false } = {}) {
+  return defineTasks({ database, organizationId, actingAs, tasks, now, byTool });
 }
 
 /** A lesson with a character outside the BMP, so code points and UTF-16 differ. */
@@ -189,7 +191,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
     ])) as [string, string];
     const retire = (taskIds: string[], actingAs = author) =>
-      retireTasks({ database, organizationId, actingAs, taskIds, now });
+      retireTasks({ database, organizationId, actingAs, taskIds, now, byTool: false });
     const answer = (attemptId: string) =>
       submitAttempt({
         database,
@@ -250,9 +252,10 @@ describe.skipIf(!connectionString)("tasks", () => {
       otherOrganizationId,
       [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
       now,
+      { published: true },
     )) as [string];
     const retire = (taskIds: string[], actingAs = author) =>
-      retireTasks({ database, organizationId, actingAs, taskIds, now });
+      retireTasks({ database, organizationId, actingAs, taskIds, now, byTool: false });
 
     await expect(retire([ours], learner)).rejects.toBeInstanceOf(NotPermitted);
     await expect(retire([ours, theirs])).rejects.toBeInstanceOf(NotPermitted);
@@ -457,7 +460,14 @@ describe.skipIf(!connectionString)("tasks", () => {
 
     test("adds a retired task anew, since adding it again is how to bring it back", async () => {
       const [retired] = await define([{ objectiveId: objective, body: choice }]);
-      await retireTasks({ database, organizationId, actingAs: author, taskIds: [retired!], now });
+      await retireTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        taskIds: [retired!],
+        now,
+        byTool: false,
+      });
 
       const [back] = await define([{ objectiveId: objective, body: choice }]);
 
@@ -474,6 +484,7 @@ describe.skipIf(!connectionString)("tasks", () => {
               organizationId,
               [{ objectiveId: objective, body: { ...choice, kind: "choice" } }],
               now,
+              { published: true },
             ),
           ),
         )
@@ -519,7 +530,14 @@ describe.skipIf(!connectionString)("tasks", () => {
         { objectiveId: objective, body: choice },
         { objectiveId: objective, body: { ...choice, prompt: "Which, again?" } },
       ])) as [string, string];
-      await retireTasks({ database, organizationId, actingAs: author, taskIds: [task], now });
+      await retireTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        taskIds: [task],
+        now,
+        byTool: false,
+      });
 
       // Written from a stale read: stored nothing.
       await expect(correct(task, { ...choice, answer: 1 })).rejects.toBeInstanceOf(StaleCorrection);
@@ -545,20 +563,19 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await offered()).toEqual([won]);
     });
 
-    test("leaves one task when two corrections cross, each into the other", async () => {
+    test("refuses a correction equal to another task the objective has, as a duplicate", async () => {
       const [a, b] = (await define([
         { objectiveId: objective, body: choice },
         { objectiveId: objective, body: { ...choice, answer: 1 } },
       ])) as [string, string];
 
-      // Either way round, the second replaces a task still live: both succeed.
-      const results = await Promise.allSettled([
-        correct(a, { ...choice, answer: 1 }),
-        correct(b, choice),
-      ]);
-
-      expect(results.map(({ status }) => status)).toEqual(["fulfilled", "fulfilled"]);
-      expect(await offered()).toHaveLength(1);
+      // Answered by the other task, it would retire one and take the other's
+      // state, published or waiting, rather than its own (ADR 0039).
+      await expect(correct(a, { ...choice, answer: 1 })).rejects.toBeInstanceOf(
+        DuplicateCorrection,
+      );
+      await expect(correct(b, choice)).rejects.toBeInstanceOf(DuplicateCorrection);
+      expect(await offered()).toEqual([a, b]);
     });
 
     test("corrects one task a request, in its own objective, of the organization's own", async () => {
@@ -571,6 +588,7 @@ describe.skipIf(!connectionString)("tasks", () => {
         otherOrganizationId,
         [{ objectiveId: foreignObjective, body: { ...choice, kind: "choice" } }],
         now,
+        { published: true },
       )) as [string];
       const lesson = await addLesson();
       const refusal = (tasks: Draft[], actingAs = author) =>
@@ -602,6 +620,149 @@ describe.skipIf(!connectionString)("tasks", () => {
         expect(foreign).toBeInstanceOf(NotPermitted);
       }
       expect(await offered()).toEqual([task]);
+    });
+  });
+
+  describe("publication", () => {
+    const asTool = { byTool: true };
+    /** Each task's state, in the order given. */
+    const states = async (taskIds: readonly string[]) => {
+      const rows = await database
+        .select({
+          id: taskTable.id,
+          publishedAt: taskTable.publishedAt,
+          retiredAt: taskTable.retiredAt,
+        })
+        .from(taskTable)
+        .where(inArray(taskTable.id, [...taskIds]));
+      return taskIds.map((id) => {
+        const row = rows.find((candidate) => candidate.id === id)!;
+        return { published: row.publishedAt !== null, retired: row.retiredAt !== null };
+      });
+    };
+    const waiting = { published: false, retired: false };
+    const live = { published: true, retired: false };
+
+    test("leaves a twin as it is: only Publish publishes", async () => {
+      const [proposed] = (await define(
+        [{ objectiveId: objective, body: choice }],
+        author,
+        asTool,
+      )) as [string];
+      const [offered] = (await define([
+        { objectiveId: objective, body: { ...choice, answer: 1 } },
+      ])) as [string];
+
+      // The console's same task answers the waiting one, still waiting; a tool's, the published one.
+      expect(await define([{ objectiveId: objective, body: choice }])).toEqual([proposed]);
+      expect(
+        await define([{ objectiveId: objective, body: { ...choice, answer: 1 } }], author, asTool),
+      ).toEqual([offered]);
+      expect(await states([proposed, offered])).toEqual([waiting, live]);
+    });
+
+    test("refuses a tool's change to a task once published, even retired since, changing nothing", async () => {
+      const [retired] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [proposed] = (await define(
+        [{ objectiveId: objective, body: { ...choice, answer: 1 } }],
+        author,
+        asTool,
+      )) as [string];
+      await retireTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        taskIds: [retired],
+        now,
+        byTool: false,
+      });
+
+      await expect(
+        retireTasks({
+          database,
+          organizationId,
+          actingAs: author,
+          taskIds: [retired, proposed],
+          now,
+          byTool: true,
+        }),
+        // Not sent to the console, which no longer lists a retired task.
+      ).rejects.toMatchObject({
+        name: "PublishedTask",
+        message: `Task "${retired}" was published and is retired already; leave it out.`,
+      });
+      await expect(
+        define(
+          [
+            {
+              objectiveId: objective,
+              body: { ...choice, prompt: "Which now?" },
+              replaces: retired,
+            },
+          ],
+          author,
+          asTool,
+        ),
+      ).rejects.toMatchObject({
+        name: "PublishedTask",
+        message: expect.stringContaining("once published and retired since"),
+      });
+      expect(await states([retired, proposed])).toEqual([
+        { published: true, retired: true },
+        waiting,
+      ]);
+    });
+
+    test("never lets a tool's correction or retirement through once Publish took the task", async () => {
+      for (const change of ["correct", "retire"] as const) {
+        const [task] = (await define(
+          [{ objectiveId: objective, body: { ...choice, prompt: `Racing to ${change}?` } }],
+          author,
+          asTool,
+        )) as [string];
+
+        const [published, changed] = await Promise.allSettled([
+          publish({
+            database,
+            organizationId,
+            actingAs: author,
+            courseIds: [],
+            taskIds: [task],
+            now,
+          }),
+          change === "correct"
+            ? define(
+                [
+                  {
+                    objectiveId: objective,
+                    body: { ...choice, prompt: `Racing to ${change}?`, answer: 1 },
+                    replaces: task,
+                  },
+                ],
+                author,
+                asTool,
+              )
+            : retireTasks({
+                database,
+                organizationId,
+                actingAs: author,
+                taskIds: [task],
+                now,
+                byTool: true,
+              }),
+        ]);
+
+        // Whichever came first, the other is refused.
+        const [state] = await states([task]);
+        if (published.status === "fulfilled") {
+          expect(changed).toMatchObject({ status: "rejected", reason: expect.any(PublishedTask) });
+          expect(state).toEqual(live);
+        } else {
+          expect(published.reason).toBeInstanceOf(StalePublication);
+          expect(changed.status).toBe("fulfilled");
+          expect(state).toEqual({ published: false, retired: true });
+        }
+      }
     });
   });
 });

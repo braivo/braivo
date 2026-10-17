@@ -21,7 +21,7 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Arrange objectives into a course outline, which waits for you to review and publish it in Braivo's console before learners see it.
 - Read a course's objectives and tasks.
 
-So it prepares a course; it does not finish one. It cannot write practice tasks, publish, or read learners' names or progress: tasks come to it once they wait to be reviewed and published in Braivo, as courses do ([ADR 0039](../adr/0039-published-in-the-console.md)), and learners' data once it has its own permission. A course of new objectives teaches nothing until they have tasks: add them in Braivo, drafted in its console where your installation offers that, or with [`braivo mcp`](authoring.md#let-your-desktop-agent-build-the-course) from a desktop agent, which has every tool.
+So it prepares a course; it does not finish one. It cannot write practice tasks, publish, or read learners' names or progress: tasks come to it once Braivo can hold a tool's corrections for review, as it holds new courses and tasks ([ADR 0039](../adr/0039-published-in-the-console.md)), and learners' data once it has its own permission. A course of new objectives teaches nothing until they have tasks: add them in Braivo, drafted in its console where your installation offers that, or with [`braivo mcp`](authoring.md#let-your-desktop-agent-build-the-course) from a desktop agent, which has every tool.
 
 What the app reads from Braivo, your material included, goes to the AI provider whose app it is, under its terms.
 

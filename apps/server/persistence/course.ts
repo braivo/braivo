@@ -7,6 +7,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle
 
 import { urlLabel } from "../content/index.ts";
 import { ConflictingKey } from "./key.ts";
+import type { Transaction } from "./task.ts";
 
 /**
  * `number` names it in learners' links within its organization alone, and
@@ -183,36 +184,36 @@ export async function readCourses(
 }
 
 /**
- * Publishes the organization's courses `courseIds`, all or none: `false`, and
- * nothing written, when it has not every one. One published already keeps
- * when it was, so a retry changes nothing.
+ * Publishes the organization's courses `courseIds` within `transaction`, all
+ * or none: `false`, and nothing written, when it has not every one. One
+ * published already keeps when it was, so a retry changes nothing.
  */
 export async function publishCourses(
-  database: Database,
+  transaction: Transaction,
   input: { organizationId: string; courseIds: readonly string[]; now: Date },
 ): Promise<boolean> {
   const { organizationId, courseIds, now } = input;
-  return database.transaction(async (transaction) => {
-    const found = await transaction
-      .select({ id: course.id })
-      .from(course)
-      .where(and(eq(course.organizationId, organizationId), inArray(course.id, [...courseIds])))
-      // In one order, so overlapping batches wait for each other, not deadlock.
-      .orderBy(course.id)
-      .for("update");
-    if (found.length !== new Set(courseIds).size) return false;
-    await transaction
-      .update(course)
-      .set({ publishedAt: now })
-      .where(
-        and(
-          eq(course.organizationId, organizationId),
-          inArray(course.id, [...courseIds]),
-          isNull(course.publishedAt),
-        ),
-      );
-    return true;
-  });
+  if (courseIds.length === 0) return true;
+
+  const found = await transaction
+    .select({ id: course.id })
+    .from(course)
+    .where(and(eq(course.organizationId, organizationId), inArray(course.id, [...courseIds])))
+    // In one order, so overlapping batches wait for each other, not deadlock.
+    .orderBy(course.id)
+    .for("update");
+  if (found.length !== new Set(courseIds).size) return false;
+  await transaction
+    .update(course)
+    .set({ publishedAt: now })
+    .where(
+      and(
+        eq(course.organizationId, organizationId),
+        inArray(course.id, [...courseIds]),
+        isNull(course.publishedAt),
+      ),
+    );
+  return true;
 }
 
 /**
@@ -271,6 +272,33 @@ export async function readLearnerCourses(
     )
     .orderBy(asc(course.title), asc(course.id));
   return rows.map(listedCourse);
+}
+
+/**
+ * The published courses each of these objectives is in, by title: those a task
+ * of it reaches once published. Objectives in none are left out.
+ */
+export async function readPublishedCoursesByObjective(
+  database: Database,
+  objectiveIds: readonly string[],
+): Promise<Map<string, { id: string; title: string }[]>> {
+  if (objectiveIds.length === 0) return new Map();
+
+  const rows = await database
+    .select({ id: course.id, title: course.title, objectiveId: courseObjective.objectiveId })
+    .from(courseObjective)
+    .innerJoin(course, eq(course.id, courseObjective.courseId))
+    .where(
+      and(inArray(courseObjective.objectiveId, [...objectiveIds]), isNotNull(course.publishedAt)),
+    )
+    .orderBy(asc(course.title), asc(course.id));
+  const courses = new Map<string, { id: string; title: string }[]>();
+  for (const { objectiveId, ...listed } of rows) {
+    const listing = courses.get(objectiveId);
+    if (listing) listing.push(listed);
+    else courses.set(objectiveId, [listed]);
+  }
+  return courses;
 }
 
 /**

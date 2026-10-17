@@ -126,15 +126,25 @@ function parseSetup(body: unknown): { name: string; slug: string } | undefined {
   return { name, slug };
 }
 
-/** Reads `courseIds` out of a request body: at least one, each nonempty. */
-function parseCourseIds(body: unknown): string[] | undefined {
+/** Reads `courseIds` and `taskIds` out of a request body: one ID at least, each nonempty. */
+function parsePublication(body: unknown): { courseIds: string[]; taskIds: string[] } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
-  const ids = (body as { courseIds?: unknown }).courseIds;
-  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_ITEMS_PER_REQUEST) {
-    return undefined;
-  }
-  return ids.every((id) => typeof id === "string" && id !== "") ? ids : undefined;
+  const { courseIds = [], taskIds = [] } = body as { courseIds?: unknown; taskIds?: unknown };
+  const valid = (ids: unknown): ids is string[] =>
+    Array.isArray(ids) && ids.every((id) => typeof id === "string" && id !== "");
+  if (!valid(courseIds) || !valid(taskIds)) return undefined;
+  const count = courseIds.length + taskIds.length;
+  return count === 0 || count > MAX_PUBLICATION_IDS_PER_REQUEST
+    ? undefined
+    : { courseIds, taskIds };
 }
+
+/**
+ * Every waiting course and task a course's page shows, in one request, since
+ * Publish is all or none: a bank's thousands of statements, as IDs well under
+ * `MAX_BODY_BYTES`.
+ */
+const MAX_PUBLICATION_IDS_PER_REQUEST = 10_000;
 
 /** Reads a course out of a request body: only the types, as for objectives. */
 function parseCourse(
@@ -355,6 +365,8 @@ export function authoringRoutes(
           actingAs: context.var.userId,
           tasks,
           now: new Date(),
+          // A tool proposes; a person in the console publishes (ADR 0039).
+          byTool: presentsToolCredential(context),
         });
 
         return context.json({ taskIds }, 201);
@@ -383,6 +395,7 @@ export function authoringRoutes(
           actingAs: context.var.userId,
           taskIds,
           now: new Date(),
+          byTool: presentsToolCredential(context),
         });
         return context.body(null, 204);
       } catch (error) {
@@ -439,15 +452,15 @@ export function authoringRoutes(
           403,
         );
       }
-      const courseIds = parseCourseIds(await jsonBody(context));
-      if (courseIds === undefined) return context.body(null, 400);
+      const publication = parsePublication(await jsonBody(context));
+      if (publication === undefined) return context.body(null, 400);
 
       try {
         await publish({
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
-          courseIds,
+          ...publication,
           now: new Date(),
         });
         return context.body(null, 204);
@@ -708,7 +721,12 @@ export function authoringRoutes(
           objectives: course.objectives.map(({ tasks, ...objective }) => ({
             ...objective,
             // As `GET …/objectives/:objectiveId/tasks` answers them.
-            tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+            tasks: tasks.map(({ id, body, citations, published }) => ({
+              id,
+              ...body,
+              citations,
+              published,
+            })),
           })),
         });
       } catch (error) {
@@ -838,9 +856,9 @@ export function authoringRoutes(
   );
 
   /**
-   * An objective's tasks still offered, as authored and with the passages they
-   * cite, for whoever administers its organization: answers included, so
-   * never a learner's.
+   * An objective's unretired tasks, published or waiting, as authored and with
+   * the passages they cite, for whoever administers its organization: answers
+   * included, so never a learner's.
    */
   routes.get(
     "/api/organizations/:organizationId/objectives/:objectiveId/tasks",
@@ -857,7 +875,12 @@ export function authoringRoutes(
 
         // The shape a task is authored in, so one read back can be sent again.
         return context.json({
-          tasks: tasks.map(({ id, body, citations }) => ({ id, ...body, citations })),
+          tasks: tasks.map(({ id, body, citations, published }) => ({
+            id,
+            ...body,
+            citations,
+            published,
+          })),
         });
       } catch (error) {
         return organizationRefusal(context, error);

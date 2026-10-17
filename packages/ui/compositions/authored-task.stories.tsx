@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { AuthoredTask, SourcePassage } from "@braivo/ui";
+import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
@@ -53,6 +54,24 @@ export const UnderReview: Story = {
         url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         at={62}
       />
+    ),
+  },
+};
+
+/** Written by a tool, waiting for its owner to publish it; actions beside a long prompt wrap. */
+export const Waiting: Story = {
+  args: {
+    task: {
+      kind: "choice",
+      prompt: "Il segnale raffigurato preannuncia un tratto di strada in cui è vietato il sorpasso",
+      options: ["Vero", "Falso"],
+      answer: 1,
+    },
+    status: <Badge variant="outline">Waiting</Badge>,
+    action: (
+      <Button variant="outline" size="sm">
+        Retire
+      </Button>
     ),
   },
 };

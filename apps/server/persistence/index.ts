@@ -12,8 +12,8 @@ export {
   createCourse,
   readCourseObjectives,
   readCourseOrganization,
-  publishCourses,
   readCourses,
+  readPublishedCoursesByObjective,
   updateCourseUrlLabel,
   readLearnerCourses,
 } from "./course.ts";
@@ -96,11 +96,13 @@ export {
 export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
+export { markPublished } from "./publication.ts";
 export type { AuthoredTask, CitedTaskPassage, TaskCitation } from "./task.ts";
 export {
   ConflictingAttempt,
   countOtherAttempts,
   createTasks,
+  DuplicateCorrection,
   findTasksOutsideOrganization,
   markTasksRetired,
   readObjectiveTasks,
@@ -109,6 +111,7 @@ export {
   readCourseTask,
   readNextTask,
   readObjectivesWithTasks,
+  PublishedTask,
   recordAttempt,
   replaceTask,
   RestingTask,

@@ -12,7 +12,7 @@ import {
   task,
   taskCitation,
 } from "@braivo/db/schema";
-import { and, asc, count, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import {
   momentOf,
@@ -49,7 +49,7 @@ export class RetiredTask extends Error {
 
 /**
  * A correction of a task someone already corrected or retired, written from
- * a stale read, unless what it asks for is already offered.
+ * a stale read, unless what it asks for is already there.
  */
 export class StaleCorrection extends Error {
   constructor() {
@@ -57,6 +57,32 @@ export class StaleCorrection extends Error {
       "Task 0 replaces a task already retired; list the objective's tasks again before deciding what to add or correct.",
     );
     this.name = "StaleCorrection";
+  }
+}
+
+/**
+ * A tool's correction or retirement of a task once published, retired since or
+ * not: what learners are offered changes only in the console
+ * (docs/adr/0039-published-in-the-console.md). A tool's correction is refused
+ * too until it can wait for review (authoring spec, Gaps).
+ */
+export class PublishedTask extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PublishedTask";
+  }
+}
+
+/**
+ * A correction equal to another task its objective has: answered by that task,
+ * it would take that task's state, not the corrected one's (ADR 0039).
+ */
+export class DuplicateCorrection extends Error {
+  constructor() {
+    super(
+      "Task 0 is the same as another task its objective already has; list the objective's tasks, published and waiting, before deciding what to retire or publish.",
+    );
+    this.name = "DuplicateCorrection";
   }
 }
 
@@ -71,7 +97,10 @@ export class RestingTask extends Error {
 /** A located passage a task was written from, positions in code points. */
 export type TaskCitation = { sourceId: string; start: number; end: number };
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** What learners are offered: published, and not retired (ADR 0039). */
+const offeredTask = and(isNotNull(task.publishedAt), isNull(task.retiredAt));
 
 type NewTask = { objectiveId: string; body: TaskBody; citations?: readonly TaskCitation[] };
 
@@ -92,6 +121,9 @@ type NewTask = { objectiveId: string; body: TaskBody; citations?: readonly TaskC
  * objective written to is locked for it, so two writers racing to add the same
  * task store one.
  *
+ * A new task is `published` at once or waits for Publish; a twin keeps its
+ * state either way, since a write never publishes what it did not add.
+ *
  * Each new task is stamped a millisecond after the one before it, so tasks
  * created together are offered in the order given, not by random ID
  * (`readNextTask` breaks ties oldest first). A batch sent sooner after a large
@@ -103,6 +135,7 @@ export async function createTasks(
   organizationId: string,
   tasks: readonly NewTask[],
   createdAt: Date,
+  { published }: { published: boolean },
 ): Promise<string[]> {
   if (tasks.length === 0) return [];
 
@@ -111,7 +144,7 @@ export async function createTasks(
       transaction,
       tasks.map((item) => item.objectiveId),
     );
-    return (await storeTasks(transaction, organizationId, tasks, createdAt)).ids;
+    return (await storeTasks(transaction, organizationId, tasks, createdAt, published)).ids;
   });
 }
 
@@ -121,11 +154,15 @@ export async function createTasks(
  * or neither. The task, `replaces`, must be the organization's and assess the
  * correction's objective; one that does not exist is taken as retired.
  *
- * A correction equal to the task answers the task, retiring nothing. Once the
- * task is retired, a correction answers what it asks for if that is already
- * offered (a retry, or someone's same correction); otherwise it was written
- * from a stale read and is refused (`StaleCorrection`), never offered beside
- * whatever replaced the task.
+ * The correction takes the task's state, published or waiting, so editing
+ * during review publishes nothing (ADR 0039); a tool's correction of a task
+ * once published is refused first (`PublishedTask`). A correction equal to the task
+ * answers the task, retiring nothing; one equal to another task is refused
+ * (`DuplicateCorrection`). Once the task is retired, a correction answers what
+ * it asks for if that is already there (a retry, or someone's same
+ * correction), changing nothing; otherwise it was written from a stale read
+ * and is refused (`StaleCorrection`), never stored beside whatever replaced
+ * the task.
  */
 export async function replaceTask(
   database: Database,
@@ -133,25 +170,40 @@ export async function replaceTask(
   replaces: string,
   correction: NewTask,
   createdAt: Date,
+  { byTool }: { byTool: boolean },
 ): Promise<string> {
   return database.transaction(async (transaction) => {
     await lockObjectiveTasks(transaction, [correction.objectiveId]);
+    // Locked, so Publish waits for this to decide, or this for Publish (`markPublished`).
     const [replaced] = await transaction
-      .select({ retiredAt: task.retiredAt })
+      .select({ retiredAt: task.retiredAt, publishedAt: task.publishedAt })
       .from(task)
-      .where(eq(task.id, replaces));
+      .where(eq(task.id, replaces))
+      .for("update");
+    const live = replaced?.retiredAt === null;
+    const published = live && replaced.publishedAt !== null;
+    // First, so a tool hears this whatever it sent, an unchanged task or a
+    // duplicate too, and whether or not the task was retired since.
+    if (byTool && replaced?.publishedAt) {
+      throw new PublishedTask(
+        live
+          ? "Task 0 replaces a published task, which a tool cannot change; its owner corrects it in Braivo's console."
+          : "Task 0 replaces a task once published and retired since, which a tool cannot change; list the objective's tasks again before deciding what to add.",
+      );
+    }
 
+    // Thrown inside the transaction, so a correction just stored goes with it.
     const {
       ids: [id],
       added,
-    } = await storeTasks(transaction, organizationId, [correction], createdAt);
+    } = await storeTasks(transaction, organizationId, [correction], createdAt, published);
     if (id === replaces) return id;
-    if (replaced?.retiredAt === null) {
-      await transaction.update(task).set({ retiredAt: createdAt }).where(eq(task.id, replaces));
-    } else if (added) {
-      // Thrown inside the transaction, so the correction just stored goes with it.
-      throw new StaleCorrection();
+    if (!live) {
+      if (added) throw new StaleCorrection();
+      return id!;
     }
+    if (!added) throw new DuplicateCorrection();
+    await transaction.update(task).set({ retiredAt: createdAt }).where(eq(task.id, replaces));
     return id!;
   });
 }
@@ -165,11 +217,12 @@ async function storeTasks(
   organizationId: string,
   tasks: readonly NewTask[],
   createdAt: Date,
+  published: boolean,
 ): Promise<{ ids: string[]; added: boolean }> {
   const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))];
 
-  // Every unretired task these objectives have, with its passages: few per
-  // objective, and compared here since jsonb equality alone would not
+  // Every unretired task these objectives have, published or waiting, with
+  // its passages: few per objective, and compared here since jsonb equality alone would not
   // compare the citations beside it.
   const stored = await transaction
     .select({ id: task.id, objectiveId: task.objectiveId, body: task.body })
@@ -222,12 +275,14 @@ async function storeTasks(
     if (twin) return twin.id;
 
     const id = crypto.randomUUID();
+    const stamped = new Date(createdAt.getTime() + rows.length);
     rows.push({
       id,
       organizationId,
       objectiveId: item.objectiveId,
       body,
-      createdAt: new Date(createdAt.getTime() + rows.length),
+      createdAt: stamped,
+      publishedAt: published ? stamped : null,
     });
     for (const citation of item.citations ?? []) {
       citations.push({ organizationId, taskId: id, ...citation });
@@ -285,12 +340,15 @@ export async function findTasksOutsideOrganization(
  * Stamps tasks retired; one already retired keeps its first date. Under its
  * objective's lock, as `createTasks` takes it, so a twin that is being added
  * again is either retired before it is found or found and then retired —
- * never returned to the adder as live after it was retired.
+ * never returned to the adder as live after it was retired. A tool retires
+ * only tasks never published: one published among them, retired since or
+ * not, refuses all (`PublishedTask`).
  */
 export async function markTasksRetired(
   database: Database,
   taskIds: readonly string[],
   at: Date,
+  { byTool }: { byTool: boolean },
 ): Promise<void> {
   if (taskIds.length === 0) return;
 
@@ -303,11 +361,62 @@ export async function markTasksRetired(
       transaction,
       objectives.map((row) => row.objectiveId),
     );
+    // Locked in `markPublished`'s order, so the two wait for each other, not deadlock.
+    const named = await transaction
+      .select({ id: task.id, publishedAt: task.publishedAt, retiredAt: task.retiredAt })
+      .from(task)
+      .where(inArray(task.id, [...taskIds]))
+      .orderBy(task.id)
+      .for("update");
+    const published = named.find((row) => row.publishedAt !== null);
+    if (byTool && published) {
+      throw new PublishedTask(
+        published.retiredAt === null
+          ? `Task "${published.id}" is published, which a tool cannot change; its owner retires it in Braivo's console.`
+          : `Task "${published.id}" was published and is retired already; leave it out.`,
+      );
+    }
     await transaction
       .update(task)
       .set({ retiredAt: at })
       .where(and(inArray(task.id, [...taskIds]), isNull(task.retiredAt)));
   });
+}
+
+/**
+ * Publishes the organization's tasks `taskIds` within `transaction`, all or
+ * none: `false`, and nothing written, when one is not the organization's or
+ * is retired, as a corrected task is. One published already keeps when
+ * it was, so a retry changes nothing.
+ */
+export async function publishTasks(
+  transaction: Transaction,
+  input: { organizationId: string; taskIds: readonly string[]; now: Date },
+): Promise<boolean> {
+  const { organizationId, taskIds, now } = input;
+  if (taskIds.length === 0) return true;
+
+  const wanted = [...new Set(taskIds)];
+  // Rows locked in one order, as retiring and correcting lock theirs, so each
+  // waits for the other to decide: never a task both published and changed by a tool.
+  const live = await transaction
+    .select({ id: task.id })
+    .from(task)
+    .where(
+      and(
+        eq(task.organizationId, organizationId),
+        inArray(task.id, wanted),
+        isNull(task.retiredAt),
+      ),
+    )
+    .orderBy(task.id)
+    .for("update");
+  if (live.length !== wanted.length) return false;
+  await transaction
+    .update(task)
+    .set({ publishedAt: now })
+    .where(and(inArray(task.id, wanted), isNull(task.publishedAt)));
+  return true;
 }
 
 /**
@@ -374,24 +483,28 @@ export async function readTaskCitations(
   });
 }
 
-/** A task as its author wrote it, with the passages it cites and their words. */
+/**
+ * A task as its author wrote it, with the passages it cites and their words,
+ * and whether it is published or still waits.
+ */
 export type AuthoredTask = {
   id: string;
   body: TaskBody;
   citations: (TaskCitation & { quote: string })[];
+  published: boolean;
 };
 
 /**
- * An objective's unretired tasks, oldest first as they are offered, each with
- * its cited passages by source and position: what a content owner or their
- * agent reviews before retiring one or writing another.
+ * An objective's unretired tasks, published or waiting, oldest first, each
+ * with its cited passages by source and position: what a content owner or
+ * their agent reviews before publishing, retiring one, or writing another.
  */
 export async function readObjectiveTasks(
   database: Database,
   objectiveId: string,
 ): Promise<AuthoredTask[]> {
   const tasks = await database
-    .select({ id: task.id, body: task.body })
+    .select({ id: task.id, body: task.body, publishedAt: task.publishedAt })
     .from(task)
     .where(and(eq(task.objectiveId, objectiveId), isNull(task.retiredAt)))
     .orderBy(asc(task.createdAt), asc(task.id));
@@ -416,16 +529,20 @@ export async function readObjectiveTasks(
     )
     .orderBy(asc(taskCitation.sourceId), asc(taskCitation.start));
 
-  return tasks.map(({ id, body }) => ({
+  return tasks.map(({ id, body, publishedAt }) => ({
     id,
     body: body as TaskBody,
     citations: citations
       .filter((citation) => citation.taskId === id)
       .map(({ sourceId, start, end, quote }) => ({ sourceId, start, end, quote })),
+    published: publishedAt !== null,
   }));
 }
 
-/** Which of these objectives have an unretired task, and so something to practise. */
+/**
+ * Which of these objectives have a task to offer, published and unretired, and
+ * so something to practise.
+ */
 export async function readObjectivesWithTasks(
   database: Database,
   objectiveIds: readonly string[],
@@ -435,12 +552,12 @@ export async function readObjectivesWithTasks(
   const rows = await database
     .selectDistinct({ objectiveId: task.objectiveId })
     .from(task)
-    .where(and(inArray(task.objectiveId, [...objectiveIds]), isNull(task.retiredAt)));
+    .where(and(inArray(task.objectiveId, [...objectiveIds]), offeredTask));
   return new Set(rows.map((row) => row.objectiveId));
 }
 
 /**
- * The objective's unretired task this learner attempted least recently,
+ * The objective's offered task this learner attempted least recently,
  * never-attempted first, then oldest: rotating through an objective's tasks
  * keeps a learner from answering the one they just saw. `undefined` when the
  * objective has none.
@@ -458,7 +575,7 @@ export async function readNextTask(
     .select({ id: task.id, objectiveId: task.objectiveId, body: task.body, lastAttemptAt })
     .from(task)
     .leftJoin(attempt, and(eq(attempt.taskId, task.id), eq(attempt.learnerId, input.learnerId)))
-    .where(and(eq(task.objectiveId, input.objectiveId), isNull(task.retiredAt)))
+    .where(and(eq(task.objectiveId, input.objectiveId), offeredTask))
     .groupBy(task.id)
     .orderBy(sql`${lastAttemptAt} asc nulls first`, asc(task.createdAt), asc(task.id))
     .limit(1);
@@ -497,10 +614,12 @@ export async function countOtherAttempts(
 }
 
 /**
- * A task, provided it assesses one of this course's objectives: answering is
- * authorized through the course, so a task outside it is as good as missing.
- * Retired ones included, so a resend of an attempt recorded before retirement
- * still reaches `recordAttempt`, which refuses only a new one.
+ * A published task, provided it assesses one of this course's objectives:
+ * answering is authorized through the course, so a task outside it, or one
+ * still waiting, is as good as missing. Retired ones included, so a resend of
+ * an attempt recorded before retirement still reaches `recordAttempt`, which
+ * refuses only a new one; a task is never unpublished, so a waiting one has no
+ * attempt to resend.
  */
 export async function readCourseTask(
   database: Database,
@@ -516,7 +635,7 @@ export async function readCourseTask(
         eq(courseObjective.objectiveId, task.objectiveId),
       ),
     )
-    .where(eq(task.id, input.taskId));
+    .where(and(eq(task.id, input.taskId), isNotNull(task.publishedAt)));
   return row && { ...row, body: row.body as TaskBody };
 }
 

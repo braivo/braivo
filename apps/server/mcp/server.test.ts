@@ -273,10 +273,23 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
   test("says where tasks are reused or changed that they serve every course of their objective", async () => {
     const { tools } = await agent.listTools();
 
-    for (const name of ["author_tasks", "retire_tasks", "list_objectives"]) {
+    // Not retire_tasks: a tool retires only waiting tasks, which no course offers.
+    for (const name of ["author_tasks", "list_objectives"]) {
       const tool = tools.find((candidate) => candidate.name === name);
       expect(tool?.description, name).toContain("every course");
     }
+  });
+
+  test("says a tool's tasks wait for their owner, who alone changes published ones", async () => {
+    const { tools } = await agent.listTools();
+    const described = (name: string) =>
+      tools.find((candidate) => candidate.name === name)?.description;
+
+    expect(described("author_tasks")).toContain(
+      "New tasks wait for the content owner to publish them in Braivo's console, which you cannot do",
+    );
+    expect(described("retire_tasks")).toContain("A published task is retired in Braivo's console");
+    expect(described("list_tasks")).toContain("whether it is published");
   });
 
   test("gives every tool a title and all four hints, so a client need not assume the worst", async () => {

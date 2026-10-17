@@ -139,14 +139,21 @@ export async function seedOrganization(
 
 /**
  * Stores a task and returns its generated ID. The body is stored as given: a
- * suite passes one the server's `content` module would accept.
+ * suite passes one the server's `content` module would accept. Published when
+ * created unless `publishedAt` says otherwise, `null` for one still waiting.
  */
 export async function createTask(
   database: Database,
-  input: { organizationId: string; objectiveId: string; body: unknown; createdAt: Date },
+  input: {
+    organizationId: string;
+    objectiveId: string;
+    body: unknown;
+    createdAt: Date;
+    publishedAt?: Date | null;
+  },
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await database.insert(task).values({ id, ...input });
+  await database.insert(task).values({ id, publishedAt: input.createdAt, ...input });
   return id;
 }
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { course, courseObjective, objective, organization } from "@braivo/db/schema";
+import { course, courseObjective, objective, organization, task } from "@braivo/db/schema";
 import {
   sharedDatabase,
   clearLearningData,
@@ -14,13 +14,14 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
   createCourse,
-  publishCourses,
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
   updateCourseUrlLabel,
 } from "./course.ts";
 import { createObjectives } from "./objective.ts";
+import { markPublished } from "./publication.ts";
+import { createTasks, markTasksRetired } from "./task.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -484,21 +485,73 @@ describe.skipIf(!connectionString)("courses", () => {
     const now = new Date("2026-02-01T00:00:00.000Z");
     // Another organization's course among them: nothing is published.
     expect(
-      await publishCourses(database, { organizationId, courseIds: [waiting, theirs], now }),
+      await markPublished(database, {
+        organizationId,
+        courseIds: [waiting, theirs],
+        taskIds: [],
+        now,
+      }),
     ).toBe(false);
     expect(await publishedAt(waiting)).toBeNull();
 
     expect(
-      await publishCourses(database, { organizationId, courseIds: [waiting, also, waiting], now }),
+      await markPublished(database, {
+        organizationId,
+        courseIds: [waiting, also, waiting],
+        taskIds: [],
+        now,
+      }),
     ).toBe(true);
     expect(await publishedAt(waiting)).toEqual(now);
     expect(await publishedAt(also)).toEqual(now);
     // Again later: when it first was stays.
     const later = new Date("2026-03-01T00:00:00.000Z");
     expect(
-      await publishCourses(database, { organizationId, courseIds: [waiting], now: later }),
+      await markPublished(database, {
+        organizationId,
+        courseIds: [waiting],
+        taskIds: [],
+        now: later,
+      }),
     ).toBe(true);
     expect(await publishedAt(waiting)).toEqual(now);
+  });
+
+  test("publishes a course with its tasks, or neither when a task was retired since", async () => {
+    const [objectiveId] = (await createObjectives(database, organizationId, ["Reviewed"])) as [
+      string,
+    ];
+    const proposed = await createCourse(database, {
+      published: false,
+      organizationId,
+      title: "Proposed",
+      objectiveIds: [objectiveId],
+    });
+    const now = new Date("2026-02-01T00:00:00.000Z");
+    const [kept, withdrawn] = (await createTasks(
+      database,
+      organizationId,
+      ["Kept", "Withdrawn"].map((prompt) => ({
+        objectiveId,
+        body: { kind: "choice", prompt, options: ["a", "b"], answer: 0 },
+      })),
+      now,
+      { published: false },
+    )) as [string, string];
+    await markTasksRetired(database, [withdrawn], now, { byTool: true });
+    const states = async () => [
+      (await readCourseOrganization(database, proposed))?.published,
+      ...(await database.select({ at: task.publishedAt }).from(task).where(eq(task.id, kept))).map(
+        ({ at }) => at !== null,
+      ),
+    ];
+
+    const publish = (taskIds: string[]) =>
+      markPublished(database, { organizationId, courseIds: [proposed], taskIds, now });
+    expect(await publish([kept, withdrawn])).toBe(false);
+    expect(await states()).toEqual([false, false]);
+    expect(await publish([kept])).toBe(true);
+    expect(await states()).toEqual([true, true]);
   });
 
   test("reports no owner for a course that does not exist", async () => {

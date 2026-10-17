@@ -359,6 +359,7 @@ CREATE TABLE "task" (
 	"body" jsonb NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	"retired_at" timestamp with time zone,
+	"published_at" timestamp with time zone,
 	CONSTRAINT "task_organization_id_key" UNIQUE("organization_id","id")
 );
 --> statement-breakpoint
