@@ -225,6 +225,22 @@
 }
 
 /*
+ * A partly selected checkbox, as selecting some of a group's items leaves the
+ * group's, shows a bar, where the component draws the same check as checked.
+ */
+[data-slot="checkbox"][data-state="indeterminate"] [data-slot="checkbox-indicator"] svg {
+  display: none;
+}
+
+[data-slot="checkbox"][data-state="indeterminate"] [data-slot="checkbox-indicator"]::before {
+  content: "";
+  width: 0.5rem;
+  height: 2px;
+  border-radius: 1px;
+  background-color: currentColor;
+}
+
+/*
  * Focus is an opaque `--ring`, so it shows at 3:1 where the components' rings
  * are 20% to 50% of it; an invalid control's too, its border still red.
  * Unlayered, over each ring utility's colour; its width and place are theirs.

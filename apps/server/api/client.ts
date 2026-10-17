@@ -21,7 +21,7 @@ import type {
   LearnerProgressReport,
   LearnerProgressSummary,
   LocatedCitation,
-  ManagedCourse,
+  CourseSummary,
   Member,
   Objective,
   Organization,
@@ -70,6 +70,7 @@ export type {
   LearnerProgressSummary,
   LearningDecision,
   LocatedCitation,
+  CourseSummary,
   ManagedCourse,
   Member,
   Objective,
@@ -407,12 +408,13 @@ export type BraivoClient = {
   removeDomain(organizationId: string, hostname: string, options?: RequestOptions): Promise<void>;
 
   /**
-   * Every course an organization has, by title.
+   * Every course an organization has, by title, each with how many of its
+   * tasks wait for review.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
    * throws a {@link BraivoError} with status 403.
    */
-  listCourses(organizationId: string, options?: RequestOptions): Promise<ManagedCourse[]>;
+  listCourses(organizationId: string, options?: RequestOptions): Promise<CourseSummary[]>;
 
   /**
    * Publishes what a person reviewed, the organization's courses `courseIds`
@@ -1106,7 +1108,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `listing the courses of organization "${organizationId}"`;
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { courses } = await parsed<{ courses: ManagedCourse[] }>(response, doing);
+      const { courses } = await parsed<{ courses: CourseSummary[] }>(response, doing);
       return courses;
     },
 

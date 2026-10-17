@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { course, courseObjective, member } from "@braivo/db/schema";
+import { course, courseObjective, member, task } from "@braivo/db/schema";
 import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 
 import { urlLabel } from "../content/index.ts";
@@ -181,6 +181,30 @@ export async function readCourses(
     .where(eq(course.organizationId, organizationId))
     .orderBy(asc(course.title), asc(course.id));
   return rows.map((row) => ({ ...listedCourse(row), published: row.publishedAt !== null }));
+}
+
+/**
+ * How many tasks wait for review in each of the organization's courses: its
+ * objectives' tasks, unretired and unpublished (ADR 0039). A task of an
+ * objective two courses share counts in both. Courses with none are left out.
+ */
+export async function readWaitingTaskCounts(
+  database: Database,
+  organizationId: string,
+): Promise<Map<string, number>> {
+  const rows = await database
+    .select({ courseId: courseObjective.courseId, count: sql<number>`count(*)::int` })
+    .from(courseObjective)
+    .innerJoin(task, eq(task.objectiveId, courseObjective.objectiveId))
+    .where(
+      and(
+        eq(courseObjective.organizationId, organizationId),
+        isNull(task.publishedAt),
+        isNull(task.retiredAt),
+      ),
+    )
+    .groupBy(courseObjective.courseId);
+  return new Map(rows.map(({ courseId, count }) => [courseId, count]));
 }
 
 /**

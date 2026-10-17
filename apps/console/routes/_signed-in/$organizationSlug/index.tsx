@@ -90,25 +90,33 @@ function Courses() {
         </Empty>
       ) : (
         <ul className="list-disc pl-6">
-          {courses.map((course) => (
-            <li key={course.id}>
-              <Link
-                to="/$organizationSlug/courses/$courseId"
-                params={{ organizationSlug, courseId: course.id }}
-                className="underline wrap-anywhere"
-              >
-                {course.title}
-                {/* In the link's name, so it is heard while moving from link to link. */}
-                {!course.published && <span className="sr-only"> (needs review)</span>}
-              </Link>
-              {/* A tool's course, reached by no learner until published on its page. */}
-              {!course.published && (
-                <Badge variant="outline" className="ms-2" aria-hidden="true">
-                  Needs review
-                </Badge>
-              )}
-            </li>
-          ))}
+          {courses.map((course) => {
+            // A tool's course, or a published one's new tasks, reached by no
+            // learner until published on its page.
+            const review = !course.published
+              ? "Needs review"
+              : course.waitingTaskCount > 0
+                ? `${course.waitingTaskCount} ${course.waitingTaskCount === 1 ? "task needs" : "tasks need"} review`
+                : undefined;
+            return (
+              <li key={course.id}>
+                <Link
+                  to="/$organizationSlug/courses/$courseId"
+                  params={{ organizationSlug, courseId: course.id }}
+                  className="underline wrap-anywhere"
+                >
+                  {course.title}
+                  {/* In the link's name, so it is heard while moving from link to link. */}
+                  {review && <span className="sr-only"> ({review.toLowerCase()})</span>}
+                </Link>
+                {review && (
+                  <Badge variant="outline" className="ms-2" aria-hidden="true">
+                    {review}
+                  </Badge>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

@@ -535,6 +535,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Every phase",
         urlLabel: "every-phase",
         published: true,
+        waitingTaskCount: 0,
       },
       {
         id: emptyCourseId,
@@ -542,6 +543,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Not started",
         urlLabel: "not-started",
         published: true,
+        waitingTaskCount: 0,
       },
       {
         id: courseId,
@@ -549,6 +551,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Spanish",
         urlLabel: "spanish",
         published: true,
+        waitingTaskCount: 0,
       },
     ]);
 
@@ -931,6 +934,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       urlLabel: "saludos",
       // Created with a person's session, as the console does: published at once.
       published: true,
+      waitingTaskCount: 0,
     });
   });
 

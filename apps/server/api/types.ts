@@ -99,6 +99,13 @@ export type Course = { id: string; number: number; title: string; urlLabel: stri
  */
 export type ManagedCourse = Course & { published: boolean };
 
+/**
+ * A course as its organization lists it: `waitingTaskCount`, how many tasks of its
+ * objectives wait for review, a task of an objective two courses share counted
+ * in both.
+ */
+export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
+
 /** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };
 

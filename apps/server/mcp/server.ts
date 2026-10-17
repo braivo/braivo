@@ -569,7 +569,8 @@ export function createMcpServer(
     "list_courses",
     {
       title: "List courses",
-      description: "An organization's courses, by title, each saying whether it is published.",
+      description:
+        "An organization's courses, by title, each saying whether it is published and how many of its tasks wait for its owner to publish them (waitingTaskCount).",
       inputSchema: z.object({ organizationId }),
       annotations: READ_ONLY,
     },
