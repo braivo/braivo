@@ -11,7 +11,9 @@ import { cn } from "#lib/utils";
 
 /**
  * A question answered by typing. Presentation only, as `ChoiceQuestion` is:
- * what an answer does is the caller's, and so are `sent` and `outcome`.
+ * what an answer does is the caller's, and so are `sent` and `outcome`. The
+ * caller says the outcome in words: here a success only colours the field, and
+ * a failure labels the text as the learner's, apart from the answer it names.
  *
  * Enter or Check sends the text, but not while an input method composes, where
  * Enter commits a character, nor while the field is blank: a stray Enter would
@@ -98,18 +100,9 @@ export function TypedQuestion(props: {
           {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
         </Button>
       </div>
-      {outcome && sent !== undefined && (
-        <p
-          className={cn(
-            "text-xs font-semibold",
-            outcome === "success" ? "text-primary" : "text-destructive",
-          )}
-        >
-          {outcome === "success" ? (
-            <Trans context="Marks the typed answer">Correct</Trans>
-          ) : (
-            <Trans>Your answer</Trans>
-          )}
+      {outcome === "failure" && sent !== undefined && (
+        <p className="text-xs font-semibold text-destructive">
+          <Trans>Your answer</Trans>
         </p>
       )}
     </form>

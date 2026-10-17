@@ -743,7 +743,7 @@ describe("the learn app", () => {
     expect(screen.getByText("Let's practise this again.")).toBeTruthy();
   });
 
-  test("asks a typed task in a field, and sends the text exactly as typed", async () => {
+  test("asks a typed task in a field, sends the text exactly as typed, and says Correct once", async () => {
     const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
@@ -760,9 +760,9 @@ describe("the learn app", () => {
     fireEvent.change(field, { target: { value: " Bin " } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));
 
-    expect(
-      await screen.findByText("Correct", { selector: "[data-slot=alert-title]" }),
-    ).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toBe("Correct");
+    // Said once, by the alert: the one field needs no mark of its own.
+    expect(screen.getAllByText("Correct")).toHaveLength(1);
     expect(submitAttempt).toHaveBeenCalledWith(
       { courseId: "c1", id: expect.any(String), taskId: "t2", response: { text: " Bin " } },
       { signal: expect.any(AbortSignal) },
@@ -815,6 +815,8 @@ describe("the learn app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send again" }));
     expect(await screen.findByText("Not quite")).toBeTruthy();
     expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+    // Labelled as the learner's, apart from the answer the alert names.
+    expect(screen.getByText("Your answer")).toBeTruthy();
     expect(submitAttempt.mock.calls.map(([input]) => input.response)).toEqual([
       { text: "ben" },
       { text: "ben" },
