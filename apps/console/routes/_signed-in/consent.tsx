@@ -5,9 +5,12 @@ import type { Organization } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
+import { Spinner } from "@braivo/ui/components/spinner";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /**
  * Where a person lets an AI app, such as Claude, work in Braivo as them
@@ -61,10 +64,12 @@ function decodeRequest(request: string): string | undefined {
 
 function Consent() {
   const { auth, visit } = Route.useRouteContext();
-  const { step } = Route.useSearch();
+  const { step, request } = Route.useSearch();
   const { query, client, organizations } = Route.useLoaderData();
   const { t } = useLingui();
-  const [pending, setPending] = useState(false);
+  const router = useRouter();
+  // The answer being sent, `"approve"`, `"deny"`, or an organization's ID: its button says so.
+  const [sending, setSending] = useState<string>();
   const [failures, setFailures] = useState(0);
   // Refused, which retrying cannot mend: another tab chose another
   // organization since (`ACTIVE_ORGANIZATION_CHANGED`), or anything else.
@@ -88,13 +93,34 @@ function Consent() {
     );
   }
 
+  /** Better Auth's POST, given up after the console's deadline: it then rejects. */
+  const post = <T,>(path: string, body: object) =>
+    auth.$fetch<T>(path, {
+      method: "POST",
+      body,
+      signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+    });
+
   /** Asks Better Auth, then follows its answer: on to consent, or back to the app. */
-  async function act(ask: () => Promise<{ data: { url: string } | null; error: unknown }>) {
-    if (pending) return;
-    setPending(true);
+  async function act(
+    answer: string,
+    ask: () => Promise<{ data: { url: string } | null; error: unknown }>,
+  ) {
+    if (sending) return;
+    setSending(answer);
     try {
       const { data, error } = await ask();
       const { status, code } = (error ?? {}) as { status?: number; code?: string };
+      // Signed out meanwhile (in another tab, say): the session check sends
+      // them to sign in, then back to choosing, since a new session has no
+      // organization chosen to consent for.
+      if (status === 401) {
+        return await router.navigate({
+          to: "/consent",
+          search: { step: "organization", request },
+          replace: true,
+        });
+      }
       if (status === 403)
         return setRefused(code === "ACTIVE_ORGANIZATION_CHANGED" ? "changed" : "other");
       if (error || !data) return setFailures((count) => count + 1);
@@ -102,32 +128,30 @@ function Consent() {
     } catch {
       setFailures((count) => count + 1);
     } finally {
-      setPending(false);
+      setSending(undefined);
     }
   }
 
   const decide = (accept: boolean) =>
-    act(() =>
-      auth.$fetch<{ url: string }>("/oauth2/consent", {
-        method: "POST",
-        // The organization shown, which Braivo refuses to grant once the
-        // session's choice differs (another tab's).
-        body: { accept, oauth_query: query, organizationId: organization?.id },
+    act(accept ? "approve" : "deny", () =>
+      // The organization shown, which Braivo refuses to grant once the
+      // session's choice differs (another tab's).
+      post<{ url: string }>("/oauth2/consent", {
+        accept,
+        oauth_query: query,
+        organizationId: organization?.id,
       }),
     );
 
   // Kept on the session, where Better Auth reads it, then the authorization resumed.
   const choose = (chosen: Organization) =>
-    act(async () => {
-      const active = await auth.$fetch("/organization/set-active", {
-        method: "POST",
-        body: { organizationId: chosen.id },
-      });
-      // Failed, not refused as changed: retrying can work.
-      if (active.error) return { data: null, error: true };
-      return auth.$fetch<{ url: string }>("/oauth2/continue", {
-        method: "POST",
-        body: { postLogin: true, oauth_query: query, organizationId: chosen.id },
+    act(chosen.id, async () => {
+      const active = await post("/organization/set-active", { organizationId: chosen.id });
+      if (active.error) return { data: null, error: active.error };
+      return post<{ url: string }>("/oauth2/continue", {
+        postLogin: true,
+        oauth_query: query,
+        organizationId: chosen.id,
       });
     });
 
@@ -160,9 +184,20 @@ function Consent() {
       <Trans>Client ID: {clientId}</Trans>
     </MutedText>
   );
+  /** A button's spinner while `answer` is sent; hidden, as its label or `aria-busy` says so. */
+  const spinner = (answer: string) =>
+    sending === answer && <Spinner data-icon="inline-start" aria-hidden="true" />;
+  /** Deny's label, Cancel's where there is no organization to deny one for. */
+  function denyLabel() {
+    if (organizations.length === 0) {
+      return sending === "deny" ? <Trans>Cancelling…</Trans> : <Trans>Cancel</Trans>;
+    }
+    return sending === "deny" ? <Trans>Denying…</Trans> : <Trans>Deny</Trans>;
+  }
   const deny = (
-    <Button variant="outline" aria-disabled={pending} onClick={() => decide(false)}>
-      {organizations.length === 0 ? <Trans>Cancel</Trans> : <Trans>Deny</Trans>}
+    <Button variant="outline" aria-disabled={sending !== undefined} onClick={() => decide(false)}>
+      {spinner("deny")}
+      {denyLabel()}
     </Button>
   );
 
@@ -200,9 +235,12 @@ function Consent() {
               <Button
                 variant="outline"
                 className="h-auto min-h-9 w-full justify-start py-1.5 wrap-anywhere whitespace-normal"
-                aria-disabled={pending}
+                aria-disabled={sending !== undefined}
+                // Its name kept, to say which one is being chosen.
+                aria-busy={sending === each.id}
                 onClick={() => choose(each)}
               >
+                {spinner(each.id)}
                 {each.name}
               </Button>
             </li>
@@ -230,8 +268,9 @@ function Consent() {
       </p>
       {failed}
       <div className="flex gap-2">
-        <Button aria-disabled={pending} onClick={() => decide(true)}>
-          <Trans>Approve</Trans>
+        <Button aria-disabled={sending !== undefined} onClick={() => decide(true)}>
+          {spinner("approve")}
+          {sending === "approve" ? <Trans>Approving…</Trans> : <Trans>Approve</Trans>}
         </Button>
         {deny}
       </div>

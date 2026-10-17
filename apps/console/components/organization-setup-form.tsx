@@ -29,6 +29,8 @@ import { ArrowRightIcon, CircleAlertIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { flushSync } from "react-dom";
 
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+
 /** The server's slug rule (white-label-8), checked here to say so in words. */
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 63;
@@ -111,7 +113,10 @@ export function OrganizationSetupForm(props: OrganizationSetup & { braivo: Braiv
     setError(undefined);
     let organization;
     try {
-      organization = await braivo.setUpOrganization({ name: name.value, slug });
+      organization = await braivo.setUpOrganization(
+        { name: name.value, slug },
+        { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+      );
     } catch (thrown) {
       setError(refusal(thrown));
       setCreating(false);
@@ -135,7 +140,7 @@ export function OrganizationSetupForm(props: OrganizationSetup & { braivo: Braiv
   /**
    * Why it was not set up, worded here from Braivo's code, never in its
    * English (ADR 0035). Only a refusal (4xx) proves it was not made; with no
-   * answer, a server error, or a 201 it could not read, it may have been:
+   * answer in time, a server error, or a 201 it could not read, it may have been:
    * reloading lists it, where sending again is refused.
    */
   function refusal(thrown: unknown): string {

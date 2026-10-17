@@ -6,8 +6,11 @@ import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Field, FieldGroup, FieldLabel } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type SubmitEvent, useId, useState } from "react";
+import { Spinner } from "@braivo/ui/components/spinner";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
+
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /**
  * Where a content owner lets their own tools act as them: the page the CLI's
@@ -105,38 +108,65 @@ function EnterCode({ refusedCode }: { refusedCode?: string }) {
 
 const UNRECORDED = "Braivo could not record your answer. Try again.";
 
+/** A signal for one request, aborted at the console's deadline. */
+const deadline = () => withDeadline(undefined, REQUEST_DEADLINE_MS);
+
 function Review({ userCode, clientId }: { userCode: string; clientId?: string | null }) {
   const { auth } = Route.useRouteContext();
+  const router = useRouter();
   const [outcome, setOutcome] = useState<"approved" | "denied">();
-  const [deciding, setDeciding] = useState(false);
+  // The decision being sent, which its button names.
+  const [deciding, setDeciding] = useState<"approve" | "deny">();
   const [error, setError] = useState<string>();
+  // The outcome replaces the buttons, so focus moves to it.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (outcome) heading.current?.focus();
+  }, [outcome]);
 
   async function decide(approve: boolean) {
     // One decision at a time: Better Auth checks the code is pending, then
     // updates it, so an Approve and a Deny in flight together could both
     // succeed, and this page would report whichever answered last.
     if (deciding) return;
-    setDeciding(true);
+    setDeciding(approve ? "approve" : "deny");
     setError(undefined);
     try {
       const { error } = approve
-        ? await auth.device.approve({ userCode })
-        : await auth.device.deny({ userCode });
-      // The device flow's errors are OAuth's shape, `error_description` for words.
-      if (error) return setError(error.error_description || UNRECORDED);
+        ? await auth.device.approve({ userCode, fetchOptions: { signal: deadline() } })
+        : await auth.device.deny({ userCode, fetchOptions: { signal: deadline() } });
+      // Signed out meanwhile (in another tab, say): the session check sends
+      // them to sign in, and back to this code.
+      if (error?.status === 401) return await router.invalidate();
+      if (error) {
+        // Answered already, as by a try given up here that reached Braivo
+        // late: the code says how.
+        const reread = await auth
+          .device({ query: { user_code: userCode }, fetchOptions: { signal: deadline() } })
+          .catch(() => ({ data: null }));
+        const status = reread.data?.status;
+        if (status === "approved" || status === "denied") return setOutcome(status);
+        // The device flow's errors are OAuth's shape, `error_description` for words.
+        return setError(error.error_description || UNRECORDED);
+      }
       setOutcome(approve ? "approved" : "denied");
     } catch {
-      // A failed connection rejects rather than answering `{ error }`.
+      // Unreachable or out of time, it rejects rather than answering `{ error }`.
       setError(UNRECORDED);
     } finally {
-      setDeciding(false);
+      setDeciding(undefined);
     }
   }
 
-  if (outcome === "approved") {
-    return <Heading>Signed in. You can go back to your terminal.</Heading>;
+  if (outcome) {
+    return (
+      <Heading ref={heading} tabIndex={-1}>
+        {outcome === "approved"
+          ? "Signed in. You can go back to your terminal."
+          : "Denied. Nothing was signed in."}
+      </Heading>
+    );
   }
-  if (outcome === "denied") return <Heading>Denied. Nothing was signed in.</Heading>;
 
   return (
     <section className="flex flex-col gap-4">
@@ -161,11 +191,30 @@ function Review({ userCode, clientId }: { userCode: string; clientId?: string | 
       )}
       {/* aria-disabled, not disabled, so that they keep the focus meanwhile. */}
       <div className="flex gap-2">
-        <Button aria-disabled={deciding} onClick={() => decide(true)}>
-          Approve
+        <Button aria-disabled={deciding !== undefined} onClick={() => decide(true)}>
+          {deciding === "approve" ? (
+            <>
+              {/* Hidden: "Approving…" already says it. */}
+              <Spinner data-icon="inline-start" aria-hidden="true" />
+              Approving…
+            </>
+          ) : (
+            "Approve"
+          )}
         </Button>
-        <Button variant="outline" aria-disabled={deciding} onClick={() => decide(false)}>
-          Deny
+        <Button
+          variant="outline"
+          aria-disabled={deciding !== undefined}
+          onClick={() => decide(false)}
+        >
+          {deciding === "deny" ? (
+            <>
+              <Spinner data-icon="inline-start" aria-hidden="true" />
+              Denying…
+            </>
+          ) : (
+            "Deny"
+          )}
         </Button>
       </div>
     </section>
