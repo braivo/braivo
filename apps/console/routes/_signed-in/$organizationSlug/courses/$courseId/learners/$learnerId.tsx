@@ -119,8 +119,8 @@ function LearnerProgress() {
           <div className="mb-4 flex flex-col gap-1 text-sm text-muted-foreground">
             <p>
               <Trans>
-                Knowledge estimates include learning across this organization's courses that cover
-                these objectives.
+                Estimated recall is a model estimate, not a test score. Estimates include learning
+                across this organization's courses that cover these objectives.
               </Trans>
             </p>
             <p>
@@ -255,7 +255,7 @@ function dated(at: string, locale: string): string {
   return new Date(at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/** A standing in words, recall as estimated, never a grade. */
+/** A standing in words, and under a retained one its recall: predicted, never a grade. */
 function Standing({ standing }: { standing: LearnerProgressStanding }) {
   switch (standing.phase) {
     case "unseen":
@@ -264,10 +264,19 @@ function Standing({ standing }: { standing: LearnerProgressStanding }) {
       return <Trans context="A learner's standing on an objective">Learning</Trans>;
     case "retaining": {
       const recall = Math.round(standing.retrievability * 100);
-      return standing.due ? (
-        <Trans>Due for review, {recall}% estimated recall</Trans>
-      ) : (
-        <Trans>Retained, {recall}% estimated recall</Trans>
+      return (
+        <>
+          <span className="block">
+            {standing.due ? (
+              <Trans context="A learner's standing on an objective">Due for review</Trans>
+            ) : (
+              <Trans context="A learner's standing on an objective">Retained</Trans>
+            )}
+          </span>
+          <MutedText className="block">
+            <Trans>Estimated recall now: {recall}%</Trans>
+          </MutedText>
+        </>
       );
     }
     default:
