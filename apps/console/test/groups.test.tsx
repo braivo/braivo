@@ -6,7 +6,7 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
-import { courseProgress, school } from "./fixtures.ts";
+import { courseProgress, members, readCourse, school } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 describe("groups", () => {
@@ -185,6 +185,12 @@ describe("groups", () => {
         },
       });
       const search = await screen.findByRole("searchbox", { name: "Find a learner" });
+      // A teacher's course pages are in Groups, wherever opened from.
+      expect(
+        within(screen.getByRole("navigation", { name: "Example School" }))
+          .getByRole("link", { name: "Groups" })
+          .getAttribute("aria-current"),
+      ).toBe("true");
       const reads = listOrganizations.mock.calls.length;
       for (const typed of ["a", "an", "ana"])
         fireEvent.change(search, { target: { value: typed } });
@@ -557,6 +563,45 @@ describe("groups", () => {
       expect(screen.getByRole("link", { name: "Edit 7A · English" }).getAttribute("href")).toBe(
         "/example/settings/groups/g1",
       );
+    });
+
+    test("keeps Groups marked in an administrator's report opened from it, and its learners'", async () => {
+      const { router } = renderAt("/example/courses/course-1/progress?from=groups", {
+        braivo: {
+          listCourses: async () => [beginners],
+          readCourse,
+          courseProgress,
+          listMembers: async () => members,
+          learnerProgress: async () => report,
+        },
+      });
+      const nav = await screen.findByRole("navigation", { name: "Example School" });
+      const marked = () =>
+        within(nav)
+          .getAllByRole("link")
+          .filter((link) => link.getAttribute("aria-current") === "true")
+          .map((link) => link.textContent);
+      await vi.waitFor(() => expect(marked()).toEqual(["Groups"]));
+
+      fireEvent.click(await screen.findByRole("link", { name: "Lee Learner" }));
+      expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+      expect(marked()).toEqual(["Groups"]);
+
+      // Opened from the course, both are in Courses.
+      await act(() =>
+        router.navigate({
+          to: "/$organizationSlug/courses/$courseId/progress",
+          params: { organizationSlug: "example", courseId: "course-1" },
+        }),
+      );
+      await vi.waitFor(() => expect(marked()).toEqual(["Courses"]));
+      fireEvent.click(await screen.findByRole("link", { name: "Lee Learner" }));
+      expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+      expect(marked()).toEqual(["Courses"]);
+      // The course itself stays in Courses, whatever its URL says.
+      await act(() => router.navigate({ href: "/example/courses/course-1?from=groups" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Beginners" })).toBeTruthy();
+      expect(marked()).toEqual(["Courses"]);
     });
   });
 

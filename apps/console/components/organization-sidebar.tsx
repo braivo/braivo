@@ -23,6 +23,14 @@ import { SidebarButton, useCloseDrawerOnFollow } from "./sidebar-button.tsx";
 
 /** The organization's home, an administrator's Courses. */
 const HOME = "/_signed-in/$organizationSlug/";
+/**
+ * A course's reports, which keep where they were opened from (`ProgressSearch`).
+ * Only their `from` counts: a route without `validateSearch` keeps any search typed.
+ */
+const REPORTS = new Set<string>([
+  "/_signed-in/$organizationSlug/courses/$courseId/progress",
+  "/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId",
+]);
 
 /**
  * An organization's sidebar: the organization first, switching to the
@@ -47,14 +55,21 @@ export function OrganizationSidebar(props: {
   // Navigated otherwise (back, forward) while it is open.
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
   const closeOnFollow = useCloseDrawerOnFollow();
-  // The section shown: a course's pages are the Courses', a source's the
-  // Sources'; to a teacher, who has no Courses, a course's are the Groups'.
+  // The section shown: a source's pages are in Sources; a course's in
+  // Courses, but in Groups for its reports opened from Groups, and all of
+  // them for a teacher, who has only Groups.
   const section = useMatches({
     select: (matches) => {
       const under = (path: string) =>
         matches.some(({ routeId }) => routeId.startsWith(`/_signed-in/$organizationSlug/${path}`));
+      const fromGroups = matches.some(
+        ({ routeId, search }) =>
+          REPORTS.has(routeId) && "from" in search && search.from === "groups",
+      );
       if (under("sources")) return "sources";
-      if (under("groups") || (under("courses") && !organization.administers)) return "groups";
+      if (under("groups") || (under("courses") && (fromGroups || !organization.administers))) {
+        return "groups";
+      }
       if (under("courses") || matches.some(({ routeId }) => routeId === HOME)) return "courses";
     },
   });
