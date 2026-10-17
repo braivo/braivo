@@ -10,6 +10,8 @@ export { createCitations, readObjectiveCitations, readSourceTexts } from "./cita
 export type { Course, CourseWriteResult, ManagedCourse } from "./course.ts";
 export {
   createCourse,
+  DeletedCourseKey,
+  markCourseDeleted,
   readCourseObjectives,
   readCourseOrganization,
   readCourses,

@@ -611,7 +611,7 @@ export function createMcpServer(
     {
       title: "Create a course",
       description:
-        "Creates a course over existing objectives, in the order learners meet them. Learners reach it once its owner publishes it in Braivo's console, which you cannot do; then they are taught and reviewed adaptively. Give it a key; creating it again under that key returns it as it stands. Answers its courseId; added, false for one returned under its key; published; and reviewUrl, when available: the console page where the content owner publishes it and its waiting tasks.",
+        "Creates a course over existing objectives, in the order learners meet them. Learners reach it once its owner publishes it in Braivo's console, which you cannot do; then they are taught and reviewed adaptively. Give it a key; creating it again under that key returns it as it stands. A course cannot be changed: to rearrange one still waiting, create another under a new key and ask the person to delete the old one in Braivo's console. Answers its courseId; added, false for one returned under its key; published; and reviewUrl, when available: the console page where the content owner publishes it and its waiting tasks.",
       inputSchema: z.object({
         organizationId,
         title,

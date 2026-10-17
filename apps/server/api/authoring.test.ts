@@ -626,6 +626,77 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await stored(learner.id)).toHaveLength(1);
   });
 
+  test("deletes an unpublished course in the console alone, keeping its content and its key", async () => {
+    const [objectiveId] = (await createObjectives(database, organizationId, ["Withdrawn"])) as [
+      string,
+    ];
+    await createTasks(
+      database,
+      organizationId,
+      [{ objectiveId, body: { kind: "choice", prompt: "Kept?", options: ["a", "b"], answer: 0 } }],
+      at,
+      { published: false },
+    );
+    const asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
+    const inConsole = { "content-type": "application/json", cookie: teacher.cookie };
+    const create = () =>
+      api.request(`/api/organizations/${organizationId}/courses`, {
+        method: "POST",
+        headers: asTool,
+        body: JSON.stringify({ title: "Withdrawn", objectiveIds: [objectiveId], key: "withdrawn" }),
+      });
+    const remove = (headers: Record<string, string>, id: string) =>
+      api.request(`/api/organizations/${organizationId}/courses/${id}/delete`, {
+        method: "POST",
+        headers,
+        body: "{}",
+      });
+    const asTeacher = { headers: { cookie: teacher.cookie } };
+    const { courseId: withdrawn } = (await (await create()).json()) as { courseId: string };
+
+    // Not a tool, even alongside the session, nor a member who does not administer it.
+    const byTool = await remove(asTool, withdrawn);
+    expect(byTool.status).toBe(403);
+    expect(await byTool.json()).toEqual({ error: "Delete a course in Braivo's console." });
+    expect((await remove({ ...inConsole, ...asTool }, withdrawn)).status).toBe(403);
+    expect((await remove({ ...inConsole, cookie: learner.cookie }, withdrawn)).status).toBe(403);
+    // Another organization's, as missing; a published one, explained.
+    expect((await remove(inConsole, foreignCourseId)).status).toBe(404);
+    const published = await remove(inConsole, courseId);
+    expect(published.status).toBe(409);
+    expect(await published.json()).toEqual({
+      error: "The course is published, so it cannot be deleted.",
+    });
+
+    expect((await remove(inConsole, withdrawn)).status).toBe(204);
+    expect((await remove(inConsole, withdrawn)).status).toBe(204);
+
+    // Gone from every read of it, its key taken for good.
+    const { courses } = (await (
+      await api.request(`/api/organizations/${organizationId}/courses`, asTeacher)
+    ).json()) as { courses: { id: string }[] };
+    expect(courses.map(({ id }) => id)).not.toContain(withdrawn);
+    expect(
+      (await api.request(`/api/organizations/${organizationId}/courses/${withdrawn}`, asTeacher))
+        .status,
+    ).toBe(404);
+    expect((await api.request(`/api/courses/${withdrawn}/progress`, asTeacher)).status).toBe(404);
+    const retried = await create();
+    expect(retried.status).toBe(409);
+    expect(await retried.json()).toEqual({
+      error:
+        'The course has key "withdrawn", which named a course deleted in Braivo\'s console; use another key.',
+    });
+    // Its objective and task stay.
+    const { tasks } = (await (
+      await api.request(
+        `/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`,
+        asTeacher,
+      )
+    ).json()) as { tasks: { prompt: string }[] };
+    expect(tasks.map(({ prompt }) => prompt)).toEqual(["Kept?"]);
+  });
+
   describe("task publication", () => {
     let asTool!: Record<string, string>;
     let inConsole!: Record<string, string>;

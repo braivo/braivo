@@ -32,9 +32,11 @@ export type { Draft } from "../ai/index.ts";
 export { ModelUnavailable } from "../ai/index.ts";
 export {
   defineCourse,
+  deleteCourse,
   listCourses,
   listLearnerCourses,
   publish,
+  PublishedCourse,
   readAuthoredCourse,
   setCourseUrlLabel,
   StalePublication,
@@ -107,6 +109,7 @@ export {
   ConflictingGroupRole,
   ConflictingKey,
   CorrectionWaiting,
+  DeletedCourseKey,
   DuplicateCorrection,
   PublishedTask,
   StaleCorrection,

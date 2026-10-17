@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { course, courseObjective, member, task } from "@braivo/db/schema";
+import { course, courseObjective, groupCourse, member, task } from "@braivo/db/schema";
 import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 
 import { urlLabel } from "../content/index.ts";
@@ -115,9 +115,17 @@ async function insertCourse(
     // anything else would make the key mean two courses (docs/adr/0024-idempotent-authoring.md).
     if (!inserted) {
       const [existing] = await transaction
-        .select({ id: course.id, title: course.title, publishedAt: course.publishedAt })
+        .select({
+          id: course.id,
+          title: course.title,
+          publishedAt: course.publishedAt,
+          deletedAt: course.deletedAt,
+        })
         .from(course)
-        .where(and(eq(course.organizationId, input.organizationId), eq(course.key, input.key!)));
+        .where(and(eq(course.organizationId, input.organizationId), eq(course.key, input.key!)))
+        // Held while its arrangement is read, so a Delete is seen whole or not at all.
+        .for("share");
+      if (existing!.deletedAt) throw new DeletedCourseKey(input.key!);
       const arranged = await transaction
         .select({ objectiveId: courseObjective.objectiveId })
         .from(courseObjective)
@@ -153,8 +161,51 @@ async function insertCourse(
 }
 
 /**
+ * A key whose course a person deleted: it stays taken, so a late retry does
+ * not bring the course back unreviewed (ADR 0039).
+ */
+export class DeletedCourseKey extends Error {
+  constructor(key: string) {
+    super(
+      `The course has key "${key}", which named a course deleted in Braivo's console; use another key.`,
+    );
+    this.name = "DeletedCourseKey";
+  }
+}
+
+/**
+ * Marks the organization's unpublished course `courseId` deleted, removing its
+ * arrangement, in courses and in groups, while its objectives and tasks stay. The row stays,
+ * marked, so its key and number are never taken again (ADR 0039, ADR 0044),
+ * and reads as no course. `"published"`, nothing changed, for a published one;
+ * `undefined` without such a course. Deleting again changes nothing.
+ */
+export async function markCourseDeleted(
+  database: Database,
+  input: { organizationId: string; courseId: string; now: Date },
+): Promise<"deleted" | "published" | undefined> {
+  const { organizationId, courseId, now } = input;
+  return database.transaction(async (transaction) => {
+    // Locked as Publish locks it, so the two take turns, each seeing the other's.
+    const [row] = await transaction
+      .select({ publishedAt: course.publishedAt, deletedAt: course.deletedAt })
+      .from(course)
+      .where(and(eq(course.organizationId, organizationId), eq(course.id, courseId)))
+      .for("update");
+    if (!row) return undefined;
+    if (row.publishedAt) return "published";
+    if (row.deletedAt) return "deleted";
+
+    await transaction.update(course).set({ deletedAt: now }).where(eq(course.id, courseId));
+    await transaction.delete(courseObjective).where(eq(courseObjective.courseId, courseId));
+    await transaction.delete(groupCourse).where(eq(groupCourse.courseId, courseId));
+    return "deleted";
+  });
+}
+
+/**
  * The organization a course belongs to and whether it is published, or
- * `undefined` when there is no such course. A workflow needs it before anything
+ * `undefined` when there is no such course, or it was deleted. A workflow needs it before anything
  * else of the course's, because entitlement is decided against the
  * organization rather than the course, and learners reach only what is published.
  */
@@ -165,7 +216,7 @@ export async function readCourseOrganization(
   const [row] = await database
     .select({ organizationId: course.organizationId, publishedAt: course.publishedAt })
     .from(course)
-    .where(eq(course.id, courseId))
+    .where(and(eq(course.id, courseId), isNull(course.deletedAt)))
     .limit(1);
 
   return row && { organizationId: row.organizationId, published: row.publishedAt !== null };
@@ -184,7 +235,7 @@ export async function readCourses(
   const rows = await database
     .select({ ...COURSE_COLUMNS, publishedAt: course.publishedAt })
     .from(course)
-    .where(eq(course.organizationId, organizationId))
+    .where(and(eq(course.organizationId, organizationId), isNull(course.deletedAt)))
     .orderBy(asc(course.title), asc(course.id));
   return rows.map((row) => ({ ...listedCourse(row), published: row.publishedAt !== null }));
 }
@@ -228,7 +279,13 @@ export async function publishCourses(
   const found = await transaction
     .select({ id: course.id })
     .from(course)
-    .where(and(eq(course.organizationId, organizationId), inArray(course.id, [...courseIds])))
+    .where(
+      and(
+        eq(course.organizationId, organizationId),
+        inArray(course.id, [...courseIds]),
+        isNull(course.deletedAt),
+      ),
+    )
     // In one order, so overlapping batches wait for each other, not deadlock.
     .orderBy(course.id)
     .for("update");
@@ -259,7 +316,13 @@ export async function updateCourseUrlLabel(
     const [row] = await transaction
       .select(COURSE_COLUMNS)
       .from(course)
-      .where(and(eq(course.organizationId, input.organizationId), eq(course.id, input.courseId)))
+      .where(
+        and(
+          eq(course.organizationId, input.organizationId),
+          eq(course.id, input.courseId),
+          isNull(course.deletedAt),
+        ),
+      )
       .for("update");
     if (!row) return undefined;
 

@@ -12,6 +12,7 @@ import {
   claimDomain,
   defineCourse,
   defineObjectives,
+  deleteCourse,
   defineTasks,
   type DomainProvisioner,
   DomainRefused,
@@ -775,6 +776,35 @@ export function authoringRoutes(
           );
         }
         return context.body(null, 204);
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Deletes an unpublished course, keeping its objectives and tasks (ADR
+   * 0039). Only from a browser, where its page asks first: a tool proposes
+   * courses, and a person decides what to drop.
+   */
+  routes.post(
+    "/api/organizations/:organizationId/courses/:courseId/delete",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (presentsToolCredential(context)) {
+        return context.json({ error: "Delete a course in Braivo's console." }, 403);
+      }
+
+      try {
+        const deleted = await deleteCourse({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseId: context.req.param("courseId"),
+          now: new Date(),
+        });
+        return context.body(null, deleted ? 204 : 404);
       } catch (error) {
         return organizationRefusal(context, error);
       }

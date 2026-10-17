@@ -105,6 +105,12 @@ export const course = pgTable(
      * tool's course does, reached by no learner (docs/adr/0039-published-in-the-console.md).
      */
     publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    /**
+     * When a person deleted it, unpublished, in the console; `null` while it
+     * stands. The row stays so its key and number are never taken again
+     * (ADR 0039, ADR 0044); its arrangement goes.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     index("course_organization_idx").on(table.organizationId),

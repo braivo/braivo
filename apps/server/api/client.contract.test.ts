@@ -589,6 +589,24 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     ).toMatchObject({ urlLabel: "labelled-a1" });
   });
 
+  test("deletes an unpublished course, again too, and refuses a published one", async () => {
+    const asTeacher = { headers: { cookie: teacherCookie } };
+    const course = (published: boolean) =>
+      createCourse(database, { published, organizationId, title: "Deleted", objectiveIds: [] });
+    const { id: proposed } = await course(false);
+    const { id: published } = await course(true);
+    const remove = (courseId: string) =>
+      client.deleteCourse({ organizationId, courseId }, asTeacher);
+
+    await remove(proposed);
+    await remove(proposed);
+    await expect(remove(published)).rejects.toMatchObject({ status: 409 });
+    await expect(remove("no-such-course")).rejects.toMatchObject({ status: 404 });
+    const listed = (await client.listCourses(organizationId, asTeacher)).map(({ id }) => id);
+    expect(listed).toContain(published);
+    expect(listed).not.toContain(proposed);
+  });
+
   test("publishes a course and its tasks, which learners then reach, and refuses a stale list", async () => {
     const asTeacher = { headers: { cookie: teacherCookie } };
     const [objectiveId] = (await createObjectives(database, organizationId, ["Proposed"])) as [

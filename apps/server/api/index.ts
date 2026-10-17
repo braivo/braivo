@@ -430,7 +430,8 @@
 // not exist, so neither confirms the other's.
 // An optional `key` works as for objectives: the same course again — title and
 // objectives in the same order — answers it, `added` false, published or not
-// as it stands, and another under the same key answers 409 with an `error`.
+// as it stands, and another under the same key answers 409 with an `error`,
+// as does any under the key of a course since deleted.
 //
 // `GET /api/organizations/:organizationId/courses` — answers
 // `{ "courses": [{ "id": "…", "title": "…" }] }`, by title.
@@ -443,6 +444,13 @@
 // `GET …/objectives/:objectiveId/tasks` does, answers included; `sources`
 // lists each source those cite once, as the sources listing does. 404 when the
 // organization has no such course.
+//
+// `POST /api/organizations/:organizationId/courses/:courseId/delete` — deletes
+// an unpublished course (ADR 0039): its place in courses and groups goes, its
+// objectives and tasks stay, and its key and number are never taken again.
+// 204, also when deleted already; 409 with an `error` for a published course;
+// 404 when the organization has no such course; 403 to a request carrying a
+// token, explained.
 //
 // `POST /api/organizations/:organizationId/rename` `{ "name" }` — renames the
 // organization, its name trimmed: 200 `{ "name" }` as stored. 400 `{ "error",
