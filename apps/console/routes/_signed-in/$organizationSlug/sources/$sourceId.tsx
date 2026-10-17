@@ -17,16 +17,27 @@ import { Checkbox } from "@braivo/ui/components/checkbox";
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
-import { type SubmitEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { DesktopAgentLink } from "#components/desktop-agent-link";
+import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
+import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -155,6 +166,7 @@ function DraftCourse(props: { source: Source }) {
   const { source } = props;
   const { braivo, organization } = Route.useRouteContext();
   const organizationId = organization.id;
+  const router = useRouter();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<Draft>();
   // The review replaces this form, so it takes the focus if the form held it.
@@ -184,6 +196,7 @@ function DraftCourse(props: { source: Source }) {
     setDrafting(true);
     setError(undefined);
     try {
+      // Unbounded: drafting takes minutes, and a retry spends another AI request.
       const drafted = await explainAiFailure(
         braivo.draftCourse(
           { organizationId, sourceId: source.id, audience: audience || undefined },
@@ -194,6 +207,8 @@ function DraftCourse(props: { source: Source }) {
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
+      // Signed out meanwhile: the guard's check, run again, sends them to sign in.
+      if (thrown instanceof BraivoError && thrown.status === 401) return router.invalidate();
       setReturnFocus(form.contains(document.activeElement));
       setError(reasonOf(thrown, "The course could not be drafted. Try again."));
     } finally {
@@ -321,8 +336,32 @@ function ReviewDraft(props: {
   // What was sent, once anything was: part of it may be stored, and authoring
   // only adds, so a retry sends the same rather than what was changed since.
   const [submitted, setSubmitted] = useState<{ title: string; objectives: typeof kept }>();
-  const [error, setError] = useState<string>();
   const id = useId();
+  // The last failure; its count keys what says it, so a repeat is announced too.
+  // One about a field, by the field's ID, is said under it, and the focus goes
+  // there, to the fix: the review's end is screens away on a phone.
+  const [error, setError] = useState<{ message: ReactNode; field?: string; count: number }>();
+  const fail = (message: ReactNode, field?: string) =>
+    setError((last) => ({ message, field, count: (last?.count ?? 0) + 1 }));
+  /** Clears a failure about any of `fields`, as changing them may be its fix. */
+  const clearFieldError = (...fields: string[]) =>
+    setError((last) =>
+      last?.field !== undefined && fields.includes(last.field) ? undefined : last,
+    );
+  useLayoutEffect(() => {
+    if (error?.field) document.getElementById(error.field)?.focus();
+  }, [error]);
+  /** ARIA for the control `field` names, marked while the failure is about it. */
+  const ariaFor = (field: string) =>
+    error?.field === field ? { "aria-invalid": true, "aria-describedby": `${id}-error` } : {};
+  /** The failure about any of `fields`, said under them. */
+  const fieldError = (...fields: string[]) =>
+    error?.field !== undefined &&
+    fields.includes(error.field) && (
+      <FieldError key={error.count} id={`${id}-error`}>
+        {error.message}
+      </FieldError>
+    );
   const heading = useRef<HTMLHeadingElement>(null);
   useLayoutEffect(() => {
     if (takeFocus) heading.current?.focus();
@@ -379,6 +418,11 @@ function ReviewDraft(props: {
     if (keep) next.delete(key);
     else next.add(key);
     setDropped(next);
+    // A task ticked keeps its objective from waiting empty; an objective
+    // unticked is checked no further.
+    const [kind, index] = key.split(":");
+    if (kind === "o") clearFieldError(`${id}-o${index}`, `${id}-o${index}-keep`);
+    else clearFieldError(`${id}-o${index}-keep`);
     // Dropping an objective hides its tasks, and with them an edit open on one.
     if (!keep && editing?.startsWith(`${key.slice("o:".length)}:`)) setEditing(undefined);
   }
@@ -391,7 +435,7 @@ function ReviewDraft(props: {
       title: (new FormData(event.currentTarget).get("title") as string).trim(),
       objectives: kept,
     };
-    // In page order, focusing the first to fix: the alert sits below a long review.
+    // In page order, so the first to fix is the one said.
     const problems = [
       ...draft.objectives.flatMap(({ tasks }, index) =>
         dropped.has(`o:${index}`)
@@ -414,11 +458,7 @@ function ReviewDraft(props: {
       { problem: titleProblem(sending.title, "the course"), field: `${id}-title` },
     ];
     for (const { problem, field } of problems) {
-      if (problem !== undefined) {
-        setError(problem);
-        document.getElementById(field)?.focus();
-        return;
-      }
+      if (problem !== undefined) return fail(problem, field);
     }
 
     // Sent by Enter in a title, which locks with the review below: the button
@@ -431,11 +471,15 @@ function ReviewDraft(props: {
     setCreating(true);
     setError(undefined);
     try {
-      const courseId = await braivo.acceptDraft({
-        organizationId,
-        sourceId: source.id,
-        ...sending,
-      });
+      // One deadline over its four requests in a row (objectives, citations,
+      // tasks, course), each given the usual base, as wifi can stall with no
+      // error; sending the same again finishes what it cut short. Not stopped
+      // by leaving: created meanwhile, it may be listed where the owner went.
+      const bytes = new Blob([JSON.stringify(sending)]).size;
+      const courseId = await braivo.acceptDraft(
+        { organizationId, sourceId: source.id, ...sending },
+        { signal: withDeadline(undefined, bodyDeadline(bytes) + 3 * REQUEST_DEADLINE_MS) },
+      );
       // Unless the owner left meanwhile: the page they are on is read again,
       // which may list the course. A review still shown can be sent again,
       // which finishes the course already created and opens it.
@@ -451,15 +495,25 @@ function ReviewDraft(props: {
         ignoreBlocker: true,
       });
     } catch (thrown) {
-      // Braivo's refusal says what to fix; anything else — the network, say —
-      // is what trying again is for.
-      setError(
-        reasonOf(
-          thrown,
-          "The course could not be created. Try again to finish it as reviewed; retire what you would drop on the course page afterwards.",
-        ),
-      );
       setCreating(false);
+      // Signed out: the review stays, as only this page holds it, for sending
+      // again once signed in elsewhere; the guard would leave the page.
+      if (thrown instanceof BraivoError && thrown.status === 401) {
+        return fail(
+          <>
+            You were signed out. <SignInAgainLink />, then try again: your review stays here.
+          </>,
+        );
+      }
+      // Braivo's refusal says what to fix. Without one, such as a proxy's
+      // timeout, the course may exist all the same; no answer at all, a lost
+      // connection or the deadline, is likely the wifi.
+      fail(
+        thrown instanceof BraivoError
+          ? thrown.reason ||
+              "Braivo did not confirm the course was created. Try again to finish it as reviewed; retire what you would drop on the course page afterwards."
+          : "Braivo did not confirm the course was created. Check your connection, then try again to finish it as reviewed; retire what you would drop on the course page afterwards.",
+      );
     }
   }
 
@@ -482,8 +536,9 @@ function ReviewDraft(props: {
         Review the draft
       </Heading>
       <MutedText>
-        Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing
-        is stored until you create the course.
+        {submitted
+          ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
+          : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
       </MutedText>
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
@@ -517,12 +572,15 @@ function ReviewDraft(props: {
               aria-label={[`Objective ${index + 1}`, title.trim()].filter(Boolean).join(": ")}
               className="flex flex-col gap-3"
             >
+              {/* Not `data-invalid`, which reddens the whole row: of its two
+                  controls, only the one at fault is marked, by `aria-invalid`. */}
               <Field orientation="horizontal">
                 <Checkbox
                   id={`${id}-o${index}-keep`}
                   aria-label={`Keep objective ${index + 1}`}
                   checked={keptObjective}
                   onCheckedChange={(checked) => toggle(`o:${index}`, checked === true)}
+                  {...ariaFor(`${id}-o${index}-keep`)}
                 />
                 <FieldLabel htmlFor={`${id}-o${index}`} className="whitespace-nowrap">
                   Objective {index + 1}
@@ -533,9 +591,14 @@ function ReviewDraft(props: {
                   value={title}
                   required={keptObjective}
                   disabled={!keptObjective}
-                  onChange={(event) => setTitles(new Map(titles).set(index, event.target.value))}
+                  onChange={(event) => {
+                    setTitles(new Map(titles).set(index, event.target.value));
+                    clearFieldError(`${id}-o${index}`);
+                  }}
+                  {...ariaFor(`${id}-o${index}`)}
                 />
               </Field>
+              {fieldError(`${id}-o${index}`, `${id}-o${index}-keep`)}
               {keptObjective && (
                 <>
                   {passages(objective.citations)}
@@ -592,7 +655,7 @@ function ReviewDraft(props: {
             </article>
           );
         })}
-        <Field>
+        <Field data-invalid={error?.field === `${id}-title` || undefined}>
           <FieldLabel htmlFor={`${id}-title`}>Course title</FieldLabel>
           <Input
             id={`${id}-title`}
@@ -600,13 +663,16 @@ function ReviewDraft(props: {
             required
             maxLength={MAX_TITLE}
             defaultValue={source.title}
+            onChange={() => clearFieldError(`${id}-title`)}
+            {...ariaFor(`${id}-title`)}
           />
+          {fieldError(`${id}-title`)}
         </Field>
       </FieldSet>
       <FieldGroup>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+        {error && !error.field && (
+          <Alert key={error.count} variant="destructive">
+            <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         )}
         <Field orientation="horizontal">
@@ -629,11 +695,13 @@ function ReviewDraft(props: {
             Discard draft
           </Button>
         </Field>
-        {submitted && !creating && (
-          <MutedText>
-            Some or all of this course may already be saved: discarding the draft does not undo it.
-          </MutedText>
-        )}
+        {/* Mounted from the start, so what it says next is announced. */}
+        <MutedText role="status">
+          {creating
+            ? "Creating the course…"
+            : submitted &&
+              "Some or all of this course may already be saved: discarding the draft does not undo it."}
+        </MutedText>
       </FieldGroup>
     </form>
   );

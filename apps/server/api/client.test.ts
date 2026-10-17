@@ -522,4 +522,55 @@ describe("a refusal's explanation", () => {
     await expect(cite(huge)).rejects.toMatchObject({ status: 400, reason: undefined });
     expect(pulled).toBeLessThan(10);
   });
+
+  test("bounds every request accepting a draft by the one signal it is given", async () => {
+    const answers: Record<string, Response> = {
+      objectives: Response.json({ objectiveIds: ["objective-1"] }, { status: 201 }),
+      citations: Response.json({ citations: [] }),
+      tasks: Response.json({ taskIds: ["task-1"] }, { status: 201 }),
+      courses: Response.json({ courseId: "course-1" }, { status: 201 }),
+    };
+    const signals: [string, AbortSignal | null | undefined][] = [];
+    const fetch = async (url: string, init?: RequestInit) => {
+      const step = url.split("/").at(-1)!;
+      signals.push([step, init?.signal]);
+      return answers[step]!;
+    };
+    const client = createClient({ fetch: fetch as unknown as typeof globalThis.fetch });
+    const quote = { sourceId: "s1", quote: "Hola." };
+    const { signal } = new AbortController();
+
+    const courseId = await client.acceptDraft(
+      {
+        organizationId: "o",
+        sourceId: "s1",
+        title: "Saludos",
+        objectives: [
+          {
+            key: "d1",
+            title: "Say hello",
+            citations: [quote],
+            tasks: [
+              {
+                kind: "choice",
+                prompt: "Hello?",
+                options: ["Hola", "Adiós"],
+                answer: 0,
+                citations: [quote],
+              },
+            ],
+          },
+        ],
+      },
+      { signal },
+    );
+
+    expect(courseId).toBe("course-1");
+    expect(signals).toEqual([
+      ["objectives", signal],
+      ["citations", signal],
+      ["tasks", signal],
+      ["courses", signal],
+    ]);
+  });
 });
