@@ -844,6 +844,9 @@ describe("the console", () => {
       await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
     });
 
+    /** Connected apps' own status, not its copy button's. */
+    const said = () => screen.getAllByRole("status").find((region) => !region.closest("section"))!;
+
     test("list the account's connected apps, and disconnect one, keeping the other", async () => {
       let connections = [
         {
@@ -874,6 +877,8 @@ describe("the console", () => {
         /https:\/\/claude\.ai\/oauth\/mcp-oauth-client-metadata · Example School · connected/,
       );
       expect(second!.textContent).toMatch(/Annex/);
+      // Another app, or another organization, is connected the same way.
+      expect(screen.getByRole("region", { name: "Connect an app" })).toBeTruthy();
 
       fireEvent.click(
         screen.getByRole("button", { name: "Disconnect Claude from Example School" }),
@@ -882,9 +887,7 @@ describe("the console", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
 
       await vi.waitFor(() =>
-        expect(screen.getByRole("status").textContent).toBe(
-          "Disconnected Claude from Example School.",
-        ),
+        expect(said().textContent).toBe("Disconnected Claude from Example School."),
       );
       expect(disconnect.mock.calls.map(([id]) => id)).toEqual(["c1"]);
       expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
@@ -899,9 +902,7 @@ describe("the console", () => {
       fireEvent.click(
         within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Disconnect" }),
       );
-      await vi.waitFor(() =>
-        expect(screen.getByRole("status").textContent).toBe("Disconnected Claude from Annex."),
-      );
+      await vi.waitFor(() => expect(said().textContent).toBe("Disconnected Claude from Annex."));
       expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1 }));
     });
 
@@ -964,17 +965,44 @@ describe("the console", () => {
       );
 
       await vi.waitFor(() =>
-        expect(screen.getByRole("status").textContent).toBe(
-          "Disconnected Claude from Example School.",
-        ),
+        expect(said().textContent).toBe("Disconnected Claude from Example School."),
       );
       expect(screen.getByText("No AI app is connected to your account.")).toBeTruthy();
     });
 
-    test("say no app is connected", async () => {
+    test("say no app is connected, and how to connect one, with the address to copy", async () => {
+      const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+      const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      onTestFinished(() => {
+        if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+        else Reflect.deleteProperty(navigator, "clipboard");
+      });
       renderAt("/example/settings/connections", { braivo: { listConnections: async () => [] } });
       expect(await screen.findByText("No AI app is connected to your account.")).toBeTruthy();
       expect(within(screen.getByRole("main")).queryByRole("listitem")).toBeNull();
+
+      const address = `${window.location.origin}/mcp`;
+      const section = screen.getByRole("region", { name: "Connect an app" });
+      expect(within(section).getByText(address)).toBeTruthy();
+      const guide = within(section).getByRole("link", { name: "Step by step" });
+      expect(guide.getAttribute("href")).toBe(
+        "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect",
+      );
+      expect(guide.getAttribute("target")).toBe("_blank");
+      expect(guide.getAttribute("rel")).toBe("noreferrer");
+      fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+      expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(address);
+    });
+
+    test("hide how to connect an app from someone administering no organization", async () => {
+      renderAt("/example/settings/connections", {
+        organizations: [{ ...school, administers: false }],
+        braivo: { listConnections: async () => [] },
+      });
+      expect(await screen.findByText("No AI app is connected to your account.")).toBeTruthy();
+      expect(screen.queryByRole("region", { name: "Connect an app" })).toBeNull();
     });
 
     test("lead back to the page they were opened from, by their link or by Escape", async () => {
