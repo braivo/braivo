@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 
 import type { Database } from "@braivo/db";
 import { course, group, groupCourse, groupMember, user } from "@braivo/db/schema";
-import { aliasedTable, and, asc, eq, exists, inArray, sql } from "drizzle-orm";
+import { aliasedTable, and, asc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 
 import { type Course, COURSE_COLUMNS, listedCourse } from "./course.ts";
 import { ConflictingKey } from "./key.ts";
@@ -70,6 +70,7 @@ export async function createGroup(
     if (!inserted)
       return (await findCreatedGroup(transaction, { organizationId, key: key!, definition }))!;
 
+    await lockAddedCourses(transaction, definition.courseIds);
     await addPeople(transaction, organizationId, id, definition);
     await addCourses(transaction, organizationId, id, definition.courseIds);
     return id;
@@ -120,6 +121,9 @@ export async function updateGroup(
       .returning({ id: group.id });
     if (!found) return false;
 
+    // Before any removal, in the order `markCourseDeleted` locks them: a course
+    // removed and added again would otherwise deadlock with its deletion.
+    await lockAddedCourses(transaction, add.courseIds ?? []);
     if (remove.userIds?.length) {
       await transaction
         .delete(groupMember)
@@ -193,6 +197,28 @@ async function addPeople(
   if (conflicting) throw new ConflictingGroupRole(conflicting.userId, conflicting.role);
 }
 
+/**
+ * Locks the courses a change adds against `markCourseDeleted`, failing the change
+ * when one was deleted since the caller's check, as a foreign key would: a
+ * deleted course's row stays, and would still meet it.
+ */
+async function lockAddedCourses(
+  transaction: Transaction,
+  courseIds: readonly string[],
+): Promise<void> {
+  if (courseIds.length === 0) return;
+  const standing = await transaction
+    .select({ id: course.id })
+    .from(course)
+    .where(and(inArray(course.id, [...courseIds]), isNull(course.deletedAt)))
+    .orderBy(course.id)
+    .for("share");
+  if (standing.length !== new Set(courseIds).size) {
+    throw new Error("A course was deleted while the group changed.");
+  }
+}
+
+/** Adds courses `lockAddedCourses` locked. */
 async function addCourses(
   transaction: Transaction,
   organizationId: string,

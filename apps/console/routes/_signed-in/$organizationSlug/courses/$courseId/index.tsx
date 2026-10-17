@@ -96,6 +96,8 @@ function Course() {
   // wait for the other: Publish reloads the page, which would close an editor
   // and lose its unsaved edit.
   const [publishing, setPublishing] = useState<"selected" | "all">();
+  // Delete's request is under way: Publish and editors wait, as for Publish's.
+  const [deleting, setDeleting] = useState(false);
   // Objectives with work to review, numbered by their place in the course.
   const objectivesToReview = course.objectives
     .map((objective, index) => ({ objective, place: index + 1 }))
@@ -131,6 +133,7 @@ function Course() {
           publishing={publishing}
           onPublishing={setPublishing}
           editing={editing !== undefined}
+          deleting={deleting}
           onStart={() => setStatusMessage("")}
           onDone={(message) => {
             heading.current?.focus();
@@ -145,16 +148,36 @@ function Course() {
       {course.published && (
         <CourseUrlLabel braivo={braivo} organizationId={organization.id} course={course} />
       )}
-      {/* Its learners' progress, a page shared with teachers (access-39). */}
-      <Button asChild variant="outline" className="mb-8 w-fit">
-        <Link
-          to="/$organizationSlug/courses/$courseId/progress"
-          params={{ organizationSlug: organization.slug, courseId }}
-        >
-          Learner progress
-          <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
-        </Link>
-      </Button>
+      <div className="mb-8 flex flex-wrap items-start gap-2">
+        {/* Its learners' progress, a page shared with teachers (access-39). */}
+        <Button asChild variant="outline">
+          <Link
+            to="/$organizationSlug/courses/$courseId/progress"
+            params={{ organizationSlug: organization.slug, courseId }}
+          >
+            Learner progress
+            <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
+          </Link>
+        </Button>
+        {/* Only while no learner has seen it (ADR 0039). */}
+        {!course.published && (
+          <DeleteCourse
+            course={course}
+            deleting={deleting}
+            onDeleting={(now) => {
+              // What Publish said last no longer holds once Delete is tried.
+              if (now) setStatusMessage("");
+              setDeleting(now);
+            }}
+            editing={editing !== undefined}
+            publishing={publishing !== undefined}
+            onRefused={(message) => {
+              heading.current?.focus();
+              setStatusMessage(message);
+            }}
+          />
+        )}
+      </div>
       {/* Waiting work first (ADR 0039), each task once: here while it waits,
           below once published. In both sections, whatever is focused or
           scrolled to stops clear of Publish's sticky buttons, at their
@@ -174,7 +197,7 @@ function Course() {
               selection={{ selectedIds, select }}
               editing={editing}
               onEdit={setEditingId}
-              publishing={publishing !== undefined}
+              pending={publishing !== undefined || deleting}
               fallbackFocus={heading}
             />
           ))}
@@ -193,7 +216,7 @@ function Course() {
             course={course}
             editing={editing}
             onEdit={setEditingId}
-            publishing={publishing !== undefined}
+            pending={publishing !== undefined || deleting}
             fallbackFocus={heading}
           />
         ))}
@@ -229,12 +252,14 @@ function PublishWaiting(props: {
   onPublishing: (action: "selected" | "all" | undefined) => void;
   /** A task's editor is open: neither button sends until it closes. */
   editing: boolean;
+  /** Delete is under way: neither button sends meanwhile. */
+  deleting: boolean;
   /** Sending: what an earlier attempt said no longer holds, and the next result is announced anew. */
   onStart: () => void;
   /** Published, or refused as stale: the page shown again, and what happened to announce. */
   onDone: (message: string) => void;
 }) {
-  const { course, selected, publishing, onPublishing, editing, onStart, onDone } = props;
+  const { course, selected, publishing, onPublishing, editing, deleting, onStart, onDone } = props;
   const { braivo, organization } = Route.useRouteContext();
   const router = useRouter();
   // Counted, so a second failure mounts a new alert, announced again.
@@ -242,7 +267,7 @@ function PublishWaiting(props: {
   const waiting = waitingTasks(course);
 
   async function publish(action: "selected" | "all", tasks: readonly CourseTask[]) {
-    if (publishing || editing) return;
+    if (publishing || editing || deleting) return;
     onPublishing(action);
     // What earlier attempts said goes: this one's result is what the page says.
     setFailures(0);
@@ -334,20 +359,142 @@ function PublishWaiting(props: {
               tasks={tasks}
               publishing={publishing !== undefined}
               // Selecting nothing publishes nothing in a published course.
-              disabled={editing || (course.published && tasks.length === 0)}
+              disabled={editing || deleting || (course.published && tasks.length === 0)}
               onPublish={() => publish(action, tasks)}
             />
           ))}
         </div>
-        {editing && <MutedText>Save or cancel the open edit to publish.</MutedText>}
+        {editing && (
+          <MutedText>
+            Save or cancel the open edit to {course.published ? "publish" : "publish or delete"}.
+          </MutedText>
+        )}
         {/* Gone while trying again, so it never speaks of the attempt under way. */}
-        {failures > 0 && publishing === undefined && (
+        {/* Not beside Delete's attempt, which it does not speak of. */}
+        {failures > 0 && publishing === undefined && !deleting && (
           <Alert key={failures} variant="destructive">
             <AlertDescription>Could not publish. Try again.</AlertDescription>
           </Alert>
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Deleting an unpublished course, asked first: its arrangement goes, its
+ * objectives and tasks stay (ADR 0039). Deleted, the organization's courses
+ * open; published by someone meanwhile, the page shows it so, saying why.
+ */
+function DeleteCourse(props: {
+  course: AuthoredCourse;
+  /** Its request is under way: it says Deleting…, and sends no other. */
+  deleting: boolean;
+  onDeleting: (deleting: boolean) => void;
+  /** A task's editor is open, whose unsaved edit leaving the page would lose: disabled meanwhile. */
+  editing: boolean;
+  /** Publish is under way, which would make deleting fail: inert meanwhile. */
+  publishing: boolean;
+  /** Refused as published since: the page shown again, and why to announce. */
+  onRefused: (message: string) => void;
+}) {
+  const { course, deleting, onDeleting, editing, publishing, onRefused } = props;
+  const { braivo, organization } = Route.useRouteContext();
+  const router = useRouter();
+  // A ref, set at once, refuses a second confirmation before `deleting` renders.
+  const pending = useRef(false);
+  /** The last failure's count keys the alert, so a repeat is announced too. */
+  const [failures, setFailures] = useState(0);
+
+  async function remove() {
+    if (pending.current) return;
+    pending.current = true;
+    onDeleting(true);
+    setFailures(0);
+    const from = router.latestLocation.pathname;
+    try {
+      try {
+        // Bounded: retried after a lost answer, deleting again succeeds.
+        await braivo.deleteCourse(
+          { organizationId: organization.id, courseId: course.id },
+          { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+        );
+      } catch (thrown) {
+        if (thrown instanceof BraivoError && thrown.status === 409) {
+          await router.invalidate({ sync: true });
+          onRefused("Not deleted: someone published this course meanwhile.");
+        } else if (thrown instanceof BraivoError && [401, 403].includes(thrown.status)) {
+          // Signed out, or no longer administering it: the guard's check, run again, says so.
+          await router.invalidate();
+        } else {
+          setFailures((count) => count + 1);
+        }
+        return;
+      }
+      // Deleted: its courses open, unless the owner left meanwhile, whose page is read again.
+      if (router.latestLocation.pathname === from) {
+        await router.navigate({
+          to: "/$organizationSlug",
+          params: { organizationSlug: organization.slug },
+        });
+      } else {
+        void router.invalidate();
+      }
+    } finally {
+      // Only once the page shows what happened, so it is not sent again meanwhile.
+      pending.current = false;
+      onDeleting(false);
+    }
+  }
+
+  const inert = deleting || publishing;
+  return (
+    <div className="flex flex-col gap-2">
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          {/* Focusable meanwhile, opening nothing. */}
+          <Button
+            variant="outline"
+            className="w-fit"
+            disabled={editing}
+            // Absent rather than false while `disabled` says it.
+            aria-disabled={inert || undefined}
+            onClick={(event) => inert && event.preventDefault()}
+          >
+            {deleting ? (
+              <>
+                {/* Hidden: "Deleting…" already says it. */}
+                <Spinner data-icon="inline-start" aria-hidden="true" />
+                Deleting…
+              </>
+            ) : (
+              "Delete course"
+            )}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            {/* A grid item, which a long unbroken title would widen past the dialog. */}
+            <AlertDialogTitle className="wrap-anywhere">Delete “{course.title}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Learners never saw it. Its objectives and tasks stay in Braivo, for other courses.
+              Deleting it can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={remove}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {failures > 0 && !deleting && (
+        <Alert variant="destructive" key={failures}>
+          <AlertDescription>The course could not be deleted. Try again.</AlertDescription>
+        </Alert>
+      )}
+    </div>
   );
 }
 
@@ -453,22 +600,13 @@ function Objective(props: {
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
   editing: string | undefined;
   onEdit: (taskId: string | undefined) => void;
-  /** Publish is under way: no editor opens until its reload is done. */
-  publishing: boolean;
+  /** Publish or Delete is under way: no editor opens, as what follows would close it. */
+  pending: boolean;
   /** Focused when a task's change leaves this objective off the page. */
   fallbackFocus: RefObject<HTMLHeadingElement | null>;
 }) {
-  const {
-    objective,
-    place,
-    course,
-    waiting,
-    selection,
-    editing,
-    onEdit,
-    publishing,
-    fallbackFocus,
-  } = props;
+  const { objective, place, course, waiting, selection, editing, onEdit, pending, fallbackFocus } =
+    props;
   const heading = useRef<HTMLHeadingElement>(null);
   // The task whose Edit button takes focus back once its editor closes unsaved.
   const refocus = useRef<string>(undefined);
@@ -570,8 +708,8 @@ function Objective(props: {
                         button.focus();
                       }
                     }}
-                    // Not while retiring it, which could land under the edit, nor while Publish's reload could close it.
-                    disabled={retiring || publishing || editing !== undefined}
+                    // Not while retiring it, which could land under the edit, nor while Publish or Delete could close it.
+                    disabled={retiring || pending || editing !== undefined}
                     onClick={() => onEdit(task.id)}
                   >
                     Edit

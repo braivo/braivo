@@ -624,6 +624,18 @@ export type BraivoClient = {
   ): Promise<{ saved: true } | { saved: false; urlLabel: string }>;
 
   /**
+   * Deletes an unpublished course: its arrangement goes, its objectives and
+   * tasks stay, and its key stays taken, so a retry under it is refused
+   * (ADR 0039). Deleting again succeeds. Only from a browser: a tool's token
+   * is refused, 403. A published course is a {@link BraivoError} with status
+   * 409; a course the organization does not have, 404.
+   */
+  deleteCourse(
+    input: { organizationId: string; courseId: string },
+    options?: RequestOptions,
+  ): Promise<void>;
+
+  /**
    * Drafts a course from a source with the installation's own model, for
    * review: nothing is stored until its objectives, citations, and tasks are
    * authored. Slow — the model reads the whole source. An installation with no
@@ -1306,6 +1318,17 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       }
       if (response.status !== 204) throw await unexpected(response, doing);
       return { saved: true };
+    },
+
+    async deleteCourse({ organizationId, courseId }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/courses/${encodeURIComponent(courseId)}/delete`,
+        {},
+        requestOptions,
+      );
+      if (response.status !== 204) {
+        throw await unexpected(response, `deleting course "${courseId}"`);
+      }
     },
 
     async draftCourse({ organizationId, sourceId, audience }, requestOptions) {

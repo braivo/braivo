@@ -679,4 +679,215 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     expect(status.textContent).toBe("");
   });
+
+  test("deletes a tool's course once asked, opening the organization's courses", async () => {
+    const deleteCourse = vi.fn<BraivoClient["deleteCourse"]>(async () => {});
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published: false,
+        }),
+        deleteCourse,
+        listCourses: async () => [],
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete course" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Delete “Beginners”?");
+    expect(dialog.textContent).toContain(
+      "Learners never saw it. Its objectives and tasks stay in Braivo, for other courses. Deleting it can't be undone.",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
+    expect(deleteCourse).toHaveBeenCalledExactlyOnceWith(
+      { organizationId: "org-1", courseId: "course-1" },
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  test("offers no Delete once a course is published, and says one published meanwhile was not deleted", async () => {
+    let published = false;
+    const deleteCourse = vi
+      .fn<BraivoClient["deleteCourse"]>()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockImplementationOnce(async () => {
+        published = true;
+        throw new BraivoError(409, "Braivo answered 409.");
+      });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published,
+        }),
+        deleteCourse,
+      },
+    });
+    const confirm = async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Delete course" }));
+      fireEvent.click(
+        within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }),
+      );
+    };
+
+    // Failed: said, the button kept to try again.
+    await confirm();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The course could not be deleted. Try again.",
+    );
+    // Published by someone meanwhile: the page shows it so, saying why.
+    await confirm();
+    expect(
+      await screen.findByText("Not deleted: someone published this course meanwhile."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete course" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { level: 1, name: "Beginners" }),
+    );
+  });
+
+  test("deletes nothing while an edit is open, and publishes or edits nothing while deleting", async () => {
+    const deleting = Promise.withResolvers<void>();
+    const deleteCourse = vi.fn<BraivoClient["deleteCourse"]>(() => deleting.promise);
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {});
+    const [greetings, numbers] = beginners.objectives;
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          published: false,
+          objectives: [
+            { ...greetings!, tasks: [{ ...greetings!.tasks[0]!, published: false }] },
+            numbers!,
+          ],
+        }),
+        deleteCourse,
+        publish,
+        listCourses: async () => [],
+      },
+    });
+
+    // Leaving the page would lose the edit.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit waiting task “Hello, in Spanish?”" }),
+    );
+    const remove = screen.getByRole("button", { name: "Delete course" });
+    expect(remove.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText("Save or cancel the open edit to publish or delete.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(remove.hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(remove);
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }),
+    );
+    expect(remove.textContent).toBe("Deleting…");
+    expect(remove.getAttribute("aria-disabled")).toBe("true");
+    const all = screen.getByRole("button", { name: "Publish with all (1)" });
+    expect(all.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(all);
+    expect(publish).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("button", { name: "Edit waiting task “Hello, in Spanish?”" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await act(async () => deleting.resolve());
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
+  });
+
+  test("lets Delete be tried again once Braivo does not answer in time", async () => {
+    const deleteCourse = vi.fn<BraivoClient["deleteCourse"]>(async (_input, options) =>
+      stall(options),
+    );
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published: false,
+        }),
+        deleteCourse,
+      },
+    });
+    const button = await screen.findByRole("button", { name: "Delete course" });
+    const confirm = async () => {
+      fireEvent.click(button);
+      return within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" });
+    };
+
+    const action = await confirm();
+    // From the click, so the request's deadline runs on them.
+    vi.useFakeTimers();
+    fireEvent.click(action);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The course could not be deleted. Try again.",
+    );
+    expect(button.getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(await confirm());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(deleteCourse).toHaveBeenCalledTimes(2);
+  });
+
+  test("keeps the owner where they went when a Delete they left finishes", async () => {
+    const deleting = Promise.withResolvers<void>();
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published: false,
+        }),
+        deleteCourse: () => deleting.promise,
+        listSources: async () => [],
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Delete course" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }),
+    );
+
+    await act(() =>
+      router.navigate({
+        to: "/$organizationSlug/sources",
+        params: { organizationSlug: "example" },
+      }),
+    );
+    await screen.findByText("No material yet");
+    await act(async () => deleting.resolve());
+
+    expect(router.state.location.pathname).toBe("/example/sources");
+  });
+
+  test("says nothing of an earlier failed Publish while deleting", async () => {
+    const deleting = Promise.withResolvers<void>();
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          published: false,
+        }),
+        publish: async () => {
+          throw new BraivoError(503, "Braivo answered 503.");
+        },
+        deleteCourse: () => deleting.promise,
+        listCourses: async () => [],
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Publish" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not publish. Try again.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete course" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => deleting.resolve());
+  });
 });

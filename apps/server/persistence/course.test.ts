@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
-import { course, courseObjective, objective, organization, task } from "@braivo/db/schema";
+import {
+  course,
+  courseObjective,
+  groupCourse,
+  objective,
+  organization,
+  task,
+} from "@braivo/db/schema";
 import {
   sharedDatabase,
   clearLearningData,
@@ -14,11 +21,14 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
   createCourse,
+  DeletedCourseKey,
+  markCourseDeleted,
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
   updateCourseUrlLabel,
 } from "./course.ts";
+import { createGroup, readGroups, updateGroup } from "./group.ts";
 import { createObjectives } from "./objective.ts";
 import { markPublished } from "./publication.ts";
 import { createTasks, markTasksRetired } from "./task.ts";
@@ -562,6 +572,229 @@ describe.skipIf(!connectionString)("courses", () => {
     expect(await states()).toEqual([false, false]);
     expect(await publish([kept])).toBe(true);
     expect(await states()).toEqual([true, true]);
+  });
+
+  describe("deleting", () => {
+    const now = new Date("2026-02-01T00:00:00.000Z");
+    const waitingCourse = async (key: string) => {
+      const [objectiveId] = (await createObjectives(database, organizationId, ["Kept"])) as [
+        string,
+      ];
+      const [written] = await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId,
+            body: { kind: "choice", prompt: "Kept?", options: ["a", "b"], answer: 0 },
+          },
+        ],
+        now,
+        { published: false },
+      );
+      const taskId = written!.id;
+      const input = {
+        published: false,
+        organizationId,
+        title: "Proposed",
+        objectiveIds: [objectiveId],
+        key,
+      };
+      const { id } = await createCourse(database, input);
+      return { id, input, objectiveId, taskId };
+    };
+    const markDeleted = (courseId: string, owner = organizationId) =>
+      markCourseDeleted(database, { organizationId: owner, courseId, now });
+    /**
+     * A Delete under way, as `markCourseDeleted` runs it, groups aside: the
+     * course locked once `locked` resolves; marked, its course arrangement
+     * removed, and committed on `commit`.
+     */
+    const holdDeletion = (courseId: string) => {
+      let proceed!: () => void;
+      const proceeding = new Promise<void>((resolve) => (proceed = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      const done = database.transaction(async (transaction) => {
+        await transaction.select().from(course).where(eq(course.id, courseId)).for("update");
+        locked();
+        await proceeding;
+        await transaction.update(course).set({ deletedAt: now }).where(eq(course.id, courseId));
+        await transaction.delete(courseObjective).where(eq(courseObjective.courseId, courseId));
+      });
+      return { locked: isLocked, commit: () => (proceed(), done) };
+    };
+
+    test("removes an unpublished course's arrangement alone, its key and number kept", async () => {
+      const { id, input, objectiveId, taskId } = await waitingCourse("proposed");
+      await createGroup(database, {
+        organizationId,
+        definition: { name: "Taking it", learnerIds: [], teacherIds: [], courseIds: [id] },
+      });
+      const [{ number }] = (await database
+        .select({ number: course.number })
+        .from(course)
+        .where(eq(course.id, id))) as [{ number: number }];
+
+      expect(await markDeleted(id)).toBe("deleted");
+      expect(await markDeleted(id)).toBe("deleted");
+
+      expect(await readCourses(database, organizationId)).toEqual([]);
+      expect(await readCourseOrganization(database, id)).toBeUndefined();
+      expect(await readCourseObjectives(database, id)).toEqual([]);
+      expect((await readGroups(database, { organizationId }))[0]!.courses).toEqual([]);
+      // Its content stays, and its row, holding its number and key.
+      expect(
+        await database.select().from(objective).where(eq(objective.id, objectiveId)),
+      ).toHaveLength(1);
+      expect(await database.select().from(task).where(eq(task.id, taskId))).toHaveLength(1);
+      expect(
+        await database.select({ number: course.number }).from(course).where(eq(course.id, id)),
+      ).toEqual([{ number }]);
+      await expect(createCourse(database, input)).rejects.toThrow(DeletedCourseKey);
+      // Nothing else reaches it.
+      expect(
+        await markPublished(database, { organizationId, courseIds: [id], taskIds: [], now }),
+      ).toBe(false);
+      expect(
+        await updateCourseUrlLabel(database, {
+          organizationId,
+          courseId: id,
+          urlLabel: "x",
+          previous: "proposed",
+        }),
+      ).toBeUndefined();
+      await expect(
+        createGroup(database, {
+          organizationId,
+          definition: { name: "Late", learnerIds: [], teacherIds: [], courseIds: [id] },
+        }),
+      ).rejects.toThrow();
+    });
+
+    test("leaves a published course, and another organization's, as they are", async () => {
+      const { id } = await waitingCourse("published");
+      await markPublished(database, { organizationId, courseIds: [id], taskIds: [], now });
+
+      expect(await markDeleted(id)).toBe("published");
+      expect(await markDeleted(id, otherOrganizationId)).toBeUndefined();
+      expect(await readCourseOrganization(database, id)).toEqual({
+        organizationId,
+        published: true,
+      });
+      expect(await readCourseObjectives(database, id)).toHaveLength(1);
+    });
+
+    test("waits for a Publish under way, then leaves the course published", async () => {
+      const { id } = await waitingCourse("published-meanwhile");
+      let commit!: () => void;
+      const committing = new Promise<void>((resolve) => (commit = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // A Publish under way, as `publishCourses` runs it.
+      const publishing = database.transaction(async (transaction) => {
+        await transaction.select().from(course).where(eq(course.id, id)).for("update");
+        locked();
+        await committing;
+        await transaction.update(course).set({ publishedAt: now }).where(eq(course.id, id));
+      });
+      await isLocked;
+
+      const deleted = markDeleted(id);
+      try {
+        await waitForLock('select%from "course"%for update');
+      } finally {
+        commit();
+        await publishing;
+      }
+
+      expect(await deleted).toBe("published");
+      expect(await readCourseOrganization(database, id)).toEqual({
+        organizationId,
+        published: true,
+      });
+      expect(await readCourseObjectives(database, id)).toHaveLength(1);
+    });
+
+    test("answers a keyed retry racing a Delete as deleted, not as another course", async () => {
+      const { id, input } = await waitingCourse("raced");
+      const held = holdDeletion(id);
+      await held.locked;
+
+      const retried = createCourse(database, input).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      try {
+        await waitForLock('%from "course"%for share');
+      } finally {
+        await held.commit();
+      }
+
+      expect(await retried).toBeInstanceOf(DeletedCourseKey);
+    });
+
+    test("leaves out of a group a course deleted while the group changed", async () => {
+      const { id } = await waitingCourse("grouped");
+      const held = holdDeletion(id);
+      await held.locked;
+
+      const created = createGroup(database, {
+        organizationId,
+        definition: { name: "Racing", learnerIds: [], teacherIds: [], courseIds: [id] },
+      }).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      try {
+        await waitForLock('%from "course"%for share');
+      } finally {
+        await held.commit();
+      }
+
+      expect(await created).toMatchObject({
+        message: "A course was deleted while the group changed.",
+      });
+      expect(await readGroups(database, { organizationId })).toEqual([]);
+    });
+
+    test("locks a course a group change adds before removing any, as a Delete does", async () => {
+      const { id } = await waitingCourse("regrouped");
+      const groupId = await createGroup(database, {
+        organizationId,
+        definition: { name: "Regrouped", learnerIds: [], teacherIds: [], courseIds: [id] },
+      });
+      const held = holdDeletion(id);
+      await held.locked;
+
+      const changed = updateGroup(database, {
+        organizationId,
+        groupId,
+        change: { add: { courseIds: [id] }, remove: { courseIds: [id] } },
+      }).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      try {
+        await waitForLock('%from "course"%for share');
+        // Its membership untouched meanwhile, which a Delete goes on to remove:
+        // held by the change, the two would wait for each other.
+        await database.transaction(async (transaction) => {
+          await transaction.execute(sql`set local lock_timeout = '1s'`);
+          await transaction
+            .select()
+            .from(groupCourse)
+            .where(eq(groupCourse.courseId, id))
+            .for("update", { noWait: true });
+        });
+      } finally {
+        await held.commit();
+      }
+
+      expect(await changed).toMatchObject({
+        message: "A course was deleted while the group changed.",
+      });
+    });
   });
 
   test("reports no owner for a course that does not exist", async () => {

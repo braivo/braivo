@@ -290,6 +290,7 @@ CREATE TABLE "course" (
 	"number" integer NOT NULL,
 	"url_label" text,
 	"published_at" timestamp with time zone,
+	"deleted_at" timestamp with time zone,
 	CONSTRAINT "course_organization_id_key" UNIQUE("organization_id","id")
 );
 --> statement-breakpoint

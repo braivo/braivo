@@ -14,6 +14,7 @@ import {
   createCourse,
   findObjectivesOutsideOrganization,
   findTasksOutsideOrganization,
+  markCourseDeleted,
   markPublished,
   readCourseObjectives,
   readCourses,
@@ -133,6 +134,38 @@ export async function publish(input: {
 }
 
 /**
+ * A published course is not deleted: learners may have met it, and nothing
+ * unpublishes yet (ADR 0039, Final for now).
+ */
+export class PublishedCourse extends Error {
+  constructor() {
+    super("The course is published, so it cannot be deleted.");
+    this.name = "PublishedCourse";
+  }
+}
+
+/**
+ * Deletes one of the organization's unpublished courses, for whoever
+ * administers it, from the console only, which the route decides: its
+ * arrangement goes, its objectives and tasks stay, and its key stays taken
+ * (ADR 0039). `false` without such a course; deleting again changes nothing.
+ */
+export async function deleteCourse(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseId: string;
+  now: Date;
+}): Promise<boolean> {
+  const { database, organizationId, actingAs, courseId, now } = input;
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  const result = await markCourseDeleted(database, { organizationId, courseId, now });
+  if (result === "published") throw new PublishedCourse();
+  return result === "deleted";
+}
+
+/**
  * Sets the label after a course's number in its links (ADR 0044), for whoever
  * administers its organization, if it is still `previous`, the label the
  * editor read: not saved, with the label now, when someone else changed it
@@ -244,10 +277,12 @@ export async function readAuthoredCourse(input: {
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
 
+  // Its arrangement first: a Delete committing between the two reads then
+  // leaves no course, rather than a standing one with nothing in it.
+  const objectiveIds = await readCourseObjectives(database, courseId);
   const course = (await readCourses(database, organizationId)).find(({ id }) => id === courseId);
   if (!course) return undefined;
 
-  const objectiveIds = await readCourseObjectives(database, courseId);
   const titles = await readObjectiveTitles(database, objectiveIds);
   const published = await readPublishedCoursesByObjective(database, objectiveIds);
   // Two indexed reads per objective, all at once: a course is tens of them.

@@ -14,6 +14,7 @@ import {
   ConflictingGroupRole,
   ConflictingKey,
   CorrectionWaiting,
+  DeletedCourseKey,
   DuplicateCorrection,
   FilesUnavailable,
   InvalidAiRequest,
@@ -25,6 +26,7 @@ import {
   InvalidTask,
   ModelUnavailable,
   NotPermitted,
+  PublishedCourse,
   PublishedTask,
   StaleCorrection,
   StalePublication,
@@ -59,6 +61,8 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   }
   if (
     error instanceof ConflictingKey ||
+    error instanceof DeletedCourseKey ||
+    error instanceof PublishedCourse ||
     error instanceof StaleCorrection ||
     error instanceof StalePublication ||
     error instanceof ConflictingGroupRole
