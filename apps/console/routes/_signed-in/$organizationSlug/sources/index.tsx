@@ -21,6 +21,7 @@ import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-ro
 import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { DesktopAgentLink } from "#components/desktop-agent-link";
+import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
@@ -357,11 +358,8 @@ function AddSource() {
       if (thrown instanceof BraivoError && thrown.status === 401) {
         return fail(
           <>
-            You were signed out.{" "}
-            <a href="/login" target="_blank" rel="noopener" className="underline">
-              Sign in again in a new tab
-            </a>
-            , then add the material again: what you entered stays here.
+            You were signed out. <SignInAgainLink />, then add the material again: what you entered
+            stays here.
           </>,
         );
       }

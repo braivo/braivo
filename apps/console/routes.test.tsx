@@ -4033,12 +4033,15 @@ describe("the console", () => {
       "Open to every learner in Example School at example.braivo.app/c/4732-beginners.",
     );
     // What was kept, and only that.
-    expect(braivo.acceptDraft).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      sourceId: "s1",
-      title: "Saludos",
-      objectives: [{ ...drafted.objectives[0], tasks: [drafted.objectives[0]!.tasks[0]] }],
-    });
+    expect(braivo.acceptDraft).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        sourceId: "s1",
+        title: "Saludos",
+        objectives: [{ ...drafted.objectives[0], tasks: [drafted.objectives[0]!.tasks[0]] }],
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   test("holds drafting still while it runs, says so, and keeps the focus on its button", async () => {
@@ -4293,21 +4296,31 @@ describe("the console", () => {
     expect((title as HTMLInputElement).required).toBe(true);
     fireEvent.change(title, { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
-    // Checked like the course's title, before anything is locked in, with
-    // focus taken to it from the button at the bottom.
-    expect(await screen.findByText("Give objective 1 a title.")).toBeTruthy();
+    // Checked like the course's title, before anything is locked in, said
+    // under it, and the focus taken there from the button at the bottom.
+    const objective = screen.getByRole("article", { name: "Objective 1" });
+    const said = await within(objective).findByRole("alert");
+    expect(said.textContent).toBe("Give objective 1 a title.");
     expect(document.activeElement).toBe(title);
-    expect(screen.getByRole("article", { name: "Objective 1" })).toBeTruthy();
+    expect(title.getAttribute("aria-invalid")).toBe("true");
+    expect(title.getAttribute("aria-describedby")).toBe(said.id);
     expect(braivo.acceptDraft).not.toHaveBeenCalled();
 
-    // The first to fix in page order, even with the course title also blank.
+    // The first to fix in page order, even with the course title also blank;
+    // said again, so announced again.
     fireEvent.change(screen.getByLabelText("Course title"), { target: { value: "" } });
     screen.getByRole("button", { name: "Create course" }).focus();
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
     await vi.waitFor(() => expect(document.activeElement).toBe(title));
+    expect(within(objective).getByRole("alert")).not.toBe(said);
+    expect(screen.getByLabelText("Course title").getAttribute("aria-invalid")).toBeNull();
+    // Another field changed fixes nothing: the mark stays until this one changes.
     fireEvent.change(screen.getByLabelText("Course title"), { target: { value: "Saludos" } });
+    expect(title.getAttribute("aria-invalid")).toBe("true");
 
     fireEvent.change(title, { target: { value: " Greet someone " } });
+    expect(within(objective).queryByRole("alert")).toBeNull();
+    expect(title.getAttribute("aria-invalid")).toBeNull();
     expect(screen.getByRole("article", { name: "Objective 1: Greet someone" })).toBeTruthy();
     // A dropped objective's title is not sent, so it is not checked either.
     fireEvent.change(screen.getByRole("textbox", { name: "Objective 2" }), {
@@ -4317,12 +4330,15 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
     await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
-    expect(braivo.acceptDraft).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      sourceId: "s1",
-      title: "Saludos",
-      objectives: [{ ...drafted.objectives[0], title: "Greet someone" }],
-    });
+    expect(braivo.acceptDraft).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        sourceId: "s1",
+        title: "Saludos",
+        objectives: [{ ...drafted.objectives[0], title: "Greet someone" }],
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   test("refuses an objective kept without a task, which learners would wait on", async () => {
@@ -4345,14 +4361,33 @@ describe("the console", () => {
         "Keep a task of objective 2, or untick the objective: learners would wait on it with nothing to practise.",
       ),
     ).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByRole("checkbox", { name: "Keep objective 2" }));
+    const keep = screen.getByRole("checkbox", { name: "Keep objective 2" });
+    expect(document.activeElement).toBe(keep);
+    expect(keep.getAttribute("aria-invalid")).toBe("true");
+    const objective = screen.getByRole("article", { name: "Objective 2: Say goodbye" });
+    expect(keep.getAttribute("aria-describedby")).toBe(within(objective).getByRole("alert").id);
     expect(braivo.acceptDraft).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 2" }));
+    // Fixed by a task kept, not by another field changed.
+    fireEvent.change(screen.getByLabelText("Course title"), { target: { value: "Saludos 2" } });
+    expect(keep.getAttribute("aria-invalid")).toBe("true");
+    const bye = screen.getByRole("checkbox", { name: "Keep “Bye?”" });
+    fireEvent.click(bye);
+    expect(keep.getAttribute("aria-invalid")).toBeNull();
+    expect(within(objective).queryByRole("alert")).toBeNull();
+
+    // Or by the objective unticked.
+    fireEvent.click(bye);
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(keep.getAttribute("aria-invalid")).toBe("true"));
+    fireEvent.click(keep);
+    expect(keep.getAttribute("aria-invalid")).toBeNull();
+    expect(within(objective).queryByRole("alert")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
     await vi.waitFor(() =>
       expect(braivo.acceptDraft).toHaveBeenCalledWith(
         expect.objectContaining({ objectives: [drafted.objectives[0]] }),
+        { signal: expect.any(AbortSignal) },
       ),
     );
   });
@@ -4642,6 +4677,9 @@ describe("the console", () => {
 
     // Tasks are stored by now: the review is locked, so a retry cannot differ.
     const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(
+      screen.getByText(/^The review is locked: trying again sends the same choices/),
+    ).toBeTruthy();
     const hi = screen.getByRole("checkbox", { name: "Keep “Hi?”" });
     expect(hi.closest("fieldset")?.disabled).toBe(true);
     fireEvent.click(retry);
@@ -4649,10 +4687,128 @@ describe("the console", () => {
     await vi.waitFor(() =>
       expect(router.history.location.pathname).toBe("/example/courses/course-1"),
     );
-    // Sent again as first reviewed, "Hi?" still dropped.
-    const [first, second] = braivo.acceptDraft.mock.calls as unknown as unknown[][];
-    expect(second).toEqual(first);
-    expect(JSON.stringify(first)).not.toContain("Hi?");
+    // Sent again as first reviewed, "Hi?" still dropped, with a deadline of its own.
+    const [first, second] = braivo.acceptDraft.mock.calls as unknown as [
+      unknown,
+      { signal: AbortSignal },
+    ][];
+    expect(second![0]).toEqual(first![0]);
+    expect(JSON.stringify(first![0])).not.toContain("Hi?");
+    expect(second![1].signal).not.toBe(first![1].signal);
+  });
+
+  test("gives up on creating a course Braivo does not answer, keeping the review to send again", async () => {
+    const braivo = authoring();
+    braivo.acceptDraft.mockImplementationOnce(
+      (_input?: unknown, options?: { signal?: AbortSignal }) => stall(options),
+    );
+    const { router } = renderAt("/example/sources/s1", { braivo });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    const create = await screen.findByRole("button", { name: "Create course" });
+    const status = within(create.closest("form")!).getByRole("status");
+    expect(status.textContent).toBe("");
+    // 10 seconds for each of four requests, plus the time what is sent takes at 100 KB/s.
+    const sent = { title: "Saludos", objectives: drafted.objectives };
+    const bytes = new Blob([JSON.stringify(sent)]).size;
+    const deadline = 4 * REQUEST_DEADLINE_MS + bytes / 100;
+
+    vi.useFakeTimers();
+    fireEvent.click(create);
+    expect(status.textContent).toBe("Creating the course…");
+    await waitOut(deadline - 1);
+    expect(status.textContent).toBe("Creating the course…");
+    expect(screen.queryByText(/did not confirm/)).toBeNull();
+    await waitOut(1);
+    vi.useRealTimers();
+
+    const said = await screen.findByText(
+      "Braivo did not confirm the course was created. Check your connection, then try again to finish it as reviewed; retire what you would drop on the course page afterwards.",
+    );
+    expect(said.closest("[role=alert]")).toBeTruthy();
+    expect(status.textContent).toMatch(/^Some or all of this course may already be saved/);
+    expect(
+      screen.getByRole("button", { name: "Discard draft" }).getAttribute("aria-disabled"),
+    ).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(router.history.location.pathname).toBe("/example/courses/course-1"),
+    );
+  });
+
+  test.each([504, 524])(
+    "says a course cut off by a proxy's %s timeout may exist, not that it failed",
+    async (status) => {
+      const braivo = authoring();
+      braivo.acceptDraft.mockRejectedValueOnce(
+        new BraivoError(status, `Braivo answered ${status}.`),
+      );
+      renderAt("/example/sources/s1", { braivo });
+      fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
+
+      expect(
+        await screen.findByText(
+          "Braivo did not confirm the course was created. Try again to finish it as reviewed; retire what you would drop on the course page afterwards.",
+        ),
+      ).toBeTruthy();
+    },
+  );
+
+  test("keeps the review of an owner signed out meanwhile, offering to sign in elsewhere", async () => {
+    const braivo = authoring();
+    let signedIn = false;
+    braivo.acceptDraft.mockImplementation(async () => {
+      if (!signedIn) throw new BraivoError(401, "Signed out.");
+      return "course-1";
+    });
+    const { router } = renderAt("/example/sources/s1", { braivo });
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Hi?”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+
+    const alert = (await screen.findByText(/^You were signed out/)).closest<HTMLElement>(
+      "[role=alert]",
+    )!;
+    expect(alert.textContent).toBe(
+      "You were signed out. Sign in again in a new tab, then try again: your review stays here.",
+    );
+    const signIn = within(alert).getByRole("link", { name: "Sign in again in a new tab" });
+    expect(signIn.getAttribute("href")).toBe("/login");
+    expect(signIn.getAttribute("target")).toBe("_blank");
+    expect(signIn.getAttribute("rel")).toBe("noopener");
+    expect(router.history.location.pathname).toBe("/example/sources/s1");
+    expect(screen.getByRole("checkbox", { name: "Keep “Hi?”" }).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    // Still signed out: said again, the review still kept.
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(screen.getByText(/^You were signed out/).closest("[role=alert]")).not.toBe(alert),
+    );
+
+    // Signed in elsewhere: created.
+    signedIn = true;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await vi.waitFor(() =>
+      expect(router.history.location.pathname).toBe("/example/courses/course-1"),
+    );
+  });
+
+  test("sends someone signed out while drafting to sign in, and back", async () => {
+    const { auth, router } = renderAt("/example/sources/s1", {
+      braivo: {
+        ...authoring(),
+        draftCourse: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+      },
+    });
+    const draft = await screen.findByRole("button", { name: "Draft a course" });
+    await auth.signOut();
+
+    fireEvent.click(draft);
+    expect(await screen.findByLabelText("Email address")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ redirect: "/example/sources/s1" });
   });
 
   test("sends an owner from /join to their organization, setup being theirs already", async () => {
