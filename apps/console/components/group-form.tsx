@@ -395,7 +395,7 @@ export function GroupForm(props: {
         <Trans>Groups</Trans>
       </Link>
       {/* The group's name as last saved, which a rename here changes. */}
-      <Heading ref={heading} tabIndex={-1} className="outline-none">
+      <Heading ref={heading} tabIndex={-1}>
         {creating ? <Trans>New group</Trans> : group.name}
       </Heading>
       <form onSubmit={save} aria-busy={pending}>
