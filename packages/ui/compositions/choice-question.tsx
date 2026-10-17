@@ -73,7 +73,8 @@ export function ChoiceQuestion(props: {
       aria-describedby={describedBy}
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="flex flex-col gap-4"
+      // Keep the focus outline clear of the options' borders.
+      className="flex flex-col gap-4 rounded-md outline-offset-4"
     >
       <p id={promptId} className="font-heading text-lg font-semibold text-pretty wrap-break-word">
         {prompt}
