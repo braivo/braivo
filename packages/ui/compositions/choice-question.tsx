@@ -91,8 +91,9 @@ export function ChoiceQuestion(props: {
               onClick={() => !locked && onChoose(choice)}
               className={cn(
                 "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:opacity-100",
-                correct && "border-primary bg-primary/10",
-                wrong && "border-destructive bg-destructive/10",
+                // Important: the theme's unlayered outline border and fill (globals.css) would win.
+                correct && "border-primary! bg-primary/10!",
+                wrong && "border-destructive! bg-destructive/10!",
               )}
             >
               {/* `wrap-anywhere` lets a link shrink this flex item and wrap; the
