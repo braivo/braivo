@@ -16,7 +16,7 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - Developers integrate over the documented HTTP API. Braivo's own code is AGPL-3.0-only, with a commercial license available, and third-party code keeps its upstream license ([ADR 0002](adr/0002-agpl-only.md)).
 - What content owners and learners do, whether in the apps, through CLI commands, or through an agent's tools, reaches the same use cases with the same checks, as a person. An agent gets no rule of its own beyond what an ADR names ([ADR 0022](adr/0022-machine-access.md), [ADR 0039](adr/0039-published-in-the-console.md): acts kept to a browser session; courses and tasks a token writes wait to be published). Such an act is therefore a use case behind the API, never one surface's own code. The CLI's operational commands are not a surface (Modules, cli).
 - No microservices, queues, or caches until a concrete workflow or measured problem requires them.
-- Tests sit next to the code they cover as `*.test.ts`; an app's route tests sit in its `routes.test.tsx`.
+- Tests sit next to the code they cover as `*.test.ts`; an app's page tests, which render its whole route tree, sit apart in its `test/` ([apps](apps.md), Testing a page).
 
 ## Modules
 

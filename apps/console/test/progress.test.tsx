@@ -1,0 +1,287 @@
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
+import { fireEvent, screen, within } from "@testing-library/react";
+import { describe, expect, test, vi } from "vite-plus/test";
+
+import { members, courseProgress } from "./fixtures.ts";
+import { renderAt } from "./render.tsx";
+
+/** A moment as the learner report shows it, compact. */
+function dated(at: string) {
+  return new Date(at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" });
+}
+
+describe("the console", () => {
+  test("asks nothing about a course's learners until the course is its own", async () => {
+    const progress = vi.fn(courseProgress);
+    renderAt("/example/courses/elsewhere/progress", {
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        courseProgress: progress,
+      },
+    });
+
+    expect(
+      await screen.findByText("This course does not exist, or its progress is not yours to see."),
+    ).toBeTruthy();
+    expect(progress.mock.calls).toEqual([]);
+  });
+
+  test("reads a course's progress as not found when Braivo refuses its learners", async () => {
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        courseProgress: async () => {
+          throw new BraivoError(404, "Braivo answered 404.");
+        },
+      },
+    });
+
+    expect(
+      await screen.findByText("This course does not exist, or its progress is not yours to see."),
+    ).toBeTruthy();
+  });
+
+  test("counts each learner's objectives by standing, linking to their progress", async () => {
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
+    });
+
+    const learners = await screen.findByRole("table", { name: "Learners" });
+    const [header, ...rows] = within(learners).getAllByRole("row");
+    expect(
+      within(header!)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Learner", "Not started", "Learning", "Retained", "Due for review"]);
+    expect(
+      rows.map((row) => {
+        const learner = within(row).getByRole("rowheader");
+        return [
+          within(learner).getByRole("link").textContent,
+          ...within(row)
+            .getAllByRole("cell")
+            .map((cell) => cell.textContent),
+        ];
+      }),
+    ).toEqual([
+      ["Lee Learner", "0", "1", "0", "1"],
+      ["Olive Owner", "2", "0", "0", "0"],
+    ]);
+    // Every member, staff included, and said so.
+    expect(screen.getByText(/2 members of Example School, staff included/)).toBeTruthy();
+    expect(within(learners).getByRole("link", { name: "Lee Learner" }).getAttribute("href")).toBe(
+      "/example/courses/course-1/learners/u2",
+    );
+  });
+
+  test("sends no one to an unpublished course's link, nor says its members study it", async () => {
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          {
+            id: "course-1",
+            number: 4732,
+            title: "Beginners",
+            urlLabel: "beginners",
+            published: false,
+          },
+        ],
+        courseProgress: async () => ({ ...(await courseProgress()), published: false }),
+      },
+    });
+
+    expect(
+      await screen.findByText("Learners can't see this course until it is published."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/every member can study this course once it is published\./),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Learners practise it at/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
+  });
+
+  test("counts each objective's learners by standing, in content order", async () => {
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
+    });
+
+    const objectives = await screen.findByRole("table", { name: "Progress by objective" });
+    const [header, ...rows] = within(objectives).getAllByRole("row");
+    expect(
+      within(header!)
+        .getAllByRole("columnheader")
+        .map((cell) => cell.textContent),
+    ).toEqual(["Objective", "Not started", "Learning", "Retained", "Due for review"]);
+    expect(
+      rows.map((row) => [
+        within(row).getByRole("rowheader").textContent,
+        ...within(row)
+          .getAllByRole("cell")
+          .map((cell) => cell.textContent),
+      ]),
+    ).toEqual([
+      ["Greetings", "1", "1", "0", "0"],
+      ["Numbers", "1", "0", "0", "1"],
+    ]);
+  });
+
+  test("shows where a learner stands on each objective, by title", async () => {
+    const report: LearnerProgressReport = {
+      modelVersion: "v1",
+      objectives: [
+        {
+          objectiveId: "o1",
+          title: "Greetings",
+          phase: "retaining",
+          lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+          stability: 1,
+          retrievability: 0.42,
+          due: true,
+          dueAt: "2026-06-02T00:00:00.001Z",
+          evidence: [
+            { outcome: "failure", at: "2026-05-30T00:00:00.000Z" },
+            { outcome: "failure", at: "2026-05-31T00:00:00.000Z" },
+            { outcome: "success", at: "2026-06-01T00:00:00.000Z" },
+          ],
+        },
+        { objectiveId: "o2", title: "Numbers", phase: "unseen", evidence: [] },
+        // Retained, not due: its recall shows under it too, 100% included.
+        {
+          objectiveId: "o3",
+          title: "Colours",
+          phase: "retaining",
+          lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+          stability: 1,
+          retrievability: 1,
+          due: false,
+          dueAt: "2026-06-02T00:00:00.001Z",
+          evidence: [{ outcome: "success", at: "2026-06-01T00:00:00.000Z" }],
+        },
+      ],
+    };
+    const learnerProgress = vi.fn(async () => report);
+    const listCourses = vi.fn(async () => [
+      { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+    ]);
+    const listMembers = vi.fn(async () => members);
+    renderAt("/example/courses/course-1/learners/u2", {
+      braivo: { learnerProgress, listCourses, listMembers },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+    // Named in the page, not only the tab, and leading back to the course's other learners.
+    expect(screen.getByRole("link", { name: "Beginners" }).getAttribute("href")).toBe(
+      "/example/courses/course-1/progress",
+    );
+    expect(screen.queryByText(/no objectives yet/i)).toBeNull();
+    // Once for the page, not beside each percentage.
+    expect(screen.getAllByText(/a model estimate, not a test score/)).toHaveLength(1);
+    // A list, each objective a heading over its fields, named beside their
+    // values: on a phone, no column of a table starts off screen.
+    const list = screen.getByRole("list", { name: "Lee Learner" });
+    const objective = (title: string) => {
+      const item = screen.getByRole("heading", { level: 2, name: title }).closest("li")!;
+      expect(item.parentElement).toBe(list);
+      return item;
+    };
+    const fields = (item: HTMLElement) =>
+      Object.fromEntries(
+        [...item.querySelectorAll(":scope > dl > dt")].map((term) => [
+          term.textContent,
+          term.nextElementSibling!.tagName === "DD" ? term.nextElementSibling!.textContent : null,
+        ]),
+      );
+    const greetings = objective("Greetings");
+    const numbers = objective("Numbers");
+    // The last evidence may have been graded outside Braivo, so not "Last attempted".
+    expect(fields(greetings)).toMatchObject({
+      // The standing, then the recall predicted under it, labelled as such.
+      Standing: "Due for reviewEstimated recall now: 42%",
+      "Last evidence": dated("2026-06-01T00:00:00.000Z"),
+      "Review due": dated("2026-06-02T00:00:00.001Z"),
+    });
+    // Counted, so a learner who failed many times does not read like one who failed once.
+    const counted = within(greetings).getByLabelText("Greetings: 1 success, 2 failures");
+    expect(counted.textContent).toBe("1 success, 2 failures");
+    // Dated on request, newest first.
+    const details = counted.closest("details")!;
+    expect(details.open).toBe(false);
+    fireEvent.click(counted);
+    expect(details.open).toBe(true);
+    expect(
+      within(details)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      `${dated("2026-06-01T00:00:00.000Z")}: success`,
+      `${dated("2026-05-31T00:00:00.000Z")}: failure`,
+      `${dated("2026-05-30T00:00:00.000Z")}: failure`,
+    ]);
+    expect(fields(objective("Colours")).Standing).toBe("RetainedEstimated recall now: 100%");
+    expect(fields(numbers)).toEqual({
+      Standing: "Not started",
+      "Last evidence": "—",
+      Evidence: "—",
+      "Review due": "—",
+    });
+    // Every id here is an interchangeable string, so a read scoped to the wrong
+    // one type-checks; these assertions are what hold the tenant boundary.
+    const options = { signal: expect.any(AbortSignal) };
+    expect(learnerProgress).toHaveBeenCalledWith(
+      { courseId: "course-1", learnerId: "u2" },
+      options,
+    );
+    expect(listCourses).toHaveBeenCalledWith("org-1", options);
+    expect(listMembers).toHaveBeenCalledWith("org-1", options);
+  });
+
+  test("reads progress Braivo will not show as not found", async () => {
+    renderAt("/example/courses/course-1/learners/u9", {
+      braivo: {
+        learnerProgress: async () => {
+          throw new BraivoError(404, "not found");
+        },
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "This learner does not exist, or their progress is not yours to see.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("says a course without objectives has nothing to report, rather than an empty list", async () => {
+    renderAt("/example/courses/course-1/learners/u2", {
+      braivo: {
+        learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        listMembers: async () => members,
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+    expect(screen.getByText(/no objectives yet/i)).toBeTruthy();
+    expect(screen.queryByRole("list", { name: "Lee Learner" })).toBeNull();
+  });
+});
