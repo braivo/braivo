@@ -360,6 +360,7 @@ CREATE TABLE "task" (
 	"created_at" timestamp with time zone NOT NULL,
 	"retired_at" timestamp with time zone,
 	"published_at" timestamp with time zone,
+	"replaces_task_id" text,
 	CONSTRAINT "task_organization_id_key" UNIQUE("organization_id","id")
 );
 --> statement-breakpoint
@@ -417,6 +418,7 @@ CREATE UNIQUE INDEX "objective_organization_key_uidx" ON "objective" ("organizat
 CREATE INDEX "objective_citation_source_idx" ON "objective_citation" ("source_id");--> statement-breakpoint
 CREATE INDEX "source_organization_idx" ON "source" ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "source_organization_digest_uidx" ON "source" ("organization_id","digest");--> statement-breakpoint
+CREATE INDEX "task_replaces_task_idx" ON "task" ("replaces_task_id");--> statement-breakpoint
 CREATE INDEX "task_objective_idx" ON "task" ("objective_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "task_citation_source_idx" ON "task_citation" ("source_id");--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -460,5 +462,6 @@ ALTER TABLE "objective_citation" ADD CONSTRAINT "objective_citation_source_fk" F
 ALTER TABLE "source" ADD CONSTRAINT "source_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "source" ADD CONSTRAINT "source_original_fk" FOREIGN KEY ("organization_id","original") REFERENCES "file"("organization_id","sha256") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "task" ADD CONSTRAINT "task_objective_fk" FOREIGN KEY ("organization_id","objective_id") REFERENCES "objective"("organization_id","id") ON DELETE RESTRICT;--> statement-breakpoint
+ALTER TABLE "task" ADD CONSTRAINT "task_replaces_task_fk" FOREIGN KEY ("organization_id","replaces_task_id") REFERENCES "task"("organization_id","id") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "task_citation" ADD CONSTRAINT "task_citation_task_fk" FOREIGN KEY ("organization_id","task_id") REFERENCES "task"("organization_id","id") ON DELETE RESTRICT;--> statement-breakpoint
 ALTER TABLE "task_citation" ADD CONSTRAINT "task_citation_source_fk" FOREIGN KEY ("organization_id","source_id") REFERENCES "source"("organization_id","id") ON DELETE RESTRICT;

@@ -5041,6 +5041,53 @@ describe("the console", () => {
     expect(screen.queryByRole("button", { name: /^Publish/ })).toBeNull();
   });
 
+  test("marks a tool's waiting correction, saying first that changing its task retires it", async () => {
+    const [greetings, numbers] = beginners.objectives;
+    const [original] = greetings!.tasks;
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [
+            {
+              ...greetings!,
+              tasks: [
+                original!,
+                { ...original!, id: "t2", answer: 1, published: false, replaces: "t1" },
+              ],
+            },
+            numbers!,
+          ],
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Corrects “Hello, in Spanish?”, which stays published until you publish this.",
+      ),
+    ).toBeTruthy();
+    const [retireOriginal, retireCorrection] = screen.getAllByRole("button", {
+      name: "Retire “Hello, in Spanish?”",
+    });
+    fireEvent.click(retireOriginal!);
+    expect((await screen.findByRole("alertdialog")).textContent).toContain(
+      "what they already answered stays. The correction waiting for review is retired with it. To change it instead, edit it.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+    // The correction's own retirement leaves the task it corrects as it is.
+    fireEvent.click(retireCorrection!);
+    expect((await screen.findByRole("alertdialog")).textContent).not.toContain(
+      "The correction waiting",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit “Hello, in Spanish?”" })[0]!);
+    expect(
+      await screen.findByText(/The correction waiting for review is retired with it\.$/),
+    ).toBeTruthy();
+  });
+
   test("publishes a tool's course with its waiting tasks, counting them", async () => {
     let published = false;
     const publish = vi.fn<BraivoClient["publish"]>(async () => {
@@ -6358,7 +6405,7 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(
       await screen.findByText(
-        "Another task of this objective is already the same. Change the correction, or retire this task.",
+        "Another task of this objective is already the same. Review its tasks before editing or publishing.",
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reload the course" })).toBeNull();

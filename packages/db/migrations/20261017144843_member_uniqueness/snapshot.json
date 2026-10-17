@@ -1,10 +1,10 @@
 {
+  "id": "fd4da27b-5a41-4a5d-b721-aeb5c3bfe56e",
+  "prevIds": [
+    "2ab4189c-8f63-4f22-bc25-0eb3af97e5b5"
+  ],
   "version": "8",
   "dialect": "postgres",
-  "id": "f61e4402-8d05-4334-826e-9dec2b1a8878",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
   "ddl": [
     {
       "values": [
@@ -3586,6 +3586,19 @@
     {
       "type": "text",
       "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "replaces_task_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "task"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
@@ -4695,6 +4708,27 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "replaces_task_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "task_replaces_task_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "task"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "objective_id",
           "isExpression": false,
           "asc": true,
@@ -5456,6 +5490,25 @@
       "onUpdate": "NO ACTION",
       "onDelete": "RESTRICT",
       "name": "task_objective_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "task"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "organization_id",
+        "replaces_task_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "task",
+      "columnsTo": [
+        "organization_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "RESTRICT",
+      "name": "task_replaces_task_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "task"

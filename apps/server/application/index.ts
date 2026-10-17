@@ -104,6 +104,7 @@ export {
   ConflictingEvidence,
   ConflictingGroupRole,
   ConflictingKey,
+  CorrectionWaiting,
   DuplicateCorrection,
   PublishedTask,
   StaleCorrection,

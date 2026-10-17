@@ -13,6 +13,7 @@ import {
   ConflictingEvidence,
   ConflictingGroupRole,
   ConflictingKey,
+  CorrectionWaiting,
   DuplicateCorrection,
   FilesUnavailable,
   InvalidAiRequest,
@@ -67,6 +68,10 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   // Coded, so the console tells it from a stale correction, the other 409 an edit meets.
   if (error instanceof DuplicateCorrection) {
     return context.json({ error: error.message, code: "DUPLICATE_CORRECTION" }, 409);
+  }
+  // Coded, so a tool tells it from a stale correction: the one to correct is named.
+  if (error instanceof CorrectionWaiting) {
+    return context.json({ error: error.message, code: "CORRECTION_WAITING" }, 409);
   }
   // Coded, so a client tells its AI being off from other refusals of the same status.
   if (error instanceof AiUnavailable) {

@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import {
   activateDomain,
   type Ai,
+  type AuthoredTask,
   citeSources,
   claimDomain,
   defineCourse,
@@ -212,6 +213,15 @@ function parseTasks(body: unknown): ParsedTask[] | undefined {
   }
   const quotes = parsed.reduce((sum, task) => sum + (task.citations?.length ?? 0), 0);
   return quotes > MAX_QUOTES_PER_REQUEST ? undefined : parsed;
+}
+
+/**
+ * A task as both task reads answer it, in the shape it is authored in, so one
+ * read back can be sent again. Field by field, so a field added to the stored
+ * task is not answered unless added here.
+ */
+function authoredTask({ id, body, citations, published, replaces }: AuthoredTask) {
+  return { id, ...body, citations, published, ...(replaces !== undefined && { replaces }) };
 }
 
 /** Reads `taskIds`, each non-empty, out of a request body. */
@@ -720,13 +730,7 @@ export function authoringRoutes(
           ...course,
           objectives: course.objectives.map(({ tasks, ...objective }) => ({
             ...objective,
-            // As `GET …/objectives/:objectiveId/tasks` answers them.
-            tasks: tasks.map(({ id, body, citations, published }) => ({
-              id,
-              ...body,
-              citations,
-              published,
-            })),
+            tasks: tasks.map(authoredTask),
           })),
         });
       } catch (error) {
@@ -873,14 +877,8 @@ export function authoringRoutes(
         });
         if (!tasks) return context.body(null, 404);
 
-        // The shape a task is authored in, so one read back can be sent again.
         return context.json({
-          tasks: tasks.map(({ id, body, citations, published }) => ({
-            id,
-            ...body,
-            citations,
-            published,
-          })),
+          tasks: tasks.map(authoredTask),
         });
       } catch (error) {
         return organizationRefusal(context, error);

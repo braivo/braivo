@@ -4,7 +4,7 @@
 import { runMigrations } from "@braivo/db";
 import { task as taskTable } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import {
@@ -16,12 +16,13 @@ import {
   readTaskCitations,
 } from "../persistence/index.ts";
 import { DuplicateCorrection, PublishedTask, StaleCorrection } from "../persistence/index.ts";
+import type { Transaction } from "../persistence/task.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import { InvalidCitation } from "./citations.ts";
 import { publish, StalePublication } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
 import { NotPermitted } from "./permission.ts";
-import { defineTasks, InvalidTask, retireTasks } from "./tasks.ts";
+import { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tasks.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -59,6 +60,31 @@ function addLesson(organization = organizationId) {
     text: "🙂 Hola significa hello. Adiós significa goodbye.",
     createdAt: now,
   });
+}
+
+/**
+ * Whether a session came to wait on `holder`'s locks before `racing` settled:
+ * observing the race, rather than sleeping until it has probably begun.
+ * `holder` is a transaction, which keeps its connection.
+ */
+async function blocks(holder: Transaction, racing: Promise<unknown>): Promise<boolean> {
+  const [{ pid }] = (await holder.execute(sql`select pg_backend_pid() as pid`)).rows as [
+    { pid: number },
+  ];
+  let settled = false;
+  void racing.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  while (!settled) {
+    // Through `holder`, which waits on nothing, so the check needs no other connection.
+    const waiting = await holder.execute(
+      sql`select 1 from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))`,
+    );
+    if (waiting.rows.length > 0) return true;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  return false;
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -661,108 +687,323 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await states([proposed, offered])).toEqual([waiting, live]);
     });
 
-    test("refuses a tool's change to a task once published, even retired since, changing nothing", async () => {
+    /** The task a learner of the course is offered next. */
+    const nextTask = async () => {
+      const next = await chooseNextActivity({
+        database,
+        learnerId: learner,
+        courseId,
+        host: installation,
+        now,
+        timeZone: "UTC",
+      });
+      return next.kind === "decided" ? next.task.id : undefined;
+    };
+    const correctAsTool = (replaces: string, body: object) =>
+      define([{ objectiveId: objective, body, replaces }], author, asTool);
+    const retire = (taskIds: string[], byTool = false) =>
+      retireTasks({ database, organizationId, actingAs: author, taskIds, now, byTool });
+    const publishTasks = (taskIds: string[]) =>
+      publish({ database, organizationId, actingAs: author, courseIds: [], taskIds, now });
+
+    test("holds a tool's correction of a published task, which stays offered until Publish retires it", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+
+      const [correction] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
+      expect(await states([task, correction])).toEqual([live, waiting]);
+      expect(await nextTask()).toBe(task);
+      // Read back naming the task it corrects; created in the same instant, in either order.
+      const listed = await listObjectiveTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        objectiveId: objective,
+      });
+      expect(Object.fromEntries(listed!.map(({ id, replaces }) => [id, replaces]))).toEqual({
+        [task]: undefined,
+        [correction]: task,
+      });
+
+      // Sent again, or unchanged: answered as stored, nothing added.
+      expect(await correctAsTool(task, { ...choice, answer: 1 })).toEqual([correction]);
+      expect(await correctAsTool(task, choice)).toEqual([task]);
+      // One waits at a time: a second is refused, naming the one to correct instead.
+      await expect(correctAsTool(task, { ...choice, prompt: "Which one?" })).rejects.toMatchObject({
+        name: "CorrectionWaiting",
+        waitingId: correction,
+      });
+      // Correcting the waiting one replaces it at once, for the same task.
+      const [revised] = (await correctAsTool(correction, {
+        ...choice,
+        prompt: "Which one?",
+      })) as [string];
+      expect(await states([task, correction, revised])).toEqual([
+        live,
+        { published: false, retired: true },
+        waiting,
+      ]);
+
+      await publishTasks([revised]);
+      expect(await states([task, revised])).toEqual([{ published: true, retired: true }, live]);
+      expect(await nextTask()).toBe(revised);
+      // A retry after it was published answers it, changing nothing.
+      expect(await correctAsTool(task, { ...choice, prompt: "Which one?" })).toEqual([revised]);
+    });
+
+    test("retires a waiting correction with its task, corrected or retired in the console", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
+
+      const [fixed] = (await define([
+        { objectiveId: objective, body: { ...choice, prompt: "Which, fixed?" }, replaces: task },
+      ])) as [string];
+      expect(await states([task, proposed, fixed])).toEqual([
+        { published: true, retired: true },
+        { published: false, retired: true },
+        live,
+      ]);
+
+      const [again] = (await correctAsTool(fixed, { ...choice, answer: 1 })) as [string];
+      await retire([fixed]);
+      expect(await states([fixed, again])).toEqual([
+        { published: true, retired: true },
+        { published: false, retired: true },
+      ]);
+    });
+
+    test("lets a tool withdraw its waiting correction, the task still offered", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
+
+      await retire([proposed], true);
+      expect(await states([task, proposed])).toEqual([live, { published: false, retired: true }]);
+      // Withdrawn, so another may wait in its place.
+      const [another] = (await correctAsTool(task, { ...choice, prompt: "Which one?" })) as [
+        string,
+      ];
+      expect(await states([another])).toEqual([waiting]);
+    });
+
+    test("refuses a Publish naming a correction retired since, publishing nothing", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
+      const [added] = (await define(
+        [{ objectiveId: objective, body: { ...choice, prompt: "Which else?" } }],
+        author,
+        asTool,
+      )) as [string];
+      await retire([task]);
+
+      await expect(publishTasks([added, proposed])).rejects.toBeInstanceOf(StalePublication);
+      expect(await states([task, proposed, added])).toEqual([
+        { published: true, retired: true },
+        { published: false, retired: true },
+        waiting,
+      ]);
+    });
+
+    test("brings a re-imported original back only as waiting, after the console changed it", async () => {
+      for (const change of ["correct", "retire"] as const) {
+        const body = { ...choice, prompt: `Imported, then ${change}d?` };
+        const [task] = (await define([{ objectiveId: objective, body }], author, asTool)) as [
+          string,
+        ];
+        await publishTasks([task]);
+        if (change === "correct") {
+          await define([{ objectiveId: objective, body: { ...body, answer: 1 }, replaces: task }]);
+        } else {
+          await retire([task]);
+        }
+
+        // Its retired twin does not count (ADR 0024): a new task, never live.
+        const [again] = (await define([{ objectiveId: objective, body }], author, asTool)) as [
+          string,
+        ];
+        expect(again).not.toBe(task);
+        expect(await states([again])).toEqual([waiting]);
+      }
+    });
+
+    test("settles a tool's correction racing Publish either way, never both changing one task", async () => {
+      // A waiting task, then a published one's waiting correction: the two the race changes.
+      const [proposed] = (await define(
+        [{ objectiveId: objective, body: { ...choice, prompt: "Racing, waiting?" } }],
+        author,
+        asTool,
+      )) as [string];
+      const [task] = (await define([
+        { objectiveId: objective, body: { ...choice, prompt: "Racing, published?" } },
+      ])) as [string];
+      const [pending] = (await correctAsTool(task, {
+        ...choice,
+        prompt: "Racing, published?",
+        answer: 1,
+      })) as [string];
+
+      // Either may win, and each order has a sequential test: this proves the
+      // race settles one way or the other, never an error or both.
+      for (const raced of [proposed, pending]) {
+        const [published, corrected] = await Promise.allSettled([
+          publishTasks([raced]),
+          correctAsTool(raced, { ...choice, prompt: `Revised ${raced}?` }),
+        ]);
+        expect(corrected.status).toBe("fulfilled");
+        const [revision] = (corrected as PromiseFulfilledResult<string[]>).value as [string];
+        if (published.status === "fulfilled") {
+          // Published first: the correction waits beside it.
+          expect(await states([raced, revision])).toEqual([live, waiting]);
+          if (raced === pending)
+            expect(await states([task])).toEqual([{ published: true, retired: true }]);
+        } else {
+          // Corrected first: replaced at once, so Publish found it retired.
+          expect(published.reason).toBeInstanceOf(StalePublication);
+          expect(await states([raced, revision])).toEqual([
+            { published: false, retired: true },
+            waiting,
+          ]);
+          if (raced === pending) expect(await states([task])).toEqual([live]);
+        }
+      }
+    });
+
+    test("refuses a Publish of a correction whose task is retired, however that came about", async () => {
+      // Never written by Braivo, which retires a task's waiting correction with it.
+      const corrected = crypto.randomUUID();
+      const correction = crypto.randomUUID();
+      await database.insert(taskTable).values([
+        {
+          id: corrected,
+          organizationId,
+          objectiveId: objective,
+          body: choice,
+          createdAt: now,
+          publishedAt: now,
+          retiredAt: now,
+        },
+        {
+          id: correction,
+          organizationId,
+          objectiveId: objective,
+          body: { ...choice, answer: 1 },
+          createdAt: now,
+          replacesTaskId: corrected,
+        },
+      ]);
+
+      await expect(publishTasks([correction])).rejects.toBeInstanceOf(StalePublication);
+      expect(await states([correction])).toEqual([waiting]);
+    });
+
+    test("refuses a tool's retirement of a task once published, even retired since, changing nothing", async () => {
       const [retired] = (await define([{ objectiveId: objective, body: choice }])) as [string];
       const [proposed] = (await define(
         [{ objectiveId: objective, body: { ...choice, answer: 1 } }],
         author,
         asTool,
       )) as [string];
-      await retireTasks({
-        database,
-        organizationId,
-        actingAs: author,
-        taskIds: [retired],
-        now,
-        byTool: false,
-      });
+      await retire([retired]);
 
-      await expect(
-        retireTasks({
-          database,
-          organizationId,
-          actingAs: author,
-          taskIds: [retired, proposed],
-          now,
-          byTool: true,
-        }),
-        // Not sent to the console, which no longer lists a retired task.
-      ).rejects.toMatchObject({
+      await expect(retire([retired, proposed], true)).rejects.toMatchObject({
         name: "PublishedTask",
+        // Not sent to the console, which no longer lists a retired task.
         message: `Task "${retired}" was published and is retired already; leave it out.`,
       });
+      // A correction of it is stale, as anyone's is once a task is retired.
       await expect(
-        define(
-          [
-            {
-              objectiveId: objective,
-              body: { ...choice, prompt: "Which now?" },
-              replaces: retired,
-            },
-          ],
-          author,
-          asTool,
-        ),
-      ).rejects.toMatchObject({
-        name: "PublishedTask",
-        message: expect.stringContaining("once published and retired since"),
-      });
+        correctAsTool(retired, { ...choice, prompt: "Which now?" }),
+      ).rejects.toBeInstanceOf(StaleCorrection);
       expect(await states([retired, proposed])).toEqual([
         { published: true, retired: true },
         waiting,
       ]);
     });
 
-    test("never lets a tool's correction or retirement through once Publish took the task", async () => {
-      for (const change of ["correct", "retire"] as const) {
-        const [task] = (await define(
-          [{ objectiveId: objective, body: { ...choice, prompt: `Racing to ${change}?` } }],
-          author,
-          asTool,
-        )) as [string];
+    test("never lets a tool's retirement through once Publish took the task", async () => {
+      const [task] = (await define(
+        [{ objectiveId: objective, body: { ...choice, prompt: "Racing to retire?" } }],
+        author,
+        asTool,
+      )) as [string];
 
-        const [published, changed] = await Promise.allSettled([
-          publish({
-            database,
-            organizationId,
-            actingAs: author,
-            courseIds: [],
-            taskIds: [task],
-            now,
-          }),
-          change === "correct"
-            ? define(
-                [
-                  {
-                    objectiveId: objective,
-                    body: { ...choice, prompt: `Racing to ${change}?`, answer: 1 },
-                    replaces: task,
-                  },
-                ],
-                author,
-                asTool,
-              )
-            : retireTasks({
-                database,
-                organizationId,
-                actingAs: author,
-                taskIds: [task],
-                now,
-                byTool: true,
-              }),
-        ]);
+      const [published, retired] = await Promise.allSettled([
+        publishTasks([task]),
+        retire([task], true),
+      ]);
 
-        // Whichever came first, the other is refused.
-        const [state] = await states([task]);
-        if (published.status === "fulfilled") {
-          expect(changed).toMatchObject({ status: "rejected", reason: expect.any(PublishedTask) });
-          expect(state).toEqual(live);
-        } else {
-          expect(published.reason).toBeInstanceOf(StalePublication);
-          expect(changed.status).toBe("fulfilled");
-          expect(state).toEqual({ published: false, retired: true });
-        }
+      // Whichever came first, the other is refused.
+      const [state] = await states([task]);
+      if (published.status === "fulfilled") {
+        expect(retired).toMatchObject({ status: "rejected", reason: expect.any(PublishedTask) });
+        expect(state).toEqual(live);
+      } else {
+        expect(published.reason).toBeInstanceOf(StalePublication);
+        expect(retired.status).toBe("fulfilled");
+        expect(state).toEqual({ published: false, retired: true });
       }
+    });
+
+    test("retires a corrected task only under its objective's lock, as a twin is added under", async () => {
+      const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
+      const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
+
+      let publishing!: Promise<void>;
+      // As an import holds it while it looks for twins: one found must stay unretired.
+      await database.transaction(async (adding) => {
+        await adding.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`braivo:task:${objective}`}, 0))`,
+        );
+        publishing = publishTasks([proposed]);
+        expect(await blocks(adding, publishing)).toBe(true);
+        expect(await states([task])).toEqual([live]);
+      });
+      await publishing;
+      expect(await states([task, proposed])).toEqual([{ published: true, retired: true }, live]);
+    });
+
+    test("locks the task a waiting correction corrects first, as Publish does, never deadlocking", async () => {
+      // Sorting first, as Publish then locks it before the correction.
+      const corrected = `lock-a-${crypto.randomUUID()}`;
+      const correction = `lock-b-${crypto.randomUUID()}`;
+      await database.insert(taskTable).values([
+        {
+          id: corrected,
+          organizationId,
+          objectiveId: objective,
+          body: choice,
+          createdAt: now,
+          publishedAt: now,
+        },
+        {
+          id: correction,
+          organizationId,
+          objectiveId: objective,
+          body: { ...choice, answer: 1 },
+          createdAt: now,
+          replacesTaskId: corrected,
+        },
+      ]);
+      const lock = (transaction: Transaction, id: string) =>
+        transaction
+          .select({ id: taskTable.id })
+          .from(taskTable)
+          .where(eq(taskTable.id, id))
+          .for("update");
+
+      let revising!: Promise<string[]>;
+      await database.transaction(async (publishing) => {
+        await lock(publishing, corrected);
+        revising = correctAsTool(correction, { ...choice, prompt: "Which, revised?" });
+        // Waiting on `corrected`. Holding the correction's row instead, its new
+        // row's key would wait on `corrected`, and this on it: a deadlock.
+        expect(await blocks(publishing, revising)).toBe(true);
+        await lock(publishing, correction);
+      });
+      const [revised] = (await revising) as [string];
+      expect(await states([corrected, correction, revised])).toEqual([
+        live,
+        { published: false, retired: true },
+        waiting,
+      ]);
     });
   });
 });
