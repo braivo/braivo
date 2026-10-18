@@ -80,7 +80,7 @@ export function AccountMenu({
             {/* A div: the button truncates its last span, and an identity wraps. */}
             <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-medium wrap-anywhere">{name}</span>
-              <EmailAddress address={user.email} />
+              <EmailAddress address={user.email} truncate />
             </div>
             {/* Says it opens a menu, as the organization switcher's does. */}
             <ChevronsUpDownIcon className="text-muted-foreground group-data-[collapsible=icon]:hidden" />
@@ -154,21 +154,24 @@ export function AccountMenu({
 
 /**
  * An email address too long for its line, wrapped before its `@` rather than
- * anywhere, which can leave one letter on a line of its own.
+ * anywhere, which can leave one letter on a line of its own. `truncate`: on
+ * one line, the part before the `@` shortened first, so the domain, which
+ * says whose account it is, shows whole until nothing else is left to cut.
  */
-function EmailAddress({ address }: { address: string }) {
+function EmailAddress({ address, truncate }: { address: string; truncate?: boolean }) {
   const at = address.lastIndexOf("@");
-  return (
+  const [local, domain] = at > 0 ? [address.slice(0, at), address.slice(at)] : [address, ""];
+  return truncate ? (
+    <span className="flex min-w-0 text-xs text-muted-foreground">
+      <span className="truncate">{local}</span>
+      {/* Never shrunk while `local` can be; cut only where it alone is too wide. */}
+      <span className="max-w-full shrink-0 truncate">{domain}</span>
+    </span>
+  ) : (
     <span className="text-xs wrap-anywhere text-muted-foreground">
-      {at > 0 ? (
-        <>
-          {address.slice(0, at)}
-          <wbr />
-          {address.slice(at)}
-        </>
-      ) : (
-        address
-      )}
+      {local}
+      <wbr />
+      {domain}
     </span>
   );
 }

@@ -9,13 +9,13 @@
 
 /*
  * Braivo's own theme, on every console page (ADR 0037). Dark is the
- * reference: a near-neutral navy, so content, charts, and states carry the
- * colour, and lime for the main action, focus, and "retained" alone, deepened
- * so a large button does not glare on the navy. Light is its counterpart;
- * lime fails as text on a light ground, so there an olive from it marks focus
- * and "retained". Success (teal) is not the brand's lime. The charts are the
- * progress spec's standings; `--brand-panel-*` is `/login`'s story panel, the
- * darker navy in both themes.
+ * reference: near-neutral grounds, as Linear's, so content, charts, and states
+ * carry the colour, and lime for the main action and "retained" alone,
+ * deepened so a large button does not glare. Light is its counterpart; lime
+ * fails as text on a light ground, so there an olive from it marks "retained".
+ * Focus is Linear's indigo, lighter in dark, apart from both. Success (teal)
+ * is not the brand's lime. The charts are the progress spec's standings;
+ * `--brand-panel-*` is `/login`'s story panel, a navy in both themes.
  *
  * On the root, so dialogs and popovers outside `<main>` wear it too, but not
  * on a learn domain's sign-in, which keeps the neutral theme (ADR 0018):
@@ -26,7 +26,7 @@
  */
 :root:not([data-learn-domain]) {
   /* shadcn's: every colour Rhea's theme sets (styles.test.ts), Braivo's values. */
-  --background: #f4f5f8;
+  --background: #f9f9fa;
   --foreground: #131725;
   --card: #ffffff;
   --card-foreground: #131725;
@@ -36,31 +36,37 @@
   --primary-foreground: #f5f6f0;
   --secondary: #e9ebf0;
   --secondary-foreground: #131725;
-  --muted: #e9ebf0;
+  /* A step darker than the page, as Linear's hovers. */
+  --muted: color-mix(in oklab, var(--background), var(--foreground) 6%);
   --muted-foreground: #5a6378;
   --accent: #e4e7ee;
   --accent-foreground: #131725;
   --border: #dcdfe6;
   --input: #7d879b;
-  --ring: #5c7a12;
+  --ring: #5e6ad2;
   --destructive: #c0262d;
   --chart-1: #5c7a12;
   --chart-2: #b7791f;
   --chart-3: #4a63d9;
   --chart-4: #a3aab8;
   --chart-5: #7a5aa6;
-  /* The sidebar: white, raised off the page as cards are. */
-  --sidebar: #ffffff;
+  /* The sidebar: a step darker than the page it frames, as Linear's. */
+  --sidebar: #efeff0;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--muted);
+  /* A row shown, as Linear's: a step darker than the sidebar. */
+  --sidebar-accent: #e1e1e2;
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   /* Braivo's own: the first two `@braivo/ui`'s (`Braivo:`), the rest the console's. */
   --primary-hover: #2b3450;
   --input-background: #ffffff;
+  /* A row hovered, a smaller step than one shown; a row neither, softer ink,
+     so the one hovered or shown stands out by ink as well as fill. */
+  --sidebar-hover: #e7e7e8;
+  --sidebar-muted-foreground: #59595b;
   --success: #0f7a55;
   --success-background: #e6f5ee;
   --warning: #8a5a00;
@@ -72,41 +78,44 @@
 
 .dark:not([data-learn-domain]) {
   /* shadcn's: every colour Rhea's theme sets (styles.test.ts), Braivo's values. */
-  --background: #131725;
+  --background: #191a23;
   --foreground: #f5f6f0;
-  --card: #191e31;
+  --card: #1e1f28;
   --card-foreground: #f5f6f0;
-  --popover: #20263a;
+  --popover: #22232c;
   --popover-foreground: #f5f6f0;
   --primary: #b4d46a;
   --primary-foreground: #13200a;
-  --secondary: #20263a;
+  --secondary: #292933;
   --secondary-foreground: #f5f6f0;
-  --muted: #191e31;
+  /* A step lighter than the page, so shadcn's ghost hover, half of it, shows. */
+  --muted: color-mix(in oklab, var(--background), var(--foreground) 10%);
   --muted-foreground: #a9b1c3;
-  --accent: #242b3e;
+  --accent: #31323d;
   --accent-foreground: #f5f6f0;
-  --border: #2e3548;
+  --border: #2a2b37;
   --input: #66738a;
-  --ring: #b4d46a;
+  --ring: #7c86e8;
   --destructive: #ff9195;
   --chart-1: #b4d46a;
   --chart-2: #f3c66c;
   --chart-3: #8fa8ff;
   --chart-4: #4a5368;
   --chart-5: #c9a8f0;
-  /* The sidebar: the darker navy, as the story panel. */
-  --sidebar: #0e1120;
+  /* The sidebar: a step darker than the page it frames, as Linear's. */
+  --sidebar: #13131c;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--card);
+  --sidebar-accent: #2c2d38;
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   /* Braivo's own: the first two `@braivo/ui`'s (`Braivo:`), the rest the console's. */
   --primary-hover: #c2de7e;
-  --input-background: #191e31;
+  --input-background: #1e1f28;
+  --sidebar-hover: #1f202b;
+  --sidebar-muted-foreground: #96979e;
   --success: #65ddb3;
   --success-background: #15302c;
   --warning: #f3c66c;
@@ -125,6 +134,8 @@
 }
 
 @theme inline {
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
   --color-success: var(--success);
   --color-success-background: var(--success-background);
   --color-warning: var(--warning);
@@ -198,4 +209,25 @@
  */
 :is([data-slot="sidebar-header"], [data-slot="sidebar-content"]) {
   --radius: inherit;
+}
+
+/*
+ * The sidebar's rows, as Linear's: a page's link keeps one weight, so being
+ * shown does not shift its text, and is soft until hovered or shown. Hovered,
+ * any row (the switchers' too) takes `--sidebar-hover`, lighter than the
+ * shown row's `--sidebar-accent`, where shadcn gives both the latter; an open
+ * menu's trigger keeps shadcn's. Unlayered, over its utilities. Settings'
+ * links take the same tokens in their classes.
+ */
+nav [data-slot="sidebar-menu-button"] {
+  font-weight: var(--font-weight-medium);
+}
+
+nav [data-slot="sidebar-menu-button"]:not([data-active="true"]) {
+  color: var(--sidebar-muted-foreground);
+}
+
+[data-slot="sidebar-menu-button"]:not([data-active="true"], [data-state="open"]):hover {
+  background-color: var(--sidebar-hover);
+  color: var(--sidebar-accent-foreground);
 }

@@ -55,6 +55,28 @@ const localized = (name: string, root: string) => ({
 });
 
 /**
+ * For a project's browser tests: in Chromium, with Tailwind too, so a test
+ * measures the controls as the apps style them.
+ */
+const inChromium = (name: string, root: string) => ({
+  plugins: [lingui({ macroTransform: true }), tailwindcss()],
+  test: {
+    name,
+    root,
+    include: [inBrowser],
+    setupFiles: ["../../packages/i18n/test-setup.ts"],
+    browser: {
+      enabled: true,
+      provider: playwright(),
+      headless: true,
+      // No files left behind in the tree.
+      screenshotFailures: false,
+      instances: [{ browser: "chromium" as const }],
+    },
+  },
+});
+
+/**
  * Workspace policy: how every package is linted, formatted, type-checked,
  * tested, and gated on commit. Each app's own `vite.config.ts` says only how
  * that app is served and built. See docs/adr/0003-workspace-layout.md.
@@ -189,27 +211,11 @@ export default defineConfig({
       { test: { name: "tooling", root: "tooling" } },
       localized("i18n", "packages/i18n"),
       localized("ui", "packages/ui"),
-      {
-        // Tailwind too, so a test there measures the controls as the apps style them.
-        plugins: [lingui({ macroTransform: true }), tailwindcss()],
-        test: {
-          name: "ui-browser",
-          root: "packages/ui",
-          include: [inBrowser],
-          setupFiles: ["../../packages/i18n/test-setup.ts"],
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            // No files left behind in the tree.
-            screenshotFailures: false,
-            instances: [{ browser: "chromium" }],
-          },
-        },
-      },
+      inChromium("ui-browser", "packages/ui"),
       localized("auth-client", "packages/auth-client"),
       localized("learn", "apps/learn"),
       localized("console", "apps/console"),
+      inChromium("console-browser", "apps/console"),
     ],
   },
 });

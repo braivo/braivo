@@ -3,13 +3,7 @@
 
 import { requireSession } from "@braivo/auth-client";
 import { Button } from "@braivo/ui/components/button";
-import { ScrollArea } from "@braivo/ui/components/scroll-area";
-import {
-  SidebarInset,
-  SidebarMenuItem,
-  SidebarProvider,
-  useSidebar,
-} from "@braivo/ui/components/sidebar";
+import { SidebarMenuItem, SidebarProvider, useSidebar } from "@braivo/ui/components/sidebar";
 import {
   Tooltip,
   TooltipContent,
@@ -34,6 +28,7 @@ import { AccountMenu } from "#components/account-menu";
 import { BraivoLogo } from "#components/braivo-logo";
 import { LanguageMenu } from "#components/language-menu";
 import { OrganizationSidebar } from "#components/organization-sidebar";
+import { PagePanel } from "#components/page-panel";
 import { rememberAppPage } from "#lib/app-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -152,9 +147,6 @@ function SignedIn() {
   if (organization) {
     return (
       <TooltipProvider>
-        {/* From md, as tall as the window, the page scrolling inside its
-            surface (`PAGE_SCROLLER`); on a phone, the document scrolls, as the
-            browser's bars and keyboard change its height. */}
         <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen} className="md:h-svh">
           <OrganizationSidebar
             organization={organization}
@@ -164,31 +156,19 @@ function SignedIn() {
             toggle={toggle}
             footer={<SidebarMenuItem>{accountMenuOf(true)}</SidebarMenuItem>}
           />
-          {/* Collapsed, as close to the rail as on its other side: shadcn's
-              inset keeps a margin there the rail already leaves. */}
-          <SidebarInset className="min-w-0 md:min-h-0 md:overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
-            <header className="shrink-0 px-2 pt-2 sm:px-4">
-              <div className="flex items-center gap-2">
-                <SidebarToggle ref={toggle} />
-                <ShownOrganization name={organization.name} />
-              </div>
-              {failed}
-            </header>
-            {/* Radix lays the content out as a table (inline style), which
-                grows with its widest line, a long word or a list, past the
-                viewport, which clips it: as a block, it takes the viewport's
-                width and wraps. Below `md` the page scrolls, not the viewport,
-                whose inline overflow would still hold a sticky element inside
-                it, unstuck: visible there. */}
-            <ScrollArea
-              data-page-scroller=""
-              className="md:min-h-0 md:flex-1 max-md:[&>[data-slot=scroll-area-viewport]]:overflow-visible! [&>[data-slot=scroll-area-viewport]>div]:block!"
-            >
-              <div className="mx-auto w-full max-w-3xl p-6 pt-2">
-                <Outlet />
-              </div>
-            </ScrollArea>
-          </SidebarInset>
+          <PagePanel
+            header={
+              <header className="shrink-0 px-2 pt-2 sm:px-4">
+                <div className="flex items-center gap-2">
+                  <SidebarToggle ref={toggle} />
+                  <ShownOrganization name={organization.name} />
+                </div>
+                {failed}
+              </header>
+            }
+          >
+            <Outlet />
+          </PagePanel>
         </SidebarProvider>
       </TooltipProvider>
     );

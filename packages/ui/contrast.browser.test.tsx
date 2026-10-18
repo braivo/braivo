@@ -13,7 +13,18 @@ import { userEvent } from "vite-plus/test/browser/context";
 
 import { Button } from "./components/button.tsx";
 import { Checkbox } from "./components/checkbox.tsx";
-import { InputGroup, InputGroupInput } from "./components/input-group.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/dropdown-menu.tsx";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "./components/input-group.tsx";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "./components/input-otp.tsx";
 import { Input } from "./components/input.tsx";
 import { Item } from "./components/item.tsx";
@@ -86,33 +97,34 @@ function borderContrast(element: Element): number {
 }
 
 /**
- * Its focus ring against its surface: the outermost shadow drawn as a ring
- * (no offset or blur, a spread, a visible colour), read from `box-shadow`.
+ * Its focus outline against what it borders: its surface, and, drawn inside
+ * its edge, its own fill too; the lesser.
  */
-function ringContrast(element: Element): number {
-  const under = surface(element);
-  const rings = settled(element)
-    // Shadows apart, not the commas inside a colour's parentheses.
-    .boxShadow.split(/,(?![^(]*\))/)
-    .filter((shadow) => !shadow.includes("inset"))
-    .map((shadow) => {
-      const [x, y, blur, spread] = (shadow.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
-      const color = paint(shadow.replace(/-?[\d.]+px/g, "").trim());
-      return { color, spread: x === 0 && y === 0 && blur === 0 ? (spread ?? 0) : 0 };
-    })
-    .filter(({ color, spread }) => spread > 0 && color[3] > 0)
-    .sort((one, other) => other.spread - one.spread);
-  expect(rings, "a ring drawn").not.toHaveLength(0);
-  return contrast(over(rings[0]!.color, under), under);
-}
-
-/** Its browser outline against its surface, for what draws no ring. */
 function outlineContrast(element: Element): number {
   const style = settled(element);
   expect(style.outlineStyle, "an outline drawn").not.toBe("none");
   expect(parseFloat(style.outlineWidth), "an outline drawn").toBeGreaterThan(0);
   const under = surface(element);
-  return contrast(over(paint(style.outlineColor), under), under);
+  const beside = [under];
+  if (parseFloat(style.outlineOffset) < 0) beside.push(over(paint(style.backgroundColor), under));
+  return Math.min(
+    ...beside.map((color) => contrast(over(paint(style.outlineColor), color), color)),
+  );
+}
+
+/**
+ * Whether it draws a ring, shadcn's focus sign the outline replaces: a shadow
+ * with no offset or blur, a spread, a visible colour. Drawn again if Tailwind
+ * renames `--tw-ring-shadow`, which `globals.css` clears.
+ */
+function ringDrawn(element: Element): boolean {
+  return settled(element)
+    .boxShadow.split(/,(?![^(]*\))/)
+    .some((shadow) => {
+      const [x, y, blur, spread] = (shadow.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+      const visible = paint(shadow.replace(/-?[\d.]+px/g, "").trim())[3] > 0;
+      return x === 0 && y === 0 && blur === 0 && (spread ?? 0) > 0 && visible;
+    });
 }
 
 async function focusByKeyboard(element: HTMLElement) {
@@ -132,18 +144,18 @@ const slot = (name: string) => document.querySelector<HTMLElement>(`[data-slot="
 
 /**
  * Each field the apps use, rendered valid or invalid: what draws its
- * boundary, what keyboard focus lands on, and what draws the ring, a group's
- * or a code slot's own for the input inside.
+ * boundary, what keyboard focus lands on, and what draws the outline, a
+ * group's or a code slot's own for the input inside.
  */
 const fields: [
   string,
   (invalid: boolean) => React.ReactNode,
-  { bounded: () => HTMLElement; focused: () => HTMLElement; ringed: () => HTMLElement },
+  { bounded: () => HTMLElement; focused: () => HTMLElement; outlined: () => HTMLElement },
 ][] = [
   [
     "an input",
     (invalid) => <Input aria-label="Name" aria-invalid={invalid} />,
-    { bounded: () => slot("input"), focused: () => slot("input"), ringed: () => slot("input") },
+    { bounded: () => slot("input"), focused: () => slot("input"), outlined: () => slot("input") },
   ],
   [
     "a textarea",
@@ -151,7 +163,7 @@ const fields: [
     {
       bounded: () => slot("textarea"),
       focused: () => slot("textarea"),
-      ringed: () => slot("textarea"),
+      outlined: () => slot("textarea"),
     },
   ],
   [
@@ -164,7 +176,7 @@ const fields: [
     {
       bounded: () => slot("native-select"),
       focused: () => slot("native-select"),
-      ringed: () => slot("native-select"),
+      outlined: () => slot("native-select"),
     },
   ],
   [
@@ -177,7 +189,7 @@ const fields: [
     {
       bounded: () => slot("input-group"),
       focused: () => slot("input-group-control"),
-      ringed: () => slot("input-group"),
+      outlined: () => slot("input-group"),
     },
   ],
   [
@@ -193,7 +205,7 @@ const fields: [
     {
       bounded: () => slot("input-otp-slot"),
       focused: () => document.querySelector("input")!,
-      ringed: () => slot("input-otp-slot"),
+      outlined: () => slot("input-otp-slot"),
     },
   ],
   [
@@ -202,7 +214,7 @@ const fields: [
     {
       bounded: () => slot("checkbox"),
       focused: () => slot("checkbox"),
-      ringed: () => slot("checkbox"),
+      outlined: () => slot("checkbox"),
     },
   ],
   [
@@ -215,7 +227,7 @@ const fields: [
     {
       bounded: () => slot("radio-group-item"),
       focused: () => slot("radio-group-item"),
-      ringed: () => slot("radio-group-item"),
+      outlined: () => slot("radio-group-item"),
     },
   ],
 ];
@@ -231,13 +243,17 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     expect(borderContrast(bounded())).toBeGreaterThanOrEqual(LEAST);
   });
 
-  test.each(fields)("%s shows focus at 3:1, invalid too", async (_, ui, { focused, ringed }) => {
+  test.each(fields)("%s shows focus at 3:1, invalid too", async (_, ui, { focused, outlined }) => {
     setTheme();
     const { rerender } = render(ui(false));
     await focusByKeyboard(focused());
-    expect(ringContrast(ringed())).toBeGreaterThanOrEqual(LEAST);
+    expect(outlineContrast(outlined())).toBeGreaterThanOrEqual(LEAST);
+    // One line, as Linear's: 1px, over the border it recolours, and no ring.
+    const { outlineWidth, outlineOffset } = settled(outlined());
+    expect([outlineWidth, outlineOffset]).toEqual(["1px", "-1px"]);
+    expect(ringDrawn(outlined())).toBe(false);
     rerender(ui(true));
-    expect(ringContrast(ringed())).toBeGreaterThanOrEqual(LEAST);
+    expect(outlineContrast(outlined())).toBeGreaterThanOrEqual(LEAST);
   });
 
   test.each([
@@ -269,8 +285,67 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
   test.each(variants)("a %s button shows focus at 3:1", async (variant) => {
     setTheme();
     render(<Button variant={variant}>Continue</Button>);
-    await focusByKeyboard(screen.getByRole("button"));
-    expect(ringContrast(screen.getByRole("button"))).toBeGreaterThanOrEqual(LEAST);
+    const button = screen.getByRole("button");
+    await focusByKeyboard(button);
+    expect(outlineContrast(button)).toBeGreaterThanOrEqual(LEAST);
+    // The main action's fill is no ground for it: outside, as Linear's.
+    expect(settled(button).outlineOffset).toBe(variant === "default" ? "2px" : "-1px");
+    expect(ringDrawn(button)).toBe(false);
+  });
+
+  test.each([
+    ["a checkbox", () => <Checkbox aria-label="Agree" defaultChecked />],
+    [
+      "a radio button",
+      () => (
+        <RadioGroup aria-label="Answer" defaultValue="a">
+          <RadioGroupItem value="a" aria-label="A" />
+        </RadioGroup>
+      ),
+    ],
+  ])("%s checked shows focus at 3:1, outside its fill", async (_, ui) => {
+    setTheme();
+    const { container } = render(ui());
+    const control = container.querySelector<HTMLElement>("[data-state]:not([role=radiogroup])")!;
+    await focusByKeyboard(control);
+    expect(outlineContrast(control)).toBeGreaterThanOrEqual(LEAST);
+    expect(settled(control).outlineOffset).toBe("2px");
+  });
+
+  // A menu marks its item by a fill, as Linear's, never an outline too.
+  test("a menu's item, reached by keyboard, is filled, not outlined", async () => {
+    setTheme();
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>Account</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem>Settings</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+    await userEvent.keyboard("{ArrowDown}");
+    const item = screen.getByRole("menuitem");
+    expect(document.activeElement).toBe(item);
+    expect(settled(item).outlineStyle).toBe("none");
+    expect(settled(item).backgroundColor).not.toBe(
+      settled(slot("dropdown-menu-content")).backgroundColor,
+    );
+  });
+
+  test("a button in an input group shows its own focus, not the group's", async () => {
+    setTheme();
+    render(
+      <InputGroup>
+        <InputGroupInput aria-label="Email" />
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton>Copy</InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>,
+    );
+    const button = screen.getByRole("button");
+    await focusByKeyboard(button);
+    expect(outlineContrast(button)).toBeGreaterThanOrEqual(LEAST);
+    expect(settled(slot("input-group")).outlineStyle).toBe("none");
   });
 
   test("a field on a card is bounded and shows focus at 3:1 there", async () => {
@@ -283,7 +358,7 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     const field = screen.getByRole("textbox");
     expect(borderContrast(field)).toBeGreaterThanOrEqual(LEAST);
     await focusByKeyboard(field);
-    expect(ringContrast(field)).toBeGreaterThanOrEqual(LEAST);
+    expect(outlineContrast(field)).toBeGreaterThanOrEqual(LEAST);
   });
 
   // Marks are utilities, which the theme's unlayered rules for fields and
@@ -392,6 +467,6 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
       </Item>,
     );
     await focusByKeyboard(screen.getByRole("link"));
-    expect(ringContrast(screen.getByRole("link"))).toBeGreaterThanOrEqual(LEAST);
+    expect(outlineContrast(screen.getByRole("link"))).toBeGreaterThanOrEqual(LEAST);
   });
 });
