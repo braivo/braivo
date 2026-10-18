@@ -119,6 +119,8 @@ describe("the console", () => {
     const languages = within(await openAccountMenu()).getByRole("group", { name: "Language" });
     const english = within(languages).getByRole("menuitemradio", { name: "English" });
     expect(english.getAttribute("aria-checked")).toBe("true");
+    // Without a leading icon, its words under the other items'.
+    expect(english.hasAttribute("data-inset")).toBe(true);
     fireEvent.click(within(languages).getByRole("menuitemradio", { name: "Polski" }));
     expect(await screen.findByRole("button", { name: "Konto: Olive Owner" })).toBeTruthy();
   });

@@ -241,6 +241,14 @@
 }
 
 /*
+ * An `inset` menu item, one without a leading icon, starts its text where an
+ * icon item's does: 2rem (padding, icon, gap), not Rhea's 1.75rem.
+ */
+[data-slot^="dropdown-menu-"][data-inset] {
+  padding-inline-start: 2rem;
+}
+
+/*
  * Focus is an opaque `--ring`, so it shows at 3:1 where the components' rings
  * are 20% to 50% of it; an invalid control's too, its border still red.
  * Unlayered, over each ring utility's colour; its width and place are theirs.
