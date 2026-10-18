@@ -310,15 +310,15 @@ function DraftCourse(props: { source: Source }) {
           <Button type="submit" ref={draftButton} aria-disabled={drafting}>
             Draft a course
           </Button>
+          {/* Whether drafting is under way, in a live region present from the start
+              so the change is announced. */}
+          <MutedText role="status">
+            {drafting
+              ? "Braivo's AI is drafting the course, which can take a few minutes…"
+              : "You review the draft before learners see any of it."}
+          </MutedText>
         </Field>
       </FieldGroup>
-      {/* One line: whether drafting is under way, in a live region present from
-          the start so the change is announced. */}
-      <MutedText role="status">
-        {drafting
-          ? "Braivo's AI is drafting the course, which can take a few minutes…"
-          : "You review the draft before learners see any of it."}
-      </MutedText>
     </form>
   );
 }

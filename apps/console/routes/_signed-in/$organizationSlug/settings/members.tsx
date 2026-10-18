@@ -95,12 +95,15 @@ function Members() {
           {members.map((member) => (
             <TableRow key={member.userId}>
               <TableCell className="align-top whitespace-normal">
-                <span className="wrap-anywhere">{member.name}</span>
-                {member.userId === user.id && (
-                  <Badge variant="secondary" className="ms-2 align-middle">
-                    <Trans>You</Trans>
-                  </Badge>
-                )}
+                {/* A gap, not a margin, so a badge that wraps starts where the name does. */}
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="wrap-anywhere">{member.name}</span>
+                  {member.userId === user.id && (
+                    <Badge variant="secondary">
+                      <Trans>You</Trans>
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell className="align-top whitespace-normal">
                 {listFormat.format(

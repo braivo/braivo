@@ -503,14 +503,14 @@ function AddSource() {
             <Button type="submit" aria-disabled={adding}>
               Add material
             </Button>
+            {/* The step under way while adding, in a live region present from the
+                start so the change is announced. */}
+            <MutedText role="status">
+              {status ?? "Adding the same material again adds nothing."}
+            </MutedText>
           </Field>
         </FieldGroup>
       </FieldSet>
-      {/* One line: the step under way while adding, in a live region present
-          from the start so the change is announced. */}
-      <MutedText role="status">
-        {status ?? "Adding the same material again adds nothing."}
-      </MutedText>
     </form>
   );
 }
