@@ -5,9 +5,10 @@ import { courseRef } from "@braivo/server/client";
 import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
-import { Item, ItemContent, ItemGroup, ItemTitle } from "@braivo/ui/components/item";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@braivo/ui/components/item";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
+import { ChevronRightIcon } from "lucide-react";
 
 import { Notice } from "#components/notice";
 import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -49,7 +50,7 @@ function Courses() {
         <Trans>Your courses</Trans>
       </Heading>
       {courses.length === 0 ? (
-        <Empty>
+        <Empty className="max-sm:p-6">
           <EmptyHeader>
             <EmptyTitle>
               <Trans>No courses yet</Trans>
@@ -61,17 +62,21 @@ function Courses() {
         </Empty>
       ) : (
         <ItemGroup className="gap-2">
-          {/* `ItemGroup` is a list, and a link is not a list item. */}
+          {/* `ItemGroup` is a list, and a link is not a list item. A chevron and
+            a press's fill mark each as a link on a phone, where nothing hovers. */}
           {courses.map((course) => (
             <div key={course.id} role="listitem">
-              <Item variant="outline" asChild>
+              <Item variant="outline" className="flex-nowrap active:bg-muted" asChild>
                 <Link
                   to="/c/$courseRef"
                   params={{ courseRef: organization ? courseRef(course) : course.id }}
                 >
-                  <ItemContent>
-                    <ItemTitle>{course.title}</ItemTitle>
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="line-clamp-none wrap-anywhere">{course.title}</ItemTitle>
                   </ItemContent>
+                  <ItemActions className="shrink-0">
+                    <ChevronRightIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+                  </ItemActions>
                 </Link>
               </Item>
             </div>

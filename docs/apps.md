@@ -27,6 +27,8 @@ How `apps/console` and `apps/learn` build a page, beyond what their specs requir
 - **A field that must not be blank:** `required` passes spaces. In the submit handler, `input.setCustomValidity("Enter your <thing>.")`, `reportValidity()`, and return; clear it in `onChange`. Not as typed: a value the browser restores fires no event.
 - **An HTML `pattern`** compiles with the `v` flag: escape a literal `-` in a character class or keep it outside, or browsers ignore the whole pattern; a range such as `[0-9]` stays as it is.
 - **Long words** (an email, a hostname, a link, a German compound): `wrap-break-word` on block text; `wrap-anywhere` on a flex or grid item or in a centred box, whose width the longest word sets, and on a button's label with `h-auto min-h-9 py-1.5 whitespace-normal`. Put it on the text, not a container whose short labels would inherit it; a label beside wrapping text gets `shrink-0`. `Heading` wraps already. Never truncate an identity. Test with an unhyphenated word: a hyphen hides the bug.
+- **A table wider than a phone** in the console is a `ScrollingTable` (`apps/console/components/scrolling-table.tsx`), its first column's cells `pinnedColumn`: its right edge fades while columns are hidden, and each row's name stays as they scroll. A row header is `min-w-36 py-2 whitespace-normal`, its name `wrap-anywhere`, so a long word wraps rather than widening it over the rest.
+- **A disclosure** in the console is a `Disclosure` (`apps/console/components/disclosure.tsx`), a native `<details>` whose summary is a touch target with a turning chevron, not the browser's triangle.
 
 ## TanStack Router (v1.170)
 

@@ -38,6 +38,11 @@ msgstr "Rola osoby {0}: uczeń."
 msgid "{0} is a teacher."
 msgstr "Rola osoby {0}: nauczyciel."
 
+#. placeholder {0}: group.name
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "{0}: {learners}"
+msgstr "{0}: {learners}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
 msgstr "{clientName} działa w organizacji, którą zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię, a potem połącz ponownie."
@@ -99,6 +104,10 @@ msgstr "Adres {hostname} jest zarezerwowany. Wybierz inny."
 #: apps/console/components/organization-setup-form.tsx
 msgid "{hostname} is taken. Choose another address."
 msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "{objective}: {counted}"
+msgstr "{objective}: {counted}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."

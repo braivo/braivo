@@ -6,13 +6,13 @@ import { Heading, MutedText } from "@braivo/ui";
 import { Field, FieldLabel } from "@braivo/ui/components/field";
 import { NativeSelect, NativeSelectOption } from "@braivo/ui/components/native-select";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
+import { cn } from "@braivo/ui/lib/utils";
 import { t } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
@@ -20,6 +20,7 @@ import { type ReactNode, useEffect, useId, useState } from "react";
 
 import { LearnersSite } from "#components/learners-site";
 import { NameTag } from "#components/name-tag";
+import { pinnedColumn, ScrollingTable } from "#components/scrolling-table";
 import { SearchField } from "#components/search-field";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { sharedNameTags } from "#lib/name-tags";
@@ -327,7 +328,7 @@ type Standings = CourseProgressOverview["learners"][number]["standings"];
 /**
  * Rows counted by standing, labelled as a learner's own report labels them.
  * Named by its section's heading, so a screen reader's list of tables tells a
- * page's apart. Wider than a phone, it scrolls inside its own container.
+ * page's apart.
  */
 function StandingsTable(props: {
   labelledBy: string;
@@ -335,10 +336,10 @@ function StandingsTable(props: {
   rows: { key: string; label: ReactNode; standings: Standings }[];
 }) {
   return (
-    <Table aria-labelledby={props.labelledBy}>
+    <ScrollingTable aria-labelledby={props.labelledBy}>
       <TableHeader>
         <TableRow>
-          <TableHead>{props.rowHeader}</TableHead>
+          <TableHead className={pinnedColumn}>{props.rowHeader}</TableHead>
           <TableHead className="text-right">
             <Trans context="A learner's standing on an objective">Not started</Trans>
           </TableHead>
@@ -356,10 +357,15 @@ function StandingsTable(props: {
       <TableBody>
         {props.rows.map(({ key, label, standings }) => (
           <TableRow key={key}>
-            {/* A row header, so each count is announced with whose it is. */}
+            {/* A row header, so each count is announced with whose it is; a long
+                word wraps, rather than widening it over the counts, padded as a
+                cell is. */}
             <TableHead
               scope="row"
-              className="min-w-36 font-normal whitespace-normal wrap-break-word"
+              className={cn(
+                "min-w-36 py-2 font-normal whitespace-normal wrap-anywhere",
+                pinnedColumn,
+              )}
             >
               {label}
             </TableHead>
@@ -370,6 +376,6 @@ function StandingsTable(props: {
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+    </ScrollingTable>
   );
 }

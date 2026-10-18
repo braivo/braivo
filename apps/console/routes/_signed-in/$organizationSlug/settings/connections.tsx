@@ -156,7 +156,7 @@ function HowToConnect() {
           </a>
         </Trans>
       </MutedText>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
         <code className="text-sm wrap-anywhere">{address}</code>
         <CopyButton value={address} label={t`Copy address`} />
       </div>

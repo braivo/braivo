@@ -38,6 +38,11 @@ msgstr "{0} is a learner."
 msgid "{0} is a teacher."
 msgstr "{0} is a teacher."
 
+#. placeholder {0}: group.name
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "{0}: {learners}"
+msgstr "{0}: {learners}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
 msgstr "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
@@ -99,6 +104,10 @@ msgstr "{hostname} is reserved. Choose another address."
 #: apps/console/components/organization-setup-form.tsx
 msgid "{hostname} is taken. Choose another address."
 msgstr "{hostname} is taken. Choose another address."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "{objective}: {counted}"
+msgstr "{objective}: {counted}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{objectiveTitle} comes next, but there's no practice for it yet."

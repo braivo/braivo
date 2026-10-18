@@ -44,7 +44,7 @@ export function CopyButton(props: {
     }
   }
 
-  const name = state === "copied" ? t`Copied` : props.label;
+  const copied = state === "copied";
   return (
     <>
       {props.iconOnly ? (
@@ -56,20 +56,48 @@ export function CopyButton(props: {
           title={props.label}
           onClick={copy}
         >
-          {state === "copied" ? <CheckIcon /> : <CopyIcon />}
+          {copied ? <CheckIcon /> : <CopyIcon />}
         </Button>
       ) : (
+        // An icon: in the light theme a link is the text's colour, and a phone
+        // shows no hover underline, so without one it reads as plain words.
+        // Padded for its focus ring and pulled back as much, so it lines up with
+        // the text when wrapped; 44px tall, a touch target's least, on a phone
+        // or a touch screen.
         <Button
           variant="link"
           size="sm"
-          className={cn("h-auto px-0", props.className)}
+          className={cn(
+            "-ml-1 h-auto px-1 has-data-[icon=inline-start]:pl-1 pointer-coarse:min-h-11 max-md:min-h-11",
+            props.className,
+          )}
           onClick={copy}
         >
-          {name}
+          {copied ? (
+            <CheckIcon data-icon="inline-start" aria-hidden="true" />
+          ) : (
+            <CopyIcon data-icon="inline-start" aria-hidden="true" />
+          )}
+          {/* Both labels in one cell, the other hidden, so it is as wide as the
+              longer and never moves between lines when "Copied" shows. */}
+          <span className="grid text-left">
+            <span
+              aria-hidden={copied || undefined}
+              className={cn("col-start-1 row-start-1", copied && "invisible")}
+            >
+              {props.label}
+            </span>
+            <span
+              aria-hidden={!copied || undefined}
+              className={cn("col-start-1 row-start-1", !copied && "invisible")}
+            >
+              {t`Copied`}
+            </span>
+          </span>
         </Button>
       )}
       <span role="status" className="sr-only">
-        {state === "copied" ? t`Copied.` : ""}
+        {copied ? t`Copied.` : ""}
       </span>
       {state === "failed" && (
         <p key={failures} role="alert" className="basis-full text-sm text-destructive">

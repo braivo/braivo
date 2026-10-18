@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Trans, useLingui } from "@lingui/react/macro";
+import { CheckIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, type Ref, useId } from "react";
 
 import { Button } from "#components/button";
@@ -91,40 +92,46 @@ export function ChoiceQuestion(props: {
               aria-disabled={locked}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
-                "h-auto justify-between py-3 text-left whitespace-normal aria-disabled:opacity-100",
+                "h-auto flex-wrap justify-between gap-y-1 py-3 text-left whitespace-normal aria-disabled:opacity-100",
                 // Important: the theme's unlayered outline border and fill (globals.css) would win.
                 correct && "border-primary! bg-primary/10!",
                 wrong && "border-destructive! bg-destructive/10!",
               )}
             >
               {/* `wrap-anywhere` lets a link shrink this flex item and wrap; the
-                  labels beside it keep their width (`shrink-0`). */}
+                  labels beside it keep their width (`shrink-0`), on a line of their
+                  own, at its end, where the text would leave them no room. */}
               <span className="flex items-center gap-3 wrap-anywhere">
                 {/* Hidden from the accessible name. Not `aria-keyshortcuts`, which
                     names physical keys: a digit takes Shift on AZERTY, not on QWERTY.
-                    Kept in place once locked, so the text does not shift. */}
+                    Kept in place once locked, so the text does not shift. Not on a
+                    touch screen, where it reads as a number, not a key. */}
                 {place < 9 && (
-                  <Kbd aria-hidden className={cn(locked && "invisible")}>
+                  <Kbd aria-hidden className={cn("pointer-coarse:hidden", locked && "invisible")}>
                     {place + 1}
                   </Kbd>
                 )}
                 {text}
               </span>
+              {/* An icon beside each label: in a theme whose primary is near
+                  black, the correct option's colour alone reads as selected. */}
               {correct && (
-                <span className="shrink-0 text-xs font-semibold text-primary">
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+                  <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
                   <Trans context="Marks the correct option">Correct</Trans>
                 </span>
               )}
               {wrong && (
-                <span className="shrink-0 text-xs font-semibold text-destructive">
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-destructive">
+                  <XIcon aria-hidden="true" className="size-3.5 shrink-0" />
                   <Trans>Your answer</Trans>
                 </span>
               )}
               {ungraded &&
                 (pending ? (
-                  <Spinner aria-label={t`Loading`} />
+                  <Spinner aria-label={t`Loading`} className="ml-auto" />
                 ) : (
-                  <span className="shrink-0 text-xs font-semibold">
+                  <span className="ml-auto shrink-0 text-xs font-semibold">
                     <Trans>Your answer</Trans>
                   </span>
                 ))}

@@ -708,12 +708,15 @@ function Rows(props: {
       {props.ids.map((id) => {
         const { name, tag } = props.label(id);
         return (
-          <li key={id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 ps-3 pe-1.5">
+          <li key={id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 ps-3 pe-1.5">
             <span className="min-w-0 grow basis-40 text-sm wrap-anywhere">
               {name}
               <NameTag tag={tag} />
             </span>
-            <span className="flex shrink-0 items-center gap-1">
+            {/* Pulled back by a button's padding, so wrapped below the name, as on
+                a phone, its first word lines up with it; beside it, the row's
+                gap makes up the pull. */}
+            <span className="-ms-3 flex shrink-0 items-center gap-1">
               {props.action?.(id)}
               <Button
                 type="button"
@@ -773,14 +776,15 @@ function Picker({
                   data-checked={option.checked}
                   onSelect={() => props.onToggle(option.id, !option.checked)}
                 >
-                  <span className="min-w-0 wrap-anywhere">
+                  {/* Growing, so the role taken sits at the end, by the check:
+                      with an auto margin of its own, it would split the free room
+                      with the check's and sit midway. */}
+                  <span className="min-w-0 flex-1 wrap-anywhere">
                     {option.name}
                     <NameTag tag={option.tag} />
                   </span>
                   {option.taken && (
-                    <span className="ms-auto shrink-0 text-xs text-muted-foreground">
-                      {option.taken}
-                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{option.taken}</span>
                   )}
                   {/* Said, not only shown as a check: the list's own "selected"
                       is the highlighted item, which choosing toggles. */}

@@ -25,7 +25,7 @@ export function LearnersSite(props: {
 
   const url = learnUrl(learnDomain, props.path);
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-2">
+    <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
       <MutedText className="wrap-anywhere">
         {props.at}{" "}
         <a href={url} target="_blank" rel="noreferrer" className="underline">
