@@ -138,7 +138,7 @@ export function AccountMenu({
               <DropdownMenuLabel className="text-xs text-muted-foreground">
                 <Trans>Language</Trans>
               </DropdownMenuLabel>
-              <LanguageRadioGroup onFailureChange={props.onLanguageFailureChange} />
+              <LanguageRadioGroup inset onFailureChange={props.onLanguageFailureChange} />
             </DropdownMenuGroup>
           </>
         )}

@@ -69,8 +69,12 @@ export function LanguageMenu(props: { onFailureChange?: (failed: boolean) => voi
 /**
  * Braivo's languages in a menu, each by its own name, the one spoken checked.
  * `onFailureChange`: `true` when a choice fails, `false` when another is made.
+ * `inset`: in a menu whose other items lead with an icon, under their words.
  */
-export function LanguageRadioGroup(props: { onFailureChange: (failed: boolean) => void }) {
+export function LanguageRadioGroup(props: {
+  inset?: boolean;
+  onFailureChange: (failed: boolean) => void;
+}) {
   const { i18n, t } = useLingui();
   return (
     <DropdownMenuRadioGroup
@@ -83,7 +87,13 @@ export function LanguageRadioGroup(props: { onFailureChange: (failed: boolean) =
       }}
     >
       {LOCALES.map((locale) => (
-        <DropdownMenuRadioItem key={locale} value={locale} lang={locale}>
+        <DropdownMenuRadioItem
+          key={locale}
+          value={locale}
+          lang={locale}
+          // `false` as absent: a `data-inset="false"` would still inset it.
+          inset={props.inset || undefined}
+        >
           {LANGUAGE_NAMES[locale]}
         </DropdownMenuRadioItem>
       ))}
