@@ -9,7 +9,7 @@ import { I18nProvider } from "@lingui/react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser/context";
+import { cdp, userEvent } from "vite-plus/test/browser/context";
 
 import { Button } from "./components/button.tsx";
 import { Checkbox } from "./components/checkbox.tsx";
@@ -86,14 +86,17 @@ function settled(element: Element): CSSStyleDeclaration {
   return getComputedStyle(element);
 }
 
-/** Its border, over its own fill, against its surface. */
-function borderContrast(element: Element): number {
+/** Its border, as drawn over its own fill. */
+function edge(element: Element): Rgba {
   const style = settled(element);
   expect(style.borderTopStyle, "a border drawn").not.toBe("none");
   expect(parseFloat(style.borderTopWidth), "a border drawn").toBeGreaterThan(0);
-  const under = surface(element);
-  const fill = over(paint(style.backgroundColor), under);
-  return contrast(over(paint(style.borderTopColor), fill), under);
+  return over(paint(style.borderTopColor), over(paint(style.backgroundColor), surface(element)));
+}
+
+/** Its border, over its own fill, against its surface. */
+function borderContrast(element: Element): number {
+  return contrast(edge(element), surface(element));
 }
 
 /**
@@ -246,14 +249,21 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
   test.each(fields)("%s shows focus at 3:1, invalid too", async (_, ui, { focused, outlined }) => {
     setTheme();
     const { rerender } = render(ui(false));
+    const unfocused = edge(outlined());
     await focusByKeyboard(focused());
     expect(outlineContrast(outlined())).toBeGreaterThanOrEqual(LEAST);
     // One line, as Linear's: 1px, over the border it recolours, and no ring.
-    const { outlineWidth, outlineOffset } = settled(outlined());
+    const { outlineWidth, outlineOffset, outlineColor } = settled(outlined());
     expect([outlineWidth, outlineOffset]).toEqual(["1px", "-1px"]);
     expect(ringDrawn(outlined())).toBe(false);
+    // A group's or a code slot's outline alone, not the input's inside it too.
+    if (focused() !== outlined()) expect(settled(focused()).outlineStyle).toBe("none");
+    // A 3:1 change from the edge it recolours, so focus shows: grey to grey would not.
+    expect(contrast(over(paint(outlineColor), unfocused), unfocused)).toBeGreaterThanOrEqual(LEAST);
     rerender(ui(true));
     expect(outlineContrast(outlined())).toBeGreaterThanOrEqual(LEAST);
+    // Outside the red edge, which red over it would not change.
+    expect(parseFloat(settled(outlined()).outlineOffset)).toBeGreaterThan(0);
   });
 
   test.each([
@@ -400,6 +410,36 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     expect(drawn(screen.getByRole("textbox"))).toEqual(correct);
   });
 
+  test("a graded answer shows focus outside its marked edge", async () => {
+    setTheme();
+    render(
+      <I18nProvider i18n={i18n}>
+        <ChoiceQuestion
+          prompt="Ich ___ müde."
+          options={[
+            { choice: 1, text: "bin" },
+            { choice: 2, text: "bist" },
+          ]}
+          chosen={2}
+          correctChoice={1}
+          onChoose={() => {}}
+        />
+        <TypedQuestion prompt="Ich ___ müde." sent="bin" outcome="success" onSubmit={() => {}} />
+      </I18nProvider>,
+    );
+    // Locked, they keep focus, for a keyboard learner reading the grade.
+    for (const answer of [
+      screen.getByRole("button", { name: /^bin\b/ }),
+      screen.getByRole("button", { name: /^bist\b/ }),
+      screen.getByRole("textbox"),
+    ]) {
+      await focusByKeyboard(answer);
+      expect(outlineContrast(answer)).toBeGreaterThanOrEqual(LEAST);
+      // Over the edge, in its colour or the ink, the outline would not show.
+      expect(parseFloat(settled(answer).outlineOffset)).toBeGreaterThan(0);
+    }
+  });
+
   test("a choice question shows focus at 3:1, clear of its options", async () => {
     setTheme();
     // As the learn app does: Continue, pressed by keyboard, focuses the next question.
@@ -469,4 +509,28 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
     await focusByKeyboard(screen.getByRole("link"));
     expect(outlineContrast(screen.getByRole("link"))).toBeGreaterThanOrEqual(LEAST);
   });
+});
+
+test("in forced colours, an invalid input group's focus is the system's highlight", async () => {
+  const forced = (value: string) =>
+    cdp().send("Emulation.setEmulatedMedia", { features: [{ name: "forced-colors", value }] });
+  await forced("active");
+  try {
+    render(
+      <>
+        <span style={{ color: "Highlight" }}>Highlight</span>
+        <InputGroup>
+          <InputGroupInput aria-label="Email" aria-invalid />
+        </InputGroup>
+      </>,
+    );
+    await focusByKeyboard(slot("input-group-control"));
+    // Not the red, which forced colours repaint as text: a focused field and an invalid one alike.
+    expect(settled(slot("input-group-control")).outlineStyle).toBe("none");
+    expect(settled(slot("input-group")).outlineColor).toBe(
+      getComputedStyle(screen.getByText("Highlight")).color,
+    );
+  } finally {
+    await forced("");
+  }
 });

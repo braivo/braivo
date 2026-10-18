@@ -90,6 +90,8 @@ export function ChoiceQuestion(props: {
               key={choice}
               variant="outline"
               aria-disabled={locked}
+              // Its focus outside the marked edge (globals.css).
+              data-outcome={correct ? "success" : wrong ? "failure" : undefined}
               onClick={() => !locked && onChoose(choice)}
               className={cn(
                 "h-auto flex-wrap justify-between gap-y-1 py-3 text-left whitespace-normal aria-disabled:opacity-100",

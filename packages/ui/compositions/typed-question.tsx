@@ -78,6 +78,8 @@ export function TypedQuestion(props: {
           aria-labelledby={promptId}
           aria-describedby={describedBy}
           aria-invalid={(sent !== undefined && outcome === "failure") || undefined}
+          // Its focus outside the marked edge (globals.css).
+          data-outcome={sent !== undefined ? outcome : undefined}
           placeholder={t`Type the answer`}
           maxLength={500}
           autoComplete="off"
