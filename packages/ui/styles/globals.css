@@ -183,6 +183,16 @@
 }
 
 /*
+ * Text smoothed by grayscale antialiasing, as macOS draws its own: the
+ * browser's default thickens every glyph there, so Inter reads a weight
+ * heavier, most on a dark page. Only macOS honours these.
+ */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
  * A field is bounded by `--input` on its own fill, not Rhea's tint without a
  * border, so it reads as a field on any surface (WCAG 1.4.11). Unlayered, to
  * win over the components' classes; a focused or invalid field, or a group
@@ -249,23 +259,71 @@
 }
 
 /*
- * Focus is an opaque `--ring`, so it shows at 3:1 where the components' rings
- * are 20% to 50% of it; an invalid control's too, its border still red.
- * Unlayered, over each ring utility's colour; its width and place are theirs.
- * A group's or a code slot's ring is for the input inside it. The browser's
- * outline, on what draws no ring (a plain link), is opaque too.
+ * Focus is a 1px opaque `--ring` outline, as Linear's, in place of shadcn's
+ * 3px rings, at 3:1 (WCAG 1.4.11):
+ * - where a component drew a ring (a `focus-visible:ring` class), just inside
+ *   its edge, over the border a field recolours as it takes focus: one line;
+ * - on a filled control (the main action, a checked box), 2px outside, clear
+ *   of the fill, its border unchanged;
+ * - elsewhere at the element's own offset, clear of text (a heading);
+ * - nowhere an element hides its outline and draws no ring: a menu's item
+ *   shows focus by its fill.
+ * Red on an invalid control. A group's or a code slot's stands for the input
+ * inside, which draws none. Unlayered, to win over the ring utilities and
+ * their `outline-hidden`. Keyed on shadcn's class names and Tailwind's
+ * `--tw-ring-shadow`: `contrast.browser.test.tsx` fails if an update changes
+ * either.
  */
 :is(
-  :focus-visible,
-  [data-slot="input-group"]:has(:focus-visible),
+  :focus-visible:not([class*="outline-hidden"], [class*="outline-none"]),
+  [class*="focus-visible:ring"]:focus-visible,
+  [data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible),
   [data-slot="input-otp-slot"][data-active="true"]
 ) {
-  --tw-ring-color: var(--ring);
+  --tw-ring-shadow: 0 0 #0000;
+  outline: 1px solid var(--ring);
 }
 
-@layer base {
-  * {
-    outline-color: var(--ring);
+:is([class*="focus-visible:ring"]:focus-visible, [data-slot="input-group"], [data-slot="input-otp-slot"]) {
+  outline-offset: -1px;
+}
+
+:is(
+    [data-slot="button"][data-variant="default"],
+    :is([data-slot="checkbox"], [data-slot="radio-group-item"]):not([data-state="unchecked"])
+  ):focus-visible {
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+:is(:focus-visible, [data-slot="input-otp-slot"][data-active="true"])[aria-invalid="true"],
+[data-slot="input-group"]:has([data-slot="input-group-control"][aria-invalid="true"]:focus-visible) {
+  outline-color: var(--destructive);
+}
+
+[data-slot="input-group-control"]:focus-visible,
+input[data-input-otp]:focus-visible {
+  outline: none;
+}
+
+/*
+ * Forced colours keep an outline but repaint it the border's colour: thicker
+ * and outside, so it still shows.
+ */
+@media (forced-colors: active) {
+  :is(
+    :focus-visible:not([class*="outline-hidden"], [class*="outline-none"]),
+    [class*="focus-visible:ring"]:focus-visible,
+    [data-slot="input-group"]:has([data-slot="input-group-control"]:focus-visible),
+    [data-slot="input-otp-slot"][data-active="true"]
+  ) {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  [data-slot="input-group-control"]:focus-visible,
+  input[data-input-otp]:focus-visible {
+    outline: none;
   }
 }
 

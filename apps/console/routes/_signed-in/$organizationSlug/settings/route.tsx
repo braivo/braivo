@@ -5,10 +5,20 @@ import { cn } from "@braivo/ui/lib/utils";
 import { msg, t } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
-import { ChevronLeftIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  CircleUserRoundIcon,
+  ContactRoundIcon,
+  GlobeIcon,
+  PlugIcon,
+  SettingsIcon,
+  SlidersHorizontalIcon,
+  UsersIcon,
+} from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { NoSuchSetting } from "#components/no-such-setting";
+import { PagePanel } from "#components/page-panel";
 import { appPageToReturnTo } from "#lib/app-page";
 import { pageHead } from "#lib/title";
 
@@ -31,7 +41,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings")({
  * touch target's least; marked while its page shows.
  */
 const navLink =
-  "flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm ring-sidebar-ring outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-3 data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground md:min-h-8";
+  "flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium ring-sidebar-ring outline-hidden text-sidebar-muted-foreground hover:bg-sidebar-hover hover:text-sidebar-accent-foreground focus-visible:ring-3 data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground md:min-h-8";
 
 /** Each fade's width on the phone's row, in px; its mask classes repeat it. */
 const FADE_WIDTH = 40;
@@ -58,26 +68,35 @@ function reveal(row: Element, link: Element | null) {
 
 /**
  * The pages, grouped as Linear's: the account's own, then the organization's,
- * for whoever administers it alone (access-39).
+ * for whoever administers it alone (access-39). Each with its icon, as
+ * Linear's; Groups wears the sidebar's.
  */
 const SECTIONS = [
   {
     heading: msg`Account`,
     administratorsOnly: false,
     pages: [
-      { to: "/$organizationSlug/settings/account", label: msg`Profile` },
-      { to: "/$organizationSlug/settings/preferences", label: msg`Preferences` },
-      { to: "/$organizationSlug/settings/connections", label: msg`Connected apps` },
+      { to: "/$organizationSlug/settings/account", label: msg`Profile`, Icon: CircleUserRoundIcon },
+      {
+        to: "/$organizationSlug/settings/preferences",
+        label: msg`Preferences`,
+        Icon: SlidersHorizontalIcon,
+      },
+      {
+        to: "/$organizationSlug/settings/connections",
+        label: msg`Connected apps`,
+        Icon: PlugIcon,
+      },
     ],
   },
   {
     heading: msg`Organization`,
     administratorsOnly: true,
     pages: [
-      { to: "/$organizationSlug/settings/general", label: msg`General` },
-      { to: "/$organizationSlug/settings/members", label: msg`Members` },
-      { to: "/$organizationSlug/settings/groups", label: msg`Groups` },
-      { to: "/$organizationSlug/settings/domains", label: msg`Domains` },
+      { to: "/$organizationSlug/settings/general", label: msg`General`, Icon: SettingsIcon },
+      { to: "/$organizationSlug/settings/members", label: msg`Members`, Icon: ContactRoundIcon },
+      { to: "/$organizationSlug/settings/groups", label: msg`Groups`, Icon: UsersIcon },
+      { to: "/$organizationSlug/settings/domains", label: msg`Domains`, Icon: GlobeIcon },
     ],
   },
 ] as const;
@@ -146,10 +165,14 @@ function Settings() {
   }, [router, returnTo]);
 
   return (
-    <div className="flex min-h-svh flex-col md:flex-row">
+    // The console's frame (`PagePanel`), the navigation as wide as its sidebar
+    // (shadcn's 16rem) in its place; on a phone, a row above the page. No
+    // `SidebarProvider`: nothing here collapses.
+    <div className="flex min-h-svh w-full bg-sidebar max-md:flex-col md:h-svh">
       <nav
         aria-label={t`Settings`}
-        className="border-b bg-sidebar p-3 text-sidebar-foreground md:w-60 md:shrink-0 md:border-r md:border-b-0"
+        data-variant="inset"
+        className="peer p-3 text-sidebar-foreground max-md:border-b md:w-64 md:shrink-0"
       >
         <a
           href={returnTo}
@@ -162,7 +185,10 @@ function Settings() {
           }}
         >
           <ChevronLeftIcon className="size-4 shrink-0" />
-          <span className="wrap-anywhere">{t`Back to ${organizationName}`}</span>
+          {/* One line, as the sidebar's rows; a name cut short shows whole on hover. */}
+          <span className="truncate" title={organizationName}>
+            {t`Back to ${organizationName}`}
+          </span>
         </a>
         {/* On a phone, one row scrolling sideways, the groups' headings for
             screen readers alone, so the page starts near the top, its padding
@@ -190,13 +216,14 @@ function Settings() {
                 {i18n._(group.heading)}
               </h2>
               <ul className="flex gap-1 md:flex-col md:gap-0.5">
-                {group.pages.map((page) => (
+                {group.pages.map(({ Icon, ...page }) => (
                   <li key={page.to}>
                     <Link
                       to={page.to}
                       params={{ organizationSlug }}
                       className={cn(navLink, "max-md:whitespace-nowrap")}
                     >
+                      <Icon className="size-4 shrink-0" />
                       {i18n._(page.label)}
                     </Link>
                   </li>
@@ -206,9 +233,9 @@ function Settings() {
           ))}
         </div>
       </nav>
-      <main className="w-full max-w-2xl p-6 md:px-10 md:py-12">
+      <PagePanel>
         <Outlet />
-      </main>
+      </PagePanel>
     </div>
   );
 }
