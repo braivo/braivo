@@ -31,7 +31,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses](0042-groups-scope-teaching.md)
 - [0044: Learners' links name a course by a random number within its organization](0044-course-numbers.md) — proposed
 - [0038: Organizations add their own domains, verified by a provisioner the installation supplies](0038-self-served-custom-domains.md)
-- [0020: Source content is an immutable text snapshot, extracted by whoever holds the file](0020-source-content.md)
+- [0020: Source content is an immutable text snapshot, added the same way whoever extracts it](0020-source-content.md)
 - [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)
 - [0022: A content owner's tools sign in through the device flow and act as them](0022-machine-access.md)
 - [0023: `braivo mcp` serves Braivo's API as tools, through the official SDK](0023-mcp-server.md)
@@ -43,6 +43,8 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0028: Originals are content-addressed files in a store the installation chooses](0028-original-files.md)
 - [0029: Braivo drafts a course from a source on request, checks it, and stores nothing](0029-server-drafting.md)
 - [0030: Braivo reads a PDF or photo into pages on request, and the caller adds them](0030-server-extraction.md)
+- [0046: Material enters as files, is extracted into snapshots in the background, and becomes sources](0046-material-in-steps.md)
+- [0047: Structured items in shapes Braivo defines, converted into keyed tasks by Braivo](0047-structured-items.md)
 - [0031: Each AI request is recorded, and an operator may set an organization's monthly quota](0031-ai-limits.md)
 - [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
 - [0033: Email goes out over SMTP, or to the log of an installation only its machine reaches](0033-email-over-smtp.md)

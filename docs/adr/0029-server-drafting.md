@@ -26,8 +26,9 @@ A content owner with a desktop agent drafts a course through `braivo mcp` at the
 
 ## Consequences
 
-- A draft takes as long as the model does, tens of seconds for a chapter. The route lifts Bun's ten-second idle timeout for its own request, the model's five-minute timeout bounding it instead; a proxy in front of Braivo must allow it too; if that proves too slow, drafting becomes a job, which this decision would then revisit.
+- A draft takes as long as the model does, tens of seconds for a chapter. The route lifts Bun's ten-second idle timeout for its own request, the model's five-minute timeout bounding it instead; a proxy in front of Braivo must allow it too; if that proves too slow, drafting becomes a job, which this decision would then revisit: [ADR 0046](0046-material-in-steps.md) (accepted, not built yet) does, with a goal and a scope of the source.
 - Drafting reads a source's text only; a PDF or photo is read into a source first ([ADR 0030](0030-server-extraction.md)).
+- Drafting generates: it writes new tasks from teaching material, and does not convert the questions a source already holds, such as a question bank's, which a converter keeps verbatim with their keys. It reads the whole source, so a book over 200,000 characters is split into sources to be drafted, and the audience is all it is told of the purpose; [ADR 0046](0046-material-in-steps.md) (accepted, not built yet) drafts a scope of a source, for a goal.
 - Each draft spends the installation's AI credits; each request is recorded, and an operator may set organizations a monthly quota ([ADR 0031](0031-ai-limits.md)).
 - The console reviews a draft on the source's page: each objective and task kept or dropped, a task's words and answers corrected (never its passages, which were located), what was refused listed, and what is kept authored as a course. A redraft's objectives are new ones; matching them to earlier ones waits for teachers who need it.
 - Accepting a draft in the console publishes it: the review happened there. What a tool writes through the API waits to be published in the console ([ADR 0039](0039-published-in-the-console.md)).
