@@ -1070,12 +1070,13 @@ describe("the console", () => {
       expect(router.state.location.pathname).toBe("/example/settings/domains");
     });
 
-    test("scroll the page shown into the phone's row, sideways alone", async () => {
+    test("scroll the page shown into the phone's row, clear of its fade, sideways alone", async () => {
       renderAt("/example/settings/account");
       const nav = await screen.findByRole("navigation", { name: "Settings" });
       const members = within(nav).getByRole("link", { name: "Members" });
       const row = members.closest("ul")!.parentElement!;
-      // happy-dom lays nothing out: the row 300px wide, Members past its right edge.
+      // happy-dom lays nothing out: the row 300px wide, Members past its right
+      // edge, so it comes to its fade's and focus ring's, 44px in.
       const box = (left: number, right: number) => () => ({ left, right }) as DOMRect;
       row.getBoundingClientRect = box(0, 300);
       members.getBoundingClientRect = box(400, 480);
@@ -1083,8 +1084,50 @@ describe("the console", () => {
       onTestFinished(() => scrollTo.mockRestore());
 
       fireEvent.click(members);
-      await vi.waitFor(() => expect(row.scrollLeft).toBe(180));
+      await vi.waitFor(() => expect(row.scrollLeft).toBe(224));
       expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    test("scroll a link tabbed to in the phone's row clear of either fade", async () => {
+      renderAt("/example/settings/account");
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      const profile = within(nav).getByRole("link", { name: "Profile" });
+      const apps = within(nav).getByRole("link", { name: "Connected apps" });
+      const row = apps.closest("ul")!.parentElement!;
+      // happy-dom lays nothing out: each link inside the row's 300px, but
+      // under a fade, whose clearance with the focus ring is 44px.
+      const box = (left: number, right: number) => () => ({ left, right }) as DOMRect;
+      row.getBoundingClientRect = box(0, 300);
+      apps.getBoundingClientRect = box(180, 290);
+      profile.getBoundingClientRect = box(15, 85);
+
+      apps.focus();
+      expect(row.scrollLeft).toBe(34);
+      profile.focus();
+      expect(row.scrollLeft).toBe(5);
+    });
+
+    test("fade the phone's row on each side hiding pages, and only there", async () => {
+      renderAt("/example/settings/account");
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      const row = within(nav).getByRole("link", { name: "Members" }).closest("ul")!.parentElement!;
+      const fades = () =>
+        ["mask-l", "mask-r"].filter((side) => row.className.includes(`max-md:${side}-from`));
+      expect(fades()).toEqual([]);
+      // happy-dom lays nothing out: the row 300px wide, its pages 600px.
+      Object.defineProperties(row, {
+        clientWidth: { value: 300 },
+        scrollWidth: { value: 600 },
+      });
+
+      fireEvent.scroll(row);
+      await vi.waitFor(() => expect(fades()).toEqual(["mask-r"]));
+      row.scrollLeft = 150;
+      fireEvent.scroll(row);
+      await vi.waitFor(() => expect(fades()).toEqual(["mask-l", "mask-r"]));
+      row.scrollLeft = 300;
+      fireEvent.scroll(row);
+      await vi.waitFor(() => expect(fades()).toEqual(["mask-l"]));
     });
 
     test("say a page they do not have is none, keeping their navigation and the way back", async () => {
