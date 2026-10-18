@@ -66,9 +66,9 @@ const BUILDING = `To build a course:
 author_tasks and create_course answer, for each task and the course, whether
 it was added or already there, and whether it is published; learners do not
 see what waits. Give the person their reviewUrl, the console page where they
-publish it: the course's, or for tasks the organization's, which lists its
-courses with how many tasks wait in each. A task whose objective is in no
-course shows on none, so put its objective in a course. An answer without a
+publish it: the course's, or for tasks the organization's, which lists the
+courses and objectives with tasks waiting. Learners reach a task only through
+a published course its objective is in, so put its objective in a course. An answer without a
 reviewUrl still means the write succeeded: send the person to their courses
 in Braivo's console.
 
@@ -408,7 +408,7 @@ export function createMcpServer(
     {
       title: "List objectives",
       description:
-        "An organization's objectives, by title. Reuse one only for the same learning target, since its tasks serve every course it is in.",
+        "An organization's objectives, by title, each with the courses it is in and how many of its tasks wait for review. Reuse one only for the same learning target, since its tasks serve every course it is in.",
       inputSchema: z.object({ organizationId }),
       annotations: READ_ONLY,
     },

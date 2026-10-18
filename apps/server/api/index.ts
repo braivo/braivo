@@ -365,9 +365,11 @@
 // `error` naming the objective.
 //
 // `GET /api/organizations/:organizationId/objectives` — answers
-// `{ "objectives": [{ "id": "…", "title": "…" }] }`, by title. That is a listing
-// order and not content order: the sequence a learner meets objectives in
-// belongs to a course.
+// `{ "objectives": [{ "id": "…", "title": "…", "courseIds": ["…"],
+// "waitingTaskCount": 2 }] }`, by title: the courses each is in, which its
+// tasks serve, and how many of its tasks wait for review (ADR 0039). That is
+// a listing order and not content order: the sequence a learner meets
+// objectives in belongs to a course.
 //
 // `POST /api/organizations/:organizationId/tasks` — adds tasks to objectives
 // that already exist, at most 1000, citing at most 200 quotes in all:

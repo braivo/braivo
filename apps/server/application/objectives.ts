@@ -4,7 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { isKey, isStorableText, KEY_RULE, MAX_TITLE } from "../content/index.ts";
-import { createObjectives, type Objective, readObjectives } from "../persistence/index.ts";
+import { createObjectives, type ObjectiveSummary, readObjectives } from "../persistence/index.ts";
 import { assertMayAdminister } from "./permission.ts";
 
 /**
@@ -72,13 +72,15 @@ export async function defineObjectives(input: {
 
 /**
  * Every objective an organization has defined, by title: a listing order, not
- * content order, which belongs to a course.
+ * content order, which belongs to a course. Each with the courses it is in
+ * and its tasks waiting for review, so a task in no course, or in several, is
+ * found under its objective (ADR 0039).
  */
 export async function listObjectives(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
-}): Promise<Objective[]> {
+}): Promise<ObjectiveSummary[]> {
   const { database, organizationId, actingAs } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });

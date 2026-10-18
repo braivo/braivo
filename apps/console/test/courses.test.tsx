@@ -56,7 +56,10 @@ describe("the console", () => {
   });
 
   test("marks a course, or a published course's tasks, waiting for review in the list", async () => {
-    const listed = { published: true, waitingTaskCount: 0 };
+    // The courses' own counts, which count a shared objective's tasks in each,
+    // are not what the list says: each task is listed once.
+    const listed = { published: true, waitingTaskCount: 9 };
+    const objective = { courseIds: [], waitingTaskCount: 0 };
     renderAt("/example", {
       braivo: {
         listCourses: async () => [
@@ -69,14 +72,21 @@ describe("the console", () => {
             urlLabel: "french",
             published: false,
           },
+          { ...listed, id: "c3", number: 1003, title: "German", urlLabel: "german" },
+        ],
+        listObjectives: async () => [
+          { ...objective, id: "o1", title: "Cases", courseIds: ["c3"], waitingTaskCount: 2 },
+          { ...objective, id: "o2", title: "Umlauts", courseIds: ["c3"], waitingTaskCount: 1 },
+          { ...objective, id: "o3", title: "Greetings", courseIds: ["c1"] },
           {
-            ...listed,
-            id: "c3",
-            number: 1003,
-            title: "German",
-            urlLabel: "german",
-            waitingTaskCount: 3,
+            ...objective,
+            id: "o4",
+            title: "Numbers",
+            courseIds: ["c2", "c3"],
+            waitingTaskCount: 4,
           },
+          { ...objective, id: "o5", title: "Colours", waitingTaskCount: 1 },
+          { ...objective, id: "o6", title: "Weather" },
         ],
       },
     });
@@ -90,13 +100,54 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Spanish" }).closest("li")!.textContent).toBe(
       "Spanish",
     );
-    // A published course's new tasks, counted.
+    // A published course's new tasks, counted: those of its objectives in no other course.
     const german = screen
       .getByRole("link", { name: "German (3 tasks need review)" })
       .closest("li")!;
     expect(within(german).getByText("3 tasks need review").getAttribute("aria-hidden")).toBe(
       "true",
     );
+    // A shared objective's, and one in no course, under the objective instead.
+    const objectives = within(screen.getByRole("region", { name: "Other objectives" }));
+    expect(objectives.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Numbers (4 tasks need review)4 tasks need reviewIn 2 courses",
+      "Colours (1 task needs review)1 task needs reviewIn no course",
+      // In no course, nothing waiting: listed still, as no course leads to it.
+      "WeatherIn no course",
+    ]);
+    expect(
+      objectives.getByRole("link", { name: "Colours (1 task needs review)" }).getAttribute("href"),
+    ).toBe("/example/objectives/o5");
+  });
+
+  test("fails the page, to try again, when its objectives are not answered in time", async () => {
+    vi.useFakeTimers();
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [],
+        listObjectives: (_id: string, options?: { signal?: AbortSignal }) => stall(options),
+      },
+    });
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+  });
+
+  test("lists no other objective while every one is in a course of its own", async () => {
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [
+          { id: "c1", number: 1001, title: "Spanish", urlLabel: "spanish", published: true },
+        ],
+        listObjectives: async () => [
+          { id: "o1", title: "Greetings", courseIds: ["c1"], waitingTaskCount: 2 },
+        ],
+      },
+    });
+
+    expect(await screen.findByRole("link", { name: "Spanish (2 tasks need review)" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Other objectives" })).toBeNull();
   });
 
   test("says where an organization's learners practise, or that they have nowhere yet", async () => {
@@ -946,7 +997,7 @@ describe("the console", () => {
         "Another task of this objective is already the same. Review its tasks before editing or publishing.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Reload the course" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reload the page" })).toBeNull();
     expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -955,7 +1006,7 @@ describe("the console", () => {
     ).toBeTruthy();
     expect(defineTasks).toHaveBeenCalledTimes(3);
     // Saving again cannot help: reloading shows the course as stored.
-    fireEvent.click(screen.getByRole("button", { name: "Reload the course" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reload the page" }));
     await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" }));
   });
@@ -979,7 +1030,7 @@ describe("the console", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    const reload = await screen.findByRole("button", { name: "Reload the course" });
+    const reload = await screen.findByRole("button", { name: "Reload the page" });
     const invalidate = vi.spyOn(router, "invalidate");
     fireEvent.click(reload);
     fireEvent.click(reload);

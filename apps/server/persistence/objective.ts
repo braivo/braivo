@@ -2,12 +2,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { objective } from "@braivo/db/schema";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { courseObjective, objective, task } from "@braivo/db/schema";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { ConflictingKey } from "./key.ts";
 
 export type Objective = { id: string; title: string };
+
+/**
+ * An objective as listed: `courseIds`, the courses it is in, which its tasks
+ * serve; `waitingTaskCount`, its tasks waiting for review (ADR 0039).
+ */
+export type ObjectiveSummary = Objective & { courseIds: string[]; waitingTaskCount: number };
 
 /**
  * Registers learning targets for a content owner and returns their IDs,
@@ -108,7 +114,8 @@ export async function findObjectivesOutsideOrganization(
 }
 
 /**
- * Every objective a content owner has defined, by title.
+ * Every objective a content owner has defined, by title, each with the courses
+ * it is in and how many of its tasks wait for review: unretired, unpublished.
  *
  * This is a listing order, not content order. The sequence a learner meets
  * objectives in comes from a course, and reaches `learning` as an already-ordered
@@ -118,12 +125,39 @@ export async function findObjectivesOutsideOrganization(
 export async function readObjectives(
   database: Database,
   organizationId: string,
-): Promise<Objective[]> {
-  return database
-    .select({ id: objective.id, title: objective.title })
-    .from(objective)
-    .where(eq(objective.organizationId, organizationId))
-    .orderBy(asc(objective.title), asc(objective.id));
+): Promise<ObjectiveSummary[]> {
+  // Three reads, not one joined, which would multiply tasks by courses.
+  const [objectives, placements, waiting] = await Promise.all([
+    database
+      .select({ id: objective.id, title: objective.title })
+      .from(objective)
+      .where(eq(objective.organizationId, organizationId))
+      .orderBy(asc(objective.title), asc(objective.id)),
+    // A deleted course's rows are removed with it.
+    database
+      .select({ objectiveId: courseObjective.objectiveId, courseId: courseObjective.courseId })
+      .from(courseObjective)
+      .where(eq(courseObjective.organizationId, organizationId))
+      .orderBy(asc(courseObjective.courseId)),
+    database
+      .select({ objectiveId: task.objectiveId, count: sql<number>`count(*)::int` })
+      .from(task)
+      .where(
+        and(
+          eq(task.organizationId, organizationId),
+          isNull(task.publishedAt),
+          isNull(task.retiredAt),
+        ),
+      )
+      .groupBy(task.objectiveId),
+  ]);
+  const courseIds = Map.groupBy(placements, ({ objectiveId }) => objectiveId);
+  const counts = new Map(waiting.map(({ objectiveId, count }) => [objectiveId, count]));
+  return objectives.map((row) => ({
+    ...row,
+    courseIds: (courseIds.get(row.id) ?? []).map(({ courseId }) => courseId),
+    waitingTaskCount: counts.get(row.id) ?? 0,
+  }));
 }
 
 /** One objective, by its ID alone: the caller has already established it may be read. */

@@ -1,0 +1,219 @@
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { Heading, MutedText } from "@braivo/ui";
+import { Badge } from "@braivo/ui/components/badge";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { Fragment, useRef, useState } from "react";
+
+import {
+  formatTaskCount,
+  type PublishAction,
+  PublishBar,
+  type ReviewTask,
+  SelectAll,
+  TaskList,
+  usePublish,
+  useTaskSelection,
+} from "#components/task-review";
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { pageHead } from "#lib/title";
+
+/**
+ * An objective's tasks, reviewed once for every course it is in, or for none
+ * (ADR 0039): where the organization's page leads for an objective in no
+ * course, or in several with tasks waiting. A course's page shows them too.
+ */
+export const Route = createFileRoute("/_signed-in/$organizationSlug/objectives/$objectiveId")({
+  beforeLoad: administratorsOnly,
+  loader: async ({ context, params, abortController }) => {
+    const organizationId = context.organization.id;
+    const { objectiveId } = params;
+    // Bounded, since a correction or a retirement waits for this reload.
+    const signal = withDeadline(abortController.signal, REQUEST_DEADLINE_MS);
+    const [tasks, objectives, courses, sources] = await Promise.all([
+      // Read through its organization, which Braivo checks owns it.
+      orNotFound(context.braivo.listTasks({ organizationId, objectiveId }, { signal })),
+      orNotFound(context.braivo.listObjectives(organizationId, { signal })),
+      orNotFound(context.braivo.listCourses(organizationId, { signal })),
+      orNotFound(context.braivo.listSources(organizationId, { signal })),
+    ]);
+    const objective = objectives.find(({ id }) => id === objectiveId);
+    if (!objective) throw notFound();
+
+    return {
+      objective,
+      tasks,
+      // The courses its tasks serve, by title, as listed.
+      courses: courses.filter(({ id }) => objective.courseIds.includes(id)),
+      sources: new Map(sources.map((source) => [source.id, source])),
+    };
+  },
+  head: (head) => pageHead(head, head.loaderData?.objective.title),
+  component: ObjectivePage,
+  notFoundComponent: () => <p>This objective does not exist, or you do not manage it.</p>,
+});
+
+/** Keyed by objective, so nothing said or pending on one objective's page carries to another's. */
+function ObjectivePage() {
+  return <Objective key={Route.useParams().objectiveId} />;
+}
+
+function Objective() {
+  const { objective, tasks, courses, sources } = Route.useLoaderData();
+  const { organization } = Route.useRouteContext();
+  // Focusable, to receive focus once Publish is done, or a task's change.
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Present from the start, so what Publish did is announced.
+  const [statusMessage, setStatusMessage] = useState("");
+  const selection = useTaskSelection();
+  const waiting = tasks.filter(({ published }) => !published);
+  const selected = waiting.filter(({ id }) => selection.selectedIds.has(id));
+  // One editor on the page, open only while its task is listed, as on a course's.
+  const [editingId, setEditingId] = useState<string>();
+  const editing = tasks.some(({ id }) => id === editingId) ? editingId : undefined;
+  const publication = usePublish({
+    onStart: () => setStatusMessage(""),
+    onDone: (message) => {
+      heading.current?.focus();
+      setStatusMessage(message);
+    },
+  });
+  const publishedCourses = courses.filter(({ published }) => published);
+  const focusHeading = () => heading.current?.focus();
+
+  const publishAction = (
+    action: "selected" | "all",
+    label: string,
+    sent: readonly ReviewTask[],
+  ): PublishAction => ({
+    action,
+    label,
+    disabled: editing !== undefined || sent.length === 0,
+    // Publishing here reaches each published course it is in: named first.
+    confirm:
+      publishedCourses.length === 0
+        ? undefined
+        : {
+            title: `Publish ${formatTaskCount(sent.length)}?`,
+            description: `Learners of ${publishedCourses.length === 1 ? "this course" : "these courses"} will be asked ${sent.length === 1 ? "it" : "them"}:`,
+            courses: publishedCourses,
+          },
+    onPublish: () => {
+      if (editing !== undefined) return;
+      void publication.publish(
+        action,
+        { taskIds: sent.map(({ id }) => id) },
+        `Published ${formatTaskCount(sent.length)}.`,
+      );
+    },
+  });
+
+  return (
+    <>
+      {/* The way back to the list that leads here (docs/apps.md). */}
+      <Link
+        to="/$organizationSlug"
+        params={{ organizationSlug: organization.slug }}
+        className="mb-2 inline-block text-sm text-muted-foreground underline"
+      >
+        Courses
+      </Link>
+      <Heading ref={heading} tabIndex={-1}>
+        {objective.title}
+      </Heading>
+      <MutedText className="mb-4 block wrap-break-word">
+        {courses.length === 0 ? (
+          "In no course: learners are asked its published tasks only once a published course includes it."
+        ) : (
+          <>
+            In{" "}
+            {courses.map((course, index) => (
+              <Fragment key={course.id}>
+                {index > 0 && ", "}
+                <Link
+                  to="/$organizationSlug/courses/$courseId"
+                  params={{ organizationSlug: organization.slug, courseId: course.id }}
+                  className="underline wrap-anywhere"
+                >
+                  {course.title}
+                </Link>
+                {!course.published && " (not published)"}
+              </Fragment>
+            ))}
+            .
+          </>
+        )}
+      </MutedText>
+      {waiting.length > 0 && (
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Badge variant="outline">Needs review</Badge>
+            <MutedText className="wrap-break-word">
+              {`${formatTaskCount(waiting.length)} below ${waiting.length === 1 ? "waits" : "wait"} for review: `}
+              {publishedCourses.length > 0
+                ? `learners aren't asked ${waiting.length === 1 ? "it" : "them"} until you publish.`
+                : `learners are asked ${waiting.length === 1 ? "it" : "them"} once you publish and a published course includes this objective.`}
+            </MutedText>
+          </div>
+          <PublishBar
+            actions={[
+              publishAction("selected", `Publish selected (${selected.length})`, selected),
+              publishAction("all", `Publish all (${waiting.length})`, waiting),
+            ]}
+            publishing={publication.publishing}
+            note={editing !== undefined ? "Save or cancel the open edit to publish." : undefined}
+            failures={publication.failures}
+          />
+        </>
+      )}
+      <MutedText role="status" className="mb-4 block empty:mb-0">
+        {statusMessage}
+      </MutedText>
+      {/* Whatever is focused or scrolled to stops clear of Publish's sticky buttons. */}
+      {waiting.length > 0 && (
+        <section aria-labelledby="waiting" className="mb-10 flex flex-col gap-3 **:scroll-mt-40">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <Heading level={2} id="waiting" className="mb-0">
+              Waiting for review
+            </Heading>
+            <SelectAll
+              taskIds={waiting.map(({ id }) => id)}
+              selection={selection}
+              objectiveTitle={objective.title}
+            />
+          </div>
+          <TaskList
+            objectiveId={objective.id}
+            tasks={tasks}
+            waiting
+            sources={sources}
+            selection={selection}
+            editing={editing}
+            onEdit={setEditingId}
+            pending={publication.publishing !== undefined}
+            onChanged={focusHeading}
+          />
+        </section>
+      )}
+      <section aria-labelledby="published" className="flex flex-col gap-3 **:scroll-mt-40">
+        <Heading level={2} id="published">
+          Published tasks
+        </Heading>
+        {tasks.length === waiting.length && (
+          <MutedText>None yet: learners are not asked about it.</MutedText>
+        )}
+        <TaskList
+          objectiveId={objective.id}
+          tasks={tasks}
+          sources={sources}
+          editing={editing}
+          onEdit={setEditingId}
+          pending={publication.publishing !== undefined}
+          onChanged={focusHeading}
+        />
+      </section>
+    </>
+  );
+}

@@ -55,9 +55,10 @@ export function OrganizationSidebar(props: {
   // Navigated otherwise (back, forward) while it is open.
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
   const closeOnFollow = useCloseDrawerOnFollow();
-  // The section shown: a source's pages are in Sources; a course's in
-  // Courses, but in Groups for its reports opened from Groups, and all of
-  // them for a teacher, who has only Groups.
+  // The section shown: a source's pages are in Sources; a course's and an
+  // objective's in Courses, but a course's in Groups for its reports opened
+  // from Groups, and for a teacher, who has only Groups (an objective's page
+  // is an administrator's alone).
   const section = useMatches({
     select: (matches) => {
       const under = (path: string) =>
@@ -70,7 +71,13 @@ export function OrganizationSidebar(props: {
       if (under("groups") || (under("courses") && (fromGroups || !organization.administers))) {
         return "groups";
       }
-      if (under("courses") || matches.some(({ routeId }) => routeId === HOME)) return "courses";
+      if (
+        under("courses") ||
+        under("objectives") ||
+        matches.some(({ routeId }) => routeId === HOME)
+      ) {
+        return "courses";
+      }
     },
   });
 

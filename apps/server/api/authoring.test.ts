@@ -442,8 +442,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     // Titles come back trimmed, and listed by title rather than by creation.
     expect(await listed.json()).toMatchObject({
       objectives: expect.arrayContaining([
-        { id: objectiveIds[0]!, title: "Conditional" },
-        { id: objectiveIds[1]!, title: "Subjunctive" },
+        { id: objectiveIds[0]!, title: "Conditional", courseIds: [], waitingTaskCount: 0 },
+        { id: objectiveIds[1]!, title: "Subjunctive", courseIds: [], waitingTaskCount: 0 },
       ]),
     });
   });
