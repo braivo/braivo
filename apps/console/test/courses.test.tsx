@@ -791,7 +791,9 @@ describe("the console", () => {
 
     const failed = screen.getByText("The task could not be corrected. Try again.");
     expect(document.activeElement).toBe(failed.closest("[role=alert]"));
-    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+    expect((screen.getByLabelText("Question") as HTMLTextAreaElement).value).toBe(
+      "Hi, in Spanish?",
+    );
     expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(
       false,
     );
@@ -987,7 +989,9 @@ describe("the console", () => {
 
     const failed = await screen.findByText("The task could not be corrected. Try again.");
     // Still open with the edit, to save again, and the reason focused.
-    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+    expect((screen.getByLabelText("Question") as HTMLTextAreaElement).value).toBe(
+      "Hi, in Spanish?",
+    );
     expect(document.activeElement).toBe(failed.closest("[role=alert]"));
 
     // The same as another task: the edit's to change, not the page's to reload.
@@ -998,7 +1002,9 @@ describe("the console", () => {
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reload the page" })).toBeNull();
-    expect((screen.getByLabelText("Question") as HTMLInputElement).value).toBe("Hi, in Spanish?");
+    expect((screen.getByLabelText("Question") as HTMLTextAreaElement).value).toBe(
+      "Hi, in Spanish?",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(
