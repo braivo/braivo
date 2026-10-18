@@ -36,11 +36,14 @@ export function AuthoredTask(props: {
   const { task, status, action, notice, children } = props;
 
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle>{task.prompt}</CardTitle>
-        {action && <CardAction>{action}</CardAction>}
-        {status && <div>{status}</div>}
+    <Card size="sm" className="@container/task">
+      {/* In a narrow card (a phone's), `action` goes under the prompt, which
+          keeps the full width, at the end of `status`'s row or the next;
+          `status` first, as that row reads. Long words wrap, not clipped. */}
+      <CardHeader className="@max-sm/task:flex @max-sm/task:flex-wrap @max-sm/task:items-center">
+        <CardTitle className="wrap-anywhere @max-sm/task:basis-full">{task.prompt}</CardTitle>
+        {status && <div className="wrap-anywhere">{status}</div>}
+        {action && <CardAction className="@max-sm/task:ms-auto">{action}</CardAction>}
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {notice}

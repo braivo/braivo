@@ -5,6 +5,7 @@ import { AuthoredTask, SourcePassage } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
+import { Checkbox } from "@braivo/ui/components/checkbox";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 const meta = {
@@ -20,7 +21,7 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96">
+      <div className="w-xl">
         <Story />
       </div>
     ),
@@ -59,8 +60,15 @@ export const UnderReview: Story = {
   },
 };
 
-/** Written by a tool, waiting for its owner to publish it; actions beside a long prompt wrap. */
+/** Written by a tool, waiting for its owner to publish it: in a narrow card, the actions go under the prompt. */
 export const Waiting: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-72">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     task: {
       kind: "choice",
@@ -68,11 +76,21 @@ export const Waiting: Story = {
       options: ["Vero", "Falso"],
       answer: 1,
     },
-    status: <Badge variant="outline">Waiting</Badge>,
+    status: (
+      <span className="flex items-center gap-2">
+        <Checkbox aria-label="Select the task" />
+        <Badge variant="outline">Waiting</Badge>
+      </span>
+    ),
     action: (
-      <Button variant="outline" size="sm">
-        Retire
-      </Button>
+      <span className="flex items-center gap-2">
+        <Button variant="ghost" size="sm">
+          Edit
+        </Button>
+        <Button variant="outline" size="sm">
+          Retire
+        </Button>
+      </span>
     ),
   },
 };
