@@ -60,12 +60,14 @@ function Preferences() {
             aria-labelledby={`${id}-theme`}
             value={theme}
             onValueChange={(value) => setTheme(value as Theme)}
-            className="flex flex-wrap gap-x-6 gap-y-3"
+            className="flex flex-wrap gap-x-6 gap-y-0 md:gap-y-3"
           >
             {themes.map(({ value, label, Icon }) => (
               <div key={value} className="flex items-center gap-2">
                 <RadioGroupItem value={value} id={`${id}-${value}`} />
-                <FieldLabel htmlFor={`${id}-${value}`} className="font-normal">
+                {/* On a phone, a touch target's least (44px), as Settings'
+                    links; that height spaces the rows, so they need no gap. */}
+                <FieldLabel htmlFor={`${id}-${value}`} className="min-h-11 font-normal md:min-h-0">
                   <Icon aria-hidden="true" className="size-4" />
                   {label}
                 </FieldLabel>
