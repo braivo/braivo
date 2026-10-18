@@ -6,7 +6,7 @@ Use this document to resolve product trade-offs. If a task conflicts with the pr
 
 ## Users
 
-- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive.
+- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves.
 - **Learner:** a person using a learning experience powered by Braivo.
 - **Developer:** someone embedding Braivo into an app, LMS, or internal tool through its API.
 

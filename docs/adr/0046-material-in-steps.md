@@ -1,0 +1,56 @@
+# 0046: Material enters as files, is extracted into snapshots in the background, and becomes sources
+
+Status: accepted (2026-10-18). Would amend [ADR 0020](0020-source-content.md), [ADR 0028](0028-original-files.md), [ADR 0029](0029-server-drafting.md), [ADR 0030](0030-server-extraction.md), and [ADR 0045](0045-remote-mcp.md), each with the change that implements its part. [ADR 0047](0047-structured-items.md) builds structured imports on it.
+
+## Context
+
+Braivo promises "bring your materials, get adaptive practice" ([product.md](../product.md), core job 1), and the path from a file to practice was built for one chapter at a time: one file per upload, read by a model in one synchronous answer (a PDF of at most 24 MB), added as a source at once, unreviewed, then drafted whole for an audience ([ADR 0028](0028-original-files.md), [ADR 0029](0029-server-drafting.md), [ADR 0030](0030-server-extraction.md)).
+
+Real material does not fit. A driving-theory exam's official question bank is a PDF of hundreds of pages, over the reading limit, holding thousands of numbered true/false statements, most about a picture. The console refuses to read it, a hosted assistant cannot send it, and an assistant writing it inline would emit hundreds of thousands of output tokens. Yet its text layer parses without a model, and the same file should become two practices: the exam's statements, verbatim, and the language a learner needs to read them.
+
+The maintainer's direction (2026-10-18): several files upload at once; processing runs in the background, on Cloudflare Queues where Braivo runs on Workers; importing through MCP and the CLI is a primary path, the CLI with the owner's agent the default for advanced imports, so owners reuse the AI they pay for; organizations with AI credits may have Braivo's servers extract instead; and learners, not only schools, bring material for their own practice.
+
+## Decision
+
+- **Five things, named apart.** A _file_ keeps bytes: an upload, or a _derived file_ made from one (a picture cut from a page). An _extraction_ gets text, and optionally structured items and pictures, out of ordered files. A _snapshot_ is one finished, immutable state of an extraction. A _source_ is immutable, citable text saved from a snapshot, or sent directly as today. _Learning content_ is prepared from sources for a purpose: drafted, converted from structured items ([ADR 0047](0047-structured-items.md)), or written by hand. A file may back several extractions and sources, and a source several courses.
+- **Direct sources stay first-class.** Text, pages, or cues sent to the source endpoints, with an optional original, make a source without an extraction or Braivo's AI; an installation keeping no files is still complete.
+- **Uploading is its own step.** Several files upload at once, each independently; the organization's files are listed with what uses them and what can be done next. A file's name and type are set by its first upload and change only when the owner changes them. Derived files are not uploads: they record where they came from, are checked images, and go when nothing names them. A file nothing uses may be deleted, without ever leaving a record whose bytes are gone, even when an upload of the same bytes races the deletion.
+- **An extraction works on pages, then freezes a snapshot.** Its inputs are ordered files: one, several PDFs, or several photos, never mixed, combined only when the owner says so. While it works, each physical page is a row with its text, its state (not processed, or processed and flagged: no text, visual content, doubtful, failed), and a revision. It may cover any pages, a sample first, and extend later without redoing them. A person's correction of a page wins over a job's result for it. Each operation is recorded — extractor, version, parameters, model or script hash, pages — so a snapshot says what made each page and item. The extractors:
+  - `pdf-text`, the PDF's text layer, without a model;
+  - `ai-pages`, a model transcribing the pages chosen for it, under the AI gate and quota ([ADR 0031](0031-ai-limits.md));
+  - `ai-items`, a model proposing structured items ([ADR 0047](0047-structured-items.md)), built when an organization with credits needs it;
+  - `external`, whatever the owner's own tools produced, uploaded as a file in the snapshot schema with the hash of the script that made it. Braivo keeps a script if the owner asks, and never runs it.
+
+  Freezing writes a snapshot as one immutable, versioned JSON document in the file store, from one consistent set of page revisions, refusing items made from pages corrected since; a crash leaves no snapshot or a whole one. Running again makes another snapshot, comparable page by page and item by item. An extraction is labelled a sample, partial, or complete by the pages it has processed.
+
+- **Saving makes a source from a snapshot.** A range of pages with words becomes a paged source under the source rules as they stand (no empty page, no placeholder text, at most 10 MB). Each source page records the file, physical page, and input title it came from, so a citation from a source spanning several files names its document, and renaming a file later rewrites no citation. A source's identity ([ADR 0024](0024-idempotent-authoring.md)) includes that page map, not the snapshot: the same pages saved twice are one source, which records every snapshot it came from. Saving checks structure, not correctness, and a tool may save at once; the review that guards learners stays publication ([ADR 0039](0039-published-in-the-console.md)).
+- **What is kept.** A snapshot's document is kept for the first source saved from it, and while a conversion or task uses it; a later snapshot that only saved the same source again may expire, its provenance kept with the source; an extraction left unused expires after 30 days. A source nothing cites and nothing in progress names may be deleted, and reads stop answering it at once (reading sources through Hyperdrive's cache assumed they were never removed, [ADR 0034](0034-node-postgres.md)); a cited source stays until a decision on what deleting does to derived content and learners' evidence.
+- **Drafting is stored and starts from a purpose.** A draft names a source, a `goal` beside the `audience`, and optionally a scope of pages or characters, as `read_source` counts them; a quote still occurs exactly once in the whole source. It runs in the background and survives leaving the page; accepting it is one request that authors it in one transaction; accepting the same selection again answers the same course, and a different selection for a draft already accepted is refused.
+- **Braivo does the mechanical work; any AI does the judgment.** Braivo keeps files, extracts text layers, freezes snapshots, validates, checks quotes, and keeps identity, without model calls. Judgment — reading a format no extractor knows, what to teach, naming, writing tasks — is done by whichever AI the owner brings: Braivo's with credits, a hosted assistant over `/mcp`, or a local agent with the CLI. Bulk moves as files and snapshots, never through an assistant's output. The CLI uploads files and `external` snapshots; `/mcp` gains bounded tools to find files and extractions, start one, read and correct its pages, freeze it, save a source, and point the person to the console's upload page; no tool moves a file's bytes. A tool's call is the owner's delegated request: the AI gate and quota decide. Braivo's AI being off says what the installation pays for, not that material may go to another AI.
+- **Jobs: rows decide, a queue delivers.** Extraction and drafting run as bounded steps recorded in PostgreSQL, the one truth: claimed under a lease, stored only while the claim and page revisions are current, run at least once, retried a bounded number of times. A model call counts against the quota once it may have been sent, and the AI gate is checked again just before it is. How a step reaches a worker is a port: the Bun process polls the rows; on Workers, a Cloudflare Queue carries a message per step, acknowledged once its result is stored, and a scheduled sweep re-enqueues what a crash stranded. If PDF work cannot fit a Worker's limits, the same step runs in a container the queue feeds. An installation bounds what one organization queues.
+- **An independent learner prepares their own practice in an organization of their own**, where the installation allows setting one up ([access](../specs/access.md), access-31): its owner, with every content-owner action and the same rules. No new role, no personal content model. The organization is an internal boundary: the learner sees their private material beside their schools', labelled apart, never an organization to switch to. A learner enrolled in a school still adds nothing to the school's organization; whether they could add private material is a separate product decision.
+
+## Alternatives rejected
+
+- **A job queue as the platform's dependency**, or Cloudflare Workflows: rows and a runner do it; a queue only delivers.
+- **Exactly-once model calls**: no lease guarantees one; bounded retries and counting what may have been sent are honest about what a crash costs.
+- **Extraction results edited in place**, or a branching history of them: pages are rows while working, snapshots are immutable, and nothing merges.
+- **Running uploaded or model-written scripts on Braivo's servers**: a sandbox is its own product; Braivo validates what the owner's tools produce.
+- **A choice of output format** per owner: one versioned snapshot schema; a person sees pages and items, not formats.
+- **PDFs and photos in one extraction, or files combined because they were uploaded together**, for now: no need yet, and an upload batch is not a document.
+- **Placeholder text for a page without words**: it would be citable.
+- **Required review before saving a source**: a tool's save cannot prove a person looked; publication is the gate.
+- **A file's name or type as last uploaded**: another upload of the same bytes would change them.
+- **One field for goal and audience**: they tell the drafter different things.
+- **Trusting a text layer unchecked**: a scanned page with a recognized header passes as read.
+- **Classifying a file to choose its purpose**, and **tags or folders**, for now: a file serves several purposes; listing comes first.
+- **A personal content model, or a learner role that authors**: an organization of one already is one.
+- **Fetching any URL a model supplies as an attachment**: a model's URL is not the person's file.
+
+## Consequences
+
+- Files gain names, a listing, derived files, and deletion; extractions, snapshots, and drafts are stored; source pages record their origin. Pre-release, the initial migration changes and databases are reset ([ADR 0005](0005-postgresql-drizzle.md)).
+- The console's add flow becomes upload, extract (a sample first), review, save.
+- An organization without Braivo's AI still extracts a PDF with a text layer, and keeps scanned pages unread for its own tools.
+- Mechanical work costs no model calls but costs storage and processing, which installations bound.
+- Braivo Cloud adds the Queue, its consumer, the sweep's schedule, and a container if needed; billing for credits stays Cloud's.

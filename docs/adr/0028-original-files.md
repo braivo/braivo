@@ -29,3 +29,4 @@ A source is text ([ADR 0020](0020-source-content.md)), extracted by whoever hold
 - Learners cannot open an original: a book's PDF is the school's to share or not, which is a product decision, not this one.
 - The CLI uploads an original before Braivo checks the source; a source then refused leaves its file stored, unreferenced, and the retry that fixes it finds the same file.
 - Nothing deletes a file. A source keeps its original (restricted), and deletion waits with sources' own.
+- Storing a file is not adding a source: a file may stay unnamed by any source, and nothing lists the organization's files, keeps a file's name, or uploads several at once. A source names one original, so the photos of one worksheet cannot be one source. [ADR 0046](0046-material-in-steps.md) (accepted, not built yet) lists files, extracts several files as one source whose pages each know their file, and lets a file nothing uses be deleted.

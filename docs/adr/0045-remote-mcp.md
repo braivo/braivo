@@ -36,5 +36,5 @@ What an assistant reads may carry instructions ([ADR 0023](0023-mcp-server.md), 
 - [ADR 0023](0023-mcp-server.md)'s catalog leaves `packages/mcp` for the server package, and its SDK becomes `@modelcontextprotocol/server`; `braivo mcp` stays for local agents, unadvertised to teachers.
 - [ADR 0022](0022-machine-access.md) gains a third credential, the connection, beside the browser and the device flow; only routes that must tell them apart read which.
 - A teacher working across schools connects once per school where the client supports it, or reconnects to switch; each supported client's behavior is verified before release. A client's own profile convention (ChatGPT's) gets a small tool answering the grant's school if it needs one.
-- Material reaches remote tools as bounded text; no tool takes a file path. A file comes in through the console's upload, and the assistant reads it by pages.
+- Material reaches remote tools as bounded text; no tool takes a file path. A file comes in through the console's upload and becomes a source there, which the assistant then reads by pages; no tool lists files or tells the person where to upload. [ADR 0046](0046-material-in-steps.md) (accepted, not built yet) gives remote tools the file channel.
 - In Cloud, `/mcp` and the OAuth discovery paths route to the API Worker.
