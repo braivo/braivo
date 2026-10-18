@@ -12,12 +12,14 @@ import {
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { createCourse, markCourseDeleted } from "./course.ts";
 import { ConflictingKey } from "./key.ts";
 import {
   createObjectives,
   findObjectivesOutsideOrganization,
   readObjectives,
 } from "./objective.ts";
+import { createTasks, markTasksRetired } from "./task.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -50,8 +52,8 @@ describe.skipIf(!connectionString)("objectives", () => {
     ]);
 
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: fractions!, title: "Fractions" },
-      { id: pastTense!, title: "Past tense" },
+      { id: fractions!, title: "Fractions", courseIds: [], waitingTaskCount: 0 },
+      { id: pastTense!, title: "Past tense", courseIds: [], waitingTaskCount: 0 },
     ]);
   });
 
@@ -63,7 +65,7 @@ describe.skipIf(!connectionString)("objectives", () => {
 
     expect(mine).not.toBe(theirs);
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: mine!, title: "Past tense" },
+      { id: mine!, title: "Past tense", courseIds: [], waitingTaskCount: 0 },
     ]);
   });
 
@@ -78,6 +80,53 @@ describe.skipIf(!connectionString)("objectives", () => {
         "no-such-objective",
       ]),
     ).toEqual([theirs!, "no-such-objective"]);
+  });
+
+  test("lists each objective's courses and its tasks waiting for review", async () => {
+    const [alone, shared, unplaced] = (await createObjectives(database, organizationId, [
+      "Alone",
+      "Shared",
+      "Unplaced",
+    ])) as [string, string, string];
+    const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
+    const now = new Date("2026-02-01T00:00:00.000Z");
+    const course = async (title: string, objectiveIds: string[]) =>
+      (await createCourse(database, { organizationId, title, objectiveIds, published: false })).id;
+    const first = await course("First", [alone, shared]);
+    const second = await course("Second", [shared]);
+    // Deleted, it no longer places its objective (ADR 0039).
+    const deleted = await course("Deleted", [unplaced]);
+    await markCourseDeleted(database, { organizationId, courseId: deleted, now });
+    const write = (
+      objectiveId: string,
+      prompts: string[],
+      published: boolean,
+      organization = organizationId,
+    ) =>
+      createTasks(
+        database,
+        organization,
+        prompts.map((prompt) => ({
+          objectiveId,
+          body: { kind: "choice", prompt, options: ["a", "b"], answer: 0 },
+        })),
+        now,
+        { published },
+      );
+    await write(alone, ["Published"], true);
+    const [retired] = await write(alone, ["Waiting", "Retired"], false).then((written) =>
+      written.slice(1),
+    );
+    await markTasksRetired(database, [retired!.id], now, { byTool: true });
+    await write(shared, ["One", "Two"], false);
+    await write(unplaced, ["Three"], false);
+    await write(theirs!, ["Theirs"], false, otherOrganizationId);
+
+    expect(await readObjectives(database, organizationId)).toEqual([
+      { id: alone, title: "Alone", courseIds: [first], waitingTaskCount: 1 },
+      { id: shared, title: "Shared", courseIds: [first, second].toSorted(), waitingTaskCount: 2 },
+      { id: unplaced, title: "Unplaced", courseIds: [], waitingTaskCount: 1 },
+    ]);
   });
 
   test("creates nothing, and does not fail, for an empty list", async () => {

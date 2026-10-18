@@ -71,8 +71,8 @@ describe.skipIf(!connectionString)("defining objectives", () => {
     const [zulu, alpha] = await define(["Zulu", "Alpha"]);
 
     expect(await list()).toEqual([
-      { id: alpha!, title: "Alpha" },
-      { id: zulu!, title: "Zulu" },
+      { id: alpha!, title: "Alpha", courseIds: [], waitingTaskCount: 0 },
+      { id: zulu!, title: "Zulu", courseIds: [], waitingTaskCount: 0 },
     ]);
   });
 

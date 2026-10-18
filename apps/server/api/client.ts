@@ -24,7 +24,7 @@ import type {
   LearnerProgressSummary,
   LocatedCitation,
   Member,
-  Objective,
+  ObjectiveSummary,
   Organization,
   OrganizationSetup,
   QuotedCitation,
@@ -78,6 +78,7 @@ export type {
   ManagedCourse,
   Member,
   Objective,
+  ObjectiveSummary,
   Organization,
   OrganizationSetup,
   Passage,
@@ -436,12 +437,13 @@ export type BraivoClient = {
   /**
    * Every objective an organization has registered, by title — a listing
    * order, not the order a course teaches them in — so an agent can reuse an
-   * objective rather than define it twice.
+   * objective rather than define it twice; each with the courses it is in and
+   * how many of its tasks wait for review.
    *
    * Whoever the session belongs to must hold `owner` or `admin` there, or this
    * throws a {@link BraivoError} with status 403.
    */
-  listObjectives(organizationId: string, options?: RequestOptions): Promise<Objective[]>;
+  listObjectives(organizationId: string, options?: RequestOptions): Promise<ObjectiveSummary[]>;
 
   /**
    * Records what a learner did, on behalf of an organization. The session must
@@ -1150,7 +1152,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `listing the objectives of organization "${organizationId}"`;
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { objectives } = await parsed<{ objectives: Objective[] }>(response, doing);
+      const { objectives } = await parsed<{ objectives: ObjectiveSummary[] }>(response, doing);
       return objectives;
     },
 

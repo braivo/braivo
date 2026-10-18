@@ -110,6 +110,12 @@ export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
 export type Objective = { id: string; title: string };
 
 /**
+ * An objective as its organization lists it: `courseIds`, the courses it is
+ * in, which its tasks serve; `waitingTaskCount`, its tasks waiting for review.
+ */
+export type ObjectiveSummary = Objective & { courseIds: string[]; waitingTaskCount: number };
+
+/**
  * An organization as those who work in it find it; `slug` is its console
  * address, `learnDomain` the hostname its learners practise on, the latest
  * of its learn domains registered, `null` until one is. `administers`: the

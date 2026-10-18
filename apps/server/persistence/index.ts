@@ -82,7 +82,7 @@ export {
   readMemberships,
   readOrganizationRoles,
 } from "./membership.ts";
-export type { Objective } from "./objective.ts";
+export type { ObjectiveSummary, Objective } from "./objective.ts";
 export {
   createObjectives,
   findObjectivesOutsideOrganization,

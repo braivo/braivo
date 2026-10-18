@@ -920,6 +920,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.listObjectives(organizationId, as)).toContainEqual({
       id: greetings,
       title: "Greetings",
+      courseIds: [],
+      waitingTaskCount: 0,
     });
     expect(
       await client.citeSources(

@@ -108,6 +108,7 @@ export function renderAt(
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
         listGroups: async () => [],
+        listObjectives: async () => [],
         listDomains: async () => ({
           domains: [{ hostname: "example.braivo.app" }],
           claims: [],

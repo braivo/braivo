@@ -19,6 +19,7 @@ import { Route as SignedInJoinRouteImport } from './routes/_signed-in/join'
 import { Route as SignedInOrganizationSlugIndexRouteImport } from './routes/_signed-in/$organizationSlug/index'
 import { Route as SignedInOrganizationSlugGroupsRouteImport } from './routes/_signed-in/$organizationSlug/groups'
 import { Route as SignedInOrganizationSlugSettingsRouteRouteImport } from './routes/_signed-in/$organizationSlug/settings/route'
+import { Route as SignedInOrganizationSlugObjectivesObjectiveIdRouteImport } from './routes/_signed-in/$organizationSlug/objectives/$objectiveId'
 import { Route as SignedInOrganizationSlugSettingsIndexRouteImport } from './routes/_signed-in/$organizationSlug/settings/index'
 import { Route as SignedInOrganizationSlugSettingsAccountRouteImport } from './routes/_signed-in/$organizationSlug/settings/account'
 import { Route as SignedInOrganizationSlugSettingsConnectionsRouteImport } from './routes/_signed-in/$organizationSlug/settings/connections'
@@ -86,6 +87,12 @@ const SignedInOrganizationSlugSettingsRouteRoute =
   SignedInOrganizationSlugSettingsRouteRouteImport.update({
     id: '/settings',
     path: '/settings',
+    getParentRoute: () => SignedInOrganizationSlugRouteRoute,
+  } as any)
+const SignedInOrganizationSlugObjectivesObjectiveIdRoute =
+  SignedInOrganizationSlugObjectivesObjectiveIdRouteImport.update({
+    id: '/objectives/$objectiveId',
+    path: '/objectives/$objectiveId',
     getParentRoute: () => SignedInOrganizationSlugRouteRoute,
   } as any)
 const SignedInOrganizationSlugSettingsIndexRoute =
@@ -189,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/objectives/$objectiveId': typeof SignedInOrganizationSlugObjectivesObjectiveIdRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/$organizationSlug/settings/connections': typeof SignedInOrganizationSlugSettingsConnectionsRoute
   '/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -213,6 +221,7 @@ export interface FileRoutesByTo {
   '/': typeof SignedInIndexRoute
   '/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/$organizationSlug': typeof SignedInOrganizationSlugIndexRoute
+  '/$organizationSlug/objectives/$objectiveId': typeof SignedInOrganizationSlugObjectivesObjectiveIdRoute
   '/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/$organizationSlug/settings/connections': typeof SignedInOrganizationSlugSettingsConnectionsRoute
   '/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -241,6 +250,7 @@ export interface FileRoutesById {
   '/_signed-in/$organizationSlug/settings': typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   '/_signed-in/$organizationSlug/groups': typeof SignedInOrganizationSlugGroupsRoute
   '/_signed-in/$organizationSlug/': typeof SignedInOrganizationSlugIndexRoute
+  '/_signed-in/$organizationSlug/objectives/$objectiveId': typeof SignedInOrganizationSlugObjectivesObjectiveIdRoute
   '/_signed-in/$organizationSlug/settings/account': typeof SignedInOrganizationSlugSettingsAccountRoute
   '/_signed-in/$organizationSlug/settings/connections': typeof SignedInOrganizationSlugSettingsConnectionsRoute
   '/_signed-in/$organizationSlug/settings/domains': typeof SignedInOrganizationSlugSettingsDomainsRoute
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/$organizationSlug/settings'
     | '/$organizationSlug/groups'
     | '/$organizationSlug/'
+    | '/$organizationSlug/objectives/$objectiveId'
     | '/$organizationSlug/settings/account'
     | '/$organizationSlug/settings/connections'
     | '/$organizationSlug/settings/domains'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$organizationSlug/groups'
     | '/$organizationSlug'
+    | '/$organizationSlug/objectives/$objectiveId'
     | '/$organizationSlug/settings/account'
     | '/$organizationSlug/settings/connections'
     | '/$organizationSlug/settings/domains'
@@ -320,6 +332,7 @@ export interface FileRouteTypes {
     | '/_signed-in/$organizationSlug/settings'
     | '/_signed-in/$organizationSlug/groups'
     | '/_signed-in/$organizationSlug/'
+    | '/_signed-in/$organizationSlug/objectives/$objectiveId'
     | '/_signed-in/$organizationSlug/settings/account'
     | '/_signed-in/$organizationSlug/settings/connections'
     | '/_signed-in/$organizationSlug/settings/domains'
@@ -412,6 +425,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/$organizationSlug/settings'
       preLoaderRoute: typeof SignedInOrganizationSlugSettingsRouteRouteImport
+      parentRoute: typeof SignedInOrganizationSlugRouteRoute
+    }
+    '/_signed-in/$organizationSlug/objectives/$objectiveId': {
+      id: '/_signed-in/$organizationSlug/objectives/$objectiveId'
+      path: '/objectives/$objectiveId'
+      fullPath: '/$organizationSlug/objectives/$objectiveId'
+      preLoaderRoute: typeof SignedInOrganizationSlugObjectivesObjectiveIdRouteImport
       parentRoute: typeof SignedInOrganizationSlugRouteRoute
     }
     '/_signed-in/$organizationSlug/settings/': {
@@ -568,6 +588,7 @@ interface SignedInOrganizationSlugRouteRouteChildren {
   SignedInOrganizationSlugSettingsRouteRoute: typeof SignedInOrganizationSlugSettingsRouteRouteWithChildren
   SignedInOrganizationSlugGroupsRoute: typeof SignedInOrganizationSlugGroupsRoute
   SignedInOrganizationSlugIndexRoute: typeof SignedInOrganizationSlugIndexRoute
+  SignedInOrganizationSlugObjectivesObjectiveIdRoute: typeof SignedInOrganizationSlugObjectivesObjectiveIdRoute
   SignedInOrganizationSlugSourcesSourceIdRoute: typeof SignedInOrganizationSlugSourcesSourceIdRoute
   SignedInOrganizationSlugSourcesIndexRoute: typeof SignedInOrganizationSlugSourcesIndexRoute
   SignedInOrganizationSlugCoursesCourseIdProgressRoute: typeof SignedInOrganizationSlugCoursesCourseIdProgressRoute
@@ -581,6 +602,8 @@ const SignedInOrganizationSlugRouteRouteChildren: SignedInOrganizationSlugRouteR
       SignedInOrganizationSlugSettingsRouteRouteWithChildren,
     SignedInOrganizationSlugGroupsRoute: SignedInOrganizationSlugGroupsRoute,
     SignedInOrganizationSlugIndexRoute: SignedInOrganizationSlugIndexRoute,
+    SignedInOrganizationSlugObjectivesObjectiveIdRoute:
+      SignedInOrganizationSlugObjectivesObjectiveIdRoute,
     SignedInOrganizationSlugSourcesSourceIdRoute:
       SignedInOrganizationSlugSourcesSourceIdRoute,
     SignedInOrganizationSlugSourcesIndexRoute:
