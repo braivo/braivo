@@ -11,13 +11,13 @@ import {
   EmptyTitle,
 } from "@braivo/ui/components/empty";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
+import { cn } from "@braivo/ui/lib/utils";
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -25,6 +25,7 @@ import { PlusIcon } from "lucide-react";
 import { useId, useState } from "react";
 
 import { NoSuchSetting } from "#components/no-such-setting";
+import { pinnedColumn, ScrollingTable } from "#components/scrolling-table";
 import { SearchField } from "#components/search-field";
 import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { matchesQuery } from "#lib/search";
@@ -97,10 +98,10 @@ function Groups() {
               <Trans>No group matches “{query}”.</Trans>
             </MutedText>
           ) : (
-            <Table aria-labelledby={`${id}-heading`}>
+            <ScrollingTable aria-labelledby={`${id}-heading`}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
+                  <TableHead className={pinnedColumn}>
                     <Trans context="group">Name</Trans>
                   </TableHead>
                   <TableHead className="text-right">
@@ -119,8 +120,12 @@ function Groups() {
                   <TableRow key={group.id}>
                     {/* A row header, so each count is announced with its group; a
                         minimum width, or `wrap-anywhere` lets the counts crush it
-                        to a letter a line. */}
-                    <TableHead scope="row" className="min-w-36 font-normal whitespace-normal">
+                        to a letter a line; padded as a cell is, for a name that
+                        wraps. */}
+                    <TableHead
+                      scope="row"
+                      className={cn("min-w-36 py-2 font-normal whitespace-normal", pinnedColumn)}
+                    >
                       <Link
                         to="/$organizationSlug/settings/groups/$groupId"
                         params={{ organizationSlug, groupId: group.id }}
@@ -141,7 +146,7 @@ function Groups() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </ScrollingTable>
           )}
         </>
       )}

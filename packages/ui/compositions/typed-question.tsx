@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Trans, useLingui } from "@lingui/react/macro";
+import { XIcon } from "lucide-react";
 import { type KeyboardEvent, type Ref, useId, useState } from "react";
 
 import { Button } from "#components/button";
@@ -101,8 +102,11 @@ export function TypedQuestion(props: {
           {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
         </Button>
       </div>
+      {/* Held close, as the field's caption: apart, it reads as an error of its
+          own. Marked as a choice's wrong answer is. */}
       {outcome === "failure" && sent !== undefined && (
-        <p className="text-xs font-semibold text-destructive">
+        <p className="-mt-2.5 flex items-center gap-1 text-xs font-semibold text-destructive">
+          <XIcon aria-hidden="true" className="size-3.5 shrink-0" />
           <Trans>Your answer</Trans>
         </p>
       )}

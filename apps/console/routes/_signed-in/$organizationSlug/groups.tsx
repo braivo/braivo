@@ -11,11 +11,12 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@braivo/ui/components/empty";
-import { t } from "@lingui/core/macro";
-import { Plural, Trans, useLingui } from "@lingui/react/macro";
+import { plural, t } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 
+import { Disclosure } from "#components/disclosure";
 import { LearnersSite } from "#components/learners-site";
 import { NameTag } from "#components/name-tag";
 import { sharedNameTags } from "#lib/name-tags";
@@ -101,6 +102,9 @@ function GroupSection({ group, tags }: { group: Group; tags: Map<string, string>
   const organizationSlug = organization.slug;
   const list = new Intl.ListFormat(i18n.locale, { type: "conjunction" });
   const headingId = `group-${group.id}`;
+  const learners = t({
+    message: plural(group.learners.length, { one: "# learner", other: "# learners" }),
+  });
 
   return (
     <section aria-labelledby={headingId} className="rounded-2xl border p-4">
@@ -132,10 +136,12 @@ function GroupSection({ group, tags }: { group: Group; tags: Map<string, string>
           <Trans>No learners yet.</Trans>
         </MutedText>
       ) : (
-        <details className="text-sm text-muted-foreground">
-          <summary className="cursor-pointer">
-            <Plural value={group.learners.length} one="# learner" other="# learners" />
-          </summary>
+        <Disclosure
+          className="text-sm text-muted-foreground"
+          summary={learners}
+          // Named with its group: a toggle reached on its own is not read with its card.
+          label={t`${group.name}: ${learners}`}
+        >
           <ul className="mt-1 columns-1 gap-6 sm:columns-2">
             {group.learners.map(({ userId, name }) => (
               <li key={userId} className="wrap-anywhere">
@@ -144,7 +150,7 @@ function GroupSection({ group, tags }: { group: Group; tags: Map<string, string>
               </li>
             ))}
           </ul>
-        </details>
+        </Disclosure>
       )}
       {group.courses.length === 0 ? (
         <MutedText className="mt-3 block wrap-break-word">

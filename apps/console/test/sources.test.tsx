@@ -3,7 +3,7 @@
 
 import { BraivoError } from "@braivo/server/client";
 import { createBrowserHistory } from "@tanstack/react-router";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS, bodyDeadline } from "../lib/deadline.ts";
@@ -459,6 +459,8 @@ describe("the console", () => {
     const form = screen.getByRole("form", { name: "Add material" });
     expect(form.textContent).toMatch(/off for this organization.*not draft a course from it here/);
     expectDesktopAgentGuide(form);
+    // There on load, so not announced as an alert.
+    expect(screen.queryByRole("alert")).toBeNull();
     // Neither the hint nor an empty form's refusal promises reading.
     expect(screen.queryByText(/for Braivo's AI to read/)).toBeNull();
     addMaterial({ title: "Mi libro", text: "" });
@@ -1012,6 +1014,58 @@ describe("the console", () => {
     expect(document.activeElement).toBe(text);
     expect(screen.queryByText(/^The first/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Show all text" })).toBeNull();
+  });
+
+  test("fades a source's text into what lies below while there is more", async () => {
+    renderAt("/example/sources/s1", { braivo: { ...authoring(), getSource: async () => saludos } });
+    const box = await screen.findByRole("region", { name: "Source text" });
+    const faded = () => box.parentElement!.querySelector('[aria-hidden="true"]') !== null;
+    expect(faded()).toBe(false);
+    // happy-dom lays nothing out: the box 256px high, its text 400px.
+    Object.defineProperties(box, { clientHeight: { value: 256 }, scrollHeight: { value: 400 } });
+
+    fireEvent.scroll(box);
+    await vi.waitFor(() => expect(faded()).toBe(true));
+    box.scrollTop = 144;
+    fireEvent.scroll(box);
+    await vi.waitFor(() => expect(faded()).toBe(false));
+  });
+
+  test("fades a source's text again when it rewraps, not only when it scrolls", async () => {
+    const observers: { callback: () => void; observed: Element[] }[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observed: Element[] = [];
+        constructor(callback: () => void) {
+          observers.push({ callback, observed: this.observed });
+        }
+        observe(element: Element) {
+          this.observed.push(element);
+        }
+        disconnect() {}
+      },
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    renderAt("/example/sources/s1", { braivo: { ...authoring(), getSource: async () => saludos } });
+    const box = await screen.findByRole("region", { name: "Source text" });
+    const faded = () => box.parentElement!.querySelector('[aria-hidden="true"]') !== null;
+    const observer = observers.find(({ observed }) => observed.includes(box))!;
+    // happy-dom lays nothing out: the box 256px high, its text as high, then
+    // taller, rewrapped in a narrower window.
+    let textHeight = 256;
+    Object.defineProperties(box, {
+      clientHeight: { value: 256 },
+      scrollHeight: { get: () => textHeight },
+    });
+
+    act(() => observer.callback());
+    expect(faded()).toBe(false);
+    textHeight = 400;
+    act(() => observer.callback());
+    expect(faded()).toBe(true);
   });
 
   test("cuts a source's text before a character it would split", async () => {

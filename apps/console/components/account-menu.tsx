@@ -16,7 +16,7 @@ import {
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { LogOutIcon, SettingsIcon } from "lucide-react";
+import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon } from "lucide-react";
 import type { Ref } from "react";
 
 import { LanguageRadioGroup } from "./language-menu.tsx";
@@ -80,8 +80,10 @@ export function AccountMenu({
             {/* A div: the button truncates its last span, and an identity wraps. */}
             <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-medium wrap-anywhere">{name}</span>
-              <span className="text-xs wrap-anywhere text-muted-foreground">{user.email}</span>
+              <EmailAddress address={user.email} />
             </div>
+            {/* Says it opens a menu, as the organization switcher's does. */}
+            <ChevronsUpDownIcon className="text-muted-foreground group-data-[collapsible=icon]:hidden" />
           </SidebarButton>
         ) : (
           // 44px, a touch target's least.
@@ -106,7 +108,7 @@ export function AccountMenu({
       >
         <DropdownMenuLabel className="flex flex-col font-normal">
           <span className="font-medium wrap-anywhere text-foreground">{name}</span>
-          <span className="text-xs wrap-anywhere text-muted-foreground">{user.email}</span>
+          <EmailAddress address={user.email} />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {props.organizationSlug && (
@@ -147,5 +149,26 @@ export function AccountMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * An email address too long for its line, wrapped before its `@` rather than
+ * anywhere, which can leave one letter on a line of its own.
+ */
+function EmailAddress({ address }: { address: string }) {
+  const at = address.lastIndexOf("@");
+  return (
+    <span className="text-xs wrap-anywhere text-muted-foreground">
+      {at > 0 ? (
+        <>
+          {address.slice(0, at)}
+          <wbr />
+          {address.slice(at)}
+        </>
+      ) : (
+        address
+      )}
+    </span>
   );
 }

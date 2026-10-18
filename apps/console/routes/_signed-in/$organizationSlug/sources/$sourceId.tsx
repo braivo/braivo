@@ -118,20 +118,49 @@ function SourceText({ text }: { text: string }) {
   // Never half a surrogate pair, such as an emoji's: alone, either is broken text.
   const shown = !cut ? text : head.isWellFormed() ? head : head.slice(0, -1);
 
+  // Text hidden below fades out, as a touch screen shows no scrollbar.
+  // Measured on scroll, and when the box or its text resizes.
+  const [moreBelow, setMoreBelow] = useState(false);
+  useEffect(() => {
+    const element = box.current!;
+    function measure() {
+      setMoreBelow(element.scrollTop + element.clientHeight < element.scrollHeight - 1);
+    }
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [shown]);
+
   return (
     <div className="mb-6">
-      <pre
-        ref={box}
-        // A tab stop, so the keyboard scrolls it; also where "Show all text", which
-        // then goes away, leaves the focus. Named, so a screen reader says what
-        // it is on arrival (a plain <pre> cannot be named).
-        role="region"
-        aria-label="Source text"
-        tabIndex={0}
-        className="max-h-64 overflow-auto rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap"
-      >
-        {shown}
-      </pre>
+      <div className="relative">
+        <pre
+          ref={box}
+          // A tab stop, so the keyboard scrolls it; also where "Show all text", which
+          // then goes away, leaves the focus. Named, so a screen reader says what
+          // it is on arrival (a plain <pre> cannot be named). In the text's font,
+          // as learners read it: material, not code, so a long word or link
+          // wraps rather than scrolling sideways.
+          role="region"
+          aria-label="Source text"
+          tabIndex={0}
+          className="max-h-64 overflow-auto rounded-lg bg-muted p-3 font-sans text-sm wrap-break-word whitespace-pre-wrap"
+        >
+          {shown}
+        </pre>
+        {/* Over the box, not a mask on it, which would fade its focus ring too. */}
+        {moreBelow && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 rounded-b-lg bg-linear-to-t from-muted"
+          />
+        )}
+      </div>
       {cut && (
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
           <MutedText>

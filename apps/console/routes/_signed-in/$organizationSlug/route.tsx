@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { Button } from "@braivo/ui/components/button";
+import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
+import { createFileRoute, Link, notFound, Outlet } from "@tanstack/react-router";
+import { type ReactNode, useEffect } from "react";
 
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { rememberOrganization } from "#lib/last-organization";
@@ -55,9 +57,47 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug")({
  */
 function OrganizationNotFound() {
   return Route.useMatch().status === "notFound" ? (
-    <p>This organization does not exist, or you do not work in it.</p>
+    <NotFound title="This organization does not exist, or you do not work in it.">
+      <Link to="/">Go home</Link>
+    </NotFound>
   ) : (
-    <p>There is nothing here.</p>
+    <NoSuchPage />
+  );
+}
+
+/** A path in an organization that names no page: a way to its home. */
+function NoSuchPage() {
+  const { organization } = Route.useRouteContext();
+  return (
+    <NotFound title="There is nothing here.">
+      <Link to="/$organizationSlug" params={{ organizationSlug: organization.slug }}>
+        Go to {organization.name}
+      </Link>
+    </NotFound>
+  );
+}
+
+/** Not found, with a way out: on a phone the sidebar is a closed drawer, so without one it is a dead end. */
+function NotFound(props: { title: string; children: ReactNode }) {
+  return (
+    // Half shadcn's padding on a phone, as learn's notices, so its words have room.
+    <Empty className="max-sm:p-6">
+      <EmptyHeader className="wrap-anywhere">
+        {/* The page's heading: the title alone is not one. */}
+        <EmptyTitle>
+          <h1>{props.title}</h1>
+        </EmptyTitle>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button
+          asChild
+          variant="outline"
+          className="h-auto min-h-9 py-1.5 wrap-anywhere whitespace-normal pointer-coarse:min-h-11 max-md:min-h-11"
+        >
+          {props.children}
+        </Button>
+      </EmptyContent>
+    </Empty>
   );
 }
 

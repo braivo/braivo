@@ -18,6 +18,7 @@ import {
 import { Input } from "@braivo/ui/components/input";
 import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
+import { InfoIcon } from "lucide-react";
 import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { DesktopAgentLink } from "#components/desktop-agent-link";
@@ -381,12 +382,17 @@ function AddSource() {
       <Heading level={2} id={`${id}-heading`}>
         Add material
       </Heading>
-      {/* Before the fields, so no one prepares material expecting a draft. */}
+      {/* Before the fields, so no one prepares material expecting a draft; set
+          apart from them, as no part of the form. Not an alert: it is there on
+          load, not news. */}
       {organization.aiEnabled === false && (
-        <p className="mb-4">
-          {AI_OFF_MESSAGE} You can add material, but not draft a course from it here: ask whoever
-          runs Braivo for you to turn the AI on, or draft with <DesktopAgentLink />.
-        </p>
+        <Alert role={undefined} className="mb-4">
+          <InfoIcon aria-hidden="true" />
+          <AlertDescription>
+            {AI_OFF_MESSAGE} You can add material, but not draft a course from it here: ask whoever
+            runs Braivo for you to turn the AI on, or draft with <DesktopAgentLink />.
+          </AlertDescription>
+        </Alert>
       )}
       {/* Read-only while sending, as what is typed meanwhile would not be what
           was added; not disabled, which drops the focus. */}

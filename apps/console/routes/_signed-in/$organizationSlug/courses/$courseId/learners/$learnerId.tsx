@@ -7,8 +7,9 @@ import { cn } from "@braivo/ui/lib/utils";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
+import { Disclosure } from "#components/disclosure";
 import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { validateProgressSearch } from "#lib/progress-search";
 import { orNotFound, readCourseForProgress } from "#lib/refusals";
@@ -224,19 +225,28 @@ function Evidence({
   const { t, i18n } = useLingui();
   const successes = evidence.filter(({ outcome }) => outcome === "success").length;
   const failures = evidence.length - successes;
-  const counted = [
+  const counts = [
     successes > 0 && t({ message: plural(successes, { one: "# success", other: "# successes" }) }),
     failures > 0 && t({ message: plural(failures, { one: "# failure", other: "# failures" }) }),
-  ]
-    .filter(Boolean)
-    .join(", ");
+  ].filter((count) => count !== false);
+  const counted = counts.join(", ");
 
   return (
-    <details>
-      {/* Named with its objective: a toggle reached on its own is not read with its row. */}
-      <summary aria-label={`${objective}: ${counted}`} className="cursor-pointer">
-        {counted}
-      </summary>
+    <Disclosure
+      // Each count whole, so a narrow column wraps between them, not inside one.
+      summary={
+        <span>
+          {counts.map((count, index) => (
+            <Fragment key={count}>
+              {index > 0 && ", "}
+              <span className="whitespace-nowrap">{count}</span>
+            </Fragment>
+          ))}
+        </span>
+      }
+      // Named with its objective: a toggle reached on its own is not read with its row.
+      label={t`${objective}: ${counted}`}
+    >
       <ul className="mt-1 flex flex-col gap-1 text-muted-foreground">
         {evidence.toReversed().map(({ outcome, at }, index) => (
           // Stable for this report: evidence never changes once recorded.
@@ -246,7 +256,7 @@ function Evidence({
           </li>
         ))}
       </ul>
-    </details>
+    </Disclosure>
   );
 }
 

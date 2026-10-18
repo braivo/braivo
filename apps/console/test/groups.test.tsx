@@ -63,6 +63,8 @@ describe("groups", () => {
           .map((link) => link.textContent),
       ).toEqual(["Groups"]);
       expect(screen.getByText("Taught by Olive Owner.")).toBeTruthy();
+      // Its learners' toggle named with the group, reached apart from its card.
+      expect(screen.getByLabelText("7A · English: 1 learner").textContent).toBe("1 learner");
       expect(screen.getByRole("link", { name: /Beginners/ }).getAttribute("href")).toBe(
         "/example/courses/course-1/progress?from=groups",
       );
@@ -646,6 +648,82 @@ describe("groups", () => {
       expect(screen.getByRole("link", { name: "Create group" }).getAttribute("href")).toBe(
         "/example/settings/groups/new",
       );
+    });
+
+    test("while the table hides columns, fades its edge and is a tab stop; pins its names", async () => {
+      renderAt("/example/settings/groups", {
+        braivo: { listGroups: async () => [sevenA, tutoring] },
+      });
+      const table = await screen.findByRole("table");
+      const container = table.parentElement!;
+      const wrapper = container.parentElement!;
+      const faded = () => wrapper.className.includes("mask-r-from");
+      expect(faded()).toBe(false);
+      expect(wrapper.dataset.scrolled).toBeUndefined();
+      // happy-dom lays nothing out: the container 300px wide, its table 450px.
+      Object.defineProperties(container, {
+        clientWidth: { value: 300 },
+        scrollWidth: { value: 450 },
+      });
+
+      expect(container.hasAttribute("tabindex")).toBe(false);
+      fireEvent.scroll(container);
+      await vi.waitFor(() => expect(faded()).toBe(true));
+      // A tab stop while it scrolls, so the keyboard reaches what it hides,
+      // named as its table is.
+      expect(container.tabIndex).toBe(0);
+      expect(container.getAttribute("role")).toBe("region");
+      expect(container.getAttribute("aria-labelledby")).toBe(table.getAttribute("aria-labelledby"));
+      container.scrollLeft = 150;
+      fireEvent.scroll(container);
+      await vi.waitFor(() => expect(faded()).toBe(false));
+      expect(wrapper.dataset.scrolled).toBe("true");
+      for (const name of ["Name", "7A · English"]) {
+        expect(within(table).getByText(name).closest("th")!.className).toContain("sticky");
+      }
+    });
+
+    test("measures the table again when it or its container resizes, not only when it scrolls", async () => {
+      const observers: { callback: () => void; observed: Element[] }[] = [];
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observed: Element[] = [];
+          constructor(callback: () => void) {
+            observers.push({ callback, observed: this.observed });
+          }
+          observe(element: Element) {
+            this.observed.push(element);
+          }
+          disconnect() {}
+        },
+      );
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      renderAt("/example/settings/groups", {
+        braivo: { listGroups: async () => [sevenA, tutoring] },
+      });
+      const table = await screen.findByRole("table");
+      const container = table.parentElement!;
+      const faded = () => container.parentElement!.className.includes("mask-r-from");
+      const observer = observers.find(({ observed }) => observed.includes(container))!;
+      // The table too: a language's longer words widen it, not its container.
+      expect(observer.observed).toContain(table);
+      // happy-dom lays nothing out: the container 300px wide, its table as wide, then wider.
+      let tableWidth = 300;
+      Object.defineProperties(container, {
+        clientWidth: { value: 300 },
+        scrollWidth: { get: () => tableWidth },
+      });
+      const resize = () => act(() => observer.callback());
+
+      resize();
+      expect(faded()).toBe(false);
+      tableWidth = 450;
+      resize();
+      expect(faded()).toBe(true);
+      expect(container.tabIndex).toBe(0);
     });
 
     /** Picks `name` from the picker `opener` opens, by keyboard: typed, then Enter. */

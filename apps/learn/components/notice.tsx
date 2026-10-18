@@ -39,6 +39,8 @@ export function Notice({
     <Empty
       ref={focused}
       tabIndex={-1}
+      // Half shadcn's padding on a phone, where its p-12 left the words a narrow column.
+      className="max-sm:p-6"
       role="region"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}

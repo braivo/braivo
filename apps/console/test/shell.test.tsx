@@ -403,15 +403,25 @@ describe("the console", () => {
     renderAt("/elsewhere", { braivo: { listCourses } });
 
     expect(
-      await screen.findByText("This organization does not exist, or you do not work in it."),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "This organization does not exist, or you do not work in it.",
+      }),
     ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go home" }).getAttribute("href")).toBe("/");
     expect(listCourses).not.toHaveBeenCalled();
   });
 
   test("reads a path below an organization that names no page as nothing, not the organization", async () => {
     renderAt("/example/courses", { braivo: { listCourses: async () => [] } });
 
-    expect(await screen.findByText("There is nothing here.")).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "There is nothing here." }),
+    ).toBeTruthy();
+    // A way back on a phone, whose sidebar is a closed drawer.
+    expect(screen.getByRole("link", { name: "Go to Example School" }).getAttribute("href")).toBe(
+      "/example",
+    );
     expect(screen.getByRole("button", { name: "Organization: Example School" })).toBeTruthy();
     expect(screen.queryByText(/This organization does not exist/)).toBeNull();
   });
