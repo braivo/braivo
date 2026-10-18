@@ -26,6 +26,7 @@ import {
   readPublishedCoursesByObjective,
   readSources,
   readWaitingTaskCounts,
+  updateCourseHidden,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
@@ -135,7 +136,7 @@ export async function publish(input: {
 
 /**
  * A published course is not deleted: learners may have met it, and nothing
- * unpublishes yet (ADR 0039, Final for now).
+ * unpublishes; it can be hidden instead (ADR 0039).
  */
 export class PublishedCourse extends Error {
   constructor() {
@@ -163,6 +164,36 @@ export async function deleteCourse(input: {
   const result = await markCourseDeleted(database, { organizationId, courseId, now });
   if (result === "published") throw new PublishedCourse();
   return result === "deleted";
+}
+
+/** Hiding a course learners never reached: an unpublished course has nothing to hide. */
+export class UnpublishedCourse extends Error {
+  constructor() {
+    super("The course is not published, so learners can't see it anyway.");
+    this.name = "UnpublishedCourse";
+  }
+}
+
+/**
+ * Hides one of the organization's published courses from learners, or shows
+ * it to them again, for whoever administers it, from the console only, which
+ * the route decides (ADR 0039). `false` without such a course; repeating
+ * either changes nothing.
+ */
+export async function setCourseHidden(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseId: string;
+  hidden: boolean;
+  now: Date;
+}): Promise<boolean> {
+  const { database, organizationId, actingAs, courseId, hidden, now } = input;
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  const result = await updateCourseHidden(database, { organizationId, courseId, hidden, now });
+  if (result === "unpublished") throw new UnpublishedCourse();
+  return result === "updated";
 }
 
 /**

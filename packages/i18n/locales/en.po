@@ -67,8 +67,8 @@ msgstr "{count, plural, one {# member.} other {# members.}}"
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
-msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
+msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is open to learners."
+msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is open to learners."
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
@@ -812,8 +812,8 @@ msgid "Learners can practise at any of these addresses. Links to share with them
 msgstr "Learners can practise at any of these addresses. Links to share with them use the primary one."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "Learners can't see this course until it is published."
-msgstr "Learners can't see this course until it is published."
+msgid "Learners can't open this course for now."
+msgstr "Learners can't open this course for now."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."

@@ -14,7 +14,7 @@ export const members = [
 
 /** Braivo's overview of `course-1`: every member counted, by name, and every objective. */
 export const courseProgress = async () => ({
-  published: true,
+  open: true,
   modelVersion: "v1",
   learners: [
     { ...members[1]!, standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 } },
@@ -57,6 +57,7 @@ export const beginners = {
   title: "Beginners",
   urlLabel: "beginners",
   published: true,
+  hidden: false,
   objectives: [
     {
       id: "greetings",

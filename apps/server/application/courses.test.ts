@@ -91,6 +91,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
         title: "Spanish",
         urlLabel: "spanish",
         published: true,
+        hidden: false,
         waitingTaskCount: 0,
       },
     ]);
@@ -183,6 +184,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       title: "Trimmed",
       urlLabel: "trimmed",
       published: true,
+      hidden: false,
       waitingTaskCount: 0,
     });
   });

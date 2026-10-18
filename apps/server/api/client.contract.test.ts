@@ -541,6 +541,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Every phase",
         urlLabel: "every-phase",
         published: true,
+        hidden: false,
         waitingTaskCount: 0,
       },
       {
@@ -549,6 +550,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Not started",
         urlLabel: "not-started",
         published: true,
+        hidden: false,
         waitingTaskCount: 0,
       },
       {
@@ -557,6 +559,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         title: "Spanish",
         urlLabel: "spanish",
         published: true,
+        hidden: false,
         waitingTaskCount: 0,
       },
     ]);
@@ -605,6 +608,28 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const listed = (await client.listCourses(organizationId, asTeacher)).map(({ id }) => id);
     expect(listed).toContain(published);
     expect(listed).not.toContain(proposed);
+  });
+
+  test("hides a published course and shows it again, again too, and refuses an unpublished one", async () => {
+    const asTeacher = { headers: { cookie: teacherCookie } };
+    const course = (published: boolean) =>
+      createCourse(database, { published, organizationId, title: "Hidden", objectiveIds: [] });
+    const { id: proposed } = await course(false);
+    const { id: published } = await course(true);
+    const setHidden = (courseId: string, hidden: boolean) =>
+      client.setCourseHidden({ organizationId, courseId, hidden }, asTeacher);
+    const hidden = async () =>
+      (await client.listCourses(organizationId, asTeacher)).find(({ id }) => id === published)
+        ?.hidden;
+
+    await setHidden(published, true);
+    await setHidden(published, true);
+    expect(await hidden()).toBe(true);
+    await setHidden(published, false);
+    await setHidden(published, false);
+    expect(await hidden()).toBe(false);
+    await expect(setHidden(proposed, true)).rejects.toMatchObject({ status: 409 });
+    await expect(setHidden("no-such-course", true)).rejects.toMatchObject({ status: 404 });
   });
 
   test("publishes a course and its tasks, which learners then reach, and refuses a stale list", async () => {
@@ -964,6 +989,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       urlLabel: "saludos",
       // Created with a person's session, as the console does: published at once.
       published: true,
+      hidden: false,
       waitingTaskCount: 0,
     });
   });

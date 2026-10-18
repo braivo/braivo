@@ -454,6 +454,14 @@
 // 404 when the organization has no such course; 403 to a request carrying a
 // token, explained.
 //
+// `POST /api/organizations/:organizationId/courses/:courseId/visibility`
+// `{ "hidden": true }` — hides a published course from learners, or with
+// `false` shows it again (ADR 0039): hidden, it reaches learners as an
+// unpublished one does, not at all, while it stays published and their
+// evidence stays. 204, also when it already was; 409 with an `error` for
+// hiding an unpublished course; 404 when the organization has no such course;
+// 403 to a request carrying a token, explained.
+//
 // `POST /api/organizations/:organizationId/rename` `{ "name" }` — renames the
 // organization, its name trimmed: 200 `{ "name" }` as stored. 400 `{ "error",
 // "code": "NAME_INVALID" }` for one blank, over 100 characters, or holding NUL.

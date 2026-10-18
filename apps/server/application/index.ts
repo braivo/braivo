@@ -38,8 +38,10 @@ export {
   publish,
   PublishedCourse,
   readAuthoredCourse,
+  setCourseHidden,
   setCourseUrlLabel,
   StalePublication,
+  UnpublishedCourse,
 } from "./courses.ts";
 export { FilesUnavailable, InvalidFile, openFile, readFileText, uploadFile } from "./files.ts";
 export { changeGroup, defineGroup, listGroups } from "./groups.ts";

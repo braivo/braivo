@@ -124,6 +124,8 @@ function Courses() {
               : waiting > 0
                 ? formatReviewCount(waiting)
                 : undefined;
+            // Hidden from learners since it was published, first: what they meet now.
+            const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
             return (
               <li key={course.id}>
                 <Link
@@ -133,13 +135,15 @@ function Courses() {
                 >
                   {course.title}
                   {/* In the link's name, so it is heard while moving from link to link. */}
-                  {review && <span className="sr-only"> ({review.toLowerCase()})</span>}
+                  {marks.length > 0 && (
+                    <span className="sr-only"> ({marks.join(", ").toLowerCase()})</span>
+                  )}
                 </Link>
-                {review && (
-                  <Badge variant="outline" className="ms-2" aria-hidden="true">
-                    {review}
+                {marks.map((mark) => (
+                  <Badge key={mark} variant="outline" className="ms-2" aria-hidden="true">
+                    {mark}
                   </Badge>
-                )}
+                ))}
               </li>
             );
           })}

@@ -594,7 +594,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const overview = await api.request(`/api/courses/${proposed}/progress`, {
       headers: { cookie: teacher.cookie },
     });
-    expect(await overview.json()).toMatchObject({ published: false });
+    expect(await overview.json()).toMatchObject({ open: false });
     // A keyed retry from the console finds it, still waiting.
     expect(await (await create(inConsole)).json()).toEqual({
       courseId: proposed,
@@ -695,6 +695,119 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       )
     ).json()) as { tasks: { prompt: string }[] };
     expect(tasks.map(({ prompt }) => prompt)).toEqual(["Kept?"]);
+  });
+
+  test("hides a published course from learners in the console alone, and shows it again as it was", async () => {
+    const [objectiveId] = (await createObjectives(database, organizationId, ["Hidden"])) as [
+      string,
+    ];
+    const [taskId] = (
+      await createTasks(
+        database,
+        organizationId,
+        [
+          {
+            objectiveId,
+            body: { kind: "choice", prompt: "Seen?", options: ["a", "b"], answer: 0 },
+          },
+        ],
+        at,
+        { published: true },
+      )
+    ).map(({ id }) => id);
+    const course = (published: boolean) =>
+      createCourse(database, {
+        published,
+        organizationId,
+        title: "Hidden",
+        objectiveIds: [objectiveId],
+      });
+    const { id: hidden } = await course(true);
+    const { id: proposed } = await course(false);
+    const asTool = { "content-type": "application/json", authorization: `Bearer ${teacher.token}` };
+    const inConsole = { "content-type": "application/json", cookie: teacher.cookie };
+    const setHidden = (headers: Record<string, string>, id: string, body: unknown) =>
+      api.request(`/api/organizations/${organizationId}/courses/${id}/visibility`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    const asTeacher = { headers: { cookie: teacher.cookie } };
+    const asLearner = { headers: { cookie: learner.cookie } };
+    const read = async <T>(path: string) =>
+      (await (await api.request(path, asTeacher)).json()) as T;
+    // What the console shows its administrators: in the list, then on its page.
+    const shown = async () => {
+      const { courses } = await read<{ courses: { id: string; hidden: boolean }[] }>(
+        `/api/organizations/${organizationId}/courses`,
+      );
+      const page = await read<{ published: boolean; hidden: boolean }>(
+        `/api/organizations/${organizationId}/courses/${hidden}`,
+      );
+      return [courses.find(({ id }) => id === hidden)?.hidden, page.hidden, page.published];
+    };
+    const listed = async () =>
+      (
+        (await (await api.request("/api/courses", asLearner)).json()) as {
+          courses: { id: string }[];
+        }
+      ).courses.map(({ id }) => id);
+    const attempt = (id: string) => ({ id, taskId, response: { choice: 0 } });
+    const ownProgress = () =>
+      api.request(`/api/courses/${hidden}/learners/${learner.id}/progress`, asLearner);
+    expect((await postAttempt(hidden, attempt("before-hiding"), learner.cookie)).status).toBe(200);
+    const nextBefore = (await next(hidden, learner.cookie)).status;
+
+    // Not a tool, even alongside the session, nor a member who does not administer it.
+    const byTool = await setHidden(asTool, hidden, { hidden: true });
+    expect(byTool.status).toBe(403);
+    expect(await byTool.json()).toEqual({ error: "Hide or show a course in Braivo's console." });
+    expect((await setHidden({ ...inConsole, ...asTool }, hidden, { hidden: true })).status).toBe(
+      403,
+    );
+    expect(
+      (await setHidden({ ...inConsole, cookie: learner.cookie }, hidden, { hidden: true })).status,
+    ).toBe(403);
+    expect((await setHidden(inConsole, hidden, { hidden: "yes" })).status).toBe(400);
+    // Another organization's, as missing; an unpublished one, explained.
+    expect((await setHidden(inConsole, foreignCourseId, { hidden: true })).status).toBe(404);
+    const unpublished = await setHidden(inConsole, proposed, { hidden: true });
+    expect(unpublished.status).toBe(409);
+    expect(await unpublished.json()).toEqual({
+      error: "The course is not published, so learners can't see it anyway.",
+    });
+    expect(await shown()).toEqual([false, false, true]);
+
+    expect((await setHidden(inConsole, hidden, { hidden: true })).status).toBe(204);
+    expect((await setHidden(inConsole, hidden, { hidden: true })).status).toBe(204);
+
+    // To its learners, as if there were no such course.
+    expect(await listed()).not.toContain(hidden);
+    expect((await next(hidden, learner.cookie)).status).toBe(404);
+    expect((await api.request(`/api/courses/${hidden}/activity`, asLearner)).status).toBe(404);
+    expect((await postAttempt(hidden, attempt("while-hidden"), learner.cookie)).status).toBe(404);
+    expect((await ownProgress()).status).toBe(404);
+    // Still published, so still not deleted; those reading for learners read it, told it is not open.
+    expect(await shown()).toEqual([true, true, true]);
+    const remove = await api.request(
+      `/api/organizations/${organizationId}/courses/${hidden}/delete`,
+      { method: "POST", headers: inConsole, body: "{}" },
+    );
+    expect(remove.status).toBe(409);
+    expect(await read(`/api/courses/${hidden}/progress`)).toMatchObject({ open: false });
+    expect(
+      (await api.request(`/api/courses/${hidden}/learners/${learner.id}/progress`, asTeacher))
+        .status,
+    ).toBe(200);
+    // What the learner did stays.
+    expect(await stored(learner.id)).toHaveLength(1);
+
+    expect((await setHidden(inConsole, hidden, { hidden: false })).status).toBe(204);
+    expect((await setHidden(inConsole, hidden, { hidden: false })).status).toBe(204);
+    expect(await shown()).toEqual([false, false, true]);
+    expect(await listed()).toContain(hidden);
+    expect((await next(hidden, learner.cookie)).status).toBe(nextBefore);
+    expect((await ownProgress()).status).toBe(200);
   });
 
   describe("task publication", () => {
@@ -1141,6 +1254,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           title: "Spanish",
           urlLabel: "spanish",
           published: true,
+          hidden: false,
           waitingTaskCount: 0,
         },
       ]),
@@ -1338,6 +1452,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         title: course.title,
         urlLabel: expect.any(String),
         published: true,
+        hidden: false,
         waitingTaskCount: 0,
       },
     ]);
@@ -1396,6 +1511,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       title: "Colores",
       urlLabel: "colores",
       published: true,
+      hidden: false,
       objectives: [
         { id: blue, title: "Blue", citations: [], tasks: [], otherPublishedCourses: [] },
         {

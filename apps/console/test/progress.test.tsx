@@ -85,7 +85,7 @@ describe("the console", () => {
     );
   });
 
-  test("sends no one to an unpublished course's link, nor says its members study it", async () => {
+  test("sends no one to the link of a course learners cannot open, nor says its members study it", async () => {
     renderAt("/example/courses/course-1/progress", {
       braivo: {
         listCourses: async () => [
@@ -97,15 +97,13 @@ describe("the console", () => {
             published: false,
           },
         ],
-        courseProgress: async () => ({ ...(await courseProgress()), published: false }),
+        courseProgress: async () => ({ ...(await courseProgress()), open: false }),
       },
     });
 
+    expect(await screen.findByText("Learners can't open this course for now.")).toBeTruthy();
     expect(
-      await screen.findByText("Learners can't see this course until it is published."),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/every member can study this course once it is published\./),
+      screen.getByText(/every member can study this course once it is open to learners\./),
     ).toBeTruthy();
     expect(screen.queryByText(/Learners practise it at/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();

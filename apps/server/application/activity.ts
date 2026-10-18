@@ -79,8 +79,8 @@ export async function chooseNextActivity(input: {
     learnerId,
     host,
     now,
-    // The learner themselves: only a published course.
-    authorize: ({ published }) => published,
+    // The learner themselves: only an open course.
+    authorize: ({ open }) => open,
   });
   if (learner === undefined) return { kind: "unavailable" };
 
@@ -214,8 +214,9 @@ export async function submitAttempt(input: {
   if (attemptId === "" || attemptId.length > MAX_ATTEMPT_ID_LENGTH) return { kind: "invalid" };
 
   const course = await readCourseOrganization(database, courseId);
-  // Unpublished, as missing: learners reach only what is published (ADR 0039).
-  if (course === undefined || !course.published) return { kind: "unavailable" };
+  // Unpublished or hidden, as missing: learners reach only an open course (ADR
+  // 0039). An attempt checked before a Hide commits is still recorded.
+  if (course === undefined || !course.open) return { kind: "unavailable" };
   const { organizationId } = course;
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
   if (!(await isMember(database, { organizationId, userId: learnerId }))) {

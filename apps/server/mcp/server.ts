@@ -587,7 +587,7 @@ export function createMcpServer(
     {
       title: "List courses",
       description:
-        "An organization's courses, by title, each saying whether it is published and how many of its tasks wait for its owner to publish them (waitingTaskCount).",
+        "An organization's courses, by title, each saying whether it is published, whether its owner hid it from learners (hidden), and how many of its tasks wait for its owner to publish them (waitingTaskCount).",
       inputSchema: z.object({ organizationId }),
       annotations: READ_ONLY,
     },
@@ -599,7 +599,7 @@ export function createMcpServer(
     {
       title: "Read a course",
       description:
-        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. A waiting task identical to one retired before is marked matchesRetiredTask. Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
+        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. A waiting task identical to one retired before is marked matchesRetiredTask. Learners reach it only while it is published and not hidden by its owner (hidden). Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
       inputSchema: z.object({ organizationId, courseId: z.string().min(1) }),
       annotations: READ_ONLY,
     },

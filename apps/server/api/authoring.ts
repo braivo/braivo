@@ -28,6 +28,7 @@ import {
   NameRefused,
   ProvisioningFailed,
   readAuthoredCourse,
+  setCourseHidden,
   recordGradedEvidence,
   type QuotedCitation,
   removeDomain,
@@ -813,6 +814,38 @@ export function authoringRoutes(
           now: new Date(),
         });
         return context.body(null, deleted ? 204 : 404);
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * Hides a published course from learners, or shows it again (ADR 0039).
+   * Only from a browser: a tool proposes, and a person decides what learners
+   * reach, as for Publish.
+   */
+  routes.post(
+    "/api/organizations/:organizationId/courses/:courseId/visibility",
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (presentsToolCredential(context)) {
+        return context.json({ error: "Hide or show a course in Braivo's console." }, 403);
+      }
+      const body = (await jsonBody(context)) as { hidden?: unknown } | null;
+      if (typeof body?.hidden !== "boolean") return context.body(null, 400);
+
+      try {
+        const found = await setCourseHidden({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseId: context.req.param("courseId"),
+          hidden: body.hidden,
+          now: new Date(),
+        });
+        return context.body(null, found ? 204 : 404);
       } catch (error) {
         return organizationRefusal(context, error);
       }

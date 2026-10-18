@@ -67,13 +67,13 @@ msgstr "{count, plural, one {# osoba.} few {# osoby.} many {# osób.} other {# o
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is published."
-msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek będzie mógł uczyć się w tym kursie po jego opublikowaniu."
+msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course once it is open to learners."
+msgstr "{count, plural, one {# członek} few {# członkowie} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek będzie mógł uczyć się w tym kursie, gdy zostanie udostępniony uczniom."
 
 #. placeholder {0}: organization.name
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
-msgstr "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
+msgstr "{count, plural, one {# członek} few {# członkowie} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -812,8 +812,8 @@ msgid "Learners can practise at any of these addresses. Links to share with them
 msgstr "Uczniowie mogą ćwiczyć pod każdym z tych adresów. Linki do udostępnienia im prowadzą do domeny głównej."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "Learners can't see this course until it is published."
-msgstr "Uczniowie nie widzą tego kursu, dopóki nie zostanie opublikowany."
+msgid "Learners can't open this course for now."
+msgstr "Uczniowie nie mogą na razie otworzyć tego kursu."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."

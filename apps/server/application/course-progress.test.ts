@@ -146,7 +146,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
     expect(read).toEqual({
       kind: "assessed",
       overview: {
-        published: true,
+        open: true,
         modelVersion: activeModel.version,
         learners: [
           {

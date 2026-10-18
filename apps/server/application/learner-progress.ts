@@ -49,10 +49,10 @@ export async function readLearnerProgress(input: {
     host,
     now,
     // Reading for oneself is a learner's reach, whatever else the reader is:
-    // only a published course.
-    authorize: async ({ organizationId, published }) =>
+    // only an open course.
+    authorize: async ({ organizationId, open }) =>
       viewedBy === learnerId
-        ? published
+        ? open
         : (await mayAdminister(database, { organizationId, userId: viewedBy })) ||
           teaches(database, { teacherId: viewedBy, learnerId, courseId }),
   });

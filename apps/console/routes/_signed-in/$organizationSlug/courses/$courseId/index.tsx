@@ -100,6 +100,8 @@ function Course() {
   const publishing = publication.publishing !== undefined;
   // Delete's request is under way: Publish and editors wait, as for Publish's.
   const [deleting, setDeleting] = useState(false);
+  // Hide's or Show's is: Publish and editors wait, as for Delete's.
+  const [changingVisibility, setChangingVisibility] = useState(false);
   const sources = new Map(course.sources.map((source) => [source.id, source]));
   // Objectives with work to review, numbered by their place in the course.
   const objectivesToReview = course.objectives
@@ -121,7 +123,7 @@ function Course() {
       </Heading>
       {/* A tool's course and tasks wait for a person's review here (ADR 0039);
           the console's own, accepted from a draft, are published as created. */}
-      {course.published && (
+      {course.published && !course.hidden && (
         <LearnersSite
           learnDomain={organization.learnDomain}
           path={`/c/${courseRef(course)}`}
@@ -129,13 +131,21 @@ function Course() {
           none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
         />
       )}
+      {course.hidden && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Badge variant="outline">Hidden</Badge>
+          <MutedText className="wrap-break-word">
+            Learners can't open this course until you show it again. What they learned stays.
+          </MutedText>
+        </div>
+      )}
       {(!course.published || waiting.length > 0) && (
         <PublishWaiting
           course={course}
           selected={selectedTasks}
           publication={publication}
           editing={editing !== undefined}
-          deleting={deleting}
+          busy={deleting || changingVisibility}
         />
       )}
       <MutedText role="status" className="mb-4 block empty:mb-0">
@@ -156,6 +166,24 @@ function Course() {
             <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
           </Link>
         </Button>
+        {/* Hidden rather than unpublished, as learners may have met it (ADR 0039). */}
+        {course.published && (
+          <CourseVisibility
+            course={course}
+            editing={editing !== undefined}
+            pending={changingVisibility}
+            publishing={publishing}
+            onPending={(now) => {
+              // The previous action's announcement, cleared.
+              if (now) setStatusMessage("");
+              setChangingVisibility(now);
+            }}
+            onDone={(message) => {
+              heading.current?.focus();
+              setStatusMessage(message);
+            }}
+          />
+        )}
         {/* Only while no learner has seen it (ADR 0039). */}
         {!course.published && (
           <DeleteCourse
@@ -194,7 +222,7 @@ function Course() {
               selection={selection}
               editing={editing}
               onEdit={setEditingId}
-              pending={publishing || deleting}
+              pending={publishing || deleting || changingVisibility}
               fallbackFocus={heading}
             />
           ))}
@@ -213,7 +241,7 @@ function Course() {
             sources={sources}
             editing={editing}
             onEdit={setEditingId}
-            pending={publishing || deleting}
+            pending={publishing || deleting || changingVisibility}
             fallbackFocus={heading}
           />
         ))}
@@ -242,10 +270,10 @@ function PublishWaiting(props: {
   publication: ReturnType<typeof usePublish>;
   /** A task's editor is open: neither button sends until it closes. */
   editing: boolean;
-  /** Delete is under way: neither button sends meanwhile. */
-  deleting: boolean;
+  /** Delete, Hide, or Show is under way: neither button sends meanwhile. */
+  busy: boolean;
 }) {
-  const { course, selected, publication, editing, deleting } = props;
+  const { course, selected, publication, editing, busy } = props;
   const waiting = waitingTasks(course);
 
   const action = (
@@ -256,10 +284,10 @@ function PublishWaiting(props: {
     action,
     label,
     // Selecting nothing publishes nothing in a published course.
-    disabled: editing || deleting || (course.published && tasks.length === 0),
+    disabled: editing || busy || (course.published && tasks.length === 0),
     confirm: confirmation(course, tasks),
     onPublish: () => {
-      if (editing || deleting) return;
+      if (editing || busy) return;
       void publication.publish(
         action,
         {
@@ -314,8 +342,8 @@ function PublishWaiting(props: {
             ? `Save or cancel the open edit to ${course.published ? "publish" : "publish or delete"}.`
             : undefined
         }
-        // Not beside Delete's attempt, which it does not speak of.
-        failures={deleting ? 0 : publication.failures}
+        // Not beside another action's attempt, which it does not speak of.
+        failures={busy ? 0 : publication.failures}
       />
     </>
   );
@@ -461,6 +489,127 @@ function DeleteCourse(props: {
 }
 
 /**
+ * Hiding a published course from learners, asked first, or showing it again:
+ * it stays published, and what they learned stays (ADR 0039). Done, the page
+ * shows it so.
+ */
+function CourseVisibility(props: {
+  course: AuthoredCourse;
+  /** A task's editor is open, whose unsaved edit signing in again would lose: disabled meanwhile. */
+  editing: boolean;
+  /** Its request is under way: it says Hiding… or Showing…, and sends no other. */
+  pending: boolean;
+  /** Publish is under way, whose reload would race this one's: inert meanwhile. */
+  publishing: boolean;
+  onPending: (pending: boolean) => void;
+  /** Done: the page shown again, and what to announce. */
+  onDone: (message: string) => void;
+}) {
+  const { course, editing, pending, publishing, onPending, onDone } = props;
+  const { braivo, organization } = Route.useRouteContext();
+  const router = useRouter();
+  // What it asks for: hiding while learners reach it, else showing.
+  const hide = !course.hidden;
+  // A ref, set at once, refuses a second request before `pending` renders.
+  const sending = useRef(false);
+  /** The last failure's count keys the alert, so a repeat is announced too. */
+  const [failures, setFailures] = useState(0);
+
+  async function change() {
+    if (sending.current) return;
+    sending.current = true;
+    onPending(true);
+    setFailures(0);
+    try {
+      try {
+        // Bounded: retried after a lost answer, it changes nothing again.
+        await braivo.setCourseHidden(
+          { organizationId: organization.id, courseId: course.id, hidden: hide },
+          { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
+        );
+      } catch (thrown) {
+        if (thrown instanceof BraivoError && [401, 403, 404].includes(thrown.status)) {
+          // Signed out, no longer administering it, or gone: the page, read again, says so.
+          await router.invalidate();
+        } else {
+          setFailures((count) => count + 1);
+        }
+        return;
+      }
+      // Done: only the request's failure is said; a reload's shows as the page's own.
+      await router.invalidate({ sync: true });
+      onDone(hide ? "Hidden from learners." : "Shown to learners again.");
+    } finally {
+      sending.current = false;
+      onPending(false);
+    }
+  }
+
+  const label = pending ? (
+    <>
+      {/* Hidden: the words already say it. */}
+      <Spinner data-icon="inline-start" aria-hidden="true" />
+      {hide ? "Hiding…" : "Showing…"}
+    </>
+  ) : hide ? (
+    "Hide from learners"
+  ) : (
+    "Show to learners"
+  );
+  // Focusable meanwhile, doing nothing.
+  const button = (
+    <Button
+      variant="outline"
+      className="w-fit"
+      disabled={editing}
+      aria-disabled={pending || publishing || undefined}
+      onClick={(event) => {
+        if (pending || publishing) event.preventDefault();
+        else if (!hide) void change();
+      }}
+    >
+      {label}
+    </Button>
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      {hide ? (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              {/* A grid item, which a long unbroken title would widen past the dialog. */}
+              <AlertDialogTitle className="wrap-anywhere">
+                Hide “{course.title}” from learners?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Learners can't open it or practise it until you show it again. What they learned
+                stays.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it open</AlertDialogCancel>
+              <AlertDialogAction onClick={change}>Hide</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : (
+        // Shown again without asking: it restores what learners had.
+        button
+      )}
+      {failures > 0 && !pending && (
+        <Alert variant="destructive" key={failures}>
+          <AlertDescription>
+            The course could not be {hide ? "hidden" : "shown"}. Try again.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
+/**
  * One objective as a reviewer checks it. Under What it teaches: the passages
  * that teach it, then its published tasks, each with the passages it was
  * written from. `waiting`: its waiting tasks instead, without its passages,
@@ -475,7 +624,7 @@ function Objective(props: {
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
   editing: string | undefined;
   onEdit: (taskId: string | undefined) => void;
-  /** Publish or Delete is under way: no editor opens, as what follows would close it. */
+  /** Publish, Delete, Hide, or Show is under way: no editor opens, as what follows would close it. */
   pending: boolean;
   /** Focused when a task's change leaves this objective off the page. */
   fallbackFocus: RefObject<HTMLHeadingElement | null>;
