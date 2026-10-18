@@ -221,8 +221,16 @@ function parseTasks(body: unknown): ParsedTask[] | undefined {
  * read back can be sent again. Field by field, so a field added to the stored
  * task is not answered unless added here.
  */
-function authoredTask({ id, body, citations, published, replaces }: AuthoredTask) {
-  return { id, ...body, citations, published, ...(replaces !== undefined && { replaces }) };
+function authoredTask(authored: AuthoredTask) {
+  const { id, body, citations, published, replaces, matchesRetiredTask } = authored;
+  return {
+    id,
+    ...body,
+    citations,
+    published,
+    ...(replaces !== undefined && { replaces }),
+    ...(matchesRetiredTask && { matchesRetiredTask }),
+  };
 }
 
 /** Reads `taskIds`, each non-empty, out of a request body. */

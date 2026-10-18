@@ -574,6 +574,9 @@ function RetirableTask(props: {
                 Corrects “{corrects}”, which stays published until you publish this.
               </MutedText>
             )}
+            {task.matchesRetiredTask && (
+              <MutedText className="mt-1 block">An identical task was retired before.</MutedText>
+            )}
           </>
         )
       }

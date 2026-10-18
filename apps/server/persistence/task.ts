@@ -311,10 +311,7 @@ async function storeTasks(
     const cited = citedKey(item.citations ?? []);
     const twin = known.find(
       (candidate) =>
-        candidate.objectiveId === item.objectiveId &&
-        candidate.cited === cited &&
-        // Key order does not matter, option order does: it is what `answer` indexes.
-        isDeepStrictEqual(candidate.body, body),
+        candidate.objectiveId === item.objectiveId && isTwin(candidate, { body, cited }),
     );
     if (twin) return { ...stateOf(twin), id: twin.id, added: false };
 
@@ -352,6 +349,16 @@ function stateOf(row: { published: boolean; replacesTaskId: string | undefined }
     // The column outlives Publish as a record; the answer names it only while waiting.
     ...(!row.published && row.replacesTaskId !== undefined && { replaces: row.replacesTaskId }),
   };
+}
+
+/**
+ * Whether two tasks are the same task (ADR 0024), given that they assess one
+ * objective, which the caller checks: equal bodies, as stored, and the same
+ * passages (`citedKey`).
+ */
+function isTwin(a: { body: unknown; cited: string }, b: { body: unknown; cited: string }) {
+  // Key order does not matter, option order does: it is what `answer` indexes.
+  return a.cited === b.cited && isDeepStrictEqual(a.body, b.body);
 }
 
 /** A task's passages as one comparable value: the same set, however listed or repeated. */
@@ -608,6 +615,11 @@ export type AuthoredTask = {
   published: boolean;
   /** While it waits, the published task it corrects, which Publish retires. */
   replaces?: string;
+  /**
+   * While it waits, that a twin of it (`isTwin`) was retired, however: often a
+   * task sent again after review, which should not be reviewed blindly twice.
+   */
+  matchesRetiredTask?: true;
 };
 
 /**
@@ -619,16 +631,20 @@ export async function readObjectiveTasks(
   database: Database,
   objectiveId: string,
 ): Promise<AuthoredTask[]> {
-  const tasks = await database
+  // Retired ones too, for `matchesRetiredTask`: in one read, so a task retired
+  // meanwhile cannot match itself; few per objective, as `storeTasks` reads.
+  const rows = await database
     .select({
       id: task.id,
       body: task.body,
       publishedAt: task.publishedAt,
+      retiredAt: task.retiredAt,
       replacesTaskId: task.replacesTaskId,
     })
     .from(task)
-    .where(and(eq(task.objectiveId, objectiveId), isNull(task.retiredAt)))
+    .where(eq(task.objectiveId, objectiveId))
     .orderBy(asc(task.createdAt), asc(task.id));
+  const tasks = rows.filter(({ retiredAt }) => retiredAt === null);
   if (tasks.length === 0) return [];
 
   const citations = await database
@@ -645,20 +661,34 @@ export async function readObjectiveTasks(
     .where(
       inArray(
         taskCitation.taskId,
-        tasks.map(({ id }) => id),
+        rows.map(({ id }) => id),
       ),
     )
     .orderBy(asc(taskCitation.sourceId), asc(taskCitation.start));
+  const passagesOf = (taskId: string) =>
+    citations
+      .filter((citation) => citation.taskId === taskId)
+      .map(({ sourceId, start, end, quote }) => ({ sourceId, start, end, quote }));
+  const retired = rows
+    .filter(({ retiredAt }) => retiredAt !== null)
+    .map(({ id, body }) => ({ body, cited: citedKey(passagesOf(id)) }));
 
-  return tasks.map(({ id, body, publishedAt, replacesTaskId }) => ({
-    id,
-    body: body as TaskBody,
-    citations: citations
-      .filter((citation) => citation.taskId === id)
-      .map(({ sourceId, start, end, quote }) => ({ sourceId, start, end, quote })),
-    published: publishedAt !== null,
-    ...(publishedAt === null && replacesTaskId !== null && { replaces: replacesTaskId }),
-  }));
+  return tasks.map(({ id, body, publishedAt, replacesTaskId }) => {
+    const passages = passagesOf(id);
+    const waiting = publishedAt === null;
+    const comparable = { body, cited: citedKey(passages) };
+    return {
+      id,
+      body: body as TaskBody,
+      citations: passages,
+      published: !waiting,
+      ...(waiting && replacesTaskId !== null && { replaces: replacesTaskId }),
+      ...(waiting &&
+        retired.some((each) => isTwin(each, comparable)) && {
+          matchesRetiredTask: true as const,
+        }),
+    };
+  });
 }
 
 /**
