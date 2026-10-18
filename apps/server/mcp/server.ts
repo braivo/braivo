@@ -550,7 +550,7 @@ export function createMcpServer(
     {
       title: "List tasks",
       description:
-        "An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a waiting correction of a published task names it in replaces. Read them before writing more, to review a course or to avoid near-duplicates.",
+        "An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a waiting correction of a published task names it in replaces, and a waiting task identical to one retired before is marked matchesRetiredTask. Read them before writing more, to review a course or to avoid near-duplicates.",
       inputSchema: z.object({ organizationId, objectiveId: z.string().min(1) }),
       annotations: READ_ONLY,
     },
@@ -599,7 +599,7 @@ export function createMcpServer(
     {
       title: "Read a course",
       description:
-        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
+        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. A waiting task identical to one retired before is marked matchesRetiredTask. Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
       inputSchema: z.object({ organizationId, courseId: z.string().min(1) }),
       annotations: READ_ONLY,
     },

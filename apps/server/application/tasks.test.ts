@@ -834,6 +834,92 @@ describe.skipIf(!connectionString)("tasks", () => {
       }
     });
 
+    test("marks a waiting task the same as one retired, in the console or by a correction", async () => {
+      const lesson = await addLesson();
+      const cites = (...quotes: string[]) => quotes.map((quote) => ({ sourceId: lesson, quote }));
+      const asked = (prompt: string) => ({ ...choice, prompt });
+      const [retired, corrected, superseded, kept] = (await define(
+        [
+          { objectiveId: objective, body: asked("Retired?"), citations: cites("Hola", "Adiós") },
+          { objectiveId: objective, body: asked("Corrected?") },
+          { objectiveId: objective, body: asked("Superseded?") },
+          { objectiveId: objective, body: asked("Kept?") },
+        ],
+        author,
+        asTool,
+      )) as [string, string, string, string];
+      await publishTasks([retired, corrected, superseded, kept]);
+      // Retired in the console; corrected there; corrected by a tool, then published.
+      await retire([retired]);
+      await define([{ objectiveId: objective, body: asked("Fixed?"), replaces: corrected }]);
+      const [correction] = (await correctAsTool(superseded, asked("Replaced?"))) as [string];
+      await publishTasks([correction]);
+      // Retired under another objective: not this one's.
+      const [elsewhere] = (await createObjectives(database, organizationId, ["Elsewhere"])) as [
+        string,
+      ];
+      const [theirs] = (await define(
+        [{ objectiveId: elsewhere, body: asked("Elsewhere?") }],
+        author,
+        asTool,
+      )) as [string];
+      await retire([theirs]);
+
+      const sentAgain = await define(
+        [
+          // Its passages listed the other way round: the same set.
+          { objectiveId: objective, body: asked("Retired?"), citations: cites("Adiós", "Hola") },
+          { objectiveId: objective, body: asked("Corrected?") },
+          { objectiveId: objective, body: asked("Superseded?") },
+          // Not the same as any retired: another passage, another answer, new.
+          { objectiveId: objective, body: asked("Retired?"), citations: cites("Hola") },
+          { objectiveId: objective, body: { ...asked("Corrected?"), answer: 1 } },
+          { objectiveId: objective, body: asked("New?") },
+          { objectiveId: objective, body: asked("Elsewhere?") },
+        ],
+        author,
+        asTool,
+      );
+
+      const listed = await listObjectiveTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        objectiveId: objective,
+      });
+      const marked = (id: string) => listed!.find((each) => each.id === id)!.matchesRetiredTask;
+      expect(sentAgain.map(marked)).toEqual([
+        true,
+        true,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ]);
+      // Its quotes read as before, retired tasks' citations now read with them.
+      expect(listed!.find(({ id }) => id === sentAgain[0])!.citations).toEqual([
+        { sourceId: lesson, start: 2, end: 6, quote: "Hola" },
+        { sourceId: lesson, start: 24, end: 29, quote: "Adiós" },
+      ]);
+      // Published ones are not marked, nor are the retired ones listed.
+      expect(
+        listed!
+          .filter(({ published }) => published)
+          .map(({ matchesRetiredTask }) => matchesRetiredTask),
+      ).toEqual([undefined, undefined, undefined]);
+      expect(listed!.map(({ id }) => id)).not.toContain(retired);
+      // Published, it is no longer marked: nothing left to review.
+      await publishTasks([sentAgain[0]!]);
+      const after = await listObjectiveTasks({
+        database,
+        organizationId,
+        actingAs: author,
+        objectiveId: objective,
+      });
+      expect(after!.find(({ id }) => id === sentAgain[0])!.matchesRetiredTask).toBeUndefined();
+    });
+
     test("settles a tool's correction racing Publish either way, never both changing one task", async () => {
       // A waiting task, then a published one's waiting correction: the two the race changes.
       const [proposed] = (await define(

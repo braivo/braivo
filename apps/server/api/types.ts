@@ -253,13 +253,16 @@ export type AuthoredCourse = ManagedCourse & {
  * `published` while it waits for its owner to publish it in the console,
  * offered in no course (ADR 0039). A waiting correction of a published task
  * names that task in `replaces`; the task stays offered until the correction
- * is published.
+ * is published. A waiting task identical to a retired one of its objective
+ * (ADR 0024's twin), however retired, is marked `matchesRetiredTask`: often a
+ * task sent again after its review.
  */
 export type AuthoredTask = content.TaskBody & {
   id: string;
   citations: { sourceId: string; start: number; end: number; quote: string }[];
   published: boolean;
   replaces?: string;
+  matchesRetiredTask?: true;
 };
 
 /**

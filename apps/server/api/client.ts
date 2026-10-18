@@ -592,8 +592,9 @@ export type BraivoClient = {
 
   /**
    * An objective's unretired tasks, published or waiting, oldest first, as
-   * authored — answers included — with the passages each cites, and for a
-   * waiting correction, the published task it `replaces`. An objective
+   * authored — answers included — with the passages each cites, for a
+   * waiting correction the published task it `replaces`, and for a waiting
+   * task identical to one retired before, `matchesRetiredTask`. An objective
    * the organization does not have is a {@link BraivoError} with status 404;
    * one the session may not administer, 403.
    */

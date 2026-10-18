@@ -910,6 +910,35 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await lateRetirement.json()).toEqual({ error: expect.stringContaining("retired") });
     });
 
+    test("marks a task sent again after it was retired, in both reads", async () => {
+      const { objectiveId, courses } = await sharedObjective("Retired");
+      const [retired, kept] = (await written(asTool, [
+        { objectiveId, ...choice("Retired") },
+        { objectiveId, ...choice("Kept") },
+      ])) as [string, string];
+      expect((await publish(inConsole, { taskIds: [retired, kept] })).status).toBe(204);
+      expect((await retire(inConsole, [retired])).status).toBe(204);
+
+      const [again] = (await written(asTool, [{ objectiveId, ...choice("Retired") }])) as [string];
+      const read = { citations: [], options: ["yes", "no"], answer: 0, kind: "choice" };
+      const expected = [
+        { id: kept, ...read, prompt: "Kept", published: true },
+        { id: again, ...read, prompt: "Retired", published: false, matchesRetiredTask: true },
+      ];
+      const listed = (await (
+        await api.request(`/api/organizations/${organizationId}/objectives/${objectiveId}/tasks`, {
+          headers: { cookie: teacher.cookie },
+        })
+      ).json()) as { tasks: unknown[] };
+      expect(listed.tasks).toEqual(expected);
+      const course = (await (
+        await api.request(`/api/organizations/${organizationId}/courses/${courses[0]}`, {
+          headers: { cookie: teacher.cookie },
+        })
+      ).json()) as { objectives: { tasks: unknown[] }[] };
+      expect(course.objectives[0]!.tasks).toEqual(expected);
+    });
+
     test("answers each correction with what it did and what learners reach", async () => {
       const { objectiveId } = await sharedObjective("Answered");
       const answered = async (headers: Record<string, string>, tasks: unknown[]) => {

@@ -256,6 +256,29 @@ describe("an objective's page", () => {
     );
   });
 
+  test("says which waiting task is the same as one retired before", async () => {
+    renderAt("/example/objectives/numbers", {
+      braivo: {
+        listObjectives: async () => [numbers],
+        listTasks: async () => [
+          { ...task("t1", "One?"), matchesRetiredTask: true },
+          task("t2", "Two?"),
+        ],
+        listCourses: async () => [],
+        listSources: async () => sources,
+      },
+    });
+
+    const note = await screen.findByText("An identical task was retired before.");
+    // On its own card, still with its own Retire.
+    const card = note.closest("[data-slot=card]")!;
+    expect(within(card as HTMLElement).getByText("One?")).toBeTruthy();
+    expect(
+      within(card as HTMLElement).getByRole("button", { name: "Retire waiting task “One?”" }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("An identical task was retired before.")).toHaveLength(1);
+  });
+
   test("waits for an open edit before publishing, as a course's page does", async () => {
     renderAt("/example/objectives/numbers", {
       braivo: {
