@@ -30,6 +30,7 @@ import {
   PublishedTask,
   StaleCorrection,
   StalePublication,
+  UnpublishedCourse,
 } from "../application/index.ts";
 
 /**
@@ -65,6 +66,7 @@ export function organizationRefusal(context: Context, error: unknown): Response 
     error instanceof PublishedCourse ||
     error instanceof StaleCorrection ||
     error instanceof StalePublication ||
+    error instanceof UnpublishedCourse ||
     error instanceof ConflictingGroupRole
   ) {
     return context.json({ error: error.message }, 409);

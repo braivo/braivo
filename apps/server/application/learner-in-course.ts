@@ -34,13 +34,13 @@ type LearnerInCourse = {
  * course is missing, belongs to an organization `host` does not reach,
  * `authorize` refuses, or the learner is not in the course's organization;
  * callers cannot tell which. `authorize` is told whether the course is
- * published: learners reach only what is (ADR 0039); those reading for them
- * may read it either way. "What next" and "where they stand" both load
- * through here, so they cannot drift apart.
+ * `open`, published and not hidden: learners reach only an open course (ADR
+ * 0039); those reading for them may read it either way. "What next" and
+ * "where they stand" both load through here, so they cannot drift apart.
  *
  * The organization comes from the course, never from the caller. `authorize` is
  * required, so forgetting it fails to compile; a learner reading for themselves
- * passes `({ published }) => published`. It runs before the membership query,
+ * passes `({ open }) => open`. It runs before the membership query,
  * so a refused reader cannot time whether the learner is a member. Whether the course exists still
  * shows in timing, since a missing one skips `authorize`.
  */
@@ -52,10 +52,7 @@ export async function loadLearnerInCourse(
     /** The host the request came to; see `hostAdmits`. */
     host: RequestHost;
     now: Date;
-    authorize: (course: {
-      organizationId: string;
-      published: boolean;
-    }) => boolean | Promise<boolean>;
+    authorize: (course: { organizationId: string; open: boolean }) => boolean | Promise<boolean>;
   },
 ): Promise<LearnerInCourse | undefined> {
   const { courseId, learnerId, host, now, authorize } = input;

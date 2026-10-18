@@ -15,8 +15,11 @@ import type { Transaction } from "./task.ts";
  */
 export type Course = { id: string; number: number; title: string; urlLabel: string };
 
-/** A course as its organization's administrators see it: whether learners reach it yet. */
-export type ManagedCourse = Course & { published: boolean };
+/**
+ * A course as its organization's administrators see it: whether it is
+ * published, and whether a person hid it from learners since (ADR 0039).
+ */
+export type ManagedCourse = Course & { published: boolean; hidden: boolean };
 
 /** What a course is listed from. */
 export const COURSE_COLUMNS = {
@@ -204,22 +207,32 @@ export async function markCourseDeleted(
 }
 
 /**
- * The organization a course belongs to and whether it is published, or
- * `undefined` when there is no such course, or it was deleted. A workflow needs it before anything
- * else of the course's, because entitlement is decided against the
- * organization rather than the course, and learners reach only what is published.
+ * The organization a course belongs to and whether it is `open`, published
+ * and not hidden, or `undefined` when there is no such course, or it was
+ * deleted. A workflow needs it before anything else of the course's, because
+ * entitlement is decided against the organization rather than the course, and
+ * learners reach only an open course.
  */
 export async function readCourseOrganization(
   database: Database,
   courseId: string,
-): Promise<{ organizationId: string; published: boolean } | undefined> {
+): Promise<{ organizationId: string; open: boolean } | undefined> {
   const [row] = await database
-    .select({ organizationId: course.organizationId, publishedAt: course.publishedAt })
+    .select({
+      organizationId: course.organizationId,
+      publishedAt: course.publishedAt,
+      hiddenAt: course.hiddenAt,
+    })
     .from(course)
     .where(and(eq(course.id, courseId), isNull(course.deletedAt)))
     .limit(1);
 
-  return row && { organizationId: row.organizationId, published: row.publishedAt !== null };
+  return (
+    row && {
+      organizationId: row.organizationId,
+      open: row.publishedAt !== null && row.hiddenAt === null,
+    }
+  );
 }
 
 /**
@@ -233,11 +246,15 @@ export async function readCourses(
   organizationId: string,
 ): Promise<ManagedCourse[]> {
   const rows = await database
-    .select({ ...COURSE_COLUMNS, publishedAt: course.publishedAt })
+    .select({ ...COURSE_COLUMNS, publishedAt: course.publishedAt, hiddenAt: course.hiddenAt })
     .from(course)
     .where(and(eq(course.organizationId, organizationId), isNull(course.deletedAt)))
     .orderBy(asc(course.title), asc(course.id));
-  return rows.map((row) => ({ ...listedCourse(row), published: row.publishedAt !== null }));
+  return rows.map((row) => ({
+    ...listedCourse(row),
+    published: row.publishedAt !== null,
+    hidden: row.hiddenAt !== null,
+  }));
 }
 
 /**
@@ -304,6 +321,43 @@ export async function publishCourses(
 }
 
 /**
+ * Hides the organization's published course `courseId` from learners, or
+ * shows it to them again: `"updated"`, also when it already was; `"unpublished"`,
+ * nothing changed, for hiding a course no learner reaches anyway; `undefined`
+ * without such a course. It stays published, its evidence and groups kept.
+ */
+export async function updateCourseHidden(
+  database: Database,
+  input: { organizationId: string; courseId: string; hidden: boolean; now: Date },
+): Promise<"updated" | "unpublished" | undefined> {
+  const { organizationId, courseId, hidden, now } = input;
+  return database.transaction(async (transaction) => {
+    // Locked, so of two hidings at once the later sees the earlier's.
+    const [row] = await transaction
+      .select({ publishedAt: course.publishedAt, hiddenAt: course.hiddenAt })
+      .from(course)
+      .where(
+        and(
+          eq(course.organizationId, organizationId),
+          eq(course.id, courseId),
+          isNull(course.deletedAt),
+        ),
+      )
+      .for("update");
+    if (!row) return undefined;
+    if (hidden && !row.publishedAt) return "unpublished";
+    // Hidden again, it keeps when it was first.
+    if (hidden === (row.hiddenAt !== null)) return "updated";
+
+    await transaction
+      .update(course)
+      .set({ hiddenAt: hidden ? now : null })
+      .where(eq(course.id, courseId));
+    return "updated";
+  });
+}
+
+/**
  * Sets the label after a course's number in its links if it is still
  * `previous`: saved then, or when it is `urlLabel` already, so a retry
  * succeeds; else not, with the label now; `undefined` without such a course.
@@ -338,8 +392,8 @@ export async function updateCourseUrlLabel(
 }
 
 /**
- * Every published course of every organization this user belongs to, or of just
- * `organizationId` when given, and of those just the one numbered `number`, by
+ * Every open course (published, not hidden) of every organization this user
+ * belongs to, or of just `organizationId` when given, and of those just the one numbered `number`, by
  * title. A user is a member of an organization at most once, so the join cannot
  * repeat a course; the index enforcing it is hand-written in migrations, not in
  * `schema/auth.ts`.
@@ -357,6 +411,7 @@ export async function readLearnerCourses(
       and(
         eq(member.userId, learnerId),
         isNotNull(course.publishedAt),
+        isNull(course.hiddenAt),
         only.organizationId === undefined
           ? undefined
           : eq(course.organizationId, only.organizationId),

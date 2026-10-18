@@ -253,8 +253,8 @@ export type BraivoClient = {
    * Where each learner in a course stands, counted, by name: every member of
    * its organization, with their roles, for a session holding `owner` or
    * `admin` there; for a teacher, without roles, the learners of the groups
-   * they teach that take the course. `published` says whether those learners
-   * reach it yet.
+   * they teach that take the course. `open` says whether those learners
+   * reach it: published, and not hidden since.
    *
    * A missing course and one the session may not read are one
    * {@link BraivoError} with status 404.
@@ -635,6 +635,19 @@ export type BraivoClient = {
    */
   deleteCourse(
     input: { organizationId: string; courseId: string },
+    options?: RequestOptions,
+  ): Promise<void>;
+
+  /**
+   * Hides a published course from learners, or shows it to them again: hidden,
+   * no learner reaches it, while it stays published and what they learned
+   * stays (ADR 0039). Repeating either succeeds. Only from a browser: a tool's
+   * token is refused, 403. Hiding an unpublished course is a
+   * {@link BraivoError} with status 409; a course the organization does not
+   * have, 404.
+   */
+  setCourseHidden(
+    input: { organizationId: string; courseId: string; hidden: boolean },
     options?: RequestOptions,
   ): Promise<void>;
 
@@ -1331,6 +1344,17 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       );
       if (response.status !== 204) {
         throw await unexpected(response, `deleting course "${courseId}"`);
+      }
+    },
+
+    async setCourseHidden({ organizationId, courseId, hidden }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/courses/${encodeURIComponent(courseId)}/visibility`,
+        { hidden },
+        requestOptions,
+      );
+      if (response.status !== 204) {
+        throw await unexpected(response, `${hidden ? "hiding" : "showing"} course "${courseId}"`);
       }
     },
 

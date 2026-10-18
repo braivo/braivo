@@ -516,7 +516,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     };
     // Exact at the top, so no field joins unnoticed; other tests add members.
     expect(await response.json()).toEqual({
-      published: true,
+      open: true,
       modelVersion: activeModel.version,
       learners: expect.arrayContaining([
         {

@@ -890,4 +890,144 @@ describe("the console", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     await act(async () => deleting.resolve());
   });
+
+  test("hides a published course once asked, and shows it again without asking", async () => {
+    let hidden = false;
+    const setCourseHidden = vi.fn<BraivoClient["setCourseHidden"]>(async (input) => {
+      hidden = input.hidden;
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          hidden,
+        }),
+        setCourseHidden,
+      },
+    });
+    const heading = await screen.findByRole("heading", { level: 1, name: "Beginners" });
+    expect(screen.getByText(/Open to every learner in Example School at/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide from learners" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Hide “Beginners” from learners?");
+    expect(dialog.textContent).toContain(
+      "Learners can't open it or practise it until you show it again. What they learned stays.",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hide" }));
+
+    expect(await screen.findByText("Hidden from learners.")).toBeTruthy();
+    expect(setCourseHidden).toHaveBeenLastCalledWith(
+      { organizationId: "org-1", courseId: "course-1", hidden: true },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(screen.getByText("Hidden")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Learners can't open this course until you show it again. What they learned stays.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Open to every learner/)).toBeNull();
+    // Still published: never deleted.
+    expect(screen.queryByRole("button", { name: "Delete course" })).toBeNull();
+    expect(document.activeElement).toBe(heading);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show to learners" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(await screen.findByText("Shown to learners again.")).toBeTruthy();
+    expect(setCourseHidden).toHaveBeenLastCalledWith(
+      { organizationId: "org-1", courseId: "course-1", hidden: false },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(screen.getByText(/Open to every learner in Example School at/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide from learners" })).toBeTruthy();
+  });
+
+  test("says hiding failed, keeping the button to try again, and neither hides while editing nor edits while hiding", async () => {
+    const hiding = Promise.withResolvers<void>();
+    const setCourseHidden = vi
+      .fn<BraivoClient["setCourseHidden"]>()
+      .mockRejectedValueOnce(new BraivoError(503, "Braivo answered 503."))
+      .mockImplementationOnce(() => hiding.promise);
+    renderAt("/example/courses/course-1", { braivo: { readCourse, setCourseHidden } });
+
+    const hide = await screen.findByRole("button", { name: "Hide from learners" });
+    fireEvent.click(hide);
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Hide" }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The course could not be hidden. Try again.",
+    );
+
+    // Signing in again, were the session over, would lose the edit.
+    fireEvent.click(screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    expect(hide.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(hide.hasAttribute("disabled")).toBe(false);
+
+    // Nor does an editor open while it hides.
+    fireEvent.click(hide);
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Hide" }),
+    );
+    expect(await screen.findByRole("button", { name: "Hiding…" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" }).hasAttribute("disabled"),
+    ).toBe(true);
+    await act(async () => hiding.resolve());
+    expect(await screen.findByText("Hidden from learners.")).toBeTruthy();
+  });
+
+  test("hides nothing while publishing, and publishes nothing while hiding, clearing what Publish said", async () => {
+    const publishing = Promise.withResolvers<void>();
+    const hiding = Promise.withResolvers<void>();
+    const publish = vi
+      .fn<BraivoClient["publish"]>()
+      .mockImplementationOnce(() => publishing.promise)
+      .mockImplementation(async () => {});
+    const setCourseHidden = vi.fn<BraivoClient["setCourseHidden"]>(() => hiding.promise);
+    const [greetings, numbers] = beginners.objectives;
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [
+            {
+              ...greetings!,
+              tasks: [
+                ...greetings!.tasks,
+                { ...greetings!.tasks[0]!, id: "t2", prompt: "Bye?", published: false },
+              ],
+            },
+            numbers!,
+          ],
+        }),
+        publish,
+        setCourseHidden,
+      },
+    });
+    const hide = await screen.findByRole("button", { name: "Hide from learners" });
+    const all = screen.getByRole("button", { name: "Publish all (1)" });
+
+    fireEvent.click(all);
+    expect(hide.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(hide);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await act(async () => publishing.resolve());
+    expect(await screen.findByText("Published 1 task.")).toBeTruthy();
+
+    fireEvent.click(hide);
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Hide" }),
+    );
+    // What Publish said no longer holds.
+    expect(screen.queryByText("Published 1 task.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Publish all (1)" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+    await act(async () => hiding.resolve());
+    expect(await screen.findByText("Hidden from learners.")).toBeTruthy();
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
 });

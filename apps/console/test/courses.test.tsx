@@ -55,10 +55,10 @@ describe("the console", () => {
     expect((await screen.findByRole("form", { name: "Add material" })).id).toBe("add-material");
   });
 
-  test("marks a course, or a published course's tasks, waiting for review in the list", async () => {
+  test("marks a course hidden, or waiting for review, or a published course's tasks, in the list", async () => {
     // The courses' own counts, which count a shared objective's tasks in each,
     // are not what the list says: each task is listed once.
-    const listed = { published: true, waitingTaskCount: 9 };
+    const listed = { published: true, hidden: false, waitingTaskCount: 9 };
     const objective = { courseIds: [], waitingTaskCount: 0 };
     renderAt("/example", {
       braivo: {
@@ -72,7 +72,7 @@ describe("the console", () => {
             urlLabel: "french",
             published: false,
           },
-          { ...listed, id: "c3", number: 1003, title: "German", urlLabel: "german" },
+          { ...listed, id: "c3", number: 1003, title: "German", urlLabel: "german", hidden: true },
         ],
         listObjectives: async () => [
           { ...objective, id: "o1", title: "Cases", courseIds: ["c3"], waitingTaskCount: 2 },
@@ -100,10 +100,15 @@ describe("the console", () => {
     expect(screen.getByRole("link", { name: "Spanish" }).closest("li")!.textContent).toBe(
       "Spanish",
     );
-    // A published course's new tasks, counted: those of its objectives in no other course.
+    // A published course's new tasks, counted: those of its objectives in no
+    // other course; hidden from learners, said first.
     const german = screen
-      .getByRole("link", { name: "German (3 tasks need review)" })
+      .getByRole("link", { name: "German (hidden, 3 tasks need review)" })
       .closest("li")!;
+    expect(german.textContent).toBe(
+      "German (hidden, 3 tasks need review)Hidden3 tasks need review",
+    );
+    expect(within(german).getByText("Hidden").getAttribute("aria-hidden")).toBe("true");
     expect(within(german).getByText("3 tasks need review").getAttribute("aria-hidden")).toBe(
       "true",
     );

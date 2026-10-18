@@ -3234,6 +3234,19 @@
       "table": "course"
     },
     {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "hidden_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "course"
+    },
+    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,

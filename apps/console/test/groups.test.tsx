@@ -77,7 +77,7 @@ describe("groups", () => {
     test("reports a course across every group a teacher teaches it to, then one learner, and back as left", async () => {
       const reads = administratorReads();
       const courseProgress = vi.fn(async () => ({
-        published: true,
+        open: true,
         modelVersion: "v1",
         learners: [
           {
@@ -163,7 +163,7 @@ describe("groups", () => {
           listOrganizations,
           listGroups: async () => [sevenB],
           courseProgress: async () => ({
-            published: true,
+            open: true,
             modelVersion: "v1",
             learners: [
               {
@@ -218,7 +218,7 @@ describe("groups", () => {
           listGroups: async () => [sevenB],
           learnerProgress: async () => report,
           courseProgress: async () => ({
-            published: true,
+            open: true,
             modelVersion: "v1",
             learners: [
               {
@@ -253,7 +253,7 @@ describe("groups", () => {
     test("shows the query navigated to, in this course or another, over one typed before", async () => {
       const advanced = { id: "course-2", number: 5810, title: "Advanced", urlLabel: "advanced" };
       const progress = async () => ({
-        published: true,
+        open: true,
         modelVersion: "v1",
         learners: [
           {
@@ -443,7 +443,7 @@ describe("groups", () => {
         braivo: {
           listGroups: async () => [sevenB],
           courseProgress: async () => ({
-            published: true,
+            open: true,
             modelVersion: "v1",
             learners: [
               { userId: "u2", name: "Lee Learner", standings: standings(2, 0) },
@@ -469,7 +469,7 @@ describe("groups", () => {
 
     test("reads nothing about a course or learner a teacher's groups do not hold", async () => {
       const courseProgress = vi.fn(async () => ({
-        published: true,
+        open: true,
         modelVersion: "v1",
         learners: [],
         objectives: [],

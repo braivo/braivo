@@ -111,6 +111,11 @@ export const course = pgTable(
      * (ADR 0039, ADR 0044); its arrangement goes.
      */
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+    /**
+     * When a person hid it, published, from learners in the console; `null`
+     * while not hidden. It stays published: showing it clears this (ADR 0039).
+     */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     index("course_organization_idx").on(table.organizationId),

@@ -40,8 +40,8 @@ export async function chooseNextObjective(input: {
     learnerId,
     host,
     now,
-    // The learner themselves: only a published course.
-    authorize: ({ published }) => published,
+    // The learner themselves: only an open course.
+    authorize: ({ open }) => open,
   });
   if (learner === undefined) return { kind: "unavailable" };
 

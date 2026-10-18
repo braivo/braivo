@@ -26,6 +26,7 @@ import {
   readCourseObjectives,
   readCourseOrganization,
   readCourses,
+  updateCourseHidden,
   updateCourseUrlLabel,
 } from "./course.ts";
 import { createGroup, readGroups, updateGroup } from "./group.ts";
@@ -86,8 +87,22 @@ describe.skipIf(!connectionString)("courses", () => {
     await addCourse(otherOrganizationId, "Mike", theirObjective!);
 
     expect(await readCourses(database, organizationId)).toEqual([
-      { id: alpha, number: expect.any(Number), title: "Alpha", urlLabel: "alpha", published: true },
-      { id: zulu, number: expect.any(Number), title: "Zulu", urlLabel: "zulu", published: true },
+      {
+        id: alpha,
+        number: expect.any(Number),
+        title: "Alpha",
+        urlLabel: "alpha",
+        published: true,
+        hidden: false,
+      },
+      {
+        id: zulu,
+        number: expect.any(Number),
+        title: "Zulu",
+        urlLabel: "zulu",
+        published: true,
+        hidden: false,
+      },
     ]);
   });
 
@@ -214,6 +229,7 @@ describe.skipIf(!connectionString)("courses", () => {
         title: "Keyed",
         urlLabel: "keyed",
         published: true,
+        hidden: false,
       },
     ]);
   });
@@ -473,7 +489,7 @@ describe.skipIf(!connectionString)("courses", () => {
 
     expect(await readCourseOrganization(database, courseId)).toEqual({
       organizationId,
-      published: true,
+      open: true,
     });
   });
 
@@ -497,7 +513,7 @@ describe.skipIf(!connectionString)("courses", () => {
       )[0]!.at;
     expect(await readCourseOrganization(database, waiting)).toEqual({
       organizationId,
-      published: false,
+      open: false,
     });
 
     const now = new Date("2026-02-01T00:00:00.000Z");
@@ -560,7 +576,7 @@ describe.skipIf(!connectionString)("courses", () => {
     ).map(({ id }) => id) as [string, string];
     await markTasksRetired(database, [withdrawn], now, { byTool: true });
     const states = async () => [
-      (await readCourseOrganization(database, proposed))?.published,
+      (await readCourseOrganization(database, proposed))?.open,
       ...(await database.select({ at: task.publishedAt }).from(task).where(eq(task.id, kept))).map(
         ({ at }) => at !== null,
       ),
@@ -678,10 +694,7 @@ describe.skipIf(!connectionString)("courses", () => {
 
       expect(await markDeleted(id)).toBe("published");
       expect(await markDeleted(id, otherOrganizationId)).toBeUndefined();
-      expect(await readCourseOrganization(database, id)).toEqual({
-        organizationId,
-        published: true,
-      });
+      expect(await readCourseOrganization(database, id)).toEqual({ organizationId, open: true });
       expect(await readCourseObjectives(database, id)).toHaveLength(1);
     });
 
@@ -709,10 +722,7 @@ describe.skipIf(!connectionString)("courses", () => {
       }
 
       expect(await deleted).toBe("published");
-      expect(await readCourseOrganization(database, id)).toEqual({
-        organizationId,
-        published: true,
-      });
+      expect(await readCourseOrganization(database, id)).toEqual({ organizationId, open: true });
       expect(await readCourseObjectives(database, id)).toHaveLength(1);
     });
 
@@ -794,6 +804,60 @@ describe.skipIf(!connectionString)("courses", () => {
       expect(await changed).toMatchObject({
         message: "A course was deleted while the group changed.",
       });
+    });
+  });
+
+  describe("hiding", () => {
+    const now = new Date("2026-02-01T00:00:00.000Z");
+    const later = new Date("2026-02-02T00:00:00.000Z");
+    const create = async (published: boolean) =>
+      (
+        await createCourse(database, {
+          published,
+          organizationId,
+          title: "Shown",
+          objectiveIds: [],
+        })
+      ).id;
+    const setHidden = (courseId: string, hidden: boolean, at = now, owner = organizationId) =>
+      updateCourseHidden(database, { organizationId: owner, courseId, hidden, now: at });
+    const hiddenAt = async (courseId: string) =>
+      (
+        await database.select({ at: course.hiddenAt }).from(course).where(eq(course.id, courseId))
+      )[0]?.at;
+    const listed = async (courseId: string) =>
+      (await readCourses(database, organizationId)).find(({ id }) => id === courseId);
+
+    test("hides a published course from learners and shows it again, again too", async () => {
+      const id = await create(true);
+
+      expect(await setHidden(id, true)).toBe("updated");
+      expect(await setHidden(id, true, later)).toBe("updated");
+      // Hidden again, it keeps when it was first.
+      expect(await hiddenAt(id)).toEqual(now);
+      expect(await listed(id)).toMatchObject({ published: true, hidden: true });
+      expect(await readCourseOrganization(database, id)).toEqual({ organizationId, open: false });
+
+      expect(await setHidden(id, false)).toBe("updated");
+      expect(await setHidden(id, false)).toBe("updated");
+      expect(await hiddenAt(id)).toBeNull();
+      expect(await listed(id)).toMatchObject({ published: true, hidden: false });
+      expect(await readCourseOrganization(database, id)).toEqual({ organizationId, open: true });
+    });
+
+    test("leaves an unpublished course, a deleted one, and another organization's as they are", async () => {
+      const unpublished = await create(false);
+      const deleted = await create(false);
+      await markCourseDeleted(database, { organizationId, courseId: deleted, now });
+      const published = await create(true);
+
+      expect(await setHidden(unpublished, true)).toBe("unpublished");
+      // Showing one never hidden changes nothing, as for a shown one.
+      expect(await setHidden(unpublished, false)).toBe("updated");
+      expect(await hiddenAt(unpublished)).toBeNull();
+      expect(await setHidden(deleted, true)).toBeUndefined();
+      expect(await setHidden(published, true, now, otherOrganizationId)).toBeUndefined();
+      expect(await hiddenAt(published)).toBeNull();
     });
   });
 

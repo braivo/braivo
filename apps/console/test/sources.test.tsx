@@ -341,6 +341,10 @@ describe("the console", () => {
 
     addMaterial({ title: "Unidad 1", text: "Hola." });
     await screen.findByText("The material could not be added. Try again.");
+    // Its blocker, off while adding, is back only once React runs effects
+    // after showing the failure, which a person cannot click before; a test
+    // navigating at once can, so it waits.
+    await vi.waitFor(() => expect(router.history._getBlockers()).toHaveLength(1));
     void router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
     await vi.waitFor(() => expect(confirm).toHaveBeenCalledWith(LEAVE_MATERIAL));
     expect(router.history.location.pathname).toBe("/example/sources");

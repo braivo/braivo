@@ -94,10 +94,10 @@ export type Course = { id: string; number: number; title: string; urlLabel: stri
 
 /**
  * A course as its organization's administrators see it: `published` once a
- * person published it in the console, before which no learner reaches it
- * (ADR 0039).
+ * person published it in the console, before which no learner reaches it;
+ * `hidden` while a person has hidden it from learners since (ADR 0039).
  */
-export type ManagedCourse = Course & { published: boolean };
+export type ManagedCourse = Course & { published: boolean; hidden: boolean };
 
 /**
  * A course as its organization lists it: `waitingTaskCount`, how many tasks of its
