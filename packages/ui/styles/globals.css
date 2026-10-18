@@ -366,6 +366,15 @@ input[data-input-otp]:focus-visible {
 }
 
 /*
+ * An alert dialog 1rem in from each edge on the narrowest phone, as a dialog
+ * is, where Rhea's 20rem fills it. Its size's widths still cap it;
+ * unlayered, over the component's `w-full`.
+ */
+[data-slot="alert-dialog-content"] {
+  width: calc(100% - 2rem);
+}
+
+/*
  * A pending action's button is locked with `aria-disabled`, since `disabled`
  * drops focus. A layer below utilities, so a caller's classes still win.
  */

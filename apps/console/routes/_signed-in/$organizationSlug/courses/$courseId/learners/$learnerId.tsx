@@ -260,9 +260,31 @@ function Evidence({
   );
 }
 
-/** A moment as a table can fit it: "Oct 4, 2026, 12:00 PM". */
-function dated(at: string, locale: string): string {
-  return new Date(at).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+/**
+ * A moment as a table can fit it, "Oct 4, 2026, 12:00 PM": a narrow column
+ * wraps it between its date and its time, never inside the time.
+ */
+function dated(at: string, locale: string): ReactNode {
+  const parts = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).formatToParts(new Date(at));
+  const isTime = ({ type }: Intl.DateTimeFormatPart) =>
+    type === "hour" || type === "minute" || type === "dayPeriod";
+  const start = parts.findIndex(isTime);
+  const end = parts.findLastIndex(isTime) + 1;
+  const text = (from: number, to?: number) =>
+    parts
+      .slice(from, to)
+      .map(({ value }) => value)
+      .join("");
+  return (
+    <>
+      {text(0, start)}
+      <span className="whitespace-nowrap">{text(start, end)}</span>
+      {text(end)}
+    </>
+  );
 }
 
 /** A standing in words, and under a retained one its recall: predicted, never a grade. */
