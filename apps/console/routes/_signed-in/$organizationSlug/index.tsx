@@ -20,6 +20,12 @@ import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
+/**
+ * A listed course's or objective's row: its link, then its marks and note,
+ * spaced by a gap, not a margin, so a mark that wraps starts where the link does.
+ */
+const listRow = "flex flex-wrap items-baseline gap-x-2 gap-y-1";
+
 export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
   // A teacher's home is their groups: courses are an administrator's.
   beforeLoad: ({ context, params }) => {
@@ -128,22 +134,24 @@ function Courses() {
             const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
             return (
               <li key={course.id}>
-                <Link
-                  to="/$organizationSlug/courses/$courseId"
-                  params={{ organizationSlug, courseId: course.id }}
-                  className="underline wrap-anywhere"
-                >
-                  {course.title}
-                  {/* In the link's name, so it is heard while moving from link to link. */}
-                  {marks.length > 0 && (
-                    <span className="sr-only"> ({marks.join(", ").toLowerCase()})</span>
-                  )}
-                </Link>
-                {marks.map((mark) => (
-                  <Badge key={mark} variant="outline" className="ms-2" aria-hidden="true">
-                    {mark}
-                  </Badge>
-                ))}
+                <div className={listRow}>
+                  <Link
+                    to="/$organizationSlug/courses/$courseId"
+                    params={{ organizationSlug, courseId: course.id }}
+                    className="underline wrap-anywhere"
+                  >
+                    {course.title}
+                    {/* In the link's name, so it is heard while moving from link to link. */}
+                    {marks.length > 0 && (
+                      <span className="sr-only"> ({marks.join(", ").toLowerCase()})</span>
+                    )}
+                  </Link>
+                  {marks.map((mark) => (
+                    <Badge key={mark} variant="outline" aria-hidden="true">
+                      {mark}
+                    </Badge>
+                  ))}
+                </div>
               </li>
             );
           })}
@@ -167,22 +175,22 @@ function Courses() {
               const placed = objective.courseIds.length;
               return (
                 <li key={objective.id}>
-                  <Link
-                    to="/$organizationSlug/objectives/$objectiveId"
-                    params={{ organizationSlug, objectiveId: objective.id }}
-                    className="underline wrap-anywhere"
-                  >
-                    {objective.title}
-                    {review && <span className="sr-only"> ({review})</span>}
-                  </Link>
-                  {review && (
-                    <Badge variant="outline" className="ms-2" aria-hidden="true">
-                      {review}
-                    </Badge>
-                  )}
-                  <MutedText className="ms-2">
-                    {placed === 0 ? "In no course" : `In ${placed} courses`}
-                  </MutedText>
+                  <div className={listRow}>
+                    <Link
+                      to="/$organizationSlug/objectives/$objectiveId"
+                      params={{ organizationSlug, objectiveId: objective.id }}
+                      className="underline wrap-anywhere"
+                    >
+                      {objective.title}
+                      {review && <span className="sr-only"> ({review})</span>}
+                    </Link>
+                    {review && (
+                      <Badge variant="outline" aria-hidden="true">
+                        {review}
+                      </Badge>
+                    )}
+                    <MutedText>{placed === 0 ? "In no course" : `In ${placed} courses`}</MutedText>
+                  </div>
                 </li>
               );
             })}
