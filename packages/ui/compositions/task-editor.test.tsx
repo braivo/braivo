@@ -23,7 +23,7 @@ function edit() {
   return { onSave, onCancel };
 }
 
-describe("editing a proposed task", () => {
+describe("editing a task", () => {
   test("saves its words and its correct option, trimmed, the explanation dropped when blank", () => {
     const { onSave } = edit();
 
@@ -111,18 +111,38 @@ describe("editing a proposed task", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  test("saves on Enter in a field, which would otherwise submit the form around it", () => {
+  test("saves on Enter in an option, which would otherwise submit the form around it", () => {
     const { onSave } = edit();
 
     // `false`: the default — a browser's implicit submission — was prevented.
-    expect(fireEvent.keyDown(screen.getByLabelText("Question"), { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(screen.getByLabelText("Option A"), { key: "Enter" })).toBe(false);
     expect(onSave).toHaveBeenCalled();
+  });
+
+  test("gives the question room to wrap, saving its line breaks as spaces", () => {
+    const { onSave } = edit();
+    const question = screen.getByLabelText("Question");
+
+    // A one-line input scrolls a long question out of sight on a phone.
+    expect(question.tagName).toBe("TEXTAREA");
+    fireEvent.change(question, { target: { value: "¿Qué dice\nel perro?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ prompt: "¿Qué dice el perro?" }));
+  });
+
+  test.each(["Question", "Why the answer is right"])("leaves Enter in %s a new line", (field) => {
+    const { onSave } = edit();
+
+    // `true`: not prevented, so the browser starts the line.
+    expect(fireEvent.keyDown(screen.getByLabelText(field), { key: "Enter" })).toBe(true);
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   test("leaves Enter to an input method composing a word", () => {
     const { onSave } = edit();
 
-    fireEvent.keyDown(screen.getByLabelText("Question"), { key: "Enter", isComposing: true });
+    fireEvent.keyDown(screen.getByLabelText("Option A"), { key: "Enter", isComposing: true });
 
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -151,7 +171,7 @@ describe("editing a proposed task", () => {
   });
 });
 
-describe("editing a proposed typed task", () => {
+describe("editing a typed task", () => {
   const typed = {
     kind: "typed" as const,
     prompt: "Red, in Spanish?",

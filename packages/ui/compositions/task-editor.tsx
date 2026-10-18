@@ -17,7 +17,7 @@ import { Input } from "#components/input";
 import { RadioGroup, RadioGroupItem } from "#components/radio-group";
 import { Textarea } from "#components/textarea";
 
-/** A task's words and answers: what a reviewer may change of a proposed one. */
+/** The parts of a task the editor changes: its words and answers. */
 export type EditableTask =
   | {
       kind: "choice";
@@ -67,15 +67,16 @@ function collapseWhitespace(text: string): string {
 }
 
 /**
- * Edits a proposed task before it is kept: a choice task's options, as many
- * as they were, or a typed task's accepted answers, one a line. Checks what
- * the server would refuse (blank, repeated, overlong, or non-text input)
- * before saving; the server checks again.
+ * Edits a task, proposed or published: a choice task's options, as many as
+ * they were, or a typed task's accepted answers, one a line. Checks what the
+ * server would refuse (blank, repeated, overlong, or non-text input) before
+ * saving; the server checks again.
  *
- * Not a form: it sits inside one, the review it edits a task of. Its buttons
- * do not submit, and Enter in a field saves the task rather than that form.
- * It takes focus when it opens; giving it back on Save or Cancel is the
- * caller's, which knows where it came from.
+ * Not a form, as it may sit inside one (a draft's review): its buttons do not
+ * submit, and Enter in an option saves the task, never that form. The question
+ * wraps, to be read whole on a phone; its line breaks, saved, are spaces, as
+ * the server stores it on one line. It takes focus when it opens; giving it
+ * back on Save or Cancel is the caller's, which knows where it came from.
  */
 export function TaskEditor(props: {
   task: EditableTask;
@@ -90,7 +91,7 @@ export function TaskEditor(props: {
   const [explanation, setExplanation] = useState(task.explanation ?? "");
   const [problem, setProblem] = useState<string>();
   const id = useId();
-  const question = useRef<HTMLInputElement>(null);
+  const question = useRef<HTMLTextAreaElement>(null);
 
   // Opened from a button that is now gone: focus continues here, not the page's top.
   useEffect(() => question.current?.focus(), []);
@@ -174,7 +175,7 @@ export function TaskEditor(props: {
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor={`${id}-prompt`}>Question</FieldLabel>
-          <Input
+          <Textarea
             id={`${id}-prompt`}
             ref={question}
             maxLength={MAX_TEXT}
