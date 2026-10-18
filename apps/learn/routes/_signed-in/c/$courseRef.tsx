@@ -207,7 +207,11 @@ function NextStep() {
 
   return (
     <>
-      <Link to="/" className="mb-2 inline-block text-sm text-muted-foreground underline">
+      {/* As tall as a button (styles.css): a touch target's least. */}
+      <Link
+        to="/"
+        className="mb-2 inline-flex min-h-11 items-center text-sm text-muted-foreground underline"
+      >
         <Trans>Your courses</Trans>
       </Link>
       {title && <Heading>{title}</Heading>}

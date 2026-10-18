@@ -17,6 +17,17 @@
 }
 
 /*
+ * Every button, links and ghosts too, at least 44px tall, a touch target's
+ * least (scaled here as all else). A layer below utilities, so a caller's
+ * `min-h-*` still wins.
+ */
+@layer components {
+  [data-slot="button"] {
+    @apply min-h-11;
+  }
+}
+
+/*
  * `index.html`'s page before the app renders anything, rather than a blank one
  * while its script loads: the spinner `PagePending` shows next, in the same
  * place. If the app still has not rendered after ten seconds, slow or failed

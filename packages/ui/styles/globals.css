@@ -279,7 +279,8 @@
 /*
  * The main action shifts on hover (`--primary-hover`), rather than fading;
  * while locked or disabled it turns muted, solid, rather than half-transparent
- * over the page.
+ * over the page. Its label a little nearer the text's colour than muted text,
+ * to read on the muted fill (4.5:1).
  */
 [data-slot="button"][data-variant="default"]:hover {
   background-color: var(--primary-hover);
@@ -287,7 +288,7 @@
 
 [data-slot="button"][data-variant="default"]:is([aria-disabled="true"], :disabled) {
   background-color: var(--muted);
-  color: var(--muted-foreground);
+  color: color-mix(in oklab, var(--muted-foreground), var(--foreground) 10%);
   opacity: 1;
 }
 
@@ -304,8 +305,9 @@
 /*
  * A page with one task, often on a phone (signing in, setting up an
  * organization), marks its form `data-touch`: its fields and buttons are
- * touch-sized (48px), its links aside. Unlayered, to win over the
- * components' own heights, which are utilities.
+ * touch-sized (48px), unlayered to win over the components' own heights,
+ * which are utilities; its links a touch target's least (44px), in a layer,
+ * so a caller's `min-h-*` still wins.
  */
 [data-touch]
   :is(
@@ -315,6 +317,12 @@
     [data-slot="button"]:not([data-variant="link"], [data-slot="input-group"] *)
   ) {
   @apply h-12;
+}
+
+@layer components {
+  [data-touch] [data-slot="button"][data-variant="link"]:not([data-slot="input-group"] *) {
+    @apply min-h-11;
+  }
 }
 
 [data-touch] [data-slot="input"] {
