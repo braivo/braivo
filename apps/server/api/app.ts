@@ -5,6 +5,7 @@ import type { Database } from "@braivo/db";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
+import { routePath } from "hono/route";
 
 import { type Ai, mayRefresh, readHostOrganization } from "../application/index.ts";
 import type { DomainProvisioner } from "../application/index.ts";
@@ -151,7 +152,7 @@ export function createApi(options: ApiOptions) {
     console.error({
       message: "Request failed",
       method: context.req.method,
-      route: context.req.routePath,
+      route: routePath(context),
       error: describeError(error),
     });
     return context.text("Internal Server Error", 500);

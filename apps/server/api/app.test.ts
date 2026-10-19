@@ -298,8 +298,8 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
 
     // Reaches Better Auth, which answers in OAuth's terms, not the gate's empty 403.
     const exchanged = await exchange("/api/auth/oauth2/token", basic);
-    expect(exchanged.status).toBe(400);
-    expect(await exchanged.json()).toMatchObject({ error: "invalid_grant" });
+    expect(exchanged.status).toBe(401);
+    expect(await exchanged.json()).toMatchObject({ error: "invalid_client" });
     expect((await exchange("/api/auth/oauth2/token", "Bearer anything")).status).toBe(403);
     expect((await exchange("/api/auth/device/token", basic)).status).toBe(403);
   });

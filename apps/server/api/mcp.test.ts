@@ -406,9 +406,8 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       base64url(new Uint8Array(32)),
     );
 
-    // Only the refusal: Better Auth's is 401 `invalid_request`, not RFC 6749's `invalid_grant`.
-    expect(exchanged.ok).toBe(false);
-    expect(await exchanged.json()).not.toHaveProperty("access_token");
+    expect(exchanged.status).toBe(400);
+    expect(await exchanged.json()).toMatchObject({ error: "invalid_grant" });
   });
 
   test("`/mcp` takes access tokens alone, not other JWTs the same keys sign", async () => {
@@ -505,6 +504,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       ["POST", "update-client"],
       ["POST", "delete-client"],
       ["POST", "client/rotate-secret"],
+      ["POST", "client/rotate-keys"],
     ];
 
     for (const [method, path] of paths) {
@@ -544,9 +544,10 @@ describe.skipIf(!connectionString)("remote MCP", () => {
 
     // Its consents go with it, so its access tokens open nothing either.
     expect((await listTools(access_token)).status).toBe(401);
+    // `invalid_client`, so the app registers again rather than retry the token.
     const refused = await refresh(refresh_token!, removed);
     expect(refused.status).toBe(400);
-    expect(await refused.json()).toMatchObject({ error: "invalid_grant" });
+    expect(await refused.json()).toMatchObject({ error: "invalid_client" });
     expect(await removeOAuthClient(auth, removed)).toBe(false);
   });
 

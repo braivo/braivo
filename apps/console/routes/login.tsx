@@ -118,6 +118,8 @@ function useGoogleSignIn(to: string) {
 
 function Login() {
   const { auth, needsName, legal } = Route.useRouteContext();
+  // Read once, so rendering stays pure.
+  const [year] = useState(() => new Date().getFullYear());
   const { redirect, handoff, method } = Route.useSearch();
   const router = useRouter();
   const google = useGoogleSignIn(redirect ?? "/");
@@ -129,7 +131,7 @@ function Login() {
     <ConsoleSignInPage
       brand={<ConsoleBrand />}
       aside={<ConsoleStory />}
-      footer={`© ${new Date().getFullYear()} Braivo`}
+      footer={`© ${year} Braivo`}
     >
       {/* An account still without a name is named by `SignIn`'s step. */}
       {method === "password" && !needsName ? (

@@ -127,6 +127,7 @@ describe.skipIf(!connectionString)("the server's commands, on a database", () =>
     }
   });
 
+  // Slow: four commands, each a process hashing a password.
   test("set a reviewer's password, random or from stdin, then remove it and its sessions", async () => {
     await runMigrations(connectionString ?? "");
     const env = {
@@ -202,5 +203,5 @@ describe.skipIf(!connectionString)("the server's commands, on a database", () =>
         await database.$client.end();
       }
     }
-  });
+  }, 30_000);
 });

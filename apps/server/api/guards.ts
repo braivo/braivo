@@ -12,6 +12,7 @@ import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
+import { routePath } from "hono/route";
 
 import { resumeLearnerSession, type RequestHost } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
@@ -312,7 +313,7 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
    * organization's by the route's own lookup.
    */
   function refuseOutsideGrant(context: Context, organizationId: string): Response | undefined {
-    const route = `${context.req.method} ${context.req.routePath}`;
+    const route = `${context.req.method} ${routePath(context)}`;
     if (!AUTHOR_ROUTES.has(route)) return context.body(null, 403);
     const named = context.req.param("organizationId");
     return named === undefined || named === organizationId ? undefined : context.body(null, 403);

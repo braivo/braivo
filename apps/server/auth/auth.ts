@@ -550,7 +550,7 @@ export function createAuth(options: AuthOptions) {
         // a token `/mcp` would refuse.
         dpop: { signingAlgorithms: [] },
         // Only so the metadata offers `none`, every client's token endpoint
-        // method (public, with PKCE): Better Auth 1.7.7 offers it with this
+        // method (public, with PKCE): Better Auth 1.7.11 offers it with this
         // flag or `cimd()`, left out where nothing is fetched. It registers no
         // one: registration over HTTP is off, its path disabled below.
         allowUnauthenticatedClientRegistration: true,
@@ -587,6 +587,7 @@ export function createAuth(options: AuthOptions) {
       "/oauth2/update-client",
       "/oauth2/delete-client",
       "/oauth2/client/rotate-secret",
+      "/oauth2/client/rotate-keys",
       // Google signs in, making or finding the account by its email; nothing
       // links a provider to an account by hand.
       "/link-social",
@@ -670,7 +671,7 @@ const OAUTH_METADATA_PATHS = new Set([
 
 /**
  * The authorization server's metadata without `cimd()`, rewritten: Better
- * Auth 1.7.7 has no option for either change, and its after hooks skip these
+ * Auth 1.7.11 has no option for either change, and its after hooks skip these
  * responses. CIMD advertised, so ChatGPT and Claude send their documents'
  * URLs, which the operator registered, rather than ask a teacher for a client
  * ID. `private_key_jwt` withdrawn, since ChatGPT signs with a key wherever it
