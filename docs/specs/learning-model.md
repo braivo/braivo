@@ -284,3 +284,7 @@ Deliberately unresolved; each needs evidence or a requirement, not a guess.
 - Per-subject models, parameter profiles, or estimates. Subject-specific behavior belongs to task types and graders.
 - Difficulty or ability estimation across learners, as in IRT. Adopt only if replay shows the per-learner model is insufficient.
 - Engagement mechanics: streaks, points, or any scheduling pressure whose purpose is return frequency rather than retention.
+
+## Entry points
+
+`apps/server/learning/index.ts` (the public surface), `apps/server/learning/estimate.ts` (evidence into estimates, and replay's order), `apps/server/learning/select.ts` (the selection rule), `apps/server/learning/assess.ts` (where a learner stands), `apps/server/learning/model.ts` (the version and its parameters), `apps/server/application/next-objective.ts` (a caller: loading evidence, then choosing).
