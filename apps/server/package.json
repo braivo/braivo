@@ -14,23 +14,22 @@
     "auth:generate": "bun --bun better-auth generate --config better-auth.config.ts --output ../../packages/db/schema/auth.ts -y"
   },
   "dependencies": {
-    "@better-auth/cimd": "1.7.7",
-    "@better-auth/core": "1.7.7",
-    "@better-auth/drizzle-adapter": "1.7.7",
-    "@better-auth/mcp": "1.7.7",
+    "@better-auth/cimd": "1.7.11",
+    "@better-auth/core": "1.7.11",
+    "@better-auth/drizzle-adapter": "1.7.11",
+    "@better-auth/mcp": "1.7.11",
     "@braivo/db": "workspace:*",
     "@braivo/i18n": "workspace:*",
     "@modelcontextprotocol/server": "2.3.1",
-    "better-auth": "1.7.7",
+    "better-auth": "1.7.11",
     "drizzle-orm": "1.0.0-rc.4",
-    "hono": "^4.13.8",
+    "hono": "^4.13.13",
     "jose": "6.2.12",
-    "nodemailer": "^8.0.11",
-    "zod": "^4.6.5"
+    "nodemailer": "^10.1.7",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.3.1",
-    "@types/nodemailer": "^8.0.2",
-    "auth": "1.7.7"
+    "auth": "1.7.11"
   }
 }

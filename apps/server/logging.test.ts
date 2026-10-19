@@ -178,13 +178,15 @@ describe.skipIf(!connectionString)("a failure's log", () => {
     });
 
     expect(response.status).toBe(500);
-    // `mcp()`'s provider reads its resource first, so that query is what fails.
+    // Better Auth logs the failed query, through Braivo's logger, and throws
+    // its own error in its place.
     expect(logged).toEqual([
+      "[Better Auth] DrizzleQueryError < DatabaseError 42P01",
       {
         message: "Request failed",
         method: "GET",
         route: "/api/organizations",
-        error: "DrizzleQueryError < DatabaseError 42P01",
+        error: "APIError",
       },
     ]);
     expectNothingPersonal();

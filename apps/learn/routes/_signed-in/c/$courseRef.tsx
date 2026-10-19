@@ -401,6 +401,8 @@ function CaughtUp({
   limitReached?: boolean;
 }) {
   const { t, i18n } = useLingui();
+  // Rendering stays pure: now is when this notice first showed.
+  const [now] = useState(() => new Date());
   // Read moments apart from the activity, the report may already count one due,
   // whose time has passed.
   const next = report?.objectives
@@ -413,7 +415,6 @@ function CaughtUp({
     const objectiveTitle = next.title;
     const dueAt = roundUpToMinute(Date.parse(next.dueAt));
     // Today and tomorrow by the calendar, not the 04:00 learner day: they name a clock time.
-    const now = new Date();
     const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const time = new Intl.DateTimeFormat(i18n.locale, { timeStyle: "short" }).format(dueAt);
     let nextReviewAt: string;
@@ -431,7 +432,7 @@ function CaughtUp({
       : t`Nothing is due right now. Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
   }
   const dayOf = learnerDayIn();
-  const today = dayOf(new Date());
+  const today = dayOf(now);
   const todaySummary = formatStandingCounts(
     report?.objectives.filter(
       (standing) =>

@@ -39,7 +39,7 @@ export function isConnectionStanding(
  * passes, in whole seconds as `isConnectionStanding`; one Braivo cannot find
  * passes, for Better Auth to refuse.
  *
- * Found as Better Auth 1.7.7 stores it (`storeTokens: "hashed"`, no prefix or
+ * Found as Better Auth 1.7.11 stores it (`storeTokens: "hashed"`, no prefix or
  * format): unpadded base64url SHA-256 of the token as sent. `mcp.test.ts`
  * fails if that changes, since no token would be found.
  */

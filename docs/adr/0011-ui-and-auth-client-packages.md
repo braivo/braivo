@@ -54,4 +54,4 @@ apps/storybook/               Storybook, consuming @braivo/ui
 - A new shared component Braivo writes goes in `compositions/` and is exported from `index.ts`, which stays a curated API: shadcn's are imported by subpath and never re-exported there. One that shadcn provides is added with its CLI into `components/`.
 - A reusable component gets a story when it has visual, interactive, responsive, accessibility, or theming states worth inspecting in isolation — `SignInForm`, or a shadcn component Braivo has restyled — and not otherwise. No docs pages, interaction tests, or visual regression until a need for them appears.
 - Storybook's first run in development pre-bundles its dependencies, which takes a few seconds.
-- Storybook 10.6 lists `vite-plus` 0.1–0.2 as a peer, and this repository is on 0.3; the build and dev server work, and the peer range is worth watching on upgrades.
+- Storybook 10.6 lists `vite-plus` 0.1–0.2 as a peer, and this repository is on 1.x; the build and dev server work, and the peer range is worth watching on upgrades.

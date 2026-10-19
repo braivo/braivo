@@ -175,18 +175,23 @@ describe.skipIf(!connectionString)("courses", () => {
       expect(await numberOf(await created!)).toBeGreaterThanOrEqual(10000);
     });
 
+    // 99,000 rows, slow to add and remove: removed here, under this test's
+    // timeout, not the next test's hook.
     test("go past the largest once five digits are taken too", async () => {
       await occupy(1000, 99999);
+      try {
+        const { id: courseId } = await createCourse(database, {
+          published: true,
+          organizationId,
+          title: "Late",
+          objectiveIds: [],
+        });
 
-      const { id: courseId } = await createCourse(database, {
-        published: true,
-        organizationId,
-        title: "Late",
-        objectiveIds: [],
-      });
-
-      expect(await numberOf(courseId)).toBe(100000);
-    });
+        expect(await numberOf(courseId)).toBe(100000);
+      } finally {
+        await clearLearningData(database, organizationId);
+      }
+    }, 60_000);
 
     test("stay as they were when a course is added again under its key", async () => {
       const add = async () => {

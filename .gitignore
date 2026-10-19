@@ -11,3 +11,5 @@ tmp/
 # directory it is first written to (tooling/dev-demo/environment.ts).
 /.dev-demo/
 /.dev-demo-*/
+# Vitest's reports and attachments.
+.vitest/

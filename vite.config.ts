@@ -49,6 +49,9 @@ const localized = (name: string, root: string) => ({
     name,
     root,
     environment: "happy-dom",
+    // happy-dom loads no stylesheet or iframe (SSRF), and would log an error for
+    // each `<link>` of a parsed `index.html`; a skipped load counts as done.
+    environmentOptions: { happyDOM: { settings: { handleDisabledFileLoadingAsSuccess: true } } },
     exclude: [...configDefaults.exclude, inBrowser],
     setupFiles: ["../../packages/i18n/test-setup.ts"],
   },
@@ -92,7 +95,15 @@ export default defineConfig({
     // `vp check` type-checks too, so it is the one static gate for people and
     // agents alike rather than one of two.
     options: { typeAware: true, typeCheck: true },
-    ignorePatterns: ["**/dist/**", "apps/*/routeTree.gen.ts"],
+    // Agent skills are vendored as `npx skills` writes them, examples and all;
+    // `.claude` and `.grok` link to `.agents`.
+    ignorePatterns: [
+      "**/dist/**",
+      "apps/*/routeTree.gen.ts",
+      ".agents/skills/**",
+      ".claude/skills/**",
+      ".grok/skills/**",
+    ],
     overrides: [
       {
         files: ["**/*.tsx"],

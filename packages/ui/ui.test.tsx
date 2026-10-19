@@ -335,8 +335,8 @@ describe("Braivo's components", () => {
 });
 
 test("imports no Braivo package but itself, so it stays presentation only", async () => {
-  // A directory rather than `import.meta.url`, which happy-dom does not make a
-  // `file:` URL.
+  // A path rather than `new URL(".", import.meta.url)`: that `URL` is
+  // happy-dom's, which `node:fs` refuses.
   const directory = import.meta.dirname;
   const sources = (await readdir(directory, { recursive: true })).filter(
     (name) => /\.tsx?$/.test(name) && !name.startsWith("node_modules"),

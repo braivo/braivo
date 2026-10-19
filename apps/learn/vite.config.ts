@@ -23,10 +23,7 @@ export default defineConfig(({ command, mode }) => {
         autoCodeSplitting: true,
       }),
       lingui({
-        // TSX, not inferred from the file name, which a route's split chunk
-        // (`login.tsx?tsr-split=component`) hides. Every file importing a
-        // macro is parsed so, a `.ts` one too: no `<T>x` casts there.
-        macroTransform: { parser: { syntax: "typescript", tsx: true } },
+        macroTransform: true,
         // A build ships no language with a message missing or malformed
         // (ADR 0035); in development, untranslated copy shows its English.
         ...(command === "build" && { failOnMissing: "catalog", failOnCompileError: true }),
