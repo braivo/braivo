@@ -1026,8 +1026,8 @@ msgid "Nothing is due right now."
 msgstr "Nothing is due right now."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
-msgstr "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
+msgstr "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing to practise right now"
@@ -1041,6 +1041,10 @@ msgstr "Nothing to save: the group is as shown."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Objective"
 msgstr "Objective"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "on {date} at {time}"
+msgstr "on {date} at {time}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
@@ -1526,6 +1530,14 @@ msgstr "This sign-in has expired"
 msgid "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
 msgstr "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "today at {time}"
+msgstr "today at {time}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "tomorrow at {time}"
+msgstr "tomorrow at {time}"
+
 #: packages/auth-client/sign-in.tsx
 msgid "Too many tries. Wait a minute, then try again."
 msgstr "Too many tries. Wait a minute, then try again."
@@ -1597,8 +1609,8 @@ msgid "You already own an organization. Reload this page to open it."
 msgstr "You already own an organization. Reload this page to open it."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
-msgstr "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
+msgstr "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Nothing is due right now."

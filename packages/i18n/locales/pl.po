@@ -1026,7 +1026,7 @@ msgid "Nothing is due right now."
 msgstr "Na razie nic nie czeka na powtórkę."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "Nothing is due right now. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "Na razie nic nie czeka na powtórkę. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -1041,6 +1041,10 @@ msgstr "Nie ma nic do zapisania: grupa już tak wygląda."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Objective"
 msgstr "Cel"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "on {date} at {time}"
+msgstr "{date} o {time}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
@@ -1526,6 +1530,14 @@ msgstr "To logowanie wygasło"
 msgid "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
 msgstr "Aby członek widział postępy swoich uczniów, dodaj go jako nauczyciela do <0>grupy</0>."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "today at {time}"
+msgstr "dzisiaj o {time}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "tomorrow at {time}"
+msgstr "jutro o {time}"
+
 #: packages/auth-client/sign-in.tsx
 msgid "Too many tries. Wait a minute, then try again."
 msgstr "Zbyt wiele prób. Poczekaj minutę i spróbuj ponownie."
@@ -1597,7 +1609,7 @@ msgid "You already own an organization. Reload this page to open it."
 msgstr "Masz już organizację. Odśwież stronę, aby ją otworzyć."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, on {nextReviewAt}."
+msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
