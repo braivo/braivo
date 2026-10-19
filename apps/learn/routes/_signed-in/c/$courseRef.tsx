@@ -348,7 +348,7 @@ function labelOf(standing: LearnerProgressStanding): ProgressLabel {
   return standing.due ? "dueForReview" : "retained";
 }
 
-/** `standings` counted by label, in the summary's order, those with none left out: "2 retained · 1 learning". */
+/** `standings` counted by label, in the summary's order, those with none left out: ["2 retained", "1 learning"]. */
 function formatStandingCounts(
   standings: LearnerProgressStanding[],
   t: ReturnType<typeof useLingui>["t"],
@@ -357,15 +357,16 @@ function formatStandingCounts(
   return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
     .map((label) => [label, labels.filter((each) => each === label).length] as const)
     .filter(([, count]) => count > 0)
-    .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)))
-    .join(" · ");
+    .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)));
 }
 
 /** `stale`: hidden, from sight and screen readers, keeping its place. */
 function ProgressSummary({ report, stale }: { report: LearnerProgressSummary; stale: boolean }) {
   const { t } = useLingui();
-  const line = formatStandingCounts(report.objectives, t);
-  if (!line) return null;
+  const counts = formatStandingCounts(report.objectives, t);
+  if (counts.length === 0) return null;
+  // Each count whole where it fits, so a phone wraps between counts, not at "1 not" / "started".
+  const line = counts.map((count) => count.replaceAll(" ", "\u00a0")).join(" · ");
 
   return (
     <details
@@ -426,7 +427,7 @@ function CaughtUp({
         standing.phase !== "unseen" && dayOf(new Date(standing.lastEvidenceAt)) === today,
     ) ?? [],
     t,
-  );
+  ).join(" · ");
   const title = limitReached ? t`That's all the new material for today` : t`You're caught up`;
   return (
     <Notice
