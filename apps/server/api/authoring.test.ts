@@ -129,6 +129,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           name: organizationId,
           learnDomain: null,
           administers: true,
+          authors: true,
+          teaches: false,
           // This API has no model.
           aiEnabled: false,
         },
@@ -604,7 +606,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await listed()).not.toContain(proposed);
 
     // Only a person in the console publishes, all or none: not a tool, even
-    // alongside the session, nor a member who does not administer it.
+    // alongside the session, nor a member who may not author there.
     expect((await publish(asTool, [proposed])).status).toBe(403);
     expect((await publish({ ...inConsole, ...asTool }, [proposed])).status).toBe(403);
     expect((await publish({ ...inConsole, cookie: learner.cookie }, [proposed])).status).toBe(403);
@@ -654,7 +656,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     const asTeacher = { headers: { cookie: teacher.cookie } };
     const { courseId: withdrawn } = (await (await create()).json()) as { courseId: string };
 
-    // Not a tool, even alongside the session, nor a member who does not administer it.
+    // Not a tool, even alongside the session, nor a member who may not author there.
     const byTool = await remove(asTool, withdrawn);
     expect(byTool.status).toBe(403);
     expect(await byTool.json()).toEqual({ error: "Delete a course in Braivo's console." });
@@ -758,7 +760,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect((await postAttempt(hidden, attempt("before-hiding"), learner.cookie)).status).toBe(200);
     const nextBefore = (await next(hidden, learner.cookie)).status;
 
-    // Not a tool, even alongside the session, nor a member who does not administer it.
+    // Not a tool, even alongside the session, nor a member who may not author there.
     const byTool = await setHidden(asTool, hidden, { hidden: true });
     expect(byTool.status).toBe(403);
     expect(await byTool.json()).toEqual({ error: "Hide or show a course in Braivo's console." });
@@ -1467,7 +1469,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     });
   }
 
-  test("reads a course as authored, in order, only for who administers it", async () => {
+  test("reads a course as authored, in order, only for whoever may author in it", async () => {
     const added = await postSource({ title: "Colores", text: "Rojo es red." }, teacher.cookie);
     const { sourceId } = (await added.json()) as { sourceId: string };
     const [red, blue] = await createObjectives(database, organizationId, ["Red", "Blue"]);
@@ -1535,11 +1537,11 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       sources: [{ id: sourceId, title: "Colores", createdAt: expect.any(String) }],
     });
     expect((await read(colors, learner.cookie)).status).toBe(403);
-    // Another organization's course, even through one the caller administers.
+    // Another organization's course, even through one the caller authors in.
     expect((await read(foreignCourseId, teacher.cookie)).status).toBe(404);
   });
 
-  test("shows an objective's tasks, as authored, only to who administers it", async () => {
+  test("shows an objective's tasks, as authored, only to whoever may author in it", async () => {
     const [counting] = await createObjectives(database, organizationId, ["Counting"]);
     const [taskId] = (
       await createTasks(

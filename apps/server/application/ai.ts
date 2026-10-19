@@ -5,7 +5,7 @@ import type { Database } from "@braivo/db";
 
 import type { Model } from "../ai/index.ts";
 import { recordAiRequest } from "../persistence/index.ts";
-import { assertMayAdminister } from "./permission.ts";
+import { assertMayAuthor } from "./permission.ts";
 
 /**
  * The installation's model, and whom its operator lets spend on it: every
@@ -70,7 +70,7 @@ export class InvalidAiRequest extends Error {
 }
 
 /**
- * The model, for an actor who administers the organization when its operator
+ * The model, for an actor who may author in the organization when its operator
  * lets that organization spend on it; refused otherwise. `charge` counts one
  * request against the organization's month, and is called just before the
  * model is asked — so a request refused as invalid costs nothing, and one the
@@ -85,7 +85,7 @@ export async function modelFor(
   const { organizationId, actingAs } = actor;
   // Permission first, so a stranger learns nothing of the model or of which
   // organizations may use it (generation-8).
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
   if (ai === undefined) throw new AiUnavailable();
   if (!aiEnabledFor(ai, organizationId)) throw new AiNotEntitled();
 

@@ -157,7 +157,7 @@ export function materialsRoutes(
     },
   );
 
-  /** Every source an organization has, without their text, for whoever administers it. */
+  /** Every source an organization has, without their text, for whoever may author in it. */
   routes.get("/api/organizations/:organizationId/sources", requireAccount, async (context) => {
     try {
       const sources = await listSources({
@@ -173,7 +173,7 @@ export function materialsRoutes(
   });
 
   /**
-   * One source, text included, for whoever administers its organization; with
+   * One source, text included, for whoever may author in its organization; with
    * `pages`, `seconds`, or `characters`, a bounded part of its text instead,
    * for an agent that cannot take a whole book in one answer. Without them it
    * stays whole: the console shows all of a source on request (sources-20).
@@ -191,8 +191,8 @@ export function materialsRoutes(
           sourceId: context.req.param("sourceId"),
         });
 
-        // Reached only by an administrator, so a 404 confirms nothing they could
-        // not already list.
+        // Reached only by someone allowed to author, so a 404 confirms nothing
+        // they could not already list.
         if (!source) return context.body(null, 404);
 
         const { pages, seconds, characters } = context.req.query();
@@ -305,7 +305,7 @@ export function materialsRoutes(
   );
 
   /**
-   * A file's bytes, for whoever administers its organization. Always a
+   * A file's bytes, for whoever may author in its organization. Always a
    * download, never rendered: an uploaded HTML file served inline from this
    * origin would run as Braivo.
    */

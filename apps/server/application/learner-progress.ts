@@ -17,8 +17,9 @@ import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
 
 /**
- * Where a learner stands on each objective in a course, for a content owner,
- * a teacher of theirs in it, or the learner themselves.
+ * Where a learner stands on each objective in a course, for an `owner` or
+ * `admin` of its organization, a teacher of theirs in it, or the learner
+ * themselves; not an `author` as such (ADR 0048).
  *
  * Loaded through `loadLearnerInCourse`, like `chooseNextObjective`, so both read
  * the same evidence under the same model, and given the same evidence and time,

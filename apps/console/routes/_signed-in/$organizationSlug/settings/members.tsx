@@ -45,6 +45,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/mem
 const ROLE_NAMES = {
   owner: msg`Owner`,
   admin: msg`Admin`,
+  author: msg`Author`,
   member: msg`Learner`,
 } as const;
 

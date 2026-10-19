@@ -131,7 +131,7 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
   test("asks who is grading before whether the learner belongs", async () => {
     // The other order would let anyone learn who is a member by naming them.
     await expect(record([evidence()], outsider, learner)).rejects.toThrow(
-      `"${learner}" may not act`,
+      `"${learner}" may not administer`,
     );
   });
 

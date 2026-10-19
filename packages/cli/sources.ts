@@ -76,14 +76,14 @@ export async function addSourceFromFile(input: {
   return sourceId;
 }
 
-/** The ID of the organization `slug` names, among those the signed-in person manages. */
+/** The ID of the organization `slug` names, among those the signed-in person authors in. */
 async function organizationIdOf(client: BraivoClient, slug: string): Promise<string> {
-  const managed = (await client.listOrganizations()).filter(({ administers }) => administers);
-  const organization = managed.find((candidate) => candidate.slug === slug);
+  const authored = (await client.listOrganizations()).filter(({ authors }) => authors);
+  const organization = authored.find((candidate) => candidate.slug === slug);
   if (organization) return organization.id;
 
-  const yours = managed.map((candidate) => candidate.slug).join(", ") || "none";
-  throw new Error(`You manage no organization "${slug}"; yours: ${yours}.`);
+  const yours = authored.map((candidate) => candidate.slug).join(", ") || "none";
+  throw new Error(`You cannot author in "${slug}"; yours: ${yours}.`);
 }
 
 /** `--first-page` as a number: whole, from 1, at most six digits — more than any book has. */

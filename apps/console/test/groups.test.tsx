@@ -11,7 +11,7 @@ import { renderAt } from "./render.tsx";
 
 describe("groups", () => {
   /** `school` to someone who teaches there and administers nothing. */
-  const taught: Organization = { ...school, administers: false };
+  const taught: Organization = { ...school, administers: false, authors: false, teaches: true };
   const person = (userId: string, name: string) => ({ userId, name });
   const beginners = { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" };
   /** Two groups sharing a course, as two classes taught the same subject. */
@@ -604,6 +604,90 @@ describe("groups", () => {
       await act(() => router.navigate({ href: "/example/courses/course-1?from=groups" }));
       expect(await screen.findByRole("heading", { level: 1, name: "Beginners" })).toBeTruthy();
       expect(marked()).toEqual(["Courses"]);
+    });
+  });
+
+  describe("authoring (ADR 0048)", () => {
+    /** `school` to someone who holds `author` there alone, teaching nothing. */
+    const authored: Organization = { ...school, administers: false, authors: true, teaches: false };
+    /** `school` to an author who teaches a group too. */
+    const authoredAndTaught: Organization = { ...authored, teaches: true };
+    /** Reads of people and settings, which an author's pages must never make. */
+    function peopleAndSettingsReads() {
+      const refuse = () =>
+        vi.fn(async () => Promise.reject(new BraivoError(403, "Braivo answered 403.")));
+      return { listMembers: refuse(), listDomains: refuse(), courseProgress: refuse() };
+    }
+    const navLinks = async () =>
+      within(await screen.findByRole("navigation", { name: "Example School" }))
+        .getAllByRole("link")
+        .map((link) => link.textContent);
+
+    test("opens a sole author's organization at its courses, with Courses and Sources alone", async () => {
+      const reads = peopleAndSettingsReads();
+      const listGroups = vi.fn(async () => []);
+      const { router } = renderAt("/", {
+        organizations: [authored],
+        braivo: { ...reads, listGroups, listCourses: async () => [beginners] },
+      });
+
+      expect(await screen.findByRole("link", { name: /Beginners/ })).toBeTruthy();
+      expect(router.state.location.pathname).toBe("/example");
+      expect(await navLinks()).toEqual(["Courses", "Sources"]);
+      expect(Object.values(reads).flatMap((read) => read.mock.calls)).toEqual([]);
+      expect(listGroups.mock.calls).toEqual([]);
+    });
+
+    test("shows an author a course as authored, without every member's progress", async () => {
+      const reads = peopleAndSettingsReads();
+      renderAt("/example/courses/course-1", {
+        organizations: [authoredAndTaught],
+        braivo: { ...reads, readCourse },
+      });
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Beginners" })).toBeTruthy();
+      expect(await navLinks()).toEqual(["Courses", "Sources", "Groups"]);
+      expect(screen.queryByRole("link", { name: /Learner progress/ })).toBeNull();
+      expect(Object.values(reads).flatMap((read) => read.mock.calls)).toEqual([]);
+    });
+
+    test("keeps an author's report of a group they teach in Groups", async () => {
+      renderAt("/example/courses/course-1/progress", {
+        organizations: [authoredAndTaught],
+        braivo: { listGroups: async () => [sevenA] },
+      });
+      const nav = await screen.findByRole("navigation", { name: "Example School" });
+
+      await vi.waitFor(() =>
+        expect(
+          within(nav)
+            .getAllByRole("link")
+            .filter((link) => link.getAttribute("aria-current") === "true")
+            .map((link) => link.textContent),
+        ).toEqual(["Groups"]),
+      );
+    });
+
+    test.each([
+      ["/example/settings/general"],
+      ["/example/settings/members"],
+      ["/example/settings/domains"],
+      ["/example/settings/groups"],
+      ["/example/settings/groups/new"],
+      ["/example/settings/groups/g1"],
+      ["/example/groups"],
+    ])("refuses an author %s before reading anything", async (path) => {
+      const reads = peopleAndSettingsReads();
+      const listGroups = vi.fn(async () => [sevenA]);
+      renderAt(path, { organizations: [authored], braivo: { ...reads, listGroups } });
+
+      expect(
+        await screen.findByText(
+          /There is no such setting|This group does not exist, or is not yours to change|You teach no groups here/,
+        ),
+      ).toBeTruthy();
+      expect(Object.values(reads).flatMap((read) => read.mock.calls)).toEqual([]);
+      expect(listGroups.mock.calls).toEqual([]);
     });
   });
 

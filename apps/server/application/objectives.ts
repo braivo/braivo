@@ -5,7 +5,7 @@ import type { Database } from "@braivo/db";
 
 import { isKey, isStorableText, KEY_RULE, MAX_TITLE } from "../content/index.ts";
 import { createObjectives, type ObjectiveSummary, readObjectives } from "../persistence/index.ts";
-import { assertMayAdminister } from "./permission.ts";
+import { assertMayAuthor } from "./permission.ts";
 
 /**
  * An objective or a course Braivo will not store, named by where it was sent
@@ -65,7 +65,7 @@ export async function defineObjectives(input: {
     title: checkNames(`Objective ${index}`, objective),
   }));
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   return createObjectives(database, organizationId, checked);
 }
@@ -83,7 +83,7 @@ export async function listObjectives(input: {
 }): Promise<ObjectiveSummary[]> {
   const { database, organizationId, actingAs } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   return readObjectives(database, organizationId);
 }

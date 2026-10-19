@@ -18,7 +18,7 @@ import { railIdentity, SidebarButton, useCloseDrawerOnFollow } from "./sidebar-b
 
 /**
  * The organization shown, first in the sidebar: its menu switches between the
- * organizations someone administers or teaches in (ADR 0004, 0042), each
+ * organizations someone administers, authors, or teaches in (ADR 0004, 0042, 0048), each
  * opening at its home, so no course or source carries over; the list has no
  * page of its own. Last, where offered, setting one up: an `admin` owning none
  * (ADR 0018) never lands on `/join` otherwise.

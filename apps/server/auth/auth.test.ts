@@ -24,6 +24,8 @@ const newcomer = "auth-test-newcomer@example.com";
 const invitee = { email: "auth-test-invitee@example.com", name: "Invitee" };
 /** Signed in by the test that adds members, as the operator does. */
 const learner = { email: "auth-test-learner@example.com", name: "Learner" };
+/** Signed in by the test that checks what an author may do through Better Auth. */
+const author = { email: "auth-test-author@example.com", name: "Author" };
 /** Asked for codes by the tests that check their limits. */
 const asking = [
   "auth-test-asks@example.com",
@@ -69,6 +71,8 @@ const slugs = {
   roster: "auth-test-roster",
   enrolls: "auth-test-enrolls",
   adminAdded: "auth-test-admin-added",
+  authorAdded: "auth-test-author-added",
+  authorGuarded: "auth-test-author-guarded",
   // Listed so a regression that lets them through is cleaned up after itself.
   reserved: "login",
   malformed: "Auth-Test-Capitals",
@@ -126,6 +130,7 @@ async function clearFixtures(): Promise<void> {
     newcomer,
     invitee.email,
     learner.email,
+    author.email,
     ...asking,
     ...Object.values(askingIn),
     askingDirectly,
@@ -482,7 +487,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     await expect(created).rejects.toThrow("No account uses auth-test-nobody@example.com");
   });
 
-  test("the operator adds an existing account as a learner or an administrator, never owner nor twice", async () => {
+  test("the operator adds an existing account as a learner, an author, or an administrator, never owner nor twice", async () => {
     // Named apart from its slug, so the lookup is shown to be by slug, and
     // the messages to name the organization.
     const { id } = await createOrganization(auth, {
@@ -492,11 +497,11 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     });
     const learnerCookie = await signIn(learner);
 
-    // Better Auth would store any role; only these two are given.
-    for (const role of ["owner", "teacher"]) {
+    // Better Auth would store any role; only these three are given, one at a time.
+    for (const role of ["owner", "teacher", "member,author"]) {
       await expect(
         addMember(auth, { slug: slugs.enrolls, email: learner.email, role }),
-      ).rejects.toThrow(`The role must be member or admin, not "${role}".`);
+      ).rejects.toThrow(`The role must be member, author, or admin, not "${role}".`);
     }
     await expect(
       addMember(auth, {
@@ -531,6 +536,63 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const other = await createOwned(slugs.adminAdded);
     await addMember(auth, { slug: slugs.adminAdded, email: learner.email, role: "admin" });
     expect((await membersOf(other)).map(({ role }) => role).toSorted()).toEqual(["admin", "owner"]);
+
+    const authored = await createOwned(slugs.authorAdded);
+    await addMember(auth, { slug: slugs.authorAdded, email: learner.email, role: "author" });
+    expect((await membersOf(authored)).map(({ role }) => role).toSorted()).toEqual([
+      "author",
+      "owner",
+    ]);
+  });
+
+  test("lets an author change nothing of the organization or its members through Better Auth (ADR 0048)", async () => {
+    const id = await createOwned(slugs.authorGuarded);
+    const headers = { cookie: await signIn(author) };
+    await addMember(auth, {
+      slug: slugs.authorGuarded,
+      email: author.email,
+      role: "author",
+    });
+    const [authorMember] = (await membersOf(id)).filter(({ role }) => role !== "owner");
+    const as = (role: string) =>
+      database
+        .update(authTables.member)
+        .set({ role })
+        .where(eq(authTables.member.id, authorMember!.id));
+    const statuses = async () =>
+      (
+        await Promise.all([
+          post("/organization/update", { organizationId: id, data: { name: "Taken" } }, headers),
+          post(
+            "/organization/update-member-role",
+            { organizationId: id, memberId: authorMember!.id, role: "admin" },
+            headers,
+          ),
+          post(
+            "/organization/invite-member",
+            { organizationId: id, email: newcomer, role: "admin" },
+            headers,
+          ),
+          post(
+            "/organization/remove-member",
+            { organizationId: id, memberIdOrEmail: owner.email },
+            headers,
+          ),
+          call(`/organization/list-members?organizationId=${id}`, { headers }),
+        ])
+      ).map((answer) => answer.status);
+
+    // Alone or beside `member`, `author` grants nothing here; beside `admin`, it takes nothing away.
+    for (const role of ["author", "member,author"]) {
+      await as(role);
+      expect(await statuses()).toEqual([403, 404, 404, 404, 404]);
+    }
+    await as("admin,author");
+    expect(await statuses()).toEqual([200, 404, 404, 404, 404]);
+    await as("author");
+    const deleted = await post("/organization/delete", { organizationId: id }, headers);
+    expect(deleted.status).toBe(403);
+    expect((await membersOf(id)).map(({ role }) => role).toSorted()).toEqual(["author", "owner"]);
   });
 
   test(`holds ${MEMBERSHIP_LIMIT} members, staff included, and refuses the next`, async () => {

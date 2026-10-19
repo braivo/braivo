@@ -18,7 +18,7 @@ const MAX_AUDIENCE = 200;
 
 /**
  * Drafts a course from one of an organization's sources with the
- * installation's own model, for whoever administers it, or `undefined` when it
+ * installation's own model, for whoever may author in it, or `undefined` when it
  * has no such source. The draft is checked and returned, never stored: review
  * happens where it is shown, and accepting it is authoring through the usual
  * endpoints (docs/adr/0029-server-drafting.md).

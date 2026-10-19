@@ -63,7 +63,7 @@ bun apps/server/cli/index.ts organization create \
   --name "My School" --slug my-school --owner owner@example.com
 ```
 
-Or see it populated: `bun run dev:demo` serves a demo school of this worktree's own, with an administrator, a teacher, and a learner to sign in as, never touching `DATABASE_URL`'s database ([the demo guide](docs/guides/demo.md)).
+Or see it populated: `bun run dev:demo` serves a demo school of this worktree's own, with an administrator, an author, a teacher, and a learner to sign in as, never touching `DATABASE_URL`'s database ([the demo guide](docs/guides/demo.md)).
 
 Tests that need a database skip themselves without `TEST_DATABASE_URL`; give them a database of their own, since they create and delete fixture data. A linked worktree's tests use one of their own ([ADR 0014](docs/adr/0014-worktree-setup.md)).
 
@@ -77,7 +77,7 @@ bun run storybook  # the component catalog
 ## Create a course
 
 - **In the console, with Braivo's AI.** Add a PDF or a photo as a source, have Braivo draft objectives and tasks from it, and review them before creating the course. Needs `ANTHROPIC_API_KEY`.
-- **With your own desktop agent.** `braivo mcp` gives Claude Desktop, Codex, or Grok Braivo's authoring as tools, so the drafting runs on your machine and your AI account; the same tools read how a course's learners are doing.
+- **With your own desktop agent.** `braivo mcp` gives Claude Desktop, Codex, or Grok Braivo's authoring as tools, so the drafting runs on your machine and your AI account; the same tools read how a course's learners are doing, for whoever administers or teaches them.
 - **From the command line or the API.** `braivo sources add` adds text, a PDF's pages, or a video's captions; objectives, tasks, and courses come from either way above, or from your own scripts.
 
 All three go through the same checks: every quote must be found in its source, and every task must pass the same validation. See the [authoring guide](docs/guides/authoring.md).

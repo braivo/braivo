@@ -8,7 +8,7 @@
  * nowhere but these pages.
  */
 export type ProgressSearch = {
-  /** Opened from the Groups page, its way back; otherwise the course's or, to a teacher, Groups. */
+  /** Opened from the Groups page, its way back; otherwise the course's or, to someone not administering, Groups. */
   from?: "groups";
   /** "Find a learner", as typed. */
   q?: string;

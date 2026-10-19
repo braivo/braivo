@@ -214,7 +214,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(refused.status).toBe(403);
   });
 
-  test("keeps files from a learner, who administers nothing", async () => {
+  test("keeps files from a learner, who authors nothing", async () => {
     const pdf = { "content-type": "application/pdf" };
     const upload = await postFile("%PDF learner", { ...pdf, cookie: learner.cookie });
     expect(upload.status).toBe(403);

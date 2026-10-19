@@ -93,7 +93,7 @@ export type Passage = application.Passage;
 export type Course = { id: string; number: number; title: string; urlLabel: string };
 
 /**
- * A course as its organization's administrators see it: `published` once a
+ * A course as those allowed to author in its organization see it: `published` once a
  * person published it in the console, before which no learner reaches it;
  * `hidden` while a person has hidden it from learners since (ADR 0039).
  */
@@ -119,10 +119,11 @@ export type ObjectiveSummary = Objective & { courseIds: string[]; waitingTaskCou
  * An organization as those who work in it find it; `slug` is its console
  * address, `learnDomain` the hostname its learners practise on, the latest
  * of its learn domains registered, `null` until one is. `administers`: the
- * reader holds `owner` or `admin` there; otherwise they teach one of its
- * groups (ADR 0042). `aiEnabled`, only where they administer: whether its
- * owners may have the installation's AI read a file's text and draft courses
- * (generation-9); absent from an older server, so unknown.
+ * reader holds `owner` or `admin` there; `authors`: they manage its content,
+ * as those or `author` (ADR 0048); `teaches`: they teach one of its groups
+ * (ADR 0042). Listed when any is true. `aiEnabled`, only where they author:
+ * whether they may have the installation's AI read a file's text and draft
+ * courses (generation-9).
  */
 export type Organization = {
   id: string;
@@ -130,6 +131,8 @@ export type Organization = {
   slug: string;
   learnDomain: string | null;
   administers: boolean;
+  authors: boolean;
+  teaches: boolean;
   aiEnabled?: boolean;
 };
 

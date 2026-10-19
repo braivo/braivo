@@ -20,7 +20,7 @@ import { Disclosure } from "#components/disclosure";
 import { LearnersSite } from "#components/learners-site";
 import { NameTag } from "#components/name-tag";
 import { sharedNameTags } from "#lib/name-tags";
-import { orNotFound } from "#lib/refusals";
+import { orNotFound, administratorsOrTeachersOnly } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -30,6 +30,7 @@ import { pageHead } from "#lib/title";
  * settings, by an administrator.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/groups")({
+  beforeLoad: administratorsOrTeachersOnly,
   loader: async ({ context, abortController }) => ({
     groups: await orNotFound(
       context.braivo.listGroups(context.organization.id, { signal: abortController.signal }),
@@ -37,6 +38,11 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/groups")({
   }),
   head: (head) => pageHead(head, t`Groups`),
   component: TeachingGroups,
+  notFoundComponent: () => (
+    <p>
+      <Trans>You teach no groups here.</Trans>
+    </p>
+  ),
 });
 
 function TeachingGroups() {

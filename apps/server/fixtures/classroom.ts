@@ -14,6 +14,7 @@ import {
   defineGroup,
   defineObjectives,
   defineTasks,
+  listCourses,
   nameNewLearner,
   readAuthoredCourse,
   readCourseProgress,
@@ -24,7 +25,7 @@ import { addMember, type Auth, createAuth, createOwnedOrganization } from "../au
 
 /**
  * A classroom to develop against: a small Fernwood school whose administrator,
- * teacher, and two learners sign in as anyone does, by a code, to a course made
+ * author, teacher, and two learners sign in as anyone does, by a code, to a course made
  * through the same use cases the console calls. The development demo serves it
  * (docs/guides/demo.md); a test may seed it too. Synthetic people on a reserved
  * domain. The learners practised before the anchor, through the learn app's use
@@ -37,19 +38,24 @@ import { addMember, type Auth, createAuth, createOwnedOrganization } from "../au
  * baseline, never for a migration or a wording change: a demo seeded under
  * another version is refused, not patched.
  */
-export const SCENARIO_VERSION = 2;
+export const SCENARIO_VERSION = 3;
 
 const ORGANIZATION = { name: "Fernwood School", slug: "fernwood" } as const;
 
 /** Its learn app, served locally as any `<slug>.localhost` is (ADR 0004). */
 export const LEARN_HOSTNAME = "fernwood.localhost";
 
-/** Who to sign in as, and what each may do as seeded (ADR 0042 for the teacher). */
+/** Who to sign in as, and what each may do as seeded (ADR 0048 for the author, 0042 for the teacher). */
 export const PERSONAS = {
   administrator: {
     email: "admin@fernwood.example",
     name: "Morgan Hale",
     scope: "owns Fernwood School: administers it, reads every member's progress",
+  },
+  author: {
+    email: "author@fernwood.example",
+    name: "Riley Chen",
+    scope: "prepares and publishes Fernwood's courses, without other learners' progress",
   },
   teacher: {
     email: "teacher@fernwood.example",
@@ -72,6 +78,7 @@ export const PERSONAS = {
 export type ClassroomHandles = {
   organization: string;
   administrator: string;
+  author: string;
   teacherClassA: string;
   sam: string;
   zofia: string;
@@ -238,6 +245,7 @@ async function seedClassroom(input: {
     return user.id;
   };
   const administrator = await account(PERSONAS.administrator);
+  const author = await account(PERSONAS.author);
   const teacher = await account(PERSONAS.teacher);
   const sam = await account(PERSONAS.sam);
   const zofia = await account(PERSONAS.zofia);
@@ -249,9 +257,11 @@ async function seedClassroom(input: {
   for (const { email } of [PERSONAS.teacher, PERSONAS.sam, PERSONAS.zofia]) {
     await addMember(auth, { slug: ORGANIZATION.slug, email, role: "member" });
   }
+  // Prepares content without administering the school or teaching (ADR 0048).
+  await addMember(auth, { slug: ORGANIZATION.slug, email: PERSONAS.author.email, role: "author" });
   // Better Auth dates these when made and takes no time, so the fixture dates
   // them back itself; signing in by code makes no `account` row to date.
-  const people = [administrator, teacher, sam, zofia];
+  const people = [administrator, author, teacher, sam, zofia];
   const createdAt = before(CREATED_BEFORE_MS);
   await database.update(user).set({ createdAt }).where(inArray(user.id, people));
   await database.update(organization).set({ createdAt }).where(eq(organization.id, organizationId));
@@ -336,6 +346,7 @@ async function seedClassroom(input: {
   return {
     organization: organizationId,
     administrator,
+    author,
     teacherClassA: teacher,
     sam,
     zofia,
@@ -473,6 +484,7 @@ async function checkClassroomBaseline(input: {
   check(
     exactly(await reportFor(handles.administrator), [
       handles.administrator,
+      handles.author,
       handles.teacherClassA,
       handles.sam,
       handles.zofia,
@@ -485,6 +497,16 @@ async function checkClassroomBaseline(input: {
     "the teacher does not read exactly their group's learners",
   );
   check((await reportFor(handles.sam)) === undefined, "a learner reads the course's report");
+  check((await reportFor(handles.author)) === undefined, "the author reads the course's report");
+  const authored = await listCourses({
+    database,
+    organizationId: handles.organization,
+    actingAs: handles.author,
+  }).catch(() => []);
+  check(
+    authored.some(({ id }) => id === handles.courseEnglish),
+    "the author does not manage the school's courses",
+  );
   const hasStandings = (learnerId: string, expected: StandingCounts) => {
     const found = teacherReport?.get(learnerId);
     return (

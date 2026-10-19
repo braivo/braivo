@@ -56,20 +56,6 @@ describe("the Braivo client", () => {
     expect((error as BraivoError).status).toBe(500);
   });
 
-  test("reads an organization an older server lists, without `administers`, as administered", async () => {
-    const organization = { id: "o", name: "School", slug: "school", learnDomain: null };
-    const { client } = clientFor(
-      Response.json({
-        organizations: [organization, { ...organization, id: "t", administers: false }],
-      }),
-    );
-
-    expect(await client.listOrganizations()).toEqual([
-      { ...organization, administers: true },
-      { ...organization, id: "t", administers: false },
-    ]);
-  });
-
   test("returns the activity Braivo answered with", async () => {
     const { client } = clientFor(Response.json(activity));
 

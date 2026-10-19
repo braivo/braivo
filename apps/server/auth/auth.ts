@@ -15,9 +15,10 @@ import {
   getSessionFromCtx,
 } from "better-auth/api";
 import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better-auth/plugins";
+import { adminAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import * as z from "zod";
 
-import { mayAdminister } from "../application/permission.ts";
+import { mayAuthor } from "../application/permission.ts";
 import { describeLogCall } from "../logging.ts";
 import { mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
@@ -140,7 +141,7 @@ const authorizing = defineRequestState(() => false);
 /** What a Better Auth hook is given. */
 type AuthContext = Parameters<Parameters<typeof createAuthMiddleware>[0]>[0];
 
-/** The organization `session` chose for a connection, if its user still administers it. */
+/** The organization `session` chose for a connection, if its user still authors in it (ADR 0048). */
 async function chosenOrganization(
   database: Database,
   user: { id: string } | undefined,
@@ -148,7 +149,7 @@ async function chosenOrganization(
 ): Promise<string | undefined> {
   const organizationId = session?.activeOrganizationId;
   if (typeof organizationId !== "string" || !user) return undefined;
-  return (await mayAdminister(database, { organizationId, userId: user.id }))
+  return (await mayAuthor(database, { organizationId, userId: user.id }))
     ? organizationId
     : undefined;
 }
@@ -436,6 +437,11 @@ export function createAuth(options: AuthOptions) {
         // call it naming the user (`createOwnedOrganization`, ADR 0018).
         allowUserToCreateOrganization: false,
         membershipLimit: MEMBERSHIP_LIMIT,
+        // Better Auth's own roles, and `author` (ADR 0048) with a member's
+        // permissions, none over the organization: authoring is Braivo's to
+        // check, so none of Better Auth's routes lets an author change a role,
+        // a member, or the organization.
+        roles: { owner: ownerAc, admin: adminAc, member: memberAc, author: memberAc },
         organizationHooks: {
           beforeCreateOrganization: async ({ organization: created }) => {
             // Typed optional although the endpoint requires it; absent fails
@@ -520,13 +526,13 @@ export function createAuth(options: AuthOptions) {
             !(await chosenOrganization(options.database, user, session)),
           // The consent's reference ID, so consents, codes, and refresh
           // tokens are per organization; refused, not left out, for an
-          // organization the person does not administer.
+          // organization the person may not author in (ADR 0048).
           consentReferenceId: async ({ user, session }) => {
             const organizationId = await chosenOrganization(options.database, user, session);
             if (organizationId) return organizationId;
             throw new APIError("FORBIDDEN", {
               error: "access_denied",
-              error_description: "Choose an organization you manage.",
+              error_description: "Choose an organization whose content you manage.",
             });
           },
         },

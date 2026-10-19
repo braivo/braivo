@@ -61,7 +61,7 @@ export async function createOwnedOrganization(
 }
 
 /** The roles the operator may give: never `owner`, which only `createOrganization` gives. */
-const MEMBER_ROLES = ["member", "admin"] as const;
+const MEMBER_ROLES = ["member", "author", "admin"] as const;
 type MemberRole = (typeof MEMBER_ROLES)[number];
 const isMemberRole = (role: string): role is MemberRole =>
   (MEMBER_ROLES as readonly string[]).includes(role);
@@ -69,8 +69,9 @@ const isMemberRole = (role: string): role is MemberRole =>
 /**
  * Adds an existing account to an organization: the operator's command, how a
  * school's learners get in until ADR 0018's invitations. `member` is a
- * learner, enrolled in every course, since membership is enrollment; `admin`
- * also manages the organization's content. Never `owner`, nor a second
+ * learner, enrolled in every course, since membership is enrollment; `author`
+ * also manages the organization's content (ADR 0048); `admin` its people and
+ * settings too. Never `owner`, nor a second
  * membership, which would leave the role unchanged.
  */
 export async function addMember(
@@ -79,7 +80,7 @@ export async function addMember(
 ): Promise<{ organization: { name: string; slug: string }; role: MemberRole }> {
   const { slug, email, role } = input;
   if (!isMemberRole(role)) {
-    throw new Error(`The role must be member or admin, not "${role}".`);
+    throw new Error(`The role must be member, author, or admin, not "${role}".`);
   }
   const { adapter, internalAdapter } = await auth.$context;
   const organization = await adapter.findOne<{ id: string; name: string; slug: string }>({

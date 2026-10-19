@@ -94,7 +94,7 @@ describe.skipIf(!connectionString)("defining objectives", () => {
     );
   });
 
-  test("refuses to list for anyone who may not administer", async () => {
+  test("refuses to list for anyone who may not author", async () => {
     await define(["Alpha"]);
 
     await expect(list(learner)).rejects.toBeInstanceOf(NotPermitted);

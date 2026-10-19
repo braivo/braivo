@@ -40,6 +40,8 @@ export const school: Organization = {
   slug: "example",
   learnDomain: "example.braivo.app",
   administers: true,
+  authors: true,
+  teaches: false,
 };
 
 export const annex: Organization = {
@@ -48,6 +50,8 @@ export const annex: Organization = {
   slug: "annex",
   learnDomain: null,
   administers: true,
+  authors: true,
+  teaches: false,
 };
 
 /** A course as authored, one objective taught by a passage and practised by a task. */

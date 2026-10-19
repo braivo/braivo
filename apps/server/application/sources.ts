@@ -25,7 +25,7 @@ import {
   type SourceSummary,
 } from "../persistence/index.ts";
 import { FILE_ID } from "./files.ts";
-import { assertMayAdminister } from "./permission.ts";
+import { assertMayAuthor } from "./permission.ts";
 
 /** A source that cannot be stored as sent; the message says what would fix it. Nothing was stored. */
 export class InvalidSource extends Error {
@@ -47,7 +47,7 @@ export async function addSource(
   input: {
     database: Database;
     organizationId: string;
-    /** The signed-in actor, who must administer the organization. */
+    /** The signed-in actor, who must be allowed to author in the organization. */
     actingAs: string;
     title: string;
     /** The link the text came from — a YouTube video, a web article — when there is one. */
@@ -127,7 +127,7 @@ export async function addSource(
     );
   }
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   // Checked after permission, so a stranger learns nothing of the organization's files.
   if (original !== undefined && !(await readFile(database, organizationId, original))) {
@@ -156,7 +156,7 @@ export async function listSources(input: {
 }): Promise<SourceSummary[]> {
   const { database, organizationId, actingAs } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   return readSources(database, organizationId);
 }
@@ -172,7 +172,7 @@ export async function getSource(input: {
 }): Promise<Source | undefined> {
   const { database, cachedDatabase, organizationId, actingAs, sourceId } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   return readSource(cachedDatabase, organizationId, sourceId);
 }

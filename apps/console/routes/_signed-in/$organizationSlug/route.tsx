@@ -12,9 +12,9 @@ import { rememberOrganization } from "#lib/last-organization";
 /**
  * An organization's pages (ADR 0004), and the one place a slug becomes an
  * organization: pages below read `context.organization`, never the slug.
- * Resolved among the organizations someone administers or teaches in, so
- * any other reads as missing and nothing below runs; `administers` then says
- * which pages they have. The list is kept too, for
+ * Resolved among the organizations someone administers, authors, or teaches
+ * in, so any other reads as missing and nothing below runs; `administers`,
+ * `authors`, and `teaches` then say which pages they have. The list is kept too, for
  * the sidebar's switcher, with whether it offers setting one up. Read-only, so
  * safe to preload.
  */

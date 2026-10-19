@@ -44,8 +44,8 @@ msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
 #: apps/console/routes/_signed-in/consent.tsx
-msgid "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
-msgstr "{clientName} działa w organizacji, którą zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię, a potem połącz ponownie."
+msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
+msgstr "{clientName} działa w organizacji, której treściami zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o nadanie Ci tam roli autora, a potem połącz ponownie."
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -230,6 +230,10 @@ msgstr "Zezwalanie…"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "Działając w Twoim imieniu, będzie mogła czytać materiały i kursy organizacji „{organizationName}” oraz dodawać materiały i cele nauczania, których dotyczą."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Author"
+msgstr "Autor"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
@@ -1612,6 +1616,10 @@ msgstr "Temat „{objectiveTitle}” był niedawno ćwiczony. Ćwiczenia wznowi�
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "You sign in with it. It cannot be changed yet."
 msgstr "Logujesz się nim. Na razie nie można go zmienić."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "You teach no groups here."
+msgstr "Nie prowadzisz tu żadnych grup."
 
 #: apps/console/components/organization-setup-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx

@@ -10,7 +10,7 @@ import type { Page } from "../content/index.ts";
 import { readFile, recordFile, type StoredFile } from "../persistence/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { type Ai, InvalidAiRequest, modelFor } from "./ai.ts";
-import { assertMayAdminister } from "./permission.ts";
+import { assertMayAuthor } from "./permission.ts";
 
 /** This installation was started without a file store, so keeps no files. */
 export class FilesUnavailable extends Error {
@@ -64,7 +64,7 @@ export async function uploadFile(input: {
   }
   if (bytes.length === 0) throw new InvalidFile("The file is empty.");
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   // Bytes before the record, which promises they are there. Written even when
@@ -84,7 +84,7 @@ export async function uploadFile(input: {
 }
 
 /**
- * One of an organization's files with its bytes, for whoever administers it,
+ * One of an organization's files with its bytes, for whoever may author in it,
  * or `undefined` when it has no file by that ID.
  */
 export async function openFile(input: {
@@ -97,7 +97,7 @@ export async function openFile(input: {
   const { database, files, organizationId, actingAs, fileId } = input;
   if (files === undefined) throw new FilesUnavailable();
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
   if (!FILE_ID.test(fileId)) return undefined;
 
   const file = await readFile(database, organizationId, fileId);

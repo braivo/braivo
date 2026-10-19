@@ -139,7 +139,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     const lock = await locked(demo);
 
     const prepared = await prepareDemo(lock, { now: ANCHOR });
-    expect(prepared).toMatchObject({ state: "ready", scenario: 2, anchor: ANCHOR });
+    expect(prepared).toMatchObject({ state: "ready", scenario: 3, anchor: ANCHOR });
     expect(await inspectDemo(demo)).toMatchObject({
       kind: "ready",
       migrations: { pending: [], diverged: [] },
@@ -492,7 +492,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     await query(demoUrl(demo), "delete from drizzle.__braivo_migrations where hash = 'elsewhere'");
     await query(demoUrl(demo), "update dev_demo.environment set scenario = 0");
     await expect(prepareDemo(lock, { now: ANCHOR, migrate: true })).rejects.toThrow(
-      "it was seeded as scenario 0, and this checkout's is 2",
+      "it was seeded as scenario 0, and this checkout's is 3",
     );
   });
 

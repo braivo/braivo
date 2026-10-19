@@ -39,11 +39,11 @@ import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
-import { AI_OFF_MESSAGE, administratorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
+import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sourceId")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: authorsOnly,
   loader: async ({ context, params, abortController }) => ({
     source: await orNotFound(
       context.braivo.getSource(

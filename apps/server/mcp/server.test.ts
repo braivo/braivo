@@ -362,7 +362,9 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
 
   test("leads a teacher from their organizations to their group's progress", async () => {
     const organizations = await json<Organization[]>("list_organizations", {}, teacherAgent);
-    expect(organizations).toMatchObject([{ id: progressOrganizationId, administers: false }]);
+    expect(organizations).toMatchObject([
+      { id: progressOrganizationId, administers: false, authors: false, teaches: true },
+    ]);
 
     const groups = await json<
       { name: string; learners: { userId: string }[]; courses: { id: string; title: string }[] }[]
@@ -444,6 +446,8 @@ describe.skipIf(!connectionString)("braivo mcp", () => {
       slug: id,
       learnDomain: null,
       administers: true,
+      authors: true,
+      teaches: false,
     });
     expect(organizations.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual([
       listed(organizationId),

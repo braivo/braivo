@@ -12,7 +12,7 @@ import {
   readObjectiveCitations,
   readSourceTexts,
 } from "../persistence/index.ts";
-import { assertMayAdminister, NotPermitted } from "./permission.ts";
+import { assertMayAuthor, NotPermitted } from "./permission.ts";
 
 /** What a caller asks to cite: an objective, a source, and the words relied on. */
 export type QuotedCitation = { objectiveId: string; sourceId: string; quote: string };
@@ -75,13 +75,13 @@ export async function locateCitations(
 export async function citeSources(input: {
   database: Database;
   organizationId: string;
-  /** The signed-in actor, who must administer the organization. */
+  /** The signed-in actor, who must be allowed to author in the organization. */
   actingAs: string;
   citations: readonly QuotedCitation[];
 }): Promise<Citation[]> {
   const { database, organizationId, actingAs, citations } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const outside = await findObjectivesOutsideOrganization(
     database,
@@ -124,7 +124,7 @@ export async function listObjectiveCitations(input: {
 }): Promise<CitedPassage[] | undefined> {
   const { database, organizationId, actingAs, objectiveId } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const [outside] = await findObjectivesOutsideOrganization(database, organizationId, [
     objectiveId,

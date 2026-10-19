@@ -44,8 +44,8 @@ msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
 #: apps/console/routes/_signed-in/consent.tsx
-msgid "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
-msgstr "{clientName} works in an organization you manage. Ask its owner, or whoever set Braivo up for you, to add you, then connect again."
+msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
+msgstr "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -230,6 +230,10 @@ msgstr "Approving…"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Author"
+msgstr "Author"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
@@ -1612,6 +1616,10 @@ msgstr "You practised {objectiveTitle} recently. Practice continues at {continue
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "You sign in with it. It cannot be changed yet."
 msgstr "You sign in with it. It cannot be changed yet."
+
+#: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+msgid "You teach no groups here."
+msgstr "You teach no groups here."
 
 #: apps/console/components/organization-setup-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx

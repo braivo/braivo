@@ -6,10 +6,10 @@ An AI app that connects to remote MCP servers by OAuth, such as Claude or ChatGP
 
 1. In the app, add a connector (Claude: Customize, Connectors, Add custom connector; ChatGPT: a connector or app added by URL) with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. Braivo's console shows it, ready to copy, in your account's settings, Connected apps. Once Braivo is listed in the app's directory, adding it from there does the same.
 2. Sign in to Braivo in the page that opens.
-3. Choose the organization it works in: one you manage. To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
+3. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
 4. Approve it. The page names the app and the organization.
 
-The app acts as you, in that organization alone, with the rights you have there: if you stop managing the organization, the connection can no longer list or reach it.
+The app acts as you, in that organization alone, with the rights you have there: once you no longer prepare its content, the connection can no longer list or reach it.
 
 Some installations fetch no client metadata documents, and accept only the apps their operator registered ([deployment](deployment.md#remote-mcp-clients)). There, an unrecognized client or `invalid_client` at sign-in means the app is not registered: ask the installation's operator to register it.
 

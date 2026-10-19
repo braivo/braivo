@@ -7,7 +7,7 @@ import { organizationToOpen } from "#lib/last-organization";
 
 /**
  * Where `/` sends a signed-in owner (ADR 0004): the organization last opened
- * here, else the first they administer or teach in, else `/join`.
+ * here, else the first they administer, author, or teach in, else `/join`.
  */
 export const Route = createFileRoute("/_signed-in/")({
   beforeLoad: async ({ context, abortController }) => {

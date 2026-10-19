@@ -42,11 +42,11 @@ import {
   useTaskSelection,
 } from "#components/task-review";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { authorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: authorsOnly,
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
     // Bounded, since a correction or a retirement waits for this reload to
@@ -156,16 +156,19 @@ function Course() {
         <CourseUrlLabel braivo={braivo} organizationId={organization.id} course={course} />
       )}
       <div className="mb-8 flex flex-wrap items-start gap-2">
-        {/* Its learners' progress, a page shared with teachers (access-39). */}
-        <Button asChild variant="outline">
-          <Link
-            to="/$organizationSlug/courses/$courseId/progress"
-            params={{ organizationSlug: organization.slug, courseId }}
-          >
-            Learner progress
-            <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
-          </Link>
-        </Button>
+        {/* Every member's progress, an administrator's; a teacher's own
+            learners' is reached from Groups (access-39). */}
+        {organization.administers && (
+          <Button asChild variant="outline">
+            <Link
+              to="/$organizationSlug/courses/$courseId/progress"
+              params={{ organizationSlug: organization.slug, courseId }}
+            >
+              Learner progress
+              <ChevronRightIcon data-icon="inline-end" aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
         {/* Hidden rather than unpublished, as learners may have met it (ADR 0039). */}
         {course.published && (
           <CourseVisibility
@@ -414,7 +417,7 @@ function DeleteCourse(props: {
           await router.invalidate({ sync: true });
           onRefused("Not deleted: someone published this course meanwhile.");
         } else if (thrown instanceof BraivoError && [401, 403].includes(thrown.status)) {
-          // Signed out, or no longer administering it: the guard's check, run again, says so.
+          // Signed out, or no longer authoring there: the guard's check, run again, says so.
           await router.invalidate();
         } else {
           setFailures((count) => count + 1);
@@ -529,7 +532,7 @@ function CourseVisibility(props: {
         );
       } catch (thrown) {
         if (thrown instanceof BraivoError && [401, 403, 404].includes(thrown.status)) {
-          // Signed out, no longer administering it, or gone: the page, read again, says so.
+          // Signed out, no longer authoring there, or gone: the page, read again, says so.
           await router.invalidate();
         } else {
           setFailures((count) => count + 1);

@@ -27,9 +27,9 @@ import { pageHead } from "#lib/title";
 const listRow = "flex flex-wrap items-baseline gap-x-2 gap-y-1";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
-  // A teacher's home is their groups: courses are an administrator's.
+  // Courses are an author's (ADR 0048); someone who only teaches lands on their groups.
   beforeLoad: ({ context, params }) => {
-    if (!context.organization.administers) {
+    if (!context.organization.authors) {
       throw redirect({ to: "/$organizationSlug/groups", params, replace: true });
     }
   },
