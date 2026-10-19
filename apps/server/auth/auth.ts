@@ -480,8 +480,8 @@ export function createAuth(options: AuthOptions) {
           },
         },
       }),
-      // A content owner's own tools — a CLI, an MCP server a desktop agent runs —
-      // act as the content owner: the CLI asks for a code, the content owner
+      // A content owner's own tools — the `braivo` command, and an agent running
+      // it — act as the content owner: the CLI asks for a code, the content owner
       // approves it in a signed-in browser, and the CLI receives a session
       // token it sends as `Authorization: Bearer`. No separate credential to
       // authorize: the token is the user, with their memberships and roles

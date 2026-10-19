@@ -40,7 +40,7 @@ else
 fi
 
 # Downloaded beside its destination, started once, and only then renamed over
-# it: a build this machine cannot run never replaces one it can, a `braivo mcp`
+# it: a build this machine cannot run never replaces one it can, a `braivo`
 # still running keeps its file, and nothing ever sees half of one.
 mkdir -p "$dir"
 partial="$dir/.braivo.$$"

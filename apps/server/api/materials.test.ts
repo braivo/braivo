@@ -826,7 +826,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(refused.status).toBe(429);
     expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(((await refused.json()) as { error: string }).error).toMatch(
-      /^This organization has reached its monthly AI limit \(2\)\. You can use Braivo's AI again from \d{4}-\d{2}-01; meanwhile, use your own desktop agent through braivo mcp\.$/,
+      /^This organization has reached its monthly AI limit \(2\)\. You can use Braivo's AI again from \d{4}-\d{2}-01; meanwhile, use your own AI app, such as Claude or ChatGPT, connected to Braivo\.$/,
     );
     expect(asked).toBe(2);
   });
@@ -924,7 +924,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(learnerDraft.status).toBe(403);
     expect(await learnerDraft.text()).toBe("");
     expect(await none.json()).toEqual({
-      error: expect.stringContaining("braivo mcp"),
+      error: expect.stringContaining("your own AI app"),
       code: "AI_UNAVAILABLE",
     });
     const failed = await draft(failing);

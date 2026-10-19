@@ -21,7 +21,7 @@ import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-ro
 import { InfoIcon } from "lucide-react";
 import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { DesktopAgentLink } from "#components/desktop-agent-link";
+import { AiAppGuideLink } from "#components/ai-app-guide-link";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
@@ -390,7 +390,7 @@ function AddSource() {
           <InfoIcon aria-hidden="true" />
           <AlertDescription>
             {AI_OFF_MESSAGE} You can add material, but not draft a course from it here: ask whoever
-            runs Braivo for you to turn the AI on, or draft with <DesktopAgentLink />.
+            runs Braivo for you to turn the AI on, or draft with <AiAppGuideLink />.
           </AlertDescription>
         </Alert>
       )}

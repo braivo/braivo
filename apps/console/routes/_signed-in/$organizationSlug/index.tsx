@@ -14,7 +14,7 @@ import {
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 
-import { DesktopAgentLink } from "#components/desktop-agent-link";
+import { AiAppGuideLink } from "#components/ai-app-guide-link";
 import { LearnersSite } from "#components/learners-site";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
@@ -101,12 +101,12 @@ function Courses() {
                 <>
                   Braivo's AI is off for this organization. You can still add material under
                   Sources. To draft a course from it, ask whoever runs Braivo for you to turn the AI
-                  on, or use <DesktopAgentLink />.
+                  on, or use <AiAppGuideLink />.
                 </>
               ) : (
                 <>
                   Add material under Sources and draft a course from it there, or with{" "}
-                  <DesktopAgentLink />.
+                  <AiAppGuideLink />.
                 </>
               )}
             </EmptyDescription>

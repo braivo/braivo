@@ -7,7 +7,6 @@
     ".": "./server.ts",
     "./client": "./api/client.ts",
     "./content": "./content/index.ts",
-    "./mcp": "./mcp/index.ts",
     "./testing": "./testing.ts"
   },
   "scripts": {

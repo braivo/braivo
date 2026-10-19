@@ -14,7 +14,7 @@ Captions keep it. Every caption format — WebVTT, SRT, YouTube's own — is a l
 - **A cited passage names its moment.** A passage's `at` is the second at which the cue holding its first word starts (`content.momentOf`). The grade a learner gets carries it, and the learn app shows it — "Los animales · 1:02" — and opens the video there: YouTube's `t` parameter for a YouTube link, a media fragment (`#t=`) for any other.
 - **Timing is part of what the source is.** The same words said at other moments are another recording, so the digest that makes adding a source idempotent ([ADR 0024](0024-idempotent-authoring.md)) takes the timing as a fifth field — only when there is one.
 - **Cues are checked, and refusals say which.** Times are seconds from 0 to a day, in order; each cue has words Braivo can store; at most 100,000 cues. A refused cue is named: "Cue 1 starts before the cue before it; send cues in order."
-- **Converting caption files is the sender's.** Braivo takes cues, not WebVTT or SRT: parsing formats, stripping markup, and merging the rolling repeats of auto-generated captions is extraction, which happens before Braivo (ADR 0020) — in `braivo mcp`'s `add_transcript`, the agent does it, and the tool's description tells it to.
+- **Converting caption files is the sender's.** Braivo takes cues, not WebVTT or SRT: parsing formats, stripping markup, and merging the rolling repeats of auto-generated captions is extraction, which happens before Braivo (ADR 0020) — in MCP's `add_transcript`, the agent does it, and the tool's description tells it to.
 
 ## Consequences
 

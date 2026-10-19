@@ -34,7 +34,7 @@ import {
   useState,
 } from "react";
 
-import { DesktopAgentLink } from "#components/desktop-agent-link";
+import { AiAppGuideLink } from "#components/ai-app-guide-link";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -268,7 +268,7 @@ function DraftCourse(props: { source: Source }) {
         </Heading>
         <p>
           {AI_OFF_MESSAGE} Ask whoever runs Braivo for you to turn it on, or draft one with{" "}
-          <DesktopAgentLink />.
+          <AiAppGuideLink />.
         </p>
         {/* A draft under way when it was turned off may still fail: said here, its form gone. */}
         {error && (

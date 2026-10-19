@@ -33,10 +33,9 @@
     # never replaces one that can.
     $installed = & $partial --version
     if ($LASTEXITCODE -ne 0) { throw 'The downloaded braivo does not run on this machine.' }
-    # Windows refuses to replace a running file, such as a `braivo mcp` an
-    # agent started.
+    # Windows refuses to replace a running file.
     try { Move-Item -Force $partial $exe }
-    catch { throw "Could not replace $exe. Quit the apps running braivo, such as your AI agent, and run this again. $($_.Exception.Message)" }
+    catch { throw "Could not replace $exe. Wait for any braivo command still running to finish, and run this again. $($_.Exception.Message)" }
   } finally {
     Remove-Item -Force -ErrorAction SilentlyContinue $partial
   }

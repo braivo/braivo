@@ -79,9 +79,9 @@ It prints a random password once; `--password-stdin` reads one instead, 16 chara
 
 Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `localhost`, `127.0.0.1`, or `[::1]`, and the server then listens there alone; anywhere else `serve` refuses to start. An address gets one code a minute.
 
-**AI.** Braivo's own drafting and reading of PDFs and photos, for content owners without a desktop agent ([ADR 0029](../adr/0029-server-drafting.md), [ADR 0030](../adr/0030-server-extraction.md), [ADR 0031](../adr/0031-ai-limits.md)).
+**AI.** Braivo's own drafting and reading of PDFs and photos, for content owners without an AI app of their own ([ADR 0029](../adr/0029-server-drafting.md), [ADR 0030](../adr/0030-server-extraction.md), [ADR 0031](../adr/0031-ai-limits.md)).
 
-- `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own agents through `braivo mcp`.
+- `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own AI apps through `/mcp` ([assistants](assistants.md)).
 - `BRAIVO_AI_MODEL`: the model, `claude-sonnet-5` by default.
 - `BRAIVO_AI_ORGANIZATIONS`: comma-separated organization IDs allowed to use the key. Unset means every organization, and is refused with `BRAIVO_SELF_SERVE_DOMAIN`; an empty value or `*` is invalid, and the server refuses to start.
 - `BRAIVO_AI_MONTHLY_LIMIT`: how many AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another. Every request is recorded in `ai_request` either way.

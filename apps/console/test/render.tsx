@@ -161,11 +161,13 @@ export function expectProxyTimeoutExplained(alert: HTMLElement) {
   expect(alert.textContent).not.toMatch(/Try again/);
 }
 
-/** Where drafting with a desktop agent is offered, a link to setting one up, in a new tab. */
-export function expectDesktopAgentGuide(scope: HTMLElement = document.body) {
-  const link = within(scope).getByRole("link", { name: "your desktop agent through braivo mcp" });
+/** Where drafting with the person's own AI app is offered, a link to connecting one, in a new tab. */
+export function expectAiAppGuide(scope: HTMLElement = document.body) {
+  const link = within(scope).getByRole("link", {
+    name: "your own AI app, such as Claude or ChatGPT",
+  });
   expect(link.getAttribute("href")).toBe(
-    "https://github.com/braivo/braivo/blob/main/docs/guides/authoring.md#let-your-desktop-agent-build-the-course",
+    "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md",
   );
   expect(link.getAttribute("target")).toBe("_blank");
   expect(link.getAttribute("rel")).toBe("noreferrer");

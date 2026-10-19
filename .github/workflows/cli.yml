@@ -3,7 +3,7 @@
 
 # The standalone `braivo` for each platform a content owner's machine runs,
 # and the scripts installing it, attached to the release a version tag makes,
-# so signing in, adding material, and `braivo mcp` need no clone and no Bun
+# so signing in and adding material need no clone and no Bun
 # (docs/adr/0027-standalone-cli.md).
 name: CLI
 
