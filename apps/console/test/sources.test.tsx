@@ -13,7 +13,7 @@ import {
   waitOut,
   renderAt,
   expectProxyTimeoutExplained,
-  expectDesktopAgentGuide,
+  expectAiAppGuide,
   expectLockedInFocus,
   answerLeaving,
 } from "./render.tsx";
@@ -462,7 +462,7 @@ describe("the console", () => {
     // Said before anything is prepared: material can be added, not drafted from here.
     const form = screen.getByRole("form", { name: "Add material" });
     expect(form.textContent).toMatch(/off for this organization.*not draft a course from it here/);
-    expectDesktopAgentGuide(form);
+    expectAiAppGuide(form);
     // There on load, so not announced as an alert.
     expect(screen.queryByRole("alert")).toBeNull();
     // Neither the hint nor an empty form's refusal promises reading.
@@ -492,7 +492,7 @@ describe("the console", () => {
     const off = new BraivoError(
       501,
       "Braivo answered 501 reading a file's text.",
-      "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own desktop agent through braivo mcp.",
+      "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own AI app, such as Claude or ChatGPT, connected to Braivo.",
       "AI_UNAVAILABLE",
     );
     renderAt("/example/sources", {

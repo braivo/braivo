@@ -10,7 +10,7 @@ import { type Auth, AUTHOR_SCOPE, ORGANIZATION_CLAIM } from "../auth/index.ts";
 import { createMcpServer } from "../mcp/index.ts";
 import { createConnectionClient, type Principal } from "./principal.ts";
 
-/** No release is stamped into the server yet; `braivo mcp` says the same unbuilt. */
+/** No release is stamped into the server yet. */
 const VERSION = "development";
 
 /**
@@ -26,7 +26,7 @@ const VERSION = "development";
 export function mcpEndpoint(options: {
   auth: Auth;
   database: Database;
-  /** Where the catalog's calls go, in this process: the API serving `/mcp`. */
+  /** Where the tools' calls go, in this process: the API serving `/mcp`. */
   api: { fetch: (request: Request) => Response | Promise<Response> };
   /** The installation's origin, which those calls are addressed to. */
   baseUrl: string;
@@ -95,7 +95,6 @@ export function mcpEndpoint(options: {
     return { userId, clientId, scopes, organizationId };
   }
 
-  // Without the tools reading about learners, until `braivo:progress` exists.
   const handler = createMcpHandler(
     ({ authInfo }) =>
       createMcpServer(
@@ -105,7 +104,7 @@ export function mcpEndpoint(options: {
           principal: authInfo?.extra?.principal as Principal,
         }),
         VERSION,
-        { consoleUrl: baseUrl, catalog: "authoring" },
+        { consoleUrl: baseUrl },
       ),
     { legacy: "reject" },
   );

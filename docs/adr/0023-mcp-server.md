@@ -1,6 +1,6 @@
 # 0023: `braivo mcp` serves Braivo's API as tools, through the official SDK
 
-Status: accepted (2026-09-24)
+Status: superseded by [ADR 0045](0045-remote-mcp.md) (2026-10-19)
 
 ## Context
 

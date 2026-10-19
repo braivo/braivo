@@ -7,7 +7,7 @@ import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { members, courseProgress, school, annex, beginners, readCourse } from "./fixtures.ts";
-import { stall, waitOut, renderAt, expectDesktopAgentGuide } from "./render.tsx";
+import { stall, waitOut, renderAt, expectAiAppGuide } from "./render.tsx";
 
 describe("the console", () => {
   test("leads from an organization to its sources", async () => {
@@ -22,7 +22,7 @@ describe("the console", () => {
     );
     expect(screen.queryByRole("link", { name: "Add material" })).toBeNull();
     expect(screen.getByText(/draft a course from it there/)).toBeTruthy();
-    expectDesktopAgentGuide();
+    expectAiAppGuide();
   });
 
   test("promises no drafting in the console, with no course yet, where Braivo's AI is off", async () => {
@@ -32,8 +32,10 @@ describe("the console", () => {
     });
 
     const said = await screen.findByText(/off for this organization/);
-    expect(said.textContent).toMatch(/ask whoever runs Braivo.*desktop agent through braivo mcp/);
-    expectDesktopAgentGuide(said);
+    expect(said.textContent).toMatch(
+      /ask whoever runs Braivo.*your own AI app, such as Claude or ChatGPT/,
+    );
+    expectAiAppGuide(said);
     expect(screen.queryByText(/draft a course from it there/)).toBeNull();
   });
 

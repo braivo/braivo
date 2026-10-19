@@ -6,11 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
-
-import { saveCredentials } from "./credentials.ts";
 
 // The standalone `braivo` is this entry point bundled (docs/adr/0027-standalone-cli.md).
 // Bundling can reorder module initialization and crash every command before it
@@ -33,9 +29,9 @@ beforeAll(async () => {
   bundle = built.outputs[0]!.path;
 }, 60_000);
 
-async function run(args: string[], environment: Record<string, string> = {}) {
+async function run(args: string[]) {
   const child = Bun.spawn([process.execPath, bundle, ...args], {
-    env: { PATH: process.env.PATH ?? "", ...environment },
+    env: { PATH: process.env.PATH ?? "" },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -61,37 +57,4 @@ describe("the bundled CLI", () => {
     expect(code).toBe(0);
     expect(stdout).toBe("braivo 1.2.3\n");
   });
-
-  // An agent from before MCP's 2026-07-28 revision opens with `initialize`, a
-  // newer one with `server/discover`; both are served.
-  test.each(["2025-11-25", "2026-07-28"])(
-    "serves its tools to an agent speaking %s",
-    async (revision) => {
-      const home = join(directory, "config");
-      await saveCredentials(join(home, "braivo", "credentials.json"), {
-        server: "http://localhost:3000",
-        token: "unused: listing tools asks nothing of the server",
-      });
-      const agent = new Client(
-        { name: "test", version: "0" },
-        revision === "2025-11-25" ? {} : { versionNegotiation: { mode: { pin: revision } } },
-      );
-
-      await agent.connect(
-        new StdioClientTransport({
-          command: process.execPath,
-          args: [bundle, "mcp"],
-          env: { PATH: process.env.PATH ?? "", XDG_CONFIG_HOME: home },
-        }),
-      );
-      try {
-        const { tools } = await agent.listTools();
-        expect(tools.map((tool) => tool.name)).toContain("add_document");
-        expect(agent.getNegotiatedProtocolVersion()).toBe(revision);
-        expect(agent.getServerVersion()?.version).toBe("1.2.3");
-      } finally {
-        await agent.close();
-      }
-    },
-  );
 });

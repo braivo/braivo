@@ -12,7 +12,7 @@ Schools teach from books. A textbook, a workbook, a worksheet is the material a 
 - **A page is labelled as printed.** `page` is a string — `12`, `iv`, `A-3` — of at most 16 characters, because the number a learner looks for is the one on the paper, which a PDF's own sheet count need not match. Labels need not be ordered or unique: front matter comes before `1`, and books restart. Pages stay in the order sent.
 - **A cited passage names its page**: the one it starts on (`content.pageOf`). The grade carries `page`, and the learn app captions it "Mi primer libro · p. 12". The link to the document is left as it is: a PDF's `#page=` counts sheets, not printed labels.
 - **Pagination is part of what the source is.** It takes timing's place as the digest's fifth field ([ADR 0024](0024-idempotent-authoring.md)); a source has one or neither, and their JSON differs by key, so the two never collide. A new column, `pagination`, rather than one column for both: each keeps its own type, and a reader never asks which it holds.
-- **Extraction stays the sender's** ([ADR 0020](0020-source-content.md)). `braivo sources add` sends text with form feeds between pages — what `pdftotext` writes — as pages labelled by position from 1, or from `--first-page`, leaving out pages without words. `braivo mcp`'s `add_document` asks the agent, which reads the PDF itself, for printed labels.
+- **Extraction stays the sender's** ([ADR 0020](0020-source-content.md)). `braivo sources add` sends text with form feeds between pages — what `pdftotext` writes — as pages labelled by position from 1, or from `--first-page`, leaving out pages without words. MCP's `add_document` asks the agent, which reads the PDF itself, for printed labels.
 
 ## Consequences
 

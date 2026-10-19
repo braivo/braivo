@@ -35,7 +35,7 @@ export class AiLimitReached extends Error {
   ) {
     // The count in parentheses, so a limit of 1 reads right and a translation needs no plural.
     super(
-      `This organization has reached its monthly AI limit (${limit}). You can use Braivo's AI again from ${renewsAt.toISOString().slice(0, 10)}; meanwhile, use your own desktop agent through braivo mcp.`,
+      `This organization has reached its monthly AI limit (${limit}). You can use Braivo's AI again from ${renewsAt.toISOString().slice(0, 10)}; meanwhile, use your own AI app, such as Claude or ChatGPT, connected to Braivo.`,
     );
     this.name = "AiLimitReached";
   }
@@ -45,7 +45,7 @@ export class AiLimitReached extends Error {
 export class AiUnavailable extends Error {
   constructor() {
     super(
-      "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own desktop agent through braivo mcp.",
+      "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own AI app, such as Claude or ChatGPT, connected to Braivo.",
     );
     this.name = "AiUnavailable";
   }
@@ -55,7 +55,7 @@ export class AiUnavailable extends Error {
 export class AiNotEntitled extends Error {
   constructor() {
     super(
-      "This organization may not use this installation's AI; ask its operator, or use your own desktop agent through braivo mcp.",
+      "This organization may not use this installation's AI; ask its operator, or use your own AI app, such as Claude or ChatGPT, connected to Braivo.",
     );
     this.name = "AiNotEntitled";
   }

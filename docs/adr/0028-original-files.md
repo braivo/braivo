@@ -16,12 +16,12 @@ A source is text ([ADR 0020](0020-source-content.md)), extracted by whoever hold
 - **Downloads never render.** `GET …/files/:fileId` answers `Content-Disposition: attachment`, `Content-Security-Policy: sandbox`, and `nosniff`, only to whoever may author ([ADR 0048](0048-author-role.md)). An uploaded HTML file shown inline from Braivo's origin would run as Braivo.
 - **Buffered, at most 50 MB.** The body is hashed before it is stored, so it is read whole. Enough for a textbook's PDF or a worksheet's scan.
 - **The CLI uploads with the text.** `braivo sources add … --original libro.pdf` uploads the file, typed by its extension, once the text is known to be sendable, and adds the source naming it.
-- **`braivo mcp` uploads nothing.** An agent reads material that may steer it, and an MCP server that uploaded a path the agent named would read for it whatever that material asked: a tax return is as much a valid PDF as a textbook. So its tools take text only, and a file goes up through the console or a command the person runs, `braivo sources add --original`. Should agents need to attach originals, the person will name the folders they may read from when starting the server.
+- **MCP tools upload nothing.** An agent reads material that may steer it, and a tool that uploaded a path the agent named would read for it whatever that material asked: a tax return is as much a valid PDF as a textbook. So the tools take text only ([ADR 0045](0045-remote-mcp.md)), and a file goes up through the console or a command the person runs, or lets their agent run, `braivo sources add --original`.
 - **The CLI uploads only material.** `--original` takes what is, by its extension, a document (PDF, Office, OpenDocument, EPUB), an image other than SVG, audio, or video — judged on the file a link resolves to, and refused before it is read — so a mistyped `~/.ssh/id_rsa` or `.env` stays on the machine.
 
 ## Alternatives rejected
 
-- **`braivo mcp` uploading an absolute path, limited to documents and media by extension.** It stops `~/.ssh/id_rsa` but not `~/Documents/passport.pdf`.
+- **An MCP tool uploading an absolute path, limited to documents and media by extension.** It stops `~/.ssh/id_rsa` but not `~/Documents/passport.pdf`.
 
 ## Consequences
 

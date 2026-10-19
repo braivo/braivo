@@ -29,7 +29,7 @@ apps/server            API, use cases, learning model, auth, queries, operator's
   persistence/         queries; tables live in packages/db
   storage/             uploaded files' bytes: a directory or an S3-compatible bucket
   auth/                Better Auth server config
-  mcp/                 Braivo's MCP tools over the API client (@braivo/server/mcp)
+  mcp/                 Braivo's MCP tools over the API client, served at /mcp
   cli/                 process entry point (serve, db migrate, organization)
   fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/guides/demo.md)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)

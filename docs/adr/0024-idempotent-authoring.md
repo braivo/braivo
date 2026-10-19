@@ -4,7 +4,7 @@ Status: accepted (2026-09-24)
 
 ## Context
 
-Authoring is done by agents as often as by people: a desktop Claude through `braivo mcp` ([ADR 0023](0023-mcp-server.md)), a script through `braivo sources add`. Both retry — after a lost response, a timeout, a turn the agent repeats — and every authoring write created a new row each time. A retried `add_source` left two identical sources, and every citation after that had two places it might point.
+Authoring is done by agents as often as by people: an assistant through Braivo's MCP tools ([ADR 0045](0045-remote-mcp.md)), a script through `braivo sources add`. Both retry — after a lost response, a timeout, a turn the agent repeats — and every authoring write created a new row each time. A retried `add_source` left two identical sources, and every citation after that had two places it might point.
 
 Attempts and evidence already solve this with IDs the client chooses. That suits an app, which generates a UUID once per attempt. It suits a model poorly: it has to invent the ID, keep it, and send the same one again on retry, which is exactly the bookkeeping a retried turn loses.
 
@@ -21,7 +21,7 @@ Attempts and evidence already solve this with IDs the client chooses. That suits
 
 - Each may carry a **key**, the caller's own name for it, unique within the organization: `es-greetings`, `unidad-1/numbers`. A slug — 1 to 128 lowercase letters, digits, and `. _ / -`, starting with a letter or digit — because a model makes one up from a title as easily as the title, and makes the same one again when it retries; lowercase so that two spellings cannot name two things.
 - Sent again under its key, the same thing returns its ID: an objective with the same title, a course with the same title and the same objectives in the same order. Sent under a key already naming something else, it is refused — 409, explained — because a key that quietly came to mean two things would make every later retry ambiguous. A key repeated within one batch is one objective, on the same terms.
-- Keys are optional. An objective or course without one is added every time; a person in the console needs no key, and an agent is asked for one by `braivo mcp`, whose instructions and tool schemas say to send the same key again on a retry.
+- Keys are optional. An objective or course without one is added every time; a person in the console needs no key, and an agent is asked for one by Braivo's MCP tools, whose instructions and schemas say to send the same key again on a retry.
 - A unique index on `(organization, key)` holds it, nulls distinct, and the insert's `ON CONFLICT DO NOTHING` makes a writer racing on a key wait for and then read the other's row.
 - The objectives route takes `{ "objectives": [{ "title", "key"? }] }` rather than `{ "titles": [...] }` with a parallel array of keys: a key belongs beside its title, and parallel arrays would be one misalignment away from naming the wrong objective.
 

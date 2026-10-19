@@ -13,7 +13,7 @@ import {
   waitOut,
   renderAt,
   expectProxyTimeoutExplained,
-  expectDesktopAgentGuide,
+  expectAiAppGuide,
   expectLockedInFocus,
   answerLeaving,
 } from "./render.tsx";
@@ -208,7 +208,7 @@ describe("the console", () => {
     const said = heading.nextElementSibling!.textContent;
     expect(said).toMatch(/off for this organization/);
     expect(said).toMatch(/Ask whoever runs Braivo/);
-    expectDesktopAgentGuide(heading.nextElementSibling as HTMLElement);
+    expectAiAppGuide(heading.nextElementSibling as HTMLElement);
     expect(braivo.draftCourse).not.toHaveBeenCalled();
   });
 
@@ -218,7 +218,7 @@ describe("the console", () => {
       new BraivoError(
         501,
         "Braivo answered 501.",
-        "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own desktop agent through braivo mcp.",
+        "This Braivo installation has no AI of its own: its operator has not set ANTHROPIC_API_KEY. Use your own AI app, such as Claude or ChatGPT, connected to Braivo.",
         "AI_UNAVAILABLE",
       ),
     ],
@@ -227,7 +227,7 @@ describe("the console", () => {
       new BraivoError(
         403,
         "Braivo answered 403.",
-        "This organization may not use this installation's AI; ask its operator, or use your own desktop agent through braivo mcp.",
+        "This organization may not use this installation's AI; ask its operator, or use your own AI app, such as Claude or ChatGPT, connected to Braivo.",
         "AI_NOT_ENTITLED",
       ),
     ],

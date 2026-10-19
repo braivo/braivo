@@ -633,6 +633,20 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(organizations.map(({ id }) => id)).toEqual([organizationId]);
   });
 
+  test("refuses a client speaking a revision before 2026-07-28 (ADR 0045)", async () => {
+    const { access_token } = await tokensFor(teacher);
+    const client = new Client(
+      { name: "mcp-test", version: "0.0.0" },
+      { versionNegotiation: { mode: "legacy" } },
+    );
+    const transport = new StreamableHTTPClientTransport(new URL(resource), {
+      requestInit: { headers: { authorization: `Bearer ${access_token}` } },
+      fetch: async (input, init) => api.request(input, init),
+    });
+
+    await expect(client.connect(transport)).rejects.toThrow();
+  });
+
   test("refuses another organization the person manages, named or by its resources", async () => {
     const client = await connect((await tokensFor(teacher)).access_token);
     const refused = async (name: string, args: Record<string, unknown>) => {

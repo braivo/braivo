@@ -4,9 +4,6 @@
 
 import { parseArgs } from "node:util";
 
-import { createMcpServer } from "@braivo/server/mcp";
-import { serveStdio } from "@modelcontextprotocol/server/stdio";
-
 import { credentialsPath, loadCredentials } from "./credentials.ts";
 import { login, logout, remoteClient, whoAmI } from "./remote.ts";
 import { addSourceFromFile } from "./sources.ts";
@@ -31,7 +28,6 @@ Working with a Braivo installation, as yourself:
                 and text with form feeds, as pdftotext writes it, by page,
                 numbered from 1, or from the first one's number in the book;
                 --original uploads the file the text is from, kept with it.
-  mcp           Serve Braivo as MCP tools over stdio, for a desktop agent.
   --version     Print which release this is.
 `;
 
@@ -60,20 +56,6 @@ async function main(argv: readonly string[]): Promise<number> {
   if (argv.length === 1 && argv[0] === "logout") {
     const server = await logout(credentialsPath(process.env), fetch);
     console.log(server ? `Signed out of ${server}.` : "Not signed in.");
-    return 0;
-  }
-
-  if (argv.length === 1 && argv[0] === "mcp") {
-    // Standard output is the protocol's alone: anything else printed there
-    // would corrupt it, so failures go to standard error and the exit code.
-    const credentials = await loadCredentials(credentialsPath(process.env));
-    if (!credentials) throw new Error("Not signed in. Run `braivo login <url>` first.");
-
-    const client = remoteClient(credentials, fetch);
-    // Both protocol eras, the opening message picking one, since local agents
-    // predating 2026-07-28 remain (ADR 0023).
-    serveStdio(() => createMcpServer(client, VERSION, { consoleUrl: credentials.server }));
-    // Returning does not end the process: the open standard input keeps it alive.
     return 0;
   }
 

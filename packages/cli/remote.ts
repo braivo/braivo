@@ -98,7 +98,7 @@ export async function signIn(server: string, io: Io): Promise<string> {
 /**
  * Signs in to the installation at `address` and saves the token at `path`.
  * Refuses while one is saved: replacing it would leave that session live and
- * out of `logout`'s reach, where a running `braivo mcp` may still use it.
+ * out of `logout`'s reach.
  */
 export async function login(path: string, address: string, io: Io): Promise<Credentials> {
   const server = readServer(address);
