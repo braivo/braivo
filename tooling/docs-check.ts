@@ -12,6 +12,7 @@
  * names may since have gone.
  */
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 export type Document = { path: string; text: string };
@@ -48,6 +49,14 @@ function isLivingSpec(path: string, text: string): boolean {
   return /^docs\/specs\/(?!README\.md$)[^/]+\.md$/.test(path) && /^Status: living/m.test(text);
 }
 
+/**
+ * A path Git ignores is generated, such as a build's output, so it may be
+ * missing from a fresh checkout and counts as existing.
+ */
+export function existsOrIgnored(path: string): boolean {
+  return existsSync(path) || spawnSync("git", ["check-ignore", "--quiet", path]).status === 0;
+}
+
 function read(path: string): Document {
   return { path, text: readFileSync(path, "utf8") };
 }
@@ -61,7 +70,7 @@ function markdownIn(directory: string): string[] {
 
 function main() {
   const paths = ["AGENTS.md", ...["docs", "docs/specs", "docs/guides"].flatMap(markdownIn)];
-  const problems = check(paths.map(read), existsSync);
+  const problems = check(paths.map(read), existsOrIgnored);
   if (problems.length === 0) {
     console.log(`Checked ${paths.length} documents: no missing paths or entry points.`);
     return;
