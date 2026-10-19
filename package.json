@@ -21,6 +21,7 @@
     "prepare": "vp config --no-agent",
     "i18n:extract": "lingui extract --clean",
     "i18n:check": "lingui check sync --clean && lingui check missing --mode catalog",
+    "docs:check": "bun tooling/docs-check.ts",
     "license:check": "uvx --from 'reuse[charset-normalizer]' reuse lint",
     "cla:check": "bun tooling/cla.ts"
   },

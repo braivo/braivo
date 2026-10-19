@@ -112,25 +112,6 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 - A write answers whether it added each course or task or found it, and whether it is published, a twin's or a keyed course's as it stands; a waiting correction names the task it will replace. `apps/server/mcp/server.test.ts`, `apps/server/api/mcp.test.ts`, `apps/server/api/authoring.test.ts`
 - `/mcp` (access-40) offers them without the group and progress tools until the `braivo:progress` scope, its instructions and descriptions naming none of them; a connection's courses, tasks, and corrections of published tasks wait as a token's do, and it never publishes or retires a published task. `apps/server/mcp/server.test.ts`, `apps/server/api/mcp.test.ts`
 
-## Code map
-
-| Concern                    | Where                                                                                                                                                                                                               |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routes and body parsing    | `apps/server/api/authoring.ts` (`parseObjectives`, `parseCourse`, `parseTasks`, `parseTaskIds`, `parsePublication`), `apps/server/api/refusals.ts`                                                                  |
-| Public contract            | `apps/server/api/index.ts`                                                                                                                                                                                          |
-| Use cases                  | `apps/server/application/objectives.ts`, `apps/server/application/courses.ts` (`readAuthoredCourse`), `apps/server/application/tasks.ts`                                                                            |
-| Locating a task's passages | `apps/server/application/citations.ts` (`locateCitations`)                                                                                                                                                          |
-| Permission check           | `apps/server/application/permission.ts` (`assertMayAdminister`)                                                                                                                                                     |
-| Task kinds and validation  | `apps/server/content/task.ts` (`parseTaskBody`)                                                                                                                                                                     |
-| Keys and title limits      | `apps/server/content/key.ts`, `apps/server/content/text.ts`                                                                                                                                                         |
-| Queries, twins, and locks  | `apps/server/persistence/objective.ts`, `apps/server/persistence/course.ts`, `apps/server/persistence/task.ts` (`createTasks`, `replaceTask`, `markTasksRetired`)                                                   |
-| Publication                | `apps/server/persistence/publication.ts` (`markPublished`), `apps/server/application/courses.ts` (`publish`)                                                                                                        |
-| Tables                     | `packages/db/schema/learning.ts` (`objective`, `course`, `courseObjective`, `task`, `taskCitation`)                                                                                                                 |
-| Organization delete guard  | `apps/server/auth/auth.ts` (`beforeDeleteOrganization`), `apps/server/persistence/organization.ts`                                                                                                                  |
-| Browser client             | `apps/server/api/client.ts`                                                                                                                                                                                         |
-| MCP tools                  | `apps/server/mcp/server.ts`                                                                                                                                                                                         |
-| Console screens            | `apps/console/routes/_signed-in/$organizationSlug/` (`index.tsx`, `courses/$courseId/index.tsx`, `objectives/$objectiveId.tsx`, `sources/`); `apps/console/components/task-review.tsx`, the review both pages share |
-
 ## Decisions
 
 - [ADR 0008](../adr/0008-courses-order-objectives.md): courses order objectives rather than own them, and position is erased at the storage boundary.
@@ -160,3 +141,22 @@ Desktop agents: `braivo mcp`, a command of the CLI, serves the endpoints above a
 | Batch order relies on `createdAt` offsets                                                       | Two batches sent close together can interleave                                         | Ordering column when authoring needs one (noted in `createTasks`)       |
 | `choice` and `typed` only; one objective per task                                               | Open answers and multi-step problems cannot be assessed                                | Next kind per ADR 0015, with stored AI grades                           |
 | Authoring is `owner` or `admin`; no role that may author without grading or managing members    | Organizations cannot delegate content work narrowly                                    | Open question: wait for a customer need                                 |
+
+## Entry points
+
+| Concern                    | Where                                                                                                                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Routes and body parsing    | `apps/server/api/authoring.ts` (`parseObjectives`, `parseCourse`, `parseTasks`, `parseTaskIds`, `parsePublication`), `apps/server/api/refusals.ts`                                                                  |
+| Public contract            | `apps/server/api/index.ts`                                                                                                                                                                                          |
+| Use cases                  | `apps/server/application/objectives.ts`, `apps/server/application/courses.ts` (`readAuthoredCourse`), `apps/server/application/tasks.ts`                                                                            |
+| Locating a task's passages | `apps/server/application/citations.ts` (`locateCitations`)                                                                                                                                                          |
+| Permission check           | `apps/server/application/permission.ts` (`assertMayAdminister`)                                                                                                                                                     |
+| Task kinds and validation  | `apps/server/content/task.ts` (`parseTaskBody`)                                                                                                                                                                     |
+| Keys and title limits      | `apps/server/content/key.ts`, `apps/server/content/text.ts`                                                                                                                                                         |
+| Queries, twins, and locks  | `apps/server/persistence/objective.ts`, `apps/server/persistence/course.ts`, `apps/server/persistence/task.ts` (`createTasks`, `replaceTask`, `markTasksRetired`)                                                   |
+| Publication                | `apps/server/persistence/publication.ts` (`markPublished`), `apps/server/application/courses.ts` (`publish`)                                                                                                        |
+| Tables                     | `packages/db/schema/learning.ts` (`objective`, `course`, `courseObjective`, `task`, `taskCitation`)                                                                                                                 |
+| Organization delete guard  | `apps/server/auth/auth.ts` (`beforeDeleteOrganization`), `apps/server/persistence/organization.ts`                                                                                                                  |
+| Browser client             | `apps/server/api/client.ts`                                                                                                                                                                                         |
+| MCP tools                  | `apps/server/mcp/server.ts`                                                                                                                                                                                         |
+| Console screens            | `apps/console/routes/_signed-in/$organizationSlug/` (`index.tsx`, `courses/$courseId/index.tsx`, `objectives/$objectiveId.tsx`, `sources/`); `apps/console/components/task-review.tsx`, the review both pages share |

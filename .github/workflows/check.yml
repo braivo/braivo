@@ -80,6 +80,18 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run i18n:check
 
+  # Every path AGENTS.md and the docs name exists, and every living spec has
+  # its entry points (docs/specs/README.md).
+  docs:
+    name: bun run docs:check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      # No `bun install`: the check imports nothing.
+      - run: bun run docs:check
+
   # Every file Braivo writes declares its license (ADR 0002).
   license:
     name: bun run license:check

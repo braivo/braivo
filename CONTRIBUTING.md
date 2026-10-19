@@ -4,7 +4,7 @@ Thank you for helping. Before you start:
 
 - **Read the design first.** [`docs/product.md`](docs/product.md) covers what Braivo is and is not. [`AGENTS.md`](AGENTS.md) covers how the repository works, and it applies to people as much as to coding agents. Then read the spec in [`docs/specs/`](docs/specs/) for the area you are changing.
 - **Propose before you build.** For anything larger than a fix, open an issue first, or a draft pull request if the change is easier to show in code, so we can agree on the change before you finish it. A draft that does not fit the product or its specs may be closed.
-- **Run the gates.** Before you open a pull request, run `bunx vp check`, `bun run test`, `bun run build`, `bun run i18n:check`, and `bun run license:check`; CI runs them too.
+- **Run the gates.** Before you open a pull request, run `bunx vp check`, `bun run test`, `bun run build`, `bun run i18n:check`, `bun run docs:check`, and `bun run license:check`; CI runs them too.
 
 ## The Contributor License Agreement
 

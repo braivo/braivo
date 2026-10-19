@@ -21,6 +21,8 @@ A **living** spec describes behavior that exists, checked against the code on th
 - **Gaps:** limitations a customer or integrator would notice, and product promises not yet kept, as a table of gap, impact, and next step. Add one when found, delete it when fixed. What only an engineer would notice, such as a missing test, goes in the plan.
 - **Entry points:** the few files to start reading from, not a full map.
 
+`bun run docs:check` fails on a living spec without entry points, or on a path any spec names that no longer exists.
+
 A **planned** spec scopes an area before its code exists: purpose, boundaries, and the questions to decide first. It has no gaps, since the whole area is one; active work, when there is any, lives in its plan. Each answer becomes a rule or an ADR, and the spec turns living when its first behavior ships.
 
 Each rule has one owner. Another spec may summarize it for context, naming its ID ("own only, progress-1"), but never defines it again: two definitions both look authoritative, and only one gets updated.
