@@ -14,7 +14,7 @@ import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /**
  * Where a person lets an AI app, such as Claude, work in Braivo as them
- * through `/mcp`, in one organization they manage (ADR 0045). Better Auth
+ * through `/mcp`, in one organization they author in (ADR 0045, ADR 0048). Better Auth
  * sends each authorization here twice, by way of `/api/oauth/*`: first to
  * choose the organization (`step=organization`), then, unless that one's
  * consent was given already, to consent. Under the signed-in layout, someone
@@ -43,7 +43,8 @@ export const Route = createFileRoute("/_signed-in/consent")({
     ]);
     if (named.error) return { query, client: undefined, organizations: [] };
     const client = { id: clientId, name: named.data.client_name ?? clientId };
-    const organizations = managed.filter(({ administers }) => administers);
+    // Where they may author, the one scope a connection is granted (ADR 0045, ADR 0048).
+    const organizations = managed.filter(({ authors }) => authors);
     if (deps.step === "organization") return { query, client, organizations };
     // Consenting: to the organization chosen, which Better Auth keeps on the session.
     const chosen = (session.data?.session as { activeOrganizationId?: unknown } | undefined)
@@ -210,8 +211,8 @@ function Consent() {
           </Heading>
           <p>
             <Trans>
-              {clientName} works in an organization you manage. Ask its owner, or whoever set Braivo
-              up for you, to add you, then connect again.
+              {clientName} works in an organization whose content you manage. Ask its owner, or
+              whoever set Braivo up for you, to make you an author there, then connect again.
             </Trans>
           </p>
           {failed}

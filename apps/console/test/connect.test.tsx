@@ -56,24 +56,37 @@ describe("the console", () => {
           ? { data: { client_name: "Claude" }, error: null }
           : { data: answers[path] ?? {}, error: null },
       );
-    const learnerOnly: Organization = {
+    /** Where the person only teaches a group. */
+    const teacherOnly: Organization = {
       ...annex,
       id: "org-3",
       name: "Night School",
       administers: false,
+      authors: false,
+      teaches: true,
+    };
+    /** Where the person authors without administering (ADR 0048). */
+    const authorOnly: Organization = {
+      ...annex,
+      id: "org-4",
+      name: "Clinic",
+      administers: false,
+      authors: true,
+      teaches: false,
     };
 
-    test("asks which organization the app works in, among those the person manages", async () => {
+    test("asks which organization the app works in, among those the person authors in", async () => {
       const $fetch = betterAuth({ "/oauth2/continue": { url: "/api/oauth/consent?next" } });
       const { visit } = renderAt(`/consent?step=organization&request=${request}`, {
         $fetch,
-        organizations: [school, annex, learnerOnly],
+        organizations: [school, annex, teacherOnly, authorOnly],
       });
 
       expect(
         await screen.findByRole("heading", { name: "Which organization should Claude work in?" }),
       ).toBeTruthy();
       expect(screen.getByRole("button", { name: "Example School" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Clinic" })).toBeTruthy();
       expect(screen.queryByRole("button", { name: "Night School" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Annex" }));
 
@@ -121,7 +134,7 @@ describe("the console", () => {
       const $fetch = betterAuth({ "/oauth2/consent": { url: "https://claude.ai/back?error=x" } });
       const { visit } = renderAt(`/consent?step=organization&request=${request}`, {
         $fetch,
-        organizations: [learnerOnly],
+        organizations: [teacherOnly],
       });
 
       expect(

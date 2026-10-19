@@ -332,9 +332,11 @@ describe.skipIf(!connectionString)("the CLI, signed in through the device flow",
 describe("adding a file as a source", () => {
   const client = {
     listOrganizations: async () => [
-      { id: "o", name: "School", slug: "school", administers: true },
-      // Taught, not managed: never a source's.
-      { id: "t", name: "Tutoring", slug: "tutoring", administers: false },
+      { id: "o", name: "School", slug: "school", administers: true, authors: true },
+      // Authored in, not administered (ADR 0048): a source's too.
+      { id: "c", name: "Clinic", slug: "clinic", administers: false, authors: true },
+      // Taught, not authored in: never a source's.
+      { id: "t", name: "Tutoring", slug: "tutoring", administers: false, authors: false },
     ],
     addSource: async (input: object) => JSON.stringify(input),
   };
@@ -348,6 +350,18 @@ describe("adding a file as a source", () => {
     });
 
     expect(JSON.parse(added)).toMatchObject({ organizationId: "o", title: "remote.test" });
+  });
+
+  test("adds one where its owner authors without administering", async () => {
+    const added = await addSourceFromFile({
+      client: client as never,
+      organizationSlug: "clinic",
+      file: "-",
+      title: "Libro",
+      readStdin: async () => "Hola.",
+    });
+
+    expect(JSON.parse(added)).toMatchObject({ organizationId: "c", title: "Libro" });
   });
 
   test("reads a caption file into cues, so the source is timed", async () => {
@@ -670,7 +684,7 @@ describe("adding a file as a source", () => {
     expect(uploads).toBe(1);
   });
 
-  test("refuses a slug of no organization its owner manages, listing theirs, and uploads nothing", async () => {
+  test("refuses a slug of no organization its owner authors in, listing theirs, and uploads nothing", async () => {
     await expect(
       addSourceFromFile({
         client: client as never,
@@ -679,7 +693,7 @@ describe("adding a file as a source", () => {
         title: "Libro",
         readStdin: async () => "Hola.",
       }),
-    ).rejects.toThrow('You manage no organization "tutoring"; yours: school.');
+    ).rejects.toThrow('You cannot author in "tutoring"; yours: school, clinic.');
 
     const directory = await mkdtemp(join(tmpdir(), "braivo-"));
     const pdf = join(directory, "libro.pdf");
@@ -702,7 +716,7 @@ describe("adding a file as a source", () => {
         original: pdf,
         readStdin: async () => "Hola.",
       }),
-    ).rejects.toThrow('You manage no organization "o"; yours: school.');
+    ).rejects.toThrow('You cannot author in "o"; yours: school, clinic.');
     expect(uploads).toBe(0);
   });
 

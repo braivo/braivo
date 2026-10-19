@@ -17,7 +17,7 @@ import {
   useTaskSelection,
 } from "#components/task-review";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { authorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -26,7 +26,7 @@ import { pageHead } from "#lib/title";
  * course, or in several with tasks waiting. A course's page shows them too.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/objectives/$objectiveId")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: authorsOnly,
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
     const { objectiveId } = params;

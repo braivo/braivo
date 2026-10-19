@@ -306,14 +306,15 @@
 //        nothing and is checked no further than the session and origin, so its
 //        204 says nothing about permission to grade.
 //
-// `GET /api/organizations` — the organizations the signed-in user manages
-// (`owner` or `admin`) or teaches a group in, by name: `{ "organizations": [{
-// "id": "…", "name": "…", "slug": "…", "learnDomain": "…" | null,
-// "administers": true, "aiEnabled": true }] }`, `administers` false where
-// they only teach. `aiEnabled`, only where they administer: whether its owners
-// may have the installation's AI read a file's text and draft courses, there
-// being a model that the organization may use (generation-9), whatever its
-// month's requests. A member who does neither is not listed. 401 without a
+// `GET /api/organizations` — the organizations the signed-in user
+// administers (`owner` or `admin`), authors in (those or `author`, ADR 0048),
+// or teaches a group in, by name: `{ "organizations": [{ "id": "…", "name":
+// "…", "slug": "…", "learnDomain": "…" | null, "administers": true,
+// "authors": true, "teaches": false, "aiEnabled": true }] }`, each flag on its
+// own. `aiEnabled`, only where they author: whether they may have the
+// installation's AI read a file's text and draft courses, there being a model
+// that the organization may use (generation-9), whatever its month's
+// requests. A member who does none of these is not listed. 401 without a
 // session.
 //
 // `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
@@ -335,8 +336,10 @@
 // session. `error` is English; a client words `code` in its own language.
 //
 // The organization routes below share their refusals: 401 without a session,
-// and 403 unless the session holds `owner` or `admin` there — authoring is a
-// content-owner act for the same reason grading is. Each write adds 403 for a
+// and 403 unless the session holds the role there: `owner`, `admin`, or
+// `author` for content, from objectives to courses (ADR 0048); `owner` or
+// `admin` from renaming on, for people and settings. A plain `member` authors
+// nothing, for the same reason it grades nothing. Each write adds 403 for a
 // request that could have been forged, 413 for a body over 1 MB (a source's
 // 10 MB, a file's 50 MB), and 400 for an invalid one, answered before the role
 // is checked since that reveals nothing about the organization. Below is what

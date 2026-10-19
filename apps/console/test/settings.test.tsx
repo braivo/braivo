@@ -772,6 +772,7 @@ describe("the console", () => {
             { userId: "u2", name: "Lee Learner", roles: ["member"] },
             { userId: "u3", name: "Ada Admin", roles: ["admin"] },
             { userId: "u4", name: "Lee Learner", roles: ["member"] },
+            { userId: "u5", name: "Avery Author", roles: ["author"] },
           ],
           listGroups: async () => [group("7A", "u2"), group("7B", "u2", "u3", "u1"), group("8A")],
         },
@@ -781,7 +782,7 @@ describe("the console", () => {
       fireEvent.click(within(nav).getByRole("link", { name: "Members" }));
       expect(await screen.findByRole("heading", { level: 1, name: "Members" })).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("Members · Example School"));
-      expect(screen.getByText(/^4 members\./)).toBeTruthy();
+      expect(screen.getByText(/^5 members\./)).toBeTruthy();
 
       const rows = screen.getAllByRole("row").map((row) => row.textContent);
       expect(rows).toEqual([
@@ -790,6 +791,7 @@ describe("the console", () => {
         "Lee LearnerLearnerTeaches 7A and 7B",
         "Ada AdminAdminTeaches 7B",
         "Lee LearnerLearner",
+        "Avery AuthorAuthor",
       ]);
     });
 
@@ -998,7 +1000,7 @@ describe("the console", () => {
 
     test("hide how to connect an app from someone administering no organization", async () => {
       renderAt("/example/settings/connections", {
-        organizations: [{ ...school, administers: false }],
+        organizations: [{ ...school, administers: false, authors: false, teaches: true }],
         braivo: { listConnections: async () => [] },
       });
       expect(await screen.findByText("No AI app is connected to your account.")).toBeTruthy();

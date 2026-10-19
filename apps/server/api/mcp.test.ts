@@ -694,7 +694,48 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     }
   });
 
-  test("lists and reaches nothing once its person no longer administers, though they teach there", async () => {
+  test("lets an author who administers nothing connect and author, and nothing more (ADR 0048)", async () => {
+    const author = await signUp();
+    await database.insert(member).values({
+      id: `${author.id}-author`,
+      organizationId,
+      userId: author.id,
+      role: "author",
+      createdAt: new Date(),
+    });
+    const client = await connect((await tokensFor(author)).access_token);
+
+    const organizations = JSON.parse(await text(client, "list_organizations")) as {
+      id: string;
+      authors: boolean;
+      administers: boolean;
+    }[];
+    expect(organizations).toMatchObject([
+      { id: organizationId, authors: true, administers: false },
+    ]);
+    const defined = await client.callTool({
+      name: "define_objectives",
+      arguments: { organizationId, objectives: [{ title: `Farewells by ${author.id}` }] },
+    });
+    expect(defined.isError).toBeFalsy();
+    await client.close();
+
+    const principal = { userId: author.id, clientId, scopes: ["braivo:author"], organizationId };
+    const asConnection = createConnectionClient({ api, baseUrl, principal });
+    // Written, not only answered without an error.
+    expect((await asConnection.listObjectives(organizationId)).map(({ title }) => title)).toContain(
+      `Farewells by ${author.id}`,
+    );
+    for (const refusedCall of [
+      () => asConnection.listMembers(organizationId),
+      () => asConnection.listGroups(organizationId),
+      () => asConnection.publish({ organizationId, courseIds: [courseId] }),
+    ]) {
+      await expect(refusedCall()).rejects.toMatchObject({ status: 403 });
+    }
+  });
+
+  test("lists and reaches nothing once its person no longer authors, though they teach there", async () => {
     const demoted = await signUp();
     await database.insert(member).values({
       id: `${demoted.id}-admin`,

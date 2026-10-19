@@ -16,7 +16,7 @@ import {
   replaceTask,
 } from "../persistence/index.ts";
 import { locateCitations } from "./citations.ts";
-import { assertMayAdminister, NotPermitted } from "./permission.ts";
+import { assertMayAuthor, NotPermitted } from "./permission.ts";
 
 /**
  * A task that is not a valid one of its kind, whoever sent it, named by its
@@ -90,7 +90,7 @@ export async function defineTasks(input: {
   }
   const replaces = tasks[correcting]?.replaces;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const outside = await findObjectivesOutsideOrganization(
     database,
@@ -141,7 +141,7 @@ export async function defineTasks(input: {
 
 /**
  * Withdraws tasks from practice (docs/adr/0015-tasks.md). Refuses the whole
- * batch when the caller may not administer or a task is not the organization's,
+ * batch when the caller may not author or a task is not the organization's,
  * and a tool's naming one once published: retiring that is the console's (ADR 0039).
  */
 export async function retireTasks(input: {
@@ -155,7 +155,7 @@ export async function retireTasks(input: {
 }): Promise<void> {
   const { database, organizationId, actingAs, taskIds, now, byTool } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   // Checked apart from the write: a task never changes organization.
   const outside = await findTasksOutsideOrganization(database, organizationId, taskIds);
@@ -170,7 +170,7 @@ export async function retireTasks(input: {
 
 /**
  * An objective's unretired tasks as authored, published or waiting, answers
- * included, with the passages each cites, for whoever administers its organization; or
+ * included, with the passages each cites, for whoever may author in its organization; or
  * `undefined` when the organization has no such objective. A task is changed
  * only by a correction replacing it, so this is what review starts from.
  */
@@ -182,7 +182,7 @@ export async function listObjectiveTasks(input: {
 }): Promise<AuthoredTask[] | undefined> {
   const { database, organizationId, actingAs, objectiveId } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const [outside] = await findObjectivesOutsideOrganization(database, organizationId, [
     objectiveId,

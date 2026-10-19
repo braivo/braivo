@@ -164,6 +164,8 @@ describe("the console", () => {
             slug,
             learnDomain: `${slug}.braivo.app`,
             administers: true,
+            authors: true,
+            teaches: false,
           };
           organizations.push(created);
           maySetUp = false;
@@ -348,6 +350,8 @@ describe("the console", () => {
         slug,
         learnDomain: `${slug}.braivo.app`,
         administers: true,
+        authors: true,
+        teaches: false,
       };
       organizations.push(created);
       return created;

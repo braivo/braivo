@@ -230,8 +230,8 @@ export type BraivoClient = {
   ): Promise<Grade>;
 
   /**
-   * Where a learner stands on each objective in a course, for the learner, a
-   * content owner, or a teacher. The session must be the learner's, hold
+   * Where a learner stands on each objective in a course, for the learner, an
+   * administrator, or a teacher. The session must be the learner's, hold
    * `owner` or `admin` in the course's organization, or teach a group the
    * learner is in that takes the course; the learner must belong to it.
    *
@@ -277,8 +277,8 @@ export type BraivoClient = {
 
   /**
    * The organizations the session's user works in, by name: those where they
-   * hold `owner` or `admin`, and those where they teach a group, told apart by
-   * `administers`. Not every one they are in, since a learner is a member too.
+   * administer, author (ADR 0048), or teach a group, each said by its own
+   * flag. Not every one they are in, since a learner is a member too.
    */
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
 
@@ -416,7 +416,7 @@ export type BraivoClient = {
    * Every course an organization has, by title, each with how many of its
    * tasks wait for review.
    *
-   * Whoever the session belongs to must hold `owner` or `admin` there, or this
+   * Whoever the session belongs to must hold `owner`, `admin`, or `author` there, or this
    * throws a {@link BraivoError} with status 403.
    */
   listCourses(organizationId: string, options?: RequestOptions): Promise<CourseSummary[]>;
@@ -440,14 +440,14 @@ export type BraivoClient = {
    * objective rather than define it twice; each with the courses it is in and
    * how many of its tasks wait for review.
    *
-   * Whoever the session belongs to must hold `owner` or `admin` there, or this
+   * Whoever the session belongs to must hold `owner`, `admin`, or `author` there, or this
    * throws a {@link BraivoError} with status 403.
    */
   listObjectives(organizationId: string, options?: RequestOptions): Promise<ObjectiveSummary[]>;
 
   /**
    * Records what a learner did, on behalf of an organization. The session must
-   * hold `owner` or `admin` there: grading is a content owner's act, and a
+   * hold `owner` or `admin` there, not `author`: grading is an administrator's act, and a
    * learner able to grade themselves would be writing the history their own
    * estimates are rebuilt from. An empty `evidence` records nothing and checks
    * no permission.
@@ -472,7 +472,7 @@ export type BraivoClient = {
    * tag. A source is never edited: adding a revision adds another, while adding
    * one already there resolves to its ID, so a retry is safe.
    *
-   * The session must hold `owner` or `admin` there, or this throws a
+   * The session must hold `owner`, `admin`, or `author` there, or this throws a
    * {@link BraivoError} with status 403; text or a link Braivo cannot store is
    * one with status 400.
    */
@@ -516,7 +516,7 @@ export type BraivoClient = {
 
   /**
    * Every source an organization has, by title and without its text. 403
-   * unless the session administers it.
+   * unless the session may author in it.
    */
   listSources(organizationId: string, options?: RequestOptions): Promise<SourceSummary[]>;
 
@@ -547,7 +547,7 @@ export type BraivoClient = {
    * sent again with the same title it resolves to the same ID, so a retry adds
    * nothing, and with another title it is a {@link BraivoError} with status 409
    * whose `reason` says so. A title or key Braivo will not store is a 400 whose
-   * `reason` names the objective. 403 unless the session administers the
+   * `reason` names the objective. 403 unless the session may author in the
    * organization.
    */
   defineObjectives(
@@ -596,7 +596,7 @@ export type BraivoClient = {
    * waiting correction the published task it `replaces`, and for a waiting
    * task identical to one retired before, `matchesRetiredTask`. An objective
    * the organization does not have is a {@link BraivoError} with status 404;
-   * one the session may not administer, 403.
+   * one the session may not author in, 403.
    */
   listTasks(
     input: { organizationId: string; objectiveId: string },
@@ -606,8 +606,8 @@ export type BraivoClient = {
   /**
    * One course as authored — objectives in order, each with its passages and
    * tasks — for reviewing it whole. A course the organization does not have is
-   * a {@link BraivoError} with status 404; one the session may not
-   * administer, 403.
+   * a {@link BraivoError} with status 404; one the session may not author
+   * in, 403.
    */
   readCourse(
     input: { organizationId: string; courseId: string },
@@ -619,7 +619,7 @@ export type BraivoClient = {
    * `previous`, the label read; a label as `urlLabel` writes one, else 400.
    * Not saved, with the label now, when someone else changed it meanwhile. A
    * course the organization does not have is a {@link BraivoError} with
-   * status 404; one the session may not administer, 403.
+   * status 404; one the session may not author in, 403.
    */
   setCourseUrlLabel(
     input: { organizationId: string; courseId: string; urlLabel: string; previous: string },
@@ -970,15 +970,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = "listing the organizations you work in";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { organizations } = await parsed<{
-        organizations: (Omit<Organization, "administers"> & { administers?: boolean })[];
-      }>(response, doing);
-      // A server from before teachers were listed answers managed ones alone,
-      // without `administers`: each of those is administered.
-      return organizations.map((organization) => ({
-        ...organization,
-        administers: organization.administers ?? true,
-      }));
+      return (await parsed<{ organizations: Organization[] }>(response, doing)).organizations;
     },
 
     async organizationSetup(requestOptions) {

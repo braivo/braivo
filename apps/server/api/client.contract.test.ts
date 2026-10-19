@@ -293,6 +293,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         slug: organizationId,
         learnDomain: organizationHost,
         administers: true,
+        authors: true,
+        teaches: false,
         aiEnabled: false,
       },
     ]);
@@ -322,6 +324,8 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       slug,
       learnDomain: `${slug}.${selfServeDomain}`,
       administers: true,
+      authors: true,
+      teaches: false,
     });
     // Listed, it also says whether its owners may use the installation's AI.
     expect(await client.listOrganizations({ headers: { cookie } })).toEqual([

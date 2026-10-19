@@ -16,17 +16,22 @@ import {
 } from "../persistence/index.ts";
 import { type Ai, aiEnabledFor } from "./ai.ts";
 import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains.ts";
-import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
+import { administers, assertMayAdminister, authors, NotPermitted } from "./permission.ts";
 
-type OrganizationListEntry = ListedOrganization & { administers: boolean; aiEnabled?: boolean };
+type OrganizationListEntry = ListedOrganization & {
+  administers: boolean;
+  authors: boolean;
+  teaches: boolean;
+  aiEnabled?: boolean;
+};
 
 /**
  * The organizations someone works in, by name, each with where its learners
- * practise: those they administer (`owner` or `admin`), and those where they
- * teach a group (ADR 0042), `administers` telling the two apart. Not every
- * membership, since a learner is a member too. Those they administer say
- * whether they may use the installation's AI, so the console offers it only
- * where it works; a teacher learns nothing of it (generation-8).
+ * practise: those they administer (`owner` or `admin`), author in (those or
+ * `author`, ADR 0048), or teach a group in (ADR 0042), each flag on its own.
+ * Not every membership, since a learner is a member too. Those they author in
+ * say whether they may use the installation's AI, so the console offers it
+ * only where it works; a teacher alone learns nothing of it (generation-8).
  */
 export async function listOrganizations(input: {
   database: Database;
@@ -35,12 +40,11 @@ export async function listOrganizations(input: {
 }): Promise<OrganizationListEntry[]> {
   const memberships = await readMemberships(input.database, input.actingAs);
   return memberships.flatMap(({ organization, roles, teaches }): OrganizationListEntry[] => {
-    if (administers(roles)) {
-      return [
-        { ...organization, administers: true, aiEnabled: aiEnabledFor(input.ai, organization.id) },
-      ];
+    const flags = { administers: administers(roles), authors: authors(roles), teaches };
+    if (flags.authors) {
+      return [{ ...organization, ...flags, aiEnabled: aiEnabledFor(input.ai, organization.id) }];
     }
-    return teaches ? [{ ...organization, administers: false }] : [];
+    return teaches ? [{ ...organization, ...flags }] : [];
   });
 }
 
@@ -150,7 +154,7 @@ export async function setUpOrganization(input: {
     slug: string;
     ownerId: string;
   }) => Promise<Organization | "slug taken" | "slug reserved" | "slug malformed">;
-}): Promise<ListedOrganization & { administers: true }> {
+}): Promise<ListedOrganization & { administers: true; authors: true; teaches: false }> {
   const { database, actingAs, slug } = input;
   const name = parseOrganizationName(input.name);
   if (name === undefined) {
@@ -220,7 +224,13 @@ export async function setUpOrganization(input: {
     // Registered for another since the check.
     throw error instanceof DomainRefused ? taken : error;
   }
-  return { ...organization, learnDomain: hostname, administers: true };
+  return {
+    ...organization,
+    learnDomain: hostname,
+    administers: true,
+    authors: true,
+    teaches: false,
+  };
 }
 
 /** A name an organization cannot have; `code` for a client to word (ADR 0035). */

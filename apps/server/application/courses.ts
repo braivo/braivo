@@ -31,7 +31,7 @@ import {
 } from "../persistence/index.ts";
 import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
-import { assertMayAdminister, NotPermitted } from "./permission.ts";
+import { assertMayAuthor, NotPermitted } from "./permission.ts";
 
 /**
  * Creates a course over the organization's own objectives, in the order given;
@@ -80,7 +80,7 @@ export async function defineCourse(input: {
     positions.set(id, index);
   }
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const outside = await findObjectivesOutsideOrganization(database, organizationId, objectiveIds);
   if (outside.length > 0) {
@@ -107,7 +107,7 @@ export class StalePublication extends Error {
 
 /**
  * Publishes the courses and tasks a person reviewed, all or none, so learners
- * reach them (ADR 0039): for whoever administers the organization, from the
+ * reach them (ADR 0039): for whoever may author in the organization, from the
  * console only, which the route decides. Publishing one already published
  * changes nothing; another organization's task refuses all, as on retiring.
  */
@@ -120,7 +120,7 @@ export async function publish(input: {
   now: Date;
 }): Promise<void> {
   const { database, organizationId, actingAs, courseIds, taskIds, now } = input;
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   // Checked apart from the write: a task never changes organization.
   const outside = await findTasksOutsideOrganization(database, organizationId, taskIds);
@@ -146,8 +146,8 @@ export class PublishedCourse extends Error {
 }
 
 /**
- * Deletes one of the organization's unpublished courses, for whoever
- * administers it, from the console only, which the route decides: its
+ * Deletes one of the organization's unpublished courses, for whoever may
+ * author in it, from the console only, which the route decides: its
  * arrangement goes, its objectives and tasks stay, and its key stays taken
  * (ADR 0039). `false` without such a course; deleting again changes nothing.
  */
@@ -159,7 +159,7 @@ export async function deleteCourse(input: {
   now: Date;
 }): Promise<boolean> {
   const { database, organizationId, actingAs, courseId, now } = input;
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const result = await markCourseDeleted(database, { organizationId, courseId, now });
   if (result === "published") throw new PublishedCourse();
@@ -176,7 +176,7 @@ export class UnpublishedCourse extends Error {
 
 /**
  * Hides one of the organization's published courses from learners, or shows
- * it to them again, for whoever administers it, from the console only, which
+ * it to them again, for whoever may author in it, from the console only, which
  * the route decides (ADR 0039). `false` without such a course; repeating
  * either changes nothing.
  */
@@ -189,7 +189,7 @@ export async function setCourseHidden(input: {
   now: Date;
 }): Promise<boolean> {
   const { database, organizationId, actingAs, courseId, hidden, now } = input;
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const result = await updateCourseHidden(database, { organizationId, courseId, hidden, now });
   if (result === "unpublished") throw new UnpublishedCourse();
@@ -198,7 +198,7 @@ export async function setCourseHidden(input: {
 
 /**
  * Sets the label after a course's number in its links (ADR 0044), for whoever
- * administers its organization, if it is still `previous`, the label the
+ * may author in its organization, if it is still `previous`, the label the
  * editor read: not saved, with the label now, when someone else changed it
  * meanwhile, which saving would undo unseen; `undefined` without such a course.
  */
@@ -218,7 +218,7 @@ export async function setCourseUrlLabel(input: {
     );
   }
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   return updateCourseUrlLabel(database, { organizationId, courseId, urlLabel, previous });
 }
@@ -229,7 +229,7 @@ export async function setCourseUrlLabel(input: {
  */
 export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
 
-/** Every course an organization has, for whoever administers it. */
+/** Every course an organization has, for whoever may author in it. */
 export async function listCourses(input: {
   database: Database;
   organizationId: string;
@@ -237,7 +237,7 @@ export async function listCourses(input: {
 }): Promise<CourseSummary[]> {
   const { database, organizationId, actingAs } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   const [courses, waiting] = await Promise.all([
     readCourses(database, organizationId),
@@ -294,7 +294,7 @@ export type AuthoredCourse = ManagedCourse & {
 };
 
 /**
- * One of an organization's courses as authored, for whoever administers it,
+ * One of an organization's courses as authored, for whoever may author in it,
  * or `undefined` when it has no such course: what reviewing a whole course —
  * in the console, or by an agent — reads, in one request.
  */
@@ -306,7 +306,7 @@ export async function readAuthoredCourse(input: {
 }): Promise<AuthoredCourse | undefined> {
   const { database, organizationId, actingAs, courseId } = input;
 
-  await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   // Its arrangement first: a Delete committing between the two reads then
   // leaves no course, rather than a standing one with nothing in it.

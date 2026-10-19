@@ -491,8 +491,9 @@ export function authoringRoutes(
   );
 
   /**
-   * The organizations the session's user administers or teaches in; to a
-   * connection, its grant's alone, while they administer it (ADR 0045).
+   * The organizations the session's user administers, authors, or teaches
+   * in; to a connection, its grant's alone, while they author in it (ADR 0045,
+   * ADR 0048).
    */
   routes.get("/api/organizations", requireAccount, async (context) => {
     const organizations = await listOrganizations({
@@ -504,7 +505,7 @@ export function authoringRoutes(
     if (!connection) return context.json({ organizations });
     return context.json({
       organizations: organizations.filter(
-        ({ id, administers }) => id === connection.organizationId && administers,
+        ({ id, authors }) => id === connection.organizationId && authors,
       ),
     });
   });
@@ -721,7 +722,7 @@ export function authoringRoutes(
 
   /**
    * One course as authored — objectives in order, each with its passages and
-   * tasks, answers included — for whoever administers its organization.
+   * tasks, answers included — for whoever may author in its organization.
    */
   routes.get(
     "/api/organizations/:organizationId/courses/:courseId",
@@ -751,7 +752,7 @@ export function authoringRoutes(
 
   /**
    * Sets what follows a course's number in its learners' links (ADR 0044),
-   * if it is still `previous`, for whoever administers its organization;
+   * if it is still `previous`, for whoever may author in its organization;
    * else 409 with the label now.
    */
   routes.post(
@@ -852,7 +853,7 @@ export function authoringRoutes(
     },
   );
 
-  /** Every course an organization has, for whoever administers it. */
+  /** Every course an organization has, for whoever may author in it. */
   routes.get("/api/organizations/:organizationId/courses", requireAccount, async (context) => {
     try {
       const courses = await listCourses({
@@ -867,7 +868,7 @@ export function authoringRoutes(
     }
   });
 
-  /** Every objective an organization has defined, for whoever administers it. */
+  /** Every objective an organization has defined, for whoever may author in it. */
   routes.get("/api/organizations/:organizationId/objectives", requireAccount, async (context) => {
     try {
       const objectives = await listObjectives({
@@ -910,7 +911,7 @@ export function authoringRoutes(
     },
   );
 
-  /** The passages an objective cites, for whoever administers its organization. */
+  /** The passages an objective cites, for whoever may author in its organization. */
   routes.get(
     "/api/organizations/:organizationId/objectives/:objectiveId/citations",
     requireAccount,
@@ -932,7 +933,7 @@ export function authoringRoutes(
 
   /**
    * An objective's unretired tasks, published or waiting, as authored and with
-   * the passages they cite, for whoever administers its organization: answers
+   * the passages they cite, for whoever may author in its organization: answers
    * included, so never a learner's.
    */
   routes.get(

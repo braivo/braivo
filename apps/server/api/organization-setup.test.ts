@@ -67,6 +67,8 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
         slug,
         learnDomain,
         administers: true,
+        authors: true,
+        teaches: false,
       },
     });
     expect((await managed(teacher.cookie)).organizations).toEqual([

@@ -124,8 +124,8 @@ function Connections() {
       <p role="status" className="mt-3 text-sm wrap-anywhere text-muted-foreground empty:mt-0">
         {disconnected && <Disconnected {...disconnected} />}
       </p>
-      {/* Only to someone administering an organization, the only kind consent offers. */}
-      {organizations.some(({ administers }) => administers) && <HowToConnect />}
+      {/* Only to someone authoring in an organization, the only kind consent offers. */}
+      {organizations.some(({ authors }) => authors) && <HowToConnect />}
     </>
   );
 }

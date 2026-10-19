@@ -29,6 +29,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0038: Typed answers, graded by comparing, and Show answer](0038-typed-answers.md)
 - [0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain](0018-sign-in-and-invitations.md)
 - [0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses](0042-groups-scope-teaching.md)
+- [0048: An `author` role prepares and publishes content, without administering the school](0048-author-role.md)
 - [0044: Learners' links name a course by a random number within its organization](0044-course-numbers.md) — proposed
 - [0038: Organizations add their own domains, verified by a provisioner the installation supplies](0038-self-served-custom-domains.md)
 - [0020: Source content is an immutable text snapshot, added the same way whoever extracts it](0020-source-content.md)

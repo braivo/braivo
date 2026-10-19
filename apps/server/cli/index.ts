@@ -31,9 +31,9 @@ Running an installation (a content owner's commands are braivo's):
   db migrate    Apply committed database migrations.
   organization create --name <name> --slug <slug> --owner <email>
                 Create an organization owned by an existing account.
-  organization add-member --slug <slug> --email <email> [--role member|admin]
-                Add an existing account as a learner (member, the default)
-                or an administrator (admin).
+  organization add-member --slug <slug> --email <email> [--role member|author|admin]
+                Add an existing account as a learner (member, the default),
+                an author of its content (author), or an administrator (admin).
   organization add-domain --slug <slug> --hostname <hostname>
                 Register <hostname> for the organization's learn app, the
                 one it is named by from now on, its earlier ones still
@@ -131,7 +131,9 @@ async function main(argv: readonly string[]): Promise<number> {
         sendMail: sendsNoMail,
       });
       const added = await addMember(auth, { slug, email, role });
-      const as = added.role === "admin" ? "an administrator" : "a learner";
+      const as = { member: "a learner", author: "an author", admin: "an administrator" }[
+        added.role
+      ];
       console.log(`Added ${email} to ${added.organization.name} as ${as}.`);
     } finally {
       await database.$client.end();

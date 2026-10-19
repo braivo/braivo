@@ -21,7 +21,7 @@ import { type ReactNode, type RefObject, useEffect } from "react";
 import { OrganizationSwitcher } from "./organization-switcher.tsx";
 import { SidebarButton, useCloseDrawerOnFollow } from "./sidebar-button.tsx";
 
-/** The organization's home, an administrator's Courses. */
+/** The organization's home, an author's Courses. */
 const HOME = "/_signed-in/$organizationSlug/";
 /**
  * A course's reports, which keep where they were opened from (`ProgressSearch`).
@@ -56,19 +56,17 @@ export function OrganizationSidebar(props: {
   useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
   const closeOnFollow = useCloseDrawerOnFollow();
   // The section shown: a source's pages are in Sources; a course's and an
-  // objective's in Courses, but a course's in Groups for its reports opened
-  // from Groups, and for a teacher, who has only Groups (an objective's page
-  // is an administrator's alone).
+  // objective's in Courses, but a course's reports in Groups when opened from
+  // Groups, and for anyone not administering, who reaches them only there.
   const section = useMatches({
     select: (matches) => {
       const under = (path: string) =>
         matches.some(({ routeId }) => routeId.startsWith(`/_signed-in/$organizationSlug/${path}`));
-      const fromGroups = matches.some(
-        ({ routeId, search }) =>
-          REPORTS.has(routeId) && "from" in search && search.from === "groups",
-      );
+      const report = matches.find(({ routeId }) => REPORTS.has(routeId));
+      const fromGroups =
+        report !== undefined && "from" in report.search && report.search.from === "groups";
       if (under("sources")) return "sources";
-      if (under("groups") || (under("courses") && (fromGroups || !organization.administers))) {
+      if (under("groups") || (report && (fromGroups || !organization.administers))) {
         return "groups";
       }
       if (
@@ -81,9 +79,10 @@ export function OrganizationSidebar(props: {
     },
   });
 
-  // A teacher's sections are their groups alone (access-39).
+  // Courses and Sources to whoever authors (ADR 0048), Groups to whoever
+  // administers or teaches (access-39).
   const sections = [
-    ...(organization.administers
+    ...(organization.authors
       ? ([
           { key: "courses", to: "/$organizationSlug", label: t`Courses`, Icon: BookOpenIcon },
           {
@@ -94,7 +93,11 @@ export function OrganizationSidebar(props: {
           },
         ] as const)
       : []),
-    { key: "groups", to: "/$organizationSlug/groups", label: t`Groups`, Icon: UsersIcon },
+    ...(organization.administers || organization.teaches
+      ? ([
+          { key: "groups", to: "/$organizationSlug/groups", label: t`Groups`, Icon: UsersIcon },
+        ] as const)
+      : []),
   ] as const;
 
   return (

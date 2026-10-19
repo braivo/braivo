@@ -27,11 +27,32 @@ export async function orNotFound<T>(read: Promise<T>): Promise<T> {
 
 /**
  * A page's `beforeLoad` where only an `owner` or `admin` has anything: to
- * someone who teaches there it is not found, before anything is read
- * (access-39). Presentation alone: Braivo refuses them its reads either way.
+ * anyone else there it is not found, before anything is read (access-39).
+ * Presentation alone: Braivo refuses them its reads either way.
  */
 export function administratorsOnly({ context }: { context: { organization: Organization } }) {
   if (!context.organization.administers) throw notFound();
+}
+
+/**
+ * Groups' `beforeLoad`, as `administratorsOnly`, for whoever administers or
+ * teaches there: an `author` who teaches nothing has no group to see.
+ */
+export function administratorsOrTeachersOnly({
+  context,
+}: {
+  context: { organization: Organization };
+}) {
+  const { administers, teaches } = context.organization;
+  if (!administers && !teaches) throw notFound();
+}
+
+/**
+ * A content page's `beforeLoad`, as `administratorsOnly`, for whoever
+ * authors there: an `owner`, `admin`, or `author` (ADR 0048).
+ */
+export function authorsOnly({ context }: { context: { organization: Organization } }) {
+  if (!context.organization.authors) throw notFound();
 }
 
 /**

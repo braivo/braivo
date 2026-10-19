@@ -162,7 +162,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
   });
 
   test("asks who is acting before whose objectives these are", async () => {
-    await expect(define([theirs], learner)).rejects.toThrow(`"${learner}" may not act`);
+    await expect(define([theirs], learner)).rejects.toThrow(`"${learner}" may not author`);
   });
 
   test("refuses an objective listed twice, before asking who is acting", async () => {
@@ -201,7 +201,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
     await expect(define([alpha], "courses-test-outsider")).rejects.toBeInstanceOf(NotPermitted);
   });
 
-  test("refuses to list for anyone who may not administer", async () => {
+  test("refuses to list for anyone who may not author", async () => {
     await expect(
       listCourses({ database, organizationId, actingAs: learner }),
     ).rejects.toBeInstanceOf(NotPermitted);

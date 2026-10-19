@@ -151,7 +151,7 @@ export function usePublish(callbacks: {
           "Nothing was published: this page changed since it loaded. Review it, then publish.",
         );
       } else if (thrown instanceof BraivoError && [401, 403].includes(thrown.status)) {
-        // Signed out or no longer administering it meanwhile: the guard's check, run again, says so.
+        // Signed out or no longer authoring there meanwhile: the guard's check, run again, says so.
         await router.invalidate();
       } else {
         setFailures((count) => count + 1);

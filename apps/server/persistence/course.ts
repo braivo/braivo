@@ -16,7 +16,7 @@ import type { Transaction } from "./task.ts";
 export type Course = { id: string; number: number; title: string; urlLabel: string };
 
 /**
- * A course as its organization's administrators see it: whether it is
+ * A course as those allowed to author in its organization see it: whether it is
  * published, and whether a person hid it from learners since (ADR 0039).
  */
 export type ManagedCourse = Course & { published: boolean; hidden: boolean };
