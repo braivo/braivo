@@ -53,6 +53,41 @@ describe("the learn app in Polish", () => {
     ).toBeTruthy();
   });
 
+  // From 15:30 on Monday 1 June in Kolkata.
+  test.each([
+    ["2026-06-01T12:00:00.000Z", "dzisiaj o 17:30"],
+    ["2026-06-02T03:00:00.000Z", "jutro o 08:30"],
+    ["2026-06-03T03:00:00.000Z", "środa, 3 czerwca 2026 o 08:30"],
+  ])("names a review due at %s as %s, in the learner's local time", async (dueAt, when) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-01T10:00:00.000Z"));
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [
+          {
+            objectiveId: "a",
+            title: "Powitania",
+            phase: "retaining",
+            lastEvidenceAt: "2026-05-30T10:00:00.000Z",
+            stability: 1,
+            retrievability: 0.95,
+            due: false,
+            dueAt,
+          },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "Jesteś na bieżąco",
+        description: `Na razie nic nie czeka na powtórkę. Następna powtórka: „Powitania”, ${when}.`,
+      }),
+    ).toBeTruthy();
+  });
+
   test("lists the courses, and leads from a path that names nothing back to them", async () => {
     renderAt("/elsewhere", { signedIn: true });
 
@@ -198,6 +233,8 @@ describe("the learn app in Polish", () => {
   });
 
   test("tells a caught-up learner when their next review falls due, on a Polish date", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-01T10:00:00.000Z"));
     renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => ({
@@ -207,7 +244,7 @@ describe("the learn app in Polish", () => {
             objectiveId: "a",
             title: "Greetings",
             phase: "retaining",
-            lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+            lastEvidenceAt: "2026-05-30T00:00:00.000Z",
             stability: 3,
             retrievability: 0.95,
             due: false,
@@ -217,16 +254,12 @@ describe("the learn app in Polish", () => {
       }),
     });
 
-    const when = new Date("2026-06-05T09:31:00.000Z").toLocaleString("pl", {
-      dateStyle: "full",
-      timeStyle: "short",
-    });
     // 09:31 UTC is 15:01 in the browser's zone.
-    expect(when).toMatch(/czerwca 2026.*15:01/);
     expect(
       await screen.findByRole("region", {
         name: "Jesteś na bieżąco",
-        description: `Na razie nic nie czeka na powtórkę. Następna powtórka: „Greetings”, ${when}.`,
+        description:
+          "Na razie nic nie czeka na powtórkę. Następna powtórka: „Greetings”, piątek, 5 czerwca 2026 o 15:01.",
       }),
     ).toBeTruthy();
     expect(screen.getByText("1 utrwalony")).toBeTruthy();

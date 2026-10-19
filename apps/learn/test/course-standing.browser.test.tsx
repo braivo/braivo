@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import "../styles.css";
+import { activateLocale } from "@braivo/i18n";
 import { screen } from "@testing-library/react";
-import { expect, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser/context";
+import { expect, onTestFinished, test } from "vite-plus/test";
+// The Playwright provider's types, which give `cdp()` its `send`.
+import type {} from "vite-plus/test/browser-playwright";
+import { cdp, page } from "vite-plus/test/browser/context";
 
 import { activity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
@@ -52,4 +55,36 @@ test("on a phone, wraps the standing summary between its counts, never inside on
   // Wider than a phone, so it wraps.
   expect(lineCount(summary, line)).toBeGreaterThan(1);
   expect(counts.map((count) => lineCount(summary, count))).toEqual([1, 1, 1]);
+});
+
+// In a browser, since Bun's Intl, where the page tests run, joins them with "o" already.
+test("in Polish, joins a later review's date and its time with o", async () => {
+  await activateLocale("pl");
+  await cdp().send("Emulation.setTimezoneOverride", { timezoneId: "Europe/Warsaw" });
+  onTestFinished(async () => {
+    await cdp().send("Emulation.setTimezoneOverride", { timezoneId: "" });
+    await activateLocale("en");
+  });
+  renderAt("/c/4732", {
+    signedIn: true,
+    learnerProgress: async () => ({
+      modelVersion: "v1",
+      objectives: [
+        {
+          objectiveId: "a",
+          title: "Powitania",
+          phase: "retaining",
+          lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+          stability: 3,
+          retrievability: 0.95,
+          due: false,
+          dueAt: "2030-06-05T10:00:00.000Z",
+        },
+      ],
+    }),
+  });
+
+  expect(
+    await screen.findByText(/Następna powtórka: „Powitania”, środa, 5 czerwca 2030 o 12:00\.$/),
+  ).toBeTruthy();
 });

@@ -390,17 +390,30 @@ describe("the learn app", () => {
     expect(screen.queryByText("You're caught up")).toBeNull();
   });
 
-  test("tells a caught-up learner when their next review falls due, and of what", async () => {
-    const retained = (objectiveId: string, title: string, dueAt: string, due = false) => ({
-      objectiveId,
-      title,
-      phase: "retaining" as const,
-      lastEvidenceAt: "2026-06-01T00:00:00.000Z",
-      stability: 1,
-      retrievability: due ? 0.5 : 0.95,
-      due,
-      dueAt,
+  const retained = (objectiveId: string, title: string, dueAt: string, due = false) => ({
+    objectiveId,
+    title,
+    phase: "retaining" as const,
+    lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+    stability: 1,
+    retrievability: due ? 0.5 : 0.95,
+    due,
+    dueAt,
+  });
+
+  /** Now in Warsaw, whose clocks change on 29 March and 25 October 2026. */
+  const inWarsawAt = (now: string) => {
+    vi.stubEnv("TZ", "Europe/Warsaw");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
     });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(now));
+  };
+
+  test("tells a caught-up learner when their next review falls due, and of what", async () => {
+    // 09:44 on Friday 5 June in Warsaw.
+    inWarsawAt("2026-06-05T07:44:00.000Z");
     renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => ({
@@ -415,14 +428,38 @@ describe("the learn app", () => {
       }),
     });
 
-    const when = new Date("2026-06-05T09:31:00.000Z").toLocaleString("en", {
-      dateStyle: "full",
-      timeStyle: "short",
-    });
     expect(
       await screen.findByRole("region", {
         name: "You're caught up",
-        description: `Nothing is due right now. Next review due: Numbers, on ${when}.`,
+        description: "Nothing is due right now. Next review due: Numbers, today at 11:31 AM.",
+      }),
+    ).toBeTruthy();
+  });
+
+  test.each([
+    // 23:00, and a review at 01:00: tomorrow by the clock, though before the learner day's 04:00.
+    ["2026-06-05T21:00:00.000Z", "2026-06-05T23:00:00.000Z", "tomorrow at 1:00 AM"],
+    // Rounded up past midnight.
+    ["2026-06-05T12:00:00.000Z", "2026-06-05T21:59:00.001Z", "tomorrow at 12:00 AM"],
+    // The night before a 23-hour day: 24 hours on is already the day after.
+    ["2026-03-28T22:30:00.000Z", "2026-03-29T10:00:00.000Z", "tomorrow at 12:00 PM"],
+    // The day after tomorrow, in full.
+    ["2026-06-05T07:44:00.000Z", "2026-06-07T10:00:00.000Z", "on Sunday, June 7, 2026 at 12:00 PM"],
+  ])("at %s, names a review due at %s as %s", async (now, dueAt, when) => {
+    inWarsawAt(now);
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => ({ dailyLimit: 20 }),
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        objectives: [retained("a", "Greetings", dueAt)],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "That's all the new material for today",
+        description: `You can start new material again tomorrow. Next review due: Greetings, ${when}.`,
       }),
     ).toBeTruthy();
   });

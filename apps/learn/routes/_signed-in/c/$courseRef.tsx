@@ -411,13 +411,24 @@ function CaughtUp({
     : t`Nothing is due right now.`;
   if (next) {
     const objectiveTitle = next.title;
-    const nextReviewAt = new Intl.DateTimeFormat(i18n.locale, {
-      dateStyle: "full",
-      timeStyle: "short",
-    }).format(roundUpToMinute(Date.parse(next.dueAt)));
+    const dueAt = roundUpToMinute(Date.parse(next.dueAt));
+    // Today and tomorrow by the calendar, not the 04:00 learner day: they name a clock time.
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const time = new Intl.DateTimeFormat(i18n.locale, { timeStyle: "short" }).format(dueAt);
+    let nextReviewAt: string;
+    if (dueAt.toDateString() === now.toDateString()) {
+      nextReviewAt = t`today at ${time}`;
+    } else if (dueAt.toDateString() === tomorrow.toDateString()) {
+      nextReviewAt = t`tomorrow at ${time}`;
+    } else {
+      // Apart from the time: some engines join a Polish date and time with no word.
+      const date = new Intl.DateTimeFormat(i18n.locale, { dateStyle: "full" }).format(dueAt);
+      nextReviewAt = t`on ${date} at ${time}`;
+    }
     status = limitReached
-      ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`
-      : t`Nothing is due right now. Next review due: ${objectiveTitle}, on ${nextReviewAt}.`;
+      ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, ${nextReviewAt}.`
+      : t`Nothing is due right now. Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
   }
   const dayOf = learnerDayIn();
   const today = dayOf(new Date());
