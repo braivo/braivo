@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@braivo/db": "workspace:*",
-    "drizzle-orm": "1.0.0-rc.4"
+    "drizzle-orm": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

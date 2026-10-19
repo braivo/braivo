@@ -10,16 +10,17 @@
   "dependencies": {
     "@braivo/i18n": "workspace:*",
     "@braivo/ui": "workspace:*",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@storybook/react-vite": "10.6.2",
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "storybook": "10.6.2",
-    "tailwindcss": "^4.3.3",
+    "@lingui/vite-plugin": "catalog:",
+    "@storybook/react-vite": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "storybook": "catalog:",
+    "tailwindcss": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   }
