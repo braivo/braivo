@@ -214,6 +214,7 @@ export default defineConfig({
       inChromium("ui-browser", "packages/ui"),
       localized("auth-client", "packages/auth-client"),
       localized("learn", "apps/learn"),
+      inChromium("learn-browser", "apps/learn"),
       localized("console", "apps/console"),
       inChromium("console-browser", "apps/console"),
     ],
