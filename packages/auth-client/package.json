@@ -8,24 +8,25 @@
   },
   "dependencies": {
     "@braivo/ui": "workspace:*",
-    "@lingui/core": "6.10.0",
-    "@lingui/react": "6.10.0"
+    "@lingui/core": "catalog:",
+    "@lingui/react": "catalog:"
   },
   "devDependencies": {
     "@braivo/i18n": "workspace:*",
-    "@tanstack/react-router": "^1.170.45",
-    "@testing-library/dom": "^10.4.2",
-    "@testing-library/react": "^16.3.3",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "better-auth": "1.7.11",
-    "happy-dom": "^21.0.3",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "@tanstack/react-router": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "better-auth": "catalog:",
+    "happy-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "@tanstack/react-router": "^1.170.45",
-    "better-auth": "1.7.11",
-    "react": "^19.3.1"
+    "@tanstack/react-router": "catalog:",
+    "better-auth": "catalog:",
+    "react": "catalog:"
   }
 }

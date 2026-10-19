@@ -13,11 +13,12 @@
     "generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
-    "pg": "^8.23.1"
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
-    "@types/pg": "^8.23.1",
-    "drizzle-kit": "1.0.0-rc.4"
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

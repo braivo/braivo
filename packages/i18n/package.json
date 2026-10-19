@@ -9,15 +9,16 @@
     "./locales": "./locales.ts"
   },
   "dependencies": {
-    "@lingui/core": "6.10.0",
-    "@lingui/react": "6.10.0"
+    "@lingui/core": "catalog:",
+    "@lingui/react": "catalog:"
   },
   "devDependencies": {
-    "@types/react": "^19.3.0",
-    "happy-dom": "^21.0.3",
-    "react": "^19.3.1"
+    "@types/react": "catalog:",
+    "happy-dom": "catalog:",
+    "react": "catalog:",
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "react": "^19.3.1"
+    "react": "catalog:"
   }
 }
