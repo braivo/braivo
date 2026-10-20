@@ -147,7 +147,7 @@ describe("Braivo's components", () => {
     const resend = screen.getByRole("button", { name: "Send a new code" });
 
     // The wait shows, outside the button's name, which its description explains.
-    expect(resend.textContent).toBe("Send a new codein 0:42");
+    expect(resend.textContent).toBe("Send a new code in 0:42");
     expect(resend.getAttribute("aria-disabled")).toBe("true");
     expect(document.getElementById(resend.getAttribute("aria-describedby")!)?.textContent).toBe(
       "Another code can be sent a minute after the last.",
@@ -156,7 +156,7 @@ describe("Braivo's components", () => {
     act(() => {
       vi.advanceTimersByTime(41_000);
     });
-    expect(resend.textContent).toBe("Send a new codein 0:01");
+    expect(resend.textContent).toBe("Send a new code in 0:01");
     fireEvent.click(resend);
     expect(onResend).not.toHaveBeenCalled();
 

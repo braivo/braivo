@@ -765,7 +765,8 @@ function Practice({
       {(sent === undefined || (revealed && sending && unconfirmedCount === 0)) && (
         <Button
           variant="ghost"
-          className="self-start"
+          // Its text, not its padding, in line with the question's.
+          className="-ms-3 self-start"
           aria-disabled={sending}
           onClick={() => !sending && submit({ reveal: true })}
         >

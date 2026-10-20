@@ -576,7 +576,7 @@ describe("SignIn", () => {
     expect(screen.getByRole("heading", { name: "Sprawdź pocztę" })).toBeTruthy();
     // The wait before another code, in Polish word order.
     expect(screen.getByRole("button", { name: "Wyślij nowy kod" }).textContent).toBe(
-      "Wyślij nowy kodza 1:00",
+      "Wyślij nowy kod za 1:00",
     );
     expect(
       screen.getByText("Zalogujesz się, gdy tylko wpiszesz wszystkie sześć cyfr."),
