@@ -49,8 +49,9 @@ function SignedIn() {
       <header className="mb-6">
         <div className="flex items-center justify-between">
           <span>{user.name}</span>
-          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-          <Button variant="link" aria-disabled={signingOut} onClick={signOut}>
+          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile;
+              its text, not its padding, at the page's edge. */}
+          <Button variant="link" className="-me-3" aria-disabled={signingOut} onClick={signOut}>
             <Trans>Sign out</Trans>
           </Button>
         </div>

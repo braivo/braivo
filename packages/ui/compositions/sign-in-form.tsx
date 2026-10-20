@@ -320,8 +320,7 @@ export function SignInForm(props: {
               onClick={resend}
             >
               {props.pending && <Spinner data-icon="inline-start" aria-label={t`Loading`} />}
-              <Trans>Send a new code</Trans>
-              <Countdown seconds={wait} />
+              <ResendLabel wait={wait} />
             </Button>
           ) : (
             <Button type="submit" aria-disabled={props.pending}>
@@ -371,8 +370,7 @@ export function SignInForm(props: {
                   aria-describedby={wait > 0 ? `${id}-wait` : undefined}
                   onClick={resend}
                 >
-                  <Trans>Send a new code</Trans>
-                  <Countdown seconds={wait} />
+                  <ResendLabel wait={wait} />
                 </Button>
               )}
               {props.onChangeEmail && (
@@ -419,20 +417,28 @@ function useSecondsUntil(at: number | undefined) {
 }
 
 /**
- * The wait before another code, as " in 0:42", seen but not read out: the
- * button's name stays put, its `aria-disabled` says it cannot be pressed yet,
- * and its description says why. Never in a live region, which would announce
- * every tick; nor is the wait's end announced, which would interrupt whoever
- * is typing the code that arrived meanwhile.
+ * "Send a new code", then the `wait` in seconds, as " in 0:42": one inline
+ * phrase, so a space parts them, not the button's wider flex gap. The wait
+ * is seen but not read out: the button's name stays put, its `aria-disabled`
+ * says it cannot be pressed yet, and its description says why. Never in a
+ * live region, which would announce every tick; nor is the wait's end
+ * announced, which would interrupt whoever is typing the code that arrived
+ * meanwhile.
  */
-function Countdown({ seconds }: { seconds: number }) {
-  if (seconds <= 0) return null;
-  const time = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+function ResendLabel({ wait }: { wait: number }) {
+  const time = `${Math.floor(wait / 60)}:${String(wait % 60).padStart(2, "0")}`;
   return (
-    <span aria-hidden="true" className="tabular-nums">
-      <Trans context="The wait before another sign-in code, as in: Send a new code in 0:42">
-        in {time}
-      </Trans>
+    <span>
+      <Trans>Send a new code</Trans>
+      {/* The space hidden too, or the button's name would end in it. */}
+      {wait > 0 && (
+        <span aria-hidden="true" className="tabular-nums">
+          {" "}
+          <Trans context="The wait before another sign-in code, as in: Send a new code in 0:42">
+            in {time}
+          </Trans>
+        </span>
+      )}
     </span>
   );
 }

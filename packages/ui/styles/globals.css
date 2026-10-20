@@ -375,6 +375,16 @@ input[data-input-otp]:focus-visible {
 }
 
 /*
+ * The sidebar on a phone, a sheet, at its own `--sidebar-width`, which Rhea's
+ * sheet (`w-3/4`) outranks: at 320px that cut the account's email short. At
+ * least 2rem short of the screen, so a larger font cannot overflow it and the
+ * page stays there to tap. Unlayered, over the sheet's classes.
+ */
+[data-slot="sidebar"][data-mobile="true"] {
+  width: min(var(--sidebar-width), 100% - 2rem);
+}
+
+/*
  * A pending action's button is locked with `aria-disabled`, since `disabled`
  * drops focus. A layer below utilities, so a caller's classes still win.
  */
