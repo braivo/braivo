@@ -60,8 +60,8 @@ export const UnderReview: Story = {
   },
 };
 
-/** Written by a tool, waiting for its owner to publish it: in a narrow card, the actions go under the prompt. */
-export const Waiting: Story = {
+/** Written by a tool, pending until its owner publishes it: in a narrow card, the actions go under the prompt. */
+export const Pending: Story = {
   decorators: [
     (Story) => (
       <div className="w-72">
@@ -79,7 +79,7 @@ export const Waiting: Story = {
     status: (
       <span className="flex items-center gap-2">
         <Checkbox aria-label="Select the task" />
-        <Badge variant="outline">Waiting</Badge>
+        <Badge variant="outline">Unpublished</Badge>
       </span>
     ),
     action: (

@@ -581,8 +581,8 @@ export type BraivoClient = {
    *
    * Added with a tool's token, a task waits until its owner publishes it in
    * Braivo's console, and so does a correction of a published task, which
-   * stays offered until then; a 409 coded `CORRECTION_WAITING` names the
-   * correction already waiting for it, the one to correct instead. Otherwise
+   * stays offered until then; a 409 coded `CORRECTION_PENDING` names the
+   * task's pending correction, the one to correct instead. Otherwise
    * a correction keeps the state of the task it replaces.
    */
   defineTasks(
@@ -591,9 +591,9 @@ export type BraivoClient = {
   ): Promise<TaskWriteResult[]>;
 
   /**
-   * An objective's unretired tasks, published or waiting, oldest first, as
+   * An objective's unretired tasks, published or pending, oldest first, as
    * authored — answers included — with the passages each cites, for a
-   * waiting correction the published task it `replaces`, and for a waiting
+   * pending correction the published task it `replaces`, and for a pending
    * task identical to one retired before, `matchesRetiredTask`. An objective
    * the organization does not have is a {@link BraivoError} with status 404;
    * one the session may not author in, 403.

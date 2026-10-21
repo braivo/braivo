@@ -100,20 +100,20 @@ export type Course = { id: string; number: number; title: string; urlLabel: stri
 export type ManagedCourse = Course & { published: boolean; hidden: boolean };
 
 /**
- * A course as its organization lists it: `waitingTaskCount`, how many tasks of its
+ * A course as its organization lists it: `pendingTaskCount`, how many tasks of its
  * objectives wait for review, a task of an objective two courses share counted
  * in both.
  */
-export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
+export type CourseSummary = ManagedCourse & { pendingTaskCount: number };
 
 /** A learning target, by ID and title. */
 export type Objective = { id: string; title: string };
 
 /**
  * An objective as its organization lists it: `courseIds`, the courses it is
- * in, which its tasks serve; `waitingTaskCount`, its tasks waiting for review.
+ * in, which its tasks serve; `pendingTaskCount`, its tasks pending review.
  */
-export type ObjectiveSummary = Objective & { courseIds: string[]; waitingTaskCount: number };
+export type ObjectiveSummary = Objective & { courseIds: string[]; pendingTaskCount: number };
 
 /**
  * An organization as those who work in it find it; `slug` is its console
@@ -254,9 +254,9 @@ export type AuthoredCourse = ManagedCourse & {
  * A task read back as it was authored, answer included, with its ID and the
  * passages it cites — where Braivo found each, and the words there. Not
  * `published` while it waits for its owner to publish it in the console,
- * offered in no course (ADR 0039). A waiting correction of a published task
+ * offered in no course (ADR 0039). A pending correction of a published task
  * names that task in `replaces`; the task stays offered until the correction
- * is published. A waiting task identical to a retired one of its objective
+ * is published. A pending task identical to a retired one of its objective
  * (ADR 0024's twin), however retired, is marked `matchesRetiredTask`: often a
  * task sent again after its review.
  */
@@ -272,7 +272,7 @@ export type AuthoredTask = content.TaskBody & {
  * What adding a task did, and what learners reach of it (ADR 0039): `added`,
  * false for an unretired twin answered instead (ADR 0024), as is a task
  * repeated within the request after its first; `published`, false while it
- * waits for Publish in the console; `replaces`, only while it is a waiting
+ * waits for Publish in the console; `replaces`, only while it is a pending
  * correction, the published task it will retire, offered meanwhile.
  */
 export type TaskWriteResult = { id: string; added: boolean; published: boolean; replaces?: string };

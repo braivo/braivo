@@ -79,7 +79,7 @@ export class PublishedTask extends Error {
 export class DuplicateCorrection extends Error {
   constructor() {
     super(
-      "Task 0 is the same as another task its objective already has; list the objective's tasks, published and waiting, before deciding what to retire or publish.",
+      "Task 0 is the same as another task its objective already has; list the objective's tasks, published and pending, before deciding what to retire or publish.",
     );
     this.name = "DuplicateCorrection";
   }
@@ -89,12 +89,12 @@ export class DuplicateCorrection extends Error {
  * A tool's second correction of a published task while its first still waits:
  * one waits at a time, and it is that one to correct (ADR 0039).
  */
-export class CorrectionWaiting extends Error {
-  constructor(readonly waitingId: string) {
+export class CorrectionPending extends Error {
+  constructor(readonly pendingId: string) {
     super(
-      `Task 0 corrects a published task whose correction "${waitingId}" already waits for review; to change it, correct that one instead (replaces "${waitingId}").`,
+      `Task 0 corrects a published task whose correction "${pendingId}" already waits for review; to change it, correct that one instead (replaces "${pendingId}").`,
     );
-    this.name = "CorrectionWaiting";
+    this.name = "CorrectionPending";
   }
 }
 
@@ -119,7 +119,7 @@ type NewTask = { objectiveId: string; body: TaskBody; citations?: readonly TaskC
 /**
  * What a write did with one task, and what learners reach of it (ADR 0039):
  * `added`, false for an unretired twin found instead; `published`, false while
- * it waits for Publish; `replaces`, only while it is a waiting correction, the
+ * it waits for Publish; `replaces`, only while it is a pending correction, the
  * published task it will retire, offered meanwhile.
  */
 export type TaskWriteResult = { id: string; added: boolean; published: boolean; replaces?: string };
@@ -175,17 +175,17 @@ export async function createTasks(
  *
  * A tool's correction of a published task waits, the task still offered, until
  * Publish publishes the one and retires the other (`publishTasks`); the task
- * has one waiting correction at most, and a second is refused
- * (`CorrectionWaiting`). Otherwise the task is retired in the same transaction,
+ * has one pending correction at most, and a second is refused
+ * (`CorrectionPending`). Otherwise the task is retired in the same transaction,
  * so learners meet one or the other, never both or neither; the correction
- * takes its state, published or waiting, so editing during review publishes
- * nothing (ADR 0039), and a waiting correction's replacement corrects the same
+ * takes its state, published or pending, so editing during review publishes
+ * nothing (ADR 0039), and a pending correction's replacement corrects the same
  * published task. Correcting a published task in the console retires its
- * waiting correction too.
+ * pending correction too.
  *
  * A correction equal to the task answers the task, changing nothing; one equal
  * to another task is refused (`DuplicateCorrection`), unless it is the task's
- * waiting correction, sent again. Once the task is retired, a correction
+ * pending correction, sent again. Once the task is retired, a correction
  * answers what it asks for if that is already there (a retry, or someone's
  * same correction), changing nothing; otherwise it was written from a stale
  * read and is refused (`StaleCorrection`), never stored beside whatever
@@ -206,31 +206,31 @@ export async function replaceTask(
       .select({ replacesTaskId: task.replacesTaskId })
       .from(task)
       .where(eq(task.id, replaces));
-    const corrections = await readWaitingCorrections(transaction, [replaces]);
-    // The corrected task's own, when it is a waiting correction: a new row's
+    const corrections = await readPendingCorrections(transaction, [replaces]);
+    // The corrected task's own, when it is a pending correction: a new row's
     // key references it, which would otherwise wait on Publish out of order.
     const rows = await lockTasks(transaction, [replaces, link?.replacesTaskId, ...corrections]);
     const replaced = rows.find((row) => row.id === replaces);
     const live = replaced?.retiredAt === null;
     const published = live && replaced.publishedAt !== null;
     // One Publish published meanwhile retired the task, which `live` says.
-    const waiting = rows.find((row) => corrections.includes(row.id) && isWaiting(row))?.id;
+    const pending = rows.find((row) => corrections.includes(row.id) && isPending(row))?.id;
 
     if (byTool && published) {
       const [written] = await storeTasks(transaction, organizationId, [correction], createdAt, {
         published: false,
         replacesTaskId: replaces,
       });
-      if (written!.id === replaces || written!.id === waiting) return written!;
+      if (written!.id === replaces || written!.id === pending) return written!;
       // Thrown inside the transaction, so a correction just stored goes with it.
       if (!written!.added) throw new DuplicateCorrection();
-      if (waiting) throw new CorrectionWaiting(waiting);
+      if (pending) throw new CorrectionPending(pending);
       return written!;
     }
 
     const [written] = await storeTasks(transaction, organizationId, [correction], createdAt, {
       published,
-      // A waiting correction's replacement corrects the same published task.
+      // A pending correction's replacement corrects the same published task.
       replacesTaskId: (live && !published && replaced.replacesTaskId) || undefined,
     });
     if (written!.id === replaces) return written!;
@@ -242,7 +242,7 @@ export async function replaceTask(
     await transaction
       .update(task)
       .set({ retiredAt: createdAt })
-      .where(inArray(task.id, waiting ? [replaces, waiting] : [replaces]));
+      .where(inArray(task.id, pending ? [replaces, pending] : [replaces]));
     return written!;
   });
 }
@@ -257,7 +257,7 @@ async function storeTasks(
 ): Promise<TaskWriteResult[]> {
   const objectiveIds = [...new Set(tasks.map((item) => item.objectiveId))];
 
-  // Every unretired task these objectives have, published or waiting, with
+  // Every unretired task these objectives have, published or pending, with
   // its passages: few per objective, and compared here since jsonb equality alone would not
   // compare the citations beside it.
   const stored = await transaction
@@ -346,7 +346,7 @@ async function storeTasks(
 function stateOf(row: { published: boolean; replacesTaskId: string | undefined }) {
   return {
     published: row.published,
-    // The column outlives Publish as a record; the answer names it only while waiting.
+    // The column outlives Publish as a record; the answer names it only while pending.
     ...(!row.published && row.replacesTaskId !== undefined && { replaces: row.replacesTaskId }),
   };
 }
@@ -399,7 +399,7 @@ export async function findTasksOutsideOrganization(
 }
 
 /**
- * Stamps tasks retired, with the corrections waiting for them; one already
+ * Stamps tasks retired, with their pending corrections; one already
  * retired keeps its first date. Under its objective's lock, as `createTasks`
  * takes it, so a twin that is being added again is either retired before it
  * is found or found and then retired — never returned to the adder as live
@@ -423,7 +423,7 @@ export async function markTasksRetired(
       transaction,
       objectives.map((row) => row.objectiveId),
     );
-    const corrections = await readWaitingCorrections(transaction, taskIds);
+    const corrections = await readPendingCorrections(transaction, taskIds);
     const rows = await lockTasks(transaction, [...taskIds, ...corrections]);
     const published = rows.find((row) => taskIds.includes(row.id) && row.publishedAt !== null);
     if (byTool && published) {
@@ -436,7 +436,7 @@ export async function markTasksRetired(
     // One Publish published meanwhile waits no longer, and stays.
     const retired = [
       ...taskIds,
-      ...corrections.filter((id) => rows.some((row) => row.id === id && isWaiting(row))),
+      ...corrections.filter((id) => rows.some((row) => row.id === id && isPending(row))),
     ];
     await transaction
       .update(task)
@@ -518,8 +518,8 @@ async function lockTasks(
     .for("update");
 }
 
-/** The corrections waiting to replace these tasks, one each at most. */
-async function readWaitingCorrections(
+/** The pending corrections of these tasks, one each at most. */
+async function readPendingCorrections(
   transaction: Transaction,
   taskIds: readonly string[],
 ): Promise<string[]> {
@@ -536,7 +536,7 @@ async function readWaitingCorrections(
   return rows.map((row) => row.id);
 }
 
-function isWaiting(row: { publishedAt: Date | null; retiredAt: Date | null }): boolean {
+function isPending(row: { publishedAt: Date | null; retiredAt: Date | null }): boolean {
   return row.publishedAt === null && row.retiredAt === null;
 }
 
@@ -623,7 +623,7 @@ export type AuthoredTask = {
 };
 
 /**
- * An objective's unretired tasks, published or waiting, oldest first, each
+ * An objective's unretired tasks, published or pending, oldest first, each
  * with its cited passages by source and position: what a content owner or
  * their agent reviews before publishing, retiring one, or writing another.
  */
@@ -675,15 +675,15 @@ export async function readObjectiveTasks(
 
   return tasks.map(({ id, body, publishedAt, replacesTaskId }) => {
     const passages = passagesOf(id);
-    const waiting = publishedAt === null;
+    const pending = publishedAt === null;
     const comparable = { body, cited: citedKey(passages) };
     return {
       id,
       body: body as TaskBody,
       citations: passages,
-      published: !waiting,
-      ...(waiting && replacesTaskId !== null && { replaces: replacesTaskId }),
-      ...(waiting &&
+      published: !pending,
+      ...(pending && replacesTaskId !== null && { replaces: replacesTaskId }),
+      ...(pending &&
         retired.some((each) => isTwin(each, comparable)) && {
           matchesRetiredTask: true as const,
         }),
@@ -768,9 +768,9 @@ export async function countOtherAttempts(
 /**
  * A published task, provided it assesses one of this course's objectives:
  * answering is authorized through the course, so a task outside it, or one
- * still waiting, is as good as missing. Retired ones included, so a resend of
+ * still pending, is as good as missing. Retired ones included, so a resend of
  * an attempt recorded before retirement still reaches `recordAttempt`, which
- * refuses only a new one; a task is never unpublished, so a waiting one has no
+ * refuses only a new one; a task is never unpublished, so a pending one has no
  * attempt to resend.
  */
 export async function readCourseTask(

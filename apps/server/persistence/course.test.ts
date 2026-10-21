@@ -501,8 +501,8 @@ describe.skipIf(!connectionString)("courses", () => {
   test("publishes an organization's courses all or none, keeping when each first was", async () => {
     const add = async (title: string, published = false) =>
       (await createCourse(database, { published, organizationId, title, objectiveIds: [] })).id;
-    const waiting = await add("Waiting");
-    const also = await add("Also waiting");
+    const pending = await add("Pending");
+    const also = await add("Also pending");
     const { id: theirs } = await createCourse(database, {
       published: false,
       organizationId: otherOrganizationId,
@@ -516,7 +516,7 @@ describe.skipIf(!connectionString)("courses", () => {
           .from(course)
           .where(eq(course.id, courseId))
       )[0]!.at;
-    expect(await readCourseOrganization(database, waiting)).toEqual({
+    expect(await readCourseOrganization(database, pending)).toEqual({
       organizationId,
       open: false,
     });
@@ -526,34 +526,34 @@ describe.skipIf(!connectionString)("courses", () => {
     expect(
       await markPublished(database, {
         organizationId,
-        courseIds: [waiting, theirs],
+        courseIds: [pending, theirs],
         taskIds: [],
         now,
       }),
     ).toBe(false);
-    expect(await publishedAt(waiting)).toBeNull();
+    expect(await publishedAt(pending)).toBeNull();
 
     expect(
       await markPublished(database, {
         organizationId,
-        courseIds: [waiting, also, waiting],
+        courseIds: [pending, also, pending],
         taskIds: [],
         now,
       }),
     ).toBe(true);
-    expect(await publishedAt(waiting)).toEqual(now);
+    expect(await publishedAt(pending)).toEqual(now);
     expect(await publishedAt(also)).toEqual(now);
     // Again later: when it first was stays.
     const later = new Date("2026-03-01T00:00:00.000Z");
     expect(
       await markPublished(database, {
         organizationId,
-        courseIds: [waiting],
+        courseIds: [pending],
         taskIds: [],
         now: later,
       }),
     ).toBe(true);
-    expect(await publishedAt(waiting)).toEqual(now);
+    expect(await publishedAt(pending)).toEqual(now);
   });
 
   test("publishes a course with its tasks, or neither when a task was retired since", async () => {
@@ -597,7 +597,7 @@ describe.skipIf(!connectionString)("courses", () => {
 
   describe("deleting", () => {
     const now = new Date("2026-02-01T00:00:00.000Z");
-    const waitingCourse = async (key: string) => {
+    const pendingCourse = async (key: string) => {
       const [objectiveId] = (await createObjectives(database, organizationId, ["Kept"])) as [
         string,
       ];
@@ -647,7 +647,7 @@ describe.skipIf(!connectionString)("courses", () => {
     };
 
     test("removes an unpublished course's arrangement alone, its key and number kept", async () => {
-      const { id, input, objectiveId, taskId } = await waitingCourse("proposed");
+      const { id, input, objectiveId, taskId } = await pendingCourse("proposed");
       await createGroup(database, {
         organizationId,
         definition: { name: "Taking it", learnerIds: [], teacherIds: [], courseIds: [id] },
@@ -694,7 +694,7 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("leaves a published course, and another organization's, as they are", async () => {
-      const { id } = await waitingCourse("published");
+      const { id } = await pendingCourse("published");
       await markPublished(database, { organizationId, courseIds: [id], taskIds: [], now });
 
       expect(await markDeleted(id)).toBe("published");
@@ -704,7 +704,7 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("waits for a Publish under way, then leaves the course published", async () => {
-      const { id } = await waitingCourse("published-meanwhile");
+      const { id } = await pendingCourse("published-meanwhile");
       let commit!: () => void;
       const committing = new Promise<void>((resolve) => (commit = resolve));
       let locked!: () => void;
@@ -732,7 +732,7 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("answers a keyed retry racing a Delete as deleted, not as another course", async () => {
-      const { id, input } = await waitingCourse("raced");
+      const { id, input } = await pendingCourse("raced");
       const held = holdDeletion(id);
       await held.locked;
 
@@ -750,7 +750,7 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("leaves out of a group a course deleted while the group changed", async () => {
-      const { id } = await waitingCourse("grouped");
+      const { id } = await pendingCourse("grouped");
       const held = holdDeletion(id);
       await held.locked;
 
@@ -774,7 +774,7 @@ describe.skipIf(!connectionString)("courses", () => {
     });
 
     test("locks a course a group change adds before removing any, as a Delete does", async () => {
-      const { id } = await waitingCourse("regrouped");
+      const { id } = await pendingCourse("regrouped");
       const groupId = await createGroup(database, {
         organizationId,
         definition: { name: "Regrouped", learnerIds: [], teacherIds: [], courseIds: [id] },

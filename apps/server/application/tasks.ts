@@ -169,7 +169,7 @@ export async function retireTasks(input: {
 }
 
 /**
- * An objective's unretired tasks as authored, published or waiting, answers
+ * An objective's unretired tasks as authored, published or pending, answers
  * included, with the passages each cites, for whoever may author in its organization; or
  * `undefined` when the organization has no such objective. A task is changed
  * only by a correction replacing it, so this is what review starts from.

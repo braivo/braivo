@@ -57,11 +57,11 @@ describe("the console", () => {
     expect((await screen.findByRole("form", { name: "Add material" })).id).toBe("add-material");
   });
 
-  test("marks a course hidden, or waiting for review, or a published course's tasks, in the list", async () => {
+  test("marks a course hidden, or pending review, or a published course's tasks, in the list", async () => {
     // The courses' own counts, which count a shared objective's tasks in each,
     // are not what the list says: each task is listed once.
-    const listed = { published: true, hidden: false, waitingTaskCount: 9 };
-    const objective = { courseIds: [], waitingTaskCount: 0 };
+    const listed = { published: true, hidden: false, pendingTaskCount: 9 };
+    const objective = { courseIds: [], pendingTaskCount: 0 };
     renderAt("/example", {
       braivo: {
         listCourses: async () => [
@@ -77,17 +77,17 @@ describe("the console", () => {
           { ...listed, id: "c3", number: 1003, title: "German", urlLabel: "german", hidden: true },
         ],
         listObjectives: async () => [
-          { ...objective, id: "o1", title: "Cases", courseIds: ["c3"], waitingTaskCount: 2 },
-          { ...objective, id: "o2", title: "Umlauts", courseIds: ["c3"], waitingTaskCount: 1 },
+          { ...objective, id: "o1", title: "Cases", courseIds: ["c3"], pendingTaskCount: 2 },
+          { ...objective, id: "o2", title: "Umlauts", courseIds: ["c3"], pendingTaskCount: 1 },
           { ...objective, id: "o3", title: "Greetings", courseIds: ["c1"] },
           {
             ...objective,
             id: "o4",
             title: "Numbers",
             courseIds: ["c2", "c3"],
-            waitingTaskCount: 4,
+            pendingTaskCount: 4,
           },
-          { ...objective, id: "o5", title: "Colours", waitingTaskCount: 1 },
+          { ...objective, id: "o5", title: "Colours", pendingTaskCount: 1 },
           { ...objective, id: "o6", title: "Weather" },
         ],
       },
@@ -119,7 +119,7 @@ describe("the console", () => {
     expect(objectives.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "Numbers (4 tasks need review)4 tasks need reviewIn 2 courses",
       "Colours (1 task needs review)1 task needs reviewIn no course",
-      // In no course, nothing waiting: listed still, as no course leads to it.
+      // In no course, nothing pending: listed still, as no course leads to it.
       "WeatherIn no course",
     ]);
     // Where it is, the link's description, not part of its name.
@@ -151,7 +151,7 @@ describe("the console", () => {
           { id: "c1", number: 1001, title: "Spanish", urlLabel: "spanish", published: true },
         ],
         listObjectives: async () => [
-          { id: "o1", title: "Greetings", courseIds: ["c1"], waitingTaskCount: 2 },
+          { id: "o1", title: "Greetings", courseIds: ["c1"], pendingTaskCount: 2 },
         ],
       },
     });

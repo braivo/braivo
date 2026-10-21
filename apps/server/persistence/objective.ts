@@ -11,9 +11,9 @@ export type Objective = { id: string; title: string };
 
 /**
  * An objective as listed: `courseIds`, the courses it is in, which its tasks
- * serve; `waitingTaskCount`, its tasks waiting for review (ADR 0039).
+ * serve; `pendingTaskCount`, its tasks pending review (ADR 0039).
  */
-export type ObjectiveSummary = Objective & { courseIds: string[]; waitingTaskCount: number };
+export type ObjectiveSummary = Objective & { courseIds: string[]; pendingTaskCount: number };
 
 /**
  * Registers learning targets for a content owner and returns their IDs,
@@ -127,7 +127,7 @@ export async function readObjectives(
   organizationId: string,
 ): Promise<ObjectiveSummary[]> {
   // Three reads, not one joined, which would multiply tasks by courses.
-  const [objectives, placements, waiting] = await Promise.all([
+  const [objectives, placements, pending] = await Promise.all([
     database
       .select({ id: objective.id, title: objective.title })
       .from(objective)
@@ -152,11 +152,11 @@ export async function readObjectives(
       .groupBy(task.objectiveId),
   ]);
   const courseIds = Map.groupBy(placements, ({ objectiveId }) => objectiveId);
-  const counts = new Map(waiting.map(({ objectiveId, count }) => [objectiveId, count]));
+  const counts = new Map(pending.map(({ objectiveId, count }) => [objectiveId, count]));
   return objectives.map((row) => ({
     ...row,
     courseIds: (courseIds.get(row.id) ?? []).map(({ courseId }) => courseId),
-    waitingTaskCount: counts.get(row.id) ?? 0,
+    pendingTaskCount: counts.get(row.id) ?? 0,
   }));
 }
 

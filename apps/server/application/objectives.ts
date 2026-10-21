@@ -73,7 +73,7 @@ export async function defineObjectives(input: {
 /**
  * Every objective an organization has defined, by title: a listing order, not
  * content order, which belongs to a course. Each with the courses it is in
- * and its tasks waiting for review, so a task in no course, or in several, is
+ * and its tasks pending review, so a task in no course, or in several, is
  * found under its objective (ADR 0039).
  */
 export async function listObjectives(input: {

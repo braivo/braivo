@@ -18,7 +18,7 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Find the organization's sources and courses, and read a source in parts, a range of pages, seconds, or characters at a time.
 - Add material as text: a document page by page, a transcript with its timings. A document too large for one request is refused; add it in Braivo's console or with [`braivo sources add`](authoring.md#the-braivo-command).
 - Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks word for word against the source.
-- Write practice tasks that cite those passages, correct one, or withdraw one still waiting.
+- Write practice tasks that cite those passages, correct one, or withdraw one still pending.
 - Arrange objectives into a course.
 - Read a course's objectives and tasks.
 

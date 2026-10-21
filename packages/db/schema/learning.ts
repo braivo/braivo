@@ -312,7 +312,7 @@ export const task = pgTable(
       columns: [table.organizationId, table.replacesTaskId],
       foreignColumns: [table.organizationId, table.id],
     }).onDelete("restrict"),
-    // Finds a task's waiting correction, and serves the key's checks.
+    // Finds a task's pending correction, and serves the key's checks.
     index("task_replaces_task_idx").on(table.replacesTaskId),
     index("task_objective_idx").on(table.objectiveId, table.createdAt, table.id),
     /** Referenced together with the organization, for the same reason as on `objective`. */

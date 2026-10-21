@@ -27,7 +27,7 @@ describe("the console", () => {
 
     expect(
       await screen.findByText(
-        "Review it below, its waiting tasks first: learners can't see this course until you publish it.",
+        "Review it below, the tasks needing review first: learners can't see this course until you publish it.",
       ),
     ).toBeTruthy();
     expect(screen.queryByText(/Open to every learner/)).toBeNull();
@@ -94,10 +94,10 @@ describe("the console", () => {
     ).toBeTruthy();
     // The course itself is published: its link is shown, and only the new task waits.
     expect(screen.getByText(/Open to every learner in Example School at/)).toBeTruthy();
-    expect(screen.getAllByText("Waiting")).toHaveLength(1);
-    // Retiring a waiting task takes nothing from learners, and says so.
+    expect(screen.getAllByText("Unpublished")).toHaveLength(1);
+    // Retiring a pending task takes nothing from learners, and says so.
     fireEvent.click(
-      screen.getByRole("button", { name: "Retire waiting task “Goodbye, in Spanish?”" }),
+      screen.getByRole("button", { name: "Retire unpublished task “Goodbye, in Spanish?”" }),
     );
     expect((await screen.findByRole("alertdialog")).textContent).toContain(
       "It was never published, so learners have not been asked it.",
@@ -123,11 +123,11 @@ describe("the console", () => {
       { organizationId: "org-1", courseIds: [], taskIds: ["t2"] },
       { signal: expect.any(AbortSignal) },
     );
-    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByText("Unpublished")).toBeNull();
     expect(screen.queryByRole("button", { name: /^Publish/ })).toBeNull();
   });
 
-  test("marks a tool's waiting correction, saying first that changing its task retires it", async () => {
+  test("marks a tool's pending correction, saying first that changing its task retires it", async () => {
     const [greetings, numbers] = beginners.objectives;
     const [original] = greetings!.tasks;
     renderAt("/example/courses/course-1", {
@@ -155,11 +155,11 @@ describe("the console", () => {
     ).toBeTruthy();
     const retireOriginal = screen.getByRole("button", { name: "Retire “Hello, in Spanish?”" });
     const retireCorrection = screen.getByRole("button", {
-      name: "Retire waiting task “Hello, in Spanish?”",
+      name: "Retire unpublished task “Hello, in Spanish?”",
     });
     // The correction waits first, the task as published beside it to compare, its
     // buttons under What it teaches, with the published tasks.
-    const review = screen.getByRole("region", { name: "Waiting for review" });
+    const review = screen.getByRole("region", { name: "Needs review" });
     expect(within(review).getByText("As published now:")).toBeTruthy();
     expect(within(review).getAllByText("Hello, in Spanish?")).toHaveLength(2);
     expect(
@@ -167,8 +167,8 @@ describe("the console", () => {
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label")),
     ).toEqual([
-      "Edit waiting task “Hello, in Spanish?”",
-      "Retire waiting task “Hello, in Spanish?”",
+      "Edit unpublished task “Hello, in Spanish?”",
+      "Retire unpublished task “Hello, in Spanish?”",
     ]);
     expect(
       within(screen.getByRole("region", { name: "What it teaches" })).getAllByText(
@@ -177,23 +177,23 @@ describe("the console", () => {
     ).toHaveLength(1);
     fireEvent.click(retireOriginal);
     expect((await screen.findByRole("alertdialog")).textContent).toContain(
-      "what they already answered stays. The correction waiting for review is retired with it. To change it instead, edit it.",
+      "what they already answered stays. The correction that needs review is retired with it. To change it instead, edit it.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
     // The correction's own retirement leaves the task it corrects as it is.
     fireEvent.click(retireCorrection);
     expect((await screen.findByRole("alertdialog")).textContent).not.toContain(
-      "The correction waiting",
+      "The correction that needs review",
     );
     fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" }));
     expect(
-      await screen.findByText(/The correction waiting for review is retired with it\.$/),
+      await screen.findByText(/The correction that needs review is retired with it\.$/),
     ).toBeTruthy();
   });
 
-  test("publishes a tool's course with its waiting tasks, counting them", async () => {
+  test("publishes a tool's course with its pending tasks, counting them", async () => {
     let published = false;
     const publish = vi.fn<BraivoClient["publish"]>(async () => {
       published = true;
@@ -226,7 +226,7 @@ describe("the console", () => {
     );
   });
 
-  test("publishes the waiting tasks selected, an objective's at once, leaving the rest waiting", async () => {
+  test("publishes the pending tasks selected, an objective's at once, leaving the rest pending", async () => {
     const published = new Set<string>();
     const publishing = Promise.withResolvers<void>();
     const publish = vi.fn<BraivoClient["publish"]>(async ({ taskIds }) => {
@@ -234,7 +234,7 @@ describe("the console", () => {
       for (const id of taskIds ?? []) published.add(id);
     });
     const [greetings, numbers] = beginners.objectives;
-    const waiting = (id: string, prompt: string) => ({
+    const pendingTask = (id: string, prompt: string) => ({
       ...greetings!.tasks[0]!,
       id,
       prompt,
@@ -249,11 +249,11 @@ describe("the console", () => {
               ...greetings!,
               tasks: [
                 ...greetings!.tasks,
-                waiting("t2", "Goodbye, in Spanish?"),
-                waiting("t3", "Thanks, in Spanish?"),
+                pendingTask("t2", "Goodbye, in Spanish?"),
+                pendingTask("t3", "Thanks, in Spanish?"),
               ],
             },
-            { ...numbers!, tasks: [waiting("t4", "One, in Spanish?")] },
+            { ...numbers!, tasks: [pendingTask("t4", "One, in Spanish?")] },
           ],
         }),
         publish,
@@ -264,27 +264,29 @@ describe("the console", () => {
     const selected = await screen.findByRole("button", { name: "Publish selected (0)" });
     expect(selected.hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Publish all (3)" })).toBeTruthy();
-    // Waiting work first, each task once: the published one only under What it teaches.
-    const review = screen.getByRole("region", { name: "Waiting for review" });
+    // Pending work first, each task once: the published one only under What it teaches.
+    const review = screen.getByRole("region", { name: "Needs review" });
     expect(within(review).queryByText("Hello, in Spanish?")).toBeNull();
     const teaches = screen.getByRole("region", { name: "What it teaches" });
     expect(within(teaches).queryByText("Goodbye, in Spanish?")).toBeNull();
     expect(
       within(within(teaches).getByRole("article", { name: "2. Numbers" })).getByText(
-        "No published tasks: learners are not asked about it until you publish the one waiting above.",
+        "No published tasks: learners are not asked about it until you publish the one needing review above.",
       ),
     ).toBeTruthy();
 
-    // An objective selects its waiting tasks; one of them is then left out.
+    // An objective selects its pending tasks; one of them is then left out.
     const all = within(review).getByRole("checkbox", { name: "Select all 2 of “Greetings”" });
     fireEvent.click(all);
     expect(screen.getByRole("button", { name: "Publish selected (2)" })).toBeTruthy();
     fireEvent.click(
-      within(review).getByRole("checkbox", { name: "Select waiting task “Thanks, in Spanish?”" }),
+      within(review).getByRole("checkbox", {
+        name: "Select unpublished task “Thanks, in Spanish?”",
+      }),
     );
     expect(all.getAttribute("aria-checked")).toBe("mixed");
     fireEvent.click(
-      within(review).getByRole("checkbox", { name: "Select waiting task “One, in Spanish?”" }),
+      within(review).getByRole("checkbox", { name: "Select unpublished task “One, in Spanish?”" }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Publish selected (2)" }));
@@ -306,13 +308,11 @@ describe("the console", () => {
     expect(screen.getByRole("button", { name: "Publish selected (0)" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Publish all (1)" })).toBeTruthy();
     expect(
-      within(screen.getByRole("region", { name: "Waiting for review" })).getByText(
-        "Thanks, in Spanish?",
-      ),
+      within(screen.getByRole("region", { name: "Needs review" })).getByText("Thanks, in Spanish?"),
     ).toBeTruthy();
   });
 
-  test("publishes a tool's course without its waiting tasks, which still wait", async () => {
+  test("publishes a tool's course without its pending tasks, which still wait", async () => {
     let published = false;
     const publish = vi.fn<BraivoClient["publish"]>(async () => {
       published = true;
@@ -335,7 +335,9 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Publish without waiting tasks" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Publish without tasks needing review" }),
+    );
 
     expect(await screen.findByText("Course published.")).toBeTruthy();
     expect(publish).toHaveBeenCalledWith(
@@ -345,7 +347,7 @@ describe("the console", () => {
     expect(screen.getByRole("button", { name: "Publish all (1)" })).toBeTruthy();
   });
 
-  test("publishes a tool's course with the waiting tasks selected, which a correction meanwhile leaves", async () => {
+  test("publishes a tool's course with the pending tasks selected, which a correction meanwhile leaves", async () => {
     const [greetings, numbers] = beginners.objectives;
     const task = (id: string, prompt: string) => ({ ...greetings!.tasks[0]!, id, prompt });
     let course = {
@@ -443,7 +445,7 @@ describe("the console", () => {
     });
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Edit waiting task “Hello, in Spanish?”" }),
+      await screen.findByRole("button", { name: "Edit unpublished task “Hello, in Spanish?”" }),
     );
     // Saving the published task would retire the correction being edited.
     const editOriginal = screen.getByRole("button", { name: "Edit “Hello, in Spanish?”" });
@@ -476,7 +478,7 @@ describe("the console", () => {
     });
 
     // Publish's reload would close the editor, losing the edit.
-    fireEvent.click(await screen.findByRole("button", { name: "Edit waiting task “Bye?”" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit unpublished task “Bye?”" }));
     const all = screen.getByRole("button", { name: "Publish all (1)" });
     expect(all.hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("Save or cancel the open edit to publish.")).toBeTruthy();
@@ -486,14 +488,14 @@ describe("the console", () => {
     fireEvent.click(all);
     expect(publish).toHaveBeenCalledTimes(1);
     expect(
-      screen.getByRole("button", { name: "Edit waiting task “Bye?”" }).hasAttribute("disabled"),
+      screen.getByRole("button", { name: "Edit unpublished task “Bye?”" }).hasAttribute("disabled"),
     ).toBe(true);
     await act(async () => publishing.resolve());
   });
 
   test("names in the confirmation the other courses only the tasks it sends reach", async () => {
     const [greetings, numbers] = beginners.objectives;
-    const waiting = (id: string, prompt: string) => ({
+    const pendingTask = (id: string, prompt: string) => ({
       ...greetings!.tasks[0]!,
       id,
       prompt,
@@ -506,12 +508,12 @@ describe("the console", () => {
           objectives: [
             {
               ...greetings!,
-              tasks: [waiting("t2", "Bye?")],
+              tasks: [pendingTask("t2", "Bye?")],
               otherPublishedCourses: [{ id: "course-8", title: "Holiday Spanish" }],
             },
             {
               ...numbers!,
-              tasks: [waiting("t3", "One?")],
+              tasks: [pendingTask("t3", "One?")],
               otherPublishedCourses: [{ id: "course-9", title: "Counting" }],
             },
           ],
@@ -520,7 +522,9 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Select waiting task “Bye?”" }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Select unpublished task “Bye?”" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Publish selected (1)" }));
     const selected = await screen.findByRole("alertdialog");
     expect(
@@ -539,7 +543,7 @@ describe("the console", () => {
     ).toEqual(["Counting", "Holiday Spanish"]);
   });
 
-  test("moves the focus to the course's title once an objective's last waiting task is retired", async () => {
+  test("moves the focus to the course's title once an objective's last pending task is retired", async () => {
     let retired = false;
     const [greetings, numbers] = beginners.objectives;
     renderAt("/example/courses/course-1", {
@@ -565,13 +569,13 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retire waiting task “Bye?”" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retire unpublished task “Bye?”" }));
     fireEvent.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
     );
 
     await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Waiting for review" })).toBeNull(),
+      expect(screen.queryByRole("region", { name: "Needs review" })).toBeNull(),
     );
     await vi.waitFor(() =>
       expect(document.activeElement).toBe(
@@ -773,7 +777,7 @@ describe("the console", () => {
 
     // Leaving the page would lose the edit.
     fireEvent.click(
-      await screen.findByRole("button", { name: "Edit waiting task “Hello, in Spanish?”" }),
+      await screen.findByRole("button", { name: "Edit unpublished task “Hello, in Spanish?”" }),
     );
     const remove = screen.getByRole("button", { name: "Delete course" });
     expect(remove.hasAttribute("disabled")).toBe(true);
@@ -793,7 +797,7 @@ describe("the console", () => {
     expect(publish).not.toHaveBeenCalled();
     expect(
       screen
-        .getByRole("button", { name: "Edit waiting task “Hello, in Spanish?”" })
+        .getByRole("button", { name: "Edit unpublished task “Hello, in Spanish?”" })
         .hasAttribute("disabled"),
     ).toBe(true);
     await act(async () => deleting.resolve());

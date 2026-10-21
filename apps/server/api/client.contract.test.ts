@@ -546,7 +546,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         urlLabel: "every-phase",
         published: true,
         hidden: false,
-        waitingTaskCount: 0,
+        pendingTaskCount: 0,
       },
       {
         id: emptyCourseId,
@@ -555,7 +555,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         urlLabel: "not-started",
         published: true,
         hidden: false,
-        waitingTaskCount: 0,
+        pendingTaskCount: 0,
       },
       {
         id: courseId,
@@ -564,7 +564,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         urlLabel: "spanish",
         published: true,
         hidden: false,
-        waitingTaskCount: 0,
+        pendingTaskCount: 0,
       },
     ]);
 
@@ -950,7 +950,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       id: greetings,
       title: "Greetings",
       courseIds: [],
-      waitingTaskCount: 0,
+      pendingTaskCount: 0,
     });
     expect(
       await client.citeSources(
@@ -994,7 +994,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       // Created with a person's session, as the console does: published at once.
       published: true,
       hidden: false,
-      waitingTaskCount: 0,
+      pendingTaskCount: 0,
     });
   });
 

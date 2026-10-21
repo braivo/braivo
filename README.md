@@ -1,6 +1,6 @@
 # Braivo
 
-Adaptive learning powered by AI: turn existing educational content into a personal AI tutor.
+Adaptive learning powered by AI: turn existing educational content into adaptive practice, under your own brand.
 
 Braivo is an open-source platform for educators, schools, training providers, and the products they build. It keeps an estimate of what each learner knows, and uses it to decide what that learner should do next, so a course adapts to the person taking it instead of running the same sequence for everyone.
 

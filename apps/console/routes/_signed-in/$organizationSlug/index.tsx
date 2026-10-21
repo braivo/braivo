@@ -62,17 +62,17 @@ function Courses() {
   // What needs review, each task once (ADR 0039): under its course when its
   // objective is in that course alone, else under its objective, whose page
   // reviews it for every course it is in, or for none.
-  const waitingTaskCounts = new Map<string, number>();
-  for (const { courseIds, waitingTaskCount } of objectives) {
+  const pendingTaskCounts = new Map<string, number>();
+  for (const { courseIds, pendingTaskCount } of objectives) {
     if (courseIds.length !== 1) continue;
     const courseId = courseIds[0]!;
-    waitingTaskCounts.set(courseId, (waitingTaskCounts.get(courseId) ?? 0) + waitingTaskCount);
+    pendingTaskCounts.set(courseId, (pendingTaskCounts.get(courseId) ?? 0) + pendingTaskCount);
   }
-  // One in no course is listed even with nothing waiting: no course page
+  // One in no course is listed even with nothing pending: no course page
   // leads to it, and its published tasks are edited and retired there.
   const otherObjectives = objectives.filter(
-    ({ courseIds, waitingTaskCount }) =>
-      courseIds.length === 0 || (courseIds.length > 1 && waitingTaskCount > 0),
+    ({ courseIds, pendingTaskCount }) =>
+      courseIds.length === 0 || (courseIds.length > 1 && pendingTaskCount > 0),
   );
 
   return (
@@ -127,11 +127,11 @@ function Courses() {
           {courses.map((course) => {
             // A tool's course, or a published one's new tasks, reached by no
             // learner until published on its page.
-            const waiting = waitingTaskCounts.get(course.id) ?? 0;
+            const pending = pendingTaskCounts.get(course.id) ?? 0;
             const review = !course.published
               ? "Needs review"
-              : waiting > 0
-                ? formatReviewCount(waiting)
+              : pending > 0
+                ? formatReviewCount(pending)
                 : undefined;
             // Hidden from learners since it was published, first: what they meet now.
             const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
@@ -175,8 +175,8 @@ function Courses() {
           <LinkList>
             {otherObjectives.map((objective) => {
               const review =
-                objective.waitingTaskCount > 0
-                  ? formatReviewCount(objective.waitingTaskCount)
+                objective.pendingTaskCount > 0
+                  ? formatReviewCount(objective.pendingTaskCount)
                   : undefined;
               const placed = objective.courseIds.length;
               const noteId = `${id}-${objective.id}`;
