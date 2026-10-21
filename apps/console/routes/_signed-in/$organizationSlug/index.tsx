@@ -12,19 +12,21 @@ import {
   EmptyTitle,
 } from "@braivo/ui/components/empty";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { PlusIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import { useId } from "react";
 
 import { AiAppGuideLink } from "#components/ai-app-guide-link";
 import { LearnersSite } from "#components/learners-site";
+import { LinkList, linkRow } from "#components/link-list";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
- * A listed course's or objective's row: its link, then its marks and note,
- * spaced by a gap, not a margin, so a mark that wraps starts where the link does.
+ * A listed course's or objective's title, then its marks and note, spaced by a
+ * gap, not a margin, so a mark that wraps starts where the title does.
  */
-const listRow = "flex flex-wrap items-baseline gap-x-2 gap-y-1";
+const titleRow = "flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
   // Courses are an author's (ADR 0048); someone who only teaches lands on their groups.
@@ -56,6 +58,7 @@ function Courses() {
   const { courses, objectives } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
   const { learnDomain, aiEnabled } = Route.useRouteContext().organization;
+  const id = useId();
   // What needs review, each task once (ADR 0039): under its course when its
   // objective is in that course alone, else under its objective, whose page
   // reviews it for every course it is in, or for none.
@@ -120,7 +123,7 @@ function Courses() {
           </EmptyContent>
         </Empty>
       ) : (
-        <ul className="list-disc pl-6">
+        <LinkList>
           {courses.map((course) => {
             // A tool's course, or a published one's new tasks, reached by no
             // learner until published on its page.
@@ -134,28 +137,31 @@ function Courses() {
             const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
             return (
               <li key={course.id}>
-                <div className={listRow}>
-                  <Link
-                    to="/$organizationSlug/courses/$courseId"
-                    params={{ organizationSlug, courseId: course.id }}
-                    className="underline wrap-anywhere"
-                  >
-                    {course.title}
-                    {/* In the link's name, so it is heard while moving from link to link. */}
-                    {marks.length > 0 && (
-                      <span className="sr-only"> ({marks.join(", ").toLowerCase()})</span>
-                    )}
-                  </Link>
-                  {marks.map((mark) => (
-                    <Badge key={mark} variant="outline" aria-hidden="true">
-                      {mark}
-                    </Badge>
-                  ))}
-                </div>
+                <Link
+                  to="/$organizationSlug/courses/$courseId"
+                  params={{ organizationSlug, courseId: course.id }}
+                  className={linkRow}
+                >
+                  <span className={titleRow}>
+                    <span className="wrap-anywhere">
+                      {course.title}
+                      {/* In the link's name, so it is heard while moving from link to link. */}
+                      {marks.length > 0 && (
+                        <span className="sr-only"> ({marks.join(", ").toLowerCase()})</span>
+                      )}
+                    </span>
+                    {marks.map((mark) => (
+                      <Badge key={mark} variant="outline" aria-hidden="true">
+                        {mark}
+                      </Badge>
+                    ))}
+                  </span>
+                  <Chevron />
+                </Link>
               </li>
             );
           })}
-        </ul>
+        </LinkList>
       )}
       {otherObjectives.length > 0 && (
         <section aria-labelledby="other-objectives" className="mt-8">
@@ -166,37 +172,49 @@ function Courses() {
             In no course, or in several with tasks to review: each is listed here once, its tasks
             reviewed on its page.
           </MutedText>
-          <ul className="list-disc pl-6">
+          <LinkList>
             {otherObjectives.map((objective) => {
               const review =
                 objective.waitingTaskCount > 0
                   ? formatReviewCount(objective.waitingTaskCount)
                   : undefined;
               const placed = objective.courseIds.length;
+              const noteId = `${id}-${objective.id}`;
               return (
                 <li key={objective.id}>
-                  <div className={listRow}>
-                    <Link
-                      to="/$organizationSlug/objectives/$objectiveId"
-                      params={{ organizationSlug, objectiveId: objective.id }}
-                      className="underline wrap-anywhere"
-                    >
-                      {objective.title}
-                      {review && <span className="sr-only"> ({review})</span>}
-                    </Link>
-                    {review && (
-                      <Badge variant="outline" aria-hidden="true">
-                        {review}
-                      </Badge>
-                    )}
-                    <MutedText>{placed === 0 ? "In no course" : `In ${placed} courses`}</MutedText>
-                  </div>
+                  <Link
+                    to="/$organizationSlug/objectives/$objectiveId"
+                    params={{ organizationSlug, objectiveId: objective.id }}
+                    className={linkRow}
+                    aria-describedby={noteId}
+                  >
+                    <span className={titleRow}>
+                      <span className="wrap-anywhere">
+                        {objective.title}
+                        {review && <span className="sr-only"> ({review})</span>}
+                      </span>
+                      {review && (
+                        <Badge variant="outline" aria-hidden="true">
+                          {review}
+                        </Badge>
+                      )}
+                      {/* The link's description, so its name stays the title and what waits. */}
+                      <MutedText id={noteId} aria-hidden="true" className="font-normal">
+                        {placed === 0 ? "In no course" : `In ${placed} courses`}
+                      </MutedText>
+                    </span>
+                    <Chevron />
+                  </Link>
                 </li>
               );
             })}
-          </ul>
+          </LinkList>
         </section>
       )}
     </>
   );
 }
+
+const Chevron = () => (
+  <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+);

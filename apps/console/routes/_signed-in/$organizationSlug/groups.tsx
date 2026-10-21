@@ -18,6 +18,7 @@ import { ChevronRightIcon } from "lucide-react";
 
 import { Disclosure } from "#components/disclosure";
 import { LearnersSite } from "#components/learners-site";
+import { LinkList, linkRow } from "#components/link-list";
 import { NameTag } from "#components/name-tag";
 import { sharedNameTags } from "#lib/name-tags";
 import { orNotFound, administratorsOrTeachersOnly } from "#lib/refusals";
@@ -167,14 +168,14 @@ function GroupSection({ group, tags }: { group: Group; tags: Map<string, string>
           )}
         </MutedText>
       ) : (
-        <ul className="mt-3 divide-y overflow-hidden rounded-xl border">
+        <LinkList className="mt-3">
           {group.courses.map((course) => (
             <li key={course.id}>
               <Link
                 to="/$organizationSlug/courses/$courseId/progress"
                 params={{ organizationSlug, courseId: course.id }}
                 search={{ from: "groups" }}
-                className="flex min-h-11 items-center justify-between gap-2 px-3 py-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-9"
+                className={linkRow}
               >
                 <span className="wrap-anywhere">{course.title}</span>
                 <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground">
@@ -184,7 +185,7 @@ function GroupSection({ group, tags }: { group: Group; tags: Map<string, string>
               </Link>
             </li>
           ))}
-        </ul>
+        </LinkList>
       )}
     </section>
   );
