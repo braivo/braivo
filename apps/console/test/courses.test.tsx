@@ -122,8 +122,11 @@ describe("the console", () => {
       // In no course, nothing waiting: listed still, as no course leads to it.
       "WeatherIn no course",
     ]);
+    // Where it is, the link's description, not part of its name.
     expect(
-      objectives.getByRole("link", { name: "Colours (1 task needs review)" }).getAttribute("href"),
+      objectives
+        .getByRole("link", { name: "Colours (1 task needs review)", description: "In no course" })
+        .getAttribute("href"),
     ).toBe("/example/objectives/o5");
   });
 
