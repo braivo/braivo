@@ -138,6 +138,100 @@ describe("the console", () => {
     ]);
   });
 
+  test("draws each row's counts as one bar under its name, coloured as its column's heading", async () => {
+    const standings = (unseen: number, acquiring: number, retained: number, due: number) => ({
+      unseen,
+      acquiring,
+      retained,
+      due,
+    });
+    renderAt("/example/courses/course-1/progress", {
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        courseProgress: async () => ({
+          ...(await courseProgress()),
+          learners: [
+            { ...members[1]!, standings: standings(1, 2, 4, 3) },
+            { ...members[0]!, standings: standings(0, 0, 0, 0) },
+          ],
+          objectives: [
+            { objectiveId: "greetings", title: "Greetings", standings: standings(0, 0, 2, 0) },
+            { objectiveId: "numbers", title: "Numbers", standings: standings(1, 0, 0, 1) },
+          ],
+        }),
+      },
+    });
+
+    // ADR 0037's colours, in the columns' order.
+    const colours = {
+      unseen: "bg-chart-4",
+      acquiring: "bg-chart-3",
+      retained: "bg-chart-1",
+      due: "bg-chart-2",
+    };
+    for (const [name, expected] of [
+      [
+        "Learners",
+        {
+          "Lee Learner": [
+            ["unseen", "1"],
+            ["acquiring", "2"],
+            ["retained", "4"],
+            ["due", "3"],
+          ],
+          "Olive Owner": null,
+        },
+      ],
+      [
+        "Progress by objective",
+        {
+          Greetings: [["retained", "2"]],
+          Numbers: [
+            ["unseen", "1"],
+            ["due", "1"],
+          ],
+        },
+      ],
+    ] as const) {
+      const table = await screen.findByRole("table", { name });
+      const [header, ...rows] = within(table).getAllByRole("row");
+      // Each heading's swatch is its standing's colour in the bars.
+      const swatches = within(header!)
+        .getAllByRole("columnheader")
+        .slice(1)
+        .map((cell) => cell.querySelector(":scope > [aria-hidden]")!);
+      expect(swatches.map((swatch) => swatch.getAttribute("aria-hidden"))).toEqual(
+        Array(4).fill("true"),
+      );
+      Object.values(colours).forEach((colour, index) =>
+        expect(swatches[index]!.classList.contains(colour)).toBe(true),
+      );
+      const bars = Object.fromEntries(
+        rows.map((row) => {
+          const label = within(row).getByRole("rowheader");
+          const bar = label.querySelector<HTMLElement>(":scope > [aria-hidden]");
+          if (!bar) return [label.textContent, null];
+          expect(bar.getAttribute("aria-hidden")).toBe("true");
+          const segments = [...bar.querySelectorAll<HTMLElement>(":scope > *")].map(
+            ({ dataset, classList, style }) => {
+              const standing = dataset.standing as keyof typeof colours;
+              expect(classList.contains(colours[standing])).toBe(true);
+              return [standing, style.flexGrow];
+            },
+          );
+          // The bar is no part of the row's name.
+          return [label.textContent, segments];
+        }),
+      );
+      expect(bars).toEqual(expected);
+      for (const label of Object.keys(expected)) {
+        expect(within(table).getByRole("rowheader", { name: label })).toBeTruthy();
+      }
+    }
+  });
+
   test("shows where a learner stands on each objective, by title", async () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
