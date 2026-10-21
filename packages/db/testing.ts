@@ -140,7 +140,7 @@ export async function seedOrganization(
 /**
  * Stores a task and returns its generated ID. The body is stored as given: a
  * suite passes one the server's `content` module would accept. Published when
- * created unless `publishedAt` says otherwise, `null` for one still waiting.
+ * created unless `publishedAt` says otherwise, `null` for one still pending.
  */
 export async function createTask(
   database: Database,

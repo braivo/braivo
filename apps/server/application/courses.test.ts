@@ -92,12 +92,12 @@ describe.skipIf(!connectionString)("defining courses", () => {
         urlLabel: "spanish",
         published: true,
         hidden: false,
-        waitingTaskCount: 0,
+        pendingTaskCount: 0,
       },
     ]);
   });
 
-  test("lists each course with the tasks of its objectives waiting for review", async () => {
+  test("lists each course with the tasks of its objectives pending review", async () => {
     const both = await define([alpha, bravo], author, "Both");
     const shared = await define([bravo], author, "Shared");
     const none = await define([alpha], author, "None");
@@ -115,7 +115,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       });
     // Published, from the console: nothing to review.
     await write(alpha, ["Published?"], false);
-    const [, retired] = await write(bravo, ["Waiting?", "Retired?", "Also waiting?"], true);
+    const [, retired] = await write(bravo, ["Pending?", "Retired?", "Also pending?"], true);
     await retireTasks({
       database,
       organizationId,
@@ -125,14 +125,14 @@ describe.skipIf(!connectionString)("defining courses", () => {
       byTool: true,
     });
 
-    const waiting = new Map(
+    const pending = new Map(
       (await listCourses({ database, organizationId, actingAs: author })).map((course) => [
         course.id,
-        course.waitingTaskCount,
+        course.pendingTaskCount,
       ]),
     );
     // A task of an objective two courses share waits in both.
-    expect(waiting).toEqual(
+    expect(pending).toEqual(
       new Map([
         [both, 2],
         [shared, 2],
@@ -185,7 +185,7 @@ describe.skipIf(!connectionString)("defining courses", () => {
       urlLabel: "trimmed",
       published: true,
       hidden: false,
-      waitingTaskCount: 0,
+      pendingTaskCount: 0,
     });
   });
 

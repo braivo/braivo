@@ -262,7 +262,7 @@ export async function readCourses(
  * objectives' tasks, unretired and unpublished (ADR 0039). A task of an
  * objective two courses share counts in both. Courses with none are left out.
  */
-export async function readWaitingTaskCounts(
+export async function readPendingTaskCounts(
   database: Database,
   organizationId: string,
 ): Promise<Map<string, number>> {

@@ -604,7 +604,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       ])) as [string, string];
 
       // Answered by the other task, it would retire one and take the other's
-      // state, published or waiting, rather than its own (ADR 0039).
+      // state, published or pending, rather than its own (ADR 0039).
       await expect(correct(a, { ...choice, answer: 1 })).rejects.toBeInstanceOf(
         DuplicateCorrection,
       );
@@ -676,7 +676,7 @@ describe.skipIf(!connectionString)("tasks", () => {
         return { published: row.publishedAt !== null, retired: row.retiredAt !== null };
       });
     };
-    const waiting = { published: false, retired: false };
+    const pending = { published: false, retired: false };
     const live = { published: true, retired: false };
 
     test("leaves a twin as it is: only Publish publishes", async () => {
@@ -689,12 +689,12 @@ describe.skipIf(!connectionString)("tasks", () => {
         { objectiveId: objective, body: { ...choice, answer: 1 } },
       ])) as [string];
 
-      // The console's same task answers the waiting one, still waiting; a tool's, the published one.
+      // The console's same task answers the pending one, still pending; a tool's, the published one.
       expect(await define([{ objectiveId: objective, body: choice }])).toEqual([proposed]);
       expect(
         await define([{ objectiveId: objective, body: { ...choice, answer: 1 } }], author, asTool),
       ).toEqual([offered]);
-      expect(await states([proposed, offered])).toEqual([waiting, live]);
+      expect(await states([proposed, offered])).toEqual([pending, live]);
     });
 
     /** The task a learner of the course is offered next. */
@@ -720,7 +720,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
 
       const [correction] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
-      expect(await states([task, correction])).toEqual([live, waiting]);
+      expect(await states([task, correction])).toEqual([live, pending]);
       expect(await nextTask()).toBe(task);
       // Read back naming the task it corrects; created in the same instant, in either order.
       const listed = await listObjectiveTasks({
@@ -739,10 +739,10 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await correctAsTool(task, choice)).toEqual([task]);
       // One waits at a time: a second is refused, naming the one to correct instead.
       await expect(correctAsTool(task, { ...choice, prompt: "Which one?" })).rejects.toMatchObject({
-        name: "CorrectionWaiting",
-        waitingId: correction,
+        name: "CorrectionPending",
+        pendingId: correction,
       });
-      // Correcting the waiting one replaces it at once, for the same task.
+      // Correcting the pending one replaces it at once, for the same task.
       const [revised] = (await correctAsTool(correction, {
         ...choice,
         prompt: "Which one?",
@@ -750,7 +750,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await states([task, correction, revised])).toEqual([
         live,
         { published: false, retired: true },
-        waiting,
+        pending,
       ]);
 
       await publishTasks([revised]);
@@ -760,7 +760,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await correctAsTool(task, { ...choice, prompt: "Which one?" })).toEqual([revised]);
     });
 
-    test("retires a waiting correction with its task, corrected or retired in the console", async () => {
+    test("retires a pending correction with its task, corrected or retired in the console", async () => {
       const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
       const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
 
@@ -781,7 +781,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       ]);
     });
 
-    test("lets a tool withdraw its waiting correction, the task still offered", async () => {
+    test("lets a tool withdraw its pending correction, the task still offered", async () => {
       const [task] = (await define([{ objectiveId: objective, body: choice }])) as [string];
       const [proposed] = (await correctAsTool(task, { ...choice, answer: 1 })) as [string];
 
@@ -791,7 +791,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       const [another] = (await correctAsTool(task, { ...choice, prompt: "Which one?" })) as [
         string,
       ];
-      expect(await states([another])).toEqual([waiting]);
+      expect(await states([another])).toEqual([pending]);
     });
 
     test("refuses a Publish naming a correction retired since, publishing nothing", async () => {
@@ -808,11 +808,11 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await states([task, proposed, added])).toEqual([
         { published: true, retired: true },
         { published: false, retired: true },
-        waiting,
+        pending,
       ]);
     });
 
-    test("brings a re-imported original back only as waiting, after the console changed it", async () => {
+    test("brings a re-imported original back only as pending, after the console changed it", async () => {
       for (const change of ["correct", "retire"] as const) {
         const body = { ...choice, prompt: `Imported, then ${change}d?` };
         const [task] = (await define([{ objectiveId: objective, body }], author, asTool)) as [
@@ -830,11 +830,11 @@ describe.skipIf(!connectionString)("tasks", () => {
           string,
         ];
         expect(again).not.toBe(task);
-        expect(await states([again])).toEqual([waiting]);
+        expect(await states([again])).toEqual([pending]);
       }
     });
 
-    test("marks a waiting task the same as one retired, in the console or by a correction", async () => {
+    test("marks a pending task the same as one retired, in the console or by a correction", async () => {
       const lesson = await addLesson();
       const cites = (...quotes: string[]) => quotes.map((quote) => ({ sourceId: lesson, quote }));
       const asked = (prompt: string) => ({ ...choice, prompt });
@@ -921,16 +921,16 @@ describe.skipIf(!connectionString)("tasks", () => {
     });
 
     test("settles a tool's correction racing Publish either way, never both changing one task", async () => {
-      // A waiting task, then a published one's waiting correction: the two the race changes.
+      // A pending task, then a published one's pending correction: the two the race changes.
       const [proposed] = (await define(
-        [{ objectiveId: objective, body: { ...choice, prompt: "Racing, waiting?" } }],
+        [{ objectiveId: objective, body: { ...choice, prompt: "Racing, pending?" } }],
         author,
         asTool,
       )) as [string];
       const [task] = (await define([
         { objectiveId: objective, body: { ...choice, prompt: "Racing, published?" } },
       ])) as [string];
-      const [pending] = (await correctAsTool(task, {
+      const [correction] = (await correctAsTool(task, {
         ...choice,
         prompt: "Racing, published?",
         answer: 1,
@@ -938,7 +938,7 @@ describe.skipIf(!connectionString)("tasks", () => {
 
       // Either may win, and each order has a sequential test: this proves the
       // race settles one way or the other, never an error or both.
-      for (const raced of [proposed, pending]) {
+      for (const raced of [proposed, correction]) {
         const [published, corrected] = await Promise.allSettled([
           publishTasks([raced]),
           correctAsTool(raced, { ...choice, prompt: `Revised ${raced}?` }),
@@ -947,23 +947,23 @@ describe.skipIf(!connectionString)("tasks", () => {
         const [revision] = (corrected as PromiseFulfilledResult<string[]>).value as [string];
         if (published.status === "fulfilled") {
           // Published first: the correction waits beside it.
-          expect(await states([raced, revision])).toEqual([live, waiting]);
-          if (raced === pending)
+          expect(await states([raced, revision])).toEqual([live, pending]);
+          if (raced === correction)
             expect(await states([task])).toEqual([{ published: true, retired: true }]);
         } else {
           // Corrected first: replaced at once, so Publish found it retired.
           expect(published.reason).toBeInstanceOf(StalePublication);
           expect(await states([raced, revision])).toEqual([
             { published: false, retired: true },
-            waiting,
+            pending,
           ]);
-          if (raced === pending) expect(await states([task])).toEqual([live]);
+          if (raced === correction) expect(await states([task])).toEqual([live]);
         }
       }
     });
 
     test("refuses a Publish of a correction whose task is retired, however that came about", async () => {
-      // Never written by Braivo, which retires a task's waiting correction with it.
+      // Never written by Braivo, which retires a task's pending correction with it.
       const corrected = crypto.randomUUID();
       const correction = crypto.randomUUID();
       await database.insert(taskTable).values([
@@ -987,7 +987,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       ]);
 
       await expect(publishTasks([correction])).rejects.toBeInstanceOf(StalePublication);
-      expect(await states([correction])).toEqual([waiting]);
+      expect(await states([correction])).toEqual([pending]);
     });
 
     test("refuses a tool's retirement of a task once published, even retired since, changing nothing", async () => {
@@ -1010,7 +1010,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       ).rejects.toBeInstanceOf(StaleCorrection);
       expect(await states([retired, proposed])).toEqual([
         { published: true, retired: true },
-        waiting,
+        pending,
       ]);
     });
 
@@ -1056,7 +1056,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await states([task, proposed])).toEqual([{ published: true, retired: true }, live]);
     });
 
-    test("locks the task a waiting correction corrects first, as Publish does, never deadlocking", async () => {
+    test("locks the task a pending correction corrects first, as Publish does, never deadlocking", async () => {
       // Sorting first, as Publish then locks it before the correction.
       const corrected = `lock-a-${crypto.randomUUID()}`;
       const correction = `lock-b-${crypto.randomUUID()}`;
@@ -1098,7 +1098,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       expect(await states([corrected, correction, revised])).toEqual([
         live,
         { published: false, retired: true },
-        waiting,
+        pending,
       ]);
     });
   });

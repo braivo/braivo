@@ -37,12 +37,12 @@ test("on a phone, puts a listed title's marks beside it, or below from where it 
         },
       ],
       listObjectives: async () => [
-        { id: "o1", title: "Greetings", courseIds: ["c2"], waitingTaskCount: 3 },
+        { id: "o1", title: "Greetings", courseIds: ["c2"], pendingTaskCount: 3 },
         {
           id: "o2",
           title: "Thank someone who has helped you, and answer when someone thanks you",
           courseIds: [],
-          waitingTaskCount: 2,
+          pendingTaskCount: 2,
         },
       ],
     },
@@ -82,8 +82,8 @@ test("lists courses and objectives as rows of one bordered list, each row its li
         { id: "c2", number: 1002, title: "German", urlLabel: "german", published: true },
       ],
       listObjectives: async () => [
-        { id: "o1", title: "Greetings", courseIds: [], waitingTaskCount: 0 },
-        { id: "o2", title: "Thanks", courseIds: [], waitingTaskCount: 1 },
+        { id: "o1", title: "Greetings", courseIds: [], pendingTaskCount: 0 },
+        { id: "o2", title: "Thanks", courseIds: [], pendingTaskCount: 1 },
       ],
     },
   });

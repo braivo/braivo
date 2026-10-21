@@ -23,7 +23,7 @@ import { pageHead } from "#lib/title";
 /**
  * An objective's tasks, reviewed once for every course it is in, or for none
  * (ADR 0039): where the organization's page leads for an objective in no
- * course, or in several with tasks waiting. A course's page shows them too.
+ * course, or in several with tasks pending. A course's page shows them too.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/objectives/$objectiveId")({
   beforeLoad: authorsOnly,
@@ -68,8 +68,8 @@ function Objective() {
   // Present from the start, so what Publish did is announced.
   const [statusMessage, setStatusMessage] = useState("");
   const selection = useTaskSelection();
-  const waiting = tasks.filter(({ published }) => !published);
-  const selected = waiting.filter(({ id }) => selection.selectedIds.has(id));
+  const pending = tasks.filter(({ published }) => !published);
+  const selected = pending.filter(({ id }) => selection.selectedIds.has(id));
   // One editor on the page, open only while its task is listed, as on a course's.
   const [editingId, setEditingId] = useState<string>();
   const editing = tasks.some(({ id }) => id === editingId) ? editingId : undefined;
@@ -146,21 +146,21 @@ function Objective() {
           </>
         )}
       </MutedText>
-      {waiting.length > 0 && (
+      {pending.length > 0 && (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
             <Badge variant="outline">Needs review</Badge>
             <MutedText className="wrap-break-word">
-              {`${formatTaskCount(waiting.length)} below ${waiting.length === 1 ? "waits" : "wait"} for review: `}
+              {`${formatTaskCount(pending.length)} below ${pending.length === 1 ? "waits" : "wait"} for review: `}
               {publishedCourses.length > 0
-                ? `learners aren't asked ${waiting.length === 1 ? "it" : "them"} until you publish.`
-                : `learners are asked ${waiting.length === 1 ? "it" : "them"} once you publish and a published course includes this objective.`}
+                ? `learners aren't asked ${pending.length === 1 ? "it" : "them"} until you publish.`
+                : `learners are asked ${pending.length === 1 ? "it" : "them"} once you publish and a published course includes this objective.`}
             </MutedText>
           </div>
           <PublishBar
             actions={[
               publishAction("selected", `Publish selected (${selected.length})`, selected),
-              publishAction("all", `Publish all (${waiting.length})`, waiting),
+              publishAction("all", `Publish all (${pending.length})`, pending),
             ]}
             publishing={publication.publishing}
             note={editing !== undefined ? "Save or cancel the open edit to publish." : undefined}
@@ -172,14 +172,14 @@ function Objective() {
         {statusMessage}
       </MutedText>
       {/* Whatever is focused or scrolled to stops clear of Publish's sticky buttons. */}
-      {waiting.length > 0 && (
-        <section aria-labelledby="waiting" className="mb-10 flex flex-col gap-3 **:scroll-mt-40">
+      {pending.length > 0 && (
+        <section aria-labelledby="pending" className="mb-10 flex flex-col gap-3 **:scroll-mt-40">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-            <Heading level={2} id="waiting" className="mb-0">
-              Waiting for review
+            <Heading level={2} id="pending" className="mb-0">
+              Needs review
             </Heading>
             <SelectAll
-              taskIds={waiting.map(({ id }) => id)}
+              taskIds={pending.map(({ id }) => id)}
               selection={selection}
               objectiveTitle={objective.title}
             />
@@ -187,7 +187,7 @@ function Objective() {
           <TaskList
             objectiveId={objective.id}
             tasks={tasks}
-            waiting
+            showPending
             sources={sources}
             selection={selection}
             editing={editing}
@@ -201,7 +201,7 @@ function Objective() {
         <Heading level={2} id="published">
           Published tasks
         </Heading>
-        {tasks.length === waiting.length && (
+        {tasks.length === pending.length && (
           <MutedText>None yet: learners are not asked about it.</MutedText>
         )}
         <TaskList

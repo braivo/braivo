@@ -25,7 +25,7 @@ import {
   readObjectiveTitles,
   readPublishedCoursesByObjective,
   readSources,
-  readWaitingTaskCounts,
+  readPendingTaskCounts,
   updateCourseHidden,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
@@ -227,7 +227,7 @@ export async function setCourseUrlLabel(input: {
  * A course as its organization lists it: with how many of its tasks wait for
  * review, so a published course with new work is found from the list.
  */
-export type CourseSummary = ManagedCourse & { waitingTaskCount: number };
+export type CourseSummary = ManagedCourse & { pendingTaskCount: number };
 
 /** Every course an organization has, for whoever may author in it. */
 export async function listCourses(input: {
@@ -239,11 +239,11 @@ export async function listCourses(input: {
 
   await assertMayAuthor(database, { organizationId, userId: actingAs });
 
-  const [courses, waiting] = await Promise.all([
+  const [courses, pending] = await Promise.all([
     readCourses(database, organizationId),
-    readWaitingTaskCounts(database, organizationId),
+    readPendingTaskCounts(database, organizationId),
   ]);
-  return courses.map((course) => ({ ...course, waitingTaskCount: waiting.get(course.id) ?? 0 }));
+  return courses.map((course) => ({ ...course, pendingTaskCount: pending.get(course.id) ?? 0 }));
 }
 
 /**
@@ -274,7 +274,7 @@ export async function listLearnerCourses(input: {
 /**
  * A course as its content owner authored it: its objectives in the order
  * learners meet them, each with the passages that teach it and the tasks that
- * practise it — answers included, published or waiting — and the sources
+ * practise it — answers included, published or pending — and the sources
  * those passages are from.
  */
 export type AuthoredCourse = ManagedCourse & {

@@ -671,10 +671,10 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(await refused("read_course", { organizationId, courseId: otherCourseId })).toBe(true);
     expect(await refused("read_source", { organizationId, sourceId: otherSourceId })).toBe(true);
     // Nor writes there, or retires a task there it could retire in its own:
-    // one waiting, so only the organization refuses it.
+    // one pending, so only the organization refuses it.
     const [theirs] = await createObjectives(database, otherOrganizationId, ["Count to two"]);
     const task = { kind: "choice", prompt: "1, …?", options: ["1", "2"], answer: 1 };
-    const waiting = await testing.createTask(database, {
+    const pending = await testing.createTask(database, {
       organizationId: otherOrganizationId,
       objectiveId: theirs!,
       body: task,
@@ -688,14 +688,14 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       }),
     ).toBe(true);
     expect(
-      await refused("retire_tasks", { organizationId: otherOrganizationId, taskIds: [waiting] }),
+      await refused("retire_tasks", { organizationId: otherOrganizationId, taskIds: [pending] }),
     ).toBe(true);
     expect(
       await inConsole(teacher).listTasks({
         organizationId: otherOrganizationId,
         objectiveId: theirs!,
       }),
-    ).toEqual([expect.objectContaining({ id: waiting, published: false })]);
+    ).toEqual([expect.objectContaining({ id: pending, published: false })]);
     await client.close();
 
     // Routes no tool here calls: a course by its ID alone, its own
@@ -877,7 +877,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     });
     expect(await asked()).toBeUndefined();
 
-    // Its own proposal, still waiting, it may withdraw; the other the teacher publishes.
+    // Its own proposal, still pending, it may withdraw; the other the teacher publishes.
     expect(await call("retire_tasks", { taskIds: [withdrawn] })).toEqual({ retired: [withdrawn] });
     await inConsole(teacher).publish({ organizationId, taskIds: [kept] });
     expect(await asked()).toBe(kept);

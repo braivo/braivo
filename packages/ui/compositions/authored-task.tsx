@@ -12,7 +12,7 @@ import { MutedText } from "./muted-text.tsx";
  * A task as written, for reviewing rather than answering: a choice task's
  * options in their order, the correct one marked in words; a typed task's
  * accepted answers, the one a learner who missed is shown marked. `status`
- * says where it stands (waiting for review, say); `action` is what the
+ * says where it stands (pending review, say); `action` is what the
  * reviewer can do with it (retire it, say); `notice` what came of that, first
  * under the row, not beside `action`, where it squeezes the prompt; `children`
  * the passages it was written from, as `SourcePassage`s.

@@ -52,8 +52,8 @@ describe.skipIf(!connectionString)("objectives", () => {
     ]);
 
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: fractions!, title: "Fractions", courseIds: [], waitingTaskCount: 0 },
-      { id: pastTense!, title: "Past tense", courseIds: [], waitingTaskCount: 0 },
+      { id: fractions!, title: "Fractions", courseIds: [], pendingTaskCount: 0 },
+      { id: pastTense!, title: "Past tense", courseIds: [], pendingTaskCount: 0 },
     ]);
   });
 
@@ -65,7 +65,7 @@ describe.skipIf(!connectionString)("objectives", () => {
 
     expect(mine).not.toBe(theirs);
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: mine!, title: "Past tense", courseIds: [], waitingTaskCount: 0 },
+      { id: mine!, title: "Past tense", courseIds: [], pendingTaskCount: 0 },
     ]);
   });
 
@@ -82,7 +82,7 @@ describe.skipIf(!connectionString)("objectives", () => {
     ).toEqual([theirs!, "no-such-objective"]);
   });
 
-  test("lists each objective's courses and its tasks waiting for review", async () => {
+  test("lists each objective's courses and its tasks pending review", async () => {
     const [alone, shared, unplaced] = (await createObjectives(database, organizationId, [
       "Alone",
       "Shared",
@@ -114,7 +114,7 @@ describe.skipIf(!connectionString)("objectives", () => {
         { published },
       );
     await write(alone, ["Published"], true);
-    const [retired] = await write(alone, ["Waiting", "Retired"], false).then((written) =>
+    const [retired] = await write(alone, ["Pending", "Retired"], false).then((written) =>
       written.slice(1),
     );
     await markTasksRetired(database, [retired!.id], now, { byTool: true });
@@ -123,9 +123,9 @@ describe.skipIf(!connectionString)("objectives", () => {
     await write(theirs!, ["Theirs"], false, otherOrganizationId);
 
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: alone, title: "Alone", courseIds: [first], waitingTaskCount: 1 },
-      { id: shared, title: "Shared", courseIds: [first, second].toSorted(), waitingTaskCount: 2 },
-      { id: unplaced, title: "Unplaced", courseIds: [], waitingTaskCount: 1 },
+      { id: alone, title: "Alone", courseIds: [first], pendingTaskCount: 1 },
+      { id: shared, title: "Shared", courseIds: [first, second].toSorted(), pendingTaskCount: 2 },
+      { id: unplaced, title: "Unplaced", courseIds: [], pendingTaskCount: 1 },
     ]);
   });
 

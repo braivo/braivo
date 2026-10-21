@@ -143,7 +143,7 @@ function parsePublication(body: unknown): { courseIds: string[]; taskIds: string
 }
 
 /**
- * Every waiting course and task a course's page shows, in one request, since
+ * Every pending course and task a course's page shows, in one request, since
  * Publish is all or none: a bank's thousands of statements, as IDs well under
  * `MAX_BODY_BYTES`.
  */
@@ -932,7 +932,7 @@ export function authoringRoutes(
   );
 
   /**
-   * An objective's unretired tasks, published or waiting, as authored and with
+   * An objective's unretired tasks, published or pending, as authored and with
    * the passages they cite, for whoever may author in its organization: answers
    * included, so never a learner's.
    */

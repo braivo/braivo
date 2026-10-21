@@ -146,7 +146,7 @@ describe.skipIf(!connectionString)("Braivo's MCP tools", () => {
   test("says where tasks are reused or changed that they serve every course of their objective", async () => {
     const { tools } = await agent.listTools();
 
-    // Not retire_tasks: a tool retires only waiting tasks, which no course offers.
+    // Not retire_tasks: a tool retires only pending tasks, which no course offers.
     for (const name of ["author_tasks", "list_objectives"]) {
       const tool = tools.find((candidate) => candidate.name === name);
       expect(tool?.description, name).toContain("every course");
@@ -399,7 +399,7 @@ describe.skipIf(!connectionString)("Braivo's MCP tools", () => {
       options: ["red", "blue"],
       answer: 0,
     });
-    // The organization's page, which lists its courses and their waiting tasks.
+    // The organization's page, which lists its courses and their pending tasks.
     const reviewUrl = `${consoleUrl}/${organizationId}`;
 
     // The first of two equal tasks is added; the second answers it.

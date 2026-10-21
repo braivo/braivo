@@ -444,8 +444,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     // Titles come back trimmed, and listed by title rather than by creation.
     expect(await listed.json()).toMatchObject({
       objectives: expect.arrayContaining([
-        { id: objectiveIds[0]!, title: "Conditional", courseIds: [], waitingTaskCount: 0 },
-        { id: objectiveIds[1]!, title: "Subjunctive", courseIds: [], waitingTaskCount: 0 },
+        { id: objectiveIds[0]!, title: "Conditional", courseIds: [], pendingTaskCount: 0 },
+        { id: objectiveIds[1]!, title: "Subjunctive", courseIds: [], pendingTaskCount: 0 },
       ]),
     });
   });
@@ -597,7 +597,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       headers: { cookie: teacher.cookie },
     });
     expect(await overview.json()).toMatchObject({ open: false });
-    // A keyed retry from the console finds it, still waiting.
+    // A keyed retry from the console finds it, still pending.
     expect(await (await create(inConsole)).json()).toEqual({
       courseId: proposed,
       added: false,
@@ -850,7 +850,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       });
     /**
      * An objective's tasks as its administrators read them: ID, whether it is
-     * published, and the task a waiting correction replaces.
+     * published, and the task a pending correction replaces.
      */
     const states = async (objectiveId: string) => {
       const response = await api.request(
@@ -922,9 +922,9 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         ["1", "2", "3", "4", "5"].map((prompt) => ({ objectiveId, ...choice(prompt) })),
       );
 
-      // Waiting: in neither course an activity, nor answerable by naming it.
+      // Pending: in neither course an activity, nor answerable by naming it.
       for (const course of courses) expect(await offered(course)).toBeUndefined();
-      const attempt = { id: "waiting-attempt", taskId: tasks[0], response: { choice: 0 } };
+      const attempt = { id: "pending-attempt", taskId: tasks[0], response: { choice: 0 } };
       expect((await postAttempt(courses[0], attempt, learner.cookie)).status).toBe(404);
       expect(await stored(learner.id)).toEqual([]);
       // Its administrators read them, told they wait, and which other course they would reach.
@@ -947,8 +947,8 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect((await publish(inConsole, { taskIds: tasks.slice(0, 2) })).status).toBe(204);
       for (const course of courses) expect(tasks.slice(0, 2)).toContain(await offered(course));
       expect(await states(objectiveId)).toEqual(tasks.map((id, index) => [id, index < 2]));
-      const waiting = { id: "still-waiting", taskId: tasks[2], response: { choice: 0 } };
-      expect((await postAttempt(courses[1], waiting, learner.cookie)).status).toBe(404);
+      const unpublished = { id: "still-pending", taskId: tasks[2], response: { choice: 0 } };
+      expect((await postAttempt(courses[1], unpublished, learner.cookie)).status).toBe(404);
       expect((await postAttempt(courses[1], attempt, learner.cookie)).status).toBe(200);
     });
 
@@ -977,7 +977,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(second.status).toBe(409);
       expect(await second.json()).toEqual({
         error: expect.stringContaining(`replaces "${pending}"`),
-        code: "CORRECTION_WAITING",
+        code: "CORRECTION_PENDING",
       });
       // Retiring a published task is the console's, explained.
       const retirement = await retire(asTool, [proposed, live]);
@@ -985,7 +985,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await retirement.json()).toEqual({
         error: expect.stringContaining("Braivo's console"),
       });
-      // Its own waiting task, a tool may correct and retire; the correction waits too.
+      // Its own pending task, a tool may correct and retire; the correction waits too.
       const [corrected] = (await written(asTool, [
         { objectiveId, ...choice("Proposed"), answer: 1, replaces: proposed },
       ])) as [string];
@@ -996,7 +996,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       ]);
 
       // In the console, a correction takes the state of the task it replaces,
-      // and replacing a published one retires its waiting correction too.
+      // and replacing a published one retires its pending correction too.
       const [draft] = (await written(asTool, [{ objectiveId, ...choice("Draft") }])) as [string];
       const [redrafted] = (await written(inConsole, [
         { objectiveId, ...choice("Draft"), answer: 1, replaces: draft },
@@ -1086,7 +1086,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await answered(asTool, [correction])).toEqual([
         { ...(pending as object), added: false },
       ]);
-      // A waiting task's correction waits too, replacing nothing still offered.
+      // A pending task's correction waits too, replacing nothing still offered.
       expect(
         await answered(inConsole, [
           { objectiveId, ...choice("Proposed"), answer: 1, replaces: proposed },
@@ -1100,7 +1100,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await answered(asTool, [fixed])).toEqual([{ ...(published as object), added: false }]);
     });
 
-    test("publishes a waiting correction and retires its task together", async () => {
+    test("publishes a pending correction and retires its task together", async () => {
       const { objectiveId, courses } = await sharedObjective("Corrected");
       const [live] = (await written(inConsole, [{ objectiveId, ...choice("Before") }])) as [string];
       const [pending] = (await written(asTool, [
@@ -1165,7 +1165,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect((await publish(asTool, { courseIds: [proposed], taskIds: [first] })).status).toBe(403);
       expect(await published([first, foreign])).toEqual([false, false]);
       expect(await courseShown()).toBe(false);
-      // Up to 10,000 IDs in all: a course page's whole waiting work, in one request.
+      // Up to 10,000 IDs in all: a course page's whole pending work, in one request.
       const tooMany = {
         courseIds: [proposed],
         taskIds: Array.from({ length: 10_000 }, () => first),
@@ -1213,7 +1213,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         ...(await written(asTool, statements.slice(0, 130))),
         ...(await written(asTool, statements.slice(130))),
       ];
-      const waiting = async () => {
+      const pendingCount = async () => {
         const response = await api.request(
           `/api/organizations/${organizationId}/courses/${course}`,
           { headers: { cookie: teacher.cookie } },
@@ -1226,13 +1226,13 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           .length;
       };
       expect(new Set(taskIds).size).toBe(257);
-      expect(await waiting()).toBe(257);
+      expect(await pendingCount()).toBe(257);
 
       // The reviewer's selection, captured before a later task arrives.
       const selection = taskIds.slice(0, 20);
       await written(asTool, [{ objectiveId: objectiveIds[0], ...choice("Arrived later") }]);
       expect((await publish(inConsole, { taskIds: selection })).status).toBe(204);
-      expect(await waiting()).toBe(238);
+      expect(await pendingCount()).toBe(238);
       expect(await published(taskIds)).toEqual(
         taskIds
           .map((id, index) => [id, index < 20] as const)
@@ -1257,7 +1257,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           urlLabel: "spanish",
           published: true,
           hidden: false,
-          waitingTaskCount: 0,
+          pendingTaskCount: 0,
         },
       ]),
     });
@@ -1455,7 +1455,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         urlLabel: expect.any(String),
         published: true,
         hidden: false,
-        waitingTaskCount: 0,
+        pendingTaskCount: 0,
       },
     ]);
   });

@@ -4,7 +4,7 @@
 /**
  * Reviewing an objective's tasks before learners reach them (ADR 0039), on a
  * course's page and on an objective's: each task with Edit and Retire, a
- * waiting one selectable, and Publish's buttons, which send what the page
+ * pending one selectable, and Publish's buttons, which send what the page
  * showed, all or nothing.
  */
 
@@ -32,7 +32,7 @@ import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "rea
 
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
-/** A task as authored, published or waiting, with the passages it cites. */
+/** A task as authored, published or pending, with the passages it cites. */
 export type ReviewTask = AuthoredCourse["objectives"][number]["tasks"][number];
 
 type Citation = AuthoredCourse["objectives"][number]["citations"][number];
@@ -61,7 +61,7 @@ export function Passages(props: {
   });
 }
 
-/** Which waiting tasks Publish selected sends, and choosing them. */
+/** Which pending tasks Publish selected sends, and choosing them. */
 export type TaskSelection = {
   selectedIds: ReadonlySet<string>;
   select: (taskIds: readonly string[], checked: boolean) => void;
@@ -69,7 +69,7 @@ export type TaskSelection = {
 
 /**
  * Selected for Publish selected, none on opening. By ID, so a task no longer
- * waiting (published, retired, or corrected, a correction being a new ID)
+ * pending (published, retired, or corrected, a correction being a new ID)
  * drops out of what the page counts as selected.
  */
 export function useTaskSelection(): TaskSelection {
@@ -86,7 +86,7 @@ export function useTaskSelection(): TaskSelection {
   return { selectedIds, select };
 }
 
-/** Selects an objective's waiting tasks at once: the unit a teacher reviews. */
+/** Selects an objective's pending tasks at once: the unit a teacher reviews. */
 export function SelectAll(props: {
   taskIds: readonly string[];
   selection: TaskSelection;
@@ -282,16 +282,16 @@ function PublishButton(props: {
 }
 
 /**
- * An objective's waiting tasks, each selectable, a correction above the task
+ * An objective's pending tasks, each selectable, a correction above the task
  * it replaces as published now; or else its published tasks. Each with the
  * passages it was written from, Edit, and Retire.
  */
 export function TaskList(props: {
   objectiveId: string;
-  /** All the objective's tasks, published and waiting: a correction's task may be in the other list. */
+  /** All the objective's tasks, published and pending: a correction's task may be in the other list. */
   tasks: readonly ReviewTask[];
-  /** Its waiting tasks rather than its published ones. */
-  waiting?: boolean;
+  /** Its pending tasks rather than its published ones. */
+  showPending?: boolean;
   sources: ReadonlyMap<string, SourceSummary>;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
@@ -302,15 +302,24 @@ export function TaskList(props: {
   /** A task was corrected or retired: focus what is still there to take it. */
   onChanged: () => void;
 }) {
-  const { objectiveId, tasks, waiting, sources, selection, editing, onEdit, pending, onChanged } =
-    props;
+  const {
+    objectiveId,
+    tasks,
+    showPending,
+    sources,
+    selection,
+    editing,
+    onEdit,
+    pending,
+    onChanged,
+  } = props;
   // The task whose Edit button takes focus back once its editor closes unsaved.
   const refocus = useRef<string>(undefined);
   const byId = new Map(tasks.map((task) => [task.id, task]));
   // Published tasks a tool's correction waits to replace (ADR 0039), of all
   // its tasks: the list showing the task may not show its correction.
-  const withWaitingCorrection = new Set(tasks.flatMap((task) => task.replaces ?? []));
-  const shown = tasks.filter(({ published }) => (waiting ? !published : published));
+  const withPendingCorrection = new Set(tasks.flatMap((task) => task.replaces ?? []));
+  const shown = tasks.filter(({ published }) => (showPending ? !published : published));
 
   return shown.map((task) => {
     const replaced = task.replaces === undefined ? undefined : byId.get(task.replaces);
@@ -320,7 +329,7 @@ export function TaskList(props: {
           <CorrectTask
             objectiveId={objectiveId}
             task={task}
-            hasWaitingCorrection={withWaitingCorrection.has(task.id)}
+            hasPendingCorrection={withPendingCorrection.has(task.id)}
             onDone={() => {
               onEdit(undefined);
               onChanged();
@@ -360,7 +369,7 @@ export function TaskList(props: {
                 />
               )
             }
-            hasWaitingCorrection={withWaitingCorrection.has(task.id)}
+            hasPendingCorrection={withPendingCorrection.has(task.id)}
             corrects={replaced?.prompt}
             onRetired={onChanged}
           >
@@ -382,11 +391,11 @@ export function TaskList(props: {
 }
 
 /**
- * A task as its buttons are named: a waiting one apart from a published one,
+ * A task as its buttons are named: a pending one apart from a published one,
  * since a correction usually keeps the prompt of the task it corrects.
  */
 const taskName = (task: ReviewTask) =>
-  task.published ? `“${task.prompt}”` : `waiting task “${task.prompt}”`;
+  task.published ? `“${task.prompt}”` : `unpublished task “${task.prompt}”`;
 
 /**
  * Edits a task the only way an immutable one can be: its correction, with the
@@ -397,12 +406,12 @@ function CorrectTask(props: {
   objectiveId: string;
   task: ReviewTask;
   /** A correction waits to replace it, which saving retires. */
-  hasWaitingCorrection: boolean;
+  hasPendingCorrection: boolean;
   /** Corrected, or reloaded to find it changed: the page as stored is shown. */
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { objectiveId, task, hasWaitingCorrection, onDone, onCancel } = props;
+  const { objectiveId, task, hasPendingCorrection, onDone, onCancel } = props;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -473,7 +482,7 @@ function CorrectTask(props: {
         {task.published
           ? "Saving replaces the task: wherever learners are asked it, they are asked the corrected one from now on, and what they already answered stays."
           : "Saving replaces the task: the corrected one waits for review, as this one does."}
-        {hasWaitingCorrection && " The correction waiting for review is retired with it."}
+        {hasPendingCorrection && " The correction that needs review is retired with it."}
       </MutedText>
       {error && (
         <Alert variant="destructive" ref={alert} tabIndex={-1}>
@@ -514,14 +523,14 @@ function RetirableTask(props: {
   /** While it waits, its checkbox for Publish selected. */
   select?: ReactNode;
   /** A correction waits to replace it, which retiring retires too. */
-  hasWaitingCorrection: boolean;
+  hasPendingCorrection: boolean;
   /** While it waits to correct a published task, that task's prompt. */
   corrects?: string;
   onRetired: () => void;
   /** The passages it was written from. */
   children: ReactNode;
 }) {
-  const { task, renderEdit, select, hasWaitingCorrection, corrects, onRetired, children } = props;
+  const { task, renderEdit, select, hasPendingCorrection, corrects, onRetired, children } = props;
   const { prompt } = task;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
@@ -567,7 +576,7 @@ function RetirableTask(props: {
             {/* Beside its state, not its buttons, which would squeeze its prompt on a phone. */}
             <span className="flex items-center gap-2">
               {select}
-              <Badge variant="outline">Waiting</Badge>
+              <Badge variant="outline">Unpublished</Badge>
             </span>
             {corrects !== undefined && (
               <MutedText className="mt-1 block">
@@ -611,7 +620,7 @@ function RetirableTask(props: {
                   {task.published
                     ? "Learners will not be asked it again; what they already answered stays."
                     : "It was never published, so learners have not been asked it."}
-                  {hasWaitingCorrection && " The correction waiting for review is retired with it."}{" "}
+                  {hasPendingCorrection && " The correction that needs review is retired with it."}{" "}
                   To change it instead, edit it.
                 </AlertDialogDescription>
               </AlertDialogHeader>

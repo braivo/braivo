@@ -369,7 +369,7 @@
 //
 // `GET /api/organizations/:organizationId/objectives` — answers
 // `{ "objectives": [{ "id": "…", "title": "…", "courseIds": ["…"],
-// "waitingTaskCount": 2 }] }`, by title: the courses each is in, which its
+// "pendingTaskCount": 2 }] }`, by title: the courses each is in, which its
 // tasks serve, and how many of its tasks wait for review (ADR 0039). That is
 // a listing order and not content order: the sequence a learner meets
 // objectives in belongs to a course.
@@ -395,7 +395,7 @@
 // nothing (ADR 0024). Answers 201 with `{ "tasks": [{ "id": "…", "added":
 // true, "published": false }] }`, positionally matching: `added` false for a
 // task already there, `published` whether it is published now or waits for
-// Publish (ADR 0039), and `replaces` for a correction waiting to replace a
+// Publish (ADR 0039), and `replaces` for a pending correction of a
 // published task; 400 with an `error` when a task is not a valid one of
 // its kind or cites a quote Braivo cannot find — "Task 1, citation 0: the
 // quote does not occur in the source." — and 403 when an objective or a

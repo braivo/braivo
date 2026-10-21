@@ -7,7 +7,7 @@ import { describe, expect, test, vi } from "vite-plus/test";
 
 import { renderAt } from "./render.tsx";
 
-/** A waiting choice task of `numbers`, citing Unidad 1. */
+/** A pending choice task of `numbers`, citing Unidad 1. */
 const task = (id: string, prompt: string, published = false) => ({
   id,
   kind: "choice" as const,
@@ -18,7 +18,7 @@ const task = (id: string, prompt: string, published = false) => ({
   published,
 });
 
-const numbers = { id: "numbers", title: "Numbers", courseIds: [], waitingTaskCount: 2 };
+const numbers = { id: "numbers", title: "Numbers", courseIds: [], pendingTaskCount: 2 };
 const sources = [{ id: "s1", title: "Unidad 1", createdAt: "2026-06-01T00:00:00.000Z" }];
 const course = (id: string, title: string, published: boolean) => ({
   id,
@@ -26,7 +26,7 @@ const course = (id: string, title: string, published: boolean) => ({
   title,
   urlLabel: title.toLowerCase(),
   published,
-  waitingTaskCount: 0,
+  pendingTaskCount: 0,
 });
 
 describe("an objective's page", () => {
@@ -82,7 +82,7 @@ describe("an objective's page", () => {
     expect(selected.hasAttribute("disabled")).toBe(true);
     // Each with the passage it was written from.
     expect(screen.getAllByText("Unidad 1").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select waiting task “Two?”" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select unpublished task “Two?”" }));
     // Nothing to name: no published course is reached, so not asked first.
     fireEvent.click(screen.getByRole("button", { name: "Publish selected (1)" }));
 
@@ -93,9 +93,9 @@ describe("an objective's page", () => {
     );
     expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1, name: "Numbers" }));
     // One still waits; the other is published.
-    const waiting = within(screen.getByRole("region", { name: "Waiting for review" }));
-    expect(waiting.getByText("One?")).toBeTruthy();
-    expect(waiting.queryByText("Two?")).toBeNull();
+    const pending = within(screen.getByRole("region", { name: "Needs review" }));
+    expect(pending.getByText("One?")).toBeTruthy();
+    expect(pending.queryByText("Two?")).toBeNull();
     const publishedTasks = within(screen.getByRole("region", { name: "Published tasks" }));
     expect(publishedTasks.getByText("Two?")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Publish all (1)" })).toBeTruthy();
@@ -112,7 +112,7 @@ describe("an objective's page", () => {
       braivo: {
         listCourses: async () => [],
         listObjectives: async () => [
-          { ...numbers, waitingTaskCount: tasks().filter((each) => !each.published).length },
+          { ...numbers, pendingTaskCount: tasks().filter((each) => !each.published).length },
         ],
         listTasks: async () => tasks(),
         listSources: async () => sources,
@@ -167,7 +167,7 @@ describe("an objective's page", () => {
     );
   });
 
-  test("retires a waiting task, focusing the title once none is left waiting", async () => {
+  test("retires a pending task, focusing the title once none is left pending", async () => {
     let retired = false;
     const retireTasks = vi.fn<BraivoClient["retireTasks"]>(async () => {
       retired = true;
@@ -185,13 +185,11 @@ describe("an objective's page", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retire waiting task “One?”" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retire unpublished task “One?”" }));
     const dialog = await screen.findByRole("alertdialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Retire" }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Waiting for review" })).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Needs review" })).toBeNull());
     expect(retireTasks).toHaveBeenCalledWith(
       { organizationId: "org-1", taskIds: ["t1"] },
       { signal: expect.any(AbortSignal) },
@@ -256,7 +254,7 @@ describe("an objective's page", () => {
     );
   });
 
-  test("says which waiting task is the same as one retired before", async () => {
+  test("says which pending task is the same as one retired before", async () => {
     renderAt("/example/objectives/numbers", {
       braivo: {
         listObjectives: async () => [numbers],
@@ -274,7 +272,7 @@ describe("an objective's page", () => {
     const card = note.closest("[data-slot=card]")!;
     expect(within(card as HTMLElement).getByText("One?")).toBeTruthy();
     expect(
-      within(card as HTMLElement).getByRole("button", { name: "Retire waiting task “One?”" }),
+      within(card as HTMLElement).getByRole("button", { name: "Retire unpublished task “One?”" }),
     ).toBeTruthy();
     expect(screen.getAllByText("An identical task was retired before.")).toHaveLength(1);
   });
@@ -289,7 +287,7 @@ describe("an objective's page", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Edit waiting task “One?”" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit unpublished task “One?”" }));
 
     expect(screen.getByText("Save or cancel the open edit to publish.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Publish all (1)" }).hasAttribute("disabled")).toBe(
@@ -319,7 +317,7 @@ describe("an objective's page", () => {
         "Nothing was published: this page changed since it loaded. Review it, then publish.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Waiting for review" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Needs review" })).toBeNull();
     expect(screen.getByText("None yet: learners are not asked about it.")).toBeTruthy();
   });
 

@@ -110,7 +110,7 @@ export {
   ConflictingEvidence,
   ConflictingGroupRole,
   ConflictingKey,
-  CorrectionWaiting,
+  CorrectionPending,
   DeletedCourseKey,
   DuplicateCorrection,
   PublishedTask,
