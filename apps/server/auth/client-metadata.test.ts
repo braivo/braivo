@@ -9,7 +9,13 @@ import type { Readable } from "node:stream";
 
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { fetchPinned, fetchStrictlyPublic, pinnedLookup } from "./client-metadata.ts";
+import {
+  aliasGoogleJwks,
+  type ClientMetadataFetch,
+  fetchPinned,
+  fetchStrictlyPublic,
+  pinnedLookup,
+} from "./client-metadata.ts";
 
 // DNS and HTTPS are mocked: what a host resolves to, what the transport asked
 // `node:https` for, and how many times, and the answer, if any (none is a
@@ -292,5 +298,96 @@ describe("a client's metadata on a Worker", () => {
       fetchStrictlyPublic("https://client.example/client.json", { method: "POST" }),
     ).rejects.toThrow("only read");
     expect(fetched).toEqual([]);
+  });
+});
+
+describe("Google's keys on another origin", () => {
+  const document = "https://accountlinking.google.com/client.json";
+  const gstatic =
+    "https://www.gstatic.com/account-linking/.well-known/client-assertion-signature-verification-key.json";
+  const alias = "https://accountlinking.google.com/.well-known/braivo-cross-origin-jwks";
+
+  /** `aliasGoogleJwks` over a fetch answering `answer`, keeping what it was asked. */
+  const aliased = (answer: (url: string) => Response) => {
+    const asked: Parameters<ClientMetadataFetch>[] = [];
+    const fetch = aliasGoogleJwks(async (input, init) => {
+      asked.push([input, init]);
+      return answer(input instanceof Request ? input.url : String(input));
+    });
+    return { fetch, asked };
+  };
+
+  test("are named to Better Auth on the document's origin, fetched from their own", async () => {
+    const { fetch, asked } = aliased((url) =>
+      url === document
+        ? Response.json(
+            { client_id: document, jwks_uri: gstatic },
+            { headers: { etag: '"1"', "content-length": "999" } },
+          )
+        : Response.json({ keys: [] }),
+    );
+    const init = { headers: { accept: "application/json" }, signal: new AbortController().signal };
+
+    const answer = await fetch(document, init);
+    expect([answer.headers.get("etag"), answer.headers.get("content-length")]).toEqual([
+      '"1"',
+      null,
+    ]);
+    expect(await answer.json()).toEqual({ client_id: document, jwks_uri: alias });
+    expect(await (await fetch(alias, init)).json()).toEqual({ keys: [] });
+    expect(asked).toEqual([
+      [document, init],
+      [gstatic, init],
+    ]);
+
+    // Asked as a request, the keys are asked for as one too.
+    const aborting = new AbortController();
+    await fetch(
+      new Request(alias, { headers: { accept: "application/json" }, signal: aborting.signal }),
+    );
+    aborting.abort();
+    const forwarded = asked[2]![0] as Request;
+    expect([forwarded.url, forwarded.headers.get("accept"), forwarded.signal.aborted]).toEqual([
+      gstatic,
+      "application/json",
+      true,
+    ]);
+  });
+
+  test.each([
+    ["another client's document", "https://client.example/client.json", { jwks_uri: gstatic }],
+    ["one naming other keys", document, { jwks_uri: "https://www.gstatic.com/other.json" }],
+  ])("are left as they are in %s", async (_, url, named) => {
+    const { fetch } = aliased(() => Response.json({ client_id: url, ...named }));
+
+    expect(await (await fetch(url)).json()).toEqual({ client_id: url, ...named });
+  });
+
+  test("are left named in a document over Better Auth's 5 KiB, for it to refuse", async () => {
+    // Whitespace that rewriting would drop, bringing it under the limit.
+    const padded = `{"client_id":"${document}",${" ".repeat(6 * 1024)}"jwks_uri":"${gstatic}"}`;
+    const { fetch } = aliased(
+      () => new Response(padded, { headers: { "content-type": "application/json" } }),
+    );
+
+    expect(await (await fetch(document)).text()).toBe(padded);
+  });
+
+  test("are not aliased in a redirect or a refusal, which pass as they came", async () => {
+    const redirected = Response.json({ client_id: document, jwks_uri: gstatic });
+    Object.defineProperty(redirected, "redirected", { value: true });
+    expect(await aliased(() => redirected).fetch(document)).toBe(redirected);
+
+    const refused = new Response("not JSON", { status: 404 });
+    expect(await aliased(() => refused).fetch(document)).toBe(refused);
+  });
+
+  test("are aliased leaving keys on the document's own origin whole, up to Better Auth's 64 KiB", async () => {
+    const keysUri = "https://accountlinking.google.com/keys.json";
+    const keys = { keys: [{ kty: "RSA", n: "x".repeat(32 * 1024), e: "AQAB" }] };
+    expect(await (await aliased(() => Response.json(keys)).fetch(keysUri)).json()).toEqual(keys);
+
+    const large = aliased(() => Response.json({ keys: [{ n: "x".repeat(64 * 1024) }] }));
+    await expect(large.fetch(keysUri)).rejects.toThrow("too large");
   });
 });

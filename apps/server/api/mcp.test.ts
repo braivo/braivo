@@ -23,12 +23,16 @@ import { baseUrl, connectionString, createTestApi, type Signed } from "./testing
 // No metadata document is reachable in tests: each fetch is recorded, by the
 // transport asked, and fails.
 const metadata = vi.hoisted(() => ({ fetched: [] as string[] }));
-vi.mock("../auth/client-metadata.ts", () => {
+vi.mock("../auth/client-metadata.ts", async (importOriginal) => {
   const recording = (transport: string) => async () => {
     metadata.fetched.push(transport);
     throw new TypeError("no metadata document in tests");
   };
-  return { fetchPinned: recording("pinned"), fetchStrictlyPublic: recording("strictly public") };
+  return {
+    ...(await importOriginal<typeof import("../auth/client-metadata.ts")>()),
+    fetchPinned: recording("pinned"),
+    fetchStrictlyPublic: recording("strictly public"),
+  };
 });
 
 /** An app directory's reviewer, who signs in with a password (ADR 0018). */

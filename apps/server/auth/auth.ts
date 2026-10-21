@@ -26,7 +26,12 @@ import {
   organizationOwnsLearningContent,
   readOrganizationSlug,
 } from "../persistence/index.ts";
-import { type ClientMetadataFetch, fetchPinned, fetchStrictlyPublic } from "./client-metadata.ts";
+import {
+  aliasGoogleJwks,
+  type ClientMetadataFetch,
+  fetchPinned,
+  fetchStrictlyPublic,
+} from "./client-metadata.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -562,10 +567,12 @@ export function createAuth(options: AuthOptions) {
         : [
             // Per instance, so per request on Workers, refetching each time:
             // shared, it would hand one request a discovery another started,
-            // I/O Workers refuse across requests.
+            // I/O Workers refuse across requests. The host's wrapper goes
+            // inside the alias, so it sees each key's real URL.
             cimd({
-              fetchClientMetadataResource:
+              fetchClientMetadataResource: aliasGoogleJwks(
                 options.wrapClientMetadataFetch?.(metadataFetch) ?? metadataFetch,
+              ),
               metadataProfile: "mcp-2026-07-28",
             }),
           ]),

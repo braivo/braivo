@@ -8,6 +8,7 @@ import { type Database, runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 // Through the package's own name: the entry a Worker imports.
 import { createServer, type FileStore, readServerConfig, smtpMail } from "@braivo/server";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import { codeSentTo, createOutbox, signInWithCode } from "./auth/testing.ts";
@@ -253,6 +254,117 @@ describe.skipIf(!connectionString)("createServer", () => {
       expect(wrapped).toEqual([clientId, jwksUri]);
       // Each through the strictly public fetch the wrapper was given.
       expect(fetched.mock.calls.map(([asked]) => (asked as Request).url)).toEqual(wrapped);
+    } finally {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("takes Gemini's keys from their own origin, and no other client's from another", async () => {
+    vi.stubGlobal("Cloudflare", { compatibilityFlags: { global_fetch_strictly_public: true } });
+    try {
+      const gstatic =
+        "https://www.gstatic.com/account-linking/.well-known/client-assertion-signature-verification-key.json";
+      const [{ privateKey, publicKey }, other] = await Promise.all([
+        generateKeyPair("RS256"),
+        generateKeyPair("RS256"),
+      ]);
+      const server = testServer({ clientIdMetadataDocuments: "strictly-public" });
+      const jwks = { keys: [{ ...(await exportJWK(publicKey)), kid: "k", alg: "RS256" }] };
+      /** Documents by URL, each naming the keys at `jwksUri`. */
+      const documents = new Map<string, string>();
+      const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const { url } = input as Request;
+        if (url === gstatic) return Response.json(jwks);
+        const jwksUri = documents.get(url);
+        return jwksUri === undefined
+          ? new Response(null, { status: 404 })
+          : Response.json({
+              client_id: url,
+              client_name: "Keyed",
+              redirect_uris: ["https://client.example/callback"],
+              token_endpoint_auth_method: "private_key_jwt",
+              jwks_uri: jwksUri,
+            });
+      });
+      /** A client named by its document, authenticating to introspection with a signed assertion. */
+      const introspectAs = async (
+        clientId: string,
+        jwksUri: string,
+        key = privateKey,
+        kid = "k",
+      ) => {
+        documents.set(clientId, jwksUri);
+        const assertion = await new SignJWT({ jti: crypto.randomUUID() })
+          .setProtectedHeader({ alg: "RS256", kid })
+          .setIssuer(clientId)
+          .setSubject(clientId)
+          .setAudience(`${baseUrl}/api/auth/oauth2/introspect`)
+          .setIssuedAt()
+          .setExpirationTime("1m")
+          .sign(key);
+        const answer = await server.request(`${baseUrl}/api/auth/oauth2/introspect`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            token: "t",
+            client_id: clientId,
+            client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+            client_assertion: assertion,
+          }),
+        });
+        return { status: answer.status, body: await answer.json() };
+      };
+      const gemini = `https://accountlinking.google.com/${crypto.randomUUID()}.json`;
+      // Authenticated, with keys fetched from where Google publishes them.
+      expect(await introspectAs(gemini, gstatic)).toEqual({
+        status: 200,
+        body: { active: false },
+      });
+      expect(fetched.mock.calls.map(([asked]) => (asked as Request).url)).toEqual([
+        gemini,
+        gstatic,
+      ]);
+      // Its authorization request reaches the choice of a school, then consent.
+      const authorizing = new URL(`${baseUrl}/api/auth/oauth2/authorize`);
+      authorizing.search = new URLSearchParams({
+        response_type: "code",
+        client_id: gemini,
+        redirect_uri: "https://client.example/callback",
+        code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        code_challenge_method: "S256",
+      }).toString();
+      const authorized = await server.request(authorizing, { headers: { cookie } });
+      expect(authorized.status).toBe(302);
+      expect(new URL(authorized.headers.get("location")!, baseUrl).pathname).toBe(
+        "/api/oauth/organization",
+      );
+      // A key Google adds later is fetched through the alias again.
+      const added = await generateKeyPair("RS256");
+      jwks.keys.push({ ...(await exportJWK(added.publicKey)), kid: "added", alg: "RS256" });
+      expect(await introspectAs(gemini, gstatic, added.privateKey, "added")).toMatchObject({
+        status: 200,
+      });
+      expect(
+        fetched.mock.calls.filter(([asked]) => (asked as Request).url === gstatic),
+      ).toHaveLength(2);
+      // Not with a key Google does not publish.
+      expect(await introspectAs(gemini, gstatic, other.privateKey)).toMatchObject({
+        status: 401,
+        body: { error: "invalid_client" },
+      });
+
+      // Any other pair is refused as before: Google's keys for another
+      // client, or another URL on Google's origins.
+      for (const [clientId, jwksUri] of [
+        [`https://client.example/${crypto.randomUUID()}.json`, gstatic],
+        [gemini.replace(".json", "-other.json"), `${gstatic}?other`],
+        [gemini.replace(".json", "-elsewhere.json"), "https://www.gstatic.com/other.json"],
+      ] as const) {
+        const { status, body } = await introspectAs(clientId, jwksUri);
+        expect({ clientId, status }).toEqual({ clientId, status: 400 });
+        expect(body).toMatchObject({ error: "invalid_client_metadata" });
+      }
     } finally {
       vi.restoreAllMocks();
       vi.unstubAllGlobals();
