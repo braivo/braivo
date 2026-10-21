@@ -325,6 +325,17 @@ function ByObjective(props: {
 
 type Standings = CourseProgressOverview["learners"][number]["standings"];
 
+/** The standings in the columns' order. */
+const STANDINGS = ["unseen", "acquiring", "retained", "due"] as const;
+
+/** Each standing's colour in the bars and their legend (ADR 0037). */
+const STANDING_COLOURS: Record<keyof Standings, string> = {
+  unseen: "bg-chart-4",
+  acquiring: "bg-chart-3",
+  retained: "bg-chart-1",
+  due: "bg-chart-2",
+};
+
 /**
  * Rows counted by standing, labelled as a learner's own report labels them.
  * Named by its section's heading, so a screen reader's list of tables tells a
@@ -341,15 +352,19 @@ function StandingsTable(props: {
         <TableRow>
           <TableHead className={pinnedColumn}>{props.rowHeader}</TableHead>
           <TableHead className="text-right">
+            <StandingSwatch standing="unseen" />
             <Trans context="A learner's standing on an objective">Not started</Trans>
           </TableHead>
           <TableHead className="text-right">
+            <StandingSwatch standing="acquiring" />
             <Trans context="A learner's standing on an objective">Learning</Trans>
           </TableHead>
           <TableHead className="text-right">
+            <StandingSwatch standing="retained" />
             <Trans context="A learner's standing on an objective">Retained</Trans>
           </TableHead>
           <TableHead className="text-right">
+            <StandingSwatch standing="due" />
             <Trans context="A learner's standing on an objective">Due for review</Trans>
           </TableHead>
         </TableRow>
@@ -368,14 +383,50 @@ function StandingsTable(props: {
               )}
             >
               {label}
+              <StandingsBar standings={standings} />
             </TableHead>
-            <TableCell className="text-right tabular-nums">{standings.unseen}</TableCell>
-            <TableCell className="text-right tabular-nums">{standings.acquiring}</TableCell>
-            <TableCell className="text-right tabular-nums">{standings.retained}</TableCell>
-            <TableCell className="text-right tabular-nums">{standings.due}</TableCell>
+            {STANDINGS.map((standing) => (
+              <TableCell key={standing} className="text-right tabular-nums">
+                {standings[standing]}
+              </TableCell>
+            ))}
           </TableRow>
         ))}
       </TableBody>
     </ScrollingTable>
+  );
+}
+
+/** A standing's colour beside its column's heading: the bars' legend. */
+function StandingSwatch({ standing }: { standing: keyof Standings }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("me-1.5 inline-block size-2 rounded-full", STANDING_COLOURS[standing])}
+    />
+  );
+}
+
+/**
+ * A row's counts as one bar, to scan the rows by; the counts stay exact, and are
+ * what a screen reader reads. Each standing at least a pixel wide, so a small
+ * count still shows, and a pixel apart, so neighbours part where colours do not.
+ */
+function StandingsBar({ standings }: { standings: Standings }) {
+  if (STANDINGS.every((standing) => standings[standing] === 0)) return null;
+  return (
+    <span aria-hidden="true" className="mt-1.5 flex h-1.5 gap-px overflow-hidden rounded-full">
+      {STANDINGS.map(
+        (standing) =>
+          standings[standing] > 0 && (
+            <span
+              key={standing}
+              data-standing={standing}
+              className={cn("min-w-px", STANDING_COLOURS[standing])}
+              style={{ flexGrow: standings[standing] }}
+            />
+          ),
+      )}
+    </span>
   );
 }
