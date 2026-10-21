@@ -105,6 +105,78 @@ export const fetchStrictlyPublic: ClientMetadataFetch = async (input, init) => {
   return fetch(asked);
 };
 
+/** Where Gemini's client ID metadata documents are, and the keys they name. */
+const GOOGLE_DOCUMENT_ORIGIN = "https://accountlinking.google.com";
+const GOOGLE_JWKS_URI =
+  "https://www.gstatic.com/account-linking/.well-known/client-assertion-signature-verification-key.json";
+/** Where Better Auth is told Google's documents keep their keys. */
+const GOOGLE_JWKS_ALIAS = `${GOOGLE_DOCUMENT_ORIGIN}/.well-known/braivo-cross-origin-jwks`;
+
+/** Better Auth's limits on what comes through here: a client's document, and its keys. */
+const MAX_DOCUMENT_BYTES = 5 * 1024;
+const MAX_JWKS_BYTES = 64 * 1024;
+
+/**
+ * Wraps `fetch` so Gemini signs in with its keys on another origin, trusting
+ * that origin for nothing else (ADR 0045, keys on another origin). Better
+ * Auth is shown their `jwks_uri` as an alias on the document's origin, which
+ * this fetch, the only one it reads a client's keys through, answers from the
+ * real URL; it then caches and refetches them as any client's.
+ *
+ * Until better-auth/better-auth#11916 ships. A client's record keeps the alias
+ * until its document is read again, which a restart's empty cache makes its
+ * next use do, so the deploy removing this leaves no alias in use.
+ */
+export function aliasGoogleJwks(fetch: ClientMetadataFetch): ClientMetadataFetch {
+  return async (input, init) => {
+    // Not `new Request(input, init)`: Workers refuse the `redirect: "error"` Better Auth asks for.
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (url.origin !== GOOGLE_DOCUMENT_ORIGIN) return fetch(input, init);
+    if (url.href === GOOGLE_JWKS_ALIAS) {
+      return fetch(
+        input instanceof Request ? new Request(GOOGLE_JWKS_URI, input) : GOOGLE_JWKS_URI,
+        init,
+      );
+    }
+    const response = await fetch(input, init);
+    // A redirect is returned as it came, for Better Auth to refuse.
+    if (response.status !== 200 || response.redirected || response.body === null) return response;
+    const bytes = await readUpTo(response.body, MAX_JWKS_BYTES);
+    const headers = new Headers(response.headers);
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    const { status, statusText } = response;
+    // Measured before rewriting, which may shrink a document over Better Auth's limit under it.
+    const body = bytes.byteLength > MAX_DOCUMENT_BYTES ? bytes : rewriteJwksUri(bytes);
+    return new Response(body, { status, statusText, headers });
+  };
+}
+
+/** `document` naming Google's keys, rewritten to name their alias; any other, as it is. */
+function rewriteJwksUri(document: Uint8Array): Uint8Array | string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(document));
+  } catch {
+    return document;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return document;
+  if (!("jwks_uri" in parsed) || parsed.jwks_uri !== GOOGLE_JWKS_URI) return document;
+  return JSON.stringify({ ...parsed, jwks_uri: GOOGLE_JWKS_ALIAS });
+}
+
+/** `body`'s bytes, refused once more than `limit`. */
+async function readUpTo(body: ReadableStream<Uint8Array>, limit: number): Promise<Uint8Array> {
+  const bytes = new Uint8Array(limit);
+  let length = 0;
+  for await (const chunk of body) {
+    if (length + chunk.byteLength > limit) throw new TypeError("a client's metadata is too large");
+    bytes.set(chunk, length);
+    length += chunk.byteLength;
+  }
+  return bytes.subarray(0, length);
+}
+
 /** Whether this Worker has `global_fetch_strictly_public`, read as workerd's own modules read flags. */
 function fetchIsStrictlyPublic(): boolean {
   const { Cloudflare } = globalThis as {
