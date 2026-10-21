@@ -61,6 +61,16 @@ Braivo is early-stage. Architecture optimizes for fast iteration on the learning
 - Prompts are version-controlled next to the code that uses them.
 - Start with one AI provider behind a thin integration, Anthropic ([ADR 0029](adr/0029-server-drafting.md)). Add another only when Braivo's own AI needs one; an assistant someone prefers reaches Braivo through its tools ([ADR 0045](adr/0045-remote-mcp.md)), not as a provider.
 
+## Naming
+
+Names follow the [glossary](glossary.md) everywhere a developer or an agent reads them: code, the database, the API, MCP tools, the CLI, errors, and the console. A concept has one name; a new one enters the glossary with the change introducing it, with a "Not" note for the synonym a newcomer would reach for. Learners' copy may say what reads naturally to a learner instead (glossary, introduction).
+
+- **API.** Resources are plural nouns (`/courses`, `/objectives/:objectiveId/tasks`); changing one is a `POST` to it (`…/groups/:groupId`) or to the property it sets (`…/visibility`, `…/url-label`); a named act on content is a `POST` to its verb (`…/tasks/retire`, `…/publish`, `…/courses/:courseId/delete`). Fields are camelCase: a time ends in `At` (`publishedAt`), a count in `Count`, a flag is the state it names (`published`, `hidden`).
+- **Refusals.** A `code` in SCREAMING_SNAKE_CASE names the condition, not the remedy (`NAME_INVALID`, `NOT_A_MEMBER`), beside a message that explains it, since the caller is often a model.
+- **MCP tools.** snake_case, a verb then a noun (`list_courses`, `read_source`, `author_tasks`, `retire_tasks`), the verb saying what happens in Braivo's model. Never a verb the model does not have (`mark_mastered`, `complete_objective`, `update_card`): an agent believes what a tool's name says.
+- **CLI.** `braivo <noun> <verb>` (`braivo sources add`), the noun plural, as the API's.
+- **Content and learners apart.** Authoring names what content is (define objectives, author tasks, publish); practice names what a learner does (activity, attempt). A learner-facing operation never takes an authoring verb, nor the reverse.
+
 ## Abstractions
 
 Add an abstraction only for a concrete need: another implementation, an integration boundary, or testability that cannot be achieved simply otherwise.

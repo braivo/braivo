@@ -4,6 +4,17 @@ Braivo turns existing educational content into adaptive, AI-assisted learning, s
 
 Use this document to resolve product trade-offs. If a task conflicts with the principles or non-goals below, raise the conflict instead of working around it, and propose a compliant alternative when possible.
 
+## Focus
+
+Braivo's first focus is remembering: vocabulary, an exam's question bank, the facts a course rests on. A starting point, not a ceiling: planned learning experiences, such as theory when a question is too hard, or tutoring, will build on the same subject-neutral model rather than beside it. Four commitments guide the product; features strengthen them rather than dilute them:
+
+- **The owner's material, under the owner's brand.** Content owners teach from material they already have, and learners practise in the owner's learn app, on the owner's address: a subdomain of the installation's, or a domain of the owner's own (core jobs 1 and 6).
+- **AI-assisted authoring, published by a person.** Owners draft with the AI assistant they already use, or Braivo's own, and nothing a tool writes reaches learners until a person publishes it. Objectives and tasks may cite their source, and Braivo checks every quote is in it; a quote shows where content came from, not that it is correct.
+- **Adaptation per objective.** Braivo estimates and schedules what a learner knows, not cards: an objective's tasks share one estimate, so practice varies while memory is tracked once, in every course of the organization using it.
+- **Explainable decisions from evidence.** Estimates are derived from recorded learner evidence under a versioned model, and each decision carries the values that explain it.
+
+The model is independent of the interface learning happens in: the learn app or another product embedding Braivo's API today, and an AI tutor built on the same model later.
+
 ## Users
 
 - **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves.
