@@ -20,6 +20,8 @@ The server mounts Better Auth at `/api/auth/*` and serves the learning API along
 
 Each app is served at the root of an origin that also serves `/api` from this server ([ADR 0004](../adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization. A proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
 
+Each build's `dist/_headers` is the app's security policy, in the format of Cloudflare's static assets: a Content-Security-Policy that lets no site frame the app and runs scripts from its own origin alone, `X-Content-Type-Options`, and `Referrer-Policy`. Have the static host or proxy serving `dist/` send those headers on every path, `index.html` served for an app's deep links included, and not serve the file itself; Cloudflare Workers and Pages apply it as it is to the files they serve, but not to a response a Worker or Pages Function makes, which must send the same headers itself. Cache for long only the files whose names change with their content (`assets/` holds them, Vite's and the boot script's); revalidate the rest, `index.html` and the console's `head.js` among them, which keep their names across releases, as Cloudflare does by default. HSTS is the proxy's to set.
+
 ## Organizations
 
 The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none unless self-serve is on, below ([ADR 0018](../adr/0018-sign-in-and-invitations.md)):
