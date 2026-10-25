@@ -37,7 +37,7 @@ export const Route = createRootRouteWithContext<AppContext>()({
 function Root() {
   // A learn domain's sign-in, loading and failed alike, is marked so that it
   // wears none of Braivo's colours (`styles.css`, ADR 0018): on `<html>`, so
-  // dialogs and popovers outside `<main>` follow. `index.html` marks it before
+  // dialogs and popovers outside `<main>` follow. `public/head.js` marks it before
   // the app starts; from here the route decides, so leaving it unmarks it.
   const learnDomain = useMatch({
     from: "/login",

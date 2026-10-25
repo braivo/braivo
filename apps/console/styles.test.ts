@@ -39,15 +39,20 @@ test("keeps Braivo's theme off a learn domain's sign-in from the first paint, no
     document.head.querySelectorAll("link").forEach((link) => link.remove());
     history.replaceState(null, "", "/");
   });
-  // `index.html`'s first script, as the browser runs it before any module.
-  const script = new DOMParser()
+  // `index.html`'s first script, blocking, so the browser runs it before any module.
+  const head = new DOMParser()
     .parseFromString(read("./index.html"), "text/html")
-    .querySelector("script")?.textContent;
+    .querySelector("script");
+  expect(head?.getAttribute("src")).toBe("/head.js");
+  expect(
+    head?.hasAttribute("type") || head?.hasAttribute("async") || head?.hasAttribute("defer"),
+  ).toBe(false);
+  const script = read("./public/head.js");
   const boot = (url: string) => {
     history.replaceState(null, "", url);
-    // As `packages/i18n/boot.test.ts` runs its own: happy-dom runs no inline script.
+    // As `packages/i18n/boot.test.ts` runs its own: happy-dom runs no page script.
     // oxlint-disable-next-line no-implied-eval
-    new Function(script ?? "")();
+    new Function(script)();
   };
   const root = document.documentElement;
   root.classList.add("dark");
