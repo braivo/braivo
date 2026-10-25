@@ -116,6 +116,7 @@ A member of any role who teaches a group also reads its learners' progress, and 
 - [ADR 0042](../adr/0042-groups-scope-teaching.md): groups scope teaching; administration stays explicit.
 - [ADR 0045](../adr/0045-remote-mcp.md): remote MCP at `/mcp`, a grant to one client for one organization.
 - [ADR 0048](../adr/0048-author-role.md): an `author` manages and publishes content without administering the organization or reaching learners' data.
+- [ADR 0049](../adr/0049-app-security-headers.md): each app's `_headers` is its policy; no inline script.
 
 ## Gaps
 

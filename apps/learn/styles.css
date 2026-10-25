@@ -33,7 +33,7 @@
  * `PagePending` shows next, in the same place. If the app still has not
  * rendered after ten seconds, slow or failed alike, a way out appears, in the
  * status region so it can be announced. CSS, not script, so it works without
- * the app and under a strict CSP (ADR 0004).
+ * the app and under the app's CSP (ADR 0049).
  */
 #root:not(:empty) + #boot {
   display: none;
