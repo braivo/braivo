@@ -8,6 +8,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite-plus";
 
+import { readDevPorts } from "../../tooling/dev-ports.ts";
 import { braivoApi } from "../../tooling/dev-proxy.ts";
 
 /**
@@ -16,6 +17,7 @@ import { braivoApi } from "../../tooling/dev-proxy.ts";
  */
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, "../..", ["BRAIVO_", "PORT"]);
+  const ports = readDevPorts(env);
 
   return {
     plugins: [
@@ -39,11 +41,11 @@ export default defineConfig(({ command, mode }) => {
     // port or `bun run dev`'s (`lib/learn-url.ts`); a build's are HTTPS alone.
     ...(command === "serve" && {
       define: {
-        "import.meta.env.BRAIVO_LEARN_PORT": JSON.stringify(env.BRAIVO_LEARN_PORT || "5173"),
+        "import.meta.env.BRAIVO_LEARN_PORT": JSON.stringify(String(ports.learn)),
       },
     }),
     server: {
-      port: 5174,
+      port: ports.console,
       strictPort: true,
       proxy: braivoApi(env),
     },

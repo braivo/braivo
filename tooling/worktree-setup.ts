@@ -4,10 +4,10 @@
 /**
  * Bootstraps a linked worktree for development, whichever tool created it:
  * copies the local files `.worktreeinclude` lists from the main checkout,
- * links the shared notes directory, creates `tmp/`, then installs
- * dependencies. Safe to rerun, and a no-op in the main checkout
- * (docs/adr/0014-worktree-setup.md). Bun and Git only: it runs before
- * `node_modules` exists.
+ * links the shared notes directory, creates `tmp/`, gives it ports of its
+ * own in `.env.development.local`, then installs dependencies. Safe to rerun,
+ * and a no-op in the main checkout (docs/adr/0014-worktree-setup.md). Bun and
+ * Git only: it runs before `node_modules` exists.
  *
  *   bun tooling/worktree-setup.ts
  */
@@ -22,15 +22,24 @@ import {
   readFileSync,
   realpathSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, normalize } from "node:path";
+import { parseEnv } from "node:util";
 
+import { demoPorts, type DevPorts, readDevPorts, worktreePorts } from "./dev-ports.ts";
 import { withoutRepositoryVariables } from "./git-env.ts";
 
 export type Install = (root: string) => void;
 
 /** The gitignored directory of notes every worktree shares (docs/adr/0019-shared-local-notes.md). */
 const NOTES = "local";
+
+/**
+ * A worktree's ports, among its development overrides: Vite and Bun load it in
+ * development alone, over `.env`, `.env.development`, and `.env.local`.
+ */
+const PORTS_FILE = ".env.development.local";
 
 /**
  * Output goes to stderr: a Claude Code hook's stdout becomes the agent's
@@ -51,9 +60,11 @@ const bunInstall: Install = (root) => {
 export function setUpWorktree(cwd: string, install: Install = bunInstall): string[] {
   const root = git(cwd, "rev-parse", "--show-toplevel");
   // Git lists the main worktree first; -z keeps any path intact.
-  const main = git(cwd, "worktree", "list", "--porcelain", "-z")
-    .split("\0")[0]!
-    .slice("worktree ".length);
+  const worktrees = git(cwd, "worktree", "list", "--porcelain", "-z")
+    .split("\0")
+    .filter((field) => field.startsWith("worktree "))
+    .map((field) => field.slice("worktree ".length));
+  const main = worktrees[0]!;
   if (realpathSync(root) === realpathSync(main)) return [];
 
   const done: string[] = [];
@@ -91,6 +102,9 @@ export function setUpWorktree(cwd: string, install: Install = bunInstall): strin
   // Gitignored scratch space agents and review skills write to (tmp/feedback.md).
   if (mkdirSync(join(root, "tmp"), { recursive: true })) done.push("created tmp/");
 
+  const ports = assignPorts(root, worktrees);
+  if (ports) done.push(`wrote ${PORTS_FILE} (${ports})`);
+
   // Always: a failed install leaves `node_modules` behind, and a complete one
   // makes this a 0.3 s no-op.
   install(root);
@@ -107,8 +121,70 @@ export function setUpWorktree(cwd: string, install: Install = bunInstall): strin
       `Worktree set up, but ${NOTES}/ is not a link to ${notes}. Move anything worth keeping there, delete ${NOTES}/ here, and rerun.`,
     );
   }
+  // Kept, but reported: a variable it leaves unset falls back to the main checkout's port.
+  const settings = readEnv(root, PORTS_FILE);
+  const unset = PORT_VARIABLES.filter((name) => !settings[name]?.trim());
+  if (unset.length > 0) {
+    throw new Error(
+      `Worktree set up, but its ${PORTS_FILE} sets no ${unset.join(" or ")}. Add them, or delete it and rerun for ports of its own.`,
+    );
+  }
   return done;
 }
+
+/**
+ * Assigns a new worktree the first slot whose ports, its demo's included, no
+ * other worktree uses. Never changes an existing file.
+ */
+function assignPorts(root: string, worktrees: string[]): string | undefined {
+  const file = join(root, PORTS_FILE);
+  if (existsSync(file)) return undefined;
+  const taken = new Set(
+    worktrees
+      .filter((worktree) => worktree !== root)
+      .flatMap((worktree) =>
+        portsWithDemo(
+          readDevPorts(Object.assign({}, ...ENV_FILES.map((name) => readEnv(worktree, name)))),
+        ),
+      ),
+  );
+  let slot = 1;
+  while (portsWithDemo(worktreePorts(slot)).some((port) => taken.has(port))) slot++;
+  const ports = worktreePorts(slot);
+  try {
+    writeFileSync(
+      file,
+      [
+        "# This worktree's ports, beside other worktrees' (docs/adr/0014-worktree-setup.md).",
+        `PORT=${ports.server}`,
+        `BRAIVO_URL=http://localhost:${ports.console}`,
+        `BRAIVO_LEARN_PORT=${ports.learn}`,
+        "",
+      ].join("\n"),
+      { flag: "wx" },
+    );
+  } catch (error) {
+    // Another setup of this worktree, as two tools' hooks, wrote it first.
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return undefined;
+    throw error;
+  }
+  return `console http://localhost:${ports.console}, learn ${ports.learn}, server ${ports.server}`;
+}
+
+/** The development env files Bun loads, each over the one before; literal values alone. */
+const ENV_FILES = [".env", ".env.development", ".env.local", PORTS_FILE];
+
+const PORT_VARIABLES = ["PORT", "BRAIVO_URL", "BRAIVO_LEARN_PORT"];
+
+function readEnv(worktree: string, name: string): Record<string, string | undefined> {
+  const file = join(worktree, name);
+  return existsSync(file) ? parseEnv(readFileSync(file, "utf8")) : {};
+}
+
+const portsWithDemo = (ports: DevPorts) => [
+  ...Object.values(ports),
+  ...Object.values(demoPorts(ports)),
+];
 
 /**
  * Claude Code reads `.worktreeinclude` as `.gitignore` patterns and copies

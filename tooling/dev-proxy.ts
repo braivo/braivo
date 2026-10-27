@@ -3,6 +3,8 @@
 
 import type { ProxyOptions } from "vite-plus";
 
+import { DEFAULT_PORTS, readDevPorts } from "./dev-ports.ts";
+
 /**
  * Serves `/api` from the Braivo server running on `PORT`, so an app in
  * development reaches it the way it will in production: from its own origin.
@@ -22,8 +24,8 @@ export function braivoApi(env: {
   BRAIVO_URL?: string;
   PORT?: string;
 }): Record<string, ProxyOptions> {
-  const site = new URL(env.BRAIVO_URL ?? "http://localhost:5174");
-  const server = `http://localhost:${env.PORT || 3000}`;
+  const site = new URL(env.BRAIVO_URL?.trim() || `http://localhost:${DEFAULT_PORTS.console}`);
+  const server = `http://localhost:${readDevPorts(env).server}`;
 
   return {
     // Remote MCP: the endpoint, and where it says its tokens come from, on

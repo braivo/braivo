@@ -4,7 +4,7 @@ Status: proposed (2026-10-12)
 
 ## Context
 
-Exercising Braivo as an administrator, a teacher, and a learner needs an organization with people, a course, and a group. Building one by hand takes a dozen steps, and the development database a contributor already has (`DATABASE_URL`) holds their own work, which no tool should touch. `seedOrganization` (`packages/db/testing.ts`) suits suites, not people: it clears an organization's learning data and replaces its memberships each time. Worktrees already test against databases of their own ([ADR 0014](0014-worktree-setup.md)), but share the development database and ports.
+Exercising Braivo as an administrator, a teacher, and a learner needs an organization with people, a course, and a group. Building one by hand takes a dozen steps, and the development database a contributor already has (`DATABASE_URL`) holds their own work, which no tool should touch. `seedOrganization` (`packages/db/testing.ts`) suits suites, not people: it clears an organization's learning data and replaces its memberships each time. Worktrees already test against databases of their own ([ADR 0014](0014-worktree-setup.md)), but share the development database.
 
 ## Decision
 
@@ -20,7 +20,7 @@ Exercising Braivo as an administrator, a teacher, and a learner needs an organiz
 
 **Reset checks everything, then deletes in an order a rerun finishes.** The ID confirmed, the database neither the development nor a test one, its marker the demo's, `.dev-demo/` holding only the demo's files, storage owned, nothing connected or listening: then the database, the storage, the settings, the directory. Each step tolerates an earlier reset's, so a reset interrupted before the settings go is finished by running it again; one interrupted after them leaves an empty `.dev-demo/` to delete.
 
-**The server runs on the demo's settings alone.** Children get an allowlisted environment (`PATH`, `HOME`, and a few others) plus the demo's database, secret, `BRAIVO_URL`, port, and storage, and the server runs with `bun --no-env-file`, so no mail server, AI key, Google client, or bucket is used: sign-in codes are logged, as on any loopback installation ([ADR 0033](0033-email-over-smtp.md)). The apps' dev servers still load `.env` as their configurations do; their proxy reads `BRAIVO_URL` and `PORT`, which `loadEnv` lets the demo's values override. `BRAIVO_URL` is the console's on `127.0.0.1`, not `localhost`. Ports are fixed at 3100, 5183, and 5184, beside `bun run dev`'s; two worktrees' demos collide and the second refuses to start. Each child runs in a process group of its own, which the launch stops whole on Ctrl-C, on a child's exit, or on losing its lock.
+**The server runs on the demo's settings alone.** Children get an allowlisted environment (`PATH`, `HOME`, and a few others) plus the demo's database, secret, `BRAIVO_URL`, port, and storage, and the server runs with `bun --no-env-file`, so no mail server, AI key, Google client, or bucket is used: sign-in codes are logged, as on any loopback installation ([ADR 0033](0033-email-over-smtp.md)). The apps' dev servers still load `.env` as their configurations do; their proxy reads `BRAIVO_URL` and `PORT`, which `loadEnv` lets the demo's values override. `BRAIVO_URL` is the console's on `127.0.0.1`, not `localhost`. Ports are 10 above the worktree's dev servers' ([ADR 0014](0014-worktree-setup.md)), 3010, 5183, and 5184 in the main checkout, so a demo runs beside `bun run dev` and other worktrees' demos; they are persisted when it is created, and a port in use refuses the launch. Each child runs in a process group of its own, which the launch stops whole on Ctrl-C, on a child's exit, or on losing its lock.
 
 ## Alternatives rejected
 
@@ -32,7 +32,7 @@ Exercising Braivo as an administrator, a teacher, and a learner needs an organiz
 - **Seeding in one transaction to make preparation retryable.** The use cases and Better Auth each take a pool, not a transaction; an interrupted preparation is rare, and nothing in it is worth keeping, so resetting it is simpler.
 - **Patching a demo up to a new scenario, or reconciling migration histories.** Either guesses at a contributor's edits; refusing and saying what to do does not.
 - **A console hostname of its own, such as `demo.localhost`, to keep its cookies apart.** Logged sign-in codes are allowed only on a loopback `BRAIVO_URL` (`localhost`, `127.0.0.1`, `[::1]`); widening that is a product decision, not the demo's. `127.0.0.1` already is one.
-- **Different ports per worktree.** Not needed yet; persisted ports leave room for it.
+- **Fixed ports, 3100, 5183, and 5184, for every demo** (replaced). Two worktrees' demos collided, and agents verify in parallel worktrees. A demo keeps the ports it was created with.
 - **`.braivo/demo/` instead of `.dev-demo/`.** A namespace with one tenant, and a name a product CLI may want in users' projects; a nested path would also make the rename into place and reset manage a shared parent.
 
 ## Consequences

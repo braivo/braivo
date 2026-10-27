@@ -69,6 +69,7 @@ describe("worktree setup", () => {
       "copied private/notes.md",
       "linked local/",
       "created tmp/",
+      "wrote .env.development.local (console http://localhost:5194, learn 5193, server 3020)",
       "installed dependencies",
     ]);
     expect(readFileSync(join(linked, ".env"), "utf8")).toBe("SECRET=1\n");
@@ -92,6 +93,42 @@ describe("worktree setup", () => {
     expect(setUpWorktree(linked, install)).toEqual(["installed dependencies"]);
     expect(readFileSync(join(linked, ".env"), "utf8")).toBe("EDITED=1\n");
     expect(installs).toEqual([linked, linked]);
+  });
+
+  test("gives each worktree the first slot whose ports, its demo's too, no other worktree takes", () => {
+    setUpWorktree(linked, install);
+    expect(readFileSync(join(linked, ".env.development.local"), "utf8")).toBe(
+      "# This worktree's ports, beside other worktrees' (docs/adr/0014-worktree-setup.md).\n" +
+        "PORT=3020\nBRAIVO_URL=http://localhost:5194\nBRAIVO_LEARN_PORT=5193\n",
+    );
+
+    // The main checkout's, by the file Bun would take it from: 3050 is slot 2's demo's,
+    // and its own demo's 3060 is slot 3's server's.
+    writeFileSync(join(main, ".env"), "PORT=9000\n");
+    writeFileSync(join(main, ".env.local"), "PORT=3050\n");
+    const second = join(dir, "second");
+    git(main, "worktree", "add", "-q", "--detach", second);
+    expect(setUpWorktree(second, install)).toContain(
+      "wrote .env.development.local (console http://localhost:5254, learn 5253, server 3080)",
+    );
+  });
+
+  test("reads the main checkout's .env.development too, as Bun does", () => {
+    writeFileSync(join(main, ".env.development"), "PORT=3020\n");
+    expect(setUpWorktree(linked, install)).toContain(
+      "wrote .env.development.local (console http://localhost:5214, learn 5213, server 3040)",
+    );
+  });
+
+  test("never changes the worktree's ports or .env.local, but fails once set up on ports left unset", () => {
+    writeFileSync(join(linked, ".env.development.local"), "PORT=4000\n");
+    writeFileSync(join(linked, ".env.local"), "MINE=1\n");
+    expect(() => setUpWorktree(linked, install)).toThrow(
+      "its .env.development.local sets no BRAIVO_URL or BRAIVO_LEARN_PORT",
+    );
+    expect(installs).toEqual([linked]);
+    expect(readFileSync(join(linked, ".env.development.local"), "utf8")).toBe("PORT=4000\n");
+    expect(readFileSync(join(linked, ".env.local"), "utf8")).toBe("MINE=1\n");
   });
 
   test("links one notes directory, so a note made or deleted anywhere is for all", () => {

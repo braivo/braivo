@@ -51,6 +51,7 @@ describe("the development API proxy", () => {
       "http://localhost:3000",
     );
     expect(braivoApi({ PORT: "3100" })["/api"]?.target).toBe("http://localhost:3100");
+    expect(braivoApi({ BRAIVO_URL: " ", PORT: "" })["/api"]?.target).toBe("http://localhost:3000");
   });
 
   test("serves remote MCP's endpoint and discovery from the server, `/mcp` exactly", () => {

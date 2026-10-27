@@ -375,6 +375,29 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     expect(new Set(ids)).toEqual(new Set([readDemo(root, {})!.id]));
   });
 
+  test("serves 10 above the worktree's dev servers, on the ports it was created with", async () => {
+    const root = newWorktree();
+    const demo = await readOrCreateDemo(root, {
+      BRAIVO_DEMO_DATABASE_URL: target,
+      PORT: "3020",
+      BRAIVO_URL: "http://localhost:5194",
+      BRAIVO_LEARN_PORT: "5193",
+    });
+    cleanups.push(() => query(target!, `drop database if exists "${demo.database}" with (force)`));
+    expect(demo.ports).toEqual({ server: 3030, learn: 5203, console: 5204 });
+    expect(readDemo(root, { PORT: "3040" })?.ports).toEqual(demo.ports);
+
+    const main = await readOrCreateDemo(newWorktree(), { BRAIVO_DEMO_DATABASE_URL: target });
+    cleanups.push(() => query(target!, `drop database if exists "${main.database}" with (force)`));
+    expect(main.ports).toEqual({ server: 3010, learn: 5183, console: 5184 });
+
+    const high = newWorktree();
+    await expect(
+      readOrCreateDemo(high, { BRAIVO_DEMO_DATABASE_URL: target, PORT: "65530" }),
+    ).rejects.toThrow("must be 65525 at most");
+    expect(existsSync(join(high, ".dev-demo"))).toBe(false);
+  });
+
   test("never adopts a database it did not mark, nor one marked for another", async () => {
     const demo = await newDemo();
     const lock = await locked(demo);

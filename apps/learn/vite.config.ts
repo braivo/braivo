@@ -8,6 +8,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite-plus";
 
+import { readDevPorts } from "../../tooling/dev-ports.ts";
 import { braivoApi } from "../../tooling/dev-proxy.ts";
 
 /** The learner-facing app, served at the root of an organization's own domain (ADR 0004). */
@@ -33,7 +34,7 @@ export default defineConfig(({ command, mode }) => {
       tailwindcss(),
     ],
     server: {
-      port: 5173,
+      port: readDevPorts(env).learn,
       strictPort: true,
       proxy: braivoApi(env),
     },

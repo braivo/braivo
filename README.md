@@ -56,6 +56,8 @@ bun run db:migrate
 bun run dev        # API on :3000, learn app on :5173, console on :5174
 ```
 
+A linked worktree gets ports of its own from `bun tooling/worktree-setup.ts`, which prints its console's URL and keeps them in `.env.development.local` ([ADR 0014](docs/adr/0014-worktree-setup.md)): use that URL instead of `http://localhost:5174`.
+
 Then, in a second terminal: sign in to the console at `http://localhost:5174` as `owner@example.com`, with the code `bun run dev` prints in its log, and give that account an organization to manage:
 
 ```bash
