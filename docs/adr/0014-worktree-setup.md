@@ -14,7 +14,7 @@ When this was decided, the tools prepared worktrees at different layers (verifie
 
 ## Decision
 
-**`tooling/worktree-setup.ts` bootstraps a linked worktree for development**: `.worktreeinclude`'s files copied from the main checkout, the gitignored `tmp/` scratch directory created, and dependencies installed from the committed lockfile, which also installs the Git hooks. It never overwrites a file, always runs `bun install` (a no-op that repairs a failed install), and does nothing in the main checkout. It also links the shared notes ([ADR 0019](0019-shared-local-notes.md)).
+**`tooling/worktree-setup.ts` bootstraps a linked worktree for development**: `.worktreeinclude`'s files copied from the main checkout, the gitignored `tmp/` scratch directory created, ports of its own assigned, and dependencies installed from the committed lockfile, which also installs the Git hooks. It never overwrites a file, always runs `bun install` (a no-op that repairs a failed install), and does nothing in the main checkout. It also links the shared notes ([ADR 0019](0019-shared-local-notes.md)).
 
 **Agent tools' own hooks call it; plain Git does not:**
 
@@ -32,6 +32,8 @@ These hooks run the worktree's own copy of the script and its `bun install`, so 
 
 **Each linked worktree tests against a database of its own**, derived when the server's suites start, not written into `.env`: `tooling/test-database.ts` suffixes `TEST_DATABASE_URL`'s database with the worktree's Git id, verbatim (`braivo_test_braivo1`), and creates it if missing; the main checkout uses it as configured. Suites seed fixed IDs, so worktrees sharing one database cleared each other's rows, and one branch's schema broke another's tests.
 
+**Each linked worktree serves on ports of its own, written once into its gitignored `.env.development.local`**: `PORT`, `BRAIVO_URL`, and `BRAIVO_LEARN_PORT`, the variables the servers already read (`tooling/dev-ports.ts`); the console's dev server listens on `BRAIVO_URL`'s port, as `BRAIVO_URL` is locally the console's. Slots are 20 apart, slot 0 the defaults 3000, 5173, and 5174; a worktree takes the first slot whose ports, and its demo's 10 above them ([ADR 0043](0043-development-demo.md)), no other worktree uses. Vite and Bun load the file in development alone, over `.env` and `.env.local`, as the server's dev script does, so every way of starting the apps agrees, and tests and builds never see it. It is the standard file for a checkout's development overrides, which a worktree's ports are, so setup shares it with the developer: written only when missing, never overwritten, editable, and removed with the worktree, the only record of its ports.
+
 ## Alternatives rejected
 
 - **A `post-checkout` hook.** It would make a plain `git worktree add` run the checked-out branch's setup and `prepare` scripts, and plain Git must not run a branch's code; an agent environment already runs it. It also ran alongside Zed's task, two installs at once in one checkout.
@@ -39,6 +41,12 @@ These hooks run the worktree's own copy of the script and its `bun install`, so 
 - **A `WorktreeCreate` hook for Claude Code.** It replaces Claude Code's creation, losing its base-branch choice, pull-request checkout, and the marker its clean-up relies on, for what `SessionStart` already gives.
 - **A worktree manager CLI.** The editors and agents create worktrees themselves and would not call it.
 - **Rewriting `TEST_DATABASE_URL` in a worktree's `.env`.** Claude Code copies `.env` before the script runs, and the script never overwrites, so those worktrees would keep the shared database.
+- **A launcher setting the ports as `bun run dev` starts.** One app's `vp dev` or the server alone would miss them, and it would override what the main checkout's `.env` sets.
+- **Ports derived from a hash of the worktree's name.** No state, but two worktrees can share ports by chance.
+- **A machine-wide registry of ports.** It outlives removed worktrees, and only the tool that writes it reads it.
+- **The ports in `.env.local`.** Vite loads it in every mode, builds included.
+- **A file of setup's own, such as `.env.worktree`.** Neither Vite nor Bun loads it, so every way of starting the apps would need loading it added.
+- **A hostname per worktree, such as `feature.localhost`, behind a proxy.** It would keep cookies apart, but sign-in codes are logged only while `BRAIVO_URL` is `localhost`, `127.0.0.1`, or `[::1]` ([ADR 0033](0033-email-over-smtp.md)), and learn domains already take `<slug>.localhost`.
 - **A fresh database per test run.** A run killed midway leaves its database behind, and a sweep cannot tell that orphan from a live run between files.
 
 ## Consequences
@@ -46,5 +54,6 @@ These hooks run the worktree's own copy of the script and its `bun install`, so 
 - Automatic bootstrap is for trusted branches: it copies `.env`, then runs the branch's install scripts, which could read it. So `.env` holds development credentials only, and untrusted changes are inspected with plain Git, without setup.
 - The script copies `.envrc` but never approves it: direnv's approval stays a person's decision.
 - A worktree no hook reaches — plain Git, VS Code's Copilot and Codex harnesses, Claude Code mid-session (`EnterWorktree`, a subagent's `isolation: worktree`) — needs the script run in it; the agent does so as `AGENTS.md` tells it, since the script is safe to rerun.
-- Worktrees share ports and the development database, so concurrent dev servers collide; test runs collide only within one worktree. A worktree's test database outlives it, and Git may reuse its id: `dropdb` it before removing the worktree, while `git rev-parse --git-dir` still names it.
+- Worktrees share the development database. Their dev servers run side by side, but cookies ignore ports, so one browser holds one sign-in for every worktree on `localhost`, and Google sign-in works on the main checkout's `BRAIVO_URL` alone, the one its OAuth client names. Test runs collide only within one worktree.
+- Setup reads other worktrees' ports as literal values from `.env`, `.env.development`, `.env.local`, and `.env.development.local`, and fails on a worktree's file that leaves any of the three unset. Two worktrees' setups racing may assign the same ports; the second dev server to start then refuses (`strictPort`): edit its file. Variables the shell exports, as from `.envrc`, override them all. A worktree's test database outlives it, and Git may reuse its id: `dropdb` it before removing the worktree, while `git rev-parse --git-dir` still names it.
 - Claude Code's worktrees live in the repository, under `.claude/worktrees/`, which is gitignored.

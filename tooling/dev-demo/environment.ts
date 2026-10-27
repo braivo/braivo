@@ -30,6 +30,7 @@ import {
   readMigrationState,
   runMigrations,
 } from "../../packages/db/migrate.ts";
+import { DEFAULT_PORTS, demoPorts, type DevPorts, readDevPorts } from "../dev-ports.ts";
 
 /**
  * A worktree's demo: one PostgreSQL database and one storage directory it
@@ -61,10 +62,17 @@ const TARGET_VARIABLE = "BRAIVO_DEMO_DATABASE_URL";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
- * Beside `bun run dev`'s 3000, 5173, and 5174, so both run at once; two
- * worktrees' demos still collide, and the second refuses to start rather than move.
+ * Above the worktree's dev servers', so the demo runs beside them, and beside
+ * other worktrees' demos as their dev servers do (ADR 0014).
  */
-const PORTS = { server: 3100, learn: 5183, console: 5184 };
+function newDemoPorts(variables: Variables): DevPorts {
+  const ports = demoPorts(readDevPorts(variables));
+  // Refused before anything is written: settings naming no port could not be reset.
+  if (Object.values(ports).some((port) => port > 65_535)) {
+    throw new DemoRefused("The demo serves 10 above each dev port, which must be 65525 at most.");
+  }
+  return ports;
+}
 
 type Variables = Readonly<Record<string, string | undefined>>;
 
@@ -75,7 +83,7 @@ export type Demo = {
   worktree: string;
   database: string;
   storage: string;
-  ports: typeof PORTS;
+  ports: DevPorts;
   /** The target, credentials included: never printed. */
   targetUrl: string;
   authSecret: string;
@@ -125,11 +133,11 @@ export function readDemo(root: string, variables: Variables): Demo | undefined {
     typeof demo.targetUrl === "string" &&
     typeof ports === "object" &&
     ports !== null &&
-    Object.keys(PORTS).every((name) => {
-      const port = ports[name as keyof typeof PORTS];
+    Object.keys(DEFAULT_PORTS).every((name) => {
+      const port = ports[name as keyof DevPorts];
       return Number.isInteger(port) && port > 0 && port < 65_536;
     }) &&
-    new Set(Object.values(ports)).size === Object.keys(PORTS).length;
+    new Set(Object.values(ports)).size === Object.keys(DEFAULT_PORTS).length;
   if (!valid) throw refuse("does not describe this worktree's demo");
   readTarget(demo.targetUrl);
   const configured = variables[TARGET_VARIABLE]?.trim();
@@ -161,7 +169,7 @@ export async function readOrCreateDemo(root: string, variables: Variables): Prom
     worktree,
     database: databaseName(id),
     storage: join(worktree, DEMO_DIRECTORY, STORAGE),
-    ports: PORTS,
+    ports: newDemoPorts(variables),
     targetUrl,
     authSecret: randomBytes(32).toString("base64url"),
   };

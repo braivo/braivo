@@ -82,7 +82,7 @@ async function launch(migrate: boolean): Promise<number> {
     for (const port of Object.values(demo.ports)) {
       if (await portInUse(port)) {
         throw new DemoRefused(
-          `Port ${port} is in use, probably by another worktree's demo: every demo serves on the same ports. Stop that one first.`,
+          `Port ${port}, one of this demo's, is in use. Stop what listens on it first.`,
         );
       }
     }

@@ -34,7 +34,7 @@ The two learners practised in the hour before the demo was seeded, through the u
 
 To see practice reach a report: as a learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. To see what an author has ([ADR 0048](../adr/0048-author-role.md)): as the author, the console opens at **Courses**, with **Sources** beside it; they add material, review and publish, but find no Groups, Members, or other learners' progress. The console's links to where learners practise open the learn app at that address.
 
-The demo serves on ports 3100, 5183, and 5184, so it runs beside `bun run dev`. Two worktrees' demos use the same ports: the second refuses to start until the first stops. Ctrl-C stops the demo and only what it started.
+The demo serves 10 above each of the worktree's `bun run dev` ports (3010, 5183, and 5184 in the main checkout), so it runs beside them and beside other worktrees' demos. It keeps the ports it was created with: reset it to take new ones. Demos share cookies on `127.0.0.1` and `fernwood.localhost`, so use a browser profile per worktree's demo too. Ctrl-C stops the demo and only what it started.
 
 ## Check, migrate, reset
 
