@@ -10,7 +10,7 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Shown until the app renders: see styles.css. Its words: @braivo/i18n/boot. -->
+    <!-- Shown until the app renders: see styles.css. Its data-boot elements are empty: @braivo/i18n/boot fills them in every language. -->
     <div id="boot" role="status" aria-atomic="false">
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -27,10 +27,8 @@
       >
         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
       </svg>
-      <span class="sr-only" data-boot="loading">Loading</span>
-      <p class="px-6 text-center text-sm text-muted-foreground" data-boot="help">
-        Still loading? Check your connection, then <a href="" class="underline">reload</a>.
-      </p>
+      <span class="sr-only" data-boot="loading"></span>
+      <p class="px-6 text-center text-sm text-muted-foreground" data-boot="help"></p>
     </div>
     <script type="module" src="/main.tsx"></script>
   </body>

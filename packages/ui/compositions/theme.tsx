@@ -17,8 +17,8 @@ import {
 export type Theme = "light" | "dark" | "system";
 
 /**
- * Where the choice is kept, per browser. An app's `index.html` reads it too,
- * before its first paint, so that a dark page never flashes light.
+ * Where the choice is kept, per browser. The console's `public/head.js` reads it
+ * too, before its first paint, so that a dark page never flashes light.
  */
 export const THEME_STORAGE_KEY = "braivo-theme";
 

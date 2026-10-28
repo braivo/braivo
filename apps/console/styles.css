@@ -19,7 +19,7 @@
  *
  * On the root, so dialogs and popovers outside `<main>` wear it too, but not
  * on a learn domain's sign-in, which keeps the neutral theme (ADR 0018):
- * `index.html` marks `<html>` before the first paint, then the root route
+ * `public/head.js` marks `<html>` before the first paint, then the root route
  * keeps the mark. Each theme sets every colour of shadcn's, then Braivo's
  * own; `styles.test.ts` fails on a token a shadcn update adds and this does
  * not set, which would otherwise stay neutral here.
@@ -169,10 +169,11 @@
 
 /*
  * `index.html`'s page before the app renders anything, rather than a blank one
- * while its script loads: the spinner `PagePending` shows next, in the same
- * place. If the app still has not rendered after ten seconds, slow or failed
- * alike, a way out appears, in the status region so it can be announced. CSS,
- * not script, so it works without the app and under a strict CSP (ADR 0004).
+ * while its modules load (after the blocking scripts in `<head>`): the spinner
+ * `PagePending` shows next, in the same place. If the app still has not
+ * rendered after ten seconds, slow or failed alike, a way out appears, in the
+ * status region so it can be announced. CSS, not script, so it works without
+ * the app and under the app's CSP (ADR 0049).
  */
 #root:not(:empty) + #boot {
   display: none;
@@ -180,6 +181,10 @@
 
 #boot p {
   animation: boot-help 0s 10s both;
+}
+
+#boot a {
+  text-decoration-line: underline;
 }
 
 @keyframes boot-help {

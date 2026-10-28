@@ -746,7 +746,7 @@ describe("the console", () => {
     });
 
     test("marks the whole page as a learn domain's only while on its sign-in, whatever marked it first", async () => {
-      // As `index.html` does before the app starts, on an empty handoff too.
+      // As `public/head.js` does before the app starts, on an empty handoff too.
       document.documentElement.dataset.learnDomain = "";
       const fernwood = { organization: { name: "Fernwood" }, hostname: "learn.fernwood.example" };
       const { router } = renderAt("/login?handoff=", {
