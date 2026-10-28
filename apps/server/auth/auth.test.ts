@@ -73,6 +73,7 @@ const slugs = {
   adminAdded: "auth-test-admin-added",
   authorAdded: "auth-test-author-added",
   authorGuarded: "auth-test-author-guarded",
+  toolsSetting: "auth-test-tools-setting",
   // Listed so a regression that lets them through is cleaned up after itself.
   reserved: "login",
   malformed: "Auth-Test-Capitals",
@@ -781,6 +782,25 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const { organization } = authTables;
     const [stored] = await database.select().from(organization).where(eq(organization.id, id));
     expect(stored).toMatchObject({ name: "Renamed School", slug: slugs.renamed });
+  });
+
+  test("creates an organization keeping tools from its learners' data, and never changes that", async () => {
+    // Braivo's rules decide who changes it (ADR 0050), not Better Auth's
+    // update, which any `owner` or `admin` reaches from any credential.
+    const id = await createOwned(slugs.toolsSetting);
+    const { organization } = authTables;
+    const stored = async () =>
+      (await database.select().from(organization).where(eq(organization.id, id)))[0];
+
+    expect(await stored()).toMatchObject({ toolsReadLearnerData: false });
+    const updated = await post(
+      "/organization/update",
+      { organizationId: id, data: { name: "Tools Setting", toolsReadLearnerData: true } },
+      { cookie: ownerCookie },
+    );
+
+    expect(updated.status).toBe(200);
+    expect(await stored()).toMatchObject({ name: "Tools Setting", toolsReadLearnerData: false });
   });
 
   test("trusts the installation's origin alone, not even an organization's domain", async () => {

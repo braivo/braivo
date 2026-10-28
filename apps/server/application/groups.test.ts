@@ -17,6 +17,7 @@ import {
   type GroupDefinition,
   recordEvidence,
 } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { readCourseProgress } from "./course-progress.ts";
 import { changeGroup, defineGroup, listGroups } from "./groups.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
@@ -57,12 +58,32 @@ const definition = (overrides: Partial<GroupDefinition> = {}): GroupDefinition =
   ...overrides,
 });
 
-function overview(viewedBy: string, courseId = shared) {
-  return readCourseProgress({ database, viewedBy, courseId, host: installation, now });
+function overview(viewedBy: string, courseId = shared, accessKind: AccessKind = "browser") {
+  return readCourseProgress({
+    database,
+    viewedBy,
+    accessKind,
+    courseId,
+    host: installation,
+    now,
+  });
 }
 
-function report(viewedBy: string, learnerId: string, courseId = shared) {
-  return readLearnerProgress({ database, viewedBy, learnerId, courseId, host: installation, now });
+function report(
+  viewedBy: string,
+  learnerId: string,
+  courseId = shared,
+  accessKind: AccessKind = "browser",
+) {
+  return readLearnerProgress({
+    database,
+    viewedBy,
+    accessKind,
+    learnerId,
+    courseId,
+    host: installation,
+    now,
+  });
 }
 
 /** Requires TEST_DATABASE_URL: the point is that the whole path really runs. */
@@ -379,6 +400,18 @@ describe.skipIf(!connectionString)("groups", () => {
       // A learner is taught, never teaches.
       expect(await overview(ana)).toEqual({ kind: "unavailable" });
       expect(await report(ana, ben)).toEqual({ kind: "unavailable" });
+    });
+
+    test("shows a teacher's tool their groups' progress only while the organization allows it (access-45)", async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+      expect(await overview(teacherA, shared, "tool")).toEqual({ kind: "unavailable" });
+      expect(await report(teacherA, ana, shared, "tool")).toEqual({ kind: "unavailable" });
+
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+      expect(await overview(teacherA, shared, "tool")).toEqual(await overview(teacherA));
+      expect(await report(teacherA, ana, shared, "tool")).toMatchObject({ kind: "assessed" });
+      // The setting adds no reader: another group's learner stays out of reach.
+      expect(await report(teacherA, ben, shared, "tool")).toEqual({ kind: "unavailable" });
     });
 
     test("shows a teacher of several groups taking a course their learners together, each once", async () => {

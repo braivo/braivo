@@ -79,3 +79,19 @@ export async function updateOrganizationName(
     .returning({ name: organization.name });
   return renamed?.name;
 }
+
+/**
+ * Whether the organization lets tools read its learners' data (ADR 0050);
+ * `false` when there is no such organization.
+ */
+export async function toolsMayReadLearnerData(
+  database: Database,
+  organizationId: string,
+): Promise<boolean> {
+  const [row] = await database
+    .select({ allowed: organization.toolsReadLearnerData })
+    .from(organization)
+    .where(eq(organization.id, organizationId));
+
+  return row?.allowed ?? false;
+}

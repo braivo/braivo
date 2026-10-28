@@ -876,4 +876,103 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     });
     expect(await stored(teacher.id)).toHaveLength(1);
   });
+
+  describe("a tool reading learners' data (access-45)", () => {
+    /** A second organization the teacher administers, its setting apart from the first's. */
+    const secondOrganizationId = "learning-test-tools-org";
+    let secondCourseId!: string;
+
+    const bearer = (signed: Signed) => ({ authorization: `Bearer ${signed.token}` });
+    const read = (path: string, headers: Record<string, string>) => api.request(path, { headers });
+    const overviewOf = (course: string, headers: Record<string, string>) =>
+      read(`/api/courses/${course}/progress`, headers);
+    const reportOf = (learnerId: string, headers: Record<string, string>, course = courseId) =>
+      read(`/api/courses/${course}/learners/${learnerId}/progress`, headers);
+
+    beforeAll(async () => {
+      await testing.seedOrganization(database, {
+        organizationId: secondOrganizationId,
+        learnerIds: [learner.id],
+        adminIds: [teacher.id],
+        at,
+      });
+      const [objectiveId] = await createObjectives(database, secondOrganizationId, ["Second"]);
+      secondCourseId = (
+        await createCourse(database, {
+          published: true,
+          organizationId: secondOrganizationId,
+          title: "Second",
+          objectiveIds: [objectiveId!],
+        })
+      ).id;
+    });
+
+    beforeEach(async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+      await testing.setToolsReadLearnerData(database, secondOrganizationId, false);
+    });
+
+    test("refuses a token the overview and another's report while off, as a missing course", async () => {
+      expect((await overviewOf(courseId, bearer(teacher))).status).toBe(404);
+      expect((await reportOf(learner.id, bearer(teacher))).status).toBe(404);
+      expect((await overviewOf("no-such-course", bearer(teacher))).status).toBe(404);
+    });
+
+    test("answers a token the same requests once on", async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+
+      expect((await overviewOf(courseId, bearer(teacher))).status).toBe(200);
+      expect((await reportOf(learner.id, bearer(teacher))).status).toBe(200);
+    });
+
+    test("lets the console read either way", async () => {
+      for (const allowed of [false, true]) {
+        await testing.setToolsReadLearnerData(database, organizationId, allowed);
+        expect((await overviewOf(courseId, { cookie: teacher.cookie })).status).toBe(200);
+        expect((await reportOf(learner.id, { cookie: teacher.cookie })).status).toBe(200);
+      }
+    });
+
+    test("lets a learner's token read their own report while off", async () => {
+      expect((await reportOf(learner.id, bearer(learner))).status).toBe(200);
+    });
+
+    test("refuses a browser's cookie carrying a token's Authorization, as a tool", async () => {
+      const both = { cookie: teacher.cookie, ...bearer(teacher) };
+
+      expect((await overviewOf(courseId, both)).status).toBe(404);
+      expect((await reportOf(learner.id, both)).status).toBe(404);
+    });
+
+    test("acts as the token's person, not the cookie's, when a request carries both", async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+
+      // The token's person decides, whichever cookie rides along.
+      expect(
+        (await overviewOf(courseId, { cookie: teacher.cookie, ...bearer(learner) })).status,
+      ).toBe(404);
+      expect(
+        (await overviewOf(courseId, { cookie: learner.cookie, ...bearer(teacher) })).status,
+      ).toBe(200);
+    });
+
+    test("answers one admin's token by each organization's own setting", async () => {
+      await testing.setToolsReadLearnerData(database, secondOrganizationId, true);
+
+      expect((await overviewOf(secondCourseId, bearer(teacher))).status).toBe(200);
+      expect((await reportOf(learner.id, bearer(teacher), secondCourseId)).status).toBe(200);
+      // The same learner, in the organization that has it off.
+      expect((await overviewOf(courseId, bearer(teacher))).status).toBe(404);
+      expect((await reportOf(learner.id, bearer(teacher))).status).toBe(404);
+    });
+
+    test("refuses a token's next request once switched off", async () => {
+      await testing.setToolsReadLearnerData(database, secondOrganizationId, true);
+      expect((await overviewOf(secondCourseId, bearer(teacher))).status).toBe(200);
+
+      await testing.setToolsReadLearnerData(database, secondOrganizationId, false);
+
+      expect((await overviewOf(secondCourseId, bearer(teacher))).status).toBe(404);
+    });
+  });
 });

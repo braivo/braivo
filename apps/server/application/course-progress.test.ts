@@ -7,6 +7,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { activeModel, type Evidence } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { readCourseProgress } from "./course-progress.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
 
@@ -40,11 +41,17 @@ function evidence(overrides: Partial<Evidence> & Pick<Evidence, "id" | "objectiv
 }
 
 function overview(
-  input: { courseId?: string; viewedBy?: string; host?: typeof installation } = {},
+  input: {
+    courseId?: string;
+    viewedBy?: string;
+    accessKind?: AccessKind;
+    host?: typeof installation;
+  } = {},
 ) {
   return readCourseProgress({
     database,
     viewedBy: input.viewedBy ?? teacher,
+    accessKind: input.accessKind ?? "browser",
     courseId: input.courseId ?? course,
     host: input.host ?? installation,
     now,
@@ -196,6 +203,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       const report = await readLearnerProgress({
         database,
         viewedBy: teacher,
+        accessKind: "browser",
         learnerId: learner.userId,
         courseId: course,
         host: installation,
@@ -234,5 +242,22 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
     expect(
       await overview({ host: { hostname: "elsewhere.example", installation: false } }),
     ).toEqual({ kind: "unavailable" });
+  });
+
+  test("shows a tool the overview only while the organization allows it (access-45)", async () => {
+    await testing.setToolsReadLearnerData(database, organizationId, false);
+    expect(await overview({ accessKind: "tool" })).toEqual(
+      await overview({ accessKind: "tool", courseId: "no-such-course" }),
+    );
+    expect(await overview({ accessKind: "tool" })).toEqual({ kind: "unavailable" });
+    expect(await overview({ accessKind: "browser" })).toMatchObject({ kind: "assessed" });
+
+    await testing.setToolsReadLearnerData(database, organizationId, true);
+    expect(await overview({ accessKind: "tool" })).toEqual(
+      await overview({ accessKind: "browser" }),
+    );
+    expect(await overview({ accessKind: "tool" })).toMatchObject({ kind: "assessed" });
+    // The setting adds no reader: a member still reads no overview.
+    expect(await overview({ accessKind: "tool", viewedBy: ana })).toEqual({ kind: "unavailable" });
   });
 });

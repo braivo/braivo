@@ -470,6 +470,8 @@ async function checkClassroomBaseline(input: {
     const progress = await readCourseProgress({
       database,
       viewedBy,
+      // As the console reads it.
+      accessKind: "browser",
       courseId: handles.courseEnglish,
       host: installation,
       now,

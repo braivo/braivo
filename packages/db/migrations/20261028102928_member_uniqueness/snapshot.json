@@ -1,10 +1,10 @@
 {
+  "id": "27bb4b35-9753-4550-a845-e27fcff7befa",
+  "prevIds": [
+    "5b1cb9e4-0ccb-435c-a66f-47be65c02e1a"
+  ],
   "version": "8",
   "dialect": "postgres",
-  "id": "bce56e54-243a-423b-ac71-3da7b942fb39",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
   "ddl": [
     {
       "values": [
@@ -2140,6 +2140,19 @@
       "generated": null,
       "identity": null,
       "name": "metadata",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "tools_read_learner_data",
       "entityType": "columns",
       "schema": "public",
       "table": "organization"
