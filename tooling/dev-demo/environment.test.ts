@@ -181,6 +181,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
       const progress = await readCourseProgress({
         database,
         viewedBy: handles!.teacherClassA,
+        accessKind: "browser",
         courseId,
         host: { hostname: "localhost", installation: true },
         now: ANCHOR,

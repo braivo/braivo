@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { activeModel, type Evidence } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 import { recordGradedEvidence } from "./record-evidence.ts";
@@ -41,10 +42,13 @@ function evidence(overrides: Partial<Evidence> = {}): Evidence {
   return { id: "e1", objectiveId: pastTense, outcome: "success", at: now, ...overrides };
 }
 
-function progress(input: { courseId?: string; learnerId?: string; viewedBy?: string } = {}) {
+function progress(
+  input: { courseId?: string; learnerId?: string; viewedBy?: string; accessKind?: AccessKind } = {},
+) {
   return readLearnerProgress({
     database,
     viewedBy: input.viewedBy ?? teacher,
+    accessKind: input.accessKind ?? "browser",
     learnerId: input.learnerId ?? learner,
     courseId: input.courseId ?? course,
     host: { hostname: "localhost", installation: true },
@@ -293,5 +297,54 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
 
     expect(outside).toEqual({ kind: "unavailable" });
     expect(await progress({ learnerId: "nobody-has-this-id" })).toEqual(outside);
+  });
+
+  describe("through a tool (access-45)", () => {
+    let closedCourse!: string;
+
+    beforeAll(async () => {
+      closedCourse = (
+        await createCourse(database, {
+          published: false,
+          organizationId,
+          title: "Closed",
+          objectiveIds: [pastTense],
+        })
+      ).id;
+    });
+
+    beforeEach(async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+    });
+
+    test("refuses another's report while the organization does not allow it, as a missing course", async () => {
+      expect(await progress({ accessKind: "tool" })).toEqual(
+        await progress({ accessKind: "tool", courseId: "no-such-course" }),
+      );
+      expect(await progress({ accessKind: "tool" })).toEqual({ kind: "unavailable" });
+      expect(await progress({ accessKind: "browser" })).toMatchObject({ kind: "assessed" });
+    });
+
+    test("reads another's report once the organization allows it, and no further", async () => {
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+
+      expect(await progress({ accessKind: "tool" })).toEqual(
+        await progress({ accessKind: "browser" }),
+      );
+      expect(await progress({ accessKind: "tool" })).toMatchObject({ kind: "assessed" });
+      // The setting adds no reader: roles and teaching still decide.
+      expect(await progress({ accessKind: "tool", viewedBy: classmate })).toEqual({
+        kind: "unavailable",
+      });
+    });
+
+    test("reads the learner's own report either way, under every other check", async () => {
+      expect(await progress({ accessKind: "tool", viewedBy: learner })).toMatchObject({
+        kind: "assessed",
+      });
+      expect(
+        await progress({ accessKind: "tool", viewedBy: learner, courseId: closedCourse }),
+      ).toEqual({ kind: "unavailable" });
+    });
   });
 });

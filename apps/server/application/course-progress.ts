@@ -12,6 +12,7 @@ import {
   readObjectiveTitles,
   readTaughtLearners,
 } from "../persistence/index.ts";
+import { type AccessKind, mayReadLearnerData } from "./access.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
 import { mayAdminister } from "./permission.ts";
 
@@ -24,24 +25,30 @@ import { mayAdminister } from "./permission.ts";
  * `readLearnerProgress` would report about them at `now`.
  *
  * Checked as `loadLearnerInCourse` checks a reader, minus reading for oneself:
- * no member sees others they do not teach.
+ * no member sees others they do not teach, and a tool none unless the
+ * organization allows it (ADR 0050).
  */
 export async function readCourseProgress(input: {
   database: Database;
   /** The signed-in actor asking. */
   viewedBy: string;
+  /** How they came: an overview names others, so a tool reads it only where allowed. */
+  accessKind: AccessKind;
   courseId: string;
   /** The host the request came to, which limits the organizations reachable. */
   host: RequestHost;
   now: Date;
 }): Promise<CourseProgress> {
-  const { database, viewedBy, courseId, host, now } = input;
+  const { database, viewedBy, accessKind, courseId, host, now } = input;
 
   // Open or not: whoever reads it here reads for the learners.
   const course = await readCourseOrganization(database, courseId);
   if (course === undefined) return { kind: "unavailable" };
   const { organizationId, open } = course;
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
+  if (!(await mayReadLearnerData(database, { organizationId, accessKind }))) {
+    return { kind: "unavailable" };
+  }
   // `undefined` for every member: an administrator's view.
   let taught: CourseLearner[] | undefined;
   if (!(await mayAdminister(database, { organizationId, userId: viewedBy }))) {

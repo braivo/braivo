@@ -230,6 +230,7 @@ export function learningRoutes(
       const progress = await readLearnerProgress({
         database,
         viewedBy: viewer.id,
+        accessKind: context.var.accessKind,
         learnerId,
         courseId: context.req.param("courseId"),
         host: requestHost(context),
@@ -254,6 +255,7 @@ export function learningRoutes(
     const progress = await readCourseProgress({
       database,
       viewedBy: context.var.userId,
+      accessKind: context.var.accessKind,
       courseId: context.req.param("courseId"),
       host: requestHost(context),
       now: new Date(),

@@ -12,6 +12,7 @@ import {
   type ObjectiveStanding,
 } from "../learning/index.ts";
 import { readObjectiveTitles, teaches } from "../persistence/index.ts";
+import { type AccessKind, mayReadLearnerData } from "./access.ts";
 import type { RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
@@ -28,19 +29,22 @@ import { mayAdminister } from "./permission.ts";
  * `viewedBy` is the reader, not the learner, so it is authorized
  * (docs/adr/0010-hono-http-layer.md): it must be the learner, administer the
  * course's organization, or teach the learner in a group taking the course
- * (ADR 0042); either way, the learner must belong to it.
+ * (ADR 0042); either way, the learner must belong to it. Reading another's
+ * through a tool also takes the organization allowing it (ADR 0050).
  */
 export async function readLearnerProgress(input: {
   database: Database;
   /** The signed-in actor asking. */
   viewedBy: string;
+  /** How they came: a tool reads another's report only where allowed. */
+  accessKind: AccessKind;
   learnerId: string;
   courseId: string;
   /** The host the request came to, which limits the organizations reachable. */
   host: RequestHost;
   now: Date;
 }): Promise<LearnerProgress> {
-  const { database, viewedBy, learnerId, courseId, host, now } = input;
+  const { database, viewedBy, accessKind, learnerId, courseId, host, now } = input;
 
   // The reader is checked before the learner is looked at, so a refused reader
   // never causes the query that would tell a member from a stranger.
@@ -50,12 +54,13 @@ export async function readLearnerProgress(input: {
     host,
     now,
     // Reading for oneself is a learner's reach, whatever else the reader is:
-    // only an open course.
+    // only an open course, through any tool, since the data is their own.
     authorize: async ({ organizationId, open }) =>
       viewedBy === learnerId
         ? open
-        : (await mayAdminister(database, { organizationId, userId: viewedBy })) ||
-          teaches(database, { teacherId: viewedBy, learnerId, courseId }),
+        : (await mayReadLearnerData(database, { organizationId, accessKind })) &&
+          ((await mayAdminister(database, { organizationId, userId: viewedBy })) ||
+            teaches(database, { teacherId: viewedBy, learnerId, courseId })),
   });
   if (learner === undefined) return { kind: "unavailable" };
 

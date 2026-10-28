@@ -1,20 +1,11 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "1faacae5-debd-4ce6-ae24-2ea97de92586",
+  "id": "5b1cb9e4-0ccb-435c-a66f-47be65c02e1a",
   "prevIds": [
-    "cacdf05f-da0c-4acc-a875-a2693cec1167"
+    "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
-    {
-      "values": [
-        "learner",
-        "teacher"
-      ],
-      "name": "group_role",
-      "entityType": "enums",
-      "schema": "public"
-    },
     {
       "values": [
         "success",
@@ -129,24 +120,6 @@
     {
       "isRlsEnabled": false,
       "name": "organization_domain_claim",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "group",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "group_course",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "group_member",
       "entityType": "tables",
       "schema": "public"
     },
@@ -2172,6 +2145,19 @@
       "table": "organization"
     },
     {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "tools_read_learner_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization"
+    },
+    {
       "type": "text",
       "typeSchema": null,
       "notNull": true,
@@ -2569,162 +2555,6 @@
       "entityType": "columns",
       "schema": "public",
       "table": "organization_domain_claim"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "organization_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "creation_digest",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "organization_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "group_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "course_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "organization_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "group_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "type": "group_role",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "role",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "group_member"
     },
     {
       "type": "text",
@@ -4462,104 +4292,6 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "organization_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "group_organization_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "organization_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
-          "value": "key",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "group_organization_key_uidx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "course_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "group_course_course_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
-          "value": "user_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
-          "value": "role",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "group_member_user_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
           "value": "expires_at",
           "isExpression": false,
           "asc": true,
@@ -5440,99 +5172,6 @@
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
-      "name": "group_organization_id_organization_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "group"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "organization_id",
-        "group_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "group",
-      "columnsTo": [
-        "organization_id",
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "group_course_group_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "organization_id",
-        "course_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "course",
-      "columnsTo": [
-        "organization_id",
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "group_course_course_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "organization_id",
-        "group_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "group",
-      "columnsTo": [
-        "organization_id",
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "group_member_group_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "organization_id",
-        "user_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "member",
-      "columnsTo": [
-        "organization_id",
-        "user_id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "name": "group_member_member_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "nameExplicit": false,
-      "columns": [
-        "organization_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "organization",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
       "name": "learner_handoff_organization_id_organization_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -5953,28 +5592,6 @@
     },
     {
       "columns": [
-        "group_id",
-        "course_id"
-      ],
-      "nameExplicit": false,
-      "name": "group_course_pkey",
-      "entityType": "pks",
-      "schema": "public",
-      "table": "group_course"
-    },
-    {
-      "columns": [
-        "group_id",
-        "user_id"
-      ],
-      "nameExplicit": false,
-      "name": "group_member_pkey",
-      "entityType": "pks",
-      "schema": "public",
-      "table": "group_member"
-    },
-    {
-      "columns": [
         "hostname",
         "email"
       ],
@@ -6241,16 +5858,6 @@
         "id"
       ],
       "nameExplicit": false,
-      "name": "group_pkey",
-      "schema": "public",
-      "table": "group",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
       "name": "learner_handoff_pkey",
       "schema": "public",
       "table": "learner_handoff",
@@ -6315,18 +5922,6 @@
       "schema": "public",
       "table": "task",
       "entityType": "pks"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "organization_id",
-        "id"
-      ],
-      "nullsNotDistinct": false,
-      "name": "group_organization_id_key",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "group"
     },
     {
       "nameExplicit": true,

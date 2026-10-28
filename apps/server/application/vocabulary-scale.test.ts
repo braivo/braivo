@@ -91,7 +91,15 @@ async function vocabularyCourse(words: number, records: number): Promise<Practic
 const activity = (db: typeof database, { learnerId, courseId }: Practice) =>
   chooseNextActivity({ database: db, learnerId, courseId, host, now, timeZone: "UTC" });
 const progress = (db: typeof database, { learnerId, courseId }: Practice) =>
-  readLearnerProgress({ database: db, viewedBy: learnerId, learnerId, courseId, host, now });
+  readLearnerProgress({
+    database: db,
+    viewedBy: learnerId,
+    accessKind: "browser",
+    learnerId,
+    courseId,
+    host,
+    now,
+  });
 
 /** Requires TEST_DATABASE_URL: what it counts is what PostgreSQL receives. */
 describe.skipIf(!connectionString)("a vocabulary-sized course", () => {

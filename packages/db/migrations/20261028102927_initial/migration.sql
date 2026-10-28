@@ -184,7 +184,8 @@ CREATE TABLE "organization" (
 	"slug" text NOT NULL UNIQUE,
 	"logo" text,
 	"created_at" timestamp NOT NULL,
-	"metadata" text
+	"metadata" text,
+	"tools_read_learner_data" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "session" (

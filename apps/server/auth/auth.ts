@@ -447,6 +447,21 @@ export function createAuth(options: AuthOptions) {
         // check, so none of Better Auth's routes lets an author change a role,
         // a member, or the organization.
         roles: { owner: ownerAc, admin: adminAc, member: memberAc, author: memberAc },
+        schema: {
+          organization: {
+            additionalFields: {
+              // Whether a tool reads others' data here (ADR 0050). Never
+              // input: Better Auth's update, open to an `owner` or `admin`
+              // from any credential, must not change it.
+              toolsReadLearnerData: {
+                type: "boolean",
+                required: true,
+                defaultValue: false,
+                input: false,
+              },
+            },
+          },
+        },
         organizationHooks: {
           beforeCreateOrganization: async ({ organization: created }) => {
             // Typed optional although the endpoint requires it; absent fails

@@ -88,10 +88,11 @@ export async function seedOrganization(
 
   await clearLearningData(database, organizationId);
 
+  // Its settings back to their defaults, which an earlier run may have changed.
   await database
     .insert(organization)
     .values({ id: organizationId, name: organizationId, slug: organizationId, createdAt: at })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({ target: organization.id, set: { toolsReadLearnerData: false } });
 
   // One membership per person. Someone listed as both is an admin, since that
   // is the role a suite listing them there means to test.
@@ -135,6 +136,18 @@ export async function seedOrganization(
       })),
     )
     .onConflictDoNothing();
+}
+
+/** Sets whether the organization lets tools read its learners' data (ADR 0050). */
+export async function setToolsReadLearnerData(
+  database: Database,
+  organizationId: string,
+  allowed: boolean,
+): Promise<void> {
+  await database
+    .update(organization)
+    .set({ toolsReadLearnerData: allowed })
+    .where(eq(organization.id, organizationId));
 }
 
 /**

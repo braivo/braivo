@@ -9,6 +9,7 @@ export { chooseNextActivity, submitAttempt } from "./activity.ts";
 export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
 export type { AuthoredCourse, CourseSummary } from "./courses.ts";
+export type { AccessKind } from "./access.ts";
 export type { Ai } from "./ai.ts";
 export type { CourseProgressOverview } from "./course-progress.ts";
 export { readCourseProgress } from "./course-progress.ts";

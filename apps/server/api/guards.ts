@@ -14,7 +14,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { routePath } from "hono/route";
 
-import { resumeLearnerSession, type RequestHost } from "../application/index.ts";
+import { type AccessKind, resumeLearnerSession, type RequestHost } from "../application/index.ts";
 import { type Auth, isOrganizationOrigin } from "../auth/index.ts";
 import { isStorable } from "../content/index.ts";
 import type { Principal } from "./principal.ts";
@@ -177,6 +177,13 @@ export const presentsToolCredential = (context: Context): boolean =>
   context.get("connection") !== undefined || context.req.header("authorization") !== undefined;
 
 /**
+ * How a request came, for a use case reading others' data (ADR 0050): a tool
+ * by `presentsToolCredential`, even with a browser's cookie beside it.
+ */
+const accessKindOf = (context: Context): AccessKind =>
+  presentsToolCredential(context) ? "tool" : "browser";
+
+/**
  * The routes a connection's `braivo:author` reaches (access-41). Its writes
  * reach no learner: what it writes waits, and it never publishes or retires a
  * published task, being a tool (`presentsToolCredential`, ADR 0039).
@@ -258,14 +265,18 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
    * learner session's user, renewed as it is used; on the installation's host,
    * the account's (the console reading a learner's progress; the learn app in
    * development). Never a connection's: its grant is to author and read
-   * progress, not to study.
+   * progress, not to study. Also how they came, which reading another's
+   * report needs.
    */
-  async function learnerFor(context: Context): Promise<{ id: string; name: string } | undefined> {
+  async function learnerFor(
+    context: Context,
+  ): Promise<{ learner: { id: string; name: string }; accessKind: AccessKind } | undefined> {
+    const accessKind = accessKindOf(context);
     const host = requestHost(context);
     if (host.installation) {
       if (context.get("connection")) return undefined;
       const user = (await accountSession(context))?.user;
-      return user && { id: user.id, name: user.name };
+      return user && { learner: { id: user.id, name: user.name }, accessKind };
     }
 
     const token = getCookie(context, LEARNER_COOKIE, "host");
@@ -279,7 +290,7 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
     if (found?.renewedUntil) {
       setCookie(context, LEARNER_COOKIE, token, cookieOptions(found.renewedUntil));
     }
-    return found?.user;
+    return found && { learner: found.user, accessKind };
   }
 
   // What a route admits, named once and listed in the order it runs: a limit,
@@ -322,28 +333,30 @@ export function createGuards({ auth, database, baseUrl }: GuardOptions) {
   /**
    * An account's session on the installation's host, cookie, token, or
    * connection (`sessionFor`), a connection only within its grant; 401
-   * without one. Its user is `userId`.
+   * without one. Its user is `userId`; how they came, `accessKind`.
    */
-  const requireAccount = createMiddleware<{ Variables: { userId: string } }>(
-    async (context, next) => {
-      const session = await sessionFor(context);
-      if (!session) return context.body(null, 401);
-      if (session.credential === "connection") {
-        const refused = refuseOutsideGrant(context, session.organizationId);
-        if (refused) return refused;
-      }
-      context.set("userId", session.userId);
-      await next();
-    },
-  );
-
-  /** A learner, as `learnerFor` finds one; 401 without one. */
-  const requireLearner = createMiddleware<{
-    Variables: { learner: { id: string; name: string } };
+  const requireAccount = createMiddleware<{
+    Variables: { userId: string; accessKind: AccessKind };
   }>(async (context, next) => {
-    const learner = await learnerFor(context);
-    if (!learner) return context.body(null, 401);
-    context.set("learner", learner);
+    const session = await sessionFor(context);
+    if (!session) return context.body(null, 401);
+    if (session.credential === "connection") {
+      const refused = refuseOutsideGrant(context, session.organizationId);
+      if (refused) return refused;
+    }
+    context.set("userId", session.userId);
+    context.set("accessKind", accessKindOf(context));
+    await next();
+  });
+
+  /** A learner and how they came, as `learnerFor` finds them; 401 without one. */
+  const requireLearner = createMiddleware<{
+    Variables: { learner: { id: string; name: string }; accessKind: AccessKind };
+  }>(async (context, next) => {
+    const found = await learnerFor(context);
+    if (!found) return context.body(null, 401);
+    context.set("learner", found.learner);
+    context.set("accessKind", found.accessKind);
     await next();
   });
 

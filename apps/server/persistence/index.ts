@@ -95,6 +95,7 @@ export {
   organizationOwnsLearningContent,
   readOrganizationBySlug,
   readOrganizationSlug,
+  toolsMayReadLearnerData,
   updateOrganizationName,
 } from "./organization.ts";
 export { claimSignInCode } from "./sign-in-code.ts";
