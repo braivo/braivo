@@ -26,10 +26,47 @@ describe("a worktree's test database", () => {
     );
   });
 
-  test("refuses a name PostgreSQL would cut short", () => {
-    expect(() => worktreeDatabase("postgres://localhost/braivo_test", "w".repeat(52))).toThrow(
-      "longer than 63 bytes",
-    );
+  // Literal names: changing how one is cut would orphan that worktree's database.
+  describe("past PostgreSQL's 63 bytes", () => {
+    const configured = "postgres://localhost/braivo_test";
+
+    test("cuts the id and ends the name in a hash of the whole", () => {
+      const id = "abc-12-a-long-branch-name-a-tool-gave-this-worktree-folder";
+      expect(worktreeDatabase(configured, id)).toEqual({
+        url: "postgres://localhost/braivo_test_abc-12-a-long-branch-name-a-tool-gave-this_071bb8d3",
+        name: "braivo_test_abc-12-a-long-branch-name-a-tool-gave-this_071bb8d3",
+      });
+    });
+
+    test("keeps a name of exactly 63 bytes, and cuts one of 64", () => {
+      expect(worktreeDatabase(configured, "w".repeat(51)).name).toBe(
+        `braivo_test_${"w".repeat(51)}`,
+      );
+      expect(worktreeDatabase(configured, "w".repeat(52)).name).toBe(
+        `braivo_test_${"w".repeat(42)}_3a102b00`,
+      );
+    });
+
+    test("keeps ids differing only past the cut apart", () => {
+      expect(worktreeDatabase(configured, `${"w".repeat(60)}a`).name).not.toBe(
+        worktreeDatabase(configured, `${"w".repeat(60)}b`).name,
+      );
+    });
+
+    test("cuts on a character boundary", () => {
+      expect(worktreeDatabase(configured, `x${"é".repeat(40)}`).name).toBe(
+        `braivo_test_x${"é".repeat(20)}_d5707955`,
+      );
+      expect(worktreeDatabase(configured, "😀".repeat(20)).name).toBe(
+        `braivo_test_${"😀".repeat(10)}_cafc511e`,
+      );
+    });
+
+    test("refuses a configured name leaving no room for a character of the id", () => {
+      expect(() =>
+        worktreeDatabase(`postgres://localhost/${"d".repeat(52)}`, "😀".repeat(10)),
+      ).toThrow("Shorten TEST_DATABASE_URL's database name");
+    });
   });
 
   test("refuses a URL naming no database", () => {
