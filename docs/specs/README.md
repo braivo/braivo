@@ -38,7 +38,7 @@ A plan is an area's working notes, kept out of Git so they can be rough: the goa
 - [ ] C2 A report counts only evidence up to its moment (progress-6). Proof: evidence dated after that moment leaves the report unchanged.
 ```
 
-A plan may propose changing the spec but never overrides it: until code and spec change together, the spec holds. What ships leaves the plan, its rules into the spec and anything worth knowing later, a rejected approach included, into an ADR or a comment, so deleting a finished plan loses nothing. Every worktree shares `local/` ([ADR 0019](../adr/0019-shared-local-notes.md)), so one worktree works on an area at a time; `local/NEXT.md` orders the work across areas.
+A plan may propose changing the spec but never overrides it: until code and spec change together, the spec holds. What ships leaves the plan, its rules into the spec and anything worth knowing later, a rejected approach included, into an ADR or a comment, so deleting a finished plan loses nothing. Every worktree shares `local/` ([ADR 0019](../adr/0019-shared-local-notes.md)), so one worktree works on an area at a time; the maintainer orders the work across areas.
 
 ## Areas
 
