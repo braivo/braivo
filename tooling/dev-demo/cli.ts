@@ -199,7 +199,10 @@ async function stopGroup(leader: number): Promise<void> {
       process.kill(-leader, name);
       return true;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ESRCH") return false; // The group is gone.
+      // ESRCH: the group is gone. EPERM: macOS's answer for a group whose
+      // members are exiting, as when the whole tree is killed at once.
+      // Either way there is nothing more this launch can signal.
+      if (["ESRCH", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")) return false;
       throw error;
     }
   };
