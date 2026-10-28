@@ -9,6 +9,8 @@ curl -i http://localhost:3000/api/courses/<course-id>/next   # 401 without a ses
 
 The server mounts Better Auth at `/api/auth/*` and serves the learning API alongside it.
 
+`bun apps/server/cli/index.ts config check` checks the environment `serve` reads without serving or reaching the database, so a release can stop on a bad one before replacing a running server; `bun run dev` runs it before starting anything.
+
 ## Before you expose it
 
 > [!WARNING]

@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "bun --watch --env-file=../../.env --env-file=../../.env.development --env-file=../../.env.local --env-file=../../.env.development.local cli/index.ts serve",
+    "check": "bun --env-file=../../.env --env-file=../../.env.development --env-file=../../.env.local --env-file=../../.env.development.local cli/index.ts config check",
     "auth:generate": "bun --bun better-auth generate --config better-auth.config.ts --output ../../packages/db/schema/auth.ts -y"
   },
   "dependencies": {

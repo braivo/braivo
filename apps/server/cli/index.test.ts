@@ -32,6 +32,19 @@ async function run(args: string[], env: Record<string, string> = {}, stdin = "")
 }
 
 describe("the server's commands", () => {
+  test("check serve's environment, silent unless it names a problem", async () => {
+    const env = {
+      DATABASE_URL: "postgres://localhost/braivo",
+      BETTER_AUTH_SECRET: "x".repeat(32),
+      BRAIVO_URL: "http://localhost:5174",
+    };
+    const valid = await run(["config", "check"], env);
+    const invalid = await run(["config", "check"], { ...env, BETTER_AUTH_SECRET: "" });
+
+    expect(valid).toEqual({ stdout: "", stderr: "", code: 0 });
+    expect(invalid).toEqual({ stdout: "", stderr: "BETTER_AUTH_SECRET is not set.\n", code: 1 });
+  });
+
   test("ask for the hostname of a learn domain left out", async () => {
     const { stderr, code } = await run(["organization", "add-domain", "--slug", "acme"]);
 

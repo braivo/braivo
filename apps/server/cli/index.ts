@@ -28,6 +28,8 @@ const sendsNoMail: SendMail = () => Promise.reject(new Error("This command sends
 const USAGE = `Usage: bun apps/server/cli/index.ts <command>
 
 Running an installation (a content owner's commands are braivo's):
+  config check  Check the environment serve reads, printing its first problem;
+                silent when there is none. Reaches no database.
   db migrate    Apply committed database migrations.
   organization create --name <name> --slug <slug> --owner <email>
                 Create an organization owned by an existing account.
@@ -71,6 +73,11 @@ async function main(argv: readonly string[]): Promise<number> {
   // Matched whole rather than by prefix: a trailing word is a typo or an option
   // a command does not have, and serving anyway would answer `serve --port
   // 4000` by listening on a different port.
+  if (argv.length === 2 && argv[0] === "config" && argv[1] === "check") {
+    readServeConfig(process.env);
+    return 0;
+  }
+
   if (argv.length === 2 && argv[0] === "db" && argv[1] === "migrate") {
     await runMigrations(readDatabaseUrl(process.env));
     console.log("Migrations applied.");

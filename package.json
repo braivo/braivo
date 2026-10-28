@@ -8,6 +8,7 @@
   ],
   "type": "module",
   "scripts": {
+    "predev": "bun run --silent --cwd apps/server check",
     "dev": "vp run --parallel --filter '@braivo/*' --filter '!@braivo/storybook' dev",
     "dev:demo": "bun tooling/dev-demo/cli.ts",
     "dev:demo:verify": "bun tooling/dev-demo/cli.ts verify",
