@@ -74,8 +74,10 @@ export {
   listOrganizations,
   maySetUpOrganization,
   NameRefused,
+  readToolsReadLearnerData,
   renameOrganization,
   SetUpRefused,
+  setToolsReadLearnerData,
   setUpOrganization,
 } from "./organizations.ts";
 export {
@@ -88,7 +90,7 @@ export {
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";
-/** What `getSource` and `listSources` answer, named here as `ConflictingEvidence` is below. */
+/** Persistence's shapes the use cases answer, named here as `ConflictingEvidence` is below. */
 export type {
   AuthoredTask,
   Citation,
@@ -100,6 +102,7 @@ export type {
   SourceSummary,
   StoredFile,
   TaskWriteResult,
+  ToolsReadLearnerData,
 } from "../persistence/index.ts";
 export { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tasks.ts";
 /**

@@ -450,14 +450,31 @@ export function createAuth(options: AuthOptions) {
         schema: {
           organization: {
             additionalFields: {
-              // Whether a tool reads others' data here (ADR 0050). Never
-              // input: Better Auth's update, open to an `owner` or `admin`
-              // from any credential, must not change it.
+              // Whether a tool reads others' data here (ADR 0050), and who
+              // last changed it and when. Never input: Better Auth's update,
+              // open to an `owner` or `admin` from any credential, must not
+              // change them. Never returned: it lists organizations to every
+              // member and to tools, and only an administrator's browser
+              // reads them (access-45).
               toolsReadLearnerData: {
                 type: "boolean",
                 required: true,
                 defaultValue: false,
                 input: false,
+                returned: false,
+              },
+              toolsReadLearnerDataChangedBy: {
+                type: "string",
+                required: false,
+                input: false,
+                returned: false,
+                references: { model: "user", field: "id", onDelete: "set null" },
+              },
+              toolsReadLearnerDataChangedAt: {
+                type: "date",
+                required: false,
+                input: false,
+                returned: false,
               },
             },
           },

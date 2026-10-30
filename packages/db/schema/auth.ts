@@ -91,6 +91,11 @@ export const organization = pgTable(
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
     toolsReadLearnerData: boolean("tools_read_learner_data").default(false).notNull(),
+    toolsReadLearnerDataChangedBy: text("tools_read_learner_data_changed_by").references(
+      () => user.id,
+      { onDelete: "set null" },
+    ),
+    toolsReadLearnerDataChangedAt: timestamp("tools_read_learner_data_changed_at"),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
@@ -375,6 +380,10 @@ export const authRelations = defineRelationsPart(
         from: r.user.id,
         to: r.account.userId,
       }),
+      organizations: r.many.organization({
+        from: r.user.id,
+        to: r.organization.toolsReadLearnerDataChangedBy,
+      }),
       members: r.many.member({
         from: r.user.id,
         to: r.member.userId,
@@ -421,6 +430,10 @@ export const authRelations = defineRelationsPart(
       }),
     },
     organization: {
+      user: r.one.user({
+        from: r.organization.toolsReadLearnerDataChangedBy,
+        to: r.user.id,
+      }),
       members: r.many.member({
         from: r.organization.id,
         to: r.member.organizationId,

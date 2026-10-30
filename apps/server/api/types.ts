@@ -145,6 +145,13 @@ export type OrganizationSetup = {
   otherRegions: { region: string; setupUrl: string | null }[];
 };
 
+/**
+ * Whether tools read the organization's learners' data (ADR 0050), and who
+ * last changed it and when, as
+ * `GET /api/organizations/:organizationId/tools-read-learner-data` answers it.
+ */
+export type ToolsReadLearnerData = Json<application.ToolsReadLearnerData>;
+
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 

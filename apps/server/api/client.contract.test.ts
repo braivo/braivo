@@ -372,6 +372,35 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     }
   });
 
+  test("reads and sets whether tools read learners' data, in the shape it declares", async () => {
+    const options = { headers: { cookie: teacherCookie } };
+
+    try {
+      const turnedOn = await client.setToolsReadLearnerData(organizationId, true, options);
+      expect(turnedOn).toEqual({
+        allowed: true,
+        changedBy: { userId: teacherId, name: expect.any(String) },
+        changedAt: expect.any(String),
+      });
+      expect(new Date(turnedOn.changedAt!).toISOString()).toBe(turnedOn.changedAt);
+      expect(await client.readToolsReadLearnerData(organizationId, options)).toEqual(turnedOn);
+      // Each started as awaited: one left waiting would reject unhandled.
+      for (const refused of [
+        () =>
+          client.readToolsReadLearnerData(organizationId, { headers: { cookie: learnerCookie } }),
+        () =>
+          client.setToolsReadLearnerData(organizationId, false, {
+            headers: { cookie: learnerCookie },
+          }),
+      ]) {
+        await expect(refused()).rejects.toMatchObject({ status: 403 });
+      }
+    } finally {
+      // Off and never changed, as seeded, for whatever else reads it.
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+    }
+  });
+
   test("lists members in the shape it declares, and refuses a learner", async () => {
     const members = await client.listMembers(organizationId, {
       headers: { cookie: teacherCookie },

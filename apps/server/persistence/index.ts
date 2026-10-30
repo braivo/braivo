@@ -91,12 +91,15 @@ export {
   readObjectives,
   readObjectiveTitles,
 } from "./objective.ts";
+export type { ToolsReadLearnerData } from "./organization.ts";
 export {
+  findToolsReadLearnerData,
   organizationOwnsLearningContent,
   readOrganizationBySlug,
   readOrganizationSlug,
   toolsMayReadLearnerData,
   updateOrganizationName,
+  updateToolsReadLearnerData,
 } from "./organization.ts";
 export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";

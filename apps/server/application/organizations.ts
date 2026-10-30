@@ -6,13 +6,16 @@ import type { Database } from "@braivo/db";
 import {
   type ListedOrganization,
   deleteNewOrganization,
+  findToolsReadLearnerData,
   type Member,
   type Organization,
   readDomainOrganization,
   readMembers,
   readMemberships,
   readOrganizationBySlug,
+  type ToolsReadLearnerData,
   updateOrganizationName,
+  updateToolsReadLearnerData,
 } from "../persistence/index.ts";
 import { type AccessKind, assertMayReadLearnerData } from "./access.ts";
 import { type Ai, aiEnabledFor } from "./ai.ts";
@@ -265,4 +268,71 @@ export async function renameOrganization(input: {
   // Deleted since the check, it is no longer theirs to rename.
   if (stored === undefined) throw new NotPermitted(`Organization ${organizationId} is gone.`);
   return { name: stored };
+}
+
+/**
+ * Whether tools read the organization's learners' data (ADR 0050), who last
+ * changed it, and when, for its `owner` or `admin` in a browser.
+ */
+export async function readToolsReadLearnerData(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+}): Promise<ToolsReadLearnerData> {
+  await assertMayDecideToolsAccess(input);
+  return storedToolsReadLearnerData(input.database, input.organizationId);
+}
+
+/**
+ * Lets tools read the organization's learners' data, or stops them, by its
+ * `owner` or `admin` in a browser, answering the setting as it then stands.
+ * Recorded as their change only if it changes the value.
+ */
+export async function setToolsReadLearnerData(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+  allowed: boolean;
+  now: Date;
+}): Promise<ToolsReadLearnerData> {
+  const { database, organizationId, actingAs } = input;
+  await assertMayDecideToolsAccess(input);
+  await updateToolsReadLearnerData(database, {
+    organizationId,
+    allowed: input.allowed,
+    changedBy: actingAs,
+    changedAt: input.now,
+  });
+  return storedToolsReadLearnerData(database, organizationId);
+}
+
+/**
+ * Refuses, as `NotPermitted`, all but an `owner` or `admin` in a browser: a
+ * tool cannot grant itself access, nor read who decided.
+ */
+async function assertMayDecideToolsAccess(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+}): Promise<void> {
+  if (input.accessKind !== "browser") {
+    throw new NotPermitted("Only a browser decides whether tools read learners' data.");
+  }
+  await assertMayAdminister(input.database, {
+    organizationId: input.organizationId,
+    userId: input.actingAs,
+  });
+}
+
+/** The setting as stored; deleted since the check, the organization is no longer theirs. */
+async function storedToolsReadLearnerData(
+  database: Database,
+  organizationId: string,
+): Promise<ToolsReadLearnerData> {
+  const found = await findToolsReadLearnerData(database, organizationId);
+  if (!found) throw new NotPermitted(`Organization ${organizationId} is gone.`);
+  return found;
 }
