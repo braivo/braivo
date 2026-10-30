@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "5b1cb9e4-0ccb-435c-a66f-47be65c02e1a",
+  "id": "ad0682db-1885-4304-801c-ac23953f6e18",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -2153,6 +2153,32 @@
       "generated": null,
       "identity": null,
       "name": "tools_read_learner_data",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tools_read_learner_data_changed_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "organization"
+    },
+    {
+      "type": "timestamp",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tools_read_learner_data_changed_at",
       "entityType": "columns",
       "schema": "public",
       "table": "organization"
@@ -5108,6 +5134,23 @@
       "entityType": "fks",
       "schema": "public",
       "table": "oauth_refresh_token"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "tools_read_learner_data_changed_by"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "organization_tools_read_learner_data_changed_by_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "organization"
     },
     {
       "nameExplicit": false,

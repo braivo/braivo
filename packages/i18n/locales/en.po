@@ -401,6 +401,10 @@ msgstr "Could not check the domain. Try again."
 msgid "Could not check this domain just now. Try again in a moment."
 msgstr "Could not check this domain just now. Try again in a moment."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not confirm the change; it may have been saved. Reload the page to check."
+msgstr "Could not confirm the change; it may have been saved. Reload the page to check."
+
 #: apps/console/components/group-form.tsx
 msgid "Could not confirm the change. Reload the group to check it before saving again."
 msgstr "Could not confirm the change. Reload the group to check it before saving again."
@@ -435,6 +439,10 @@ msgstr "Could not disconnect the app. Try again."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Could not disconnect. Check your connection and try again."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not load whether tools read learners' data. Reload the page to try again."
+msgstr "Could not load whether tools read learners' data. Reload the page to try again."
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Could not record your answer. Try again."
 msgstr "Could not record your answer. Try again."
@@ -450,6 +458,10 @@ msgstr "Could not remove the domain. Try again."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not save the name. Try again."
 msgstr "Could not save the name. Try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not save whether tools read learners' data. Try again."
+msgstr "Could not save whether tools read learners' data. Try again."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Could not save your name. Try again."
@@ -777,6 +789,10 @@ msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you
 msgid "Keep it"
 msgstr "Keep it"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Keep it off"
+msgstr "Keep it off"
+
 #: apps/console/components/group-form.tsx
 msgid "Keep the name to {MAX_TITLE} characters."
 msgstr "Keep the name to {MAX_TITLE} characters."
@@ -866,6 +882,14 @@ msgstr "Leave this page? Your changes to this group will be lost."
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Let {clientName} work in {organizationName}?"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Let tools read learners' data"
+msgstr "Let tools read learners' data"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Let tools read learners' data?"
+msgstr "Let tools read learners' data?"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Let's practise this again."
@@ -1542,6 +1566,14 @@ msgstr "tomorrow at {time}"
 msgid "Too many tries. Wait a minute, then try again."
 msgstr "Too many tries. Wait a minute, then try again."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Tools your organization's members connect, such as the braivo CLI, can then read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off stops further reads, but cannot recall what a tool already received."
+msgstr "Tools your organization's members connect, such as the braivo CLI, can then read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off stops further reads, but cannot recall what a tool already received."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Tools your organization's members connect, such as the braivo CLI, will be able to read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off later stops further reads, but cannot recall what a tool already received."
+msgstr "Tools your organization's members connect, such as the braivo CLI, will be able to read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off later stops further reads, but cannot recall what a tool already received."
+
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx
@@ -1554,6 +1586,26 @@ msgstr "Try again"
 msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Try again"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turn on"
+msgstr "Turn on"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned off {date}."
+msgstr "Turned off {date}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned off by {name} on {date}."
+msgstr "Turned off by {name} on {date}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned on {date}."
+msgstr "Turned on {date}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned on by {name} on {date}."
+msgstr "Turned on by {name} on {date}."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Type"

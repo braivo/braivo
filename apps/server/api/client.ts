@@ -37,6 +37,7 @@ import type {
   TaskDraft,
   TaskResponse,
   TaskWriteResult,
+  ToolsReadLearnerData,
 } from "./types.ts";
 
 // The client for Braivo's HTTP API, which the learn and console apps import as
@@ -92,6 +93,7 @@ export type {
   TaskDraft,
   TaskResponse,
   TaskWriteResult,
+  ToolsReadLearnerData,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
 export { learnerDayIn } from "../application/learner-day.ts";
@@ -309,6 +311,27 @@ export type BraivoClient = {
     name: string,
     options?: RequestOptions,
   ): Promise<{ name: string }>;
+
+  /**
+   * Whether tools read the organization's learners' data (ADR 0050), who last
+   * changed it, and when. A browser's session alone, for an `owner` or
+   * `admin`: a token, or anyone else, gets a {@link BraivoError} with status 403.
+   */
+  readToolsReadLearnerData(
+    organizationId: string,
+    options?: RequestOptions,
+  ): Promise<ToolsReadLearnerData>;
+
+  /**
+   * Lets tools read the organization's learners' data, or stops them,
+   * answering the setting as it then stands; setting the value it has changes
+   * nothing, who and when included. Refused as `readToolsReadLearnerData`.
+   */
+  setToolsReadLearnerData(
+    organizationId: string,
+    allowed: boolean,
+    options?: RequestOptions,
+  ): Promise<ToolsReadLearnerData>;
 
   /**
    * Every member of an organization, by name, without their emails.
@@ -1005,6 +1028,31 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<{ name: string }>(response, doing);
+    },
+
+    async readToolsReadLearnerData(organizationId, requestOptions) {
+      const response = await get(
+        `${organizationPath(organizationId)}/tools-read-learner-data`,
+        requestOptions,
+      );
+
+      const doing = `reading whether tools read organization "${organizationId}"'s learners' data`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<ToolsReadLearnerData>(response, doing);
+    },
+
+    async setToolsReadLearnerData(organizationId, allowed, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/tools-read-learner-data`,
+        { allowed },
+        requestOptions,
+      );
+
+      const doing = `setting whether tools read organization "${organizationId}"'s learners' data`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<ToolsReadLearnerData>(response, doing);
     },
 
     async listMembers(organizationId, requestOptions) {

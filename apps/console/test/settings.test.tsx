@@ -582,7 +582,7 @@ describe("the console", () => {
       expect(input.value).toBe("Example School");
       expect(screen.getByText(`${window.location.host}/example`)).toBeTruthy();
 
-      const status = screen.getByRole("status");
+      const status = within(input.form!).getByRole("status");
       fireEvent.change(input, { target: { value: "  Fernwood  " } });
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
       await vi.waitFor(() => expect(status.textContent).toBe("Saved."));
@@ -668,7 +668,7 @@ describe("the console", () => {
       await act(async () => saving.resolve({ name: "Typed for Example" }));
       expect(input.value).toBe("Annex");
       expect(input.readOnly).toBe(false);
-      expect(screen.getByRole("status").textContent).toBe("");
+      expect(within(input.form!).getByRole("status").textContent).toBe("");
       expect(screen.getByRole("link", { name: "Back to Annex" })).toBeTruthy();
     });
 
@@ -753,6 +753,282 @@ describe("the console", () => {
         await screen.findByText("This organization does not exist, or you do not work in it."),
       ).toBeTruthy();
       expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    describe("whether tools read learners' data", () => {
+      const off = { allowed: false, changedBy: null, changedAt: null };
+      // Local noon: the date shown, in whatever time zone the tests run.
+      const octoberAtNoon = (day: number) => new Date(2026, 9, day, 12).toISOString();
+      const onByAna = {
+        allowed: true,
+        changedBy: { userId: "u2", name: "Ana Kowalska" },
+        changedAt: octoberAtNoon(30),
+      };
+      const toolsSwitch = () =>
+        screen.findByRole("switch", { name: "Let tools read learners' data" });
+      /** The switch's own status, not the name's. */
+      const status = () => screen.getAllByRole("status").find((region) => !region.closest("form"))!;
+
+      test("show it on where it is, saying who turned it on, again on reopening and per organization", async () => {
+        const braivo = {
+          readToolsReadLearnerData: vi.fn(async (organizationId: string) =>
+            organizationId === school.id ? onByAna : off,
+          ),
+          listCourses: async () => [],
+        };
+        const { router } = renderAt("/example/settings/general", {
+          organizations: [school, annex],
+          braivo,
+        });
+
+        expect((await toolsSwitch()).getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByText("Turned on by Ana Kowalska on October 30, 2026.")).toBeTruthy();
+        expect(braivo.readToolsReadLearnerData).toHaveBeenCalledWith(
+          "org-1",
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+
+        await router.navigate({ href: "/annex/settings/general" });
+        await vi.waitFor(async () =>
+          expect((await toolsSwitch()).getAttribute("aria-checked")).toBe("false"),
+        );
+        // Never changed: nothing to say about who.
+        expect(screen.queryByText(/^Turned /)).toBeNull();
+        expect(braivo.readToolsReadLearnerData).toHaveBeenLastCalledWith(
+          "org-2",
+          expect.anything(),
+        );
+
+        await router.navigate({ href: "/example/settings/members" });
+        await router.navigate({ href: "/example/settings/general" });
+        await vi.waitFor(async () =>
+          expect((await toolsSwitch()).getAttribute("aria-checked")).toBe("true"),
+        );
+      });
+
+      test("say only when it was changed once that account is gone", async () => {
+        renderAt("/example/settings/general", {
+          braivo: {
+            readToolsReadLearnerData: async () => ({ ...onByAna, allowed: false, changedBy: null }),
+          },
+        });
+
+        expect((await toolsSwitch()).getAttribute("aria-checked")).toBe("false");
+        expect(screen.getByText("Turned off October 30, 2026.")).toBeTruthy();
+      });
+
+      test("show no switch while it is read, nor once that fails, saying so", async () => {
+        const reading = Promise.withResolvers<never>();
+        renderAt("/example/settings/general", {
+          braivo: { readToolsReadLearnerData: () => reading.promise },
+        });
+        await screen.findByLabelText("Organization name");
+        expect(screen.queryByRole("switch")).toBeNull();
+
+        await act(async () => reading.reject(new TypeError("Failed to fetch")));
+        expect((await screen.findByRole("alert")).textContent).toBe(
+          "Could not load whether tools read learners' data. Reload the page to try again.",
+        );
+        expect(screen.queryByRole("switch")).toBeNull();
+      });
+
+      test("read nothing for a teacher, to whom it is no setting", async () => {
+        const readToolsReadLearnerData = vi.fn(async () => off);
+        renderAt("/example/settings/general", {
+          organizations: [{ ...school, administers: false, authors: false, teaches: true }],
+          braivo: { readToolsReadLearnerData },
+        });
+
+        expect(
+          await screen.findByRole("heading", { name: "There is no such setting" }),
+        ).toBeTruthy();
+        expect(readToolsReadLearnerData).not.toHaveBeenCalled();
+      });
+
+      test("turn it on only once asked, cancelling leaving it off", async () => {
+        const setToolsReadLearnerData = vi.fn(async () => ({
+          allowed: true,
+          changedBy: { userId: "u1", name: "Olive Owner" },
+          changedAt: octoberAtNoon(30),
+        }));
+        renderAt("/example/settings/general", { braivo: { setToolsReadLearnerData } });
+        const toggle = await toolsSwitch();
+
+        fireEvent.click(toggle);
+        const dialog = await screen.findByRole("alertdialog", {
+          name: "Let tools read learners' data?",
+        });
+        expect(dialog.textContent).toMatch(
+          /An AI app that receives this data may send it to its provider/,
+        );
+        expect(dialog.textContent).toMatch(/cannot recall what a tool already received/);
+        fireEvent.click(within(dialog).getByRole("button", { name: "Keep it off" }));
+        await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+        expect(setToolsReadLearnerData).not.toHaveBeenCalled();
+        expect(toggle.getAttribute("aria-checked")).toBe("false");
+        // Back where it was asked from, as a dialog's trigger would be, on a timer.
+        await vi.waitFor(() => expect(document.activeElement).toBe(toggle));
+
+        fireEvent.click(toggle);
+        fireEvent.click(
+          within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Turn on" }),
+        );
+        await vi.waitFor(() => expect(status().textContent).toBe("Saved."));
+        await vi.waitFor(() => expect(document.activeElement).toBe(toggle));
+        expect(setToolsReadLearnerData).toHaveBeenCalledExactlyOnceWith(
+          "org-1",
+          true,
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByText("Turned on by Olive Owner on October 30, 2026.")).toBeTruthy();
+      });
+
+      test("turn it off at once, showing what the answer says", async () => {
+        const setToolsReadLearnerData = vi.fn(async () => ({
+          allowed: false,
+          changedBy: { userId: "u1", name: "Olive Owner" },
+          changedAt: octoberAtNoon(31),
+        }));
+        renderAt("/example/settings/general", {
+          braivo: { readToolsReadLearnerData: async () => onByAna, setToolsReadLearnerData },
+        });
+        const toggle = await toolsSwitch();
+
+        fireEvent.click(toggle);
+        await vi.waitFor(() => expect(status().textContent).toBe("Saved."));
+        expect(screen.queryByRole("alertdialog")).toBeNull();
+        expect(setToolsReadLearnerData).toHaveBeenCalledExactlyOnceWith(
+          "org-1",
+          false,
+          expect.anything(),
+        );
+        expect(toggle.getAttribute("aria-checked")).toBe("false");
+        expect(screen.getByText("Turned off by Olive Owner on October 31, 2026.")).toBeTruthy();
+      });
+
+      test("show what a save answered, not a read answered after it, however begun", async () => {
+        const reread = Promise.withResolvers<typeof onByAna>();
+        const readToolsReadLearnerData = vi
+          .fn()
+          .mockResolvedValueOnce(onByAna)
+          .mockReturnValueOnce(reread.promise)
+          .mockResolvedValue(onByAna);
+        const turnedOff = { ...onByAna, allowed: false, changedAt: octoberAtNoon(31) };
+        renderAt("/example/settings/general", {
+          braivo: {
+            readToolsReadLearnerData,
+            setToolsReadLearnerData: async () => turnedOff,
+            renameOrganization: async (_organizationId: string, name: string) => ({ name }),
+          },
+        });
+        const toggle = await toolsSwitch();
+        // Renaming reads the page again, the setting with it.
+        fireEvent.change(screen.getByLabelText("Organization name"), {
+          target: { value: "Fernwood" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await vi.waitFor(() => expect(readToolsReadLearnerData).toHaveBeenCalledTimes(2));
+
+        fireEvent.click(toggle);
+        await vi.waitFor(() => expect(status().textContent).toBe("Saved."));
+        await act(async () => reread.resolve(onByAna));
+        expect(toggle.getAttribute("aria-checked")).toBe("false");
+        // Nor one begun after: the page cannot tell it from one sent before.
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await vi.waitFor(() => expect(readToolsReadLearnerData).toHaveBeenCalledTimes(3));
+        await act(async () => {});
+
+        expect(toggle.getAttribute("aria-checked")).toBe("false");
+        expect(screen.getByText("Turned off by Ana Kowalska on October 31, 2026.")).toBeTruthy();
+      });
+
+      test("carry nothing of a save still pending over to another organization's switch", async () => {
+        const sent = Promise.withResolvers<typeof onByAna>();
+        const braivo = {
+          readToolsReadLearnerData: async (organizationId: string) =>
+            organizationId === school.id ? off : onByAna,
+          setToolsReadLearnerData: vi.fn(() => sent.promise),
+        };
+        const { router } = renderAt("/example/settings/general", {
+          organizations: [school, annex],
+          braivo,
+        });
+        fireEvent.click(await toolsSwitch());
+        fireEvent.click(
+          within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Turn on" }),
+        );
+        await vi.waitFor(() => expect(status().textContent).toBe("Saving…"));
+
+        await router.navigate({ href: "/annex/settings/general" });
+        await vi.waitFor(() =>
+          expect(screen.getByText("Turned on by Ana Kowalska on October 30, 2026.")).toBeTruthy(),
+        );
+        // Example's save, answered only now, touches nothing of Annex's.
+        await act(async () =>
+          sent.resolve({ ...onByAna, changedBy: { userId: "u1", name: "Olive Owner" } }),
+        );
+        const toggle = await toolsSwitch();
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+        expect(toggle.getAttribute("aria-disabled")).toBeNull();
+        expect(screen.queryByText(/Olive Owner/)).toBeNull();
+        expect(status().textContent).toBe("");
+      });
+
+      test("keep the switch as it was when saving fails, saying so each time, locked while sent", async () => {
+        const sent = Promise.withResolvers<never>();
+        const setToolsReadLearnerData = vi
+          .fn()
+          .mockReturnValueOnce(sent.promise)
+          .mockRejectedValueOnce(new BraivoError(500, "Failed."))
+          .mockRejectedValueOnce(new BraivoError(409, "Conflict."));
+        renderAt("/example/settings/general", {
+          braivo: { readToolsReadLearnerData: async () => onByAna, setToolsReadLearnerData },
+        });
+        const toggle = await toolsSwitch();
+
+        fireEvent.click(toggle);
+        await vi.waitFor(() => expect(status().textContent).toBe("Saving…"));
+        expect(toggle.getAttribute("aria-disabled")).toBe("true");
+        fireEvent.click(toggle);
+        expect(setToolsReadLearnerData).toHaveBeenCalledOnce();
+        await act(async () => sent.reject(new TypeError("Failed to fetch")));
+
+        // Unanswered, it may have been saved all the same.
+        const unconfirmed =
+          "Could not confirm the change; it may have been saved. Reload the page to check.";
+        const first = await screen.findByRole("alert");
+        expect(first.textContent).toBe(unconfirmed);
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByText("Turned on by Ana Kowalska on October 30, 2026.")).toBeTruthy();
+        // The server's own failure may follow the change too.
+        fireEvent.click(toggle);
+        await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(first));
+        expect(screen.getByRole("alert").textContent).toBe(unconfirmed);
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+
+        fireEvent.click(toggle);
+        await vi.waitFor(() =>
+          expect(screen.getByRole("alert").textContent).toBe(
+            "Could not save whether tools read learners' data. Try again.",
+          ),
+        );
+        expect(toggle.getAttribute("aria-checked")).toBe("true");
+      });
+
+      test("send an account signed out meanwhile to sign in, and back", async () => {
+        const braivo = {
+          readToolsReadLearnerData: async () => onByAna,
+          setToolsReadLearnerData: vi.fn().mockRejectedValue(new BraivoError(401, "Signed out.")),
+        };
+        const { auth, router } = renderAt("/example/settings/general", { braivo });
+        const toggle = await toolsSwitch();
+        await auth.signOut();
+
+        fireEvent.click(toggle);
+        expect(await screen.findByLabelText("Email address")).toBeTruthy();
+        expect(router.state.location.search).toEqual({ redirect: "/example/settings/general" });
+      });
     });
 
     test("list the members by name with their roles and the groups they teach, marking the account's own", async () => {

@@ -472,6 +472,16 @@
 // organization, its name trimmed: 200 `{ "name" }` as stored. 400 `{ "error",
 // "code": "NAME_INVALID" }` for one blank, over 100 characters, or holding NUL.
 //
+// `GET /api/organizations/:organizationId/tools-read-learner-data` — whether
+// tools read the organization's learners' data (ADR 0050): `{ "allowed":
+// false, "changedBy": { "userId", "name" } | null, "changedAt": "…" | null
+// }`, who last changed it, `null` before the first change or once their
+// account is gone, and when, `null` until first changed. `POST` with `{
+// "allowed": true }` sets it, answering the same; setting the value it has
+// changes nothing, who and when included. Both to an `owner` or `admin`, 403
+// to anyone else, and to a request carrying a token, explained: a tool cannot
+// grant itself access, and the answer names a person.
+//
 // `GET /api/organizations/:organizationId/members` — answers
 // `{ "members": [{ "userId": "…", "name": "…", "roles": ["member"] }] }`, by
 // name, every role a member holds. No emails: the roster's clients need only

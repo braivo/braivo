@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 
 import {
   activateDomain,
@@ -28,6 +28,7 @@ import {
   NameRefused,
   ProvisioningFailed,
   readAuthoredCourse,
+  readToolsReadLearnerData,
   setCourseHidden,
   recordGradedEvidence,
   type QuotedCitation,
@@ -36,6 +37,7 @@ import {
   setCourseUrlLabel,
   retireTasks,
   SetUpRefused,
+  setToolsReadLearnerData,
   setUpOrganization,
 } from "../application/index.ts";
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
@@ -574,6 +576,51 @@ export function authoringRoutes(
       }
     },
   );
+
+  /**
+   * Whether tools read the organization's learners' data (ADR 0050), with who
+   * last changed it and when, read and set by whoever administers it, in a
+   * browser. A tool's refusal is explained here; the use case refuses it too.
+   */
+  const toolsReadLearnerDataPath = "/api/organizations/:organizationId/tools-read-learner-data";
+  const refuseTool = (context: Context) =>
+    context.json({ error: "Decide whether tools read learners' data in Braivo's console." }, 403);
+
+  routes.get(toolsReadLearnerDataPath, requireAccount, async (context) => {
+    if (presentsToolCredential(context)) return refuseTool(context);
+
+    try {
+      const setting = await readToolsReadLearnerData({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+        accessKind: context.var.accessKind,
+      });
+      return context.json(setting);
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
+
+  routes.post(toolsReadLearnerDataPath, ...trustedJsonWrite(), requireAccount, async (context) => {
+    if (presentsToolCredential(context)) return refuseTool(context);
+    const body = (await jsonBody(context)) as { allowed?: unknown } | null;
+    if (typeof body?.allowed !== "boolean") return context.body(null, 400);
+
+    try {
+      const setting = await setToolsReadLearnerData({
+        database,
+        organizationId: context.req.param("organizationId"),
+        actingAs: context.var.userId,
+        accessKind: context.var.accessKind,
+        allowed: body.allowed,
+        now: new Date(),
+      });
+      return context.json(setting);
+    } catch (error) {
+      return organizationRefusal(context, error);
+    }
+  });
 
   /** Every member of an organization, for whoever administers it. */
   routes.get("/api/organizations/:organizationId/members", requireAccount, async (context) => {

@@ -788,19 +788,55 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // Braivo's rules decide who changes it (ADR 0050), not Better Auth's
     // update, which any `owner` or `admin` reaches from any credential.
     const id = await createOwned(slugs.toolsSetting);
+    const ownerId = (await membersOf(id))[0]!.userId;
     const { organization } = authTables;
     const stored = async () =>
       (await database.select().from(organization).where(eq(organization.id, id)))[0];
+    const unchanged = {
+      toolsReadLearnerData: false,
+      toolsReadLearnerDataChangedBy: null,
+      toolsReadLearnerDataChangedAt: null,
+    };
 
-    expect(await stored()).toMatchObject({ toolsReadLearnerData: false });
+    expect(await stored()).toMatchObject(unchanged);
     const updated = await post(
       "/organization/update",
-      { organizationId: id, data: { name: "Tools Setting", toolsReadLearnerData: true } },
+      {
+        organizationId: id,
+        data: {
+          name: "Tools Setting",
+          toolsReadLearnerData: true,
+          toolsReadLearnerDataChangedBy: ownerId,
+          toolsReadLearnerDataChangedAt: "2026-06-01T00:00:00.000Z",
+        },
+      },
       { cookie: ownerCookie },
     );
 
     expect(updated.status).toBe(200);
-    expect(await stored()).toMatchObject({ name: "Tools Setting", toolsReadLearnerData: false });
+    expect(await stored()).toMatchObject({ name: "Tools Setting", ...unchanged });
+    // Only an administrator's browser reads any of it (access-45), not every
+    // member or tool through Better Auth's answers that carry an organization.
+    await database
+      .update(organization)
+      .set({
+        toolsReadLearnerData: true,
+        toolsReadLearnerDataChangedBy: ownerId,
+        toolsReadLearnerDataChangedAt: new Date(),
+      })
+      .where(eq(organization.id, id));
+    const listed = (await (
+      await call("/organization/list", { headers: { cookie: ownerCookie } })
+    ).json()) as Record<string, unknown>[];
+    const activated = (await (
+      await post("/organization/set-active", { organizationId: id }, { cookie: ownerCookie })
+    ).json()) as Record<string, unknown>;
+    for (const answered of [listed.find((entry) => entry.id === id), activated]) {
+      expect(answered).toMatchObject({ id, name: "Tools Setting" });
+      expect(Object.keys(answered ?? {})).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/^toolsReadLearnerData/)]),
+      );
+    }
   });
 
   test("trusts the installation's origin alone, not even an organization's domain", async () => {

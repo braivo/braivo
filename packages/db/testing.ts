@@ -92,7 +92,14 @@ export async function seedOrganization(
   await database
     .insert(organization)
     .values({ id: organizationId, name: organizationId, slug: organizationId, createdAt: at })
-    .onConflictDoUpdate({ target: organization.id, set: { toolsReadLearnerData: false } });
+    .onConflictDoUpdate({
+      target: organization.id,
+      set: {
+        toolsReadLearnerData: false,
+        toolsReadLearnerDataChangedBy: null,
+        toolsReadLearnerDataChangedAt: null,
+      },
+    });
 
   // One membership per person. Someone listed as both is an admin, since that
   // is the role a suite listing them there means to test.
@@ -138,7 +145,10 @@ export async function seedOrganization(
     .onConflictDoNothing();
 }
 
-/** Sets whether the organization lets tools read its learners' data (ADR 0050). */
+/**
+ * Sets whether the organization lets tools read its learners' data (ADR 0050),
+ * as a fixture: changed by no one, so no earlier test's record remains.
+ */
 export async function setToolsReadLearnerData(
   database: Database,
   organizationId: string,
@@ -146,7 +156,11 @@ export async function setToolsReadLearnerData(
 ): Promise<void> {
   await database
     .update(organization)
-    .set({ toolsReadLearnerData: allowed })
+    .set({
+      toolsReadLearnerData: allowed,
+      toolsReadLearnerDataChangedBy: null,
+      toolsReadLearnerDataChangedAt: null,
+    })
     .where(eq(organization.id, organizationId));
 }
 

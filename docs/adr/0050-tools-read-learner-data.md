@@ -1,6 +1,6 @@
 # 0050: An organization decides whether tools read its learners' data, off by default
 
-Status: accepted (2026-10-28). Applies on top of [ADR 0022](0022-machine-access.md) and [ADR 0045](0045-remote-mcp.md): it narrows what a token or a connection reads, never widens it.
+Status: accepted (2026-10-28), amended (2026-10-30: who last changed it and when, recorded and shown; turning it on asks first). Applies on top of [ADR 0022](0022-machine-access.md) and [ADR 0045](0045-remote-mcp.md): it narrows what a token or a connection reads, never widens it.
 
 ## Context
 
@@ -14,8 +14,9 @@ Braivo cannot tell what is behind a credential: Claude, Codex, a script, or `cur
 - **What it gates:** while off, a request made as a tool reads nothing that names or reports on other members of the organization: a course's overview and another member's report, refused as a missing course is (progress-2), and the member list and groups, and changing a group, whose answer lists its people, refused `403`. That is the line ADR 0045 draws for `braivo:progress`. A learner's own report is theirs to read through any tool: the setting does not apply to it, every other check still does. Writes that answer no one's data, creating a group or recording evidence, stay open to tools; their refusals may still tell whether an ID is a member, since the setting keeps learners' data out of answers, not every inference from a refusal.
 - **Tool or browser, from the credential.** The guards resolve which credential acted, a browser's session, a device-flow token, or a connection, and hand the use case an access kind, `browser` or `tool` (a token and a connection alike), beside the user ID. A request carrying `Authorization` is a tool's whatever cookie it also carries, as for publishing ([ADR 0039](0039-published-in-the-console.md)), and acts as the token's person. Each gated use case takes it required, never defaulted, and calls one shared check, `mayReadLearnerData`, against the organization owning what is read: a new route over a gated use case inherits the rule, a new use case calls the check. A connection's scope stays a separate check.
 - **Read on every request.** The stored value, never a cached one, so switching it off refuses a token's next request, even one issued before.
-- **A column of Braivo's own on `organization`,** `tools_read_learner_data`, a non-null boolean defaulting to `false`, declared as a Better Auth additional field that its API takes no input for (`input: false`), so its organization update, open to any `owner` or `admin` from any credential, cannot change it. Declared there because Better Auth's tables are generated from its config ([ADR 0006](0006-better-auth.md)).
-- **Changed by an `owner` or `admin`, from a browser alone,** at the console's organization settings: a tool cannot grant itself access. One switch, saying what turns on: tools these people connect read learners' names, progress, and learning history, which may reach the tool's AI provider. No operator command: the school decides, not the operator.
+- **A column of Braivo's own on `organization`,** `tools_read_learner_data`, a non-null boolean defaulting to `false`, declared as a Better Auth additional field that its API neither takes (`input: false`) nor returns (`returned: false`): its organization update is open to any `owner` or `admin` from any credential, and its listing to every member and tool. Declared there because Better Auth's tables are generated from its config ([ADR 0006](0006-better-auth.md)).
+- **Changed by an `owner` or `admin`, from a browser alone,** at the console's organization settings, the use case refusing a tool whatever route calls it: a tool cannot grant itself access, nor read the setting, whose answer names a person. One switch, saying what turns on: tools these people connect, such as the `braivo` CLI, can read learners' names, progress, and learning history, which an AI app receiving it may send to its provider; turning it off stops further reads, but cannot recall what a tool already received. Turning it on asks first, restating that; turning it off, which only narrows, applies at once. No operator command: the school decides, not the operator.
+- **Who last changed it and when, recorded and shown** beside the switch, so a school can see who decided: two more columns on `organization`, Better Auth additional fields as the value is, the person a foreign key to `user` set null when the account goes, leaving the time. One conditional update writes all three, only where the value differs, so setting the value it has records nothing, and two administrators turning it on at once record one change. The last change only, not a history.
 
 ## Alternatives rejected
 
@@ -24,8 +25,11 @@ Braivo cannot tell what is behind a credential: Claude, Codex, a script, or `cur
 - **Telling AI tools from other tools:** Braivo cannot; a token says nothing true about what holds it.
 - **On by default, or on for existing organizations:** a school would learn its data had left only afterwards.
 - **A cache of the setting:** switching it off must hold at the next request, and the read is one indexed row.
+- **A history of every change:** a table and a page of its own, when the last change already says who decided what holds now; it waits until a school asks who decided before.
+- **Asking before turning it off too:** off only narrows what tools read, so a dialog would slow the safe direction.
 
 ## Consequences
 
 - With the setting off, no tool reads others' data through the API, an administrator's CLI included; the console is unaffected. `braivo:progress` applies on top of it.
+- It governs credentials, not what drives a browser: an extension, a browser agent, or a WebMCP tool acting in a person's signed-in console presents their session and reads what they may, setting off or on. A tool Braivo itself offers inside its pages must reach learners' data as `tool`, decided by the server, not tagged by the page.
 - Each gated use case takes the access kind, so every caller, tests and fixtures included, says how it came.

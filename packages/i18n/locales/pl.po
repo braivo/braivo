@@ -401,6 +401,10 @@ msgstr "Nie udało się sprawdzić domeny. Spróbuj ponownie."
 msgid "Could not check this domain just now. Try again in a moment."
 msgstr "Nie udało się teraz sprawdzić tej domeny. Spróbuj ponownie za chwilę."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not confirm the change; it may have been saved. Reload the page to check."
+msgstr "Nie udało się potwierdzić zmiany; mogła zostać zapisana. Odśwież stronę, aby to sprawdzić."
+
 #: apps/console/components/group-form.tsx
 msgid "Could not confirm the change. Reload the group to check it before saving again."
 msgstr "Nie udało się potwierdzić zmiany. Wczytaj grupę ponownie i sprawdź ją przed kolejnym zapisem."
@@ -435,6 +439,10 @@ msgstr "Nie udało się odłączyć aplikacji. Spróbuj ponownie."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not load whether tools read learners' data. Reload the page to try again."
+msgstr "Nie udało się wczytać ustawienia dostępu narzędzi do danych uczniów. Odśwież stronę, aby spróbować ponownie."
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Could not record your answer. Try again."
 msgstr "Nie udało się zapisać Twojej odpowiedzi. Spróbuj ponownie."
@@ -450,6 +458,10 @@ msgstr "Nie udało się usunąć domeny. Spróbuj ponownie."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not save the name. Try again."
 msgstr "Nie udało się zapisać nazwy. Spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Could not save whether tools read learners' data. Try again."
+msgstr "Nie udało się zapisać ustawienia dostępu narzędzi do danych uczniów. Spróbuj ponownie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Could not save your name. Try again."
@@ -777,6 +789,10 @@ msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która
 msgid "Keep it"
 msgstr "Zostaw"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Keep it off"
+msgstr "Zostaw wyłączone"
+
 #: apps/console/components/group-form.tsx
 msgid "Keep the name to {MAX_TITLE} characters."
 msgstr "Nazwa może mieć najwyżej {MAX_TITLE} znaków."
@@ -866,6 +882,14 @@ msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Zezwolić aplikacji {clientName} na pracę w organizacji „{organizationName}”?"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Let tools read learners' data"
+msgstr "Pozwól narzędziom odczytywać dane uczniów"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Let tools read learners' data?"
+msgstr "Pozwolić narzędziom odczytywać dane uczniów?"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Let's practise this again."
@@ -1542,6 +1566,14 @@ msgstr "jutro o {time}"
 msgid "Too many tries. Wait a minute, then try again."
 msgstr "Zbyt wiele prób. Poczekaj minutę i spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Tools your organization's members connect, such as the braivo CLI, can then read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off stops further reads, but cannot recall what a tool already received."
+msgstr "Narzędzia podłączone przez członków Twojej organizacji, np. braivo CLI, będą wtedy mogły odczytywać imiona i nazwiska uczniów, ich postępy i historię nauki. Aplikacja AI, która otrzyma te dane, może przesłać je swojemu dostawcy. Wyłączenie tej opcji zatrzymuje dalsze odczyty, ale nie cofa tego, co narzędzie już otrzymało."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Tools your organization's members connect, such as the braivo CLI, will be able to read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off later stops further reads, but cannot recall what a tool already received."
+msgstr "Narzędzia podłączone przez członków Twojej organizacji, np. braivo CLI, będą mogły odczytywać imiona i nazwiska uczniów, ich postępy i historię nauki. Aplikacja AI, która otrzyma te dane, może przesłać je swojemu dostawcy. Późniejsze wyłączenie tej opcji zatrzyma dalsze odczyty, ale nie cofnie tego, co narzędzie już otrzymało."
+
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx
@@ -1554,6 +1586,26 @@ msgstr "Spróbuj ponownie"
 msgctxt "Why a question comes now"
 msgid "Try again"
 msgstr "Jeszcze raz"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turn on"
+msgstr "Włącz"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned off {date}."
+msgstr "Wyłączono {date}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned off by {name} on {date}."
+msgstr "Wyłączono {date} (przez: {name})."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned on {date}."
+msgstr "Włączono {date}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
+msgid "Turned on by {name} on {date}."
+msgstr "Włączono {date} (przez: {name})."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Type"

@@ -185,7 +185,9 @@ CREATE TABLE "organization" (
 	"logo" text,
 	"created_at" timestamp NOT NULL,
 	"metadata" text,
-	"tools_read_learner_data" boolean DEFAULT false NOT NULL
+	"tools_read_learner_data" boolean DEFAULT false NOT NULL,
+	"tools_read_learner_data_changed_by" text,
+	"tools_read_learner_data_changed_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "session" (
@@ -441,6 +443,7 @@ ALTER TABLE "oauth_consent" ADD CONSTRAINT "oauth_consent_user_id_user_id_fkey" 
 ALTER TABLE "oauth_refresh_token" ADD CONSTRAINT "oauth_refresh_token_client_id_oauth_client_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "oauth_client"("client_id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "oauth_refresh_token" ADD CONSTRAINT "oauth_refresh_token_session_id_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "session"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "oauth_refresh_token" ADD CONSTRAINT "oauth_refresh_token_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "organization" ADD CONSTRAINT "organization_tools_read_learner_data_changed_by_user_id_fkey" FOREIGN KEY ("tools_read_learner_data_changed_by") REFERENCES "user"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "organization_domain" ADD CONSTRAINT "organization_domain_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "organization_domain_claim" ADD CONSTRAINT "organization_domain_claim_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint

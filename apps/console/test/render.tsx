@@ -117,6 +117,11 @@ export function renderAt(
         courseProgress,
         signInSettings: async () => ({ google: false, legal: null }),
         organizationSetup: async () => null,
+        readToolsReadLearnerData: async () => ({
+          allowed: false,
+          changedBy: null,
+          changedAt: null,
+        }),
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
       visit,
