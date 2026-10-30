@@ -384,13 +384,16 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       });
       expect(new Date(turnedOn.changedAt!).toISOString()).toBe(turnedOn.changedAt);
       expect(await client.readToolsReadLearnerData(organizationId, options)).toEqual(turnedOn);
+      // Each started as awaited: one left waiting would reject unhandled.
       for (const refused of [
-        client.readToolsReadLearnerData(organizationId, { headers: { cookie: learnerCookie } }),
-        client.setToolsReadLearnerData(organizationId, false, {
-          headers: { cookie: learnerCookie },
-        }),
+        () =>
+          client.readToolsReadLearnerData(organizationId, { headers: { cookie: learnerCookie } }),
+        () =>
+          client.setToolsReadLearnerData(organizationId, false, {
+            headers: { cookie: learnerCookie },
+          }),
       ]) {
-        await expect(refused).rejects.toMatchObject({ status: 403 });
+        await expect(refused()).rejects.toMatchObject({ status: 403 });
       }
     } finally {
       // Off and never changed, as seeded, for whatever else reads it.
