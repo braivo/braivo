@@ -98,6 +98,7 @@ export function groupRoutes(
         database,
         organizationId: context.req.param("organizationId"),
         actingAs: context.var.userId,
+        accessKind: context.var.accessKind,
       });
       return context.json({ groups });
     } catch (error) {
@@ -142,6 +143,7 @@ export function groupRoutes(
           database,
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
+          accessKind: context.var.accessKind,
           groupId: context.req.param("groupId"),
           change,
         });

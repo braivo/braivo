@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { toolsMayReadLearnerData } from "../persistence/index.ts";
+import { NotPermitted } from "./permission.ts";
 
 /**
  * How a request reached Braivo, from the credential it came with: a person's
@@ -16,9 +17,10 @@ export type AccessKind = "browser" | "tool";
 /**
  * Whether `accessKind` may read what names or reports on members of this
  * organization other than the reader (ADR 0050): a browser always, a tool only
- * while the organization allows it. Read from the database on every call,
- * never cached, so switching it off refuses a token's next request. Pass the
- * organization owning what is read, never one the request names.
+ * while the organization allows it. For a tool, read from the database on every
+ * call, never cached, so switching it off refuses a token's next request. Pass the
+ * organization owning what is read: a course's own, never one the request
+ * names beside it; for an organization's route, the one its queries scope to.
  */
 export async function mayReadLearnerData(
   database: Database,
@@ -28,4 +30,19 @@ export async function mayReadLearnerData(
     input.accessKind === "browser" ||
     (await toolsMayReadLearnerData(database, input.organizationId))
   );
+}
+
+/**
+ * Refuses, as `NotPermitted`, what `mayReadLearnerData` would not admit: for a
+ * route that refuses `403` rather than answering as missing (ADR 0050).
+ */
+export async function assertMayReadLearnerData(
+  database: Database,
+  input: { organizationId: string; accessKind: AccessKind },
+): Promise<void> {
+  if (!(await mayReadLearnerData(database, input))) {
+    throw new NotPermitted(
+      `Organization "${input.organizationId}" does not let tools read its learners' data.`,
+    );
+  }
 }

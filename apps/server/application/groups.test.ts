@@ -145,7 +145,9 @@ describe.skipIf(!connectionString)("groups", () => {
         definition: definition({ name: "  7A  ", learnerIds: [ben, ana] }),
       });
 
-      expect(await listGroups({ database, organizationId, actingAs: admin })).toEqual([
+      expect(
+        await listGroups({ database, organizationId, actingAs: admin, accessKind: "browser" }),
+      ).toEqual([
         {
           id: groupId,
           organizationId,
@@ -174,7 +176,14 @@ describe.skipIf(!connectionString)("groups", () => {
           defineGroup({ database, organizationId, actingAs, definition: definition() }),
         ).rejects.toThrow(NotPermitted);
         await expect(
-          changeGroup({ database, organizationId, actingAs, groupId, change: { name: "Mine" } }),
+          changeGroup({
+            database,
+            organizationId,
+            actingAs,
+            accessKind: "browser",
+            groupId,
+            change: { name: "Mine" },
+          }),
         ).rejects.toThrow(NotPermitted);
       }
     });
@@ -228,6 +237,7 @@ describe.skipIf(!connectionString)("groups", () => {
         database,
         organizationId,
         actingAs: admin,
+        accessKind: "browser",
         groupId,
         change: { remove: { userIds: [ben] } },
       });
@@ -244,8 +254,16 @@ describe.skipIf(!connectionString)("groups", () => {
   describe("changing", () => {
     let groupId!: string;
     const change = (groupChange: GroupChange, id = groupId) =>
-      changeGroup({ database, organizationId, actingAs: admin, groupId: id, change: groupChange });
-    const read = async () => (await listGroups({ database, organizationId, actingAs: admin }))[0];
+      changeGroup({
+        database,
+        organizationId,
+        actingAs: admin,
+        accessKind: "browser",
+        groupId: id,
+        change: groupChange,
+      });
+    const read = async () =>
+      (await listGroups({ database, organizationId, actingAs: admin, accessKind: "browser" }))[0];
 
     beforeEach(async () => {
       groupId = await defineGroup({
@@ -338,10 +356,44 @@ describe.skipIf(!connectionString)("groups", () => {
           database,
           organizationId,
           actingAs: teacherA,
+          accessKind: "browser",
           groupId: "no-such-group",
           change: { name: "Any" },
         }),
       ).rejects.toThrow(NotPermitted);
+    });
+
+    test("refuses a tool while the organization does not allow it, before reading its people or groups (access-45)", async () => {
+      const asTool = (groupChange: GroupChange, id = groupId) =>
+        changeGroup({
+          database,
+          organizationId,
+          actingAs: admin,
+          accessKind: "tool",
+          groupId: id,
+          change: groupChange,
+        });
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+
+      await expect(asTool({ name: "Renamed" })).rejects.toThrow(NotPermitted);
+      // Not a 400 naming the non-member, nor a 404 for the missing group.
+      await expect(asTool({ add: { learnerIds: [stranger] } })).rejects.toThrow(NotPermitted);
+      await expect(asTool({ name: "Any" }, "no-such-group")).rejects.toThrow(NotPermitted);
+      // What reads nothing still says what is wrong with the change.
+      for (const invalid of [
+        {},
+        { name: "  " },
+        { add: { learnerIds: [ana, ana] } },
+        { add: { learnerIds: [ben], teacherIds: [ben] } },
+      ]) {
+        await expect(asTool(invalid)).rejects.toThrow(InvalidDefinition);
+      }
+      expect((await read())?.name).toBe("7A");
+
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+      expect(await asTool({ name: "Renamed" })).toMatchObject({ name: "Renamed" });
+      await expect(asTool({ add: { learnerIds: [stranger] } })).rejects.toThrow(InvalidDefinition);
+      expect(await asTool({ name: "Any" }, "no-such-group")).toBeUndefined();
     });
   });
 
@@ -361,14 +413,36 @@ describe.skipIf(!connectionString)("groups", () => {
 
     test("lists a teacher the groups they teach, another member none, an administrator all", async () => {
       const names = async (actingAs: string) =>
-        (await listGroups({ database, organizationId, actingAs })).map(({ name }) => name);
+        (await listGroups({ database, organizationId, actingAs, accessKind: "browser" })).map(
+          ({ name }) => name,
+        );
 
       expect(await names(teacherA)).toEqual(["7A"]);
       expect(await names(ana)).toEqual([]);
       expect(await names(admin)).toEqual(["7A", "7B"]);
-      await expect(listGroups({ database, organizationId, actingAs: stranger })).rejects.toThrow(
-        NotPermitted,
-      );
+      await expect(
+        listGroups({ database, organizationId, actingAs: stranger, accessKind: "browser" }),
+      ).rejects.toThrow(NotPermitted);
+    });
+
+    test("lists a tool groups only while the organization allows it, and no more than its person's (access-45)", async () => {
+      const names = async (actingAs: string, accessKind: AccessKind) =>
+        (await listGroups({ database, organizationId, actingAs, accessKind })).map(
+          ({ name }) => name,
+        );
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+      for (const actingAs of [admin, teacherA]) {
+        await expect(
+          listGroups({ database, organizationId, actingAs, accessKind: "tool" }),
+        ).rejects.toThrow(NotPermitted);
+      }
+
+      await testing.setToolsReadLearnerData(database, organizationId, true);
+      expect(await names(admin, "tool")).toEqual(["7A", "7B"]);
+      expect(await names(teacherA, "tool")).toEqual(["7A"]);
+      await expect(
+        listGroups({ database, organizationId, actingAs: stranger, accessKind: "tool" }),
+      ).rejects.toThrow(NotPermitted);
     });
 
     test("shows a teacher the overview of their groups' learners alone, counted as their reports", async () => {
@@ -440,11 +514,17 @@ describe.skipIf(!connectionString)("groups", () => {
     });
 
     test("ends a teacher's access when the course leaves the group, and keeps the history", async () => {
-      const [group] = await listGroups({ database, organizationId, actingAs: teacherA });
+      const [group] = await listGroups({
+        database,
+        organizationId,
+        actingAs: teacherA,
+        accessKind: "browser",
+      });
       await changeGroup({
         database,
         organizationId,
         actingAs: admin,
+        accessKind: "browser",
         groupId: group!.id,
         change: { remove: { courseIds: [shared] } },
       });
@@ -455,12 +535,18 @@ describe.skipIf(!connectionString)("groups", () => {
     });
 
     test("ends a teacher's access to a learner removed from the group, then the removed teacher's", async () => {
-      const [group] = await listGroups({ database, organizationId, actingAs: teacherA });
+      const [group] = await listGroups({
+        database,
+        organizationId,
+        actingAs: teacherA,
+        accessKind: "browser",
+      });
       const remove = (userIds: string[]) =>
         changeGroup({
           database,
           organizationId,
           actingAs: admin,
+          accessKind: "browser",
           groupId: group!.id,
           change: { remove: { userIds } },
         });
@@ -478,9 +564,9 @@ describe.skipIf(!connectionString)("groups", () => {
         .delete(member)
         .where(and(eq(member.organizationId, organizationId), eq(member.userId, teacherA)));
 
-      await expect(listGroups({ database, organizationId, actingAs: teacherA })).rejects.toThrow(
-        NotPermitted,
-      );
+      await expect(
+        listGroups({ database, organizationId, actingAs: teacherA, accessKind: "browser" }),
+      ).rejects.toThrow(NotPermitted);
       expect(await overview(teacherA)).toEqual({ kind: "unavailable" });
       expect(await report(teacherA, ana)).toEqual({ kind: "unavailable" });
     });
