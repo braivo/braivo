@@ -14,6 +14,7 @@ import {
   readOrganizationBySlug,
   updateOrganizationName,
 } from "../persistence/index.ts";
+import { type AccessKind, assertMayReadLearnerData } from "./access.ts";
 import { type Ai, aiEnabledFor } from "./ai.ts";
 import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains.ts";
 import { administers, assertMayAdminister, authors, NotPermitted } from "./permission.ts";
@@ -65,17 +66,20 @@ export async function maySetUpOrganization(input: {
 }
 
 /**
- * Every member of an organization, for whoever administers it. A learner may
- * not list the others: membership is not a directory of classmates.
+ * Every member of an organization, for whoever administers it, and to a tool
+ * only where the organization allows it (ADR 0050). A learner may not list the
+ * others: membership is not a directory of classmates.
  */
 export async function listMembers(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
+  accessKind: AccessKind;
 }): Promise<Member[]> {
-  const { database, organizationId, actingAs } = input;
+  const { database, organizationId, actingAs, accessKind } = input;
 
   await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await assertMayReadLearnerData(database, { organizationId, accessKind });
 
   return readMembers(database, organizationId);
 }

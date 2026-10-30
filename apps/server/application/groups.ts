@@ -16,6 +16,7 @@ import {
   readOrganizationRoles,
   updateGroup,
 } from "../persistence/index.ts";
+import { type AccessKind, assertMayReadLearnerData } from "./access.ts";
 import { InvalidDefinition } from "./objectives.ts";
 import { administers, assertMayAdminister, NotPermitted } from "./permission.ts";
 
@@ -61,15 +62,18 @@ export async function defineGroup(input: {
  * such. Removing someone and adding them in one change sets their role;
  * adding someone already there in another is `ConflictingGroupRole`.
  * Concurrent changes apply in turn, the last one's word final (ADR 0042).
+ * The answer names its people, so a tool changes one only where the
+ * organization allows it (ADR 0050).
  */
 export async function changeGroup(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
+  accessKind: AccessKind;
   groupId: string;
   change: GroupChange;
 }): Promise<Group | undefined> {
-  const { database, organizationId, actingAs, groupId, change } = input;
+  const { database, organizationId, actingAs, accessKind, groupId, change } = input;
   const { add = {}, remove = {} } = change;
   const learnerIds = add.learnerIds ?? [];
   const teacherIds = add.teacherIds ?? [];
@@ -87,6 +91,9 @@ export async function changeGroup(input: {
     throw new InvalidDefinition("The change", "names nothing to change in the group");
   }
   await assertMayAdminister(database, { organizationId, userId: actingAs });
+  // Before anything reads its people or groups, so a blocked tool learns none
+  // of them from a 400 or a 404.
+  await assertMayReadLearnerData(database, { organizationId, accessKind });
   await assertInOrganization(database, organizationId, { learnerIds, teacherIds, courseIds });
 
   if (!(await updateGroup(database, { organizationId, groupId, change: { ...change, name } }))) {
@@ -99,19 +106,22 @@ export async function changeGroup(input: {
 
 /**
  * The organization's groups: every one to whoever administers it, and to any
- * other member those they teach, none if they teach none.
+ * other member those they teach, none if they teach none; to a tool only where
+ * the organization allows it (ADR 0050).
  */
 export async function listGroups(input: {
   database: Database;
   organizationId: string;
   actingAs: string;
+  accessKind: AccessKind;
 }): Promise<Group[]> {
-  const { database, organizationId, actingAs } = input;
+  const { database, organizationId, actingAs, accessKind } = input;
 
   const roles = await readOrganizationRoles(database, { organizationId, userId: actingAs });
   if (roles.length === 0) {
     throw new NotPermitted(`"${actingAs}" is not a member of organization "${organizationId}".`);
   }
+  await assertMayReadLearnerData(database, { organizationId, accessKind });
   return readGroups(
     database,
     administers(roles) ? { organizationId } : { organizationId, teacherId: actingAs },

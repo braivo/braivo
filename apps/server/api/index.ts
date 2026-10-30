@@ -217,9 +217,10 @@
 //   401  no session
 //   404  the course does not exist; the reader is not the learner, does not
 //        administer its organization, and does not teach them in it; or the
-//        learner is not in it, or does not exist. One status for all of them,
-//        so it confirms neither a course nor a person to someone with no
-//        business knowing.
+//        learner is not in it, or does not exist; or a tool reads another's
+//        while the organization does not let tools read its learners' data
+//        (ADR 0050). One status for all of them, so it confirms neither a
+//        course nor a person to someone with no business knowing.
 //   200  a knowledge report, objectives in content order, each carrying the
 //        values that describe its phase:
 //
@@ -253,8 +254,10 @@
 // elsewhere, 401.
 //
 //   401  no session
-//   404  the course does not exist, or the reader neither administers its
-//        organization nor teaches a group taking it, alike
+//   404  the course does not exist, the reader neither administers its
+//        organization nor teaches a group taking it, or a tool reads it while
+//        the organization does not let tools read its learners' data (ADR
+//        0050), alike
 //   200  { "modelVersion": "v1", "learners": [
 //          { "userId": "…", "name": "Ana", "roles": ["member"],
 //            "standings": { "unseen": 1, "acquiring": 2, "retained": 0, "due": 1 } }
@@ -472,7 +475,8 @@
 // `GET /api/organizations/:organizationId/members` — answers
 // `{ "members": [{ "userId": "…", "name": "…", "roles": ["member"] }] }`, by
 // name, every role a member holds. No emails: the roster's clients need only
-// names and roles.
+// names and roles. 403 to a tool, too, while the organization does not let
+// tools read its learners' data (ADR 0050).
 //
 // `GET /api/organizations/:organizationId/groups` — the organization's groups,
 // by name: `{ "groups": [{ "id", "organizationId", "name", "learners": [{
@@ -480,7 +484,7 @@
 // }`, people by name and courses by title. Every group to an `owner` or
 // `admin`; to any other member those they teach, none if they teach none:
 // what a teacher may read through the progress routes above. 403 to anyone
-// who is not a member.
+// who is not a member, and to a tool as for members.
 //
 // `POST /api/organizations/:organizationId/groups` — creates a group: `{
 // "name", "learnerIds": [...], "teacherIds": [...], "courseIds": [...] }`,
@@ -502,7 +506,8 @@
 // listed, as it then stands; 404 when the organization has no such group.
 // Refused as creating one is, and a change naming nothing is 400 with an
 // `error`; a field it does not know, 400, as a misspelt one would otherwise
-// change nothing.
+// change nothing. 403 to a tool as for members, before anything about the
+// organization's people or groups is checked.
 //
 // `GET /api/organizations/:organizationId/domains` — answers `{ "domains":
 // [{ "hostname", "removable" }], "claims": [{ "hostname", "status" }],

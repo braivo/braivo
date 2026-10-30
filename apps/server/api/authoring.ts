@@ -582,6 +582,7 @@ export function authoringRoutes(
         database,
         organizationId: context.req.param("organizationId"),
         actingAs: context.var.userId,
+        accessKind: context.var.accessKind,
       });
 
       return context.json({ members });
