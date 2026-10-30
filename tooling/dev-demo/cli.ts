@@ -39,7 +39,7 @@ const ROOT = join(import.meta.dirname, "../..");
 
 /**
  * What a child inherits: enough to find its tools and draw its output, never
- * this shell's Braivo, mail, Google, AI, or storage settings, nor `.env`'s,
+ * this shell's Braivo, mail, Google, AI, or storage settings, nor the env files',
  * which Bun loaded into this process.
  */
 const INHERITED = [
@@ -110,13 +110,13 @@ async function serve(demo: Demo, lockLost: Promise<Error>, ready: () => void): P
   const commands = [
     {
       name: "server",
-      // Without Bun's `.env` loading, which would add what `environment` leaves out.
+      // Without Bun's env-file loading, which would add what `environment` leaves out.
       command: [process.execPath, "--no-env-file", "--watch", "apps/server/cli/index.ts", "serve"],
       cwd: ROOT,
     },
     ...(["learn", "console"] as const).map((app) => ({
       name: app,
-      // Under Node, as `vp` is; its `loadEnv` lets these variables override `.env`'s.
+      // Under Node, as `vp` is; its `loadEnv` lets these variables override the env files'.
       // On IPv4, where `consoleUrl` and `fernwood.localhost` both reach it.
       command: [
         vite,

@@ -37,7 +37,7 @@ const NOTES = "local";
 
 /**
  * A worktree's ports, among its development overrides: Vite and Bun load it in
- * development alone, over `.env`, `.env.development`, and `.env.local`.
+ * development alone, over `.env.development` and `.env.local`.
  */
 const PORTS_FILE = ".env.development.local";
 
@@ -172,7 +172,7 @@ function assignPorts(root: string, worktrees: string[]): string | undefined {
 }
 
 /** The development env files Bun loads, each over the one before; literal values alone. */
-const ENV_FILES = [".env", ".env.development", ".env.local", PORTS_FILE];
+const ENV_FILES = [".env.development", ".env.local", PORTS_FILE];
 
 const PORT_VARIABLES = ["PORT", "BRAIVO_URL", "BRAIVO_LEARN_PORT"];
 

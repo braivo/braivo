@@ -195,7 +195,7 @@ function readTarget(value: string | undefined): string {
   const target = value?.trim();
   if (!target) {
     throw new DemoRefused(
-      `${TARGET_VARIABLE} is not set. Name a database on your local PostgreSQL through which the demo may create its own, e.g. ${TARGET_VARIABLE}=postgres://localhost/postgres in .env.`,
+      `${TARGET_VARIABLE} is not set. Name a database on your local PostgreSQL through which the demo may create its own, e.g. ${TARGET_VARIABLE}=postgres://localhost/postgres in .env.local.`,
     );
   }
   const url = URL.canParse(target) ? new URL(target) : undefined;

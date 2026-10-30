@@ -46,15 +46,15 @@ Requires [Bun](https://bun.com), PostgreSQL with its `createdb`, and a POSIX she
 bun install
 createdb braivo
 createdb braivo_test
-cat > .env <<ENV
-DATABASE_URL=postgres://localhost/braivo
-TEST_DATABASE_URL=postgres://localhost/braivo_test
+cat > .env.local <<ENV
 BETTER_AUTH_SECRET=$(openssl rand -base64 32)
-BRAIVO_URL=http://localhost:5174
+TEST_DATABASE_URL=postgres://localhost/braivo_test
 ENV
 bun run db:migrate
 bun run dev        # API on :3000, learn app on :5173, console on :5174
 ```
+
+The committed `.env.development` holds development defaults, such as `DATABASE_URL`, and lists the optional settings. Your secrets and your own values go in the gitignored `.env.local`, which every linked worktree copies: `ANTHROPIC_API_KEY` there turns on Braivo's AI, and a development key with a spend limit keeps a leak cheap. Override `BRAIVO_URL` or ports in `.env.development.local` instead, which Vite ranks above `.env.development` ([ADR 0051](docs/adr/0051-environment-files.md)).
 
 A linked worktree gets ports of its own from `bun tooling/worktree-setup.ts`, which prints its console's URL and keeps them in `.env.development.local` ([ADR 0014](docs/adr/0014-worktree-setup.md)): use that URL instead of `http://localhost:5174`.
 
