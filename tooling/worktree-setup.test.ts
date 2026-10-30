@@ -41,38 +41,44 @@ function git(cwd: string, ...args: string[]): void {
 beforeEach(() => {
   // Real path: Git reports one, and macOS's temp directory is behind a symlink.
   dir = realpathSync(mkdtempSync(join(tmpdir(), "worktree-setup-")));
+  // No user configuration, as signing or global ignores, for these calls or the script's.
+  vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
+  vi.stubEnv("XDG_CONFIG_HOME", dir);
   main = join(dir, "main");
   linked = join(dir, "linked");
   installs = [];
   mkdirSync(main);
   git(main, "init", "-q");
-  writeFileSync(join(main, ".gitignore"), ".env\nprivate/\n/local\n");
+  writeFileSync(join(main, ".gitignore"), ".env.local\nprivate/\n/local\n");
   writeFileSync(
     join(main, ".worktreeinclude"),
-    "# comment\n\n.env\n/private/notes.md\nmissing\nunignored\n",
+    "# comment\n\n.env.local\n/private/notes.md\nmissing\nunignored\n",
   );
   git(main, "add", ".");
   git(main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init");
-  writeFileSync(join(main, ".env"), "SECRET=1\n");
+  writeFileSync(join(main, ".env.local"), "SECRET=1\n");
   mkdirSync(join(main, "private"));
   writeFileSync(join(main, "private/notes.md"), "notes\n");
   writeFileSync(join(main, "unignored"), "untracked, not ignored\n");
   git(main, "worktree", "add", "-q", "--detach", linked);
 });
 
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  vi.unstubAllEnvs();
+  rmSync(dir, { recursive: true, force: true });
+});
 
 describe("worktree setup", () => {
   test("copies the listed files that exist and are ignored, and installs dependencies", () => {
     expect(setUpWorktree(linked, install)).toEqual([
-      "copied .env",
+      "copied .env.local",
       "copied private/notes.md",
       "linked local/",
       "created tmp/",
       "wrote .env.development.local (console http://localhost:5194, learn 5193, server 3020)",
       "installed dependencies",
     ]);
-    expect(readFileSync(join(linked, ".env"), "utf8")).toBe("SECRET=1\n");
+    expect(readFileSync(join(linked, ".env.local"), "utf8")).toBe("SECRET=1\n");
     expect(readFileSync(join(linked, "private/notes.md"), "utf8")).toBe("notes\n");
     expect(existsSync(join(linked, "missing"))).toBe(false);
     expect(existsSync(join(linked, "unignored"))).toBe(false);
@@ -83,15 +89,15 @@ describe("worktree setup", () => {
   test("works from a subdirectory of the worktree", () => {
     mkdirSync(join(linked, "sub"));
     setUpWorktree(join(linked, "sub"), install);
-    expect(existsSync(join(linked, ".env"))).toBe(true);
+    expect(existsSync(join(linked, ".env.local"))).toBe(true);
     expect(installs).toEqual([linked]);
   });
 
   test("never overwrites copied files and installs on every run", () => {
     setUpWorktree(linked, install);
-    writeFileSync(join(linked, ".env"), "EDITED=1\n");
+    writeFileSync(join(linked, ".env.local"), "EDITED=1\n");
     expect(setUpWorktree(linked, install)).toEqual(["installed dependencies"]);
-    expect(readFileSync(join(linked, ".env"), "utf8")).toBe("EDITED=1\n");
+    expect(readFileSync(join(linked, ".env.local"), "utf8")).toBe("EDITED=1\n");
     expect(installs).toEqual([linked, linked]);
   });
 
@@ -104,7 +110,7 @@ describe("worktree setup", () => {
 
     // The main checkout's, by the file Bun would take it from: 3050 is slot 2's demo's,
     // and its own demo's 3060 is slot 3's server's.
-    writeFileSync(join(main, ".env"), "PORT=9000\n");
+    writeFileSync(join(main, ".env.development"), "PORT=9000\n");
     writeFileSync(join(main, ".env.local"), "PORT=3050\n");
     const second = join(dir, "second");
     git(main, "worktree", "add", "-q", "--detach", second);
@@ -155,7 +161,7 @@ describe("worktree setup", () => {
   });
 
   test("fails once set up when the notes directory is not ignored", () => {
-    writeFileSync(join(linked, ".gitignore"), ".env\nprivate/\n");
+    writeFileSync(join(linked, ".gitignore"), ".env.local\nprivate/\n");
     expect(() => setUpWorktree(linked, install)).toThrow("/local is not gitignored");
     expect(existsSync(join(linked, "local"))).toBe(false);
     expect(installs).toEqual([linked]);
@@ -169,11 +175,7 @@ describe("worktree setup", () => {
     vi.stubEnv("GIT_DIR", join(other, ".git"));
     vi.stubEnv("GIT_WORK_TREE", other);
     vi.stubEnv("GIT_INDEX_FILE", join(other, ".git/index"));
-    try {
-      expect(setUpWorktree(linked, install)).toContain("copied .env");
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    expect(setUpWorktree(linked, install)).toContain("copied .env.local");
     expect(readdirSync(other)).toEqual([".git"]);
     expect(existsSync(join(other, ".git/worktrees"))).toBe(false);
   });

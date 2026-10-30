@@ -13,6 +13,7 @@ path = [
   "**/*.json",
   "**/*.html",
   "**/*.po",
+  ".env.development",
   ".gitignore",
   ".worktreeinclude",
   "bun.lock",

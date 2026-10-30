@@ -12,6 +12,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0004: Application origins and organization addressing](0004-one-application-origin.md)
 - [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
 - [0019: Local notes shared by every worktree through one link](0019-shared-local-notes.md)
+- [0051: Development defaults are committed in `.env.development`, a developer's values live in `.env.local`, and `serve` reads no env file](0051-environment-files.md)
 - [0043: A demo per worktree, in a database it created and marked, prepared once](0043-development-demo.md) — proposed
 - [0036: Contributions come under a license CLA, signed by a file in the contributor's pull request](0036-contributor-license-agreement.md)
 - [0037: The console wears neutral grounds and lime, in a light and a dark theme](0037-console-theme-light-and-dark.md)

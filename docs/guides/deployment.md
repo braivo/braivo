@@ -9,7 +9,7 @@ curl -i http://localhost:3000/api/courses/<course-id>/next   # 401 without a ses
 
 The server mounts Better Auth at `/api/auth/*` and serves the learning API alongside it.
 
-`bun apps/server/cli/index.ts config check` checks the environment `serve` reads without serving or reaching the database, so a release can stop on a bad one before replacing a running server; `bun run dev` runs it before starting anything.
+`bun --no-env-file apps/server/cli/index.ts config check` checks the environment `serve` reads without serving or reaching the database, so a release can stop on a bad one before replacing a running server; `bun run dev` runs it before starting anything. `bun --no-env-file apps/server/cli/index.ts db migrate` then applies the release's migrations; `bun run db:migrate` is for development, and loads the repository's defaults.
 
 ## Before you expose it
 
@@ -29,8 +29,8 @@ Each build's `dist/_headers` is the app's security policy, in the format of Clou
 The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none unless self-serve is on, below ([ADR 0018](../adr/0018-sign-in-and-invitations.md)):
 
 ```bash
-bun apps/server/cli/index.ts organization create --name "My School" --slug my-school --owner owner@example.com
-bun apps/server/cli/index.ts organization add-member --slug my-school --email learner@example.com
+bun --no-env-file apps/server/cli/index.ts organization create --name "My School" --slug my-school --owner owner@example.com
+bun --no-env-file apps/server/cli/index.ts organization add-member --slug my-school --email learner@example.com
 ```
 
 `add-member` adds someone who has signed in once, as a learner; `--role author` lets them prepare and publish the organization's content, and `--role admin` also manages its people and settings.
@@ -52,9 +52,9 @@ On Workers, `createServer({ clientIdMetadataDocuments: "strictly-public" })` fet
 Or a host fetches nothing, with `createServer({ clientIdMetadataDocuments: false })`, accepting only the clients the operator registers, from any machine reaching the installation's database, with its `DATABASE_URL`, `BRAIVO_URL`, and `BETTER_AUTH_SECRET`. On Workers, it is the way back if some client's document cannot be fetched, for every client at once: none named by URL connects unless registered. Registered under their documents' URLs, these connect with a person's sign-in alone, since the host still advertises CIMD and withdraws `private_key_jwt`:
 
 ```bash
-bun apps/server/cli/index.ts oauth-client add --name ChatGPT --client-id https://chatgpt.com/oauth/client.json --redirect-uri https://chatgpt.com/connector_platform_oauth_redirect
-bun apps/server/cli/index.ts oauth-client add --name Claude --client-id https://claude.ai/oauth/mcp-oauth-client-metadata --redirect-uri https://claude.ai/api/mcp/auth_callback
-bun apps/server/cli/index.ts oauth-client add --name "Claude Code" --client-id https://claude.ai/oauth/claude-code-client-metadata --redirect-uri http://localhost/callback --redirect-uri http://127.0.0.1/callback
+bun --no-env-file apps/server/cli/index.ts oauth-client add --name ChatGPT --client-id https://chatgpt.com/oauth/client.json --redirect-uri https://chatgpt.com/connector_platform_oauth_redirect
+bun --no-env-file apps/server/cli/index.ts oauth-client add --name Claude --client-id https://claude.ai/oauth/mcp-oauth-client-metadata --redirect-uri https://claude.ai/api/mcp/auth_callback
+bun --no-env-file apps/server/cli/index.ts oauth-client add --name "Claude Code" --client-id https://claude.ai/oauth/claude-code-client-metadata --redirect-uri http://localhost/callback --redirect-uri http://127.0.0.1/callback
 ```
 
 The redirect URIs are copied from each document; recheck them there if a client's sign-in fails. Where nothing is fetched, `invalid_client` at sign-in usually means the app sent an ID no `--client-id` registered. Without `--client-id`, `add` prints a random ID, which a person enters in their AI app as their own OAuth client. Each callback takes its own `--redirect-uri`; a loopback one, `http://localhost/callback`, matches any port. `oauth-client remove --client-id <id>` refuses the client's tokens at once, its consents going with it. Where metadata documents are on, a removed client named by URL can sign in again.
@@ -64,12 +64,14 @@ The redirect URIs are copied from each document; recheck them there if a client'
 A directory's review, such as OpenAI's for ChatGPT's, needs an account that signs in without a code ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). Sign in once with an address you read, name the account, and add it to an organization (`organization add-member --role admin`); then list it in `BRAIVO_REVIEWER_EMAILS` and give it a password:
 
 ```bash
-bun apps/server/cli/index.ts reviewer set-password --email reviewer@fernwood.example
+bun --no-env-file apps/server/cli/index.ts reviewer set-password --email reviewer@fernwood.example
 ```
 
 It prints a random password once; `--password-stdin` reads one instead, 16 characters or more: a password manager's random one, since only length is checked. The reviewer signs in at `<BRAIVO_URL>/login?method=password`, which nothing links, before connecting their AI app; `/login` reached from a connection takes `&method=password` added too. Afterwards, `reviewer remove-password --email <email>` deletes the password and ends the account's sessions; disconnect its apps in the console (`Connected apps`), and drop the address from `BRAIVO_REVIEWER_EMAILS`.
 
 ## Configuration
+
+`bun run serve` reads its environment alone, never an env file, so the repository's development defaults cannot stand in for a setting a deployment left out; set the variables below in the service's environment, as with systemd's `EnvironmentFile=`. Run the operator's commands with `--no-env-file` too, as shown, or Bun loads those defaults into them ([ADR 0051](../adr/0051-environment-files.md)).
 
 **Origin**
 

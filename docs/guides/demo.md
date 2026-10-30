@@ -4,10 +4,10 @@ A populated Braivo for this worktree: Fernwood School, with an administrator, an
 
 ## Launch
 
-Requires a local PostgreSQL whose role may create databases (`createdb` works). Name a database on it to connect through, once, in `.env` or your shell; the demo creates its own database beside it:
+Requires a local PostgreSQL whose role may create databases (`createdb` works). Name a database on it to connect through, once, in `.env.local` or your shell; the demo creates its own database beside it:
 
 ```bash
-echo 'BRAIVO_DEMO_DATABASE_URL=postgres://localhost/postgres' >> .env
+echo 'BRAIVO_DEMO_DATABASE_URL=postgres://localhost/postgres' >> .env.local
 bun run dev:demo
 ```
 
@@ -57,6 +57,6 @@ Reset shows the database, ID, and storage it will delete, and needs that ID, the
 
 ## What it holds
 
-Settings and secrets in `.dev-demo/environment.json` (gitignored, readable by you alone, never printed), uploaded files in `.dev-demo/storage/`, data in `braivo_demo_<id>`. The server runs on these alone, never `.env`: no mail server, AI key, Google client, or bucket reaches it. The apps' dev servers still load `.env`, but the demo's values override what their proxy reads from it, `BRAIVO_URL` and `PORT`. Remove a worktree's demo with reset before removing the worktree, or `dropdb` its database afterwards.
+Settings and secrets in `.dev-demo/environment.json` (gitignored, readable by you alone, never printed), uploaded files in `.dev-demo/storage/`, data in `braivo_demo_<id>`. The server runs on these alone, never the env files: no mail server, AI key, Google client, or bucket reaches it. The apps' dev servers still load the env files, but the demo's values override what their proxy reads from them, `BRAIVO_URL` and `PORT`. Remove a worktree's demo with reset before removing the worktree, or `dropdb` its database afterwards.
 
 The classroom is a fixture, `apps/server/fixtures/classroom.ts`; `tooling/dev-demo/` creates, guards, and serves the demo ([ADR 0043](../adr/0043-development-demo.md)).

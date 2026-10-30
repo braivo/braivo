@@ -4,6 +4,8 @@ tmp/
 *.local.md
 .env
 .env.*
+# Development defaults, no secrets (docs/adr/0051-environment-files.md).
+!/.env.development
 .envrc
 .claude/worktrees/
 /local
