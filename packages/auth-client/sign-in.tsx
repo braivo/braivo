@@ -71,7 +71,7 @@ export function deadline(): Bounded["fetchOptions"] {
  * upgrading it.
  */
 const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
-  INVALID_OTP: msg`That code is not right. Check it, or send a new one.`,
+  INVALID_OTP: msg`That code is not right. Check it, or send it again.`,
   OTP_EXPIRED: msg`That code has expired. Send a new one.`,
   TOO_MANY_ATTEMPTS: msg`That code was tried too many times. Send a new one.`,
 };
@@ -129,11 +129,10 @@ function refusal(error: AuthError): MessageDescriptor {
 export const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
 
 /**
- * A code asked for with no answer: the server may still send it, and another
- * replaces it (access-2, -32). The newest, not the last asked for: a stalled
- * request can reach the server after its retry.
+ * A code asked for with no answer: the server may still send it, and asked
+ * again, sends the same (access-2).
  */
-const SEND_UNCONFIRMED = msg`Could not confirm a code was sent. Check your connection. If none arrives, send a new one; if more than one does, use the newest.`;
+const SEND_UNCONFIRMED = msg`Could not confirm a code was sent. Check your connection, and if none arrives, send it again.`;
 
 /**
  * Why Google's round trip came back to `errorCallbackURL`, from its `error`.
@@ -229,7 +228,9 @@ export function SignIn(props: {
       setStep({
         step: "code",
         email: values.email,
-        sent: step.step === "code" ? (step.sent ?? 1) + 1 : 1,
+        // Asked again: "sent again" even after a send unconfirmed (0), which
+        // may well have sent one too.
+        sent: step.step === "code" ? Math.max(step.sent ?? 1, 1) + 1 : 1,
         resendAt: Date.now() + RESEND_WAIT_MS,
       });
     } else if (values.step === "code" && step.step === "code") {
@@ -271,7 +272,7 @@ export function SignIn(props: {
       // A code asked for may still come, so on to the code (access-5), a new
       // one to be had at once: asked too soon, its minute refuses it there.
       if (values.step === "email" && step.step === "email") {
-        setStep({ step: "code", email: values.email });
+        setStep({ step: "code", email: values.email, sent: 0 });
       }
       setError(values.step === "email" ? SEND_UNCONFIRMED : UNANSWERED);
     } finally {

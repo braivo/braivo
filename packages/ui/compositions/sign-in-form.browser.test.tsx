@@ -27,7 +27,7 @@ function textBox(root: Node, matches: (text: string) => boolean) {
 
 // Both resend buttons: the link, and the main button once the code is spent.
 test.each([false, true])(
-  "on a phone, puts a space between Send a new code and its countdown, not a wider gap (spent: %s)",
+  "on a phone, puts a space between a resend button's label and its countdown, not a wider gap (spent: %s)",
   async (spent) => {
     await page.viewport(320, 568);
     render(
@@ -45,8 +45,9 @@ test.each([false, true])(
       </I18nProvider>,
     );
 
-    const button = screen.getByRole("button", { name: "Send a new code" });
-    const label = textBox(button, (text) => text === "Send a new code");
+    const name = spent ? "Send a new code" : "Send the code again";
+    const button = screen.getByRole("button", { name });
+    const label = textBox(button, (text) => text === name);
     const countdown = textBox(button, (text) => text.startsWith("in "));
     const gap = countdown.left - label.right;
     const context = document.createElement("canvas").getContext("2d")!;

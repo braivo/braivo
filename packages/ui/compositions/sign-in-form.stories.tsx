@@ -38,7 +38,7 @@ export const Resent: Story = {
   args: { step: { step: "code", email: "ada@example.com", sent: 2 } },
 };
 
-/** Within the server's minute: "Send a new code" counts down, locked. */
+/** Within the server's minute: "Send the code again" counts down, locked. */
 export const ResendWaiting: Story = {
   args: { step: { step: "code", email: "ada@example.com", resendAt: Date.now() + 42_000 } },
 };
@@ -66,7 +66,7 @@ export const Name: Story = { args: { step: { step: "name" } } };
 export const Refused: Story = {
   args: {
     step: { step: "code", email: "ada@example.com" },
-    error: "That code is not right. Check it, or send a new one.",
+    error: "That code is not right. Check it, or send it again.",
   },
 };
 
