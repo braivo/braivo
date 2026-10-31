@@ -609,6 +609,7 @@ export function createAuth(options: AuthOptions) {
               metadataProfile: "mcp-2026-07-28",
             }),
           ]),
+      // After every plugin declaring the tables it constrains, or theirs win.
       constraints,
       verifiedAccounts,
     ],
