@@ -32,6 +32,7 @@ import {
   fetchPinned,
   fetchStrictlyPublic,
 } from "./client-metadata.ts";
+import { constraints } from "./constraints.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -608,6 +609,8 @@ export function createAuth(options: AuthOptions) {
               metadataProfile: "mcp-2026-07-28",
             }),
           ]),
+      // After every plugin declaring the tables it constrains, or theirs win.
+      constraints,
       verifiedAccounts,
     ],
 

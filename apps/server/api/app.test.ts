@@ -7,7 +7,7 @@
 // admits each route is `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
-import { session } from "@braivo/db/schema";
+import { session, user } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -407,6 +407,22 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
         body: JSON.stringify({ userCode: another.user_code }),
       });
       expect(approving.status).toBe(403);
+    });
+
+    test("forgets a code approved by an account since deleted, and no other", async () => {
+      const leaving = await signUp();
+      const theirs = await requestCode();
+      const others = await requestCode();
+      await approve(theirs.user_code, leaving.cookie);
+      await approve(others.user_code);
+
+      await database.delete(user).where(eq(user.id, leaving.id));
+
+      // Gone with the account, not left for its tool to find the user missing.
+      const refused = await token(theirs.device_code);
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({ error: "invalid_grant" });
+      expect((await token(others.device_code)).status).toBe(200);
     });
 
     test("renews a token's session without handing it a cookie", async () => {

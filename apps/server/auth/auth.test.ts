@@ -273,6 +273,33 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(accounts).toMatchObject([{ id: again.id, name: "Owner" }]);
   });
 
+  test("refuses linking a provider's identity a second time", async () => {
+    // Better Auth finds an account by provider and identity, and throws on
+    // finding two, so a duplicate would block that Google sign-in for good.
+    const { account, user } = authTables;
+    const [owned] = await database
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, owner.email));
+    const at = new Date();
+    const linked = (id: string) => ({
+      id,
+      userId: owned!.id,
+      providerId: "google",
+      accountId: "auth-test-google-subject",
+      createdAt: at,
+      updatedAt: at,
+    });
+    await database.insert(account).values(linked("auth-test-google-account"));
+
+    const error = await database
+      .insert(account)
+      .values(linked("auth-test-google-account-again"))
+      .catch((thrown: unknown) => thrown);
+
+    expect(testing.violatedConstraint(error)).toBe("account_provider_account_uidx");
+  });
+
   // A reviewer's password, for an installation that lists one: `api/reviewer.test.ts`.
   test("without reviewers, takes no password, to make an account or to sign in", async () => {
     const credentials = { email: newcomer, password: "correct horse battery", name: "Newcomer" };

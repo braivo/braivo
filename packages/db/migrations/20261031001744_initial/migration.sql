@@ -1,3 +1,4 @@
+CREATE TYPE "group_role" AS ENUM('learner', 'teacher');--> statement-breakpoint
 CREATE TYPE "learner_evidence_outcome" AS ENUM('success', 'failure');--> statement-breakpoint
 CREATE TABLE "account" (
 	"id" text PRIMARY KEY,
@@ -237,6 +238,30 @@ CREATE TABLE "organization_domain_claim" (
 	CONSTRAINT "organization_domain_claim_hostname_lowercase" CHECK ("hostname" = lower("hostname"))
 );
 --> statement-breakpoint
+CREATE TABLE "group" (
+	"id" text PRIMARY KEY,
+	"organization_id" text NOT NULL,
+	"name" text NOT NULL,
+	"key" text,
+	"creation_digest" text NOT NULL,
+	CONSTRAINT "group_organization_id_key" UNIQUE("organization_id","id")
+);
+--> statement-breakpoint
+CREATE TABLE "group_course" (
+	"organization_id" text NOT NULL,
+	"group_id" text,
+	"course_id" text,
+	CONSTRAINT "group_course_pkey" PRIMARY KEY("group_id","course_id")
+);
+--> statement-breakpoint
+CREATE TABLE "group_member" (
+	"organization_id" text NOT NULL,
+	"group_id" text,
+	"user_id" text,
+	"role" "group_role" NOT NULL,
+	CONSTRAINT "group_member_pkey" PRIMARY KEY("group_id","user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "learner_handoff" (
 	"id" text PRIMARY KEY,
 	"organization_id" text NOT NULL,
@@ -378,11 +403,13 @@ CREATE TABLE "task_citation" (
 	CONSTRAINT "task_citation_pkey" PRIMARY KEY("task_id","source_id","start","end")
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "account_provider_account_uidx" ON "account" ("provider_id","account_id");--> statement-breakpoint
 CREATE INDEX "account_userId_idx" ON "account" ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "deviceCode_deviceCode_uidx" ON "device_code" ("device_code");--> statement-breakpoint
 CREATE UNIQUE INDEX "deviceCode_userCode_uidx" ON "device_code" ("user_code");--> statement-breakpoint
 CREATE INDEX "invitation_organizationId_idx" ON "invitation" ("organization_id");--> statement-breakpoint
 CREATE INDEX "invitation_email_idx" ON "invitation" ("email");--> statement-breakpoint
+CREATE UNIQUE INDEX "member_organization_user_uidx" ON "member" ("organization_id","user_id");--> statement-breakpoint
 CREATE INDEX "member_organizationId_idx" ON "member" ("organization_id");--> statement-breakpoint
 CREATE INDEX "member_userId_idx" ON "member" ("user_id");--> statement-breakpoint
 CREATE INDEX "oauthAccessToken_clientId_idx" ON "oauth_access_token" ("client_id");--> statement-breakpoint
@@ -405,6 +432,10 @@ CREATE INDEX "session_userId_idx" ON "session" ("user_id");--> statement-breakpo
 CREATE INDEX "verification_identifier_idx" ON "verification" ("identifier");--> statement-breakpoint
 CREATE INDEX "organization_domain_organization_idx" ON "organization_domain" ("organization_id","registered_at");--> statement-breakpoint
 CREATE INDEX "organization_domain_claim_organization_idx" ON "organization_domain_claim" ("organization_id","claimed_at");--> statement-breakpoint
+CREATE INDEX "group_organization_idx" ON "group" ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "group_organization_key_uidx" ON "group" ("organization_id","key");--> statement-breakpoint
+CREATE INDEX "group_course_course_idx" ON "group_course" ("course_id");--> statement-breakpoint
+CREATE INDEX "group_member_user_idx" ON "group_member" ("user_id","role");--> statement-breakpoint
 CREATE INDEX "learner_handoff_expires_at_idx" ON "learner_handoff" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_expires_at_idx" ON "learner_session" ("expires_at");--> statement-breakpoint
 CREATE INDEX "learner_session_user_id_idx" ON "learner_session" ("user_id");--> statement-breakpoint
@@ -427,6 +458,7 @@ CREATE INDEX "task_replaces_task_idx" ON "task" ("replaces_task_id");--> stateme
 CREATE INDEX "task_objective_idx" ON "task" ("objective_id","created_at","id");--> statement-breakpoint
 CREATE INDEX "task_citation_source_idx" ON "task_citation" ("source_id");--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "device_code" ADD CONSTRAINT "device_code_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "invitation" ADD CONSTRAINT "invitation_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "invitation" ADD CONSTRAINT "invitation_inviter_id_user_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "member" ADD CONSTRAINT "member_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -447,6 +479,11 @@ ALTER TABLE "organization" ADD CONSTRAINT "organization_tools_read_learner_data_
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "organization_domain" ADD CONSTRAINT "organization_domain_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "organization_domain_claim" ADD CONSTRAINT "organization_domain_claim_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "group" ADD CONSTRAINT "group_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "group_course" ADD CONSTRAINT "group_course_group_fk" FOREIGN KEY ("organization_id","group_id") REFERENCES "group"("organization_id","id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "group_course" ADD CONSTRAINT "group_course_course_fk" FOREIGN KEY ("organization_id","course_id") REFERENCES "course"("organization_id","id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "group_member" ADD CONSTRAINT "group_member_group_fk" FOREIGN KEY ("organization_id","group_id") REFERENCES "group"("organization_id","id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "group_member" ADD CONSTRAINT "group_member_member_fk" FOREIGN KEY ("organization_id","user_id") REFERENCES "member"("organization_id","user_id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_organization_id_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organization"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_handoff" ADD CONSTRAINT "learner_handoff_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "learner_session" ADD CONSTRAINT "learner_session_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id") ON DELETE CASCADE;--> statement-breakpoint

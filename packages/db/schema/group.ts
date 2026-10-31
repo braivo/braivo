@@ -54,8 +54,8 @@ export const groupRole = pgEnum("group_role", ["learner", "teacher"]);
  *
  * References the membership itself, by `(organization, user)`, so only a
  * member can be in a group and leaving the organization leaves its groups: a
- * former teacher keeps no access. That pair is unique by the hand-written index
- * in `migrations/*_member_uniqueness`, which must run before this table's.
+ * former teacher keeps no access. That pair is unique by the index the server's
+ * `auth/constraints.ts` adds to Better Auth's `member`.
  */
 export const groupMember = pgTable(
   "group_member",

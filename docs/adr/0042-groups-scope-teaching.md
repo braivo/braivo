@@ -43,4 +43,4 @@ A **group** is an organization's learners and teachers taking some of its course
 - Course access per group (a course only for its groups' learners), release dates, and per-group pacing are later decisions that build on the group's courses. Once a group restricts practice, overlapping groups taking one course need a precedence rule before any setting is enforced.
 - A learner in no group appears in no teacher's overview; administrators still see every member.
 - No route deletes a group: an emptied group grants nothing.
-- `group_member` references the membership through the hand-written unique index on `member (organization_id, user_id)` ([ADR 0005](0005-postgresql-drizzle.md)), so the group migration runs after it, and regenerating the initial migration must keep that order.
+- `group_member` references the membership through the unique index on `member (organization_id, user_id)`, which Braivo's schema plugin adds to Better Auth's table ([ADR 0006](0006-better-auth.md)).
