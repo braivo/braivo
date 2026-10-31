@@ -54,3 +54,21 @@ test.each([false, true])(
     expect(gap).toBeCloseTo(context.measureText(" ").width, 0);
   },
 );
+
+test("on a phone, wraps an email hint naming a long organization rather than overflowing", async () => {
+  await page.viewport(320, 568);
+  const name = "Sprachschulekarlsruhebadenwürttembergdeutschland";
+  render(
+    <I18nProvider i18n={i18n}>
+      <SignInForm
+        step={{ step: "email" }}
+        emailHint={`Use the email address ${name} knows you by.`}
+        onSubmit={() => {}}
+      />
+    </I18nProvider>,
+  );
+
+  const hint = screen.getByText(new RegExp(name));
+  expect(textBox(hint, (text) => text.includes(name)).right).toBeLessThanOrEqual(320);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+});

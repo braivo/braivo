@@ -61,12 +61,14 @@ const CODE_DIGITS = 6;
  * opens with its own heading, the email step's `title` if given. From the
  * code, `onResend` asks for another and `onChangeEmail` goes back to the
  * email. With `onContinueWithGoogle`, the email step offers Google first. With `legal`,
- * the email step says signing in agrees to those pages. A code is submitted
- * as soon as its last digit is typed or pasted.
+ * the email step says signing in agrees to those pages. `emailHint` replaces
+ * the email step's note that signing in creates the account. A code is
+ * submitted as soon as its last digit is typed or pasted.
  */
 export function SignInForm(props: {
   step: SignInStep;
   title?: string;
+  emailHint?: string;
   pending?: boolean;
   error?: string;
   wait?: boolean;
@@ -130,8 +132,9 @@ export function SignInForm(props: {
     // No sign-up to look for: signing in makes the account. Only that, as the
     // buttons and the note under them say how.
     intro = (
-      <p id={`${id}-email-hint`}>
-        <Trans>First time here? Signing in creates your account.</Trans>
+      // May name an organization, whose name can be one long word.
+      <p id={`${id}-email-hint`} className="wrap-break-word">
+        {props.emailHint ?? <Trans>First time here? Signing in creates your account.</Trans>}
       </p>
     );
     field = (

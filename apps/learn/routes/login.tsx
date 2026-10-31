@@ -87,6 +87,9 @@ function Login() {
       <SignIn
         auth={learnDomainAuth(context.braivo, context.visit, redirect)}
         title={t`Sign in to ${organizationName}`}
+        // A code makes the account, but only the organization admits it
+        // (access-21, -33): nothing here may promise that signing in gets them in.
+        emailHint={t`Use the email address ${organizationName} knows you by.`}
         needsName={context.needsName}
         // Google's round trip is a handoff through the installation's origin,
         // back to `redirect` (`learnDomainAuth`), so these two go unused.

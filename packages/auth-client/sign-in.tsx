@@ -164,11 +164,13 @@ type GoogleSignIn = {
  * success through `onSignedIn` and leaves where to go next to the caller.
  * With `google`, offers Google too, which leaves the page and comes back to
  * its `callbackURL` signed in. `title` heads the email step, "Sign in" if
- * omitted. With `legal`, says signing in agrees to those pages.
+ * omitted; `emailHint` replaces its note that signing in creates the account.
+ * With `legal`, says signing in agrees to those pages.
  */
 export function SignIn(props: {
   auth: SignInAuth;
   title?: string;
+  emailHint?: string;
   needsName?: boolean;
   onSignedIn: () => void;
   google?: GoogleSignIn;
@@ -290,6 +292,7 @@ export function SignIn(props: {
     <SignInForm
       step={step}
       title={props.title}
+      emailHint={props.emailHint}
       pending={pending}
       error={error && t(error)}
       wait={error && WAITS.has(error)}

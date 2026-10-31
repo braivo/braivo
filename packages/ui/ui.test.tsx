@@ -58,6 +58,16 @@ describe("Braivo's components", () => {
     expect(classes).not.toContain("text-sm");
   });
 
+  test("a sign-in form's email step says the hint it is given in place of its own", () => {
+    render(
+      <SignInForm step={{ step: "email" }} emailHint="Use your school email." onSubmit={vi.fn()} />,
+    );
+
+    const hint = screen.getByText("Use your school email.");
+    expect(screen.getByLabelText("Email address").getAttribute("aria-describedby")).toBe(hint.id);
+    expect(screen.queryByText(/creates your account/)).toBeNull();
+  });
+
   test("a sign-in form asks for each step's value, and reports it", () => {
     const onSubmit = vi.fn();
     const onChangeEmail = vi.fn();

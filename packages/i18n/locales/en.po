@@ -1631,6 +1631,10 @@ msgstr "Use another email"
 msgid "Use lowercase letters, digits, and single hyphens between them."
 msgstr "Use lowercase letters, digits, and single hyphens between them."
 
+#: apps/learn/routes/login.tsx
+msgid "Use the email address {organizationName} knows you by."
+msgstr "Use the email address {organizationName} knows you by."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Value"
 msgstr "Value"
