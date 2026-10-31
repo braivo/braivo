@@ -6,10 +6,12 @@ import { Heading, MutedText } from "@braivo/ui";
 import { cn } from "@braivo/ui/lib/utils";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Fragment, type ReactNode } from "react";
+import { createFileRoute, Link, notFound, useLocation } from "@tanstack/react-router";
+import { Fragment, type ReactNode, useLayoutEffect } from "react";
 
+import { AsOf } from "#components/as-of";
 import { Disclosure } from "#components/disclosure";
+import { MissesSince } from "#components/misses-since";
 import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { validateProgressSearch } from "#lib/progress-search";
 import { orNotFound, readCourseForProgress } from "#lib/refusals";
@@ -85,6 +87,13 @@ function LearnerProgress() {
   const search = Route.useSearch();
   const { i18n } = useLingui();
   const when = (at: string) => dated(at, i18n.locale);
+  const hash = useLocation({ select: ({ hash }) => hash });
+  // Arriving at an objective (the overview links its repeated misses here), the
+  // browser scrolls to it; a screen reader starts there too.
+  useLayoutEffect(() => {
+    if (hash.startsWith("objective-")) document.getElementById(hash)?.focus();
+  }, [hash]);
+  const threshold = report.repeatedMissesThreshold;
   // The fields' names, in each objective and in the columns' header.
   const labels = {
     standing: <Trans>Standing</Trans>,
@@ -110,6 +119,9 @@ function LearnerProgress() {
           <span className="ms-2 font-mono text-sm font-normal text-muted-foreground">{tag}</span>
         )}
       </Heading>
+      <MutedText className="mb-4 block">
+        <AsOf at={report.asOf} />
+      </MutedText>
       {/* A course is open to learners even before it has objectives. */}
       {report.objectives.length === 0 ? (
         <MutedText>
@@ -126,8 +138,9 @@ function LearnerProgress() {
             </p>
             <p>
               <Trans>
-                Not started means no evidence yet. Learning means practice has begun, not that it
-                keeps failing: open the evidence to see.
+                Not started means no evidence yet. Learning means practice has begun; one missed{" "}
+                {threshold} or more times since the last correct answer says so under it. Show
+                answer counts as a miss.
               </Trans>
             </p>
           </div>
@@ -160,12 +173,17 @@ function LearnerProgress() {
                     className="border-b py-3 @2xl:col-span-5 @2xl:grid @2xl:grid-cols-subgrid"
                   >
                     {/* A heading, so each objective can be found and its fields read under it. */}
-                    <Heading level={2} className="wrap-anywhere @2xl:mb-0">
+                    <Heading
+                      level={2}
+                      id={`objective-${standing.objectiveId}`}
+                      tabIndex={-1}
+                      className="scroll-mt-4 wrap-anywhere @2xl:mb-0 @2xl:self-start"
+                    >
                       {standing.title}
                     </Heading>
                     <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm @2xl:col-span-4 @2xl:grid-cols-subgrid">
                       <Field label={labels.standing}>
-                        <Standing standing={standing} />
+                        <Standing standing={standing} threshold={threshold} />
                       </Field>
                       <Field label={labels.lastEvidence}>
                         {standing.phase !== "unseen" && when(standing.lastEvidenceAt)}
@@ -287,13 +305,33 @@ function dated(at: string, locale: string): ReactNode {
   );
 }
 
-/** A standing in words, and under a retained one its recall: predicted, never a grade. */
-function Standing({ standing }: { standing: LearnerProgressStanding }) {
+/**
+ * A standing in words; under one still learning, its repeated misses
+ * (progress-16), and under a retained one, its recall: predicted, never a grade.
+ */
+function Standing({
+  standing,
+  threshold,
+}: {
+  standing: LearnerProgressStanding;
+  threshold: number;
+}) {
   switch (standing.phase) {
     case "unseen":
       return <Trans context="A learner's standing on an objective">Not started</Trans>;
     case "acquiring":
-      return <Trans context="A learner's standing on an objective">Learning</Trans>;
+      return (
+        <>
+          <span className="block">
+            <Trans context="A learner's standing on an objective">Learning</Trans>
+          </span>
+          {standing.misses && standing.misses.count >= threshold && (
+            <MutedText className="block">
+              <MissesSince {...standing.misses} />
+            </MutedText>
+          )}
+        </>
+      );
     case "retaining": {
       const recall = Math.round(standing.retrievability * 100);
       return (

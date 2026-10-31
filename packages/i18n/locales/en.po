@@ -75,6 +75,14 @@ msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss since the last correct answer} other {# misses since the last correct answer}}, latest {latest}"
+msgstr "{count, plural, one {# miss since the last correct answer} other {# misses since the last correct answer}}, latest {latest}"
+
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
+msgstr "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
+
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
@@ -222,6 +230,10 @@ msgstr "Approve"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Approving…"
 msgstr "Approving…"
+
+#: apps/console/components/as-of.tsx
+msgid "As of {time}"
+msgstr "As of {time}"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
@@ -1050,8 +1062,8 @@ msgid "Not started"
 msgstr "Not started"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
-msgstr "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
+msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
+msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."

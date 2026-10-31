@@ -6,10 +6,11 @@ import * as authTables from "@braivo/db/schema/auth";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { activeModel, type Evidence } from "../learning/index.ts";
+import { activeModel, type Evidence, REPEATED_MISSES_THRESHOLD } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import type { AccessKind } from "./access.ts";
-import { readLearnerProgress } from "./learner-progress.ts";
+import { submitAttempt } from "./activity.ts";
+import { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 import { recordGradedEvidence } from "./record-evidence.ts";
 
@@ -34,6 +35,9 @@ let pastTense!: string;
 let fractions!: string;
 let course!: string;
 let emptyCourse!: string;
+/** Another course of the organization, teaching the past tense too. */
+let reviewCourse!: string;
+let pastTenseTask!: string;
 let foreignCourse!: string;
 /** The other organization's own past tense: the same title, a different objective. */
 let theirPastTense!: string;
@@ -105,6 +109,20 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
         objectiveIds: [],
       })
     ).id;
+    reviewCourse = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Review",
+        objectiveIds: [pastTense],
+      })
+    ).id;
+    pastTenseTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: pastTense,
+      body: { kind: "choice", prompt: "Went?", options: ["right", "wrong"], answer: 0 },
+      createdAt: daysAgo(30),
+    });
     [theirPastTense] = (await createObjectives(database, otherOrganizationId, ["Past tense"])) as [
       string,
     ];
@@ -223,8 +241,87 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
   test("reports nothing, rather than refusing, for a course that teaches nothing yet", async () => {
     expect(await progress({ courseId: emptyCourse })).toEqual({
       kind: "assessed",
-      report: { modelVersion: activeModel.version, objectives: [] },
+      report: {
+        modelVersion: activeModel.version,
+        asOf: now,
+        repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+        objectives: [],
+      },
     });
+  });
+
+  test("counts misses since the last success from every course and grader at the organization", async () => {
+    // An outside grader's failure, then Show answer in another course that
+    // teaches the objective, then a failure recorded here.
+    await recordGradedEvidence({
+      database,
+      organizationId,
+      gradedBy: teacher,
+      learnerId: learner,
+      evidence: [evidence({ id: "graded", outcome: "failure", at: daysAgo(3) })],
+      now,
+    });
+    expect(
+      await submitAttempt({
+        database,
+        learnerId: learner,
+        courseId: reviewCourse,
+        host: { hostname: "localhost", installation: true },
+        attemptId: "shown",
+        taskId: pastTenseTask,
+        response: { reveal: true },
+        now: daysAgo(2),
+      }),
+    ).toMatchObject({ kind: "graded", grade: { outcome: "failure" } });
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "third", outcome: "failure", at: daysAgo(1) }),
+      // After the moment described: not counted.
+      evidence({ id: "later", outcome: "failure", at: new Date(now.getTime() + 1000) }),
+    ]);
+    // The other organization's failures are its own.
+    await recordEvidence(database, { learnerId: learner, organizationId: otherOrganizationId }, [
+      evidence({ id: "theirs", objectiveId: theirPastTense, outcome: "failure", at: daysAgo(1) }),
+    ]);
+
+    const read = await progress();
+    if (read.kind !== "assessed") throw new Error("No report");
+    const [past, fraction] = read.report.objectives;
+    expect(past).toMatchObject({
+      phase: "acquiring",
+      misses: { count: 3, lastMissAt: daysAgo(1), everSucceeded: false },
+    });
+    // No miss, no field.
+    expect(fraction).not.toHaveProperty("misses");
+    expect(read.report).toMatchObject({
+      asOf: now,
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+    });
+    // A summary, not the records: kept in a report without its evidence.
+    expect(withoutHistory(read.report)).toMatchObject({
+      asOf: now,
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      objectives: [{ misses: { count: 3 } }, {}],
+    });
+  });
+
+  test("counts misses from the latest success, which one more success clears", async () => {
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "a", outcome: "failure", at: daysAgo(5) }),
+      evidence({ id: "b", outcome: "success", at: daysAgo(4) }),
+      evidence({ id: "c", outcome: "failure", at: daysAgo(3) }),
+      evidence({ id: "d", outcome: "failure", at: daysAgo(2) }),
+    ]);
+    expect(await progress()).toMatchObject({
+      report: {
+        objectives: [{ misses: { count: 2, lastMissAt: daysAgo(2), everSucceeded: true } }, {}],
+      },
+    });
+
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "e", outcome: "success", at: daysAgo(1) }),
+    ]);
+    const read = await progress();
+    expect(read.kind === "assessed" && read.report.objectives[0]).not.toHaveProperty("misses");
   });
 
   test("keeps a learner's two organizations apart, though both name their evidence alike", async () => {

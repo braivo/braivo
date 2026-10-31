@@ -75,6 +75,14 @@ msgstr "{count, plural, one {# członek} few {# członkowie} many {# członków}
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 msgstr "{count, plural, one {# członek} few {# członkowie} many {# członków} other {# członka}} organizacji {0}, łącznie z personelem: każdy członek może uczyć się w tym kursie."
 
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss since the last correct answer} other {# misses since the last correct answer}}, latest {latest}"
+msgstr "{count, plural, one {# błąd od ostatniej poprawnej odpowiedzi} few {# błędy od ostatniej poprawnej odpowiedzi} many {# błędów od ostatniej poprawnej odpowiedzi} other {# błędu od ostatniej poprawnej odpowiedzi}}, ostatni {latest}"
+
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
+msgstr "{count, plural, one {# błąd, jeszcze bez poprawnej odpowiedzi} few {# błędy, jeszcze bez poprawnej odpowiedzi} many {# błędów, jeszcze bez poprawnej odpowiedzi} other {# błędu, jeszcze bez poprawnej odpowiedzi}}, ostatni {latest}"
+
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
@@ -222,6 +230,10 @@ msgstr "Zezwól"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Approving…"
 msgstr "Zezwalanie…"
+
+#: apps/console/components/as-of.tsx
+msgid "As of {time}"
+msgstr "Stan na {time}"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
@@ -1050,8 +1062,8 @@ msgid "Not started"
 msgstr "Nierozpoczęte"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
-msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło, a nie że wciąż się nie udaje: rozwiń wyniki, aby sprawdzić."
+msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
+msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło; jeśli od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów, widać to pod stanem celu. „Pokaż odpowiedź” liczy się jako błąd."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."

@@ -14,7 +14,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { NEW_OBJECTIVES_PER_DAY } from "../application/daily-limit.ts";
 import { registerLearnDomain } from "../application/index.ts";
-import { activeModel } from "../learning/index.ts";
+import { activeModel, REPEATED_MISSES_THRESHOLD } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import {
   baseUrl,
@@ -35,6 +35,8 @@ const organizationOrigin = "https://learning-test.example.com";
 /** Registered as `otherOrganizationId`'s. */
 const otherOrganizationOrigin = "https://learning-test-other.example.com";
 const at = new Date("2026-06-01T00:00:00.000Z");
+/** A moment as JSON carries it: `asOf` is read off the real clock. */
+const ISO_MOMENT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 /**
  * Evidence is dated relative to the real clock, because the route reads it:
  * thirty days is comfortably past due for an objective whose stability is one
@@ -389,6 +391,8 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(unseen.status).toBe(200);
     expect(await unseen.json()).toEqual({
       modelVersion: activeModel.version,
+      asOf: expect.stringMatching(ISO_MOMENT),
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen", evidence: [] }],
     });
 
@@ -397,12 +401,15 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     ]);
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
       modelVersion: activeModel.version,
+      asOf: expect.stringMatching(ISO_MOMENT),
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       objectives: [
         {
           objectiveId: pastTense,
           title: "Past tense",
           phase: "acquiring",
           lastEvidenceAt: recordedAt.toISOString(),
+          misses: { count: 1, lastMissAt: recordedAt.toISOString(), everSucceeded: false },
           evidence: [{ outcome: "failure", at: recordedAt.toISOString() }],
         },
       ],
@@ -416,6 +423,8 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     // a month past a one-day stability is certainly due.
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
       modelVersion: activeModel.version,
+      asOf: expect.stringMatching(ISO_MOMENT),
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       objectives: [
         {
           objectiveId: pastTense,
@@ -447,13 +456,16 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       api.request(`${path}${query}`, { headers: { cookie: teacher.cookie } });
 
     const full = (await (await read("?includeHistory=true")).json()) as {
-      objectives: { evidence: unknown[] }[];
+      objectives: { evidence: unknown[]; misses?: unknown }[];
     };
     expect(full.objectives[0]!.evidence).toHaveLength(1);
-    // The same report, but for the evidence.
+    // The same report, read at its own moment, but for the evidence: misses, a
+    // count, stay.
     const { evidence: _evidence, ...standing } = full.objectives[0]!;
+    expect(standing.misses).toMatchObject({ count: 1 });
     expect(await (await read("?includeHistory=false")).json()).toEqual({
       ...full,
+      asOf: expect.stringMatching(ISO_MOMENT),
       objectives: [standing],
     });
     // Read as the default, a typo would send the whole history unnoticed.

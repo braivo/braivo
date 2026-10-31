@@ -73,7 +73,9 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
-# {"modelVersion":"v1","objectives":[{…,"title":"Greetings","phase":"acquiring",…},
+# {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,
+#  "objectives":[{…,"title":"Greetings","phase":"acquiring",
+#  "misses":{"count":1,"lastMissAt":"…","everSucceeded":false},…},
 #  {…,"title":"Numbers","phase":"unseen"}]}
 
 # Or the whole course, counted by standing per member and per objective.

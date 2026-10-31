@@ -43,6 +43,8 @@ describe("groups", () => {
   }
   const report: LearnerProgressReport = {
     modelVersion: "v1",
+    asOf: "2026-06-01T00:00:00.000Z",
+    repeatedMissesThreshold: 3,
     objectives: [{ objectiveId: "o1", title: "Greetings", phase: "unseen", evidence: [] }],
   };
 

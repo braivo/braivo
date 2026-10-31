@@ -41,6 +41,8 @@ test("on a phone, wraps a learner's evidence between its date and time, not insi
       listMembers: async () => members,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "o1",

@@ -235,6 +235,8 @@ describe("the console", () => {
   test("shows where a learner stands on each objective, by title", async () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         {
           objectiveId: "o1",
@@ -342,6 +344,97 @@ describe("the console", () => {
     expect(listMembers).toHaveBeenCalledWith("org-1", options);
   });
 
+  test("says under a standing still learning how often it was missed, from the report's threshold", async () => {
+    const acquiring = (
+      objectiveId: string,
+      title: string,
+      misses?: LearnerProgressReport["objectives"][number]["misses"],
+    ) => ({
+      objectiveId,
+      title,
+      phase: "acquiring" as const,
+      lastEvidenceAt: "2026-05-28T09:00:00.000Z",
+      ...(misses && { misses }),
+      evidence: [{ outcome: "failure" as const, at: "2026-05-28T09:00:00.000Z" }],
+    });
+    renderAt("/example/courses/course-1/learners/u2", {
+      braivo: {
+        learnerProgress: async (): Promise<LearnerProgressReport> => ({
+          modelVersion: "v1",
+          asOf: "2026-06-01T12:05:00.000Z",
+          repeatedMissesThreshold: 3,
+          objectives: [
+            acquiring("o1", "Greetings", {
+              count: 4,
+              lastMissAt: "2026-05-28T09:00:00.000Z",
+              everSucceeded: true,
+            }),
+            acquiring("o2", "Numbers", {
+              count: 3,
+              lastMissAt: "2026-05-28T09:00:00.000Z",
+              everSucceeded: false,
+            }),
+            // Below the threshold: no line.
+            acquiring("o3", "Colours", {
+              count: 2,
+              lastMissAt: "2026-05-28T09:00:00.000Z",
+              everSucceeded: false,
+            }),
+          ],
+        }),
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        listMembers: async () => members,
+      },
+    });
+
+    const standing = (title: string) => {
+      const item = screen.getByRole("heading", { level: 2, name: title }).closest("li")!;
+      return item.querySelector("dt + dd")!.textContent;
+    };
+    expect(await screen.findByRole("heading", { name: "Lee Learner" })).toBeTruthy();
+    const latest = new Date("2026-05-28T09:00:00.000Z").toLocaleDateString("en", {
+      dateStyle: "medium",
+    });
+    expect(standing("Greetings")).toBe(
+      `Learning4 misses since the last correct answer, latest ${latest}`,
+    );
+    expect(standing("Numbers")).toBe(`Learning3 misses, no correct answer yet, latest ${latest}`);
+    expect(standing("Colours")).toBe("Learning");
+    // The moment assessed, not today, so with its date.
+    expect(screen.getByText(`As of ${dated("2026-06-01T12:05:00.000Z")}`)).toBeTruthy();
+  });
+
+  test("opened at an objective, focuses its heading", async () => {
+    const asOf = new Date().toISOString();
+    renderAt("/example/courses/course-1/learners/u2#objective-o2", {
+      braivo: {
+        learnerProgress: async (): Promise<LearnerProgressReport> => ({
+          modelVersion: "v1",
+          asOf,
+          repeatedMissesThreshold: 3,
+          objectives: ["o1", "o2", "o3"].map((objectiveId) => ({
+            objectiveId,
+            title: `Objective ${objectiveId}`,
+            phase: "unseen" as const,
+            evidence: [],
+          })),
+        }),
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+        listMembers: async () => members,
+      },
+    });
+
+    const heading = await screen.findByRole("heading", { level: 2, name: "Objective o2" });
+    expect(heading.id).toBe("objective-o2");
+    expect(document.activeElement).toBe(heading);
+    // Dated even today: a page kept open past midnight would misdate a time alone.
+    expect(screen.getByText(`As of ${dated(asOf)}`)).toBeTruthy();
+  });
+
   test("reads progress Braivo will not show as not found", async () => {
     renderAt("/example/courses/course-1/learners/u9", {
       braivo: {
@@ -364,7 +457,12 @@ describe("the console", () => {
   test("says a course without objectives has nothing to report, rather than an empty list", async () => {
     renderAt("/example/courses/course-1/learners/u2", {
       braivo: {
-        learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
+        learnerProgress: async () => ({
+          modelVersion: "v1",
+          asOf: "2026-06-01T00:00:00.000Z",
+          repeatedMissesThreshold: 3,
+          objectives: [],
+        }),
         listCourses: async () => [
           { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
         ],
