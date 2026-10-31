@@ -718,8 +718,8 @@ function Objective(props: {
       {!showPending && publishedCount === 0 && (
         <MutedText>
           {pendingIds.length === 0
-            ? "No tasks: learners are not asked about it."
-            : `No published tasks: learners are not asked about it until you publish ${pendingIds.length === 1 ? "the one" : "those"} needing review above.`}
+            ? "No published practice: learners skip this objective, and may run out of practice until it has some."
+            : "No published practice: learners skip this objective, and may run out of practice until you publish a task needing review above."}
         </MutedText>
       )}
       <TaskList

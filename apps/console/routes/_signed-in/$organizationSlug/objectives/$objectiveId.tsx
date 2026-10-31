@@ -219,7 +219,13 @@ function Objective() {
           Published tasks
         </Heading>
         {tasks.length === pending.length && (
-          <MutedText>None yet: learners are not asked about it.</MutedText>
+          // In a published course, not "not asked about it": once nothing else needs
+          // practice, learners wait on it (learner-loop-5), as its course page says.
+          <MutedText>
+            {publishedCourses.length > 0
+              ? "None yet: learners skip this objective, and may run out of practice until it has some."
+              : "None yet: learners are not asked about it."}
+          </MutedText>
         )}
         <TaskList
           objectiveId={objective.id}

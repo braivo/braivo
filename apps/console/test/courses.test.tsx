@@ -498,7 +498,12 @@ describe("the console", () => {
     expect(within(greetings).getByText("Adiós is goodbye.")).toBeTruthy();
 
     const numbers = screen.getByRole("article", { name: "2. Numbers" });
-    expect(within(numbers).getByText("No tasks: learners are not asked about it.")).toBeTruthy();
+    // Not "not asked about it": once nothing else needs practice, learners wait on it (learner-loop-5).
+    expect(
+      within(numbers).getByText(
+        "No published practice: learners skip this objective, and may run out of practice until it has some.",
+      ),
+    ).toBeTruthy();
   });
 
   test("shows a typed task's accepted answers, and corrects them keeping its language", async () => {

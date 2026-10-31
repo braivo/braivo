@@ -156,6 +156,8 @@ describe("an objective's page", () => {
         /learners are asked it once you publish and a published course includes this objective\./,
       ),
     ).toBeTruthy();
+    // No published course asks it, so nothing waits on it.
+    expect(screen.getByText("None yet: learners are not asked about it.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Publish all (1)" }));
 
     // No published course to name, so not asked first.
@@ -165,6 +167,24 @@ describe("an objective's page", () => {
       { organizationId: "org-1", taskIds: ["t1"] },
       { signal: expect.any(AbortSignal) },
     );
+  });
+
+  test("says learners may run out of practice without a published task, once a published course includes it", async () => {
+    renderAt("/example/objectives/numbers", {
+      braivo: {
+        listObjectives: async () => [{ ...numbers, courseIds: ["c1"] }],
+        listTasks: async () => [task("t1", "One?")],
+        listCourses: async () => [course("c1", "Beginners", true)],
+        listSources: async () => sources,
+      },
+    });
+
+    // Not "not asked about it": once nothing else needs practice, learners wait on it (learner-loop-5).
+    expect(
+      await screen.findByText(
+        "None yet: learners skip this objective, and may run out of practice until it has some.",
+      ),
+    ).toBeTruthy();
   });
 
   test("retires a pending task, focusing the title once none is left pending", async () => {
