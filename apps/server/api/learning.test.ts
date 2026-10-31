@@ -393,6 +393,8 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      // Results recorded through the API, none an attempt answered here.
+      lastPractisedAt: null,
       objectives: [{ objectiveId: pastTense, title: "Past tense", phase: "unseen", evidence: [] }],
     });
 
@@ -403,6 +405,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      lastPractisedAt: null,
       objectives: [
         {
           objectiveId: pastTense,
@@ -425,6 +428,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      lastPractisedAt: null,
       objectives: [
         {
           objectiveId: pastTense,
@@ -548,6 +552,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
           roles: ["member"],
           standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
           repeatedMisses: 1,
+          lastPractisedAt: null,
         },
       ]),
       objectives: expect.arrayContaining([

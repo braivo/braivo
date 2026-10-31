@@ -275,6 +275,7 @@ describe("the Braivo client", () => {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
       repeatedMissesThreshold: 3,
+      lastPractisedAt: "2026-05-30T09:00:00.000Z",
       objectives: [
         { objectiveId: "o1", title: "One", phase: "unseen", evidence: [] },
         {

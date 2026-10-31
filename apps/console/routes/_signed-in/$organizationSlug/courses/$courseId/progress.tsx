@@ -19,14 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
+import { Toggle } from "@braivo/ui/components/toggle";
 import { cn } from "@braivo/ui/lib/utils";
 import { plural, t } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, isNotFound, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { ChevronRightIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useId, useState } from "react";
 
 import { AsOf } from "#components/as-of";
+import { LastPractised } from "#components/last-practised";
 import { LearnersSite } from "#components/learners-site";
 import { MissesSince } from "#components/misses-since";
 import { NameTag } from "#components/name-tag";
@@ -35,6 +37,7 @@ import { SearchField } from "#components/search-field";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { sharedNameTags } from "#lib/name-tags";
+import { PRACTICE_RECENCIES, type PracticeRecency, practiceWindow } from "#lib/practice-window";
 import {
   MAX_QUERY,
   PROGRESS_SORTS,
@@ -42,6 +45,7 @@ import {
   validateProgressSearch,
 } from "#lib/progress-search";
 import { orNotFound, readCourseForProgress } from "#lib/refusals";
+import { sayRoles } from "#lib/roles";
 import { matchesQuery } from "#lib/search";
 import { pageHead } from "#lib/title";
 
@@ -268,7 +272,8 @@ function useLearnerSearch() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const router = useRouter();
-  // Typed and chosen in place: one history entry, not one per keystroke.
+  // Refining the same roster in place: Back leaves the page, never steps through
+  // each keystroke, order, or filter.
   const updateSearch = (next: ProgressSearch) =>
     navigate({ search: (last) => validateProgressSearch({ ...last, ...next }), replace: true });
   // What is typed, ahead of the URL (`seen`) until it holds it, and what was
@@ -313,9 +318,10 @@ function useLearnerSearch() {
 }
 
 /**
- * The learners, found by name and ordered as asked; the URL keeps both, so a
- * learner's report leads back to the same list. Narrows this table alone:
- * the objectives below count every learner the page reports on. Filtered as
+ * The learners, found by name, filtered by when they last practised, and
+ * ordered as asked; the URL keeps all three, so a learner's report leads back
+ * to the same list. Narrows this table alone: the practice counts and the
+ * objectives below count every learner the page reports on. Filtered as
  * typed (`useLearnerSearch`).
  */
 function Learners(props: {
@@ -323,7 +329,7 @@ function Learners(props: {
   explanation: string;
   learnerSearch: ReturnType<typeof useLearnerSearch>;
 }) {
-  const { learners, objectives } = props.progress;
+  const { learners, objectives, asOf } = props.progress;
   const search = Route.useSearch();
   const { organizationSlug, courseId } = Route.useParams();
   const { t, i18n } = useLingui();
@@ -332,13 +338,22 @@ function Learners(props: {
   const byName = (a: { name: string }, b: { name: string }) =>
     a.name.localeCompare(b.name, i18n.locale);
   const tags = sharedNameTags(learners);
+  // Counted over every learner, in the reader's zone (progress-17): a filter
+  // shows as many as its count, whatever is searched.
+  const { timeZone, recencyOf } = practiceWindow(asOf);
+  const practiceCounts: Record<PracticeRecency, number> = { recent: 0, earlier: 0, none: 0 };
+  for (const { lastPractisedAt } of learners) practiceCounts[recencyOf(lastPractisedAt)]++;
   // Each learner's latest repeated miss, to order equal counts by: the fresher first.
   const latestMiss = new Map<string, number>();
   for (const { repeatedMisses } of objectives)
     for (const { userId, misses } of repeatedMisses)
       latestMiss.set(userId, Math.max(latestMiss.get(userId) ?? 0, Date.parse(misses.lastMissAt)));
+  // Only while its toggles show: a course without objectives hides them, so a
+  // filter left in the URL must not hide everyone with no way to clear it.
+  const practiceFilter = objectives.length > 0 ? search.practice : undefined;
   const shown = learners
     .filter(({ name }) => matchesQuery(name, query, i18n.locale))
+    .filter((learner) => !practiceFilter || recencyOf(learner.lastPractisedAt) === practiceFilter)
     .toSorted((a, b) =>
       search.sort === "learning"
         ? b.standings.acquiring - a.standings.acquiring || byName(a, b)
@@ -365,6 +380,15 @@ function Learners(props: {
         </MutedText>
       ) : (
         <>
+          {/* Nothing to practise in a course without objectives, so nothing to count. */}
+          {objectives.length > 0 && (
+            <PracticeFilter
+              counts={practiceCounts}
+              timeZone={timeZone}
+              value={search.practice}
+              onChange={(practice) => commit({ practice })}
+            />
+          )}
           <div className="flex flex-wrap items-end gap-3">
             <SearchField
               label={t`Find a learner`}
@@ -398,36 +422,109 @@ function Learners(props: {
           </div>
           {shown.length === 0 ? (
             <MutedText className="wrap-break-word">
-              <Trans>No learner matches “{query}”.</Trans>
+              {/* Naming the filter too, or a learner it hides reads as missing. */}
+              {query && practiceFilter ? (
+                <Trans>No learner matches “{query}” with this practice filter.</Trans>
+              ) : query ? (
+                <Trans>No learner matches “{query}”.</Trans>
+              ) : (
+                <Trans>No learner matches this filter.</Trans>
+              )}
             </MutedText>
           ) : (
             <StandingsTable
               labelledBy={`${id}-learners`}
               explanation={props.explanation}
               rowHeader={<Trans>Learner</Trans>}
-              rows={shown.map(({ userId, name, standings, repeatedMisses }) => ({
-                key: userId,
-                label: (
-                  // The tag inside the link: its name tells two Ana Kowalskas apart too.
-                  <Link
-                    to="/$organizationSlug/courses/$courseId/learners/$learnerId"
-                    params={{ organizationSlug, courseId, learnerId: userId }}
-                    search={current}
-                    className="underline"
-                  >
-                    {name}
-                    <NameTag tag={tags.get(userId)} />
-                  </Link>
-                ),
-                standings,
-                // Blank, not 0, so the eye finds the learners with any.
-                misses: repeatedMisses > 0 && repeatedMisses,
-              }))}
+              rows={shown.map(
+                ({ userId, name, roles, standings, repeatedMisses, lastPractisedAt }) => {
+                  // An administrator's view counts staff as learners (progress-17), so it
+                  // says who they are; a teacher's carries no roles (access-26).
+                  const staffRoles = roles?.filter((role) => role !== "member") ?? [];
+                  return {
+                    key: userId,
+                    labelId: `${id}-${userId}`,
+                    label: (
+                      // The tag inside the link: its name tells two Ana Kowalskas apart too.
+                      <Link
+                        id={`${id}-${userId}`}
+                        to="/$organizationSlug/courses/$courseId/learners/$learnerId"
+                        params={{ organizationSlug, courseId, learnerId: userId }}
+                        search={current}
+                        className="underline"
+                      >
+                        {name}
+                        <NameTag tag={tags.get(userId)} />
+                      </Link>
+                    ),
+                    note: (
+                      <>
+                        {staffRoles.length > 0 && <>{sayRoles(i18n, staffRoles)} · </>}
+                        <LastPractised at={lastPractisedAt} asOf={asOf} />
+                      </>
+                    ),
+                    standings,
+                    // Blank, not 0, so the eye finds the learners with any.
+                    misses: repeatedMisses > 0 && repeatedMisses,
+                  };
+                },
+              )}
             />
           )}
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Who practised in the last seven days, before only, or never (progress-17),
+ * counted over every learner the page reports on, whatever is searched: each
+ * count a toggle filtering the learners to it, pressed again to show all.
+ * A fact to check in on, never a ranking (product.md).
+ */
+function PracticeFilter(props: {
+  counts: Record<PracticeRecency, number>;
+  timeZone: string;
+  value: PracticeRecency | undefined;
+  onChange: (practice: PracticeRecency | undefined) => void;
+}) {
+  const { timeZone, value } = props;
+  const { recent, earlier, none } = props.counts;
+  const id = useId();
+  const labels: Record<PracticeRecency, ReactNode> = {
+    recent: <Trans>Practised: {recent}</Trans>,
+    earlier: <Trans>Not lately: {earlier}</Trans>,
+    none: <Trans>No practice yet: {none}</Trans>,
+  };
+  return (
+    <div role="group" aria-labelledby={`${id}-label`} aria-describedby={`${id}-meaning`}>
+      <p id={`${id}-label`} className="mb-1.5 text-sm font-medium">
+        <Trans>Practice in the last 7 days</Trans>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {PRACTICE_RECENCIES.map((practice) => (
+          <Toggle
+            key={practice}
+            variant="outline"
+            size="sm"
+            pressed={value === practice}
+            onPressedChange={(on) => props.onChange(on ? practice : undefined)}
+            className="h-auto min-h-7 py-1 whitespace-normal tabular-nums"
+          >
+            {/* Pressed shows by more than colour. */}
+            {value === practice && <CheckIcon aria-hidden="true" />}
+            {labels[practice]}
+          </Toggle>
+        ))}
+      </div>
+      <MutedText id={`${id}-meaning`} className="mt-1.5 block wrap-break-word">
+        <Trans>
+          Today and the 6 days before, in your time zone ({timeZone}): questions answered here on
+          this course's objectives. Results recorded elsewhere count toward standings, not practice.
+        </Trans>
+      </MutedText>
+    </div>
   );
 }
 
@@ -472,7 +569,7 @@ function ByObjective(props: {
             <Trans>
               Each objective's learners, counted by standing:{" "}
               <Plural value={learners} one="the # learner" other="all # learners" /> on this page,
-              whoever is searched for above.
+              whatever the search or filter above.
             </Trans>
           </MutedText>
           <StandingsTable
@@ -606,6 +703,10 @@ function StandingsTable(props: {
   rows: {
     key: string;
     label: ReactNode;
+    /** The ID of the label's element, naming the row header by it alone, without its note. */
+    labelId?: string;
+    /** Under the label, the row header's description, never its name. */
+    note?: ReactNode;
     standings: Standings;
     misses: ReactNode;
     /** Shown in a row of its own below, as wide as the visible table however far it is scrolled. */
@@ -639,7 +740,7 @@ function StandingsTable(props: {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {props.rows.map(({ key, label, standings, misses, detail }) => (
+        {props.rows.map(({ key, label, labelId, note, standings, misses, detail }) => (
           <Fragment key={key}>
             <TableRow>
               {/* A row header, so each count is announced with whose it is; a long
@@ -647,6 +748,8 @@ function StandingsTable(props: {
                 cell is. */}
               <TableHead
                 scope="row"
+                aria-labelledby={labelId}
+                aria-describedby={labelId && note ? `${labelId}-note` : undefined}
                 className={cn(
                   "min-w-36 py-2 font-normal whitespace-normal wrap-anywhere",
                   pinnedColumn,
@@ -654,6 +757,11 @@ function StandingsTable(props: {
               >
                 {label}
                 <StandingsBar standings={standings} />
+                {note && (
+                  <MutedText id={labelId && `${labelId}-note`} className="mt-1 block text-xs">
+                    {note}
+                  </MutedText>
+                )}
               </TableHead>
               {STANDINGS.map((standing) => (
                 <Fragment key={standing}>

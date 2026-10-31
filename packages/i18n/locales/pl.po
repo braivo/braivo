@@ -118,6 +118,10 @@ msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# ni
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
+#: apps/console/components/last-practised.tsx
+msgid "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} other {Last practised # days ago}}"
+msgstr "{days, plural, =0 {Ostatnie ćwiczenia: dzisiaj} =1 {Ostatnie ćwiczenia: wczoraj} few {Ostatnie ćwiczenia: # dni temu} many {Ostatnie ćwiczenia: # dni temu} other {Ostatnie ćwiczenia: # dnia temu}}"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "{domain} now serves your learners."
 msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
@@ -166,6 +170,10 @@ msgstr "{successes, plural, one {# sukces} few {# sukcesy} many {# sukcesów} ot
 #: apps/console/components/task-review.tsx
 msgid "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
 msgstr "{taskCount, plural, one {# z tych zadań ma uwagi do sprawdzenia} few {# z tych zadań mają uwagi do sprawdzenia} many {# z tych zadań ma uwagi do sprawdzenia} other {# z tych zadań ma uwagi do sprawdzenia}}"
+
+#: apps/console/components/last-practised.tsx
+msgid "{when} ({exact})"
+msgstr "{when} ({exact})"
 
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
@@ -241,7 +249,7 @@ msgstr "Dodano {added}. Utwórz jej rekordy DNS powyżej."
 msgid "Adding…"
 msgstr "Dodawanie…"
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Admin"
 msgstr "Administrator"
 
@@ -273,7 +281,7 @@ msgstr "Stan na {time}"
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "Działając w Twoim imieniu, będzie mogła czytać materiały i kursy organizacji „{organizationName}” oraz dodawać materiały i cele nauczania, których dotyczą."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Author"
 msgstr "Autor"
 
@@ -642,8 +650,8 @@ msgid "Each learner's objectives, counted by standing."
 msgstr "Cele każdego ucznia, policzone według stanu."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whoever is searched for above."
-msgstr "Uczniowie przy każdym celu, policzeni według stanu: {learners, plural, one {# uczeń} few {wszyscy # uczniowie} many {wszystkich # uczniów} other {wszyscy # ucznia}} z tej strony, niezależnie od wyszukiwania powyżej."
+msgid "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whatever the search or filter above."
+msgstr "Uczniowie przy każdym celu, policzeni według stanu: {learners, plural, one {# uczeń} few {wszyscy # uczniowie} many {wszystkich # uczniów} other {wszyscy # ucznia}} z tej strony, niezależnie od wyszukiwania i filtra powyżej."
 
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Edit"
@@ -889,9 +897,21 @@ msgstr "Język: {name}"
 msgid "Last evidence"
 msgstr "Ostatni wynik"
 
+#: apps/console/components/last-practised.tsx
+msgid "Last practised {date}"
+msgstr "Ostatnie ćwiczenia: {date}"
+
+#: apps/console/components/last-practised.tsx
+msgid "Last practised {exact}"
+msgstr "Ostatnie ćwiczenia: {exact}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Last practised counts questions answered here, Show answer included. Results recorded elsewhere count toward standings, not practice."
+msgstr "„Ostatnie ćwiczenia” obejmują pytania, na które uczeń odpowiedział tutaj, w tym te, przy których użył „Pokaż odpowiedź”. Wyniki zapisane gdzie indziej wpływają na stan, ale nie liczą się jako ćwiczenia."
+
 #: apps/console/components/group-form.tsx
+#: apps/console/lib/roles.ts
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Uczeń"
 
@@ -1079,8 +1099,16 @@ msgid "No groups yet"
 msgstr "Na razie brak grup"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No learner matches “{query}” with this practice filter."
+msgstr "Żaden uczeń nie pasuje do „{query}” przy tym filtrze ćwiczeń."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No learner matches “{query}”."
 msgstr "Żaden uczeń nie pasuje do „{query}”."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No learner matches this filter."
+msgstr "Żaden uczeń nie pasuje do tego filtra."
 
 #: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
@@ -1100,6 +1128,18 @@ msgstr "Żaden cel nie ma obecnie powtarzających się błędów."
 msgid "No password to remember."
 msgstr "Bez hasła do zapamiętania."
 
+#: apps/console/components/last-practised.tsx
+msgid "No practice recorded yet"
+msgstr "Jeszcze bez ćwiczeń"
+
+#: apps/console/components/last-practised.tsx
+msgid "No practice recorded yet on this course's objectives"
+msgstr "Jeszcze bez ćwiczeń z celów tego kursu"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No practice yet: {none}"
+msgstr "Jeszcze bez ćwiczeń: {none}"
+
 #: apps/console/components/group-form.tsx
 msgid "No teacher can read this group's progress yet."
 msgstr "Na razie żaden nauczyciel nie widzi postępów tej grupy."
@@ -1111,6 +1151,10 @@ msgstr "Brak nauczycieli."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Not active yet"
 msgstr "Jeszcze nieaktywne"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Not lately: {earlier}"
+msgstr "Dawniej: {earlier}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Not quite"
@@ -1207,7 +1251,7 @@ msgstr "Organizacje w tym regionie zakłada się na osobnej stronie, na której 
 msgid "Organize learners, teachers, and courses. Teachers can read progress for the learners and courses in their groups."
 msgstr "Łącz uczniów, nauczycieli i kursy w grupy. Nauczyciele widzą postępy uczniów w kursach swoich grup."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Owner"
 msgstr "Właściciel"
 
@@ -1225,10 +1269,18 @@ msgctxt "domain"
 msgid "Pending"
 msgstr "Oczekująca"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Practice in the last 7 days"
+msgstr "Ćwiczenia w ostatnich 7 dniach"
+
 #. Objectives practised today, by current standing: 2 retained · 1 learning
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practised today: {todaySummary}."
 msgstr "Tematy ćwiczone dzisiaj: {todaySummary}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Practised: {recent}"
+msgstr "Ćwiczyli: {recent}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -1688,6 +1740,10 @@ msgstr "To logowanie wygasło"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
 msgstr "Aby członek widział postępy swoich uczniów, dodaj go jako nauczyciela do <0>grupy</0>."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Today and the 6 days before, in your time zone ({timeZone}): questions answered here on this course's objectives. Results recorded elsewhere count toward standings, not practice."
+msgstr "Dziś i 6 poprzednich dni w Twojej strefie czasowej ({timeZone}): pytania z celów tego kursu, na które uczniowie odpowiedzieli tutaj. Wyniki zapisane gdzie indziej wpływają na stan, ale nie liczą się jako ćwiczenia."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "today at {time}"

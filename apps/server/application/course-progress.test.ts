@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 import { activeModel, type Evidence, REPEATED_MISSES_THRESHOLD } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import type { AccessKind } from "./access.ts";
+import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
 import { readCourseProgress } from "./course-progress.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
 
@@ -157,6 +158,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
         modelVersion: activeModel.version,
         asOf: now,
         repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+        // Results recorded through the API, none an attempt answered here.
         learners: [
           {
             userId: ana,
@@ -164,6 +166,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             roles: ["member"],
             standings: { unseen: 1, acquiring: 1, retained: 0, due: 1 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
           {
             userId: ben,
@@ -171,6 +174,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             roles: ["member"],
             standings: { unseen: 1, acquiring: 0, retained: 2, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
           {
             userId: teacher,
@@ -178,6 +182,7 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             roles: ["admin"],
             standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
         ],
         objectives: [
@@ -327,6 +332,45 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             .map(({ misses }) => [objectiveId, misses]),
         ),
       );
+    }
+  });
+
+  test("says when each learner last answered here, as their report says", async () => {
+    const attempt = (id: string, objectiveId: string, at: Date): Evidence =>
+      evidence({ id: `${ATTEMPT_EVIDENCE_PREFIX}${id}:${objectiveId}`, objectiveId, at });
+    await recordEvidence(database, { learnerId: ana, organizationId }, [
+      attempt("a1", greetings, daysAgo(12)),
+      attempt("a2", numbers, daysAgo(6)),
+      // Outside the course, and an outside result: neither is practice here.
+      attempt("a3", weather, daysAgo(1)),
+      evidence({ id: "a4", objectiveId: greetings, at: daysAgo(1) }),
+    ]);
+    await recordEvidence(database, { learnerId: ben, organizationId }, [
+      attempt("b1", colours, daysAgo(3)),
+      // After the moment described.
+      attempt("b2", colours, new Date(now.getTime() + 1000)),
+    ]);
+
+    const read = await overview();
+    if (read.kind !== "assessed") throw new Error("No overview");
+    expect(
+      read.overview.learners.map(({ userId, lastPractisedAt }) => [userId, lastPractisedAt]),
+    ).toEqual([
+      [ana, daysAgo(6)],
+      [ben, daysAgo(3)],
+      [teacher, null],
+    ]);
+    for (const { userId, lastPractisedAt } of read.overview.learners) {
+      const report = await readLearnerProgress({
+        database,
+        viewedBy: teacher,
+        accessKind: "browser",
+        learnerId: userId,
+        courseId: course,
+        host: installation,
+        now,
+      });
+      expect(report).toMatchObject({ report: { lastPractisedAt } });
     }
   });
 

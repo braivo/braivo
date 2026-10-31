@@ -3,7 +3,7 @@
 
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
-import { learnerDayIn } from "./learner-day.ts";
+import { calendarDayIn, learnerDayIn } from "./learner-day.ts";
 
 describe("learnerDayIn", () => {
   test("begins a day at four, local", () => {
@@ -37,5 +37,26 @@ describe("learnerDayIn", () => {
     });
     // 06:00 on June 11 in Auckland; June 10 in UTC.
     expect(learnerDayIn()(new Date("2026-06-10T18:00:00Z"))).toBe("2026-06-11");
+  });
+});
+
+describe("calendarDayIn", () => {
+  test("begins a day at midnight, local", () => {
+    const dayOf = calendarDayIn("Europe/Warsaw");
+    // 23:59:59 on June 1 in Warsaw, then 00:00 on June 2.
+    expect(dayOf(new Date("2026-06-01T21:59:59Z"))).toBe("2026-06-01");
+    expect(dayOf(new Date("2026-06-01T22:00:00Z"))).toBe("2026-06-02");
+  });
+
+  test("dates a midnight a zone skips, and one it repeats, by the local calendar", () => {
+    // Santiago, September 6: 23:59:59 on the 5th, then 01:00 on the 6th.
+    const santiago = calendarDayIn("America/Santiago");
+    expect(santiago(new Date("2026-09-06T03:59:59Z"))).toBe("2026-09-05");
+    expect(santiago(new Date("2026-09-06T04:00:00Z"))).toBe("2026-09-06");
+    // Havana, November 1: 00:59:59 went back to 00:00, so the date began twice.
+    const havana = calendarDayIn("America/Havana");
+    expect(havana(new Date("2026-11-01T03:59:59Z"))).toBe("2026-10-31");
+    expect(havana(new Date("2026-11-01T04:00:00Z"))).toBe("2026-11-01");
+    expect(havana(new Date("2026-11-01T05:00:00Z"))).toBe("2026-11-01");
   });
 });

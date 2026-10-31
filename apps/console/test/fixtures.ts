@@ -23,11 +23,13 @@ export const courseProgress = async (): Promise<CourseProgressOverview> => ({
       ...members[1]!,
       standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 },
       repeatedMisses: 0,
+      lastPractisedAt: "2026-05-29T09:00:00.000Z",
     },
     {
       ...members[0]!,
       standings: { unseen: 2, acquiring: 0, retained: 0, due: 0 },
       repeatedMisses: 0,
+      lastPractisedAt: null,
     },
   ],
   objectives: [

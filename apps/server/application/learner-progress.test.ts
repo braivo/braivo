@@ -245,6 +245,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
         modelVersion: activeModel.version,
         asOf: now,
         repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+        lastPractisedAt: null,
         objectives: [],
       },
     });
@@ -302,6 +303,44 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       objectives: [{ misses: { count: 3 } }, {}],
     });
+  });
+
+  test("says when the learner last answered here, Show answer and other courses included, outside results not", async () => {
+    // An outside grader's result, then Show answer in another course on a shared objective.
+    await recordGradedEvidence({
+      database,
+      organizationId,
+      gradedBy: teacher,
+      learnerId: learner,
+      evidence: [evidence({ id: "graded", outcome: "success", at: daysAgo(3) })],
+      now,
+    });
+    expect(await progress()).toMatchObject({ report: { lastPractisedAt: null } });
+    await submitAttempt({
+      database,
+      learnerId: learner,
+      courseId: reviewCourse,
+      host: { hostname: "localhost", installation: true },
+      attemptId: "shown",
+      taskId: pastTenseTask,
+      response: { reveal: true },
+      now: daysAgo(2),
+    });
+    // A later outside result changes nothing.
+    await recordGradedEvidence({
+      database,
+      organizationId,
+      gradedBy: teacher,
+      learnerId: learner,
+      evidence: [evidence({ id: "later-graded", outcome: "success", at: daysAgo(1) })],
+      now,
+    });
+
+    const read = await progress();
+    if (read.kind !== "assessed") throw new Error("No report");
+    expect(read.report.lastPractisedAt).toEqual(daysAgo(2));
+    // Kept without the history, as the learn app reads it.
+    expect(withoutHistory(read.report).lastPractisedAt).toEqual(daysAgo(2));
   });
 
   test("counts misses from the latest success, which one more success clears", async () => {

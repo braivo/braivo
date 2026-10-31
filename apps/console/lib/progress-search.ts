@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { PRACTICE_RECENCIES, type PracticeRecency } from "./practice-window.ts";
+
 /**
  * A course's progress page as someone left it, kept in its URL so a learner's
  * report leads back to it: where it was opened from, the learner searched
- * for, and the order. Only these values: a URL grants nothing, and leads
- * nowhere but these pages.
+ * for, the order, and the practice filter. Only these values: a URL grants
+ * nothing, and leads nowhere but these pages.
  */
 export type ProgressSearch = {
   /** Opened from the Groups page, its way back; otherwise the course's or, to someone not administering, Groups. */
@@ -14,6 +16,8 @@ export type ProgressSearch = {
   q?: string;
   /** Most learning, most due for review, or most repeated misses first; by name otherwise. */
   sort?: ProgressSort;
+  /** Only the learners who practised in the last seven days, before, or never (progress-17). */
+  practice?: PracticeRecency;
 };
 
 export const PROGRESS_SORTS = ["learning", "due", "misses"] as const;
@@ -28,6 +32,9 @@ export function validateProgressSearch(search: Record<string, unknown>): Progres
     ...(typeof search.q === "string" && search.q !== "" && { q: search.q.slice(0, MAX_QUERY) }),
     ...(PROGRESS_SORTS.includes(search.sort as ProgressSort) && {
       sort: search.sort as ProgressSort,
+    }),
+    ...(PRACTICE_RECENCIES.includes(search.practice as PracticeRecency) && {
+      practice: search.practice as PracticeRecency,
     }),
   };
 }

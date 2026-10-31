@@ -4,7 +4,7 @@
 import "../styles.css";
 import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser/context";
+import { page, userEvent } from "vite-plus/test/browser/context";
 
 import { courseProgress, members } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
@@ -43,6 +43,7 @@ test("on a phone, wraps a learner's evidence between its date and time, not insi
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           {
             objectiveId: "o1",
@@ -119,4 +120,21 @@ test("on a phone, keeps an objective's opened learners in view as its table scro
     // Clear of the 32px the scroller's right edge fades over while it hides columns.
     expect(shown.right).toBeLessThanOrEqual(view.right - 32);
   }
+});
+
+test("presses a practice count with Enter or Space, as any button", async () => {
+  renderAt("/example/courses/course-1/progress", {
+    braivo: {
+      listCourses: async () => [
+        { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+      ],
+    },
+  });
+
+  const none = await screen.findByRole("button", { name: "No practice yet: 1" });
+  none.focus();
+  await userEvent.keyboard("{Enter}");
+  await expect.poll(() => none.getAttribute("aria-pressed")).toBe("true");
+  await userEvent.keyboard(" ");
+  await expect.poll(() => none.getAttribute("aria-pressed")).toBe("false");
 });
