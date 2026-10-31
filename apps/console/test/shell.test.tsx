@@ -381,7 +381,12 @@ describe("the console", () => {
       listSources: async () => [saludos],
       getSource: async () => saludos,
       readCourse,
-      learnerProgress: async () => ({ modelVersion: "v1", objectives: [] }),
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
+        objectives: [],
+      }),
     };
     const titles = {
       "/example": "Courses · Example School",

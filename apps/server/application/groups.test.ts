@@ -454,6 +454,7 @@ describe.skipIf(!connectionString)("groups", () => {
           userId: ana,
           name: ana,
           standings: { unseen: 0, acquiring: 0, retained: 1, due: 0 },
+          repeatedMisses: 0,
         },
       ]);
       // Counted over that learner alone, not the organization.
@@ -464,6 +465,49 @@ describe.skipIf(!connectionString)("groups", () => {
         due: 0,
       });
       expect(await report(teacherA, ana)).toMatchObject({ kind: "assessed" });
+    });
+
+    test("names to a teacher the repeated misses of their groups' learners alone", async () => {
+      const failures = (learnerId: string) =>
+        recordEvidence(
+          database,
+          { learnerId, organizationId },
+          [1, 2, 3].map((index) => ({
+            id: `miss-${index}`,
+            objectiveId: greetings,
+            outcome: "failure" as const,
+            // At the moment of the success each learner has here, "e1", and
+            // after it in replay's order, which ties by ID.
+            at: now,
+          })),
+        );
+      await failures(ana);
+      await failures(ben);
+
+      for (const [teacher, learner] of [
+        [teacherA, ana],
+        [teacherB, ben],
+      ] as const) {
+        const read = await overview(teacher);
+        if (read.kind !== "assessed") throw new Error("No overview");
+        expect(read.overview.objectives[0]?.repeatedMisses.map(({ userId }) => userId)).toEqual([
+          learner,
+        ]);
+        expect(
+          read.overview.learners.map(({ userId, repeatedMisses }) => [userId, repeatedMisses]),
+        ).toEqual([[learner, 1]]);
+      }
+      // Taught in a second group of the same teacher, still named once.
+      await defineGroup({
+        database,
+        organizationId,
+        actingAs: admin,
+        definition: definition({ name: "Support", learnerIds: [ana] }),
+      });
+      const read = await overview(teacherA);
+      expect(read.kind === "assessed" && read.overview.objectives[0]?.repeatedMisses).toMatchObject(
+        [{ userId: ana, misses: { count: 3 } }],
+      );
     });
 
     test("keeps another group's learners, other courses, and other members from a teacher", async () => {

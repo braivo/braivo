@@ -273,6 +273,8 @@ describe("the Braivo client", () => {
   test("returns the progress report Braivo answered with", async () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         { objectiveId: "o1", title: "One", phase: "unseen", evidence: [] },
         {

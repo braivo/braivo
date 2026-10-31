@@ -53,6 +53,14 @@ msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# due for review} other {# due for review}}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner with repeated misses on {title}} other {# learners with repeated misses on {title}}}"
+msgstr "{count, plural, one {# learner with repeated misses on {title}} other {# learners with repeated misses on {title}}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner} other {# learners}}"
+msgstr "{count, plural, one {# learner} other {# learners}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 msgstr "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 
@@ -74,6 +82,14 @@ msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
 msgstr "{count, plural, one {# member} other {# members}} of {0}, staff included: every member can study this course."
+
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss since the last correct answer} other {# misses since the last correct answer}}, latest {latest}"
+msgstr "{count, plural, one {# miss since the last correct answer} other {# misses since the last correct answer}}, latest {latest}"
+
+#: apps/console/components/misses-since.tsx
+msgid "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
+msgstr "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -222,6 +238,10 @@ msgstr "Approve"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Approving…"
 msgstr "Approving…"
+
+#: apps/console/components/as-of.tsx
+msgid "As of {time}"
+msgstr "As of {time}"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
@@ -450,6 +470,10 @@ msgstr "Could not load whether tools read learners' data. Reload the page to try
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Could not record your answer. Try again."
 msgstr "Could not record your answer. Try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Could not refresh. Try again."
+msgstr "Could not refresh. Try again."
 
 #: apps/console/components/group-form.tsx
 msgid "Could not reload the group. Try again."
@@ -938,6 +962,10 @@ msgstr "Most objectives due"
 msgid "Most objectives learning"
 msgstr "Most objectives learning"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Most repeated misses"
+msgstr "Most repeated misses"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Name"
 msgstr "Name"
@@ -1018,6 +1046,10 @@ msgstr "No learners yet."
 msgid "No member matches."
 msgstr "No member matches."
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No objectives currently have repeated misses."
+msgstr "No objectives currently have repeated misses."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No password to remember."
 msgstr "No password to remember."
@@ -1050,8 +1082,8 @@ msgid "Not started"
 msgstr "Not started"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
-msgid "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
-msgstr "Not started means no evidence yet. Learning means practice has begun, not that it keeps failing: open the evidence to see."
+msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
+msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
@@ -1170,6 +1202,14 @@ msgstr "Progress"
 msgid "Progress by objective"
 msgstr "Progress by objective"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refresh"
+msgstr "Refresh"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refreshing…"
+msgstr "Refreshing…"
+
 #: apps/console/components/group-form.tsx
 msgid "Reload the group"
 msgstr "Reload the group"
@@ -1217,6 +1257,14 @@ msgstr "Removing someone keeps their learning history and their membership; anot
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Removing…"
 msgstr "Removing…"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses"
+msgstr "Repeated misses"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
+msgstr "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx

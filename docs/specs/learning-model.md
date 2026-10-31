@@ -160,7 +160,7 @@ The decision explains itself _at the moment it was made_, not later: the model, 
 
 ## Module surface
 
-Five functions, all pure. Four are the module's public surface; `updateEstimate` is the fold `replay` is built from, and stays inside the module:
+Six functions, all pure. Five are the module's public surface; `updateEstimate` is the fold `replay` is built from, and stays inside the module:
 
 ```ts
 function updateEstimate(
@@ -182,6 +182,11 @@ function selectNext(input: {
   estimates: ReadonlyMap<string, KnowledgeEstimate>;
   model: LearningModel;
 }): LearningDecision | undefined;
+
+function missesSinceSuccess(
+  evidence: readonly Evidence[],
+  now: Date,
+): ReadonlyMap<string, { count: number; lastMissAt: Date; everSucceeded: boolean }>;
 
 function assessKnowledge(input: {
   now: Date;
@@ -211,6 +216,8 @@ type ObjectiveStanding = { objectiveId: string } & (
 `due` is the selection rule's own predicate, shared rather than restated, so the two agree on what due means: a retained objective reported as due is one selection would review, were nothing more urgent. `dueAt` is when `due` starts to hold, so a reader can say when to come back: the first millisecond past the moment retrievability's curve reaches `targetRetention`. Floating point may move `due` a few milliseconds off it at extreme stabilities, and assessment also rejects a stability whose `dueAt` falls beyond the dates JavaScript holds, which selection would accept. `assess.test.ts` checks that agreement across generated learners — whatever selection chooses appears in the report as the reason for choosing it — and asserts that each kind of decision was reached a meaningful number of times. That is a floor against a branch going untested, not a proof that every case is covered.
 
 The report keeps the order it was given and decides nothing. `unseen` stands in for the estimate that does not exist, as it does everywhere else, so every standing carries exactly the values that describe it.
+
+`missesSinceSuccess` counts, per objective, the failures since its latest success, or since its first record without one, in replay's order and up to `now`; an objective with none is left out. It describes evidence and decides nothing, so it is no part of `LearningModel` and changes no version. With it comes `REPEATED_MISSES_THRESHOLD`, 3, from which an `acquiring` objective reads as repeated misses ([progress](progress.md), progress-16): a fixed, provisional signal for a teacher, not a model parameter. Under v1 an objective has misses exactly when it is `acquiring`, a failure always leading there and a success out; `misses.test.ts` pins that agreement, and the overview and the console's report still check the phase, so a model where the two part does not flag a retained objective.
 
 `undefined` is how absence is spelled throughout: an unseen objective has no estimate, and a selection with nothing to offer returns none.
 
@@ -289,4 +296,4 @@ Deliberately unresolved; each needs evidence or a requirement, not a guess.
 
 ## Entry points
 
-`apps/server/learning/index.ts` (the public surface), `apps/server/learning/estimate.ts` (evidence into estimates, and replay's order), `apps/server/learning/select.ts` (the selection rule), `apps/server/learning/assess.ts` (where a learner stands), `apps/server/learning/model.ts` (the version and its parameters), `apps/server/application/next-objective.ts` (a caller: loading evidence, then choosing).
+`apps/server/learning/index.ts` (the public surface), `apps/server/learning/estimate.ts` (evidence into estimates, and replay's order), `apps/server/learning/select.ts` (the selection rule), `apps/server/learning/assess.ts` (where a learner stands), `apps/server/learning/misses.ts` (misses since the last success), `apps/server/learning/model.ts` (the version and its parameters), `apps/server/application/next-objective.ts` (a caller: loading evidence, then choosing).

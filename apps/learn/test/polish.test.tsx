@@ -22,6 +22,8 @@ describe("the learn app in Polish", () => {
 
   const notStarted = (count: number): LearnerProgressSummary => ({
     modelVersion: "v1",
+    asOf: "2026-06-01T00:00:00.000Z",
+    repeatedMissesThreshold: 3,
     objectives: Array.from({ length: count }, (_, index) => ({
       objectiveId: `o${index}`,
       title: `Objective ${index}`,
@@ -38,6 +40,8 @@ describe("the learn app in Polish", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           { objectiveId: "a", title: "a", phase: "acquiring", lastEvidenceAt: at },
           { objectiveId: "b", title: "b", phase: "acquiring", lastEvidenceAt: at },
@@ -65,6 +69,8 @@ describe("the learn app in Polish", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "a",
@@ -239,6 +245,8 @@ describe("the learn app in Polish", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "a",

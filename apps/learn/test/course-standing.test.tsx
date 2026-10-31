@@ -23,6 +23,8 @@ describe("the learn app", () => {
       nextActivity: async () => activity,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "a",
@@ -88,6 +90,8 @@ describe("the learn app", () => {
       nextActivity: async () => activity,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           { objectiveId: "a", title: "Greetings", phase: "unseen" },
           { objectiveId: "b", title: "Numbers", phase: "unseen" },
@@ -118,7 +122,12 @@ describe("the learn app", () => {
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
         .mockResolvedValueOnce(anotherActivity),
-      learnerProgress: async () => ({ modelVersion: "v1", objectives: reported }),
+      learnerProgress: async () => ({
+        modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
+        objectives: reported,
+      }),
       submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
     });
 
@@ -175,6 +184,8 @@ describe("the learn app", () => {
     const at = "2026-06-01T00:00:00.000Z";
     return {
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         pastTense === "unseen"
           ? { objectiveId: "o1", title: "Past tense", phase: "unseen" }
@@ -418,6 +429,8 @@ describe("the learn app", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           retained("a", "Greetings", "2026-06-09T00:00:00.000Z"),
           // Shown rounded up, never early.
@@ -452,6 +465,8 @@ describe("the learn app", () => {
       nextActivity: async () => ({ dailyLimit: 20 }),
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [retained("a", "Greetings", dueAt)],
       }),
     });
@@ -487,6 +502,8 @@ describe("the learn app", () => {
           };
     const progress: LearnerProgressSummary = {
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         standing("a", "2026-06-11T01:00:00.000Z", "retaining"),
         // Today locally, though 10 June in UTC.
@@ -544,6 +561,8 @@ describe("the learn app", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "a",
@@ -570,6 +589,8 @@ describe("the learn app", () => {
       signedIn: true,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "a",

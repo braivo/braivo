@@ -12,9 +12,12 @@ export type ProgressSearch = {
   from?: "groups";
   /** "Find a learner", as typed. */
   q?: string;
-  /** Most learning, or most due for review, first; by name otherwise. */
-  sort?: "learning" | "due";
+  /** Most learning, most due for review, or most repeated misses first; by name otherwise. */
+  sort?: ProgressSort;
 };
+
+export const PROGRESS_SORTS = ["learning", "due", "misses"] as const;
+type ProgressSort = (typeof PROGRESS_SORTS)[number];
 
 /** The longest "Find a learner" the URL keeps. */
 export const MAX_QUERY = 200;
@@ -23,6 +26,8 @@ export function validateProgressSearch(search: Record<string, unknown>): Progres
   return {
     ...(search.from === "groups" && { from: "groups" as const }),
     ...(typeof search.q === "string" && search.q !== "" && { q: search.q.slice(0, MAX_QUERY) }),
-    ...((search.sort === "learning" || search.sort === "due") && { sort: search.sort }),
+    ...(PROGRESS_SORTS.includes(search.sort as ProgressSort) && {
+      sort: search.sort as ProgressSort,
+    }),
   };
 }

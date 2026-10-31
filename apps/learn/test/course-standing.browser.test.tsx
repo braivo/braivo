@@ -31,6 +31,8 @@ test("on a phone, wraps the standing summary between its counts, never inside on
     nextActivity: async () => activity,
     learnerProgress: async () => ({
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         { objectiveId: "a", title: "Greetings", phase: "acquiring", lastEvidenceAt: at },
         { objectiveId: "b", title: "Numbers", phase: "unseen" },
@@ -69,6 +71,8 @@ test("in Polish, joins a later review's date and its time with o", async () => {
     signedIn: true,
     learnerProgress: async () => ({
       modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      repeatedMissesThreshold: 3,
       objectives: [
         {
           objectiveId: "a",

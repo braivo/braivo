@@ -6,7 +6,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 import { page } from "vite-plus/test/browser/context";
 
-import { members } from "./fixtures.ts";
+import { courseProgress, members } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 /** The tops of the lines on which `element` draws `text`. */
@@ -41,6 +41,8 @@ test("on a phone, wraps a learner's evidence between its date and time, not insi
       listMembers: async () => members,
       learnerProgress: async () => ({
         modelVersion: "v1",
+        asOf: "2026-06-01T00:00:00.000Z",
+        repeatedMissesThreshold: 3,
         objectives: [
           {
             objectiveId: "o1",
@@ -64,4 +66,57 @@ test("on a phone, wraps a learner's evidence between its date and time, not insi
   const [timeTop, ...rest] = lineTops(entry, time);
   expect(timeTop).toBeGreaterThan(Math.max(...lineTops(entry, "2026")));
   expect(rest).toEqual([]);
+});
+
+test("on a phone, keeps an objective's opened learners in view as its table scrolls sideways", async () => {
+  await page.viewport(320, 568);
+  const progress = await courseProgress();
+  renderAt("/example/courses/course-1/progress", {
+    braivo: {
+      listCourses: async () => [
+        { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+      ],
+      courseProgress: async () => ({
+        ...progress,
+        learners: progress.learners.map((learner) =>
+          learner.userId === "u2" ? { ...learner, repeatedMisses: 1 } : learner,
+        ),
+        objectives: progress.objectives.map((objective, index) =>
+          index === 0
+            ? {
+                ...objective,
+                repeatedMisses: [
+                  {
+                    userId: "u2",
+                    name: "Lee Learner",
+                    misses: {
+                      count: 3,
+                      lastMissAt: "2026-05-30T09:00:00.000Z",
+                      everSucceeded: false,
+                    },
+                  },
+                ],
+              }
+            : objective,
+        ),
+      }),
+    },
+  });
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "1 learner with repeated misses on Greetings" }),
+  );
+  const list = screen.getByRole("list", { name: "1 learner with repeated misses on Greetings" });
+  const scroller = list.closest('[data-slot="table-container"]')!;
+  await document.fonts.ready;
+  // Wider than the phone, or there would be nothing to prove.
+  expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth);
+  for (const left of [0, scroller.scrollWidth]) {
+    scroller.scrollLeft = left;
+    const view = scroller.getBoundingClientRect();
+    const shown = list.getBoundingClientRect();
+    expect(shown.left).toBeGreaterThanOrEqual(view.left);
+    // Clear of the 32px the scroller's right edge fades over while it hides columns.
+    expect(shown.right).toBeLessThanOrEqual(view.right - 32);
+  }
 });

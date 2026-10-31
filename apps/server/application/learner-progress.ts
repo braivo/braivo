@@ -9,7 +9,10 @@ import {
   type Evidence,
   inReplayOrder,
   type KnowledgeReport,
+  type Misses,
+  missesSinceSuccess,
   type ObjectiveStanding,
+  REPEATED_MISSES_THRESHOLD,
 } from "../learning/index.ts";
 import { readObjectiveTitles, teaches } from "../persistence/index.ts";
 import { type AccessKind, mayReadLearnerData } from "./access.ts";
@@ -73,11 +76,14 @@ export async function readLearnerProgress(input: {
   // Named here rather than in `learning`, which knows objectives only as IDs.
   const titles = await readObjectiveTitles(database, learner.objectiveIds);
   const byObjective = Map.groupBy(learner.evidence, ({ objectiveId }) => objectiveId);
+  const misses = missesSinceSuccess(learner.evidence, now);
 
   return {
     kind: "assessed",
     report: {
       ...report,
+      asOf: now,
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       objectives: report.objectives.map((standing) => {
         const title = titles.get(standing.objectiveId);
         // Never missing: the course references it, with deletes restricted.
@@ -86,9 +92,11 @@ export async function readLearnerProgress(input: {
         // Replay's order, not the database's, whose collation may order tied IDs
         // otherwise: the list must end on the outcome that stands.
         const evidence = inReplayOrder(byObjective.get(standing.objectiveId) ?? []);
+        const missed = misses.get(standing.objectiveId);
         return {
           ...standing,
           title,
+          ...(missed && { misses: missed }),
           evidence: evidence.map(({ outcome, at }) => ({ outcome, at })),
         };
       }),
@@ -102,20 +110,27 @@ export async function readLearnerProgress(input: {
  * order, so a reader can see why it stands where it does ("Explainable
  * decisions"). Outcome and time only: an evidence ID is the grader's, and
  * explains nothing.
+ *
+ * `asOf` is the moment assessed. `misses`, present from one, counts failures
+ * since the objective's last success (progress-16); `repeatedMissesThreshold` is the
+ * count from which one still being learned reads as repeated misses, so a
+ * reader applies the same threshold as the console.
  */
 export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
-  objectives: (ObjectiveStanding & {
-    title: string;
-    evidence: Pick<Evidence, "outcome" | "at">[];
-  })[];
+  asOf: Date;
+  repeatedMissesThreshold: number;
+  objectives: (ReportedStanding & { evidence: Pick<Evidence, "outcome" | "at">[] })[];
 };
+
+/** A standing named by its objective's title, with its misses. */
+type ReportedStanding = ObjectiveStanding & { title: string; misses?: Misses };
 
 /**
  * The report without its evidence, which grows with every result, for a reader
- * showing standings only.
+ * showing standings only. Its misses stay: a summary, not the records.
  */
-export type LearnerProgressSummary = Omit<KnowledgeReport, "objectives"> & {
-  objectives: (ObjectiveStanding & { title: string })[];
+export type LearnerProgressSummary = Omit<LearnerProgressReport, "objectives"> & {
+  objectives: ReportedStanding[];
 };
 
 /**
