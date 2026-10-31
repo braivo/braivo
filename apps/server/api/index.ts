@@ -398,8 +398,9 @@
 // nothing (ADR 0024). Answers 201 with `{ "tasks": [{ "id": "…", "added":
 // true, "published": false }] }`, positionally matching: `added` false for a
 // task already there, `published` whether it is published now or waits for
-// Publish (ADR 0039), and `replaces` for a pending correction of a
-// published task; 400 with an `error` when a task is not a valid one of
+// Publish (ADR 0039), `replaces` for a pending correction of a
+// published task, and `findings`, as a task read back carries them;
+// 400 with an `error` when a task is not a valid one of
 // its kind or cites a quote Braivo cannot find — "Task 1, citation 0: the
 // quote does not occur in the source." — and 403 when an objective or a
 // source is not this organization's. Any refusal stores nothing in the batch.
@@ -427,6 +428,13 @@
 // `{ "tasks": [{ "id": "…", "kind": "choice", "prompt": "…", "options": [...],
 // "answer": 0, "citations": [{ "sourceId": "…", "start": 13, "end": 28,
 // "quote": "…" }] }] }`. 404 when the organization has no such objective.
+// A task with something a learner may run into as written carries
+// `findings`, absent when none: advisory, computed on each read, never
+// stored, each `{ "code": "typed-trailing-punctuation", "answer": "Hello.",
+// "suggestion"?: "Hello" }`, `{ "code": "typed-literal-delimiters", "answer":
+// "colour / color" }`, or `{ "code": "choice-correct-alike", "correct":
+// "Paris", "other": "paris.", "differences": ["case", "punctuation"] }`
+// (`content/findings.ts`).
 //
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,

@@ -265,7 +265,9 @@ export type AuthoredCourse = ManagedCourse & {
  * names that task in `replaces`; the task stays offered until the correction
  * is published. A pending task identical to a retired one of its objective
  * (ADR 0024's twin), however retired, is marked `matchesRetiredTask`: often a
- * task sent again after its review.
+ * task sent again after its review. `findings`, absent when none, says what a
+ * learner may run into with it as written (`taskFindings`): advisory, never
+ * stored.
  */
 export type AuthoredTask = content.TaskBody & {
   id: string;
@@ -273,6 +275,7 @@ export type AuthoredTask = content.TaskBody & {
   published: boolean;
   replaces?: string;
   matchesRetiredTask?: true;
+  findings?: content.Finding[];
 };
 
 /**
@@ -280,9 +283,16 @@ export type AuthoredTask = content.TaskBody & {
  * false for an unretired twin answered instead (ADR 0024), as is a task
  * repeated within the request after its first; `published`, false while it
  * waits for Publish in the console; `replaces`, only while it is a pending
- * correction, the published task it will retire, offered meanwhile.
+ * correction, the published task it will retire, offered meanwhile;
+ * `findings`, as a task read back carries them.
  */
-export type TaskWriteResult = { id: string; added: boolean; published: boolean; replaces?: string };
+export type TaskWriteResult = {
+  id: string;
+  added: boolean;
+  published: boolean;
+  replaces?: string;
+  findings?: content.Finding[];
+};
 
 /**
  * What creating a course did: `added`, false for the one already under its

@@ -41,6 +41,7 @@ import {
   setUpOrganization,
 } from "../application/index.ts";
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
+import { parseTaskBody, type TaskBody, taskFindings } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
 import { type Guards, jsonBody, presentsToolCredential } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
@@ -233,7 +234,17 @@ function authoredTask(authored: AuthoredTask) {
     published,
     ...(replaces !== undefined && { replaces }),
     ...(matchesRetiredTask && { matchesRetiredTask }),
+    ...withFindings(body),
   };
+}
+
+/**
+ * A task's `findings`, left out when none. Computed on every read rather than
+ * stored: they follow the running release's checks, and the task as it is.
+ */
+function withFindings(body: TaskBody) {
+  const findings = taskFindings(body);
+  return findings.length === 0 ? {} : { findings };
 }
 
 /** Reads `taskIds`, each non-empty, out of a request body. */
@@ -391,7 +402,13 @@ export function authoringRoutes(
           byTool: presentsToolCredential(context),
         });
 
-        return context.json({ tasks: written } satisfies { tasks: TaskWriteResult[] }, 201);
+        // Each as stored, which `defineTasks` accepted, so it parses; a twin
+        // answered instead has the same body.
+        const answered = written.map((result, index) => {
+          const parsed = parseTaskBody(tasks[index]!.body);
+          return "body" in parsed ? { ...result, ...withFindings(parsed.body) } : result;
+        });
+        return context.json({ tasks: answered } satisfies { tasks: TaskWriteResult[] }, 201);
       } catch (error) {
         return organizationRefusal(context, error);
       }

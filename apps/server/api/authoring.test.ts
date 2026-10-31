@@ -1583,6 +1583,58 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect((await read(theirs!, teacher.cookie)).status).toBe(404);
   });
 
+  test("says what a learner may run into with a task, as written and read back, and nothing when clean", async () => {
+    const [greetings] = await createObjectives(database, organizationId, ["Greetings"]);
+    const { id: greetingsCourse } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Greetings",
+      objectiveIds: [greetings!],
+    });
+    const flagged = { kind: "typed", prompt: "Say hello.", accepted: ["Hello."] };
+    const clean = { kind: "choice", prompt: "Hi?", options: ["Hello", "Bye"], answer: 0 };
+    const findings = [
+      { code: "typed-trailing-punctuation", answer: "Hello.", suggestion: "Hello" },
+    ];
+
+    const written = await api.request(`/api/organizations/${organizationId}/tasks`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: teacher.cookie },
+      body: JSON.stringify({
+        tasks: [
+          { objectiveId: greetings, ...flagged },
+          { objectiveId: greetings, ...clean },
+        ],
+      }),
+    });
+    expect(written.status).toBe(201);
+    const { tasks } = (await written.json()) as { tasks: { id: string }[] };
+    expect(tasks).toEqual([
+      { id: expect.any(String), added: true, published: true, findings },
+      { id: expect.any(String), added: true, published: true },
+    ]);
+
+    const listed = await api.request(
+      `/api/organizations/${organizationId}/objectives/${greetings}/tasks`,
+      { headers: { cookie: teacher.cookie } },
+    );
+    expect(await listed.json()).toEqual({
+      tasks: [
+        { id: tasks[0]!.id, ...flagged, citations: [], published: true, findings },
+        { id: tasks[1]!.id, ...clean, citations: [], published: true },
+      ],
+    });
+    const course = await api.request(
+      `/api/organizations/${organizationId}/courses/${greetingsCourse}`,
+      { headers: { cookie: teacher.cookie } },
+    );
+    const { objectives } = (await course.json()) as { objectives: { tasks: unknown[] }[] };
+    expect(objectives[0]!.tasks).toEqual([
+      { id: tasks[0]!.id, ...flagged, citations: [], published: true, findings },
+      { id: tasks[1]!.id, ...clean, citations: [], published: true },
+    ]);
+  });
+
   test("authors a task grounded in a source, and shows its passage once it is answered", async () => {
     // An objective and course of its own, so the task joins no other test's rotation.
     const [colours] = await createObjectives(database, organizationId, ["Colours"]);

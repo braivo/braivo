@@ -456,6 +456,80 @@ describe.skipIf(!connectionString)("Braivo's MCP tools", () => {
     expect(await json("create_course", course)).toEqual({ ...created, added: false });
   });
 
+  test("says what a learner may run into, and how to correct it, through a pending correction", async () => {
+    const { tools } = await agent.listTools();
+    for (const name of ["author_tasks", "list_tasks"]) {
+      const description = tools.find((tool) => tool.name === name)?.description;
+      expect(description, name).toContain("typed-trailing-punctuation");
+      expect(description, name).toContain("otherwise correct the pending one's ID instead");
+    }
+    expect(agent.getInstructions()).toContain("A task's findings say what a learner may run into");
+
+    const {
+      objectiveIds: [objectiveId],
+    } = await json<{ objectiveIds: string[] }>("define_objectives", {
+      organizationId,
+      objectives: [{ title: "Greetings", key: `mcp-findings-${crypto.randomUUID()}` }],
+    });
+    const typed = (prompt: string, accepted: string[]) => ({
+      objectiveId,
+      kind: "typed",
+      prompt,
+      accepted,
+    });
+    const finding = { code: "typed-trailing-punctuation", answer: "Hello.", suggestion: "Hello" };
+
+    const written = await json<{ tasks: { id: string }[] }>("author_tasks", {
+      organizationId,
+      tasks: [typed("Say hello.", ["Hello."]), typed("Say bye.", ["Bye"])],
+    });
+    const [hello, bye] = written.tasks.map(({ id }) => id) as [string, string];
+    expect(written.tasks).toEqual([
+      { id: hello, added: true, published: false, findings: [finding] },
+      { id: bye, added: true, published: false },
+    ]);
+
+    // Published in the console; a correction that leaves the finding waits beside it.
+    await database.update(taskTable).set({ publishedAt: at }).where(eq(taskTable.id, hello));
+    const {
+      tasks: [{ id: pending }],
+    } = await json<{ tasks: [{ id: string }] }>("author_tasks", {
+      organizationId,
+      tasks: [{ ...typed("Say hello, politely.", ["Hello."]), replaces: hello }],
+    });
+    expect(await json("list_tasks", { organizationId, objectiveId })).toMatchObject([
+      { id: hello, published: true, findings: [finding] },
+      { id: bye, published: false },
+      { id: pending, published: false, replaces: hello, findings: [finding] },
+    ]);
+    const [, listedBye] = await json<object[]>("list_tasks", { organizationId, objectiveId });
+    expect(listedBye).not.toHaveProperty("findings");
+
+    // Correcting the published task again is refused, naming the pending one…
+    const refused = await call("author_tasks", {
+      organizationId,
+      tasks: [{ ...typed("Say hello.", ["Hello.", "Hello"]), replaces: hello }],
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain(`correct that one instead (replaces "${pending}")`);
+
+    // …which is corrected instead, keeping its edit: it still waits, for the same task.
+    const fixed = await json<{ tasks: [{ id: string }] }>("author_tasks", {
+      organizationId,
+      tasks: [{ ...typed("Say hello, politely.", ["Hello.", "Hello"]), replaces: pending }],
+    });
+    expect(fixed.tasks).toEqual([
+      { id: expect.any(String), added: true, published: false, replaces: hello },
+    ]);
+    const after = await json<object[]>("list_tasks", { organizationId, objectiveId });
+    expect(after).toMatchObject([
+      { id: hello, published: true, findings: [finding] },
+      { id: bye, published: false },
+      { id: fixed.tasks[0].id, published: false, replaces: hello, accepted: ["Hello.", "Hello"] },
+    ]);
+    expect(after[2]).not.toHaveProperty("findings");
+  });
+
   test.each([
     ["refused", () => Promise.reject(new Error("Braivo is unavailable"))],
     // Settles only once aborted: the answer must not wait on it.
