@@ -207,7 +207,7 @@ describe("SignIn", () => {
     await enterCode();
 
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "That code is not right. Check it, or send a new one.",
+      "That code is not right. Check it, or send it again.",
     );
     // Cleared, so the next is typed afresh, after each refusal.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("");
@@ -244,7 +244,7 @@ describe("SignIn", () => {
 
       passMinute();
       fireEvent.click(resend);
-      await findSent(/A new code was sent to learner@example.com/);
+      await findSent(/Sent again to learner@example.com/);
       expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledTimes(2);
       fill("Code", "654321");
       await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
@@ -275,7 +275,7 @@ describe("SignIn", () => {
 
     fill("Code", "123");
     // Within the minute of the first, nothing is asked: the server would refuse.
-    const resend = screen.getByRole("button", { name: "Send a new code" });
+    const resend = screen.getByRole("button", { name: "Send the code again" });
     fireEvent.click(resend);
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledOnce();
     // Past it, another tab may have asked meanwhile, or the mail failed: either
@@ -296,7 +296,7 @@ describe("SignIn", () => {
       fireEvent.click(resend);
       expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledTimes(calls + 1);
     }
-    expect(screen.queryByText(/A new code was sent/)).toBeNull();
+    expect(screen.queryByText(/Sent again to/)).toBeNull();
     // The first code still works, so what was typed of it is kept.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123");
     fill("Code", "123456");
@@ -309,9 +309,9 @@ describe("SignIn", () => {
     await screen.findByLabelText("Code");
     fill("Code", "111");
     passMinute();
-    fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
-    expect(await findSent(/A new code was sent to learner@example.com/)).toBeTruthy();
-    // The old code is gone, so Sign in cannot spend a guess on it.
+    fireEvent.click(screen.getByRole("button", { name: "Send the code again" }));
+    expect(await findSent(/Sent again to learner@example.com/)).toBeTruthy();
+    // Cleared: the code sent may have replaced one expired or spent meanwhile.
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("");
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenLastCalledWith({
       email: "learner@example.com",
@@ -337,7 +337,7 @@ describe("SignIn", () => {
     expect(alert.className).not.toContain("text-destructive");
     expect(await findSent(/Enter the six-digit code sent to learner@example.com/)).toBeTruthy();
     // Its minute is counted down, as after a send.
-    fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send the code again" }));
     expect(auth.emailOtp.sendVerificationOtp).toHaveBeenCalledOnce();
     fill("Code", "123456");
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
@@ -400,20 +400,26 @@ describe("SignIn", () => {
     });
   });
 
-  test("lets the learner try again after a request that got no answer", async () => {
+  test("goes on to the code after asking for one got no answer, a new one to be had at once", async () => {
     const auth = fakeAuth("Ada");
-    auth.emailOtp.sendVerificationOtp.mockRejectedValue(new TypeError("Failed to fetch"));
-    render(<SignIn auth={auth} onSignedIn={vi.fn()} />);
+    auth.emailOtp.sendVerificationOtp.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const onSignedIn = vi.fn();
+    render(<SignIn auth={auth} onSignedIn={onSignedIn} />);
 
     fill("Email address", "learner@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
 
+    // The server may still send it: whether it did, only the inbox knows.
+    await findSent(
+      "If a code arrives at learner@example.com, enter it here. It expires in 10 minutes and works once.",
+    );
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Could not connect. Check your connection and try again.",
+      "Could not confirm a code was sent. Check your connection, and if none arrives, send it again.",
     );
-    expect(screen.getByRole("button", { name: "Send me a code" }).hasAttribute("disabled")).toBe(
-      false,
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Send the code again" }));
+    await screen.findByText(/^Sent again to/);
+    fill("Code", "123456");
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 
   test("keeps a code whose check got no answer, or another refusal, to try again", async () => {
@@ -453,6 +459,8 @@ describe("SignIn", () => {
     render(<SignIn auth={auth} onSignedIn={onSignedIn} google={google} />);
     const alert = async () => (await screen.findByRole("alert")).textContent;
     const unanswered = "Could not connect. Check your connection and try again.";
+    const unsent =
+      "Could not confirm a code was sent. Check your connection, and if none arrives, send it again.";
 
     const googleButton = screen.getByRole("button", { name: "Continue with Google" });
     await stalled(() => fireEvent.click(googleButton));
@@ -463,10 +471,8 @@ describe("SignIn", () => {
 
     fill("Email address", "learner@example.com");
     await stalled(() => fireEvent.click(screen.getByRole("button", { name: "Send me a code" })));
-    expect(await alert()).toBe(unanswered);
-    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    expect(await alert()).toBe(unsent);
 
-    await screen.findByLabelText("Code");
     await stalled(() => fill("Code", "123456"));
     expect(await alert()).toBe(unanswered);
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123456");
@@ -478,6 +484,28 @@ describe("SignIn", () => {
     expect(await alert()).toBe(unanswered);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
+  });
+
+  test("says a new code may still come when asking for one got no answer in time", async () => {
+    const auth = fakeAuth("Ada");
+    const onSignedIn = vi.fn();
+    render(<SignIn auth={auth} onSignedIn={onSignedIn} />);
+    fill("Email address", "learner@example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    await screen.findByLabelText("Code");
+    auth.emailOtp.sendVerificationOtp.mockImplementationOnce(stall);
+
+    passMinute();
+    await stalled(() =>
+      fireEvent.click(screen.getByRole("button", { name: "Send the code again" })),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Could not confirm a code was sent. Check your connection, and if none arrives, send it again.",
+    );
+    // Still at the code step, to take the newest code.
+    fill("Code", "654321");
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 
@@ -575,8 +603,8 @@ describe("SignIn", () => {
     );
     expect(screen.getByRole("heading", { name: "Sprawdź pocztę" })).toBeTruthy();
     // The wait before another code, in Polish word order.
-    expect(screen.getByRole("button", { name: "Wyślij nowy kod" }).textContent).toBe(
-      "Wyślij nowy kod za 1:00",
+    expect(screen.getByRole("button", { name: "Wyślij kod ponownie" }).textContent).toBe(
+      "Wyślij kod ponownie za 1:00",
     );
     expect(
       screen.getByText("Zalogujesz się, gdy tylko wpiszesz wszystkie sześć cyfr."),
@@ -584,9 +612,9 @@ describe("SignIn", () => {
     expect(screen.getByRole("button", { name: "Zaloguj się" })).toBeTruthy();
     fill("Kod", "123456");
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Ten kod jest nieprawidłowy. Sprawdź go lub wyślij nowy.",
+      "Ten kod jest nieprawidłowy. Sprawdź go lub wyślij go ponownie.",
     );
-    expect(screen.getByRole("button", { name: "Wyślij nowy kod" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wyślij kod ponownie" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Wróć do opcji logowania" })).toBeTruthy();
 
     // Pending, the button's spinner is named too.

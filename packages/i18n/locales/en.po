@@ -134,6 +134,10 @@ msgstr "{successes, plural, one {# success} other {# successes}}"
 msgid "<0>Here to learn?</0> Sign in through your course's website."
 msgstr "<0>Here to learn?</0> Sign in through your course's website."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "A code can be sent again a minute after the last."
+msgstr "A code can be sent again a minute after the last."
+
 #: packages/auth-client/sign-in.tsx
 msgid "A code was requested less than a minute ago. Check your email."
 msgstr "A code was requested less than a minute ago. Check your email."
@@ -145,10 +149,6 @@ msgstr "A group was already created from this form. Find it among the groups."
 #: apps/console/components/organization-setup-form.tsx
 msgid "A home for your materials, courses, and learners."
 msgstr "A home for your materials, courses, and learners."
-
-#: packages/ui/compositions/sign-in-form.tsx
-msgid "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
-msgstr "A new code was sent to {address}. Use the newest one; it expires in 10 minutes."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Account"
@@ -206,10 +206,6 @@ msgstr "Admin"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "AI apps you let work in Braivo for you, each in one organization. Disconnecting one stops it at once; to use it there again, connect it again."
 msgstr "AI apps you let work in Braivo for you, each in one organization. Disconnecting one stops it at once; to use it there again, connect it again."
-
-#: packages/ui/compositions/sign-in-form.tsx
-msgid "Another code can be sent a minute after the last."
-msgstr "Another code can be sent a minute after the last."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Another organization already uses that domain."
@@ -401,6 +397,10 @@ msgstr "Could not check the domain. Try again."
 msgid "Could not check this domain just now. Try again in a moment."
 msgstr "Could not check this domain just now. Try again in a moment."
 
+#: packages/auth-client/sign-in.tsx
+msgid "Could not confirm a code was sent. Check your connection, and if none arrives, send it again."
+msgstr "Could not confirm a code was sent. Check your connection, and if none arrives, send it again."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not confirm the change; it may have been saved. Reload the page to check."
 msgstr "Could not confirm the change; it may have been saved. Reload the page to check."
@@ -438,6 +438,10 @@ msgstr "Could not disconnect the app. Try again."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Could not disconnect. Check your connection and try again."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Could not load the next question. Try again."
+msgstr "Could not load the next question. Try again."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not load whether tools read learners' data. Reload the page to try again."
@@ -735,12 +739,16 @@ msgstr "Here to learn? Open the site your school or training provider gave you."
 msgid "How others in your organizations see you."
 msgstr "How others in your organizations see you."
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "If a code arrives at {address}, enter it here. It expires in 10 minutes and works once."
+msgstr "If a code arrives at {address}, enter it here. It expires in 10 minutes and works once."
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
 msgstr "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
 
 #: packages/ui/compositions/sign-in-form.tsx
-msgctxt "The wait before another sign-in code, as in: Send a new code in 0:42"
+msgctxt "The wait before a sign-in code can be sent, as in: Send the code again in 0:42"
 msgid "in {time}"
 msgstr "in {time}"
 
@@ -1279,9 +1287,17 @@ msgstr "Send again"
 msgid "Send me a code"
 msgstr "Send me a code"
 
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Send the code again"
+msgstr "Send the code again"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Sending…"
 msgstr "Sending…"
+
+#: packages/ui/compositions/sign-in-form.tsx
+msgid "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
+msgstr "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
 
 #: apps/console/components/organization-switcher.tsx
 msgid "Set up an organization"
@@ -1414,8 +1430,8 @@ msgid "That code has expired. Send a new one."
 msgstr "That code has expired. Send a new one."
 
 #: packages/auth-client/sign-in.tsx
-msgid "That code is not right. Check it, or send a new one."
-msgstr "That code is not right. Check it, or send a new one."
+msgid "That code is not right. Check it, or send it again."
+msgstr "That code is not right. Check it, or send it again."
 
 #: packages/auth-client/sign-in.tsx
 msgid "That code was tried too many times. Send a new one."
@@ -1630,6 +1646,10 @@ msgstr "Use another email"
 #: apps/console/components/organization-setup-form.tsx
 msgid "Use lowercase letters, digits, and single hyphens between them."
 msgstr "Use lowercase letters, digits, and single hyphens between them."
+
+#: apps/learn/routes/login.tsx
+msgid "Use the email address {organizationName} knows you by."
+msgstr "Use the email address {organizationName} knows you by."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Value"

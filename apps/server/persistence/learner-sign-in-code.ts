@@ -6,13 +6,16 @@ import { learnerSession, learnerSignInCode, organizationDomain, user } from "@br
 import { and, eq, gt, lt, lte, sql } from "drizzle-orm";
 
 // A learn domain's own sign-in codes (ADR 0018), one row per hostname and
-// address: the code until spent, and the minute between codes.
+// address: the code's seed until spent, and the minute between codes.
 
 /**
- * Stores a new code for `email` on `hostname`, replacing any it held, unless
- * one was sent less than a minute ago: answers whether it did. One statement,
- * so two requests at once cannot both send. Forgets every expired code first,
- * as nothing else would remove them.
+ * Stores a code for `email` on `hostname`, unless one was sent less than a
+ * minute ago, renewing `expiresAt` and `resendAt` either way: the one it
+ * holds while it still signs in (unspent, unexpired, guessed wrong fewer than
+ * `attempts` times, for the same organization), its guesses kept, else
+ * `codeSeed`'s. Answers the seed to send, or `undefined` within the minute.
+ * One statement, so two requests at once cannot both send. Forgets every
+ * expired code first, as nothing else would remove them.
  */
 export async function storeLearnerSignInCode(
   database: Database,
@@ -20,34 +23,40 @@ export async function storeLearnerSignInCode(
     hostname: string;
     email: string;
     organizationId: string;
-    codeHash: string;
+    codeSeed: string;
+    attempts: number;
     expiresAt: Date;
     resendAt: Date;
     at: Date;
   },
-): Promise<boolean> {
-  const { at, ...code } = input;
+): Promise<string | undefined> {
+  const { at, attempts, ...code } = input;
   await database.delete(learnerSignInCode).where(lte(learnerSignInCode.expiresAt, at));
-  const stored = await database
+  // Read before the update, as all of SET is.
+  const holds = sql`(${learnerSignInCode.codeSeed} is not null
+    and ${learnerSignInCode.expiresAt} > ${at}
+    and ${learnerSignInCode.attempts} < ${attempts}
+    and ${learnerSignInCode.organizationId} = excluded.organization_id)`;
+  const [stored] = await database
     .insert(learnerSignInCode)
     .values({ ...code, attempts: 0 })
     .onConflictDoUpdate({
       target: [learnerSignInCode.hostname, learnerSignInCode.email],
       set: {
         organizationId: code.organizationId,
-        codeHash: code.codeHash,
-        attempts: 0,
+        codeSeed: sql`case when ${holds} then ${learnerSignInCode.codeSeed} else excluded.code_seed end`,
+        attempts: sql`case when ${holds} then ${learnerSignInCode.attempts} else 0 end`,
         expiresAt: code.expiresAt,
         resendAt: code.resendAt,
       },
       setWhere: lte(learnerSignInCode.resendAt, at),
     })
-    .returning({ hostname: learnerSignInCode.hostname });
-  return stored.length > 0;
+    .returning({ codeSeed: learnerSignInCode.codeSeed });
+  return stored?.codeSeed ?? undefined;
 }
 
 export type CheckedCode =
-  | { kind: "right"; organizationId: string }
+  | { kind: "right"; organizationId: string; codeSeed: string }
   /** None, spent, or expired: answered as Better Auth's `OTP_EXPIRED`, asking for a new one. */
   | { kind: "expired" }
   | { kind: "wrong" }
@@ -55,14 +64,20 @@ export type CheckedCode =
   | { kind: "guessed-out" };
 
 /**
- * Checks `codeHash` against the code `email` holds on `hostname`, counting a
- * wrong guess. Locked while checked, so guesses at once each count. A right
- * one is not spent: `spendLearnerSignInCode` does that, with the session,
- * checking again what may have changed meanwhile.
+ * Checks the code `email` holds on `hostname`, by `isCode` given its seed,
+ * counting a wrong guess. Locked while checked, so guesses at once each
+ * count. A right one is not spent: `spendLearnerSignInCode` does that, with
+ * the session, checking again what may have changed meanwhile.
  */
 export async function checkLearnerSignInCode(
   database: Database,
-  input: { hostname: string; email: string; codeHash: string; attempts: number; at: Date },
+  input: {
+    hostname: string;
+    email: string;
+    isCode: (codeSeed: string) => boolean;
+    attempts: number;
+    at: Date;
+  },
 ): Promise<CheckedCode> {
   const key = and(
     eq(learnerSignInCode.hostname, input.hostname),
@@ -70,10 +85,10 @@ export async function checkLearnerSignInCode(
   );
   return database.transaction(async (transaction) => {
     const [row] = await transaction.select().from(learnerSignInCode).where(key).for("update");
-    if (!row?.codeHash || row.expiresAt <= input.at) return { kind: "expired" };
+    if (!row?.codeSeed || row.expiresAt <= input.at) return { kind: "expired" };
     if (row.attempts >= input.attempts) return { kind: "guessed-out" };
-    if (row.codeHash === input.codeHash) {
-      return { kind: "right", organizationId: row.organizationId };
+    if (input.isCode(row.codeSeed)) {
+      return { kind: "right", organizationId: row.organizationId, codeSeed: row.codeSeed };
     }
 
     const attempts = row.attempts + 1;
@@ -85,7 +100,7 @@ export async function checkLearnerSignInCode(
 /**
  * Spends the code checked right, opening the learner session it signs in to,
  * in one transaction, and only while everything checked still holds: the
- * same code, unexpired now, guessed wrong fewer than `attempts` times
+ * same code (its seed), unexpired now, guessed wrong fewer than `attempts` times
  * meanwhile, and the hostname still serving the organization it was sent
  * for. Answers whether it did. Keeps the row, whose minute between codes
  * still runs. Forgets every learner session already expired, as a handoff's
@@ -97,7 +112,7 @@ export async function spendLearnerSignInCode(
     hostname: string;
     email: string;
     organizationId: string;
-    codeHash: string;
+    codeSeed: string;
     attempts: number;
     userId: string;
     at: Date;
@@ -115,11 +130,11 @@ export async function spendLearnerSignInCode(
     await transaction.select().from(learnerSignInCode).where(key).for("update");
     const spent = await transaction
       .update(learnerSignInCode)
-      .set({ codeHash: null })
+      .set({ codeSeed: null })
       .where(
         and(
           key,
-          eq(learnerSignInCode.codeHash, input.codeHash),
+          eq(learnerSignInCode.codeSeed, input.codeSeed),
           eq(learnerSignInCode.organizationId, input.organizationId),
           // The clock as this runs, not the request's, nor `now()`, which is
           // the transaction's start: a code may expire while its account is

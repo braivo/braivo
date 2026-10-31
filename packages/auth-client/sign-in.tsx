@@ -71,7 +71,7 @@ export function deadline(): Bounded["fetchOptions"] {
  * upgrading it.
  */
 const CODE_REFUSALS: Partial<Record<string, MessageDescriptor>> = {
-  INVALID_OTP: msg`That code is not right. Check it, or send a new one.`,
+  INVALID_OTP: msg`That code is not right. Check it, or send it again.`,
   OTP_EXPIRED: msg`That code has expired. Send a new one.`,
   TOO_MANY_ATTEMPTS: msg`That code was tried too many times. Send a new one.`,
 };
@@ -129,6 +129,12 @@ function refusal(error: AuthError): MessageDescriptor {
 export const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
 
 /**
+ * A code asked for with no answer: the server may still send it, and asked
+ * again, sends the same (access-2).
+ */
+const SEND_UNCONFIRMED = msg`Could not confirm a code was sent. Check your connection, and if none arrives, send it again.`;
+
+/**
  * Why Google's round trip came back to `errorCallbackURL`, from its `error`.
  * `access_denied` is not only a cancel: it is also a school's administrator
  * blocking the app, which must not pass in silence.
@@ -164,11 +170,13 @@ type GoogleSignIn = {
  * success through `onSignedIn` and leaves where to go next to the caller.
  * With `google`, offers Google too, which leaves the page and comes back to
  * its `callbackURL` signed in. `title` heads the email step, "Sign in" if
- * omitted. With `legal`, says signing in agrees to those pages.
+ * omitted; `emailHint` replaces its note that signing in creates the account.
+ * With `legal`, says signing in agrees to those pages.
  */
 export function SignIn(props: {
   auth: SignInAuth;
   title?: string;
+  emailHint?: string;
   needsName?: boolean;
   onSignedIn: () => void;
   google?: GoogleSignIn;
@@ -220,7 +228,9 @@ export function SignIn(props: {
       setStep({
         step: "code",
         email: values.email,
-        sent: step.step === "code" ? (step.sent ?? 1) + 1 : 1,
+        // Asked again: "sent again" even after a send unconfirmed (0), which
+        // may well have sent one too.
+        sent: step.step === "code" ? Math.max(step.sent ?? 1, 1) + 1 : 1,
         resendAt: Date.now() + RESEND_WAIT_MS,
       });
     } else if (values.step === "code" && step.step === "code") {
@@ -259,7 +269,12 @@ export function SignIn(props: {
       // Refused answers arrive as `error` above; this is a request that got no
       // answer at all, or none in time. A check out of time may still have
       // signed in, spending the code: retried, it is refused; a new one works.
-      setError(UNANSWERED);
+      // A code asked for may still come, so on to the code (access-5), a new
+      // one to be had at once: asked too soon, its minute refuses it there.
+      if (values.step === "email" && step.step === "email") {
+        setStep({ step: "code", email: values.email, sent: 0 });
+      }
+      setError(values.step === "email" ? SEND_UNCONFIRMED : UNANSWERED);
     } finally {
       setPending(false);
     }
@@ -290,6 +305,7 @@ export function SignIn(props: {
     <SignInForm
       step={step}
       title={props.title}
+      emailHint={props.emailHint}
       pending={pending}
       error={error && t(error)}
       wait={error && WAITS.has(error)}

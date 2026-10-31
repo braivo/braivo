@@ -27,7 +27,7 @@ function textBox(root: Node, matches: (text: string) => boolean) {
 
 // Both resend buttons: the link, and the main button once the code is spent.
 test.each([false, true])(
-  "on a phone, puts a space between Send a new code and its countdown, not a wider gap (spent: %s)",
+  "on a phone, puts a space between a resend button's label and its countdown, not a wider gap (spent: %s)",
   async (spent) => {
     await page.viewport(320, 568);
     render(
@@ -45,8 +45,9 @@ test.each([false, true])(
       </I18nProvider>,
     );
 
-    const button = screen.getByRole("button", { name: "Send a new code" });
-    const label = textBox(button, (text) => text === "Send a new code");
+    const name = spent ? "Send a new code" : "Send the code again";
+    const button = screen.getByRole("button", { name });
+    const label = textBox(button, (text) => text === name);
     const countdown = textBox(button, (text) => text.startsWith("in "));
     const gap = countdown.left - label.right;
     const context = document.createElement("canvas").getContext("2d")!;
@@ -54,3 +55,21 @@ test.each([false, true])(
     expect(gap).toBeCloseTo(context.measureText(" ").width, 0);
   },
 );
+
+test("on a phone, wraps an email hint naming a long organization rather than overflowing", async () => {
+  await page.viewport(320, 568);
+  const name = "Sprachschulekarlsruhebadenwürttembergdeutschland";
+  render(
+    <I18nProvider i18n={i18n}>
+      <SignInForm
+        step={{ step: "email" }}
+        emailHint={`Use the email address ${name} knows you by.`}
+        onSubmit={() => {}}
+      />
+    </I18nProvider>,
+  );
+
+  const hint = screen.getByText(new RegExp(name));
+  expect(textBox(hint, (text) => text.includes(name)).right).toBeLessThanOrEqual(320);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+});

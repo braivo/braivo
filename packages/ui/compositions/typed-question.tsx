@@ -67,51 +67,56 @@ export function TypedQuestion(props: {
       <p id={promptId} className="font-heading text-lg font-semibold text-pretty wrap-break-word">
         {prompt}
       </p>
-      <div className="flex gap-2">
-        <Input
-          ref={ref}
-          value={sent ?? (props.locked ? "" : text)}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={onKeyDown}
-          readOnly={locked}
-          aria-disabled={locked}
-          aria-labelledby={promptId}
-          aria-describedby={describedBy}
-          aria-invalid={(sent !== undefined && outcome === "failure") || undefined}
-          // Its focus outside the marked edge (globals.css).
-          data-outcome={sent !== undefined ? outcome : undefined}
-          placeholder={t`Type the answer`}
-          maxLength={500}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          enterKeyHint="send"
-          className={cn(
-            "h-11 text-base",
-            // Important: the theme's unlayered field border and fill (globals.css) would win.
-            sent !== undefined && outcome === "success" && "border-primary! bg-primary/10!",
+      {/* Check under the field on a phone: beside it, the field is too narrow
+          for its placeholder in a longer language. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Input
+            ref={ref}
+            value={sent ?? (props.locked ? "" : text)}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={onKeyDown}
+            readOnly={locked}
+            aria-disabled={locked}
+            aria-labelledby={promptId}
+            aria-describedby={describedBy}
+            aria-invalid={(sent !== undefined && outcome === "failure") || undefined}
+            // Its focus outside the marked edge (globals.css).
+            data-outcome={sent !== undefined ? outcome : undefined}
+            placeholder={t`Type the answer`}
+            maxLength={500}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="send"
+            className={cn(
+              "h-11 text-base",
+              // Important: the theme's unlayered field border and fill (globals.css) would win.
+              sent !== undefined && outcome === "success" && "border-primary! bg-primary/10!",
+            )}
+          />
+          {/* Held close, as the field's caption, so under the field, not under
+              Check: apart, it reads as an error of its own. Marked as a choice's
+              wrong answer is. */}
+          {outcome === "failure" && sent !== undefined && (
+            <p className="flex items-center gap-1 text-xs font-semibold text-destructive">
+              <XIcon aria-hidden="true" className="size-3.5 shrink-0" />
+              <Trans>Your answer</Trans>
+            </p>
           )}
-        />
+        </div>
         <Button
           type="submit"
           size="lg"
           // Out of the tab order while there is nothing to send; once sent, kept for the focus.
           disabled={blank && !locked}
           aria-disabled={locked}
-          className="h-11 shrink-0"
+          className="h-11 sm:shrink-0"
         >
           {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
         </Button>
       </div>
-      {/* Held close, as the field's caption: apart, it reads as an error of its
-          own. Marked as a choice's wrong answer is. */}
-      {outcome === "failure" && sent !== undefined && (
-        <p className="-mt-2.5 flex items-center gap-1 text-xs font-semibold text-destructive">
-          <XIcon aria-hidden="true" className="size-3.5 shrink-0" />
-          <Trans>Your answer</Trans>
-        </p>
-      )}
     </form>
   );
 }

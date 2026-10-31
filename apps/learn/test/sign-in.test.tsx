@@ -57,6 +57,11 @@ describe("the learn app", () => {
     // Its brand in Braivo's place, in the tab too.
     expect(screen.getByText("Fernwood")).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Sign in · Fernwood"));
+    // Only the organization adds learners there (access-21): no promise that signing in gets them in.
+    expect(screen.getByLabelText("Email address").getAttribute("aria-describedby")).toBe(
+      screen.getByText("Use the email address Fernwood knows you by.").id,
+    );
+    expect(screen.queryByText(/creates your account/)).toBeNull();
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "ada@example.com" },
     });
@@ -241,6 +246,9 @@ describe("the learn app", () => {
     });
     expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Zaloguj się · Fernwood"));
+    expect(
+      screen.getByText("Podaj adres e-mail, którego używasz w organizacji Fernwood."),
+    ).toBeTruthy();
     expect(
       screen.getByText(
         "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem.",

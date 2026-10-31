@@ -190,27 +190,30 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
     expect(await right.json()).toMatchObject({ code: "TOO_MANY_ATTEMPTS" });
   });
 
-  test("stores a code keyed by the installation's secret, never as a plain hash", async () => {
+  test("stores a code as a seed, worthless without the installation's secret", async () => {
     const email = freshEmail();
     await sendCode(email);
     const code = codeSentTo(outbox, email);
 
     const [row] = await database
-      .select({ codeHash: learnerSignInCode.codeHash })
+      .select({ codeSeed: learnerSignInCode.codeSeed })
       .from(learnerSignInCode)
       .where(eq(learnerSignInCode.email, email));
-    // What only the installation's secret reproduces, bound to the domain
-    // and the address, so a leaked row cannot be checked against a million
-    // guesses, nor reused for another domain or address.
-    const keyed = (key: string, hostname: string) =>
-      createHmac("sha256", key)
-        .update(`learner-sign-in\0${hostname}\0${email}\0${code}`)
-        .digest("base64url");
+    // The code is what only the installation's secret derives from the seed,
+    // bound to the domain and the address, so a leaked row yields no code,
+    // nor one for another domain or address.
+    const derived = (key: string, hostname: string) => {
+      const digest = createHmac("sha256", key)
+        .update(`learner-sign-in\0${hostname}\0${email}\0${row!.codeSeed}`)
+        .digest();
+      return String(digest.readBigUInt64BE() % 1_000_000n).padStart(6, "0");
+    };
     const { secret } = await auth.$context;
     const hostname = new URL(learnOrigin).hostname;
-    expect(row?.codeHash).toBe(keyed(secret, hostname));
-    expect(row?.codeHash).not.toBe(keyed("another secret", hostname));
-    expect(row?.codeHash).not.toBe(keyed(secret, "elsewhere.example"));
+    expect(row?.codeSeed).not.toContain(code);
+    expect(derived(secret, hostname)).toBe(code);
+    expect(derived("another secret", hostname)).not.toBe(code);
+    expect(derived(secret, "elsewhere.example")).not.toBe(code);
   });
 
   test("refuses a code not six digits as malformed, counting no guess", async () => {
@@ -231,21 +234,21 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
     const member = await signUp();
     await addMember(auth, { slug: organizationId, email: member.email, role: "member" });
     const hostname = new URL(learnOrigin).hostname;
-    const spend = async (codeHash: string) =>
+    const spend = async (codeSeed: string) =>
       spendLearnerSignInCode(database, {
         hostname,
         email: member.email,
         organizationId,
-        codeHash,
+        codeSeed,
         attempts: 5,
         userId: member.id,
         at: new Date(),
         session: { tokenHash: crypto.randomUUID(), expiresAt: new Date(Date.now() + 60_000) },
       });
-    const storedHash = async () =>
+    const storedSeed = async () =>
       (
         await database
-          .select({ codeHash: learnerSignInCode.codeHash })
+          .select({ codeSeed: learnerSignInCode.codeSeed })
           .from(learnerSignInCode)
           .where(
             and(
@@ -253,19 +256,19 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
               eq(learnerSignInCode.email, member.email),
             ),
           )
-      )[0]!.codeHash!;
-    const check = (codeHash: string) =>
+      )[0]!.codeSeed!;
+    const check = (codeSeed: string) =>
       checkLearnerSignInCode(database, {
         hostname,
         email: member.email,
-        codeHash,
+        isCode: (seed) => seed === codeSeed,
         attempts: 5,
         at: new Date(),
       });
 
     // Guessed out between the right check and the spend.
     await sendCode(member.email);
-    const right = await storedHash();
+    const right = await storedSeed();
     expect(await check(right)).toMatchObject({ kind: "right" });
     for (let guess = 0; guess < 5; guess++) await check("wrong");
     expect(await spend(right)).toBe(false);
@@ -276,7 +279,7 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
       .set({ resendAt: new Date(0) })
       .where(eq(learnerSignInCode.email, member.email));
     await sendCode(member.email);
-    const fresh = await storedHash();
+    const fresh = await storedSeed();
     expect(await check(fresh)).toMatchObject({ kind: "right" });
     const expiresAt = (
       await database
@@ -309,8 +312,8 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
       eq(learnerSignInCode.hostname, hostname),
       eq(learnerSignInCode.email, member.email),
     );
-    const [{ codeHash } = { codeHash: null }] = await database
-      .select({ codeHash: learnerSignInCode.codeHash })
+    const [{ codeSeed } = { codeSeed: null }] = await database
+      .select({ codeSeed: learnerSignInCode.codeSeed })
       .from(learnerSignInCode)
       .where(row);
     // Good for a moment more, as the spend starts.
@@ -332,7 +335,7 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
       hostname,
       email: member.email,
       organizationId,
-      codeHash: codeHash!,
+      codeSeed: codeSeed!,
       attempts: 5,
       userId: member.id,
       at: new Date(),
@@ -378,6 +381,63 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
     ).toEqual([]);
   });
 
+  test("sends the same code again, renewed, its guesses kept, until it signs in no more", async () => {
+    const member = await signUp();
+    await addMember(auth, { slug: organizationId, email: member.email, role: "member" });
+    const ofRow = eq(learnerSignInCode.email, member.email);
+    const stored = async () => (await database.select().from(learnerSignInCode).where(ofRow))[0]!;
+    const waitOutMinute = () =>
+      database
+        .update(learnerSignInCode)
+        .set({ resendAt: new Date(0) })
+        .where(ofRow);
+    await sendCode(member.email);
+    const code = codeSentTo(outbox, member.email);
+    await signIn(member.email, wrong(code));
+    // Nearly expired.
+    await database
+      .update(learnerSignInCode)
+      .set({ expiresAt: new Date(Date.now() + 1000) })
+      .where(ofRow);
+
+    await waitOutMinute();
+    const before = Date.now();
+    expect((await sendCode(member.email)).status).toBe(204);
+
+    expect(codeSentTo(outbox, member.email)).toBe(code);
+    const renewed = await stored();
+    expect(renewed.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 600_000 - 1000);
+    expect(renewed.attempts).toBe(1);
+    // Spent, it signs in no more: the next is another.
+    expect((await signIn(member.email, code)).status).toBe(200);
+    await waitOutMinute();
+    await sendCode(member.email);
+    expect(await stored()).toMatchObject({ attempts: 0 });
+    expect((await stored()).expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test("sends a new code in place of one guessed out", async () => {
+    const member = await signUp();
+    await addMember(auth, { slug: organizationId, email: member.email, role: "member" });
+    const ofRow = eq(learnerSignInCode.email, member.email);
+    const stored = async () => (await database.select().from(learnerSignInCode).where(ofRow))[0]!;
+    await sendCode(member.email);
+    const code = codeSentTo(outbox, member.email);
+    for (let guess = 0; guess < 5; guess++) await signIn(member.email, wrong(code));
+    const { codeSeed: spent } = await stored();
+
+    await database
+      .update(learnerSignInCode)
+      .set({ resendAt: new Date(0) })
+      .where(ofRow);
+    expect((await sendCode(member.email)).status).toBe(204);
+
+    // Seeds compared, not codes: two random codes may coincide.
+    expect(await stored()).toMatchObject({ attempts: 0 });
+    expect((await stored()).codeSeed).not.toBe(spent);
+    expect((await signIn(member.email, codeSentTo(outbox, member.email))).status).toBe(200);
+  });
+
   test("sends an address one code a minute per domain, saying so", async () => {
     const email = freshEmail();
     expect((await sendCode(email)).status).toBe(204);
@@ -393,8 +453,8 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
     await addMember(auth, { slug: organizationId, email: member.email, role: "member" });
     await registerLearnDomain({ database, baseUrl, organizationSlug: organizationId, hostname });
     await post(`https://${hostname}/api/session/code`, { email: member.email });
-    const [{ codeHash } = { codeHash: null }] = await database
-      .select({ codeHash: learnerSignInCode.codeHash })
+    const [{ codeSeed } = { codeSeed: null }] = await database
+      .select({ codeSeed: learnerSignInCode.codeSeed })
       .from(learnerSignInCode)
       .where(
         and(eq(learnerSignInCode.hostname, hostname), eq(learnerSignInCode.email, member.email)),
@@ -414,7 +474,7 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
       hostname,
       email: member.email,
       organizationId,
-      codeHash: codeHash!,
+      codeSeed: codeSeed!,
       attempts: 5,
       userId: member.id,
       at: new Date(),

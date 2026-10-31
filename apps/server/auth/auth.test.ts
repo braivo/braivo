@@ -34,6 +34,8 @@ const asking = [
   "auth-test-unsent@example.com",
   "auth-test-unsent-directly@example.com",
   "auth-test-sent-beside@example.com",
+  "auth-test-asks-again@example.com",
+  "auth-test-asks-undecryptable@example.com",
 ];
 /** Asked for a code each, under the `Accept-Language` it names. */
 const askingIn = {
@@ -334,6 +336,61 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
 
     expect(refused.status).toBe(429);
     expect(await refused.json()).toMatchObject({ code: "SIGN_IN_CODE_COOLDOWN" });
+  });
+
+  test("sends the same code again, renewed, its guesses kept, until it signs in no more", async () => {
+    const email = asking[6]!;
+    const { verification } = authTables;
+    const ofCode = eq(verification.identifier, `sign-in-otp-${email}`);
+    const waitOutMinute = () =>
+      database
+        .delete(verification)
+        .where(eq(verification.identifier, `sign-in-code-sent:${email}`));
+    await sendCode(email);
+    const code = codeSentTo(outbox, email);
+    const wrong = String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+    await post("/sign-in/email-otp", { email, otp: wrong });
+    // Nearly expired.
+    await database
+      .update(verification)
+      .set({ expiresAt: new Date(Date.now() + 1000) })
+      .where(ofCode);
+
+    await waitOutMinute();
+    const before = Date.now();
+    await sendCode(email);
+
+    expect(codeSentTo(outbox, email)).toBe(code);
+    const [renewed] = await database.select().from(verification).where(ofCode);
+    expect(renewed!.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 600_000 - 1000);
+    expect(renewed!.value.endsWith(":1")).toBe(true);
+    // Spent, it signs in no more: the next is another.
+    expect((await post("/sign-in/email-otp", { email, otp: code })).status).toBe(200);
+    await waitOutMinute();
+    await sendCode(email);
+    const [next] = await database.select().from(verification).where(ofCode);
+    expect(next!.value.endsWith(":0")).toBe(true);
+  });
+
+  test("sends a new code in place of one it cannot decrypt, stored before or under another secret", async () => {
+    const email = asking[7]!;
+    const { verification } = authTables;
+    const ofCode = eq(verification.identifier, `sign-in-otp-${email}`);
+    await sendCode(email);
+    await database.update(verification).set({ value: "not-decryptable:0" }).where(ofCode);
+    // What it decrypts to, nothing, is no code.
+    for (const otp of ["", " ", "12345"]) {
+      const guessed = await post("/sign-in/email-otp", { email, otp });
+      expect(guessed.status).toBe(400);
+      expect(guessed.headers.getSetCookie()).toEqual([]);
+    }
+    await database
+      .delete(verification)
+      .where(eq(verification.identifier, `sign-in-code-sent:${email}`));
+
+    expect((await sendCode(email)).status).toBe(200);
+    const signedIn = await post("/sign-in/email-otp", { email, otp: codeSentTo(outbox, email) });
+    expect(signedIn.status).toBe(200);
   });
 
   test("sends one code to requests for the same address at once", async () => {

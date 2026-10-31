@@ -23,7 +23,7 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
 import { asSessionAuth } from "#lib/auth";
@@ -57,23 +57,18 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
       // First, so the summary below counts it.
       const resumed = await resume(context.braivo, learnerId, courseId, left);
       // Timed out, the activity fails the page, whose Try again reloads it.
-      const signal = withDeadline(left, READ_DEADLINE_MS);
       // The title and the summary are optional: a failure or their own shorter
       // deadline leaves them out rather than failing the page or holding the
       // question back. Awaited with the activity so they cannot arrive later
       // and shift the question down.
-      const optional = withDeadline(left, OPTIONAL_READ_DEADLINE_MS);
       const [activity, progress, title] = await Promise.all([
-        resumed?.attempt.activity ?? context.braivo.nextActivity(courseId, { signal }),
-        context.braivo
-          // Standings only: the page never shows the evidence.
-          .learnerProgress({ courseId, learnerId, includeHistory: false }, { signal: optional })
-          .catch(() => undefined),
+        resumed?.attempt.activity ?? readActivity(context.braivo, courseId, left),
+        readProgress(context.braivo, courseId, learnerId, left),
         // Unless resolving the number read it: from the list, rather than an
         // endpoint for one string.
         course.title ??
           context.braivo
-            .learnerCourses({ signal: optional })
+            .learnerCourses({ signal: withDeadline(left, OPTIONAL_READ_DEADLINE_MS) })
             .then((courses) => courses.find(({ id }) => id === courseId)?.title)
             .catch(() => undefined),
       ]);
@@ -139,7 +134,29 @@ async function resolveCourse(
   return course;
 }
 
-type CourseLoad = ReturnType<typeof Route.useLoaderData>;
+/** What to practise next, within a read's deadline. */
+function readActivity(
+  braivo: BraivoClient,
+  courseId: string,
+  left: AbortSignal,
+): Promise<Activity | undefined> {
+  return braivo.nextActivity(courseId, { signal: withDeadline(left, READ_DEADLINE_MS) });
+}
+
+/** Where the learner stands, standings only, or nothing if unread within its own deadline. */
+function readProgress(
+  braivo: BraivoClient,
+  courseId: string,
+  learnerId: string,
+  left: AbortSignal,
+): Promise<LearnerProgressSummary | undefined> {
+  return braivo
+    .learnerProgress(
+      { courseId, learnerId, includeHistory: false },
+      { signal: withDeadline(left, OPTIONAL_READ_DEADLINE_MS) },
+    )
+    .catch(() => undefined);
+}
 
 /** An answer this tab left unfinished, resent: graded, or still unconfirmed. */
 type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
@@ -201,9 +218,65 @@ function CourseNotFound() {
 }
 
 function NextStep() {
-  const load = Route.useLoaderData();
+  const routeLoad = Route.useLoaderData();
+  const { braivo, user } = Route.useRouteContext();
+  const router = useRouter();
+  // What Continue read, shown until the route loads again (a reload, a rest's end).
+  const [continued, setContinued] = useState<{
+    routeLoad: typeof routeLoad;
+    load: typeof routeLoad;
+  }>();
+  const load = continued?.routeLoad === routeLoad ? continued.load : routeLoad;
   const { activity, progress, title, attemptId, resumed } = load;
   const summary = useProgressAfterGrade(load);
+  // The route's load as of now, for a Continue that finishes after it changed.
+  const latestRouteLoad = useRef(routeLoad);
+  useLayoutEffect(() => {
+    latestRouteLoad.current = routeLoad;
+  });
+
+  /**
+   * Continue, an action rather than a reload, so that failing keeps the page
+   * (docs/apps.md): rechecks the session (access-6), then reads what comes
+   * next. Resolves whether it failed; failed, the learner's answer stays on
+   * screen, kept for a reload. Signed out, or another account signed in meanwhile, the route
+   * reloads, its guard deciding; a 401 or 404 from the read reloads the course,
+   * which says why. Each response is ignored once `left` aborts or the route
+   * loads again.
+   */
+  async function advance(left: AbortSignal): Promise<{ failed: boolean }> {
+    const { courseId } = load;
+    // Left, or reloaded meanwhile: an answer now would act on another page.
+    const superseded = () => left.aborted || latestRouteLoad.current !== routeLoad;
+    try {
+      const session = await braivo.session({ signal: withDeadline(left, READ_DEADLINE_MS) });
+      if (superseded()) return { failed: false };
+      if (session?.id !== user.id || !session.name.trim()) {
+        await router.invalidate({ sync: true });
+        return { failed: false };
+      }
+      const [activity, progress] = await Promise.all([
+        readActivity(braivo, courseId, left),
+        readProgress(braivo, courseId, user.id, left),
+      ]);
+      if (superseded()) return { failed: false };
+      clearUnfinishedAttempt(user.id, courseId);
+      setContinued({
+        routeLoad,
+        load: { ...load, activity, progress, attemptId: crypto.randomUUID(), resumed: undefined },
+      });
+      return { failed: false };
+    } catch (error) {
+      if (superseded()) return { failed: false };
+      if (error instanceof BraivoError && [401, 404].includes(error.status)) {
+        // Gone, the course takes the answer with it; signed out, it is kept for after.
+        if (error.status === 404) clearUnfinishedAttempt(user.id, courseId);
+        await reloadCourse(router);
+        return { failed: false };
+      }
+      return { failed: true };
+    }
+  }
 
   return (
     <>
@@ -238,9 +311,11 @@ function NextStep() {
         <Practice
           key={`${attemptId}:${resumed?.grade ? "graded" : resumed ? "unconfirmed" : "new"}`}
           activity={activity}
+          courseId={load.courseId}
           attemptId={attemptId}
           resumed={resumed}
           onGraded={summary.onGraded}
+          onContinue={advance}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -255,6 +330,12 @@ function NextStep() {
 }
 
 /**
+ * What of the route's load the summary reads, typed by hand:
+ * `ReturnType<typeof Route.useLoaderData>` is `any` here, through a cycle.
+ */
+type ProgressLoad = { courseId: string; progress: LearnerProgressSummary | undefined };
+
+/**
  * Where the learner stands, read again once an answer given here is graded, so
  * the counts agree with its feedback before Continue (progress-8). Meanwhile the
  * earlier counts are `stale`, hidden in place so the page does not jump; a failed
@@ -262,11 +343,11 @@ function NextStep() {
  * attempt: a reload resending the same attempt reads its own, and aborts this one.
  * A grade that resend found needs none: the loader read after it.
  */
-function useProgressAfterGrade(load: CourseLoad) {
+function useProgressAfterGrade(load: ProgressLoad) {
   const { braivo, user } = Route.useRouteContext();
   // By identity: each load returns a new object, its loader data unshared.
-  const [gradedLoad, setGradedLoad] = useState<CourseLoad>();
-  const [read, setRead] = useState<{ load: CourseLoad; report?: LearnerProgressSummary }>();
+  const [gradedLoad, setGradedLoad] = useState<ProgressLoad>();
+  const [read, setRead] = useState<{ load: ProgressLoad; report?: LearnerProgressSummary }>();
   const graded = gradedLoad === load;
   const readForLoad = read?.load === load;
 
@@ -501,9 +582,13 @@ function NoPractice({ objectiveTitle }: { objectiveTitle: string }) {
   );
 }
 
-/** Reloads the course, after the guard rechecks the session (access-6); never the root's brand. */
+/**
+ * Reloads the course, after the guard rechecks the session (access-6); never
+ * the root's brand. Resolves once the new load shows (`sync`): otherwise a loaded
+ * course reloads in the background, the old page still answerable.
+ */
 function reloadCourse(router: ReturnType<typeof useRouter>): Promise<void> {
-  return router.invalidate({ filter: (match) => match.routeId === Route.id });
+  return router.invalidate({ filter: (match) => match.routeId === Route.id, sync: true });
 }
 
 /** For a time shown to the minute: an earlier one would bring the learner back too soon. */
@@ -596,23 +681,27 @@ const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
 
 function Practice({
   activity,
+  courseId,
   attemptId,
   resumed,
   onGraded,
+  onContinue,
   nothingStarted,
 }: {
   activity: Extract<Activity, { task: unknown }>;
+  /** As found, not as the address names it. */
+  courseId: string;
   attemptId: string;
   /** The answer a reload resent, shown graded or unconfirmed. */
   resumed?: Resumed;
   /** Braivo graded an answer sent here, by Send again too; not one a reload's resend found. */
   onGraded: () => void;
+  /** Continue, under this practice's lifetime: whether it failed, keeping it on screen. */
+  onContinue: (left: AbortSignal) => Promise<{ failed: boolean }>;
   /** No objective started yet: says how practice goes. */
   nothingStarted: boolean;
 }) {
   const { braivo, user } = Route.useRouteContext();
-  // As found, not as the address names it.
-  const { courseId } = Route.useLoaderData();
   const router = useRouter();
   const { t } = useLingui();
   // From the moment it is sent, so the question shows what was sent.
@@ -623,6 +712,8 @@ function Practice({
   const [sending, setSending] = useState(false);
   const [refused, setRefused] = useState(false);
   const [continuing, setContinuing] = useState(false);
+  // Counted, as `unconfirmedCount` is, so each failed Continue gets a new alert.
+  const [continueFailures, setContinueFailures] = useState(0);
   // The question itself, so its number keys work at once and a screen reader
   // announces the prompt that labels it.
   const focused = useFocusOnMount<HTMLDivElement>();
@@ -690,13 +781,23 @@ function Practice({
     }
   }
 
-  function next() {
-    // Held until the next activity replaces this one: the reload keeps this one
-    // on screen while it runs, and a second press would restart it.
+  async function next() {
+    // Held until the next activity replaces this one, or fails to: a second
+    // press would read it twice.
     if (continuing) return;
-    clearUnfinishedAttempt(user.id, courseId);
+    const left = lifetime.current?.signal;
+    if (!left) return;
     setContinuing(true);
-    void reloadCourse(router);
+    try {
+      const { failed } = await onContinue(left);
+      if (failed && !left.aborted) setContinueFailures((count) => count + 1);
+    } catch {
+      // A reload that failed itself: said as any other failure, not left unhandled.
+      if (!left.aborted) setContinueFailures((count) => count + 1);
+    } finally {
+      // Replaced, by what came next or by a reload: nothing left to update.
+      if (!left.aborted) setContinuing(false);
+    }
   }
 
   // No retry, unlike a failed load: this answer would be refused again.
@@ -834,8 +935,16 @@ function Practice({
               ))}
             </section>
           )}
+          {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
+          {continueFailures > 0 && (
+            <Alert key={continueFailures} variant="destructive">
+              <AlertDescription>
+                <Trans>Could not load the next question. Try again.</Trans>
+              </AlertDescription>
+            </Alert>
+          )}
           {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-          <Button size="lg" autoFocus aria-disabled={continuing} onClick={next}>
+          <Button size="lg" autoFocus aria-disabled={continuing} onClick={() => void next()}>
             {continuing ? t`Loading…` : t`Continue`}
           </Button>
         </>

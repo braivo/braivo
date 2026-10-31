@@ -28,10 +28,11 @@ import { Heading } from "./heading.tsx";
 export type SignInStep =
   | { step: "email"; email?: string }
   /**
-   * `sent`: codes sent to `email` so far, 1 if omitted; `refused`: refusals
+   * `sent`: codes sent to `email` so far, 1 if omitted, 0 if asking for one
+   * got no answer, so whether it was is unknown; `refused`: refusals
    * of the code typed since the last was sent, 0 if omitted. A change in
    * either clears the code typed. `resendAt`: when another code may be asked
-   * for, in epoch milliseconds; until then "Send a new code" counts down.
+   * for, in epoch milliseconds; until then resending counts down.
    * `spent`: the code can sign in no more (expired, or out of guesses), so a
    * new one is the way on.
    */
@@ -61,12 +62,14 @@ const CODE_DIGITS = 6;
  * opens with its own heading, the email step's `title` if given. From the
  * code, `onResend` asks for another and `onChangeEmail` goes back to the
  * email. With `onContinueWithGoogle`, the email step offers Google first. With `legal`,
- * the email step says signing in agrees to those pages. A code is submitted
- * as soon as its last digit is typed or pasted.
+ * the email step says signing in agrees to those pages. `emailHint` replaces
+ * the email step's note that signing in creates the account. A code is
+ * submitted as soon as its last digit is typed or pasted.
  */
 export function SignInForm(props: {
   step: SignInStep;
   title?: string;
+  emailHint?: string;
   pending?: boolean;
   error?: string;
   wait?: boolean;
@@ -130,8 +133,9 @@ export function SignInForm(props: {
     // No sign-up to look for: signing in makes the account. Only that, as the
     // buttons and the note under them say how.
     intro = (
-      <p id={`${id}-email-hint`}>
-        <Trans>First time here? Signing in creates your account.</Trans>
+      // May name an organization, whose name can be one long word.
+      <p id={`${id}-email-hint`} className="wrap-break-word">
+        {props.emailHint ?? <Trans>First time here? Signing in creates your account.</Trans>}
       </p>
     );
     field = (
@@ -169,9 +173,13 @@ export function SignInForm(props: {
     intro = (
       <p id={`${id}-sent`} role="status" className="wrap-break-word">
         {/* Ten minutes and once: access-1. */}
-        {(step.sent ?? 1) > 1 ? (
+        {step.sent === 0 ? (
           <Trans>
-            A new code was sent to {address}. Use the newest one; it expires in 10 minutes.
+            If a code arrives at {address}, enter it here. It expires in 10 minutes and works once.
+          </Trans>
+        ) : (step.sent ?? 1) > 1 ? (
+          <Trans>
+            Sent again to {address}. Use the code in the latest email; it expires in 10 minutes.
           </Trans>
         ) : (
           <Trans>
@@ -320,7 +328,9 @@ export function SignInForm(props: {
               onClick={resend}
             >
               {props.pending && <Spinner data-icon="inline-start" aria-label={t`Loading`} />}
-              <ResendLabel wait={wait} />
+              <ResendLabel wait={wait}>
+                <Trans>Send a new code</Trans>
+              </ResendLabel>
             </Button>
           ) : (
             <Button type="submit" aria-disabled={props.pending}>
@@ -359,7 +369,7 @@ export function SignInForm(props: {
                 hidden. Here, not in `Field`, which widens an `sr-only` child. */}
               {wait > 0 && (
                 <span id={`${id}-wait`} className="sr-only">
-                  <Trans>Another code can be sent a minute after the last.</Trans>
+                  <Trans>A code can be sent again a minute after the last.</Trans>
                 </span>
               )}
               {props.onResend && !spent && (
@@ -370,7 +380,9 @@ export function SignInForm(props: {
                   aria-describedby={wait > 0 ? `${id}-wait` : undefined}
                   onClick={resend}
                 >
-                  <ResendLabel wait={wait} />
+                  <ResendLabel wait={wait}>
+                    <Trans>Send the code again</Trans>
+                  </ResendLabel>
                 </Button>
               )}
               {props.onChangeEmail && (
@@ -417,7 +429,7 @@ function useSecondsUntil(at: number | undefined) {
 }
 
 /**
- * "Send a new code", then the `wait` in seconds, as " in 0:42": one inline
+ * `children`, then the `wait` in seconds, as " in 0:42": one inline
  * phrase, so a space parts them, not the button's wider flex gap. The wait
  * is seen but not read out: the button's name stays put, its `aria-disabled`
  * says it cannot be pressed yet, and its description says why. Never in a
@@ -425,16 +437,16 @@ function useSecondsUntil(at: number | undefined) {
  * announced, which would interrupt whoever is typing the code that arrived
  * meanwhile.
  */
-function ResendLabel({ wait }: { wait: number }) {
+function ResendLabel({ wait, children }: { wait: number; children: ReactNode }) {
   const time = `${Math.floor(wait / 60)}:${String(wait % 60).padStart(2, "0")}`;
   return (
     <span>
-      <Trans>Send a new code</Trans>
+      {children}
       {/* The space hidden too, or the button's name would end in it. */}
       {wait > 0 && (
         <span aria-hidden="true" className="tabular-nums">
           {" "}
-          <Trans context="The wait before another sign-in code, as in: Send a new code in 0:42">
+          <Trans context="The wait before a sign-in code can be sent, as in: Send the code again in 0:42">
             in {time}
           </Trans>
         </span>

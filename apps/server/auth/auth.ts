@@ -14,6 +14,7 @@ import {
   createAuthMiddleware,
   getSessionFromCtx,
 } from "better-auth/api";
+import { symmetricDecrypt, symmetricEncrypt } from "better-auth/crypto";
 import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better-auth/plugins";
 import { adminAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import * as z from "zod";
@@ -343,6 +344,15 @@ export function createAuth(options: AuthOptions) {
           await authorizing.set(true);
         }
         await refuseAnotherOrganization(context);
+        // A code is its digits: anything else is refused before it is
+        // compared, as one that cannot be decrypted is compared as nothing.
+        const { otp } = (context.body ?? {}) as { otp?: unknown };
+        if (
+          otp !== undefined &&
+          !(typeof otp === "string" && new RegExp(`^\\d{${SIGN_IN_CODE.digits}}$`).test(otp))
+        ) {
+          throw new APIError("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
+        }
         if (context.path === "/sign-in/email") {
           const { email, password } = (context.body ?? {}) as {
             email?: unknown;
@@ -407,8 +417,20 @@ export function createAuth(options: AuthOptions) {
         otpLength: SIGN_IN_CODE.digits,
         expiresIn: SIGN_IN_CODE.seconds,
         allowedAttempts: SIGN_IN_CODE.attempts,
-        // A database leak then yields no live code.
-        storeOTP: "hashed",
+        // Asked for again while good, the same code, renewed, its guesses
+        // kept: a late mail, or one a stalled request still sent, is never
+        // stale (ADR 0018). Recoverable for that, so encrypted under the
+        // installation's secret: Better Auth's "hashed" is SHA-256 alone,
+        // which a database leak reverses for six digits at once. As its
+        // "encrypted", but one stored hashed before, or under another secret,
+        // decrypts to nothing rather than throwing: it is then refused, and
+        // asked for again, replaced.
+        storeOTP: {
+          encrypt: (code) => symmetricEncrypt({ key: options.secret, data: code }),
+          decrypt: (stored) =>
+            symmetricDecrypt({ key: options.secret, data: stored }).catch(() => ""),
+        },
+        resendStrategy: "reuse",
         // Code requests and sign-ins, each counted per client address, in
         // production only, as all of Better Auth's limits. Sized for a
         // school's classes behind one address; the per-address minute above

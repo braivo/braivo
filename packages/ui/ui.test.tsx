@@ -58,6 +58,16 @@ describe("Braivo's components", () => {
     expect(classes).not.toContain("text-sm");
   });
 
+  test("a sign-in form's email step says the hint it is given in place of its own", () => {
+    render(
+      <SignInForm step={{ step: "email" }} emailHint="Use your school email." onSubmit={vi.fn()} />,
+    );
+
+    const hint = screen.getByText("Use your school email.");
+    expect(screen.getByLabelText("Email address").getAttribute("aria-describedby")).toBe(hint.id);
+    expect(screen.queryByText(/creates your account/)).toBeNull();
+  });
+
   test("a sign-in form asks for each step's value, and reports it", () => {
     const onSubmit = vi.fn();
     const onChangeEmail = vi.fn();
@@ -144,26 +154,26 @@ describe("Braivo's components", () => {
     const onResend = vi.fn();
     const step = { step: "code", email: "ada@example.com", resendAt: 42_000 } as const;
     render(<SignInForm step={step} onSubmit={() => {}} onResend={onResend} />);
-    const resend = screen.getByRole("button", { name: "Send a new code" });
+    const resend = screen.getByRole("button", { name: "Send the code again" });
 
     // The wait shows, outside the button's name, which its description explains.
-    expect(resend.textContent).toBe("Send a new code in 0:42");
+    expect(resend.textContent).toBe("Send the code again in 0:42");
     expect(resend.getAttribute("aria-disabled")).toBe("true");
     expect(document.getElementById(resend.getAttribute("aria-describedby")!)?.textContent).toBe(
-      "Another code can be sent a minute after the last.",
+      "A code can be sent again a minute after the last.",
     );
     fireEvent.click(resend);
     act(() => {
       vi.advanceTimersByTime(41_000);
     });
-    expect(resend.textContent).toBe("Send a new code in 0:01");
+    expect(resend.textContent).toBe("Send the code again in 0:01");
     fireEvent.click(resend);
     expect(onResend).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(1_000);
     });
-    expect(resend.textContent).toBe("Send a new code");
+    expect(resend.textContent).toBe("Send the code again");
     expect(resend.getAttribute("aria-disabled")).toBe("false");
     expect(resend.hasAttribute("aria-describedby")).toBe(false);
     fireEvent.click(resend);
@@ -202,7 +212,7 @@ describe("Braivo's components", () => {
     const fresh = screen.getByLabelText("Code") as HTMLInputElement;
     expect(fresh.disabled).toBe(false);
     expect(document.activeElement).toBe(fresh);
-    expect(screen.getByRole("status").textContent).toMatch(/^A new code was sent to ada@/);
+    expect(screen.getByRole("status").textContent).toMatch(/^Sent again to ada@/);
   });
 
   test("a sign-in form clears a refused code, so the next is typed afresh", () => {
@@ -243,7 +253,7 @@ describe("Braivo's components", () => {
 
     expect(screen.getByRole("alert").textContent).toBe("Invalid OTP");
     const submit = screen.getByRole("button", { name: /Sign in/ });
-    const resend = screen.getByRole("button", { name: "Send a new code" });
+    const resend = screen.getByRole("button", { name: "Send the code again" });
     const changeEmail = screen.getByRole("button", { name: "Use another email" });
     expect(within(submit).getByRole("status", { name: "Loading" })).toBeTruthy();
     // Enter in the code submits the form however its button is marked, and

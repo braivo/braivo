@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createHmac, randomInt } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import type { Database } from "@braivo/db";
 import type { Locale } from "@braivo/i18n/locales";
@@ -27,14 +27,19 @@ import { isMember } from "./permission.ts";
 // form words.
 
 /**
- * What a code is stored as: an HMAC under the installation's secret, bound to
- * where and for whom it signs in. A plain hash of six digits a database leak
- * would reverse at once; this takes the secret too.
+ * The code a stored seed stands for: an HMAC under the installation's secret,
+ * bound to where and for whom it signs in, as six digits. Kept as its seed,
+ * not hashed, so that it can be sent again (ADR 0018); a database leak, which
+ * would reverse a plain hash of six digits at once, yields seeds worthless
+ * without the secret.
  */
-function codeDigest(input: { secret: string; hostname: string; email: string; code: string }) {
-  return createHmac("sha256", input.secret)
-    .update(`learner-sign-in\0${input.hostname}\0${input.email}\0${input.code}`)
-    .digest("base64url");
+function codeFrom(input: { secret: string; hostname: string; email: string; seed: string }) {
+  const digest = createHmac("sha256", input.secret)
+    .update(`learner-sign-in\0${input.hostname}\0${input.email}\0${input.seed}`)
+    .digest();
+  // 64 bits into a million: the bias is below 2^-44.
+  const code = digest.readBigUInt64BE() % BigInt(10 ** SIGN_IN_CODE.digits);
+  return String(code).padStart(SIGN_IN_CODE.digits, "0");
 }
 
 export type SentLearnerCode =
@@ -52,7 +57,7 @@ export type SentLearnerCode =
  */
 export async function sendLearnerSignInCode(input: {
   database: Database;
-  /** The installation's, which `codeDigest` keys on. */
+  /** The installation's, which `codeFrom` keys on. */
   secret: string;
   sendMail: SendMail;
   hostname: string;
@@ -64,19 +69,20 @@ export async function sendLearnerSignInCode(input: {
   const email = input.email.toLowerCase();
   const served = await readDomainOrganization(database, hostname);
   if (!served) return { kind: "unavailable" };
-  const code = String(randomInt(10 ** SIGN_IN_CODE.digits)).padStart(SIGN_IN_CODE.digits, "0");
   // The address's minute between codes here is this row's own: a refusal
   // means a code that works here was sent.
-  const stored = await storeLearnerSignInCode(database, {
+  const seed = await storeLearnerSignInCode(database, {
     hostname,
     email,
     organizationId: served.id,
-    codeHash: codeDigest({ secret: input.secret, hostname, email, code }),
+    codeSeed: randomToken(),
+    attempts: SIGN_IN_CODE.attempts,
     expiresAt: later(now, SIGN_IN_CODE.seconds),
     resendAt: later(now, SIGN_IN_CODE.cooldownSeconds),
     at: now,
   });
-  if (!stored) return { kind: "cooldown" };
+  if (seed === undefined) return { kind: "cooldown" };
+  const code = codeFrom({ secret: input.secret, hostname, email, seed });
   try {
     await input.sendMail(
       signInCodeMail({
@@ -115,7 +121,7 @@ export type LearnerSignIn =
 export async function signInLearner(input: {
   database: Database;
   auth: Auth;
-  /** The installation's, which `codeDigest` keys on. */
+  /** The installation's, which `codeFrom` keys on. */
   secret: string;
   hostname: string;
   email: string;
@@ -124,18 +130,21 @@ export async function signInLearner(input: {
 }): Promise<LearnerSignIn> {
   const { database, hostname, now } = input;
   const email = input.email.toLowerCase();
-  const codeHash = codeDigest({ secret: input.secret, hostname, email, code: input.code });
+  const typed = Buffer.from(input.code);
   const checked = await checkLearnerSignInCode(database, {
     hostname,
     email,
-    codeHash,
+    isCode: (seed) => {
+      const code = Buffer.from(codeFrom({ secret: input.secret, hostname, email, seed }));
+      return code.length === typed.length && timingSafeEqual(code, typed);
+    },
     attempts: SIGN_IN_CODE.attempts,
     at: now,
   });
   if (checked.kind !== "right") return checked;
 
   const { user } = await input.auth.api.verifiedAccount({ body: { email } });
-  const { organizationId } = checked;
+  const { organizationId, codeSeed } = checked;
   if (!(await isMember(database, { organizationId, userId: user.id }))) {
     return { kind: "not-member" };
   }
@@ -146,7 +155,7 @@ export async function signInLearner(input: {
     hostname,
     email,
     organizationId,
-    codeHash,
+    codeSeed,
     attempts: SIGN_IN_CODE.attempts,
     userId: user.id,
     at: now,
