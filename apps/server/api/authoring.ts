@@ -17,6 +17,7 @@ import {
   type DomainProvisioner,
   DomainRefused,
   listCourses,
+  listCourseTasks,
   listDomains,
   listMembers,
   listObjectiveCitations,
@@ -807,6 +808,42 @@ export function authoringRoutes(
           objectives: course.objectives.map(({ tasks, ...objective }) => ({
             ...objective,
             tasks: tasks.map(authoredTask),
+          })),
+        });
+      } catch (error) {
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  /**
+   * A course's unretired tasks, all at once, in the order learners meet them,
+   * with the course's counts, for whoever may author in its organization
+   * (`listCourseTasks`): `?without=explanation` for those without one.
+   */
+  routes.get(
+    "/api/organizations/:organizationId/courses/:courseId/tasks",
+    requireAccount,
+    async (context) => {
+      const without = context.req.query("without");
+      if (without !== undefined && without !== "explanation") return context.body(null, 400);
+
+      try {
+        const listed = await listCourseTasks({
+          database,
+          organizationId: context.req.param("organizationId"),
+          actingAs: context.var.userId,
+          courseId: context.req.param("courseId"),
+          withoutExplanation: without === "explanation",
+        });
+        if (!listed) return context.body(null, 404);
+
+        return context.json({
+          ...listed,
+          tasks: listed.tasks.map(({ objectiveId, pendingCorrection, ...task }) => ({
+            ...authoredTask(task),
+            objectiveId,
+            ...(pendingCorrection && { pendingCorrection }),
           })),
         });
       } catch (error) {

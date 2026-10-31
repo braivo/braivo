@@ -203,6 +203,7 @@ const AUTHOR_ROUTES: ReadonlySet<string> = new Set([
   "GET /api/organizations/:organizationId/courses",
   "POST /api/organizations/:organizationId/courses",
   "GET /api/organizations/:organizationId/courses/:courseId",
+  "GET /api/organizations/:organizationId/courses/:courseId/tasks",
 ]);
 
 /** What the guards need: the installation's sessions, database, and public origin. */

@@ -9,6 +9,7 @@ import type {
   Course,
   CourseProgressOverview,
   CourseSummary,
+  CourseTaskList,
   CourseWriteResult,
   DomainClaim,
   DomainList,
@@ -59,6 +60,7 @@ export type {
   Course,
   CourseProgressOverview,
   CourseSummary,
+  CourseTaskList,
   CourseWriteResult,
   Domain,
   DomainClaim,
@@ -627,6 +629,17 @@ export type BraivoClient = {
     input: { organizationId: string; objectiveId: string },
     options?: RequestOptions,
   ): Promise<AuthoredTask[]>;
+
+  /**
+   * A course's unretired tasks, all at once (`CourseTaskList`); `without:
+   * "explanation"`, only those without one. A course the organization does
+   * not have is a {@link BraivoError} with status 404; one the session may
+   * not author in, 403.
+   */
+  listCourseTasks(
+    input: { organizationId: string; courseId: string; without?: "explanation" },
+    options?: RequestOptions,
+  ): Promise<CourseTaskList>;
 
   /**
    * One course as authored — objectives in order, each with its passages and
@@ -1348,6 +1361,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { tasks } = await parsed<{ tasks: AuthoredTask[] }>(response, doing);
       return tasks;
+    },
+
+    async listCourseTasks({ organizationId, courseId, without }, requestOptions) {
+      const response = await get(
+        `${organizationPath(organizationId)}/courses/${encodeURIComponent(courseId)}/tasks${without ? `?without=${without}` : ""}`,
+        requestOptions,
+      );
+
+      const doing = `listing the tasks of course "${courseId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<CourseTaskList>(response, doing);
     },
 
     async readCourse({ organizationId, courseId }, requestOptions) {

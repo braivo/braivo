@@ -64,7 +64,9 @@ reviewUrl still means the write succeeded: send the person to their courses
 in Braivo's console.
 
 To review a course, read_course shows it whole, and list_tasks one objective's
-tasks, with their answers and quotes, each saying whether it is published.
+tasks, or a course's, with their answers and quotes, each saying whether it is
+published; list_tasks with without: explanation finds the tasks that explain
+nothing after grading, and says how to fill them in.
 Tasks are never edited: author_tasks with replaces, one task a call, writes a
 task's correction. A pending task's replaces it at once; a published task's
 waits for its owner to publish it, the old one published meanwhile, and
@@ -517,15 +519,44 @@ export function createMcpServer(
     },
   );
 
+  /**
+   * Filling in missing explanations, over a course's listing: what an agent
+   * needs to propose a correction that keeps the task as it was and teaches
+   * only what a source supports (authoring spec, the course-scoped listing).
+   */
+  const EXPLANATIONS = `To find tasks without an explanation, list a course with without: explanation: every one at once, with counts for the whole course. A published task with a pendingCorrection takes no second correction (Braivo refuses it, naming the pending one): if that correction has no explanation, correct it instead (replaces its ID); if it has one, skip the task: it waits for its owner. Write an explanation only from a passage that supports the answer, or a reference the owner approved; a quoted statement that is itself false explains nothing. Correct with author_tasks and replaces, keeping every other field as it is (prompt, options, answer, accepted, citations, keepOrder, answerLanguage): a correction replaces the whole body. Before correcting a pending correction, read its own body, listed too as it has none, and keep its edits. Write the explanation in the language the owner asked for; otherwise in the one the material's existing explanations use; ask when that is unclear. Never infer it from answerLanguage, which is the accepted answers' language. Leave a task alone when nothing supports a reason. Counts still include tasks left alone and originals whose correction waits for review: list again to see what is left.`;
+
   server.registerTool(
     "list_tasks",
     {
       title: "List tasks",
-      description: `An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a pending correction of a published task names it in replaces, and a pending task identical to one retired before is marked matchesRetiredTask. Read them before writing more, to review a course or to avoid near-duplicates. ${FINDINGS}`,
-      inputSchema: z.object({ organizationId, objectiveId: z.string().min(1) }),
+      description: `An objective's tasks (objectiveId), oldest first, or a course's (courseId), in the order learners meet them, with the course's counts; each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a pending correction of a published task names it in replaces, and a pending task identical to one retired before is marked matchesRetiredTask. A course's tasks also name their objectiveId, and a published one its pendingCorrection, if one waits: its id and whether it has an explanation. Read them before writing more, to review a course or to avoid near-duplicates. ${EXPLANATIONS} ${FINDINGS}`,
+      inputSchema: z
+        .object({
+          organizationId,
+          objectiveId: z.string().min(1).optional().describe("One objective's tasks, all at once."),
+          courseId: z.string().min(1).optional().describe("A course's tasks, all at once."),
+          without: z
+            .enum(["explanation"])
+            .optional()
+            .describe("With courseId: only tasks without an explanation."),
+        })
+        .refine(
+          ({ objectiveId, courseId }) => (objectiveId === undefined) !== (courseId === undefined),
+          "Name objectiveId or courseId, not both.",
+        )
+        .refine(
+          (input) => input.courseId !== undefined || input.without === undefined,
+          "without filters a course: send it with courseId.",
+        ),
       annotations: READ_ONLY,
     },
-    (input) => answer(client.listTasks(input)),
+    ({ organizationId, objectiveId, courseId, without }) =>
+      answer(
+        objectiveId === undefined
+          ? client.listCourseTasks({ organizationId, courseId: courseId!, without })
+          : client.listTasks({ organizationId, objectiveId }),
+      ),
   );
 
   server.registerTool(

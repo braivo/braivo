@@ -1111,6 +1111,84 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
+  test("lists a course's tasks without an explanation, refusing another filter", async () => {
+    const as = { headers: { cookie: teacherCookie } };
+    const [hello, bye] = await client.defineObjectives(
+      { organizationId, objectives: [{ title: "Hello" }, { title: "Bye" }] },
+      as,
+    );
+    const { courseId: listed } = await client.defineCourse(
+      { organizationId, title: "Listed", objectiveIds: [hello!, bye!] },
+      as,
+    );
+    const body = (prompt: string, explanation?: string) => ({
+      kind: "choice" as const,
+      prompt,
+      options: ["yes", "no"],
+      answer: 0,
+      ...(explanation && { explanation }),
+    });
+    const [bare, explained, later] = (
+      await client.defineTasks(
+        {
+          organizationId,
+          tasks: [
+            { objectiveId: hello!, ...body("Bare") },
+            { objectiveId: hello!, ...body("Explained", "Because.") },
+            { objectiveId: bye!, ...body("Later") },
+          ],
+        },
+        as,
+      )
+    ).map(({ id }) => id);
+
+    expect(
+      await client.listCourseTasks(
+        { organizationId, courseId: listed, without: "explanation" },
+        as,
+      ),
+    ).toEqual({
+      tasks: [
+        { id: bare, objectiveId: hello, ...body("Bare"), citations: [], published: true },
+        { id: later, objectiveId: bye, ...body("Later"), citations: [], published: true },
+      ],
+      counts: {
+        published: { total: 3, withoutExplanation: 2, withoutExplanationOrPassage: 2 },
+        pending: { total: 0, withoutExplanation: 0 },
+      },
+    });
+    expect(
+      (await client.listCourseTasks({ organizationId, courseId: listed }, as)).tasks.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([bare, explained, later]);
+
+    const path = `/api/organizations/${organizationId}/courses/${listed}/tasks`;
+    expect((await api.request(`${path}?without=passage`, as)).status).toBe(400);
+    await expect(
+      client.listCourseTasks({ organizationId, courseId: "no-such-course" }, as),
+    ).rejects.toMatchObject({ status: 404 });
+    // Deleted reads as never there, as the course does.
+    const { id: gone } = await createCourse(database, {
+      published: false,
+      organizationId,
+      title: "Gone",
+      objectiveIds: [hello!],
+    });
+    await client.deleteCourse({ organizationId, courseId: gone }, as);
+    for (const without of [undefined, "explanation" as const]) {
+      await expect(
+        client.listCourseTasks({ organizationId, courseId: gone, without }, as),
+      ).rejects.toMatchObject({ status: 404 });
+    }
+    await expect(
+      client.listCourseTasks(
+        { organizationId, courseId: listed },
+        { headers: { cookie: learnerCookie } },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
   test("carries Braivo's explanation of a quote it cannot cite", async () => {
     const as = { headers: { cookie: teacherCookie } };
     const sourceId = await client.addSource(

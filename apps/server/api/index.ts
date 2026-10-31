@@ -439,6 +439,16 @@
 // "Paris", "other": "paris.", "differences": ["case", "punctuation"] }`
 // (`content/findings.ts`).
 //
+// `GET /api/organizations/:organizationId/courses/:courseId/tasks` — the
+// course's unretired tasks, all at once, in the order learners meet them:
+// `{ "tasks": [...], "counts": { "published": { "total", "withoutExplanation",
+// "withoutExplanationOrPassage" }, "pending": { "total", "withoutExplanation" }
+// } }`, each task as an objective's listing answers it plus its `objectiveId`
+// and, while published, `"pendingCorrection": { "id", "hasExplanation" }` when
+// a correction waits. `?without=explanation` lists only those without one;
+// `counts` cover the whole course either way. 400 for any other `without`; 404
+// when the organization has no such course.
+//
 // `POST /api/organizations/:organizationId/courses` — creates a course over
 // objectives that already exist. Body `{ "title": "…", "objectiveIds": [...] }`,
 // the objectives at most 1000; position in that list is content order, and

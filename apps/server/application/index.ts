@@ -104,7 +104,14 @@ export type {
   TaskWriteResult,
   ToolsReadLearnerData,
 } from "../persistence/index.ts";
-export { defineTasks, InvalidTask, listObjectiveTasks, retireTasks } from "./tasks.ts";
+export type { CourseTaskList } from "./tasks.ts";
+export {
+  defineTasks,
+  InvalidTask,
+  listCourseTasks,
+  listObjectiveTasks,
+  retireTasks,
+} from "./tasks.ts";
 /**
  * Raised by persistence while recording, since only the insert can tell a retry
  * from a disagreement. Named here so callers of `application` need not

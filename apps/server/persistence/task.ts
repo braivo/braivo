@@ -6,15 +6,30 @@ import { isDeepStrictEqual } from "node:util";
 import type { Database } from "@braivo/db";
 import {
   attempt,
+  course,
   courseObjective,
   learnerEvidence,
   source,
   task,
   taskCitation,
 } from "@braivo/db/schema";
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 
 import {
+  type ExplanationCounts,
   momentOf,
   pageOf,
   type Pagination,
@@ -634,17 +649,45 @@ export async function readObjectiveTasks(
   // Retired ones too, for `matchesRetiredTask`: in one read, so a task retired
   // meanwhile cannot match itself; few per objective, as `storeTasks` reads.
   const rows = await database
-    .select({
-      id: task.id,
-      body: task.body,
-      publishedAt: task.publishedAt,
-      retiredAt: task.retiredAt,
-      replacesTaskId: task.replacesTaskId,
-    })
+    .select(authoredColumns)
     .from(task)
     .where(eq(task.objectiveId, objectiveId))
     .orderBy(asc(task.createdAt), asc(task.id));
   const tasks = rows.filter(({ retiredAt }) => retiredAt === null);
+  return readAuthored(
+    database,
+    tasks,
+    rows.filter(({ retiredAt }) => retiredAt !== null),
+  );
+}
+
+/** What `readAuthored` needs of a task row. */
+const authoredColumns = {
+  id: task.id,
+  objectiveId: task.objectiveId,
+  body: task.body,
+  publishedAt: task.publishedAt,
+  retiredAt: task.retiredAt,
+  replacesTaskId: task.replacesTaskId,
+};
+type AuthoredRow = {
+  id: string;
+  objectiveId: string;
+  body: unknown;
+  publishedAt: Date | null;
+  replacesTaskId: string | null;
+};
+
+/**
+ * Unretired `tasks`, rows already selected, as authored, in the order given:
+ * reads their passages; a pending one `matchesRetiredTask` when one of
+ * `retired`, of its objective, is its twin.
+ */
+async function readAuthored(
+  database: Database | Transaction,
+  tasks: readonly AuthoredRow[],
+  retired: readonly AuthoredRow[],
+): Promise<AuthoredTask[]> {
   if (tasks.length === 0) return [];
 
   const citations = await database
@@ -661,7 +704,7 @@ export async function readObjectiveTasks(
     .where(
       inArray(
         taskCitation.taskId,
-        rows.map(({ id }) => id),
+        [...tasks, ...retired].map(({ id }) => id),
       ),
     )
     .orderBy(asc(taskCitation.sourceId), asc(taskCitation.start));
@@ -669,11 +712,13 @@ export async function readObjectiveTasks(
     citations
       .filter((citation) => citation.taskId === taskId)
       .map(({ sourceId, start, end, quote }) => ({ sourceId, start, end, quote }));
-  const retired = rows
-    .filter(({ retiredAt }) => retiredAt !== null)
-    .map(({ id, body }) => ({ body, cited: citedKey(passagesOf(id)) }));
+  const twins = retired.map(({ id, objectiveId, body }) => ({
+    objectiveId,
+    body,
+    cited: citedKey(passagesOf(id)),
+  }));
 
-  return tasks.map(({ id, body, publishedAt, replacesTaskId }) => {
+  return tasks.map(({ id, objectiveId, body, publishedAt, replacesTaskId }) => {
     const passages = passagesOf(id);
     const pending = publishedAt === null;
     const comparable = { body, cited: citedKey(passages) };
@@ -684,11 +729,141 @@ export async function readObjectiveTasks(
       published: !pending,
       ...(pending && replacesTaskId !== null && { replaces: replacesTaskId }),
       ...(pending &&
-        retired.some((each) => isTwin(each, comparable)) && {
+        twins.some((each) => each.objectiveId === objectiveId && isTwin(each, comparable)) && {
           matchesRetiredTask: true as const,
         }),
     };
   });
+}
+
+/** A task of a course's listing: as authored, with its objective and any correction waiting. */
+export type CourseTask = AuthoredTask & {
+  objectiveId: string;
+  /** While published, its pending correction, if one waits, and whether that explains its answer. */
+  pendingCorrection?: { id: string; hasExplanation: boolean };
+};
+
+/** No explanation: `content/explanation.ts`'s `hasExplanation`, false. */
+const withoutExplanation = sql`${task.body}->>'explanation' is null`;
+
+/**
+ * An organization's course's unretired tasks, all in one answer, in the order
+ * a learner meets them: its objectives in content order, each's tasks oldest
+ * first, then by ID. `withoutExplanation`, only those without one. `counts`
+ * cover the whole course either way. `undefined` when the organization has no
+ * such course.
+ *
+ * Unpaged, as the authoring spec says: paging, if a course outgrows one
+ * answer, comes back opt-in, never cutting a complete answer into a first
+ * page that callers would read as all of it.
+ */
+export async function readCourseTasks(
+  database: Database,
+  organizationId: string,
+  courseId: string,
+  options: { withoutExplanation: boolean },
+): Promise<{ tasks: CourseTask[]; counts: ExplanationCounts } | undefined> {
+  // One snapshot: a write committed between these reads would otherwise mix
+  // states, e.g. a task retired meanwhile matching itself as its retired twin,
+  // or counts disagreeing with the tasks listed.
+  return database.transaction(
+    async (transaction) => {
+      const [owned] = await transaction
+        .select({ id: course.id })
+        .from(course)
+        .where(
+          and(
+            eq(course.id, courseId),
+            eq(course.organizationId, organizationId),
+            isNull(course.deletedAt),
+          ),
+        );
+      if (!owned) return undefined;
+
+      const inCourse = and(
+        eq(courseObjective.courseId, courseId),
+        eq(courseObjective.objectiveId, task.objectiveId),
+      );
+      const listed = await transaction
+        .select(authoredColumns)
+        .from(task)
+        .innerJoin(courseObjective, inCourse)
+        .where(
+          and(isNull(task.retiredAt), options.withoutExplanation ? withoutExplanation : undefined),
+        )
+        .orderBy(asc(courseObjective.position), asc(task.createdAt), asc(task.id));
+
+      // Retired twins only matter to pending tasks, of the objectives they are in.
+      const pendingObjectives = [
+        ...new Set(listed.filter((row) => row.publishedAt === null).map((row) => row.objectiveId)),
+      ];
+      const retired = pendingObjectives.length
+        ? await transaction
+            .select(authoredColumns)
+            .from(task)
+            .where(and(inArray(task.objectiveId, pendingObjectives), isNotNull(task.retiredAt)))
+        : [];
+      const published = listed.filter((row) => row.publishedAt !== null).map((row) => row.id);
+      const corrections = published.length
+        ? await transaction
+            .select({
+              id: task.id,
+              replacesTaskId: task.replacesTaskId,
+              explained: sql<boolean>`not (${withoutExplanation})`,
+            })
+            .from(task)
+            .where(
+              and(
+                inArray(task.replacesTaskId, published),
+                isNull(task.publishedAt),
+                isNull(task.retiredAt),
+              ),
+            )
+        : [];
+
+      const tasks = (await readAuthored(transaction, listed, retired)).map(
+        (each, index): CourseTask => {
+          const correction = corrections.find((row) => row.replacesTaskId === each.id);
+          return {
+            ...each,
+            objectiveId: listed[index]!.objectiveId,
+            ...(correction && {
+              pendingCorrection: { id: correction.id, hasExplanation: correction.explained },
+            }),
+          };
+        },
+      );
+
+      const noPassage = sql`not exists (select 1 from ${taskCitation} where ${taskCitation.taskId} = ${task.id})`;
+      const isPublished = sql`${task.publishedAt} is not null`;
+      const isPending = sql`${task.publishedAt} is null`;
+      const counted = (condition: SQL) => sql<number>`(count(*) filter (where ${condition}))::int`;
+      const [counts] = await transaction
+        .select({
+          publishedTotal: counted(isPublished),
+          publishedWithout: counted(sql`${isPublished} and ${withoutExplanation}`),
+          publishedBare: counted(sql`${isPublished} and ${withoutExplanation} and ${noPassage}`),
+          pendingTotal: counted(isPending),
+          pendingWithout: counted(sql`${isPending} and ${withoutExplanation}`),
+        })
+        .from(task)
+        .innerJoin(courseObjective, inCourse)
+        .where(isNull(task.retiredAt));
+
+      return {
+        tasks,
+        counts: {
+          published: {
+            total: counts!.publishedTotal,
+            withoutExplanation: counts!.publishedWithout,
+            withoutExplanationOrPassage: counts!.publishedBare,
+          },
+          pending: { total: counts!.pendingTotal, withoutExplanation: counts!.pendingWithout },
+        },
+      };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 }
 
 /**

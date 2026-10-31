@@ -20,7 +20,7 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks word for word against the source.
 - Write practice tasks that cite those passages, correct one, or withdraw one still pending.
 - Arrange objectives into a course.
-- Read a course's objectives and tasks.
+- Read a course's objectives and tasks, or only its tasks without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
 
 What it adds waits for you: a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](../adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [authoring](authoring.md#let-your-ai-app-build-the-course). It cannot publish anything or retire a published task: both stay yours in the console. Nor can it read learners' names or progress, which wait for their own permission.
 
