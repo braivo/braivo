@@ -3,7 +3,7 @@
 
 import { type Activity, BraivoError, type BraivoClient } from "@braivo/server/client";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import type { AppContext } from "../lib/context.ts";
@@ -12,9 +12,13 @@ import {
   OPTIONAL_READ_DEADLINE_MS,
   READ_DEADLINE_MS,
 } from "../lib/deadline.ts";
+import { unfinishedAttempt } from "../lib/unfinished-attempt.ts";
 import { createLearnRouter } from "../router.tsx";
 import { SPANISH_ID, typedActivity, activity, anotherActivity, noProgress } from "./fixtures.ts";
 import { stall, waitOut, renderAt } from "./render.tsx";
+
+/** The grade's title, apart from the option marked Correct. */
+const GRADE_TITLE = '[data-slot="alert-title"]';
 
 describe("the learn app", () => {
   test("shows an answer's feedback after a reload while it was on its way, sending the same attempt", async () => {
@@ -228,8 +232,6 @@ describe("the learn app", () => {
           .mockImplementationOnce((_courseId, options) => stall(options))
           .mockResolvedValue(anotherActivity),
       },
-      // The course page's Try again reloads the course alone.
-      1,
     ],
     [
       "the session",
@@ -244,12 +246,10 @@ describe("the learn app", () => {
           .mockImplementationOnce((options) => stall(options))
           .mockResolvedValue({ id: "ada", name: "Ada Learner" }),
       },
-      // The guard's failure is the app's, whose Try again reloads everything.
-      2,
     ],
   ])(
-    "offers to try again when Braivo does not answer %s in time on Continue",
-    async (_, stubs, brandReads) => {
+    "keeps the answered question when Braivo does not answer %s in time on Continue, which tries again",
+    async (_, stubs) => {
       const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
       renderAt("/c/4732", { signedIn: true, hostOrganization, ...stubs });
       fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
@@ -260,9 +260,13 @@ describe("the learn app", () => {
       await waitOut(READ_DEADLINE_MS);
       vi.useRealTimers();
 
-      fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+      expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
+      expect(screen.getByText("Past tense of 'hablar'?")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+      fireEvent.click(next);
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-      expect(hostOrganization).toHaveBeenCalledTimes(brandReads);
+      // Continue reads what comes next, never the brand again.
+      expect(hostOrganization).toHaveBeenCalledOnce();
     },
   );
 
@@ -492,6 +496,218 @@ describe("the learn app", () => {
     loaded(undefined);
     expect(await screen.findByText("You're caught up")).toBeTruthy();
     expect(nextActivity).toHaveBeenCalledTimes(2);
+  });
+
+  test("keeps the answered question when the next one does not load in time, saying so each time, until it does", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockImplementationOnce((_id, options) => stall(options))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(anotherActivity);
+    const { submitAttempt } = renderAt("/c/4732", { signedIn: true, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    vi.useFakeTimers();
+    fireEvent.click(next);
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    const failed = "Could not load the next question. Try again.";
+    // An alert of its own, announced as it mounts.
+    const first = (await screen.findByText(failed)).closest('[role="alert"]');
+    expect(first?.textContent).toBe(failed);
+    // The lesson stays: the question, its feedback, and Continue, still focused, to retry.
+    expect(screen.getByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.getByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
+    expect(next.isConnected).toBe(true);
+    expect(document.activeElement).toBe(next);
+    expect(next.textContent).toBe("Continue");
+
+    fireEvent.click(next);
+    // A new alert, so a screen reader announces the second failure too.
+    await vi.waitFor(() => expect(first?.isConnected).toBe(false));
+    expect(screen.getByText(failed).closest('[role="alert"]')).toBeTruthy();
+
+    fireEvent.click(next);
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+    expect(screen.queryByText(failed)).toBeNull();
+    expect(nextActivity).toHaveBeenCalledTimes(4);
+    // Answered once: Continue never resends.
+    expect(submitAttempt).toHaveBeenCalledOnce();
+  });
+
+  test("keeps the answered question when the session cannot be checked on Continue, and shows its grade again after a reload", async () => {
+    let stalled = false;
+    const session = vi.fn<BraivoClient["session"]>(async (options) =>
+      stalled ? stall(options) : { id: "ada", name: "Ada Learner" },
+    );
+    const { submitAttempt } = renderAt("/c/4732", {
+      signedIn: true,
+      session,
+      nextActivity: async () => activity,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    stalled = true;
+    vi.useFakeTimers();
+    fireEvent.click(next);
+    await waitOut(READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
+
+    // Not continued past, so a reload resends it and shows its grade again.
+    cleanup();
+    stalled = false;
+    const reloaded = renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity });
+    expect(await screen.findByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
+    expect(reloaded.submitAttempt.mock.calls[0]![0]).toEqual(submitAttempt.mock.calls[0]![0]);
+  });
+
+  test("on Continue, says why the course is gone, or sends a learner signed out to sign in, rather than offering to retry", async () => {
+    const gone = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockRejectedValue(new BraivoError(404, "not found"));
+    renderAt("/c/4732", { signedIn: true, nextActivity: gone });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(
+      await screen.findByText("This course does not exist, or is not one of yours."),
+    ).toBeTruthy();
+    cleanup();
+
+    let signedIn = true;
+    const { router } = renderAt("/c/4732", {
+      signedIn: true,
+      session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(activity)
+        .mockImplementation(async () => {
+          signedIn = false;
+          throw new BraivoError(401, "no session");
+        }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+  });
+
+  test("holds Continue while a 404 on it reloads the course, so the old question cannot be continued again", async () => {
+    let reloaded!: (next: Activity | undefined) => void;
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockRejectedValueOnce(new BraivoError(404, "not found"))
+      .mockReturnValueOnce(new Promise((resolve) => (reloaded = resolve)));
+    renderAt("/c/4732", { signedIn: true, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+    fireEvent.click(next);
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(3));
+    await act(async () => {});
+
+    expect(next.textContent).toBe("Loading…");
+    await act(async () => reloaded(anotherActivity));
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+  });
+
+  test("on Continue, reloads the course as another account signed in meanwhile, keeping the first one's answer for them", async () => {
+    let user = { id: "ada", name: "Ada Learner" };
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, session: async () => user, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    user = { id: "bea", name: "Bea Learner" };
+    fireEvent.click(next);
+
+    expect(await screen.findByText("Bea Learner")).toBeTruthy();
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+    expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+  });
+
+  test("ignores a Continue still loading once the course reloaded, leaving the answer kept", async () => {
+    let answer!: (next: Activity | undefined) => void;
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const { router } = renderAt("/c/4732", { signedIn: true, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
+
+    // A reload meanwhile resends the kept answer and shows its grade.
+    await act(() => router.invalidate({ sync: true }));
+    const again = await screen.findByRole("button", { name: "Continue" });
+    expect(again.textContent).toBe("Continue");
+    await act(async () => answer(anotherActivity));
+
+    expect(screen.getByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.queryByText("Past tense of 'comer'?")).toBeNull();
+    expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+  });
+
+  test("ignores a session check answered after the learner left the course on Continue", async () => {
+    let answer!: (user: { id: string; name: string }) => void;
+    const session = vi
+      .fn<BraivoClient["session"]>()
+      .mockResolvedValueOnce({ id: "ada", name: "Ada Learner" })
+      .mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+      .mockResolvedValue({ id: "ada", name: "Ada Learner" });
+    const { router } = renderAt("/c/4732", {
+      signedIn: true,
+      session,
+      nextActivity: async () => activity,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(session).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getAllByRole("link", { name: "Your courses" })[0]!);
+    await screen.findByText(/no courses/i);
+    expect(session.mock.calls[1]?.[0]?.signal?.aborted).toBe(true);
+    const calls = session.mock.calls.length;
+    // Another account by then: acted on, it would reload the list as that account.
+    await act(async () => answer({ id: "bea", name: "Bea Learner" }));
+
+    expect(session).toHaveBeenCalledTimes(calls);
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  test("ignores a Continue refused once a reload showed the same answer again, keeping it", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: () => new Promise(() => {}),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    cleanup();
+    let refuse!: (error: unknown) => void;
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockReturnValueOnce(new Promise((_resolve, reject) => (refuse = reject)));
+    const { router } = renderAt("/c/4732", { signedIn: true, nextActivity });
+    // Resent on the visit, graded.
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledOnce());
+
+    await act(() => router.invalidate({ sync: true }));
+    await act(async () => refuse(new BraivoError(404, "not found")));
+
+    expect(screen.getByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
+    expect(unfinishedAttempt("ada", "c1")).toBeDefined();
   });
 
   test.each([400, 403, 413])(

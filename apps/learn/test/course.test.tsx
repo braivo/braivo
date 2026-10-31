@@ -185,7 +185,7 @@ describe("the learn app", () => {
     expect(screen.queryByRole("button", { name: "Show answer" })).toBeNull();
   });
 
-  test("on Continue, rechecks the session and reloads the course, not the brand", async () => {
+  test("on Continue, rechecks the session and reads what comes next, not the course or the brand", async () => {
     const hostOrganization = vi.fn(async () => ({ name: "Fernwood" }));
     const session = vi.fn(async () => ({ id: "ada", name: "Ada Learner" }));
     const { learnerCourseByNumber, learnerProgress, nextActivity } = renderAt("/c/4732", {
@@ -202,9 +202,10 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-    for (const read of [session, learnerCourseByNumber, nextActivity]) {
+    for (const read of [session, nextActivity]) {
       expect(read).toHaveBeenCalledTimes(2);
     }
+    expect(learnerCourseByNumber).toHaveBeenCalledOnce();
     // Also read once the answer was graded, before Continue.
     expect(learnerProgress).toHaveBeenCalledTimes(3);
     expect(hostOrganization).toHaveBeenCalledTimes(1);
@@ -526,7 +527,7 @@ describe("the learn app", () => {
     expect(await screen.findByText("You're caught up")).toBeTruthy();
   });
 
-  test("offers to load again when loading the next activity failed", async () => {
+  test("offers to continue again when loading the next activity failed", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
@@ -535,8 +536,10 @@ describe("the learn app", () => {
     renderAt("/c/4732", { signedIn: true, nextActivity });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+    fireEvent.click(next);
+    await screen.findByText("Could not load the next question. Try again.");
+    fireEvent.click(next);
 
     expect(await screen.findByText("You're caught up")).toBeTruthy();
   });

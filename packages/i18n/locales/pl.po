@@ -443,6 +443,10 @@ msgstr "Nie udało się odłączyć aplikacji. Spróbuj ponownie."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Could not load the next question. Try again."
+msgstr "Nie udało się wczytać następnego pytania. Spróbuj ponownie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not load whether tools read learners' data. Reload the page to try again."
 msgstr "Nie udało się wczytać ustawienia dostępu narzędzi do danych uczniów. Odśwież stronę, aby spróbować ponownie."
