@@ -73,8 +73,8 @@ export const learnerSession = pgTable(
  * hostname alone, for the organization it served when sent, as a learner
  * session for a member. One row per hostname and address, holding the code
  * until it is spent and the minute between codes past it. The code is kept
- * as an HMAC under the installation's secret: six digits are too few for a
- * plain hash, which a database leak would reverse.
+ * as a seed it is derived from under the installation's secret: six digits
+ * are too few for a plain hash, which a database leak would reverse.
  */
 export const learnerSignInCode = pgTable(
   "learner_sign_in_code",
@@ -85,8 +85,12 @@ export const learnerSignInCode = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    /** `null` once spent. */
-    codeHash: text("code_hash"),
+    /**
+     * What the code is derived from, under the installation's secret: kept
+     * to send the same code again, and worthless without the secret. `null`
+     * once spent.
+     */
+    codeSeed: text("code_seed"),
     /** Wrong guesses at this code. */
     attempts: integer("attempts").notNull().default(0),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
