@@ -400,20 +400,23 @@ describe("SignIn", () => {
     });
   });
 
-  test("lets the learner try again after a request that got no answer", async () => {
+  test("goes on to the code after asking for one got no answer, a new one to be had at once", async () => {
     const auth = fakeAuth("Ada");
-    auth.emailOtp.sendVerificationOtp.mockRejectedValue(new TypeError("Failed to fetch"));
-    render(<SignIn auth={auth} onSignedIn={vi.fn()} />);
+    auth.emailOtp.sendVerificationOtp.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const onSignedIn = vi.fn();
+    render(<SignIn auth={auth} onSignedIn={onSignedIn} />);
 
     fill("Email address", "learner@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
 
+    // The server may still send it: whether it did, only the inbox knows.
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "Could not connect. Check your connection and try again.",
+      "Could not confirm a code was sent. Check your connection. If none arrives, send a new one; if more than one does, use the newest.",
     );
-    expect(screen.getByRole("button", { name: "Send me a code" }).hasAttribute("disabled")).toBe(
-      false,
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Send a new code" }));
+    await screen.findByText(/^A new code was sent/);
+    fill("Code", "123456");
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 
   test("keeps a code whose check got no answer, or another refusal, to try again", async () => {
@@ -453,6 +456,8 @@ describe("SignIn", () => {
     render(<SignIn auth={auth} onSignedIn={onSignedIn} google={google} />);
     const alert = async () => (await screen.findByRole("alert")).textContent;
     const unanswered = "Could not connect. Check your connection and try again.";
+    const unsent =
+      "Could not confirm a code was sent. Check your connection. If none arrives, send a new one; if more than one does, use the newest.";
 
     const googleButton = screen.getByRole("button", { name: "Continue with Google" });
     await stalled(() => fireEvent.click(googleButton));
@@ -463,10 +468,8 @@ describe("SignIn", () => {
 
     fill("Email address", "learner@example.com");
     await stalled(() => fireEvent.click(screen.getByRole("button", { name: "Send me a code" })));
-    expect(await alert()).toBe(unanswered);
-    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    expect(await alert()).toBe(unsent);
 
-    await screen.findByLabelText("Code");
     await stalled(() => fill("Code", "123456"));
     expect(await alert()).toBe(unanswered);
     expect((screen.getByLabelText("Code") as HTMLInputElement).value).toBe("123456");
@@ -478,6 +481,26 @@ describe("SignIn", () => {
     expect(await alert()).toBe(unanswered);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
+    await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
+  });
+
+  test("says a new code may still come when asking for one got no answer in time", async () => {
+    const auth = fakeAuth("Ada");
+    const onSignedIn = vi.fn();
+    render(<SignIn auth={auth} onSignedIn={onSignedIn} />);
+    fill("Email address", "learner@example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    await screen.findByLabelText("Code");
+    auth.emailOtp.sendVerificationOtp.mockImplementationOnce(stall);
+
+    passMinute();
+    await stalled(() => fireEvent.click(screen.getByRole("button", { name: "Send a new code" })));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Could not confirm a code was sent. Check your connection. If none arrives, send a new one; if more than one does, use the newest.",
+    );
+    // Still at the code step, to take the newest code.
+    fill("Code", "654321");
     await vi.waitFor(() => expect(onSignedIn).toHaveBeenCalledOnce());
   });
 

@@ -129,6 +129,13 @@ function refusal(error: AuthError): MessageDescriptor {
 export const UNANSWERED = msg`Could not connect. Check your connection and try again.`;
 
 /**
+ * A code asked for with no answer: the server may still send it, and another
+ * replaces it (access-2, -32). The newest, not the last asked for: a stalled
+ * request can reach the server after its retry.
+ */
+const SEND_UNCONFIRMED = msg`Could not confirm a code was sent. Check your connection. If none arrives, send a new one; if more than one does, use the newest.`;
+
+/**
  * Why Google's round trip came back to `errorCallbackURL`, from its `error`.
  * `access_denied` is not only a cancel: it is also a school's administrator
  * blocking the app, which must not pass in silence.
@@ -261,7 +268,12 @@ export function SignIn(props: {
       // Refused answers arrive as `error` above; this is a request that got no
       // answer at all, or none in time. A check out of time may still have
       // signed in, spending the code: retried, it is refused; a new one works.
-      setError(UNANSWERED);
+      // A code asked for may still come, so on to the code (access-5), a new
+      // one to be had at once: asked too soon, its minute refuses it there.
+      if (values.step === "email" && step.step === "email") {
+        setStep({ step: "code", email: values.email });
+      }
+      setError(values.step === "email" ? SEND_UNCONFIRMED : UNANSWERED);
     } finally {
       setPending(false);
     }
