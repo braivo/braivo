@@ -513,9 +513,18 @@ describe.skipIf(!connectionString)("the learning routes", () => {
   });
 
   test("shows a content owner each learner's standings in a course, and each objective's, in the documented shape", async () => {
-    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
-      { id: "overview-failed", objectiveId: pastTense, outcome: "failure", at: recordedAt },
-    ]);
+    // Three misses: repeated misses, named on the objective.
+    const second = (index: number) => new Date(recordedAt.getTime() + index * 1000);
+    await recordEvidence(
+      database,
+      { learnerId: learner.id, organizationId },
+      [0, 1, 2].map((index) => ({
+        id: `overview-failed-${index}`,
+        objectiveId: pastTense,
+        outcome: "failure" as const,
+        at: second(index),
+      })),
+    );
 
     const response = await courseProgress(courseId, teacher.cookie);
     expect(response.status).toBe(200);
@@ -530,16 +539,30 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await response.json()).toEqual({
       open: true,
       modelVersion: activeModel.version,
+      asOf: expect.stringMatching(ISO_MOMENT),
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       learners: expect.arrayContaining([
         {
           userId: learner.id,
           name: expect.any(String),
           roles: ["member"],
           standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
+          repeatedMisses: 1,
         },
       ]),
       objectives: expect.arrayContaining([
-        { objectiveId: pastTense, title: expect.any(String), standings: anyCounts },
+        {
+          objectiveId: pastTense,
+          title: expect.any(String),
+          standings: anyCounts,
+          repeatedMisses: expect.arrayContaining([
+            {
+              userId: learner.id,
+              name: expect.any(String),
+              misses: { count: 3, lastMissAt: second(2).toISOString(), everSucceeded: false },
+            },
+          ]),
+        },
       ]),
     });
   });

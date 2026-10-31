@@ -50,8 +50,9 @@ export function ScrollingTable(props: ComponentProps<typeof Table>) {
     <div
       ref={wrapper}
       data-scrolled={hidden.before || undefined}
+      // A container, so a row's content can take the visible width (`100cqw`), not the table's.
       className={cn(
-        "group/scrolling",
+        "group/scrolling @container",
         // Not while focused, where it would fade the focus ring too.
         hidden.after &&
           "*:data-[slot=table-container]:not-focus-visible:mask-r-from-[calc(100%-32px)]",
@@ -64,8 +65,8 @@ export function ScrollingTable(props: ComponentProps<typeof Table>) {
 
 /**
  * For each cell of a `ScrollingTable`'s first column, its header's included:
- * opaque, a hovered row's fill too, so columns scroll under it; edged once
- * they have.
+ * opaque, a hovered or expanded row's fill too (shadcn's row fills both), so
+ * columns scroll under it; edged once they have.
  */
 export const pinnedColumn =
-  "sticky left-0 z-10 bg-background in-[tr:hover]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-scrolled/scrolling:shadow-[inset_-1px_0_var(--border)]";
+  "sticky left-0 z-10 bg-background in-[tr:hover]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] in-[tr:has([aria-expanded=true])]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] group-data-scrolled/scrolling:shadow-[inset_-1px_0_var(--border)]";

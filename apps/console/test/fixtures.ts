@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type Organization } from "@braivo/server/client";
+import { BraivoError, type CourseProgressOverview, type Organization } from "@braivo/server/client";
 import { vi } from "vite-plus/test";
 
 // Data and Braivo's stubbed answers that several of the console's page tests
@@ -13,23 +13,35 @@ export const members = [
 ];
 
 /** Braivo's overview of `course-1`: every member counted, by name, and every objective. */
-export const courseProgress = async () => ({
+export const courseProgress = async (): Promise<CourseProgressOverview> => ({
   open: true,
   modelVersion: "v1",
+  asOf: "2026-06-01T12:05:00.000Z",
+  repeatedMissesThreshold: 3,
   learners: [
-    { ...members[1]!, standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 } },
-    { ...members[0]!, standings: { unseen: 2, acquiring: 0, retained: 0, due: 0 } },
+    {
+      ...members[1]!,
+      standings: { unseen: 0, acquiring: 1, retained: 0, due: 1 },
+      repeatedMisses: 0,
+    },
+    {
+      ...members[0]!,
+      standings: { unseen: 2, acquiring: 0, retained: 0, due: 0 },
+      repeatedMisses: 0,
+    },
   ],
   objectives: [
     {
       objectiveId: "greetings",
       title: "Greetings",
       standings: { unseen: 1, acquiring: 1, retained: 0, due: 0 },
+      repeatedMisses: [],
     },
     {
       objectiveId: "numbers",
       title: "Numbers",
       standings: { unseen: 1, acquiring: 0, retained: 0, due: 1 },
+      repeatedMisses: [],
     },
   ],
 });

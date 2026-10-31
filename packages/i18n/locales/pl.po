@@ -53,6 +53,14 @@ msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner with repeated misses on {title}} other {# learners with repeated misses on {title}}}"
+msgstr "{count, plural, one {# uczeń z powtarzającymi się błędami przy celu „{title}”} few {# uczniów z powtarzającymi się błędami przy celu „{title}”} many {# uczniów z powtarzającymi się błędami przy celu „{title}”} other {# ucznia z powtarzającymi się błędami przy celu „{title}”}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner} other {# learners}}"
+msgstr "{count, plural, one {# uczeń} few {# uczniów} many {# uczniów} other {# ucznia}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 msgstr "{count, plural, one {# uczeń, którego uczysz} few {# uczniów, których uczysz} many {# uczniów, których uczysz} other {# ucznia, których uczysz}} w tym kursie, w Twoich grupach: {groupNames}."
 
@@ -462,6 +470,10 @@ msgstr "Nie udało się wczytać ustawienia dostępu narzędzi do danych ucznió
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Could not record your answer. Try again."
 msgstr "Nie udało się zapisać Twojej odpowiedzi. Spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Could not refresh. Try again."
+msgstr "Nie udało się odświeżyć. Spróbuj ponownie."
 
 #: apps/console/components/group-form.tsx
 msgid "Could not reload the group. Try again."
@@ -950,6 +962,10 @@ msgstr "Najwięcej celów do powtórki"
 msgid "Most objectives learning"
 msgstr "Najwięcej celów w trakcie nauki"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Most repeated misses"
+msgstr "Najwięcej powtarzających się błędów"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Name"
 msgstr "Nazwa"
@@ -1029,6 +1045,10 @@ msgstr "Na razie brak uczniów."
 #: apps/console/components/group-form.tsx
 msgid "No member matches."
 msgstr "Żaden członek nie pasuje."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No objectives currently have repeated misses."
+msgstr "Żaden cel nie ma obecnie powtarzających się błędów."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No password to remember."
@@ -1182,6 +1202,14 @@ msgstr "Postępy"
 msgid "Progress by objective"
 msgstr "Postępy według celów"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refresh"
+msgstr "Odśwież"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refreshing…"
+msgstr "Odświeżanie…"
+
 #: apps/console/components/group-form.tsx
 msgid "Reload the group"
 msgstr "Wczytaj grupę ponownie"
@@ -1229,6 +1257,14 @@ msgstr "Usunięcie osoby zachowuje jej historię nauki i członkostwo; inna grup
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Removing…"
 msgstr "Usuwanie…"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses"
+msgstr "Powtarzające się błędy"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
+msgstr "Powtarzające się błędy: cele wciąż w trakcie nauki, w których od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów. „Pokaż odpowiedź” liczy się jako błąd."
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx

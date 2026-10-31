@@ -3,7 +3,15 @@
 
 import type { Database } from "@braivo/db";
 
-import { activeModel, assessKnowledge, type ObjectiveStanding, replay } from "../learning/index.ts";
+import {
+  activeModel,
+  assessKnowledge,
+  type Misses,
+  missesSinceSuccess,
+  type ObjectiveStanding,
+  REPEATED_MISSES_THRESHOLD,
+  replay,
+} from "../learning/index.ts";
 import {
   readCourseObjectives,
   readCourseOrganization,
@@ -69,18 +77,47 @@ export async function readCourseProgress(input: {
     ),
   ]);
 
-  const assessed = members.map((member) => ({
-    member,
-    standings: assessKnowledge({
+  const assessed = members.map((member) => {
+    const history = evidence.get(member.userId) ?? [];
+    const standings = assessKnowledge({
       now,
       objectiveIds,
-      estimates: replay(evidence.get(member.userId) ?? [], activeModel),
+      estimates: replay(history, activeModel),
       model: activeModel,
-    }).objectives,
-  }));
+    }).objectives;
+    // Repeated misses (progress-16): still learning, missed often enough since
+    // the last success. The phase is checked though v1 implies it, so a model
+    // where the two part never flags what is retained.
+    const misses = missesSinceSuccess(history, now);
+    const flagged = standings.flatMap(({ objectiveId, phase }) => {
+      const missed = misses.get(objectiveId);
+      return phase === "acquiring" && missed && missed.count >= REPEATED_MISSES_THRESHOLD
+        ? [{ objectiveId, misses: missed }]
+        : [];
+    });
+    return { member, standings, flagged };
+  });
   const byObjective = Map.groupBy(
     assessed.flatMap(({ standings }) => standings),
     (standing) => standing.objectiveId,
+  );
+  // Most misses first, then the latest; names, then IDs, keep ties stable.
+  const flaggedByObjective = Map.groupBy(
+    assessed
+      .flatMap(({ member, flagged }) =>
+        flagged.map(({ objectiveId, misses }) => ({
+          objectiveId,
+          learner: { userId: member.userId, name: member.name, misses },
+        })),
+      )
+      .toSorted(
+        ({ learner: a }, { learner: b }) =>
+          b.misses.count - a.misses.count ||
+          b.misses.lastMissAt.getTime() - a.misses.lastMissAt.getTime() ||
+          a.name.localeCompare(b.name) ||
+          (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0),
+      ),
+    ({ objectiveId }) => objectiveId,
   );
 
   return {
@@ -88,9 +125,12 @@ export async function readCourseProgress(input: {
     overview: {
       open,
       modelVersion: activeModel.version,
-      learners: assessed.map(({ member, standings }) => ({
+      asOf: now,
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      learners: assessed.map(({ member, standings, flagged }) => ({
         ...member,
         standings: countStandings(standings),
+        repeatedMisses: flagged.length,
       })),
       objectives: objectiveIds.map((objectiveId) => {
         const title = titles.get(objectiveId);
@@ -101,6 +141,7 @@ export async function readCourseProgress(input: {
           objectiveId,
           title,
           standings: countStandings(byObjective.get(objectiveId) ?? []),
+          repeatedMisses: (flaggedByObjective.get(objectiveId) ?? []).map(({ learner }) => learner),
         };
       }),
     },
@@ -123,18 +164,32 @@ function countStandings(standings: readonly ObjectiveStanding[]): StandingCounts
   return counts;
 }
 
+/** A learner with repeated misses on an objective, and those misses. */
+type FlaggedLearner = { userId: string; name: string; misses: Misses };
+
 /**
  * The course's learners as the reader may see them, by name, with their
  * objectives counted; and every objective of the course, in content order,
  * with those learners counted. Both count the same learner-objective
  * standings. `open`, published and not hidden, so a teacher is not sent to
  * a link no learner reaches (ADR 0039).
+ *
+ * Repeated misses (progress-16), from `repeatedMissesThreshold` misses on, assessed at
+ * `asOf`: a learner counts their objectives with them, and an objective names
+ * those learners, most misses first, so the two tally alike.
  */
 export type CourseProgressOverview = {
   open: boolean;
   modelVersion: string;
-  learners: (CourseLearner & { standings: StandingCounts })[];
-  objectives: { objectiveId: string; title: string; standings: StandingCounts }[];
+  asOf: Date;
+  repeatedMissesThreshold: number;
+  learners: (CourseLearner & { standings: StandingCounts; repeatedMisses: number })[];
+  objectives: {
+    objectiveId: string;
+    title: string;
+    standings: StandingCounts;
+    repeatedMisses: FlaggedLearner[];
+  }[];
 };
 
 /** `unavailable` answers a missing course and a refused reader alike, as `LearnerProgress` does. */

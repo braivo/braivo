@@ -5,7 +5,7 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { activeModel, type Evidence } from "../learning/index.ts";
+import { activeModel, type Evidence, REPEATED_MISSES_THRESHOLD } from "../learning/index.ts";
 import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
 import type { AccessKind } from "./access.ts";
 import { readCourseProgress } from "./course-progress.ts";
@@ -155,24 +155,29 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
       overview: {
         open: true,
         modelVersion: activeModel.version,
+        asOf: now,
+        repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
         learners: [
           {
             userId: ana,
             name: ana,
             roles: ["member"],
             standings: { unseen: 1, acquiring: 1, retained: 0, due: 1 },
+            repeatedMisses: 0,
           },
           {
             userId: ben,
             name: ben,
             roles: ["member"],
             standings: { unseen: 1, acquiring: 0, retained: 2, due: 0 },
+            repeatedMisses: 0,
           },
           {
             userId: teacher,
             name: teacher,
             roles: ["admin"],
             standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 },
+            repeatedMisses: 0,
           },
         ],
         objectives: [
@@ -180,16 +185,19 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
             objectiveId: greetings,
             title: "Greetings",
             standings: { unseen: 1, acquiring: 0, retained: 1, due: 1 },
+            repeatedMisses: [],
           },
           {
             objectiveId: numbers,
             title: "Numbers",
             standings: { unseen: 1, acquiring: 1, retained: 1, due: 0 },
+            repeatedMisses: [],
           },
           {
             objectiveId: colours,
             title: "Colours",
             standings: { unseen: 3, acquiring: 0, retained: 0, due: 0 },
+            repeatedMisses: [],
           },
         ],
       },
@@ -219,6 +227,106 @@ describe.skipIf(!connectionString)("reading a course's progress", () => {
         retained: phases.filter((phase) => phase === "retained").length,
         due: phases.filter((phase) => phase === "due").length,
       });
+    }
+  });
+
+  test("names each objective's learners with repeated misses, as many as the learners count", async () => {
+    const failures = (prefix: string, objectiveId: string, days: readonly number[]) =>
+      days.map((day, index) =>
+        evidence({ id: `${prefix}${index}`, objectiveId, outcome: "failure", at: daysAgo(day) }),
+      );
+    await recordEvidence(database, { learnerId: ana, organizationId }, [
+      // Three, the latest a day ago: flagged.
+      ...failures("ag", greetings, [5, 3, 1]),
+      // Three, as many as Ben's, the latest two days ago: listed after his.
+      ...failures("an", numbers, [4, 3, 2]),
+      // The organization's, outside the course: flags nothing here.
+      ...failures("aw", weather, [3, 2, 1]),
+    ]);
+    await recordEvidence(database, { learnerId: ben, organizationId }, [
+      // Four since a success, the latest three days ago: flagged, listed before Ana.
+      evidence({ id: "bg", objectiveId: greetings, at: daysAgo(9) }),
+      ...failures("bg", greetings, [6, 5, 4, 3]),
+      // Three, the latest a day ago: before Ana, though her name comes first.
+      ...failures("bn", numbers, [5, 4, 1]),
+      // Three, then cleared by one success.
+      ...failures("bc", colours, [4, 3, 2]),
+      evidence({ id: "bc", objectiveId: colours, at: daysAgo(1) }),
+    ]);
+
+    const read = await overview();
+    if (read.kind !== "assessed") throw new Error("No overview");
+    const { learners, objectives } = read.overview;
+
+    expect(read.overview).toMatchObject({
+      asOf: now,
+      repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+    });
+    expect(objectives.map(({ title, repeatedMisses }) => [title, repeatedMisses])).toEqual([
+      [
+        "Greetings",
+        [
+          {
+            userId: ben,
+            name: ben,
+            misses: { count: 4, lastMissAt: daysAgo(3), everSucceeded: true },
+          },
+          {
+            userId: ana,
+            name: ana,
+            misses: { count: 3, lastMissAt: daysAgo(1), everSucceeded: false },
+          },
+        ],
+      ],
+      [
+        "Numbers",
+        [
+          {
+            userId: ben,
+            name: ben,
+            misses: { count: 3, lastMissAt: daysAgo(1), everSucceeded: false },
+          },
+          {
+            userId: ana,
+            name: ana,
+            misses: { count: 3, lastMissAt: daysAgo(2), everSucceeded: false },
+          },
+        ],
+      ],
+      ["Colours", []],
+    ]);
+    expect(learners.map(({ userId, repeatedMisses }) => [userId, repeatedMisses])).toEqual([
+      [ana, 2],
+      [ben, 2],
+      [teacher, 0],
+    ]);
+    // Per objective or per learner, the same flags are counted.
+    const flagged = objectives.reduce((sum, { repeatedMisses }) => sum + repeatedMisses.length, 0);
+    expect(learners.reduce((sum, { repeatedMisses }) => sum + repeatedMisses, 0)).toBe(flagged);
+    // And each is what that learner's report shows at the same moment.
+    for (const { userId } of learners) {
+      const report = await readLearnerProgress({
+        database,
+        viewedBy: teacher,
+        accessKind: "browser",
+        learnerId: userId,
+        courseId: course,
+        host: installation,
+        now,
+      });
+      if (report.kind !== "assessed") throw new Error(`No report for ${userId}`);
+      const reported = report.report.objectives.flatMap(({ objectiveId, phase, misses }) =>
+        phase === "acquiring" && misses && misses.count >= report.report.repeatedMissesThreshold
+          ? [[objectiveId, misses]]
+          : [],
+      );
+      expect(reported).toEqual(
+        objectives.flatMap(({ objectiveId, repeatedMisses }) =>
+          repeatedMisses
+            .filter((flag) => flag.userId === userId)
+            .map(({ misses }) => [objectiveId, misses]),
+        ),
+      );
     }
   });
 

@@ -53,6 +53,14 @@ msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# due for review} other {# due for review}}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner with repeated misses on {title}} other {# learners with repeated misses on {title}}}"
+msgstr "{count, plural, one {# learner with repeated misses on {title}} other {# learners with repeated misses on {title}}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "{count, plural, one {# learner} other {# learners}}"
+msgstr "{count, plural, one {# learner} other {# learners}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 msgstr "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 
@@ -462,6 +470,10 @@ msgstr "Could not load whether tools read learners' data. Reload the page to try
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Could not record your answer. Try again."
 msgstr "Could not record your answer. Try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Could not refresh. Try again."
+msgstr "Could not refresh. Try again."
 
 #: apps/console/components/group-form.tsx
 msgid "Could not reload the group. Try again."
@@ -950,6 +962,10 @@ msgstr "Most objectives due"
 msgid "Most objectives learning"
 msgstr "Most objectives learning"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Most repeated misses"
+msgstr "Most repeated misses"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Name"
 msgstr "Name"
@@ -1029,6 +1045,10 @@ msgstr "No learners yet."
 #: apps/console/components/group-form.tsx
 msgid "No member matches."
 msgstr "No member matches."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No objectives currently have repeated misses."
+msgstr "No objectives currently have repeated misses."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "No password to remember."
@@ -1182,6 +1202,14 @@ msgstr "Progress"
 msgid "Progress by objective"
 msgstr "Progress by objective"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refresh"
+msgstr "Refresh"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Refreshing…"
+msgstr "Refreshing…"
+
 #: apps/console/components/group-form.tsx
 msgid "Reload the group"
 msgstr "Reload the group"
@@ -1229,6 +1257,14 @@ msgstr "Removing someone keeps their learning history and their membership; anot
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Removing…"
 msgstr "Removing…"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses"
+msgstr "Repeated misses"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
+msgstr "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx

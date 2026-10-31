@@ -63,7 +63,14 @@ describe("the console", () => {
       within(header!)
         .getAllByRole("columnheader")
         .map((cell) => cell.textContent),
-    ).toEqual(["Learner", "Not started", "Learning", "Retained", "Due for review"]);
+    ).toEqual([
+      "Learner",
+      "Not started",
+      "Learning",
+      "Repeated misses",
+      "Retained",
+      "Due for review",
+    ]);
     expect(
       rows.map((row) => {
         const learner = within(row).getByRole("rowheader");
@@ -75,8 +82,9 @@ describe("the console", () => {
         ];
       }),
     ).toEqual([
-      ["Lee Learner", "0", "1", "0", "1"],
-      ["Olive Owner", "2", "0", "0", "0"],
+      // No repeated misses: blank, not 0.
+      ["Lee Learner", "0", "1", "", "0", "1"],
+      ["Olive Owner", "2", "0", "", "0", "0"],
     ]);
     // Every member, staff included, and said so.
     expect(screen.getByText(/2 members of Example School, staff included/)).toBeTruthy();
@@ -124,7 +132,14 @@ describe("the console", () => {
       within(header!)
         .getAllByRole("columnheader")
         .map((cell) => cell.textContent),
-    ).toEqual(["Objective", "Not started", "Learning", "Retained", "Due for review"]);
+    ).toEqual([
+      "Objective",
+      "Not started",
+      "Learning",
+      "Repeated misses",
+      "Retained",
+      "Due for review",
+    ]);
     expect(
       rows.map((row) => [
         within(row).getByRole("rowheader").textContent,
@@ -133,8 +148,8 @@ describe("the console", () => {
           .map((cell) => cell.textContent),
       ]),
     ).toEqual([
-      ["Greetings", "1", "1", "0", "0"],
-      ["Numbers", "1", "0", "0", "1"],
+      ["Greetings", "1", "1", "", "0", "0"],
+      ["Numbers", "1", "0", "", "0", "1"],
     ]);
   });
 
@@ -153,12 +168,22 @@ describe("the console", () => {
         courseProgress: async () => ({
           ...(await courseProgress()),
           learners: [
-            { ...members[1]!, standings: standings(1, 2, 4, 3) },
-            { ...members[0]!, standings: standings(0, 0, 0, 0) },
+            { ...members[1]!, standings: standings(1, 2, 4, 3), repeatedMisses: 0 },
+            { ...members[0]!, standings: standings(0, 0, 0, 0), repeatedMisses: 0 },
           ],
           objectives: [
-            { objectiveId: "greetings", title: "Greetings", standings: standings(0, 0, 2, 0) },
-            { objectiveId: "numbers", title: "Numbers", standings: standings(1, 0, 0, 1) },
+            {
+              objectiveId: "greetings",
+              title: "Greetings",
+              standings: standings(0, 0, 2, 0),
+              repeatedMisses: [],
+            },
+            {
+              objectiveId: "numbers",
+              title: "Numbers",
+              standings: standings(1, 0, 0, 1),
+              repeatedMisses: [],
+            },
           ],
         }),
       },
@@ -200,6 +225,7 @@ describe("the console", () => {
       // Each heading's swatch is its standing's colour in the bars.
       const swatches = within(header!)
         .getAllByRole("columnheader")
+        .filter((cell) => cell.textContent !== "Repeated misses")
         .slice(1)
         .map((cell) => cell.querySelector(":scope > [aria-hidden]")!);
       expect(swatches.map((swatch) => swatch.getAttribute("aria-hidden"))).toEqual(

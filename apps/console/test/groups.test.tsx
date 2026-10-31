@@ -81,16 +81,20 @@ describe("groups", () => {
       const courseProgress = vi.fn(async () => ({
         open: true,
         modelVersion: "v1",
+        asOf: "2026-06-01T12:05:00.000Z",
+        repeatedMissesThreshold: 3,
         learners: [
           {
             userId: "u2",
             name: "Lee Learner",
             standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
+            repeatedMisses: 0,
           },
           {
             userId: "u3",
             name: "Lou Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+            repeatedMisses: 0,
           },
         ],
         objectives: [
@@ -98,6 +102,7 @@ describe("groups", () => {
             objectiveId: "o1",
             title: "Greetings",
             standings: { unseen: 1, acquiring: 1, retained: 0, due: 0 },
+            repeatedMisses: [],
           },
         ],
       }));
@@ -167,21 +172,26 @@ describe("groups", () => {
           courseProgress: async () => ({
             open: true,
             modelVersion: "v1",
+            asOf: "2026-06-01T12:05:00.000Z",
+            repeatedMissesThreshold: 3,
             learners: [
               {
                 userId: "x-111111",
                 name: "Ana",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+                repeatedMisses: 0,
               },
               {
                 userId: "y-222222",
                 name: "Ana",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+                repeatedMisses: 0,
               },
               {
                 userId: "u3",
                 name: "Lou Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+                repeatedMisses: 0,
               },
             ],
             objectives: [],
@@ -222,16 +232,20 @@ describe("groups", () => {
           courseProgress: async () => ({
             open: true,
             modelVersion: "v1",
+            asOf: "2026-06-01T12:05:00.000Z",
+            repeatedMissesThreshold: 3,
             learners: [
               {
                 userId: "u2",
                 name: "Lee Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+                repeatedMisses: 0,
               },
               {
                 userId: "u3",
                 name: "Lou Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+                repeatedMisses: 0,
               },
             ],
             objectives: [],
@@ -257,16 +271,20 @@ describe("groups", () => {
       const progress = async () => ({
         open: true,
         modelVersion: "v1",
+        asOf: "2026-06-01T12:05:00.000Z",
+        repeatedMissesThreshold: 3,
         learners: [
           {
             userId: "u2",
             name: "Lee Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+            repeatedMisses: 0,
           },
           {
             userId: "u3",
             name: "Lou Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
+            repeatedMisses: 0,
           },
         ],
         objectives: [],
@@ -447,10 +465,12 @@ describe("groups", () => {
           courseProgress: async () => ({
             open: true,
             modelVersion: "v1",
+            asOf: "2026-06-01T12:05:00.000Z",
+            repeatedMissesThreshold: 3,
             learners: [
-              { userId: "u2", name: "Lee Learner", standings: standings(2, 0) },
-              { userId: "u3", name: "Lou Learner", standings: standings(0, 3) },
-              { userId: "u4", name: "Ada Learner", standings: standings(0, 3) },
+              { userId: "u2", name: "Lee Learner", standings: standings(2, 0), repeatedMisses: 0 },
+              { userId: "u3", name: "Lou Learner", standings: standings(0, 3), repeatedMisses: 0 },
+              { userId: "u4", name: "Ada Learner", standings: standings(0, 3), repeatedMisses: 0 },
             ],
             objectives: [],
           }),
@@ -473,6 +493,8 @@ describe("groups", () => {
       const courseProgress = vi.fn(async () => ({
         open: true,
         modelVersion: "v1",
+        asOf: "2026-06-01T12:05:00.000Z",
+        repeatedMissesThreshold: 3,
         learners: [],
         objectives: [],
       }));

@@ -80,10 +80,12 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
 
 # Or the whole course, counted by standing per member and per objective.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/progress
-# {"modelVersion":"v1","learners":[{"userId":"…","name":"Owner","roles":["owner"],
-#  "standings":{"unseen":1,"acquiring":1,"retained":0,"due":0}}],
+# {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,
+#  "learners":[{"userId":"…","name":"Owner","roles":["owner"],
+#  "standings":{"unseen":1,"acquiring":1,"retained":0,"due":0},"repeatedMisses":0}],
 #  "objectives":[{"objectiveId":"…","title":"Greetings",
-#  "standings":{"unseen":0,"acquiring":1,"retained":0,"due":0}},{…,"title":"Numbers",…}]}
+#  "standings":{"unseen":0,"acquiring":1,"retained":0,"due":0},"repeatedMisses":[]},
+#  {…,"title":"Numbers",…}]}
 ```
 
 The same loop runs in the learn app: sign in at `http://localhost:5173` as `owner@example.com` and choose the course.

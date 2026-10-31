@@ -862,17 +862,23 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       headers: { cookie: teacherCookie },
     });
 
-    expect(overview.modelVersion).toBe("v1");
+    expect(overview).toMatchObject({
+      modelVersion: "v1",
+      asOf: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/),
+      repeatedMissesThreshold: 3,
+    });
     expect(overview.learners.find(({ userId }) => userId === learnerId)).toEqual({
       userId: learnerId,
       name: expect.any(String),
       roles: ["member"],
       standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 },
+      repeatedMisses: expect.any(Number),
     });
     expect(overview.objectives.find(({ objectiveId }) => objectiveId === fractions)).toEqual({
       objectiveId: fractions,
       title: expect.any(String),
       standings: expect.objectContaining({ acquiring: 1 }),
+      repeatedMisses: expect.any(Array),
     });
   });
 
