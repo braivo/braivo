@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type Activity, BraivoError, type BraivoClient, type Grade } from "@braivo/server/client";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
-import { SPANISH_ID, typedActivity, activity, anotherActivity } from "./fixtures.ts";
+import { SPANISH_ID, typedActivity, activity, anotherActivity, noProgress } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 describe("the learn app", () => {
@@ -399,20 +399,191 @@ describe("the learn app", () => {
     expect(submitAttempt).not.toHaveBeenCalled();
   });
 
-  test("names the objective that has nothing to practise, without claiming the learner is caught up", async () => {
-    renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => ({
-        decision: activity.decision,
-        objective: { id: "o2", title: "Subjunctive" },
-      }),
-    });
+  /** Subjunctive, selected next, has no task. */
+  const blocked: Activity = {
+    decision: { objectiveId: "o2", modelVersion: "v1", intent: "introduce" },
+    objective: { id: "o2", title: "Subjunctive" },
+  };
+
+  test("says why practice stopped, with a way to check again and a way out, never caught up", async () => {
+    // The same wording whether its task was never written, waits for review,
+    // or was retired: nothing unpublished revealed, nobody claimed to be told.
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => blocked });
 
     const notice = await screen.findByRole("region", {
       name: "Nothing to practise right now",
-      description: "Subjunctive comes next, but there's no practice for it yet.",
+      description: "Practice for Subjunctive isn't available right now.",
     });
     expect(document.activeElement).toBe(notice);
+    expect(within(notice).getByRole("button", { name: "Check again" })).toBeTruthy();
+    expect(within(notice).getByRole("link", { name: "Your courses" }).getAttribute("href")).toBe(
+      "/",
+    );
+    expect(screen.queryByText("You're caught up")).toBeNull();
+  });
+
+  test("says when the next review falls due beside a blocked objective, never that practice resumes then", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => blocked,
+      learnerProgress: async () => ({
+        ...noProgress,
+        objectives: [
+          {
+            objectiveId: "o1",
+            title: "Greetings",
+            phase: "retaining",
+            lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+            stability: 1,
+            retrievability: 0.95,
+            due: false,
+            dueAt: "2099-06-09T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+
+    expect(
+      await screen.findByRole("region", {
+        name: "Nothing to practise right now",
+        description:
+          /^Practice for Subjunctive isn't available right now\. ?Next review due: Greetings, on .+ at .+\.$/,
+      }),
+    ).toBeTruthy();
+  });
+
+  test("on Check again, reads the activity and standing afresh, says when there is still nothing to practise, then shows what came", async () => {
+    let answer!: (next: Activity) => void;
+    const session = vi.fn(async () => ({ id: "ada", name: "Ada Learner" }));
+    const { learnerProgress, nextActivity } = renderAt("/c/4732", {
+      signedIn: true,
+      session,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(blocked)
+        .mockImplementation(() => new Promise((resolve) => (answer = resolve))),
+    });
+    const check = await screen.findByRole("button", { name: "Check again" });
+    // As a keyboard learner's would be: a click alone moves no focus here.
+    check.focus();
+    const status = screen.getByRole("status");
+    // Mounted empty, so its first words are announced.
+    expect(status.textContent).toBe("");
+
+    for (const time of [1, 2]) {
+      fireEvent.click(check);
+      await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(time + 1));
+      // Held while checking, keeping the focus; a second press reads nothing twice.
+      expect(check.textContent).toBe("Checking…");
+      expect(check.getAttribute("aria-disabled")).toBe("true");
+      expect(status.textContent).toBe("");
+      fireEvent.click(check);
+      await act(async () => answer(blocked));
+      expect(status.textContent).toBe("Still nothing to practise.");
+      expect(check.textContent).toBe("Check again");
+      expect(document.activeElement).toBe(check);
+    }
+    expect(nextActivity).toHaveBeenCalledTimes(3);
+    expect(learnerProgress).toHaveBeenCalledTimes(3);
+    expect(session).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(check);
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(4));
+    await act(async () => answer(activity));
+    expect(await screen.findByRole("button", { name: "hablo" })).toBeTruthy();
+    expect(screen.queryByText("Nothing to practise right now")).toBeNull();
+  });
+
+  test("keeps the notice when Check again fails, saying so each time until one succeeds, and sends a learner signed out to sign in", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(blocked)
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockResolvedValueOnce(blocked),
+    });
+    const check = await screen.findByRole("button", { name: "Check again" });
+    check.focus();
+
+    fireEvent.click(check);
+    const failed = await screen.findByRole("alert");
+    expect(failed.textContent).toBe("Could not check for practice. Try again.");
+    fireEvent.click(check);
+    // A new alert, so a screen reader hears the second failure too.
+    await vi.waitFor(() => expect(screen.getByRole("alert")).not.toBe(failed));
+    expect(screen.getByRole("region", { name: "Nothing to practise right now" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("");
+    expect(document.activeElement).toBe(check);
+    // Checked at last: the failure is past, not shown beside the answer.
+    fireEvent.click(check);
+    await vi.waitFor(() =>
+      expect(screen.getByRole("status").textContent).toBe("Still nothing to practise."),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    cleanup();
+
+    let signedIn = true;
+    const { router } = renderAt("/c/4732", {
+      signedIn: true,
+      session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(blocked)
+        .mockImplementation(async () => {
+          signedIn = false;
+          throw new BraivoError(401, "no session");
+        }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("button", { name: "Send me a code" })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/login");
+  });
+
+  test("starts the notice afresh in another course, whatever the last one's Check again said or still awaits", async () => {
+    const pending = Promise.withResolvers<Activity>();
+    const { router } = renderAt("/c/4732", {
+      signedIn: true,
+      learnerCourseByNumber: async (number) => ({
+        id: `c${number}`,
+        number,
+        title: "Spanish",
+        urlLabel: "spanish",
+      }),
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValueOnce(blocked)
+        .mockResolvedValueOnce(blocked)
+        .mockReturnValueOnce(pending.promise)
+        .mockResolvedValue(blocked),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Check again" }));
+    expect(await screen.findByText("Still nothing to practise.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("button", { name: "Checking…" })).toBeTruthy();
+
+    await act(() => router.navigate({ to: "/c/$courseRef", params: { courseRef: "5810" } }));
+    expect(await screen.findByRole("button", { name: "Check again" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("");
+    await act(async () => pending.resolve(blocked));
+    // The old course's check, settling late, says nothing here.
+    expect(screen.getByRole("status").textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Check again" }).getAttribute("aria-disabled")).toBe(
+      "false",
+    );
+  });
+
+  test("says a course with no objectives has nothing to practise yet, not that the learner is caught up", async () => {
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => ({ empty: true }) });
+
+    const notice = await screen.findByRole("region", {
+      name: "This course has nothing to practise yet.",
+    });
+    expect(document.activeElement).toBe(notice);
+    expect(within(notice).getByRole("link", { name: "Your courses" }).getAttribute("href")).toBe(
+      "/",
+    );
     expect(screen.queryByText("You're caught up")).toBeNull();
   });
 

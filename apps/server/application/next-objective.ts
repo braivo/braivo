@@ -44,7 +44,11 @@ export async function chooseNextObjective(input: {
     authorize: ({ open }) => open,
   });
   if (learner === undefined) return { kind: "unavailable" };
+  // As `decidePractice` says it, the one rule the activity follows too.
+  if (learner.objectiveIds.length === 0) return { kind: "empty" };
 
+  // Its own selection, over every objective, tasks or not: an integrator brings
+  // their own, so `decidePractice`'s preference for Braivo's does not apply.
   const { candidates, heldBack } = limitNewObjectives(learner, { now, timeZone });
   const decision = selectNext({
     now,
@@ -62,12 +66,14 @@ export async function chooseNextObjective(input: {
  * membership query.
  *
  * `caught-up` is reached only after membership is confirmed, so it reveals
- * nothing, and it tells a client "come back later" rather than "not for you". A
- * course with no objectives yet is caught up too. `daily-limit` is caught up but
+ * nothing, and it tells a client "come back later" rather than "not for you".
+ * `empty`: the course has no objective yet, so nothing was ever there to
+ * finish; reachable only as `caught-up` is. `daily-limit` is caught up but
  * for objectives not started yet, held back until tomorrow (`limitNewObjectives`).
  */
 export type NextObjective =
   | { kind: "unavailable" }
+  | { kind: "empty" }
   | { kind: "caught-up" }
   | { kind: "daily-limit"; limit: number }
   | { kind: "decided"; decision: LearningDecision };

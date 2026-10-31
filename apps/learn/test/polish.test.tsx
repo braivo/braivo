@@ -308,11 +308,19 @@ describe("the learn app in Polish", () => {
       signedIn: true,
       nextActivity: async () => ({ decision: activity.decision, objective: activity.objective }),
     });
+    const notice = await screen.findByRole("region", {
+      name: "Na razie nie ma nic do ćwiczenia",
+      description: "Ćwiczenia z tematu „Past tense” są obecnie niedostępne.",
+    });
+    fireEvent.click(within(notice).getByRole("button", { name: "Sprawdź ponownie" }));
+    await vi.waitFor(() =>
+      expect(within(notice).getByRole("status").textContent).toBe("Nadal nie ma nic do ćwiczenia."),
+    );
+    cleanup();
+
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => ({ empty: true }) });
     expect(
-      await screen.findByRole("region", {
-        name: "Na razie nie ma nic do ćwiczenia",
-        description: "Następny jest temat „Past tense”, ale nie ma jeszcze do niego ćwiczeń.",
-      }),
+      await screen.findByRole("region", { name: "W tym kursie nie ma jeszcze nic do ćwiczenia." }),
     ).toBeTruthy();
     cleanup();
 

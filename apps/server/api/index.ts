@@ -102,8 +102,10 @@
 //        is not in. One status for both, deliberately: singling out the second
 //        would enumerate other organizations' courses one guess at a time.
 //   204  caught up — the course is theirs and nothing in it needs attention
-//        now, a course with no objectives yet included. Only an entitled
-//        learner reaches this, so telling it apart from 404 discloses nothing.
+//        now. Only an entitled learner reaches this, so telling it apart from
+//        404 discloses nothing.
+//   200  `{ "empty": true }` — the course is theirs and has no objectives yet:
+//        nothing to practise, and nothing finished. Not caught up: say so.
 //   200  `{ "dailyLimit": 20 }` — nothing else needs attention, and objectives
 //        not started yet wait for tomorrow. Not caught up: say so.
 //   200  a learning decision. Always `objectiveId`, `modelVersion` and

@@ -58,6 +58,8 @@ let fractionsTasks!: [string, string];
 /** Past tense, untaught, fractions, in that order. */
 let courseId!: string;
 let untaughtCourseId!: string;
+/** Published, with no objective yet. */
+let emptyCourseId!: string;
 let foreignTask!: string;
 /** The other organization's course of `foreignTask`, where the learner also studies. */
 let foreignCourseId!: string;
@@ -167,6 +169,15 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         organizationId,
         title: "Nothing to practise",
         objectiveIds: [untaught],
+      })
+    ).id;
+
+    emptyCourseId = (
+      await createCourse(database, {
+        published: true,
+        organizationId,
+        title: "Empty",
+        objectiveIds: [],
       })
     ).id;
 
@@ -446,6 +457,10 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "no-activity",
       objective: { id: untaught },
     });
+  });
+
+  test("is empty, not caught up, in a course with no objective yet", async () => {
+    expect(await activity(start, learner, emptyCourseId)).toEqual({ kind: "empty" });
   });
 
   test("is caught up when an objective with a task needs no attention", async () => {

@@ -13,7 +13,12 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { codeSentTo } from "../auth/testing.ts";
 import { activeModel } from "../learning/index.ts";
-import { createCourse, createObjectives, createTasks } from "../persistence/index.ts";
+import {
+  createCourse,
+  createObjectives,
+  createTasks,
+  recordEvidence,
+} from "../persistence/index.ts";
 import { directoryStore } from "../storage/index.ts";
 import { BraivoError, createClient } from "./client.ts";
 import { connectionString, createTestApi, learnerSessionOn } from "./testing.ts";
@@ -718,12 +723,21 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await published()).toEqual([true]);
   });
 
-  test("reads a learner caught up as undefined rather than as an error", async () => {
-    const activity = await client.nextActivity(emptyCourseId, {
-      headers: { cookie: learnerCookie },
+  test("reads a learner caught up as undefined, and a course with no objectives as empty", async () => {
+    const asLearner = { headers: { cookie: learnerCookie } };
+    const [graded] = await createObjectives(database, organizationId, ["Graded elsewhere"]);
+    const { id: gradedCourseId } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Graded elsewhere",
+      objectiveIds: [graded!],
     });
+    await recordEvidence(database, { learnerId, organizationId }, [
+      { id: "graded", objectiveId: graded!, outcome: "success", at: new Date(Date.now() - 60_000) },
+    ]);
 
-    expect(activity).toBeUndefined();
+    expect(await client.nextActivity(gradedCourseId, asLearner)).toBeUndefined();
+    expect(await client.nextActivity(emptyCourseId, asLearner)).toEqual({ empty: true });
   });
 
   test("reads an objective with nothing to practise as the decision without a task", async () => {
