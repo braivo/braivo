@@ -79,7 +79,7 @@ const Answer = z.object({
         quotes: z
           .array(z.string())
           .describe(
-            `The material's exact words that teach it, at most ${MAX_OBJECTIVE_CITATIONS}.`,
+            `The material's exact words that teach it, at most ${MAX_OBJECTIVE_CITATIONS}, each occurring exactly once in the material.`,
           ),
         tasks: z.array(
           // One shape for both kinds: a union is harder for a model to fill,
@@ -101,7 +101,7 @@ const Answer = z.object({
             quotes: z
               .array(z.string())
               .describe(
-                `The material's exact words it was written from, at most ${MAX_TASK_CITATIONS}.`,
+                `The material's exact words it was written from, at most ${MAX_TASK_CITATIONS}, each occurring exactly once in the material.`,
               ),
           }),
         ),
@@ -120,7 +120,7 @@ For each objective, write 2 to ${MAX_TASKS} tasks, each with an explanation of w
 An objective's tasks are all of one kind: recognising and recalling are different abilities, and Braivo counts every answer on an objective alike.
 For vocabulary, each word or phrase is its own objective, one meaning each. Write for the learners described, in their language, about what the material teaches.
 
-Every quote is copied exactly from the material, a sentence or a line, and must occur only once in it: Braivo checks each one, and drops what it cannot find. Teach only what the material teaches.`;
+Every quote is copied exactly from one continuous passage of the material and must occur only once in it: Braivo checks each one, and drops what it cannot find or finds more than once. Line breaks may be written as spaces; the words, their order, letter case, and punctuation stay as in the material. Material repeats itself: a word in a word list comes back in the examples, the dialogue, and the exercises, and so do whole example sentences. So before choosing a quote, look for its words elsewhere in the material, and if they are there, extend the quote with the words right next to it until no other place matches, such as the translation beside a word in a word list, a dialogue line's speaker, or an exercise's number. Never join words from separate places, and never paraphrase. For example, where a word list has "le pain" on the line above "the bread", the examples have "Je voudrais le pain, s'il vous plaît." and a dialogue has "Paul: Je voudrais le pain, s'il vous plaît.", quote "le pain the bread" or "Paul: Je voudrais le pain", never "le pain" or "Je voudrais le pain, s'il vous plaît". Teach only what the material teaches.`;
 
 /**
  * Drafts a course from one source with `model`, keeping only what Braivo would
