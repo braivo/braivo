@@ -115,8 +115,8 @@ describe.skipIf(!connectionString)("organization membership", () => {
   });
 
   test("refuses a second membership for the same user and organization", async () => {
-    // Better Auth places no uniqueness here, and two invitation acceptances that
-    // race can each create one. This role read takes the first row it finds, so
+    // Better Auth checks before adding a member, so two additions that race can
+    // each create one. This role read takes the first row it finds, so
     // a duplicate means removing someone leaves their access behind — a removed
     // administrator still passing every check Braivo makes.
     const error = await database

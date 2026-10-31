@@ -106,8 +106,8 @@ A member of any role who teaches a group also reads its learners' progress, and 
 ## Decisions
 
 - [ADR 0004](../adr/0004-one-application-origin.md): one origin per app; the console addresses organizations by slug.
-- [ADR 0005](../adr/0005-postgresql-drizzle.md): hand-written migrations, like member uniqueness, are the justified exception.
-- [ADR 0006](../adr/0006-better-auth.md): Better Auth owns identity and membership; organization context is not authorization.
+- [ADR 0005](../adr/0005-postgresql-drizzle.md): schema changes are committed migrations, generated from the schema.
+- [ADR 0006](../adr/0006-better-auth.md): Better Auth owns identity and membership; organization context is not authorization; constraints its tables lack, like member uniqueness, come from Braivo's schema plugin.
 - [ADR 0010](../adr/0010-hono-http-layer.md): a route resolves the session and passes user IDs to one use case.
 - [ADR 0011](../adr/0011-ui-and-auth-client-packages.md): browser sign-in lives in `packages/auth-client`.
 - [ADR 0016](../adr/0016-route-files.md): `_signed-in/route.tsx` guards signed-in pages.

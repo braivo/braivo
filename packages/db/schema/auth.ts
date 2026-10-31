@@ -63,7 +63,10 @@ export const account = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [
+    uniqueIndex("account_provider_account_uidx").on(table.providerId, table.accountId),
+    index("account_userId_idx").on(table.userId),
+  ],
 );
 
 export const verification = pgTable(
@@ -114,6 +117,7 @@ export const member = pgTable(
     createdAt: timestamp("created_at").notNull(),
   },
   (table) => [
+    uniqueIndex("member_organization_user_uidx").on(table.organizationId, table.userId),
     index("member_organizationId_idx").on(table.organizationId),
     index("member_userId_idx").on(table.userId),
   ],
@@ -147,7 +151,7 @@ export const deviceCode = pgTable(
     id: text("id").primaryKey(),
     deviceCode: text("device_code").notNull(),
     userCode: text("user_code").notNull(),
-    userId: text("user_id"),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at").notNull(),
     status: text("status").notNull(),
     lastPolledAt: timestamp("last_polled_at"),
@@ -392,6 +396,10 @@ export const authRelations = defineRelationsPart(
         from: r.user.id,
         to: r.invitation.inviterId,
       }),
+      deviceCodes: r.many.deviceCode({
+        from: r.user.id,
+        to: r.deviceCode.userId,
+      }),
       oauthClients: r.many.oauthClient({
         from: r.user.id,
         to: r.oauthClient.userId,
@@ -460,6 +468,12 @@ export const authRelations = defineRelationsPart(
       }),
       user: r.one.user({
         from: r.invitation.inviterId,
+        to: r.user.id,
+      }),
+    },
+    deviceCode: {
+      user: r.one.user({
+        from: r.deviceCode.userId,
         to: r.user.id,
       }),
     },

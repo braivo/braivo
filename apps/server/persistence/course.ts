@@ -395,8 +395,7 @@ export async function updateCourseUrlLabel(
  * Every open course (published, not hidden) of every organization this user
  * belongs to, or of just `organizationId` when given, and of those just the one numbered `number`, by
  * title. A user is a member of an organization at most once, so the join cannot
- * repeat a course; the index enforcing it is hand-written in migrations, not in
- * `schema/auth.ts`.
+ * repeat a course; `auth/constraints.ts` declares the index enforcing it.
  */
 export async function readLearnerCourses(
   database: Database,
