@@ -7,6 +7,18 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: pl\n"
 
+#: apps/console/components/findings.tsx
+msgid "“{answer}” is accepted only with its final mark: a learner who leaves it out is marked wrong. Check whether that should count too."
+msgstr "„{answer}” jest uznawane tylko z końcowym znakiem: odpowiedź ucznia, który go pominie, zostanie oceniona jako błędna. Sprawdź, czy taka odpowiedź też powinna się liczyć."
+
+#: apps/console/components/findings.tsx
+msgid "“{answer}” is accepted, “{suggestion}” is not: a learner who leaves out the final mark is marked wrong. Check whether it should count too."
+msgstr "„{answer}” jest uznawane, „{suggestion}” nie: odpowiedź ucznia, który pominie końcowy znak, zostanie oceniona jako błędna. Sprawdź, czy ta wersja też powinna się liczyć."
+
+#: apps/console/components/findings.tsx
+msgid "“{answer}” is matched as written, slash or brackets included: a learner who types one part alone is marked wrong unless it is listed too."
+msgstr "„{answer}” jest porównywane dosłownie, razem z ukośnikiem lub nawiasami: odpowiedź ucznia, który wpisze tylko jedną część, zostanie oceniona jako błędna, chyba że ta część też jest na liście."
+
 #: apps/console/components/group-form.tsx
 msgid "(in this group)"
 msgstr "(w tej grupie)"
@@ -15,6 +27,11 @@ msgstr "(w tej grupie)"
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "{0, plural, one {# learner} other {# learners}}"
 msgstr "{0, plural, one {# uczeń} few {# uczniów} many {# uczniów} other {# ucznia}}"
+
+#. placeholder {0}: objectivesWithoutPractice.length
+#: apps/console/components/task-review.tsx
+msgid "{0, plural, one {# objective would have no practice:} other {# objectives would have no practice:}}"
+msgstr "{0, plural, one {# cel nauczania zostałby bez ćwiczeń:} few {# cele nauczania zostałyby bez ćwiczeń:} many {# celów nauczania zostałoby bez ćwiczeń:} other {# celu nauczania zostałoby bez ćwiczeń:}}"
 
 #. placeholder {0}: teachers.length
 #. placeholder {1}: learners.length
@@ -146,6 +163,10 @@ msgstr "{regionName} (wkrótce)"
 msgid "{successes, plural, one {# success} other {# successes}}"
 msgstr "{successes, plural, one {# sukces} few {# sukcesy} many {# sukcesów} other {# sukcesu}}"
 
+#: apps/console/components/task-review.tsx
+msgid "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
+msgstr "{taskCount, plural, one {# z tych zadań ma uwagi do sprawdzenia} few {# z tych zadań mają uwagi do sprawdzenia} many {# z tych zadań ma uwagi do sprawdzenia} other {# z tych zadań ma uwagi do sprawdzenia}}"
+
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
 msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
@@ -157,6 +178,11 @@ msgstr "Kod można wysłać ponownie minutę po poprzednim wysłaniu."
 #: packages/auth-client/sign-in.tsx
 msgid "A code was requested less than a minute ago. Check your email."
 msgstr "O kod poproszono niecałą minutę temu. Sprawdź pocztę."
+
+#. Completes “differs from … only in …”
+#: apps/console/components/findings.tsx
+msgid "a final mark"
+msgstr "końcowym znakiem"
 
 #: apps/console/components/group-form.tsx
 msgid "A group was already created from this form. Find it among the groups."
@@ -286,6 +312,11 @@ msgstr "Anuluj"
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Cancelling…"
 msgstr "Anulowanie…"
+
+#. Completes “differs from … only in …”
+#: apps/console/components/findings.tsx
+msgid "case"
+msgstr "wielkością liter"
 
 #: apps/console/components/group-form.tsx
 msgid "Change to learner"
@@ -623,14 +654,29 @@ msgctxt "Changes the learners' site address"
 msgid "Edit"
 msgstr "Zmień"
 
+#. placeholder {0}: task.prompt
+#: apps/console/components/task-review.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/sources/$sourceId.tsx
+msgid "Edit “{0}” and add “{answer}”"
+msgstr "Edytuj „{0}” i dodaj „{answer}”"
+
 #. placeholder {0}: group.name
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Edit {0}"
 msgstr "Edytuj {0}"
 
+#: apps/console/components/findings.tsx
+msgid "Edit and add “{suggestion}”"
+msgstr "Edytuj i dodaj „{suggestion}”"
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Edit learners' site"
 msgstr "Zmień adres strony dla uczniów"
+
+#. placeholder {0}: task.prompt
+#: apps/console/components/task-review.tsx
+msgid "Edit unpublished task “{0}” and add “{answer}”"
+msgstr "Edytuj nieopublikowane zadanie „{0}” i dodaj „{answer}”"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/auth-client/password-sign-in.tsx
@@ -1106,6 +1152,10 @@ msgstr "Nie ma nic do zapisania: grupa już tak wygląda."
 msgid "Objective"
 msgstr "Cel"
 
+#: apps/console/components/task-review.tsx
+msgid "Objectives without practice"
+msgstr "Cele nauczania bez ćwiczeń"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "on {date} at {time}"
 msgstr "{date} o {time}"
@@ -1202,6 +1252,15 @@ msgstr "Postępy"
 msgid "Progress by objective"
 msgstr "Postępy według celów"
 
+#: apps/console/components/task-review.tsx
+msgid "Publish anyway"
+msgstr "Opublikuj mimo to"
+
+#. Completes “differs from … only in …”
+#: apps/console/components/findings.tsx
+msgid "quote marks or apostrophes"
+msgstr "cudzysłowem lub apostrofem"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Refresh"
 msgstr "Odśwież"
@@ -1286,6 +1345,10 @@ msgstr "Powtórka"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Review due"
 msgstr "Termin powtórki"
+
+#: apps/console/components/task-review.tsx
+msgid "Review them"
+msgstr "Sprawdź je"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Role"
@@ -1400,6 +1463,10 @@ msgstr "Zalogowano jako {email}."
 msgid "Signing in"
 msgstr "Logowanie"
 
+#: apps/console/components/task-review.tsx
+msgid "Some of this may not work as intended:"
+msgstr "Nie wszystko może działać tak, jak zamierzono:"
+
 #: apps/console/components/group-form.tsx
 msgid "Someone changed this group meanwhile: {whom} is already in it in the other role, so that change was left out. Change their role below if you meant to, then save again."
 msgstr "Ktoś w międzyczasie zmienił tę grupę: {whom} ma w niej już drugą rolę, więc ta zmiana została pominięta. Jeśli o to chodziło, zmień rolę poniżej i zapisz ponownie."
@@ -1510,6 +1577,10 @@ msgstr "Poprawna odpowiedź: {correctAnswer}"
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."
 msgstr "Nie udało się wysłać kodu. Spróbuj ponownie za minutę."
+
+#: apps/console/components/findings.tsx
+msgid "The correct option “{correct}” differs from “{other}” only in {differences}."
+msgstr "Poprawna odpowiedź „{correct}” różni się od „{other}” tylko {differences}."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "The domain was saved, but setting it up failed. Add it again to retry."

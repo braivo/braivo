@@ -43,9 +43,9 @@ import type {
 // The client for Braivo's HTTP API, which the learn and console apps import as
 // `@braivo/server/client` and `braivo` (packages/cli) uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
-// server but types and modules importing nothing themselves,
-// `content/course-ref.ts` and `application/learner-day.ts` (`client.test.ts`
-// checks).
+// server but types and modules importing nothing beyond each other,
+// `content/course-ref.ts`, `content/findings.ts` with `content/answer.ts`, and
+// `application/learner-day.ts` (`client.test.ts` checks).
 //
 // It covers what its callers call, not the whole API: an authoring route with
 // no method here is one no screen or command uses. Add one in the commit whose
@@ -96,6 +96,8 @@ export type {
   ToolsReadLearnerData,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
+export type { Finding } from "../content/findings.ts";
+export { taskFindings } from "../content/findings.ts";
 export { learnerDayIn } from "../application/learner-day.ts";
 
 /**

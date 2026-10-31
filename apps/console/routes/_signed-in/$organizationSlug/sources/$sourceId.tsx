@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type Draft, type Source } from "@braivo/server/client";
+import { BraivoError, type Draft, type Source, taskFindings } from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -23,6 +23,7 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
+import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import {
   type ReactNode,
@@ -35,6 +36,7 @@ import {
 } from "react";
 
 import { AiAppGuideLink } from "#components/ai-app-guide-link";
+import { FindingLines } from "#components/findings";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -337,6 +339,7 @@ function ReviewDraft(props: {
 }) {
   const { source, draft, takeFocus, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
+  const { t } = useLingui();
   const organizationId = organization.id;
   const router = useRouter();
   const abortOnUnmount = useAbortOnUnmount();
@@ -345,9 +348,10 @@ function ReviewDraft(props: {
   // Objectives' titles as the owner left them, by index; a draft's own until typed in.
   const [titles, setTitles] = useState<ReadonlyMap<number, string>>(new Map());
   const titleOf = (index: number) => titles.get(index) ?? draft.objectives[index]!.title;
-  // The owner's corrections, by "<i>:<j>", and the one open, if any.
+  // The owner's corrections, by "<i>:<j>", and the one open, if any, with the
+  // answer a finding suggested adding to it.
   const [edited, setEdited] = useState<ReadonlyMap<string, EditableTask>>(new Map());
-  const [editing, setEditing] = useState<string>();
+  const [editing, setEditing] = useState<{ at: string; answerToAdd?: string }>();
   // Where focus returns once an edit closes: the Edit button it was opened from.
   const editButtons = useRef(new Map<string, HTMLButtonElement>());
   const [refocus, setRefocus] = useState<string>();
@@ -453,7 +457,7 @@ function ReviewDraft(props: {
     if (kind === "o") clearFieldError(`${id}-o${index}`, `${id}-o${index}-keep`);
     else clearFieldError(`${id}-o${index}-keep`);
     // Dropping an objective hides its tasks, and with them an edit open on one.
-    if (!keep && editing?.startsWith(`${key.slice("o:".length)}:`)) setEditing(undefined);
+    if (!keep && editing?.at.startsWith(`${key.slice("o:".length)}:`)) setEditing(undefined);
   }
 
   async function create(event: SubmitEvent<HTMLFormElement>) {
@@ -634,11 +638,12 @@ function ReviewDraft(props: {
                   {objective.tasks.map((drafted, taskIndex) => {
                     const at = `${index}:${taskIndex}`;
                     const task = current(index, taskIndex);
-                    if (editing === at) {
+                    if (editing?.at === at) {
                       return (
                         <TaskEditor
                           key={taskIndex}
                           task={task}
+                          answerToAdd={editing.answerToAdd}
                           onSave={(edit) => {
                             setEdited(new Map(edited).set(at, edit));
                             closeEdit(at);
@@ -663,7 +668,7 @@ function ReviewDraft(props: {
                                 else editButtons.current.delete(at);
                               }}
                               disabled={editing !== undefined}
-                              onClick={() => setEditing(at)}
+                              onClick={() => setEditing({ at })}
                             >
                               Edit
                             </Button>
@@ -675,6 +680,19 @@ function ReviewDraft(props: {
                           </span>
                         }
                       >
+                        {/* Its draft, as the owner left it, while kept: one dropped
+                            is not created, so nothing in it needs fixing. */}
+                        {!dropped.has(`t:${at}`) && (
+                          <FindingLines
+                            taskId={`draft-${at}`}
+                            findings={taskFindings(task)}
+                            onAdd={{
+                              label: (answer) => t`Edit “${task.prompt}” and add “${answer}”`,
+                              disabled: editing !== undefined,
+                              add: (answer) => setEditing({ at, answerToAdd: answer }),
+                            }}
+                          />
+                        )}
                         {passages(drafted.citations)}
                       </AuthoredTask>
                     );

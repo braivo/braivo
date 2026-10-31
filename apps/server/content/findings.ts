@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { normalizeAnswer, type TaskBody } from "./task.ts";
+import { MAX_ACCEPTED, normalizeAnswer } from "./answer.ts";
+import type { TaskBody } from "./task.ts";
 
 // Advisory checks on content as written: what a learner may run into that its
 // author likely did not mean. Nothing here changes grading (ADR 0038) or is
@@ -34,9 +35,6 @@ export type Finding =
 /** What `choice-correct-alike` sets aside, in the order it lists them. */
 type Difference = "case" | "punctuation" | "quotes";
 
-/** As `parseTaskBody` allows: a suggestion past it could not be saved. */
-const MAX_ACCEPTED = 20;
-
 /** A task's findings, in the order of its answers or options. Empty when nothing. */
 export function taskFindings(body: TaskBody): Finding[] {
   if (body.kind === "choice") return choiceFindings(body.options, body.answer);
@@ -46,7 +44,7 @@ export function taskFindings(body: TaskBody): Finding[] {
     const found: Finding[] = [];
     const ending = sentenceEnding(answer);
     if (ending && !compared.has(normalizeAnswer(ending.without))) {
-      // `¿Qué` or `¡Hola` reads wrong, and a 21st answer cannot be saved.
+      // `¿Qué` or `¡Hola` reads wrong, and one past `MAX_ACCEPTED` cannot be saved.
       const suggest = !/^\s*[¿¡]/u.test(ending.content) && body.accepted.length < MAX_ACCEPTED;
       found.push({
         code: "typed-trailing-punctuation",

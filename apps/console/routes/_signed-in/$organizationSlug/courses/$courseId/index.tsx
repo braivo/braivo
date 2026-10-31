@@ -28,8 +28,10 @@ import { ChevronRightIcon } from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
 
 import { CourseUrlLabel } from "#components/course-url-label";
+import { findingsId, hasFindings } from "#components/findings";
 import { LearnersSite } from "#components/learners-site";
 import {
+  type Editing,
   formatTaskCount,
   Passages,
   type PublishAction,
@@ -84,9 +86,11 @@ function Course() {
   // One editor on the page: saving a task's correction retires its pending
   // correction, which the other section shows. Open only while its task is
   // listed: a reload may show it corrected or retired by someone else.
-  const [editingId, setEditingId] = useState<string>();
-  const editing = course.objectives.some(({ tasks }) => tasks.some(({ id }) => id === editingId))
-    ? editingId
+  const [editingTask, setEditingTask] = useState<Editing>();
+  const editing = course.objectives.some(({ tasks }) =>
+    tasks.some(({ id }) => id === editingTask?.taskId),
+  )
+    ? editingTask
     : undefined;
   // It and an open editor each wait for the other: Publish reloads the page,
   // which would close an editor and lose its unsaved edit.
@@ -224,7 +228,7 @@ function Course() {
               showPending
               selection={selection}
               editing={editing}
-              onEdit={setEditingId}
+              onEdit={setEditingTask}
               pending={publishing || deleting || changingVisibility}
               fallbackFocus={heading}
             />
@@ -243,7 +247,7 @@ function Course() {
             place={index + 1}
             sources={sources}
             editing={editing}
-            onEdit={setEditingId}
+            onEdit={setEditingTask}
             pending={publishing || deleting || changingVisibility}
             fallbackFocus={heading}
           />
@@ -353,10 +357,20 @@ function PublishPending(props: {
 }
 
 /**
- * Publish's question when `tasks` reach the organization's other published
- * courses too, naming them, each once, by title; none when they reach none.
+ * Publish's question, when there is something to say: how many of `tasks`
+ * have findings, the objectives the course would be left without a published
+ * task once they are published (its published tasks and those sent: a
+ * correction keeps its objective), and the organization's other published courses
+ * they reach too, each once, by title; none when there is nothing.
+ *
+ * Review them focuses the first task sent with findings, whose notes the page
+ * shows beside it; with none, the first objective left without practice, under
+ * Needs review while it has a pending task, else under What it teaches.
  */
-function confirmation(course: AuthoredCourse, tasks: readonly ReviewTask[]) {
+function confirmation(
+  course: AuthoredCourse,
+  tasks: readonly ReviewTask[],
+): PublishAction["confirm"] {
   const sent = new Set(tasks.map(({ id }) => id));
   const courses = [
     ...new Map(
@@ -366,11 +380,41 @@ function confirmation(course: AuthoredCourse, tasks: readonly ReviewTask[]) {
         .map((other) => [other.id, other]),
     ).values(),
   ].toSorted((a, b) => a.title.localeCompare(b.title));
-  if (courses.length === 0) return undefined;
+  const uncovered = course.objectives.filter(
+    ({ tasks }) => !tasks.some(({ id, published }) => published || sent.has(id)),
+  );
+  const flagged = tasks.filter(hasFindings);
+  if (courses.length === 0 && flagged.length === 0 && uncovered.length === 0) return undefined;
+
   return {
-    title: `Publish ${course.published ? "" : "the course and "}${formatTaskCount(tasks.length)}?`,
-    description: `Learners of ${courses.length === 1 ? "another course" : "other courses"} will be asked ${tasks.length === 1 ? "it" : "some of them"} too:`,
-    courses,
+    title: course.published
+      ? `Publish ${formatTaskCount(tasks.length)}?`
+      : tasks.length === 0
+        ? "Publish the course?"
+        : `Publish the course and ${formatTaskCount(tasks.length)}?`,
+    ...((flagged.length > 0 || uncovered.length > 0) && {
+      checks: {
+        taskCount: flagged.length,
+        objectivesWithoutPractice: uncovered.map(({ title }) => title),
+        onReview: () => {
+          const [first] = uncovered;
+          const target =
+            flagged.length > 0
+              ? findingsId(flagged[0]!.id)
+              : objectiveHeadingId(
+                  first!.id,
+                  first!.tasks.some(({ published }) => !published),
+                );
+          document.getElementById(target)?.focus();
+        },
+      },
+    }),
+    ...(courses.length > 0 && {
+      reach: {
+        description: `Learners of ${courses.length === 1 ? "another course" : "other courses"} will be asked ${tasks.length === 1 ? "it" : "some of them"} too:`,
+        courses,
+      },
+    }),
   };
 }
 
@@ -612,6 +656,11 @@ function CourseVisibility(props: {
   );
 }
 
+/** The DOM ID of an objective's heading, under Needs review when `pending`, else What it teaches. */
+function objectiveHeadingId(objectiveId: string, pending?: boolean) {
+  return pending ? `pending-${objectiveId}` : objectiveId;
+}
+
 /**
  * One objective as a reviewer checks it. Under What it teaches: the passages
  * that teach it, then its published tasks, each with the passages it was
@@ -625,8 +674,8 @@ function Objective(props: {
   showPending?: true;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
-  editing: string | undefined;
-  onEdit: (taskId: string | undefined) => void;
+  editing: Editing | undefined;
+  onEdit: (editing: Editing | undefined) => void;
   /** Publish, Delete, Hide, or Show is under way: no editor opens, as what follows would close it. */
   pending: boolean;
   /** Focused when a task's change leaves this objective off the page. */
@@ -647,7 +696,7 @@ function Objective(props: {
   const pendingIds = objective.tasks.filter(({ published }) => !published).map(({ id }) => id);
   const publishedCount = objective.tasks.length - pendingIds.length;
   // One ID per section, as an objective may appear in both.
-  const headingId = showPending ? `pending-${objective.id}` : objective.id;
+  const headingId = objectiveHeadingId(objective.id, showPending);
 
   return (
     <article aria-labelledby={headingId} className="flex flex-col gap-3">
