@@ -5,7 +5,7 @@ import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { hasExplanation } from "../content/explanation.ts";
+import { countExplanations } from "../content/explanation.ts";
 import {
   createCourse,
   createObjectives,
@@ -270,21 +270,10 @@ describe.skipIf(!connectionString)("a course's tasks", () => {
     });
 
     const { tasks: all, counts } = (await list())!;
-    const published = all.filter((task) => task.published);
-    const pendingTasks = all.filter((task) => !task.published);
-    const expected = {
-      published: {
-        total: published.length,
-        withoutExplanation: published.filter(({ body }) => !hasExplanation(body)).length,
-        withoutExplanationOrPassage: published.filter(
-          ({ body, citations }) => !hasExplanation(body) && citations.length === 0,
-        ).length,
-      },
-      pending: {
-        total: pendingTasks.length,
-        withoutExplanation: pendingTasks.filter(({ body }) => !hasExplanation(body)).length,
-      },
-    };
+    // The console's count, from what it reads, is the listing's.
+    const expected = countExplanations(
+      all.map(({ body, citations, published }) => ({ ...body, citations, published })),
+    );
     expect(expected).toEqual({
       published: { total: 4, withoutExplanation: 3, withoutExplanationOrPassage: 1 },
       pending: { total: 2, withoutExplanation: 1 },

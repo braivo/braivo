@@ -45,7 +45,8 @@ import type {
 // `@braivo/server/client` and `braivo` (packages/cli) uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
 // server but types and modules importing nothing beyond each other,
-// `content/course-ref.ts`, `content/findings.ts` with `content/answer.ts`, and
+// `content/course-ref.ts`, `content/explanation.ts`, `content/findings.ts` with
+// `content/answer.ts`, and
 // `application/learner-day.ts` (`client.test.ts` checks).
 //
 // It covers what its callers call, not the whole API: an authoring route with
@@ -98,6 +99,8 @@ export type {
   ToolsReadLearnerData,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
+export type { ExplanationCounts } from "../content/explanation.ts";
+export { countExplanations, hasExplanation } from "../content/explanation.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
 export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";

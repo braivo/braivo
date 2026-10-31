@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { countExplanations } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Fragment, useRef, useState } from "react";
 
+import { ExplanationCount } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
 import {
   type Editing,
@@ -163,6 +165,8 @@ function Objective() {
           </>
         )}
       </MutedText>
+      {/* Its own count, for an objective in no course too; no narrowing: its tasks fit a page. */}
+      <ExplanationCount counts={countExplanations(tasks)} />
       {pending.length > 0 && (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">

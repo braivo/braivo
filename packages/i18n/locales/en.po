@@ -154,6 +154,20 @@ msgstr "{objectiveTitle} comes next, but there's no practice for it yet."
 msgid "{organization} · connected {date}"
 msgstr "{organization} · connected {date}"
 
+#: apps/console/components/explanations.tsx
+msgid "{pending, plural, one {# task waiting for review has no explanation.} other {# tasks waiting for review have no explanation.}}"
+msgstr "{pending, plural, one {# task waiting for review has no explanation.} other {# tasks waiting for review have no explanation.}}"
+
+#. {published}: how many of the published tasks have no explanation; then how many of those also cite no passage
+#: apps/console/components/explanations.tsx
+msgid "{published}; {withoutExplanationOrPassage, plural, one {# also cites no passage} other {# also cite no passage}}."
+msgstr "{published}; {withoutExplanationOrPassage, plural, one {# also cites no passage} other {# also cite no passage}}."
+
+#. {published}: how many of the published tasks have no explanation
+#: apps/console/components/explanations.tsx
+msgid "{published}."
+msgstr "{published}."
+
 #: apps/console/routes/login.tsx
 msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
 msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
@@ -174,6 +188,10 @@ msgstr "{taskCount, plural, one {# of these tasks has checks to review} other {#
 #: apps/console/components/last-practised.tsx
 msgid "{when} ({exact})"
 msgstr "{when} ({exact})"
+
+#: apps/console/components/explanations.tsx
+msgid "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
+msgstr "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
 
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
@@ -739,6 +757,10 @@ msgstr "Estimated recall is a model estimate, not a test score. Estimates includ
 msgid "Estimated recall now: {recall}%"
 msgstr "Estimated recall now: {recall}%"
 
+#: apps/console/components/explanations.tsx
+msgid "Every task has an explanation."
+msgstr "Every task has an explanation."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Evidence"
 msgstr "Evidence"
@@ -1089,6 +1111,10 @@ msgstr "No courses yet"
 msgid "No courses yet."
 msgstr "No courses yet."
 
+#: apps/console/components/explanations.tsx
+msgid "No explanation"
+msgstr "No explanation"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
 msgid "No group matches “{query}”."
 msgstr "No group matches “{query}”."
@@ -1139,6 +1165,10 @@ msgstr "No practice recorded yet on this course's objectives"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No practice yet: {none}"
 msgstr "No practice yet: {none}"
+
+#: apps/console/components/explanations.tsx
+msgid "No tasks yet."
+msgstr "No tasks yet."
 
 #: apps/console/components/group-form.tsx
 msgid "No teacher can read this group's progress yet."
@@ -1303,6 +1333,10 @@ msgstr "Progress"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Progress by objective"
 msgstr "Progress by objective"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Publish acts only on the tasks shown."
+msgstr "Publish acts only on the tasks shown."
 
 #: apps/console/components/task-review.tsx
 msgid "Publish anyway"
@@ -1475,9 +1509,18 @@ msgstr "Set up your organization"
 msgid "Settings"
 msgstr "Settings"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Show all"
+msgstr "Show all"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Show answer"
 msgstr "Show answer"
+
+#. Shows only the tasks without an explanation, counted beside it
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Show only these"
+msgstr "Show only these"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Shown to the people you work with, in every organization."

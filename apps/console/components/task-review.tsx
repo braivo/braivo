@@ -32,6 +32,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useRouteContext, useRouter } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
+import { NoExplanation } from "#components/explanations";
 import { FindingLines } from "#components/findings";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -388,6 +389,8 @@ export function TaskList(props: {
   tasks: readonly ReviewTask[];
   /** Its pending tasks rather than its published ones. */
   showPending?: boolean;
+  /** Only these of them, by ID, when the page is narrowed: `tasks` stays whole, for lookups. */
+  shownIds?: ReadonlySet<string>;
   sources: ReadonlyMap<string, SourceSummary>;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
@@ -402,6 +405,7 @@ export function TaskList(props: {
     objectiveId,
     tasks,
     showPending,
+    shownIds,
     sources,
     selection,
     editing,
@@ -416,7 +420,10 @@ export function TaskList(props: {
   // Published tasks a tool's correction waits to replace (ADR 0039), of all
   // its tasks: the list showing the task may not show its correction.
   const withPendingCorrection = new Set(tasks.flatMap((task) => task.replaces ?? []));
-  const shown = tasks.filter(({ published }) => (showPending ? !published : published));
+  const shown = tasks.filter(
+    ({ id, published }) =>
+      (showPending ? !published : published) && (shownIds === undefined || shownIds.has(id)),
+  );
 
   return shown.map((task) => {
     const replaced = task.replaces === undefined ? undefined : byId.get(task.replaces);
@@ -459,19 +466,22 @@ export function TaskList(props: {
               </Button>
             )}
             findings={(retiring) => (
-              <FindingLines
-                taskId={task.id}
-                findings={task.findings}
-                onAdd={{
-                  label: (answer) =>
-                    task.published
-                      ? t`Edit “${task.prompt}” and add “${answer}”`
-                      : t`Edit unpublished task “${task.prompt}” and add “${answer}”`,
-                  // As its Edit button.
-                  disabled: retiring || pending || editing !== undefined,
-                  add: (answer) => onEdit({ taskId: task.id, answerToAdd: answer }),
-                }}
-              />
+              <>
+                <NoExplanation task={task} />
+                <FindingLines
+                  taskId={task.id}
+                  findings={task.findings}
+                  onAdd={{
+                    label: (answer) =>
+                      task.published
+                        ? t`Edit “${task.prompt}” and add “${answer}”`
+                        : t`Edit unpublished task “${task.prompt}” and add “${answer}”`,
+                    // As its Edit button.
+                    disabled: retiring || pending || editing !== undefined,
+                    add: (answer) => onEdit({ taskId: task.id, answerToAdd: answer }),
+                  }}
+                />
+              </>
             )}
             select={
               selection && (
@@ -494,6 +504,7 @@ export function TaskList(props: {
           <div className="ms-6 flex flex-col gap-2">
             <MutedText>As published now:</MutedText>
             <AuthoredTask task={replaced}>
+              <NoExplanation task={replaced} />
               <Passages citations={replaced.citations} sources={sources} />
             </AuthoredTask>
           </div>

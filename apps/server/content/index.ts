@@ -25,4 +25,4 @@ export type { Grade, TaskBody, PresentedTask, TaskResponse } from "./task.ts";
 export { gradeResponse, parseTaskBody, parseTaskResponse, presentTask } from "./task.ts";
 export { courseRef, isUrlLabel, parseCourseNumber, urlLabel } from "./course-ref.ts";
 export type { ExplanationCounts } from "./explanation.ts";
-export { hasExplanation } from "./explanation.ts";
+export { countExplanations, hasExplanation } from "./explanation.ts";

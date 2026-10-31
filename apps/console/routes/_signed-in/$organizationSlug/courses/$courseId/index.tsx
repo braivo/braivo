@@ -4,6 +4,7 @@
 import {
   type AuthoredCourse,
   BraivoError,
+  countExplanations,
   courseRef,
   type SourceSummary,
 } from "@braivo/server/client";
@@ -23,11 +24,13 @@ import {
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import { Spinner } from "@braivo/ui/components/spinner";
+import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
 
 import { CourseUrlLabel } from "#components/course-url-label";
+import { ExplanationCount, explanationReviewIds } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
 import { LearnersSite } from "#components/learners-site";
 import {
@@ -48,6 +51,9 @@ import { authorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
+  // Narrowed to the tasks without an explanation; any other value shows all.
+  validateSearch: (search): { without?: "explanation" } =>
+    search.without === "explanation" ? { without: "explanation" } : {},
   beforeLoad: authorsOnly,
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
@@ -75,14 +81,29 @@ function Course() {
   const { course } = Route.useLoaderData();
   const { organization, braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
+  const narrowed = Route.useSearch().without === "explanation";
+  const navigate = Route.useNavigate();
+  const { t } = useLingui();
   // Focusable, to receive focus once Publish is done, its button gone or the
   // page changed, or once a change leaves a task's objective off the page.
   const heading = useRef<HTMLHeadingElement>(null);
   // Present from the start, so what Publish did is announced.
   const [statusMessage, setStatusMessage] = useState("");
   const selection = useTaskSelection();
-  const pending = pendingTasks(course);
-  const selectedTasks = pending.filter(({ id }) => selection.selectedIds.has(id));
+  // Narrowed, what each objective shows (`explanationReviewIds`); Publish,
+  // Select all, and the sections act on that alone, the course kept whole for
+  // lookups and for what Publish warns of.
+  const shownByObjective = narrowed
+    ? new Map(course.objectives.map(({ id, tasks }) => [id, explanationReviewIds(tasks)]))
+    : undefined;
+  const isShown = (objectiveId: string, taskId: string) =>
+    shownByObjective === undefined || shownByObjective.get(objectiveId)!.has(taskId);
+  const shownPending = course.objectives.flatMap(({ id: objectiveId, tasks }) =>
+    tasks.filter(({ id, published }) => !published && isShown(objectiveId, id)),
+  );
+  const selectedTasks = shownPending.filter(({ id }) => selection.selectedIds.has(id));
+  const counts = countExplanations(course.objectives.flatMap(({ tasks }) => tasks));
+  const missing = counts.published.withoutExplanation + counts.pending.withoutExplanation;
   // One editor on the page: saving a task's correction retires its pending
   // correction, which the other section shows. Open only while its task is
   // listed: a reload may show it corrected or retired by someone else.
@@ -110,7 +131,16 @@ function Course() {
   // Objectives with work to review, numbered by their place in the course.
   const objectivesToReview = course.objectives
     .map((objective, index) => ({ objective, place: index + 1 }))
-    .filter(({ objective }) => objective.tasks.some(({ published }) => !published));
+    .filter(({ objective }) =>
+      objective.tasks.some(({ id, published }) => !published && isShown(objective.id, id)),
+    );
+  const objectivesTaught = course.objectives
+    .map((objective, index) => ({ objective, place: index + 1 }))
+    .filter(
+      ({ objective }) =>
+        !narrowed ||
+        objective.tasks.some(({ id, published }) => published && isShown(objective.id, id)),
+    );
 
   return (
     <>
@@ -143,9 +173,34 @@ function Course() {
           </MutedText>
         </div>
       )}
-      {(!course.published || pending.length > 0) && (
+      {(missing > 0 || narrowed) && (
+        <ExplanationCount counts={counts} alwaysShown={narrowed}>
+          {/* Disabled while editing: narrowing could unmount the editor, and its text with it. */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={editing !== undefined}
+            onClick={async () => {
+              await navigate({ search: narrowed ? {} : { without: "explanation" }, replace: true });
+              // Shown whole with nothing left to narrow to, this button is gone: the title takes the focus.
+              if (narrowed && missing === 0) heading.current?.focus();
+            }}
+          >
+            {narrowed
+              ? t`Show all`
+              : t({
+                  comment: "Shows only the tasks without an explanation, counted beside it",
+                  message: "Show only these",
+                })}
+          </Button>
+        </ExplanationCount>
+      )}
+      {(!course.published || shownPending.length > 0) && (
         <PublishPending
           course={course}
+          shownPending={shownPending}
+          narrowed={narrowed}
+          fallbackFocus={heading}
           selected={selectedTasks}
           publication={publication}
           editing={editing !== undefined}
@@ -225,6 +280,7 @@ function Course() {
               objective={objective}
               place={place}
               sources={sources}
+              shownIds={shownByObjective?.get(objective.id)}
               showPending
               selection={selection}
               editing={editing}
@@ -235,31 +291,30 @@ function Course() {
           ))}
         </section>
       )}
-      <section aria-labelledby="teaches" className="flex flex-col gap-6 **:scroll-mt-40">
-        <Heading level={2} id="teaches">
-          What it teaches
-        </Heading>
-        {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
-        {course.objectives.map((objective, index) => (
-          <Objective
-            key={objective.id}
-            objective={objective}
-            place={index + 1}
-            sources={sources}
-            editing={editing}
-            onEdit={setEditingTask}
-            pending={publishing || deleting || changingVisibility}
-            fallbackFocus={heading}
-          />
-        ))}
-      </section>
+      {/* Narrowed, gone with its last task shown, as the count line says why. */}
+      {(!narrowed || objectivesTaught.length > 0) && (
+        <section aria-labelledby="teaches" className="flex flex-col gap-6 **:scroll-mt-40">
+          <Heading level={2} id="teaches">
+            What it teaches
+          </Heading>
+          {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
+          {objectivesTaught.map(({ objective, place }) => (
+            <Objective
+              key={objective.id}
+              objective={objective}
+              place={place}
+              sources={sources}
+              shownIds={shownByObjective?.get(objective.id)}
+              editing={editing}
+              onEdit={setEditingTask}
+              pending={publishing || deleting || changingVisibility}
+              fallbackFocus={heading}
+            />
+          ))}
+        </section>
+      )}
     </>
   );
-}
-
-/** The course's tasks still pending review, in the order the page shows them. */
-function pendingTasks(course: AuthoredCourse) {
-  return course.objectives.flatMap(({ tasks }) => tasks.filter(({ published }) => !published));
 }
 
 /**
@@ -272,6 +327,12 @@ function pendingTasks(course: AuthoredCourse) {
  */
 function PublishPending(props: {
   course: AuthoredCourse;
+  /** The pending tasks the page shows, in page order: every one unless narrowed. */
+  shownPending: readonly ReviewTask[];
+  /** Narrowed to tasks without an explanation: said beside the buttons. */
+  narrowed: boolean;
+  /** Focused by Review them when what it leads to is not shown. */
+  fallbackFocus: RefObject<HTMLHeadingElement | null>;
   /** The pending tasks selected, in page order. */
   selected: readonly ReviewTask[];
   publication: ReturnType<typeof usePublish>;
@@ -280,8 +341,17 @@ function PublishPending(props: {
   /** Delete, Hide, or Show is under way: neither button sends meanwhile. */
   busy: boolean;
 }) {
-  const { course, selected, publication, editing, busy } = props;
-  const pending = pendingTasks(course);
+  const {
+    course,
+    shownPending: pending,
+    narrowed,
+    fallbackFocus,
+    selected,
+    publication,
+    editing,
+    busy,
+  } = props;
+  const { t } = useLingui();
 
   const action = (
     action: "selected" | "all",
@@ -292,7 +362,7 @@ function PublishPending(props: {
     label,
     // Selecting nothing publishes nothing in a published course.
     disabled: editing || busy || (course.published && tasks.length === 0),
-    confirm: confirmation(course, tasks),
+    confirm: confirmation(course, tasks, fallbackFocus),
     onPublish: () => {
       if (editing || busy) return;
       void publication.publish(
@@ -347,7 +417,9 @@ function PublishPending(props: {
         note={
           editing
             ? `Save or cancel the open edit to ${course.published ? "publish" : "publish or delete"}.`
-            : undefined
+            : narrowed
+              ? t`Publish acts only on the tasks shown.`
+              : undefined
         }
         // Not beside another action's attempt, which it does not speak of.
         failures={busy ? 0 : publication.failures}
@@ -365,11 +437,13 @@ function PublishPending(props: {
  *
  * Review them focuses the first task sent with findings, whose notes the page
  * shows beside it; with none, the first objective left without practice, under
- * Needs review while it has a pending task, else under What it teaches.
+ * Needs review while it has a pending task, else under What it teaches, or
+ * `fallbackFocus` when the page, narrowed, does not show it.
  */
 function confirmation(
   course: AuthoredCourse,
   tasks: readonly ReviewTask[],
+  fallbackFocus: RefObject<HTMLHeadingElement | null>,
 ): PublishAction["confirm"] {
   const sent = new Set(tasks.map(({ id }) => id));
   const courses = [
@@ -405,7 +479,8 @@ function confirmation(
                   first!.id,
                   first!.tasks.some(({ published }) => !published),
                 );
-          document.getElementById(target)?.focus();
+          // Not shown while narrowed: the course's title instead.
+          (document.getElementById(target) ?? fallbackFocus.current)?.focus();
         },
       },
     }),
@@ -671,6 +746,8 @@ function Objective(props: {
   objective: AuthoredCourse["objectives"][number];
   place: number;
   sources: ReadonlyMap<string, SourceSummary>;
+  /** Only these of its tasks, by ID, when the page is narrowed. */
+  shownIds?: ReadonlySet<string>;
   showPending?: true;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
@@ -685,6 +762,7 @@ function Objective(props: {
     objective,
     place,
     sources,
+    shownIds,
     showPending,
     selection,
     editing,
@@ -694,6 +772,8 @@ function Objective(props: {
   } = props;
   const heading = useRef<HTMLHeadingElement>(null);
   const pendingIds = objective.tasks.filter(({ published }) => !published).map(({ id }) => id);
+  // What Select all selects: the pending tasks shown.
+  const shownPendingIds = pendingIds.filter((id) => shownIds === undefined || shownIds.has(id));
   const publishedCount = objective.tasks.length - pendingIds.length;
   // One ID per section, as an objective may appear in both.
   const headingId = objectiveHeadingId(objective.id, showPending);
@@ -706,7 +786,11 @@ function Objective(props: {
           {place}. {objective.title}
         </Heading>
         {selection && (
-          <SelectAll taskIds={pendingIds} selection={selection} objectiveTitle={objective.title} />
+          <SelectAll
+            taskIds={shownPendingIds}
+            selection={selection}
+            objectiveTitle={objective.title}
+          />
         )}
       </div>
       {!showPending &&
@@ -726,6 +810,7 @@ function Objective(props: {
         objectiveId={objective.id}
         tasks={objective.tasks}
         showPending={showPending}
+        shownIds={shownIds}
         sources={sources}
         selection={selection}
         editing={editing}
