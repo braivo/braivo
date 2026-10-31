@@ -41,8 +41,9 @@ function git(cwd: string, ...args: string[]): void {
 beforeEach(() => {
   // Real path: Git reports one, and macOS's temp directory is behind a symlink.
   dir = realpathSync(mkdtempSync(join(tmpdir(), "worktree-setup-")));
-  // No user configuration, as signing or global ignores, for these calls or the script's.
+  // No machine configuration, as signing or global ignores, for these calls or the script's.
   vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
+  vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
   vi.stubEnv("XDG_CONFIG_HOME", dir);
   main = join(dir, "main");
   linked = join(dir, "linked");
