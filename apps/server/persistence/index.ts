@@ -79,7 +79,7 @@ export {
   updateGroup,
 } from "./group.ts";
 export type { PendingInvitation } from "./invitation.ts";
-export { readInvitation, readPendingInvitations } from "./invitation.ts";
+export { countPendingInvitations, readInvitation, readPendingInvitations } from "./invitation.ts";
 export { ConflictingKey } from "./key.ts";
 export type { ListedOrganization, Member, Organization } from "./membership.ts";
 export {

@@ -25,6 +25,7 @@ import { describeLogCall } from "../logging.ts";
 import { invitationMail, mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
   claimSignInCode,
+  countPendingInvitations,
   organizationOwnsLearningContent,
   readOrganizationRoles,
 } from "../persistence/index.ts";
@@ -156,6 +157,12 @@ export const MEMBERSHIP_LIMIT = 1_000;
  * would not.
  */
 const INVITATION_DAYS = 7;
+
+/**
+ * The most invitations an organization has waiting at once (ADR 0018), apart
+ * from its members: an abuse bound, not a seat count.
+ */
+const PENDING_INVITATION_LIMIT = 1_000;
 
 /**
  * Carries a failed send to the after hook, which refuses the request: Better
@@ -505,11 +512,14 @@ export function createAuth(options: AuthOptions) {
         // Invitations (ADR 0018), made only through Braivo's route, which
         // calls `createInvitation` (`invitations.ts`): accepted only by a
         // verified account with the invited email; a second invitation to a
-        // pending address refused, not replacing it; at most 1,000 waiting.
+        // pending address refused, not replacing it.
         requireEmailVerificationOnInvitation: true,
         cancelPendingInvitationsOnReInvite: false,
         invitationExpiresIn: INVITATION_DAYS * 86_400,
-        invitationLimit: 1_000,
+        // Better Auth 1.7.11 counts pending invitations from a read its
+        // adapter caps at 100 rows, so its limit could never pass 100:
+        // `beforeCreateInvitation` counts them instead.
+        invitationLimit: Number.POSITIVE_INFINITY,
         sendInvitationEmail: async ({ id, email, role, organization, inviter, invitation }) => {
           const delivery = await invitationDelivery.get();
           try {
@@ -578,11 +588,23 @@ export function createAuth(options: AuthOptions) {
            * Better Auth lets an owner invite (ADR 0018). Braivo's route checks
            * first, to answer in its words; this holds whoever calls.
            */
-          beforeCreateInvitation: async ({ invitation }) => {
+          beforeCreateInvitation: async ({ invitation, organization: invitedTo }) => {
             if (!INVITABLE_ROLES.has(invitation.role)) {
               throw new APIError("BAD_REQUEST", {
                 code: "ROLE_NOT_INVITABLE",
                 message: "Invite as an author or an admin.",
+              });
+            }
+            // Counted, then created, not atomically: invitations at once may
+            // pass it by a few, as acceptances pass the member limit.
+            const waiting = await countPendingInvitations(options.database, {
+              organizationId: invitedTo.id,
+              now: new Date(),
+            });
+            if (waiting >= PENDING_INVITATION_LIMIT) {
+              throw new APIError("FORBIDDEN", {
+                code: "INVITATION_LIMIT_REACHED",
+                message: "Too many invitations are waiting.",
               });
             }
           },

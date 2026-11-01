@@ -176,6 +176,35 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
     expect(await rolesOf(author.id)).toEqual(["author"]);
   });
 
+  test("refuses the 1,001st invitation waiting, counting no expired one, mailing nothing", async () => {
+    const row = (index: number, expiresAt: Date) => ({
+      id: `invitations-api-cap-${index}`,
+      organizationId,
+      email: `cap-${index}@example.com`,
+      role: "author",
+      status: "pending",
+      expiresAt,
+      createdAt: new Date(),
+      inviterId: admin.id,
+    });
+    const later = new Date(Date.now() + DAY);
+    // 999 waiting, and expired ones past Better Auth's 100-row read, which must not count.
+    await database
+      .insert(invitation)
+      .values([
+        ...Array.from({ length: 999 }, (_, index) => row(index, later)),
+        ...Array.from({ length: 150 }, (_, index) => row(1000 + index, new Date(Date.now() - DAY))),
+      ]);
+
+    expect((await invite(admin, { email: newEmail(), role: "author" })).status).toBe(201);
+    const refusedEmail = newEmail();
+    const refused = await invite(admin, { email: refusedEmail, role: "author" });
+
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "PENDING_LIMIT" });
+    expect(outbox.sent.some((sent) => sent.to === refusedEmail)).toBe(false);
+  });
+
   test("reports an invitation whose mail could not be sent apart from a refusal", async () => {
     const email = newEmail();
     outbox.failTo.add(email);

@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { invitation, organization, user } from "@braivo/db/schema";
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, count, desc, eq, gt } from "drizzle-orm";
 
 /**
  * An invitation as its page needs it (ADR 0018): whom it is for, as what, its
@@ -88,4 +88,22 @@ export async function readPendingInvitations(
     role: role ?? "member",
     inviter: { name: inviterName },
   }));
+}
+
+/** How many of an organization's invitations are pending and unexpired at `now`. */
+export async function countPendingInvitations(
+  database: Database,
+  input: { organizationId: string; now: Date },
+): Promise<number> {
+  const [row] = await database
+    .select({ count: count() })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.organizationId, input.organizationId),
+        eq(invitation.status, "pending"),
+        gt(invitation.expiresAt, input.now),
+      ),
+    );
+  return row?.count ?? 0;
 }

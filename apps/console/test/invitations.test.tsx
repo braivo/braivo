@@ -168,6 +168,8 @@ describe("invitations", () => {
       await screen.findByRole("heading", { level: 1, name: "Join Example School" }),
     ).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Invitation to Example School"));
+    // Its own frame, not inside the root's column as well.
+    expect(screen.getAllByRole("main")).toHaveLength(1);
     fireEvent.click(screen.getByRole("link", { name: "Sign in to accept" }));
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
