@@ -251,6 +251,15 @@ export function TaskReports(props: {
   const [busy, setBusy] = useState<"showing" | "dismissing">();
   const [failure, setFailure] = useState<{ text: string; count: number }>();
   const anchor = useRef<HTMLDetailsElement>(null);
+  const showAllButton = useRef<HTMLButtonElement>(null);
+  const dismissButton = useRef<HTMLButtonElement>(null);
+  // Show all goes once it has shown them: Dismiss, what comes next, takes its focus.
+  const [focusDismiss, setFocusDismiss] = useState(false);
+  useLayoutEffect(() => {
+    if (!focusDismiss) return;
+    dismissButton.current?.focus();
+    setFocusDismiss(false);
+  }, [focusDismiss]);
   const arrived = hash === taskAnchor(taskId);
 
   // Arrived at from the organization's page: shown once the reports are read.
@@ -281,7 +290,10 @@ export function TaskReports(props: {
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
       const [found] = tasks;
-      if (found) setWhole({ from, task: found });
+      if (found) {
+        setWhole({ from, task: found });
+        setFocusDismiss(document.activeElement === showAllButton.current);
+      }
       setFailure(undefined);
     } catch (thrown) {
       if (thrown instanceof BraivoError && thrown.status === 401) return void router.invalidate();
@@ -384,6 +396,7 @@ export function TaskReports(props: {
           )}
           {partial && !expanded && (
             <Button
+              ref={showAllButton}
               variant="ghost"
               size="sm"
               aria-disabled={busy !== undefined}
@@ -394,6 +407,7 @@ export function TaskReports(props: {
           )}
           {/* aria-disabled, so it keeps the focus while it dismisses (docs/apps.md). */}
           <Button
+            ref={dismissButton}
             variant="outline"
             size="sm"
             aria-disabled={busy !== undefined}

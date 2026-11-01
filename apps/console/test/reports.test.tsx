@@ -304,11 +304,15 @@ describe("learners' reports", () => {
     });
 
     fireEvent.click(await screen.findByText("Reported by 1001 learners"));
-    fireEvent.click(screen.getByRole("button", { name: "Show all 1001 reports" }));
+    const showAll = screen.getByRole("button", { name: "Show all 1001 reports" });
+    showAll.focus();
+    fireEvent.click(showAll);
     expect(
       await screen.findByText("Showing the newest 1,000; dismiss them to see the rest."),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+    // Its button gone, the focus goes on to Dismiss.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Dismiss these 1000" }));
     fireEvent.click(screen.getByRole("button", { name: "Dismiss these 1000" }));
     await waitFor(() => expect(dismissReports).toHaveBeenCalled());
     expect(dismissReports.mock.calls[0]![0].reportIds).toHaveLength(1000);
