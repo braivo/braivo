@@ -255,6 +255,23 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await expect(early).rejects.toMatchObject({ status: 409 });
   });
 
+  test("reports a task by its attempt, resends it alike, and refuses another, coded", async () => {
+    const signedIn = { headers: { cookie: learnerCookie } };
+    const attemptId = crypto.randomUUID();
+    await client.submitAttempt(
+      { courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
+      signedIn,
+    );
+
+    const report = { courseId, attemptId, reason: "key-wrong" as const, note: "hablé fits" };
+    const stored = await client.reportAttempt(report, signedIn);
+    expect(stored).toEqual({ reason: "key-wrong", note: "hablé fits", at: expect.any(String) });
+    expect(await client.reportAttempt(report, signedIn)).toEqual(stored);
+
+    const other = client.reportAttempt({ courseId, attemptId, reason: "confusing" }, signedIn);
+    await expect(other).rejects.toMatchObject({ status: 409, code: "ALREADY_REPORTED" });
+  });
+
   test("lists a learner's courses in the shape it declares", async () => {
     const courses = await client.learnerCourses({ headers: { cookie: learnerCookie } });
 

@@ -142,6 +142,10 @@ msgstr "{hostname} is reserved. Choose another address."
 msgid "{hostname} is taken. Choose another address."
 msgstr "{hostname} is taken. Choose another address."
 
+#: apps/learn/components/report-problem.tsx
+msgid "{noteLength} of {MAX_NOTE} characters"
+msgstr "{noteLength} of {MAX_NOTE} characters"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{objective}: {counted}"
 msgstr "{objective}: {counted}"
@@ -149,6 +153,10 @@ msgstr "{objective}: {counted}"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "{organization} · connected {date}"
 msgstr "{organization} · connected {date}"
+
+#: apps/learn/components/report-problem.tsx
+msgid "{organizationName} will see this question, your answer, and your note. Your result stays as it is."
+msgstr "{organizationName} will see this question, your answer, and your note. Your result stays as it is."
 
 #: apps/console/components/explanations.tsx
 msgid "{pending, plural, one {# task waiting for review has no explanation.} other {# tasks waiting for review have no explanation.}}"
@@ -287,6 +295,10 @@ msgstr "Another organization already uses that domain."
 msgid "Another organization was chosen in another tab. Start again in {clientName}."
 msgstr "Another organization was chosen in another tab. Start again in {clientName}."
 
+#: apps/learn/components/report-problem.tsx
+msgid "Anything to add?"
+msgstr "Anything to add?"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Approve"
 msgstr "Approve"
@@ -336,6 +348,7 @@ msgid "By name"
 msgstr "By name"
 
 #: apps/console/routes/_signed-in/consent.tsx
+#: apps/learn/components/report-problem.tsx
 msgid "Cancel"
 msgstr "Cancel"
 
@@ -390,6 +403,10 @@ msgstr "Checking…"
 #: apps/console/components/no-such-setting.tsx
 msgid "Choose one from the list."
 msgstr "Choose one from the list."
+
+#: apps/learn/components/report-problem.tsx
+msgid "Choose what's wrong."
+msgstr "Choose what's wrong."
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Client ID: {clientId}"
@@ -564,6 +581,14 @@ msgstr "Could not save whether tools read learners' data. Try again."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Could not save your name. Try again."
 msgstr "Could not save your name. Try again."
+
+#: apps/learn/components/report-problem.tsx
+msgid "Could not send this report. Reload the page and try again."
+msgstr "Could not send this report. Reload the page and try again."
+
+#: apps/learn/components/report-problem.tsx
+msgid "Could not send. Try again."
+msgstr "Could not send. Try again."
 
 #: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
@@ -1071,6 +1096,10 @@ msgstr "Most objectives learning"
 msgid "Most repeated misses"
 msgstr "Most repeated misses"
 
+#: apps/learn/components/report-problem.tsx
+msgid "My answer seems correct"
+msgstr "My answer seems correct"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Name"
 msgstr "Name"
@@ -1372,6 +1401,10 @@ msgstr "Publish anyway"
 msgid "quote marks or apostrophes"
 msgstr "quote marks or apostrophes"
 
+#: apps/learn/components/report-problem.tsx
+msgid "Reason"
+msgstr "Reason"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Refresh"
 msgstr "Refresh"
@@ -1435,6 +1468,10 @@ msgstr "Repeated misses"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
 msgstr "Repeated misses: objectives still being learned with {threshold} or more misses since the last correct answer. Show answer counts as a miss."
+
+#: apps/learn/components/report-problem.tsx
+msgid "Report a problem"
+msgstr "Report a problem"
 
 #. After an objective's title: a form fitting any
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -1506,6 +1543,10 @@ msgstr "See members"
 msgid "See sources"
 msgstr "See sources"
 
+#: apps/learn/components/report-problem.tsx
+msgid "Send"
+msgstr "Send"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send a new code"
 msgstr "Send a new code"
@@ -1522,6 +1563,7 @@ msgstr "Send me a code"
 msgid "Send the code again"
 msgstr "Send the code again"
 
+#: apps/learn/components/report-problem.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Sending…"
 msgstr "Sending…"
@@ -1604,6 +1646,10 @@ msgstr "Someone changed this group meanwhile: {whom} is already in it in the oth
 msgid "Someone changed this group meanwhile. Check the group as it is now, then save again."
 msgstr "Someone changed this group meanwhile. Check the group as it is now, then save again."
 
+#: apps/learn/components/report-problem.tsx
+msgid "Something else"
+msgstr "Something else"
+
 #: apps/console/router.tsx
 #: apps/learn/router.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -1669,6 +1715,10 @@ msgstr "Teachers"
 msgid "Teaches {names}"
 msgstr "Teaches {names}"
 
+#: apps/learn/components/report-problem.tsx
+msgid "Thanks. Your report was sent."
+msgstr "Thanks. Your report was sent."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "That address is Braivo's own. Enter a domain your organization owns."
 msgstr "That address is Braivo's own. Enter a domain your organization owns."
@@ -1719,13 +1769,25 @@ msgstr "The correct option “{correct}” differs from “{other}” only in {d
 msgid "The domain was saved, but setting it up failed. Add it again to retry."
 msgstr "The domain was saved, but setting it up failed. Add it again to retry."
 
+#: apps/learn/components/report-problem.tsx
+msgid "The expected answer seems wrong"
+msgstr "The expected answer seems wrong"
+
 #: apps/console/components/sign-in-page.tsx
 msgid "The learning engine behind your courses"
 msgstr "The learning engine behind your courses"
 
+#: apps/learn/components/report-problem.tsx
+msgid "The lesson passage doesn't support this"
+msgstr "The lesson passage doesn't support this"
+
 #: apps/console/components/organization-sidebar.tsx
 msgid "The organization's pages and your account."
 msgstr "The organization's pages and your account."
+
+#: apps/learn/components/report-problem.tsx
+msgid "The question or explanation is confusing"
+msgstr "The question or explanation is confusing"
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
@@ -1928,9 +1990,21 @@ msgstr "Wait a minute before asking for a code again."
 msgid "What should we call you?"
 msgstr "What should we call you?"
 
+#: apps/learn/components/report-problem.tsx
+msgid "What's wrong with this question?"
+msgstr "What's wrong with this question?"
+
+#: apps/learn/components/report-problem.tsx
+msgid "What's wrong?"
+msgstr "What's wrong?"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"
 msgstr "Which organization should {clientName} work in?"
+
+#: apps/learn/components/report-problem.tsx
+msgid "Write what's wrong."
+msgstr "Write what's wrong."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "You"
@@ -1939,6 +2013,10 @@ msgstr "You"
 #: apps/console/components/organization-setup-form.tsx
 msgid "You already own an organization. Reload this page to open it."
 msgstr "You already own an organization. Reload this page to open it."
+
+#: apps/learn/components/report-problem.tsx
+msgid "You already reported this question."
+msgstr "You already reported this question."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
@@ -1964,6 +2042,10 @@ msgstr "You sign in with it. It cannot be changed yet."
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "You teach no groups here."
 msgstr "You teach no groups here."
+
+#: apps/learn/components/report-problem.tsx
+msgid "You were signed out. <0>Sign in in a new tab</0>, then send again."
+msgstr "You were signed out. <0>Sign in in a new tab</0>, then send again."
 
 #: apps/console/components/organization-setup-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
@@ -2032,6 +2114,10 @@ msgstr "Your name"
 #: apps/console/components/organization-setup-form.tsx
 msgid "Your organization's data is stored in this region. You can't change it after setup."
 msgstr "Your organization's data is stored in this region. You can't change it after setup."
+
+#: apps/learn/components/report-problem.tsx
+msgid "Your school will see this question, your answer, and your note. Your result stays as it is."
+msgstr "Your school will see this question, your answer, and your note. Your result stays as it is."
 
 #. An example address before a name makes one: lowercase a-z, digits, and hyphens only
 #: apps/console/components/organization-setup-form.tsx

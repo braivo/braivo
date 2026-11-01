@@ -336,4 +336,28 @@ describe("the learn app in Polish", () => {
       }),
     ).toBeTruthy();
   });
+
+  test("reports a problem with a question in Polish", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+      hostOrganization: async () => ({ name: "Fernwood" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Zgłoś problem" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Co jest nie tak z tym pytaniem?" });
+    expect(
+      within(dialog).getByText(
+        "Fernwood zobaczy to pytanie, Twoją odpowiedź i notatkę. Twój wynik się nie zmieni.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "Moja odpowiedź wydaje się poprawna" }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Wyślij" }));
+
+    expect(await screen.findByText("Dziękujemy. Zgłoszenie zostało wysłane.")).toBeTruthy();
+  });
 });

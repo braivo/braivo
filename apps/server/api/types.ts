@@ -84,6 +84,12 @@ export type TaskResponse = content.TaskResponse;
  */
 export type Grade = content.Grade & { passages?: Passage[] };
 
+/** Why a learner reports a task (ADR 0052). */
+export type TaskReportReason = application.TaskReportReason;
+
+/** A learner's report of a task they answered, as stored and answered back. */
+export type TaskReport = Json<Extract<application.ReportedAttempt, { kind: "stored" }>["report"]>;
+
 /** A passage a graded task was written from: the words, and where they are from. */
 export type Passage = application.Passage;
 

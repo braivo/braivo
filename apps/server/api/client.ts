@@ -36,6 +36,8 @@ import type {
   SourceSlice,
   SourceSummary,
   TaskDraft,
+  TaskReport,
+  TaskReportReason,
   TaskResponse,
   TaskWriteResult,
   ToolsReadLearnerData,
@@ -94,6 +96,8 @@ export type {
   SourceSlice,
   SourceSummary,
   TaskDraft,
+  TaskReport,
+  TaskReportReason,
   TaskResponse,
   TaskWriteResult,
   ToolsReadLearnerData,
@@ -238,6 +242,21 @@ export type BraivoClient = {
     input: { courseId: string; id: string; taskId: string; response: TaskResponse },
     options?: RequestOptions,
   ): Promise<Grade>;
+
+  /**
+   * Reports a problem with a task the signed-in learner answered, by its
+   * attempt (ADR 0052), resolving to the report as stored. Sending the same
+   * report again resolves to it unchanged, so a lost answer is retried with the
+   * same body. Refusals, as a {@link BraivoError}: 409 with `code`
+   * `ALREADY_REPORTED`, the attempt's report says otherwise or the task is
+   * reported already; 400 a body that is not a report, or `answer-correct` on
+   * an attempt that was no miss; 401 no session; 403 possibly forged; 404 the
+   * course or attempt not this learner's.
+   */
+  reportAttempt(
+    input: { courseId: string; attemptId: string; reason: TaskReportReason; note?: string },
+    options?: RequestOptions,
+  ): Promise<TaskReport>;
 
   /**
    * Where a learner stands on each objective in a course, for the learner, an
@@ -952,6 +971,21 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<Grade>(response, doing);
+    },
+
+    async reportAttempt({ courseId, attemptId, ...report }, requestOptions) {
+      const response = await post(
+        `/api/courses/${encodeURIComponent(courseId)}/attempts/${encodeURIComponent(attemptId)}/report`,
+        report,
+        requestOptions,
+      );
+
+      const doing = `reporting attempt "${attemptId}" in course "${courseId}"`;
+      if (response.status !== 201 && response.status !== 200) {
+        throw await unexpected(response, doing);
+      }
+
+      return parsed<TaskReport>(response, doing);
     },
 
     async learnerProgress(

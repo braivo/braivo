@@ -105,6 +105,8 @@ export { claimSignInCode } from "./sign-in-code.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export { markPublished } from "./publication.ts";
+export type { AttemptKey, StoredTaskReport, TaskReportReason } from "./task-report.ts";
+export { insertTaskReport, readEvidenceOutcome, readReportableAttempt } from "./task-report.ts";
 export type {
   AuthoredTask,
   CitedTaskPassage,

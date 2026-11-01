@@ -7,9 +7,9 @@
 // `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
-import { course, member } from "@braivo/db/schema";
+import { course, member, taskReport } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { NEW_OBJECTIVES_PER_DAY } from "../application/daily-limit.ts";
@@ -97,6 +97,20 @@ function postAttempt(
   headers: Record<string, string> = {},
 ) {
   return api.request(`/api/courses/${courseId}/attempts`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+function postReport(
+  courseId: string,
+  attemptId: string,
+  body: unknown,
+  cookie?: string,
+  headers: Record<string, string> = {},
+) {
+  return api.request(`/api/courses/${courseId}/attempts/${attemptId}/report`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
     body: JSON.stringify(body),
@@ -941,6 +955,113 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       explanation: "Preterite.",
     });
     expect(await stored(teacher.id)).toHaveLength(1);
+  });
+
+  test("stores a learner's report of their attempt, answers it alike, and refuses another (learner-loop-22)", async () => {
+    const attemptId = crypto.randomUUID();
+    const answered = await postAttempt(
+      courseId,
+      { id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
+      learner.cookie,
+    );
+    expect(answered.status).toBe(200);
+    const evidence = await stored(learner.id);
+
+    const sent = { reason: "answer-correct", note: "  Both fit.  " };
+    const first = await postReport(courseId, attemptId, sent, learner.cookie);
+    expect(first.status).toBe(201);
+    expect(first.headers.get("cache-control")).toBe("private, no-store");
+    const report = await first.json();
+    expect(report).toEqual({
+      reason: "answer-correct",
+      note: "Both fit.",
+      at: expect.stringMatching(ISO_MOMENT),
+    });
+
+    const again = await postReport(courseId, attemptId, sent, learner.cookie);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual(report);
+
+    const changed = await postReport(courseId, attemptId, { reason: "confusing" }, learner.cookie);
+    expect(changed.status).toBe(409);
+    expect(await changed.json()).toEqual({ error: expect.any(String), code: "ALREADY_REPORTED" });
+    // Grading and evidence untouched.
+    expect(await stored(learner.id)).toEqual(evidence);
+  });
+
+  test("refuses reports it must not store, storing none", async () => {
+    const mine = crypto.randomUUID();
+    const theirs = crypto.randomUUID();
+    const success = crypto.randomUUID();
+    await postAttempt(
+      courseId,
+      { id: mine, taskId: pastTenseTask, response: { choice: 1 } },
+      learner.cookie,
+    );
+    await postAttempt(
+      courseId,
+      { id: theirs, taskId: pastTenseTask, response: { choice: 1 } },
+      classmate.cookie,
+    );
+    await postAttempt(
+      courseId,
+      { id: success, taskId: pastTenseTask, response: { choice: 0 } },
+      teacher.cookie,
+    );
+    const keyWrong = { reason: "key-wrong" };
+
+    const refusals = [
+      await postReport(courseId, mine, keyWrong),
+      await postReport(courseId, mine, keyWrong, learner.cookie, {
+        origin: "https://evil.example.com",
+      }),
+      await postReport(courseId, mine, { reason: "nonsense" }, learner.cookie),
+      await postReport(courseId, mine, { reason: "other" }, learner.cookie),
+      await postReport(
+        courseId,
+        mine,
+        { reason: "confusing", note: "x".repeat(501) },
+        learner.cookie,
+      ),
+      await postReport(courseId, mine, { reason: "confusing", note: "a\u0000" }, learner.cookie),
+      await postReport(courseId, success, { reason: "answer-correct" }, teacher.cookie),
+      await postReport(courseId, theirs, keyWrong, learner.cookie),
+      await postReport(foreignCourseId, mine, keyWrong, learner.cookie),
+      await postReport(courseId, "nobody", keyWrong, learner.cookie),
+    ];
+
+    expect(refusals.map((response) => response.status)).toEqual([
+      401, 403, 400, 400, 400, 400, 400, 404, 404, 404,
+    ]);
+    for (const response of refusals) {
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+    const reports = await database
+      .select()
+      .from(taskReport)
+      .where(inArray(taskReport.learnerId, [learner.id, classmate.id, teacher.id]));
+    expect(reports).toEqual([]);
+  });
+
+  test("stores a report sent on a learn domain by its learner session", async () => {
+    const cookie = await learnerSessionOn(api, organizationOrigin, learner.cookie);
+    const attemptId = crypto.randomUUID();
+    await postAttempt(
+      courseId,
+      { id: attemptId, taskId: pastTenseTask, response: { reveal: true } },
+      learner.cookie,
+    );
+
+    const reported = await api.request(
+      `${organizationOrigin}/api/courses/${courseId}/attempts/${attemptId}/report`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: organizationOrigin, cookie },
+        body: JSON.stringify({ reason: "confusing" }),
+      },
+    );
+
+    expect(reported.status).toBe(201);
   });
 
   describe("a tool reading learners' data (access-45)", () => {

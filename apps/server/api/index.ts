@@ -206,6 +206,30 @@
 //        label of the page the words are on (ADR 0026). Given only after
 //        grading, since a passage could give the answer away.
 //
+// `POST /api/courses/:courseId/attempts/:attemptId/report` — the signed-in
+// learner reports a problem with a task they answered, named by their attempt
+// (ADR 0052), which fixes the task and the answer, so neither is sent. Body
+// `{ "reason": "key-wrong", "note": "…" }`: `reason` one of `answer-correct`
+// (only after a miss that was not Show answer), `key-wrong`, `confusing`,
+// `unsupported`, and `other` (a note required); `note` optional, at most 500
+// characters once trimmed, a blank one none. It changes nothing about the
+// attempt, its evidence, or what is offered next; a task retired since is
+// still reported. The learner's school reads it, without the learner's name.
+//
+//   401  no session
+//   400  the body is not a report, or `answer-correct` names a success or
+//        Show answer
+//   403  the request could have been forged, as for an attempt
+//   404  the course is not the learner's, as for an attempt, or the attempt
+//        is not theirs there, or is of a task outside the course
+//   409  `{ "error": "…", "code": "ALREADY_REPORTED" }`: the attempt's report
+//        says otherwise, or the learner has an undismissed report of the task
+//        from another attempt. A report is never changed.
+//   413  the body is larger than 1 MB
+//   201  stored: `{ "reason": "key-wrong", "note": "…", "at": "…" }`, `note`
+//        only when there is one
+//   200  the same report again: what is stored, dated when it first was
+//
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner, a teacher, or the
 // learner. The reader is the session's user and must be the learner, hold

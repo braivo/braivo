@@ -9,8 +9,10 @@ import {
   chooseNextObjective,
   isTimeZone,
   listLearnerCourses,
+  parseTaskReport,
   readCourseProgress,
   readLearnerProgress,
+  reportAttempt,
   submitAttempt,
   withoutHistory,
 } from "../application/index.ts";
@@ -202,6 +204,48 @@ export function learningRoutes(
           );
         default:
           throw new Error(`Unhandled answer: ${JSON.stringify(submitted satisfies never)}`);
+      }
+    },
+  );
+
+  /**
+   * The signed-in learner reports a problem with a task they answered, by the
+   * attempt (ADR 0052). A report is never changed: any other while one of the
+   * task's is undismissed is refused with a code the learn app words.
+   */
+  routes.post(
+    "/api/courses/:courseId/attempts/:attemptId/report",
+    ...trustedJsonWrite(),
+    requireLearner,
+    async (context) => {
+      // The note is the learner's own words: never logged.
+      const report = parseTaskReport(await jsonBody(context));
+      if (report === undefined) return context.body(null, 400);
+
+      const reported = await reportAttempt({
+        database,
+        learnerId: context.var.learner.id,
+        courseId: context.req.param("courseId"),
+        host: requestHost(context),
+        attemptId: context.req.param("attemptId"),
+        report,
+        now: new Date(),
+      });
+
+      switch (reported.kind) {
+        case "unavailable":
+          return context.body(null, 404);
+        case "invalid":
+          return context.body(null, 400);
+        case "already-reported":
+          return context.json(
+            { error: "This task is already reported.", code: "ALREADY_REPORTED" },
+            409,
+          );
+        case "stored":
+          return context.json(reported.report, reported.created ? 201 : 200);
+        default:
+          throw new Error(`Unhandled answer: ${JSON.stringify(reported satisfies never)}`);
       }
     },
   );

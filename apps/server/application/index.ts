@@ -6,6 +6,8 @@
 
 export type { NextActivity, Passage, SubmittedAttempt } from "./activity.ts";
 export { chooseNextActivity, submitAttempt } from "./activity.ts";
+export type { ReportedAttempt, TaskReportInput, TaskReportReason } from "./task-report.ts";
+export { MAX_REPORT_NOTE_LENGTH, parseTaskReport, reportAttempt } from "./task-report.ts";
 export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
 export type { AuthoredCourse, CourseSummary } from "./courses.ts";
