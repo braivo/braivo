@@ -246,7 +246,8 @@ export function TaskReports(props: {
   const listed = context?.reports.get(taskId);
   const router = useRouter();
   const hash = useRouterState({ select: (state) => state.location.hash });
-  const [whole, setWhole] = useState<ReportedTask>();
+  // The task's whole list, with the page's read it was asked from: a newer read replaces it.
+  const [whole, setWhole] = useState<{ from: ReportedTask; task: ReportedTask }>();
   const [busy, setBusy] = useState<"showing" | "dismissing">();
   const [failure, setFailure] = useState<{ text: string; count: number }>();
   const anchor = useRef<HTMLDetailsElement>(null);
@@ -259,8 +260,10 @@ export function TaskReports(props: {
   }, [arrived, shown]);
 
   if (!listed || !context) return null;
-  // The whole list read on request, while it is still the one listed.
-  const task = whole?.reportCount === listed.reportCount ? whole : listed;
+  // The whole list read on request, until the page reads its reports again.
+  const read: ReportedTask = listed;
+  const expanded = whole?.from === read;
+  const task = expanded ? whole.task : listed;
   const shownIds = task.reports.map(({ id }) => id);
   const partial = task.reportCount > task.reports.length;
 
@@ -271,13 +274,14 @@ export function TaskReports(props: {
   async function showAll() {
     if (busy) return;
     setBusy("showing");
+    const from = read;
     try {
       const { tasks } = await braivo.listReportedTasks(
         { organizationId, taskId },
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
       const [found] = tasks;
-      if (found) setWhole(found);
+      if (found) setWhole({ from, task: found });
       setFailure(undefined);
     } catch (thrown) {
       if (thrown instanceof BraivoError && thrown.status === 401) return void router.invalidate();
@@ -371,7 +375,14 @@ export function TaskReports(props: {
           </Alert>
         )}
         <div className="flex flex-wrap gap-2">
-          {partial && (
+          {/* Past the most one read lists, said rather than offered again. */}
+          {partial && expanded && (
+            <MutedText className="basis-full">
+              Showing the newest {task.reports.length.toLocaleString("en")}; dismiss them to see the
+              rest.
+            </MutedText>
+          )}
+          {partial && !expanded && (
             <Button
               variant="ghost"
               size="sm"

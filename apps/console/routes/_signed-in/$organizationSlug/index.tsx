@@ -98,7 +98,8 @@ function Courses() {
         at="Learners practise at"
         none="Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
       />
-      <ReportedTasks reports={reports} organizationSlug={organizationSlug} />
+      {/* Keyed, so another organization's page never shows this one's list while it reads. */}
+      <ReportedTasks key={organizationSlug} reports={reports} organizationSlug={organizationSlug} />
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>

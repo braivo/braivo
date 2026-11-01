@@ -9,8 +9,8 @@ import type { BraivoClient, ReportedTask } from "@braivo/server/client";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
-import { beginners, school } from "./fixtures.ts";
-import { renderAt } from "./render.tsx";
+import { annex, beginners, school } from "./fixtures.ts";
+import { renderAt, stall } from "./render.tsx";
 
 /** The course's own task, reported. */
 const greetingTask = beginners.objectives[0]!.tasks[0]!;
@@ -261,5 +261,77 @@ describe("learners' reports", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Reported by 2 learners")).toBeTruthy();
     expect(screen.queryByText("Reports could not be loaded.")).toBeNull();
+  });
+
+  /** The greeting task, reported `count` times, `shown` of them listed, IDs starting `prefix`. */
+  const greetingReports = (count: number, shown: number, prefix = "r"): ReportedTask => ({
+    ...reportedGreeting,
+    reportCount: count,
+    reports: Array.from({ length: shown }, (_, index) =>
+      report(`${prefix}${index}`, "confusing", { choice: 1 }),
+    ),
+  });
+
+  test("shows every report read on request, though more arrived meanwhile, until the page reads them again", async () => {
+    let page = greetingReports(21, 20);
+    const listReportedTasks = vi.fn<BraivoClient["listReportedTasks"]>(async (input) => ({
+      // One more arrived after the page read 21.
+      tasks: [input.taskId ? greetingReports(22, 22) : page],
+      more: false,
+    }));
+    const { router } = coursePage({ listReportedTasks });
+
+    fireEvent.click(await screen.findByText("Reported by 21 learners"));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 21 reports" }));
+    expect(await screen.findByText("Reported by 22 learners")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Dismiss reports" })).toBeTruthy();
+
+    // Read again, as many but others: the page's read wins over the older whole list.
+    page = greetingReports(22, 20, "n");
+    await router.invalidate();
+    expect(await screen.findByRole("button", { name: "Dismiss these 20" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show all 22 reports" })).toBeTruthy();
+  });
+
+  test("says when a task has more reports than one read lists, rather than offering them again", async () => {
+    const dismissReports = vi.fn<BraivoClient["dismissReports"]>(async () => {});
+    coursePage({
+      listReportedTasks: async (input: { taskId?: string }) => ({
+        tasks: [input.taskId ? greetingReports(1001, 1000) : greetingReports(1001, 20)],
+        more: false,
+      }),
+      dismissReports,
+    });
+
+    fireEvent.click(await screen.findByText("Reported by 1001 learners"));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 1001 reports" }));
+    expect(
+      await screen.findByText("Showing the newest 1,000; dismiss them to see the rest."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss these 1000" }));
+    await waitFor(() => expect(dismissReports).toHaveBeenCalled());
+    expect(dismissReports.mock.calls[0]![0].reportIds).toHaveLength(1000);
+  });
+
+  test("never shows one organization's reported tasks on another's page while it reads its own", async () => {
+    const { router } = renderAt("/example", {
+      organizations: [school, annex],
+      braivo: {
+        listCourses: async () => [],
+        listReportedTasks: (
+          input: { organizationId: string },
+          options?: { signal?: AbortSignal },
+        ) =>
+          input.organizationId === school.id
+            ? Promise.resolve({ tasks: [reportedGreeting], more: false })
+            : stall(options),
+      },
+    });
+    expect(await screen.findByRole("region", { name: "Reported by learners" })).toBeTruthy();
+
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "annex" } });
+    await waitFor(() => expect(router.state.location.pathname).toBe("/annex"));
+    expect(screen.queryByRole("region", { name: "Reported by learners" })).toBeNull();
   });
 });
