@@ -170,6 +170,15 @@ export function createApi(options: ApiOptions) {
   // Hono's 404 included: none is meant for a shared cache (ADR 0010).
   api.use("/api/*", noStore);
 
+  // Better Auth's setup starts with the server and queries the database (the
+  // OAuth provider records `/mcp` as a resource). Awaited before any answer,
+  // the refusals and 404s included, so a host may end its pools once the
+  // response is ready (ADR 0034).
+  api.use("*", async (_context, next) => {
+    await auth.$context;
+    await next();
+  });
+
   // The installation's origin is the console's and its tools': the account's
   // own credentials — Better Auth, a bearer token — and the console's API reach
   // nothing on any other host, which serves one organization's learn app and
