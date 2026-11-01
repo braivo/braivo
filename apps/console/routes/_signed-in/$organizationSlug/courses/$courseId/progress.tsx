@@ -186,7 +186,7 @@ function ProgressView({ page, refresh }: { page: ProgressPageData; refresh: Reac
   const count = progress.learners.length;
   const { t, i18n } = useLingui();
   const explanation = useId();
-  const learnerSearch = useLearnerSearch();
+  const progressSearch = useProgressSearch();
   const threshold = progress.repeatedMissesThreshold;
   const groupNames =
     groups &&
@@ -236,8 +236,8 @@ function ProgressView({ page, refresh }: { page: ProgressPageData; refresh: Reac
           last correct answer. Show answer counts as a miss.
         </Trans>
       </MutedText>
-      <Learners progress={progress} explanation={explanation} learnerSearch={learnerSearch} />
-      <ByObjective progress={progress} explanation={explanation} search={learnerSearch.current} />
+      <Learners progress={progress} explanation={explanation} progressSearch={progressSearch} />
+      <ByObjective progress={progress} explanation={explanation} search={progressSearch.current} />
     </>
   );
 }
@@ -263,12 +263,12 @@ function BackLink({ search, courseTitle }: { search: ProgressSearch; courseTitle
 }
 
 /**
- * What is searched for learners, as typed: the URL follows a moment later, as
- * a navigation per keystroke would run the console's session and organization
- * checks each time. `current` is the page as it now is, typed included, for
+ * The page's search: its name, order, and practice filter, the name as typed
+ * while the URL follows a moment later, as a navigation per keystroke would
+ * run the console's session and organization checks each time. `current` is the page as it now is, typed included, for
  * every link to a report to lead back to, the objectives' lists' too.
  */
-function useLearnerSearch() {
+function useProgressSearch() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const router = useRouter();
@@ -322,18 +322,18 @@ function useLearnerSearch() {
  * ordered as asked; the URL keeps all three, so a learner's report leads back
  * to the same list. Narrows this table alone: the practice counts and the
  * objectives below count every learner the page reports on. Filtered as
- * typed (`useLearnerSearch`).
+ * typed (`useProgressSearch`).
  */
 function Learners(props: {
   progress: CourseProgressOverview;
   explanation: string;
-  learnerSearch: ReturnType<typeof useLearnerSearch>;
+  progressSearch: ReturnType<typeof useProgressSearch>;
 }) {
   const { learners, objectives, asOf } = props.progress;
   const search = Route.useSearch();
   const { organizationSlug, courseId } = Route.useParams();
   const { t, i18n } = useLingui();
-  const { query, current, setQuery, commit, sendTyping } = props.learnerSearch;
+  const { query, current, setQuery, commit, sendTyping } = props.progressSearch;
   const id = useId();
   const byName = (a: { name: string }, b: { name: string }) =>
     a.name.localeCompare(b.name, i18n.locale);
