@@ -1,0 +1,294 @@
+{
+  "fixture": "market-spanish",
+  "model": "claude-sonnet-5",
+  "promptVersion": "d9783122c5cc",
+  "codeRevision": "4be711660282+changes",
+  "raw": {
+    "objectives": [
+      {
+        "title": "la manzana – the apple",
+        "quotes": ["la manzana the apple"],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: ___ (the apple)",
+            "accepted": ["la manzana"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'la manzana' as the Spanish word for 'the apple'.",
+            "quotes": ["la manzana the apple"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into English: el plátano (answer: the banana) — now translate: la manzana",
+            "accepted": ["the apple"],
+            "answerLanguage": "en",
+            "explanation": "The vocabulary list shows 'la manzana' means 'the apple' in English.",
+            "quotes": ["la manzana the apple"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Fill in the Spanish word: Quería un kilo de ___, por favor. (apples)",
+            "accepted": ["manzanas"],
+            "answerLanguage": "es",
+            "explanation": "The dialogue shows Lucía asking for 'un kilo de manzanas' meaning 'a kilo of apples'.",
+            "quotes": ["Quería un kilo de manzanas, por favor."]
+          }
+        ]
+      },
+      {
+        "title": "el plátano – the banana",
+        "quotes": ["el plátano the banana"],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into English: el plátano",
+            "accepted": ["the banana"],
+            "answerLanguage": "en",
+            "explanation": "The exercise explicitly translates 'el plátano' as 'the banana'.",
+            "quotes": ["Translate into English: el plátano (answer: the banana)"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: ___ (the banana)",
+            "accepted": ["el plátano"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'el plátano' as the Spanish word for 'the banana'.",
+            "quotes": ["el plátano the banana"]
+          }
+        ]
+      },
+      {
+        "title": "la naranja – the orange (and plural las naranjas)",
+        "quotes": [
+          "la naranja the orange",
+          "la naranja becomes las naranjas",
+          "Plural of la naranja? (answer: las naranjas)"
+        ],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: ___ (the orange)",
+            "accepted": ["la naranja"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'la naranja' as the Spanish word for 'the orange'.",
+            "quotes": ["la naranja the orange"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "What is the plural of 'la naranja'?",
+            "accepted": ["las naranjas"],
+            "answerLanguage": "es",
+            "explanation": "The grammar note states 'la naranja becomes las naranjas' in the plural.",
+            "quotes": ["la naranja becomes las naranjas"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Exercise d) Plural of la naranja?",
+            "accepted": ["las naranjas"],
+            "answerLanguage": "es",
+            "explanation": "The exercise answer confirms the plural form 'las naranjas'.",
+            "quotes": ["Plural of la naranja? (answer: las naranjas)"]
+          }
+        ]
+      },
+      {
+        "title": "el tomate – the tomato (and plural los tomates)",
+        "quotes": [
+          "el tomate the tomato",
+          "el tomate becomes los tomates",
+          "half a kilo of tomatoes (answer: medio kilo de tomates)"
+        ],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: ___ (the tomato)",
+            "accepted": ["el tomate"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'el tomate' as the Spanish word for 'the tomato'.",
+            "quotes": ["el tomate the tomato"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "What is the plural of 'el tomate'?",
+            "accepted": ["los tomates"],
+            "answerLanguage": "es",
+            "explanation": "The grammar note states 'el tomate becomes los tomates' in the plural.",
+            "quotes": ["el tomate becomes los tomates"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: half a kilo of tomatoes",
+            "accepted": ["medio kilo de tomates"],
+            "answerLanguage": "es",
+            "explanation": "The exercise directly translates 'half a kilo of tomatoes' as 'medio kilo de tomates'.",
+            "quotes": ["half a kilo of tomatoes (answer: medio kilo de tomates)"]
+          }
+        ]
+      },
+      {
+        "title": "la cebolla – the onion",
+        "quotes": ["la cebolla the onion", "Y una cebolla, por favor."],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: ___ (the onion)",
+            "accepted": ["la cebolla"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'la cebolla' as the Spanish word for 'the onion'.",
+            "quotes": ["la cebolla the onion"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into English: la cebolla",
+            "accepted": ["the onion"],
+            "answerLanguage": "en",
+            "explanation": "The vocabulary list shows 'la cebolla' means 'the onion'.",
+            "quotes": ["la cebolla the onion"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Complete Lucía's line: Y una ___, por favor.",
+            "accepted": ["cebolla"],
+            "answerLanguage": "es",
+            "explanation": "In the dialogue, Lucía says 'Y una cebolla, por favor.' asking for an onion.",
+            "quotes": ["Y una cebolla, por favor."]
+          }
+        ]
+      },
+      {
+        "title": "un kilo de / medio kilo de – expressing quantities",
+        "quotes": [
+          "un kilo de a kilo of",
+          "medio kilo de half a kilo of",
+          "Put the quantity before the food: un kilo de manzanas, medio kilo de tomates."
+        ],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: a kilo of",
+            "accepted": ["un kilo de"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'un kilo de' as the Spanish for 'a kilo of'.",
+            "quotes": ["un kilo de a kilo of"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: half a kilo of",
+            "accepted": ["medio kilo de"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives 'medio kilo de' as the Spanish for 'half a kilo of'.",
+            "quotes": ["medio kilo de half a kilo of"]
+          },
+          {
+            "kind": "choice",
+            "prompt": "Where does the quantity go relative to the food in Spanish?",
+            "options": ["Before the food", "After the food", "It doesn't matter"],
+            "answer": 0,
+            "explanation": "The grammar section states to 'Put the quantity before the food: un kilo de manzanas, medio kilo de tomates.'",
+            "quotes": [
+              "Put the quantity before the food: un kilo de manzanas, medio kilo de tomates."
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Asking politely for something: Quería… and ¿Me pone…?",
+        "quotes": [
+          "To ask for something politely, say Quería… (I would like…) or ¿Me pone…? (Could you give me…?).",
+          "Quería un kilo de manzanas, por favor.",
+          "¿Me pone medio kilo de tomates?",
+          "I would like a kilo of apples, please.\" (answer: Quería un kilo de manzanas, por favor.)"
+        ],
+        "tasks": [
+          {
+            "kind": "choice",
+            "prompt": "Which phrase means 'I would like…'?",
+            "options": ["Quería…", "¿Me pone…?", "¿Cuánto cuesta?"],
+            "answer": 0,
+            "explanation": "The grammar section states 'Quería… (I would like…)' as a polite way to ask for something.",
+            "quotes": [
+              "To ask for something politely, say Quería… (I would like…) or ¿Me pone…? (Could you give me…?)."
+            ]
+          },
+          {
+            "kind": "choice",
+            "prompt": "Which phrase means 'Could you give me…?'",
+            "options": ["¿Me pone…?", "Quería…", "¿Qué le pongo?"],
+            "answer": 0,
+            "explanation": "The grammar section states '¿Me pone…? (Could you give me…?)' as a polite way to ask for something.",
+            "quotes": [
+              "To ask for something politely, say Quería… (I would like…) or ¿Me pone…? (Could you give me…?)."
+            ]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: I would like a kilo of apples, please.",
+            "accepted": ["Quería un kilo de manzanas, por favor."],
+            "answerLanguage": "es",
+            "explanation": "The exercise directly gives this translation.",
+            "quotes": [
+              "I would like a kilo of apples, please.\" (answer: Quería un kilo de manzanas, por favor.)"
+            ]
+          },
+          {
+            "kind": "typed",
+            "prompt": "Complete the polite request: ¿Me pone ___ de tomates? (half a kilo)",
+            "accepted": ["medio kilo"],
+            "answerLanguage": "es",
+            "explanation": "In the dialogue, Lucía asks '¿Me pone medio kilo de tomates?' using the polite form with a quantity.",
+            "quotes": ["¿Me pone medio kilo de tomates?"]
+          }
+        ]
+      },
+      {
+        "title": "Asking the price: ¿Cuánto cuesta?",
+        "quotes": [
+          "¿Cuánto cuesta? How much is it?",
+          "How do you ask the price? (answer: ¿Cuánto cuesta?)",
+          "¿Cuánto cuesta?"
+        ],
+        "tasks": [
+          {
+            "kind": "typed",
+            "prompt": "Translate into Spanish: How much is it?",
+            "accepted": ["¿Cuánto cuesta?"],
+            "answerLanguage": "es",
+            "explanation": "The vocabulary list gives '¿Cuánto cuesta?' as the Spanish for 'How much is it?'.",
+            "quotes": ["¿Cuánto cuesta? How much is it?"]
+          },
+          {
+            "kind": "choice",
+            "prompt": "How do you ask how much something costs?",
+            "options": ["¿Cuánto cuesta?", "¿Qué le pongo?", "¿Algo más?"],
+            "answer": 0,
+            "explanation": "The exercise confirms '¿Cuánto cuesta?' is how you ask the price.",
+            "quotes": ["How do you ask the price? (answer: ¿Cuánto cuesta?)"]
+          },
+          {
+            "kind": "typed",
+            "prompt": "In the dialogue, Lucía asks for tomatoes and then asks the price. Complete: ¿Me pone medio kilo de tomates? ___",
+            "accepted": ["¿Cuánto cuesta?"],
+            "answerLanguage": "es",
+            "explanation": "In the dialogue, right after asking for tomatoes, Lucía says '¿Cuánto cuesta?' to ask the price.",
+            "quotes": ["¿Me pone medio kilo de tomates? ¿Cuánto cuesta?"]
+          }
+        ]
+      }
+    ]
+  },
+  "counts": {
+    "proposed": {
+      "objectives": 8,
+      "tasks": 24
+    },
+    "kept": {
+      "objectives": 8,
+      "tasks": 22
+    },
+    "refusals": {
+      "quote-ambiguous": 5,
+      "task-without-quote": 2
+    }
+  },
+  "refusalLines": 7
+}

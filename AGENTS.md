@@ -40,7 +40,7 @@ packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
 packages/cli           `braivo`, content owners' CLI over HTTP, compiled per platform; its installers
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
-tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo
+tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo, draft evaluation
 docs/                  product, architecture, apps, glossary, adr/, specs/
 ```
 
@@ -62,6 +62,7 @@ One Vite+ workspace; layout and rationale in `docs/adr/0003-workspace-layout.md`
   - Leave generated files as the CLI writes them. Change a component's look in the `Braivo:` section of `styles/globals.css` (CSS keyed on its `data-slot`, or a variable overriding the theme's), or wrap it in a composition; one app's own changes go the same way in its `styles.css`. The CLI keeps both, so overwriting is safe; an edit nothing else can make gets a `// Braivo:` comment saying why, and is restored after each refresh.
   - To update from upstream: `bunx shadcn add --all --overwrite --yes`, then review `git diff` and run the gates.
   - To change the design: `bunx shadcn apply <preset> --yes` (`--only theme,font` keeps the components; `init --force --reinstall` changes the base or the pointer). Then remove what the old preset left behind: font imports the theme no longer names, and dependencies nothing imports. Ask the maintainer before changing the preset.
+- A change to what Braivo tells its AI (an operation in `apps/server/ai/`) or to the default model is compared with `main` by `bun run eval:draft` before it merges, and the comparison and the filled rubric go on its PR (`tooling/draft-eval/README.md`). The comparison makes paid model calls: without an Anthropic key, say so in the PR and the maintainer runs it.
 - Learner-facing copy is marked where it is rendered, with Lingui's macros (`docs/adr/0035-lingui-localization.md`): `<Trans>` and `useLingui`'s `t` in a component; `msg` for copy kept outside one, translated where shown; `@lingui/core/macro`'s `t` only in code running after the app starts (a route's `head`), never at a module's top level, which runs before the language is chosen. After changing marked copy, `bun run i18n:extract`, then translate each new entry in `packages/i18n/locales/` (an accessible name or title counts); `bun run i18n:check` fails until every catalog is complete.
 - A page in `apps/console` or `apps/learn` follows `docs/apps.md`: titles, pending and failed actions, long words, and testing it.
 - A source file Braivo writes (`.ts`, `.tsx`, `.css`, shell) starts with the two-line SPDX header in `docs/adr/0002-agpl-only.md`; never add or change one in shadcn's files under `packages/ui`. `bun run license:check` fails on a missing one.
