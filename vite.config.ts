@@ -154,6 +154,7 @@ export default defineConfig({
                     "../*/**",
                     "!../*/index.ts",
                     "!../content/course-ref.ts",
+                    "!../content/explanation.ts",
                     "!../content/findings.ts",
                     "!../application/learner-day.ts",
                   ],

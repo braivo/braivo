@@ -153,6 +153,19 @@ describe("editing a task", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Question"));
   });
 
+  test("opens at its explanation when asked, to write one it lacks", () => {
+    render(
+      <TaskEditor
+        task={{ kind: "choice", prompt: "Hola?", options: ["Hello", "Bye"], answer: 0 }}
+        focusExplanation
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(document.activeElement).toBe(screen.getByLabelText("Why the answer is right"));
+  });
+
   test("names the choice of correct option", () => {
     edit();
 
@@ -240,5 +253,37 @@ describe("editing a typed task", () => {
 
     expect(screen.getByText(problem)).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe("what the editor holds unsaved", () => {
+  test("is told as it changes: a word, the correct option, back to the task as it was", () => {
+    const onDirtyChange = vi.fn();
+    render(
+      <TaskEditor task={task} onDirtyChange={onDirtyChange} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    const why = screen.getByLabelText("Why the answer is right");
+    fireEvent.change(why, { target: { value: "Rojo, red." } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    fireEvent.change(why, { target: { value: "Rojo." } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByRole("radio", { name: "A is correct" }));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  test("includes an answer added from a finding, unsaved from the start", () => {
+    const onDirtyChange = vi.fn();
+    render(
+      <TaskEditor
+        task={{ kind: "typed", prompt: "Red?", accepted: ["rojo"] }}
+        answerToAdd="roja"
+        onDirtyChange={onDirtyChange}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
   });
 });

@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type BraivoClient, BraivoError } from "@braivo/server/client";
+import { createBrowserHistory } from "@tanstack/react-router";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { members, courseProgress, school, annex, beginners, readCourse } from "./fixtures.ts";
-import { stall, waitOut, renderAt, expectAiAppGuide } from "./render.tsx";
+import { stall, waitOut, renderAt, expectAiAppGuide, answerLeaving } from "./render.tsx";
 
 describe("the console", () => {
   test("leads from an organization to its sources", async () => {
@@ -1030,6 +1031,113 @@ describe("the console", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reload the page" }));
     await vi.waitFor(() => expect(screen.queryByLabelText("Question")).toBeNull());
     expect(document.activeElement).toBe(screen.getByRole("heading", { name: "1. Greetings" }));
+  });
+
+  test("keeps a task's own passages in view while editing it, and asks before leaving an unsaved edit", async () => {
+    const confirm = answerLeaving(false);
+    // Its own passage, apart from the objective's.
+    const reading = async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      const own = [{ sourceId: "s1", start: 0, end: 13, quote: "Hola, amigos." }];
+      return {
+        ...course,
+        objectives: [{ ...greetings!, tasks: [{ ...task!, citations: own }] }, ...rest],
+      };
+    };
+    // A browser's history, as a memory history never hears of reloading or closing the tab.
+    window.history.replaceState(null, "", "/example/courses/course-1");
+    const history = createBrowserHistory();
+    onTestFinished(() => {
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    });
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: { readCourse: reading },
+      history,
+    });
+    const asksOnUnload = () =>
+      !window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+    const toCourses = () =>
+      router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    expect(screen.getByText(/Hola, amigos\./)).toBeTruthy();
+    // Opened, nothing changed yet: nothing to lose.
+    expect(asksOnUnload()).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Why the answer is right"), {
+      target: { value: "Hola greets." },
+    });
+    expect(asksOnUnload()).toBe(true);
+    void toCourses();
+    await vi.waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith("Leave this page? Your edit to this task will be lost."),
+    );
+    expect(router.history.location.pathname).toBe("/example/courses/course-1");
+    expect((screen.getByLabelText("Why the answer is right") as HTMLTextAreaElement).value).toBe(
+      "Hola greets.",
+    );
+
+    confirm.mockReturnValue(true);
+    void toCourses();
+    await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example"));
+  });
+
+  test("asks before losing an edit while it is sent, until Braivo has it", async () => {
+    const confirm = answerLeaving(false);
+    window.history.replaceState(null, "", "/example/courses/course-1");
+    const history = createBrowserHistory();
+    onTestFinished(() => {
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    });
+    const failing = Promise.withResolvers<never>();
+    const answered = Promise.withResolvers<string[]>();
+    let corrected = false;
+    const defineTasks = vi
+      .fn()
+      .mockReturnValueOnce(failing.promise)
+      .mockReturnValueOnce(answered.promise.then((ids) => ((corrected = true), ids)));
+    const reading = vi.fn(async (input: { courseId: string }) => {
+      const course = await readCourse(input);
+      if (!corrected) return course;
+      const [greetings, ...rest] = course.objectives;
+      const [task] = greetings!.tasks;
+      return {
+        ...course,
+        objectives: [
+          { ...greetings!, tasks: [{ ...task!, id: "t2", explanation: "Greets." }] },
+          ...rest,
+        ],
+      };
+    });
+    const { router } = renderAt("/example/courses/course-1", {
+      braivo: { readCourse: reading, defineTasks },
+      history,
+    });
+    const asksOnUnload = () =>
+      !window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello, in Spanish?”" }));
+    const why = () => screen.getByLabelText("Why the answer is right") as HTMLTextAreaElement;
+    fireEvent.change(why(), { target: { value: "Greets." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    // Sent, not yet stored: it may never arrive.
+    expect(asksOnUnload()).toBe(true);
+
+    failing.reject(new BraivoError(503, "Braivo answered 503."));
+    await screen.findByText("The task could not be corrected. Try again.");
+    expect(why().value).toBe("Greets.");
+    expect(asksOnUnload()).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    answered.resolve(["t2"]);
+    await vi.waitFor(() => expect(screen.queryByLabelText("Why the answer is right")).toBeNull());
+    expect(asksOnUnload()).toBe(false);
+    await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   test("reloads a course once, keeping the edit until it is read, however often asked", async () => {

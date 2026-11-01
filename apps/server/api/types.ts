@@ -281,6 +281,22 @@ export type AuthoredTask = content.TaskBody & {
 };
 
 /**
+ * A course's unretired tasks, all at once, in the order learners meet them:
+ * each as `AuthoredTask`, with its `objectiveId` and, while published, the
+ * `pendingCorrection` waiting to replace it, if any, saying whether that
+ * explains its answer. `counts` cover every unretired task of the course,
+ * whatever was asked for: published and pending apart, how many have no
+ * explanation, and of the published, how many also cite no passage.
+ */
+export type CourseTaskList = {
+  tasks: (AuthoredTask & {
+    objectiveId: string;
+    pendingCorrection?: { id: string; hasExplanation: boolean };
+  })[];
+  counts: content.ExplanationCounts;
+};
+
+/**
  * What adding a task did, and what learners reach of it (ADR 0039): `added`,
  * false for an unretired twin answered instead (ADR 0024), as is a task
  * repeated within the request after its first; `published`, false while it

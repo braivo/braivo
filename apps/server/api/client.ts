@@ -9,6 +9,7 @@ import type {
   Course,
   CourseProgressOverview,
   CourseSummary,
+  CourseTaskList,
   CourseWriteResult,
   DomainClaim,
   DomainList,
@@ -44,7 +45,8 @@ import type {
 // `@braivo/server/client` and `braivo` (packages/cli) uses to reach a remote
 // installation. It is bundled into the apps, so it may import nothing from the
 // server but types and modules importing nothing beyond each other,
-// `content/course-ref.ts`, `content/findings.ts` with `content/answer.ts`, and
+// `content/course-ref.ts`, `content/explanation.ts`, `content/findings.ts` with
+// `content/answer.ts`, and
 // `application/learner-day.ts` (`client.test.ts` checks).
 //
 // It covers what its callers call, not the whole API: an authoring route with
@@ -59,6 +61,7 @@ export type {
   Course,
   CourseProgressOverview,
   CourseSummary,
+  CourseTaskList,
   CourseWriteResult,
   Domain,
   DomainClaim,
@@ -96,6 +99,8 @@ export type {
   ToolsReadLearnerData,
 } from "./types.ts";
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
+export type { ExplanationCounts } from "../content/explanation.ts";
+export { countExplanations, hasExplanation } from "../content/explanation.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
 export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";
@@ -628,6 +633,17 @@ export type BraivoClient = {
     input: { organizationId: string; objectiveId: string },
     options?: RequestOptions,
   ): Promise<AuthoredTask[]>;
+
+  /**
+   * A course's unretired tasks, all at once (`CourseTaskList`); `without:
+   * "explanation"`, only those without one. A course the organization does
+   * not have is a {@link BraivoError} with status 404; one the session may
+   * not author in, 403.
+   */
+  listCourseTasks(
+    input: { organizationId: string; courseId: string; without?: "explanation" },
+    options?: RequestOptions,
+  ): Promise<CourseTaskList>;
 
   /**
    * One course as authored — objectives in order, each with its passages and
@@ -1349,6 +1365,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { tasks } = await parsed<{ tasks: AuthoredTask[] }>(response, doing);
       return tasks;
+    },
+
+    async listCourseTasks({ organizationId, courseId, without }, requestOptions) {
+      const response = await get(
+        `${organizationPath(organizationId)}/courses/${encodeURIComponent(courseId)}/tasks${without ? `?without=${without}` : ""}`,
+        requestOptions,
+      );
+
+      const doing = `listing the tasks of course "${courseId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<CourseTaskList>(response, doing);
     },
 
     async readCourse({ organizationId, courseId }, requestOptions) {

@@ -150,6 +150,20 @@ msgstr "{objective}: {counted}"
 msgid "{organization} · connected {date}"
 msgstr "{organization} · połączono {date}"
 
+#: apps/console/components/explanations.tsx
+msgid "{pending, plural, one {# task waiting for review has no explanation.} other {# tasks waiting for review have no explanation.}}"
+msgstr "{pending, plural, one {# zadanie czekające na sprawdzenie nie ma wyjaśnienia.} few {# zadania czekające na sprawdzenie nie mają wyjaśnienia.} many {# zadań czekających na sprawdzenie nie ma wyjaśnienia.} other {# zadań czekających na sprawdzenie nie ma wyjaśnienia.}}"
+
+#. {published}: how many of the published tasks have no explanation; then how many of those also cite no passage
+#: apps/console/components/explanations.tsx
+msgid "{published}; {withoutExplanationOrPassage, plural, one {# also cites no passage} other {# also cite no passage}}."
+msgstr "{published}; {withoutExplanationOrPassage, plural, one {w tym bez cytatu ze źródła: #} few {w tym bez cytatu ze źródła: #} many {w tym bez cytatu ze źródła: #} other {w tym bez cytatu ze źródła: #}}."
+
+#. {published}: how many of the published tasks have no explanation
+#: apps/console/components/explanations.tsx
+msgid "{published}."
+msgstr "{published}."
+
 #: apps/console/routes/login.tsx
 msgid "{refusedEmail} is not a member of {organizationName}. Ask to be added with this email, then try again."
 msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”. Poproś o dodanie tego adresu e-mail, a potem spróbuj ponownie."
@@ -167,9 +181,21 @@ msgstr "{successes, plural, one {# sukces} few {# sukcesy} many {# sukcesów} ot
 msgid "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
 msgstr "{taskCount, plural, one {# z tych zadań ma uwagi do sprawdzenia} few {# z tych zadań mają uwagi do sprawdzenia} many {# z tych zadań ma uwagi do sprawdzenia} other {# z tych zadań ma uwagi do sprawdzenia}}"
 
+#: apps/console/components/explanations.tsx
+msgid "{total, plural, one {The selected task has no explanation.} other {None of the # selected tasks has an explanation.}}"
+msgstr "{total, plural, one {Zaznaczone zadanie nie ma wyjaśnienia.} few {Żadne z # zaznaczonych zadań nie ma wyjaśnienia.} many {Żadne z # zaznaczonych zadań nie ma wyjaśnienia.} other {Żadne z # zaznaczonych zadań nie ma wyjaśnienia.}}"
+
 #: apps/console/components/last-practised.tsx
 msgid "{when} ({exact})"
 msgstr "{when} ({exact})"
+
+#: apps/console/components/explanations.tsx
+msgid "{without, plural, one {# of the {total} selected tasks has no explanation.} other {# of the {total} selected tasks have no explanation.}}"
+msgstr "{without, plural, one {Zaznaczone zadania bez wyjaśnienia: # z {total}.} few {Zaznaczone zadania bez wyjaśnienia: # z {total}.} many {Zaznaczone zadania bez wyjaśnienia: # z {total}.} other {Zaznaczone zadania bez wyjaśnienia: # z {total}.}}"
+
+#: apps/console/components/explanations.tsx
+msgid "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
+msgstr "{withoutExplanation, plural, one {Opublikowane zadania bez wyjaśnienia: # z {total}} few {Opublikowane zadania bez wyjaśnienia: # z {total}} many {Opublikowane zadania bez wyjaśnienia: # z {total}} other {Opublikowane zadania bez wyjaśnienia: # z {total}}}"
 
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
@@ -744,6 +770,10 @@ msgstr "Szacowana szansa na przypomnienie sobie pochodzi z modelu, a nie z testu
 msgid "Estimated recall now: {recall}%"
 msgstr "Szacowana szansa na przypomnienie sobie teraz: {recall}%"
 
+#: apps/console/components/explanations.tsx
+msgid "Every task has an explanation."
+msgstr "Każde zadanie ma wyjaśnienie."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Evidence"
 msgstr "Wyniki"
@@ -982,6 +1012,10 @@ msgstr "Uczysz się? Otwórz stronę otrzymaną od szkoły lub organizatora szko
 msgid "Leave this page? Your changes to this group will be lost."
 msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 
+#: apps/console/components/task-review.tsx
+msgid "Leave this page? Your edit to this task will be lost."
+msgstr "Opuścić tę stronę? Twoje zmiany w tym zadaniu zostaną utracone."
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Zezwolić aplikacji {clientName} na pracę w organizacji „{organizationName}”?"
@@ -1098,6 +1132,10 @@ msgstr "Nie masz jeszcze kursów"
 msgid "No courses yet."
 msgstr "Na razie brak kursów."
 
+#: apps/console/components/explanations.tsx
+msgid "No explanation"
+msgstr "Brak wyjaśnienia"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
 msgid "No group matches “{query}”."
 msgstr "Żadna grupa nie pasuje do „{query}”."
@@ -1148,6 +1186,10 @@ msgstr "Jeszcze bez ćwiczeń z celów tego kursu"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No practice yet: {none}"
 msgstr "Jeszcze bez ćwiczeń: {none}"
+
+#: apps/console/components/explanations.tsx
+msgid "No tasks yet."
+msgstr "Na razie brak zadań."
 
 #: apps/console/components/group-form.tsx
 msgid "No teacher can read this group's progress yet."
@@ -1317,6 +1359,10 @@ msgstr "Postępy"
 msgid "Progress by objective"
 msgstr "Postępy według celów"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Publish acts only on the tasks shown."
+msgstr "Publikowanie obejmuje tylko widoczne zadania."
+
 #: apps/console/components/task-review.tsx
 msgid "Publish anyway"
 msgstr "Opublikuj mimo to"
@@ -1428,11 +1474,20 @@ msgstr "Zapisz"
 msgid "Save changes"
 msgstr "Zapisz zmiany"
 
+#. {left}: the published tasks still without an explanation
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Saved and published. {left} left."
+msgstr "Zapisano i opublikowano. Pozostało bez wyjaśnienia: {left}."
+
 #: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saved."
 msgstr "Zapisano."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Saved. It waits for review."
+msgstr "Zapisano. Czeka na sprawdzenie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
@@ -1488,9 +1543,18 @@ msgstr "Załóż swoją organizację"
 msgid "Settings"
 msgstr "Ustawienia"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Show all"
+msgstr "Pokaż wszystkie"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Show answer"
 msgstr "Pokaż odpowiedź"
+
+#. Shows only the tasks without an explanation, counted beside it
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Show only these"
+msgstr "Pokaż tylko te"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 msgid "Shown to the people you work with, in every organization."

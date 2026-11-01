@@ -425,8 +425,9 @@ test("loads no server code at runtime, so an app bundling it bundles none", asyn
   // browser. Every import is `import type` as written, not only after Bun's
   // transpiler elides it, because an inline `import { type X }` can leave a
   // side-effect import behind in another compiler's output. What it shares
-  // with the server at runtime, a course's address, a task's findings, and a
-  // learner's day, are modules importing nothing beyond each other.
+  // with the server at runtime, a course's address, whether a task is
+  // explained, its findings, and a learner's day, are modules importing
+  // nothing beyond each other.
   const read = (name: string) => readFile(new URL(name, import.meta.url), "utf8");
   const source = await read("client.ts");
   const imports = source.split("\n").filter((line) => line.startsWith("import "));
@@ -437,12 +438,14 @@ test("loads no server code at runtime, so an app bundling it bundles none", asyn
   expect(imports.filter((line) => !line.startsWith("import type "))).toEqual([]);
   expect(scan(source)).toEqual([
     "../content/course-ref.ts",
+    "../content/explanation.ts",
     "../content/findings.ts",
     "../application/learner-day.ts",
   ]);
   // Each shared module, with what it imports itself.
   const shared = {
     "../content/course-ref.ts": [],
+    "../content/explanation.ts": [],
     "../content/findings.ts": ["./answer.ts"],
     "../content/answer.ts": [],
     "../application/learner-day.ts": [],

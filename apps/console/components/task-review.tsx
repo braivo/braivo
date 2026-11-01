@@ -8,7 +8,13 @@
  * showed, all or nothing.
  */
 
-import { type AuthoredCourse, BraivoError, type SourceSummary } from "@braivo/server/client";
+import {
+  type AuthoredCourse,
+  BraivoError,
+  hasExplanation,
+  type SourceSummary,
+  type TaskWriteResult,
+} from "@braivo/server/client";
 import { AuthoredTask, type EditableTask, MutedText, SourcePassage, TaskEditor } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import {
@@ -29,9 +35,10 @@ import { Label } from "@braivo/ui/components/label";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useRouteContext, useRouter } from "@tanstack/react-router";
+import { useBlocker, useRouteContext, useRouter } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
+import { NoExplanation } from "#components/explanations";
 import { FindingLines } from "#components/findings";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -388,6 +395,8 @@ export function TaskList(props: {
   tasks: readonly ReviewTask[];
   /** Its pending tasks rather than its published ones. */
   showPending?: boolean;
+  /** Only these of them, by ID, when the page is narrowed: `tasks` stays whole, for lookups. */
+  shownIds?: ReadonlySet<string>;
   sources: ReadonlyMap<string, SourceSummary>;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
@@ -397,17 +406,31 @@ export function TaskList(props: {
   pending: boolean;
   /** A task was corrected or retired: focus what is still there to take it. */
   onChanged: () => void;
+  /**
+   * A task was corrected, saved as `saved` and the page read again: in place
+   * of `onChanged`, when given, to say so and move the focus itself.
+   */
+  onSaved?: (taskId: string, saved: TaskWriteResult) => void;
+  /**
+   * The page's status, shown at the top of task `at`, if listed here, where
+   * the focus went after a save; hidden from assistive technology, which
+   * hears the page's status already.
+   */
+  status?: { message: string; at?: string };
 }) {
   const {
     objectiveId,
     tasks,
     showPending,
+    shownIds,
+    status,
     sources,
     selection,
     editing,
     onEdit,
     pending,
     onChanged,
+    onSaved,
   } = props;
   const { t } = useLingui();
   // The task whose Edit button takes focus back once its editor closes unsaved.
@@ -416,7 +439,10 @@ export function TaskList(props: {
   // Published tasks a tool's correction waits to replace (ADR 0039), of all
   // its tasks: the list showing the task may not show its correction.
   const withPendingCorrection = new Set(tasks.flatMap((task) => task.replaces ?? []));
-  const shown = tasks.filter(({ published }) => (showPending ? !published : published));
+  const shown = tasks.filter(
+    ({ id, published }) =>
+      (showPending ? !published : published) && (shownIds === undefined || shownIds.has(id)),
+  );
 
   return shown.map((task) => {
     const replaced = task.replaces === undefined ? undefined : byId.get(task.replaces);
@@ -426,11 +452,13 @@ export function TaskList(props: {
           <CorrectTask
             objectiveId={objectiveId}
             task={task}
+            sources={sources}
             answerToAdd={editing.answerToAdd}
             hasPendingCorrection={withPendingCorrection.has(task.id)}
-            onDone={() => {
+            onDone={(outcome) => {
               onEdit(undefined);
-              onChanged();
+              if (outcome !== "reloaded" && onSaved) onSaved(task.id, outcome.saved);
+              else onChanged();
             }}
             onCancel={() => {
               refocus.current = task.id;
@@ -438,62 +466,74 @@ export function TaskList(props: {
             }}
           />
         ) : (
-          <RetirableTask
-            task={task}
-            renderEdit={(retiring) => (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={`Edit ${taskName(task)}`}
-                ref={(button) => {
-                  if (button && refocus.current === task.id) {
-                    refocus.current = undefined;
-                    button.focus();
-                  }
-                }}
-                // Not while retiring it, which could land under the edit, nor while Publish or Delete could close it.
-                disabled={retiring || pending || editing !== undefined}
-                onClick={() => onEdit({ taskId: task.id })}
-              >
-                Edit
-              </Button>
+          // Focusable, to take the focus when the task before it leaves the page.
+          <div id={`task-${task.id}`} tabIndex={-1} className="rounded-xl">
+            {status?.at === task.id && (
+              <MutedText aria-hidden="true" className="mb-2 block">
+                {status.message}
+              </MutedText>
             )}
-            findings={(retiring) => (
-              <FindingLines
-                taskId={task.id}
-                findings={task.findings}
-                onAdd={{
-                  label: (answer) =>
-                    task.published
-                      ? t`Edit “${task.prompt}” and add “${answer}”`
-                      : t`Edit unpublished task “${task.prompt}” and add “${answer}”`,
-                  // As its Edit button.
-                  disabled: retiring || pending || editing !== undefined,
-                  add: (answer) => onEdit({ taskId: task.id, answerToAdd: answer }),
-                }}
-              />
-            )}
-            select={
-              selection && (
-                <Checkbox
-                  aria-label={`Select ${taskName(task)}`}
-                  checked={selection.selectedIds.has(task.id)}
-                  onCheckedChange={(checked) => selection.select([task.id], checked === true)}
-                />
-              )
-            }
-            hasPendingCorrection={withPendingCorrection.has(task.id)}
-            corrects={replaced?.prompt}
-            onRetired={onChanged}
-          >
-            <Passages citations={task.citations} sources={sources} />
-          </RetirableTask>
+            <RetirableTask
+              task={task}
+              renderEdit={(retiring) => (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Edit ${taskName(task)}`}
+                  ref={(button) => {
+                    if (button && refocus.current === task.id) {
+                      refocus.current = undefined;
+                      button.focus();
+                    }
+                  }}
+                  // Not while retiring it, which could land under the edit, nor while Publish or Delete could close it.
+                  disabled={retiring || pending || editing !== undefined}
+                  onClick={() => onEdit({ taskId: task.id })}
+                >
+                  Edit
+                </Button>
+              )}
+              findings={(retiring) => (
+                <>
+                  <NoExplanation task={task} />
+                  <FindingLines
+                    taskId={task.id}
+                    findings={task.findings}
+                    onAdd={{
+                      label: (answer) =>
+                        task.published
+                          ? t`Edit “${task.prompt}” and add “${answer}”`
+                          : t`Edit unpublished task “${task.prompt}” and add “${answer}”`,
+                      // As its Edit button.
+                      disabled: retiring || pending || editing !== undefined,
+                      add: (answer) => onEdit({ taskId: task.id, answerToAdd: answer }),
+                    }}
+                  />
+                </>
+              )}
+              select={
+                selection && (
+                  <Checkbox
+                    aria-label={`Select ${taskName(task)}`}
+                    checked={selection.selectedIds.has(task.id)}
+                    onCheckedChange={(checked) => selection.select([task.id], checked === true)}
+                  />
+                )
+              }
+              hasPendingCorrection={withPendingCorrection.has(task.id)}
+              corrects={replaced?.prompt}
+              onRetired={onChanged}
+            >
+              <Passages citations={task.citations} sources={sources} />
+            </RetirableTask>
+          </div>
         )}
         {/* Beside its correction, to compare; its buttons are with the published tasks. */}
         {replaced && (
           <div className="ms-6 flex flex-col gap-2">
             <MutedText>As published now:</MutedText>
             <AuthoredTask task={replaced}>
+              <NoExplanation task={replaced} />
               <Passages citations={replaced.citations} sources={sources} />
             </AuthoredTask>
           </div>
@@ -513,23 +553,45 @@ const taskName = (task: ReviewTask) =>
 /**
  * Edits a task the only way an immutable one can be: its correction, with the
  * task's passages and option order, replaces it in one step. Not asked first,
- * unlike retiring, since learners always have one or the other.
+ * unlike retiring, since learners always have one or the other. Its passages
+ * stay in view, what an explanation is written from.
  */
 function CorrectTask(props: {
   objectiveId: string;
   task: ReviewTask;
+  sources: ReadonlyMap<string, SourceSummary>;
   /** An accepted answer to add, from a finding: the editor opens with it, focused there. */
   answerToAdd?: string;
   /** A correction waits to replace it, which saving retires. */
   hasPendingCorrection: boolean;
-  /** Corrected, or reloaded to find it changed: the page as stored is shown. */
-  onDone: () => void;
+  /**
+   * The page as stored is shown: corrected, with what Braivo answered (another
+   * author may have published it meanwhile), or reloaded to find it changed.
+   */
+  onDone: (outcome: { saved: TaskWriteResult } | "reloaded") => void;
   onCancel: () => void;
 }) {
-  const { objectiveId, task, answerToAdd, hasPendingCorrection, onDone, onCancel } = props;
+  const { objectiveId, task, sources, answerToAdd, hasPendingCorrection, onDone, onCancel } = props;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
+  const { t } = useLingui();
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  // Braivo has the edit: the page is only reading it back.
+  const [written, setWritten] = useState(false);
+  const unsaved = dirty && !written;
+  // Leaving with an unsaved edit asks first, as does reloading or closing the
+  // tab, while it is being sent too, as it may never arrive. A changed query
+  // counts, as it may hide the task (a course narrowed); a hash and the page's
+  // own reload do not.
+  useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      unsaved &&
+      (current.pathname !== next.pathname ||
+        JSON.stringify(current.search) !== JSON.stringify(next.search)) &&
+      !window.confirm(t`Leave this page? Your edit to this task will be lost.`),
+    enableBeforeUnload: () => unsaved,
+  });
   // `stale` when someone changed the task first, so saving again cannot help.
   const [error, setError] = useState<{ text: string; stale?: true }>();
   const alert = useRef<HTMLDivElement>(null);
@@ -543,7 +605,7 @@ function CorrectTask(props: {
     setSaving(true);
     setError(undefined);
     try {
-      await braivo.defineTasks(
+      const [saved] = await braivo.defineTasks(
         {
           organizationId: organization.id,
           tasks: [
@@ -564,10 +626,11 @@ function CorrectTask(props: {
         // Bounded: an identical correction retried after a lost answer returns the stored task.
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
+      setWritten(true);
       // `sync`: resolved once the page is read again, not with the old one
       // while it reloads in the background, which would offer the old task to edit.
       await router.invalidate({ sync: true });
-      onDone();
+      onDone({ saved: saved! });
     } catch (thrown) {
       setSaving(false);
       // Signed out meanwhile: the guard's check, run again, sends them to sign in.
@@ -588,7 +651,7 @@ function CorrectTask(props: {
     if (saving) return;
     setSaving(true);
     await router.invalidate({ sync: true });
-    onDone();
+    onDone("reloaded");
   }
 
   return (
@@ -618,8 +681,17 @@ function CorrectTask(props: {
       )}
       {/* Disabled while saving, so the edit sent is the one shown, and Cancel cannot undo it. */}
       <fieldset disabled={saving} aria-busy={saving} className="min-w-0">
-        <TaskEditor task={task} answerToAdd={answerToAdd} onSave={save} onCancel={onCancel} />
+        {/* Without an explanation, opened there: the likeliest reason to edit it. */}
+        <TaskEditor
+          task={task}
+          answerToAdd={answerToAdd}
+          focusExplanation={!hasExplanation(task)}
+          onDirtyChange={setDirty}
+          onSave={save}
+          onCancel={onCancel}
+        />
       </fieldset>
+      <Passages citations={task.citations} sources={sources} />
     </div>
   );
 }

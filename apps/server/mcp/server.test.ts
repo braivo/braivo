@@ -530,6 +530,129 @@ describe.skipIf(!connectionString)("Braivo's MCP tools", () => {
     expect(after[2]).not.toHaveProperty("findings");
   });
 
+  test("lists one objective's tasks or a course's, never both or neither", async () => {
+    const { tools } = await agent.listTools();
+    const listTasks = tools.find((tool) => tool.name === "list_tasks")!;
+    expect(listTasks.inputSchema).toMatchObject({
+      properties: {
+        objectiveId: { type: "string" },
+        courseId: { type: "string" },
+        without: { enum: ["explanation"] },
+      },
+      required: ["organizationId"],
+    });
+
+    const sent = requests;
+    for (const scope of [{}, { objectiveId: "o", courseId: "c" }]) {
+      const refused = await call("list_tasks", { organizationId, ...scope });
+      expect(refused.isError, JSON.stringify(scope)).toBe(true);
+      expect(refused.text).toContain("objectiveId or courseId");
+    }
+    // The filter only with a course.
+    const filtered = await call("list_tasks", {
+      organizationId,
+      objectiveId: "o",
+      without: "explanation",
+    });
+    expect(filtered.isError).toBe(true);
+    expect(requests).toBe(sent);
+  });
+
+  test("tells the agent how to fill in missing explanations, keeping everything else", async () => {
+    const { tools } = await agent.listTools();
+    const description = tools.find((tool) => tool.name === "list_tasks")!.description!;
+    for (const words of [
+      "without: explanation",
+      "keepOrder, answerLanguage",
+      "a correction replaces the whole body",
+      "read its own body",
+      "in the language the owner asked for",
+      "Never infer it from answerLanguage",
+      "a quoted statement that is itself false explains nothing",
+      "Leave a task alone when nothing supports a reason",
+      "list again to see what is left",
+    ]) {
+      expect(description).toContain(words);
+    }
+    expect(agent.getInstructions()).toContain("without: explanation");
+  });
+
+  test("finds a published task's unexplained correction, which is corrected by its own ID and still waits", async () => {
+    const {
+      objectiveIds: [objectiveId],
+    } = await json<{ objectiveIds: string[] }>("define_objectives", {
+      organizationId,
+      objectives: [{ title: "Explained", key: `mcp-explanations-${crypto.randomUUID()}` }],
+    });
+    const { courseId } = await json<{ courseId: string }>("create_course", {
+      organizationId,
+      title: "Explanations",
+      objectiveIds: [objectiveId],
+      key: `mcp-explanations-${crypto.randomUUID()}`,
+    });
+    const task = (prompt: string, explanation?: string) => ({
+      objectiveId,
+      kind: "choice",
+      prompt,
+      options: ["sí", "no"],
+      answer: 0,
+      keepOrder: true,
+      ...(explanation && { explanation }),
+    });
+    const {
+      tasks: [{ id: original }],
+    } = await json<{ tasks: [{ id: string }] }>("author_tasks", {
+      organizationId,
+      tasks: [task("¿Sí?")],
+    });
+    // Published in the console; a tool's correction, still without one, waits beside it.
+    await database.update(taskTable).set({ publishedAt: at }).where(eq(taskTable.id, original));
+    const {
+      tasks: [{ id: unexplained }],
+    } = await json<{ tasks: [{ id: string }] }>("author_tasks", {
+      organizationId,
+      tasks: [{ ...task("¿Sí, de verdad?"), replaces: original }],
+    });
+
+    type Listed = {
+      tasks: { id: string; published: boolean; pendingCorrection?: object; replaces?: string }[];
+    };
+    expect(
+      (await json<Listed>("list_tasks", { organizationId, courseId, without: "explanation" }))
+        .tasks,
+    ).toMatchObject([
+      {
+        id: original,
+        published: true,
+        pendingCorrection: { id: unexplained, hasExplanation: false },
+      },
+      { id: unexplained, published: false, replaces: original },
+    ]);
+
+    const fixed = await json<{ tasks: [{ id: string }] }>("author_tasks", {
+      organizationId,
+      tasks: [{ ...task("¿Sí, de verdad?", "Porque sí."), replaces: unexplained }],
+    });
+    expect(fixed.tasks).toEqual([
+      { id: expect.any(String), added: true, published: false, replaces: original },
+    ]);
+    expect(
+      await json<Listed>("list_tasks", { organizationId, courseId, without: "explanation" }),
+    ).toMatchObject({
+      tasks: [
+        {
+          id: original,
+          published: true,
+          pendingCorrection: { id: fixed.tasks[0].id, hasExplanation: true },
+        },
+      ],
+      counts: {
+        published: { total: 1, withoutExplanation: 1 },
+        pending: { total: 1, withoutExplanation: 0 },
+      },
+    });
+  });
+
   test.each([
     ["refused", () => Promise.reject(new Error("Braivo is unavailable"))],
     // Settles only once aborted: the answer must not wait on it.

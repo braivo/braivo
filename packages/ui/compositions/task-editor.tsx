@@ -77,17 +77,21 @@ function collapseWhitespace(text: string): string {
  * wraps, to be read whole on a phone; its line breaks, saved, are spaces, as
  * the server stores it on one line. It takes focus when it opens, at the
  * question, or, given a typed task's `answerToAdd`, at the end of its answers,
- * with that one added last for the person to review. Giving the focus back on
- * Save or Cancel is the caller's, which knows where it came from.
+ * with that one added last for the person to review, or else, given
+ * `focusExplanation`, at the explanation, one the task lacks. Giving the focus
+ * back on Save or Cancel is the caller's, which knows where it came from.
  */
 export function TaskEditor(props: {
   task: EditableTask;
   /** Typed tasks only: added last to its accepted answers, to review. */
   answerToAdd?: string;
+  focusExplanation?: boolean;
+  /** Whether what it holds differs from `task`, an added `answerToAdd` included, as that changes. */
+  onDirtyChange?: (dirty: boolean) => void;
   onSave: (task: EditableTask) => void;
   onCancel: () => void;
 }) {
-  const { task, answerToAdd, onSave, onCancel } = props;
+  const { task, answerToAdd, focusExplanation, onDirtyChange, onSave, onCancel } = props;
   const [prompt, setPrompt] = useState(task.prompt);
   const [options, setOptions] = useState<string[]>(task.kind === "choice" ? [...task.options] : []);
   const [answer, setAnswer] = useState(task.kind === "choice" ? task.answer : 0);
@@ -101,10 +105,20 @@ export function TaskEditor(props: {
   const id = useId();
   const question = useRef<HTMLTextAreaElement>(null);
   const answers = useRef<HTMLTextAreaElement>(null);
+  const why = useRef<HTMLTextAreaElement>(null);
+  const dirty =
+    prompt !== task.prompt ||
+    explanation !== (task.explanation ?? "") ||
+    (task.kind === "choice"
+      ? answer !== task.answer || options.some((option, at) => option !== task.options[at])
+      : accepted !== task.accepted.join("\n"));
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   // Opened from a button that is now gone: focus continues here, not the page's top.
   useEffect(() => {
-    if (answerToAdd === undefined || !answers.current) return question.current?.focus();
+    if (answerToAdd === undefined || !answers.current) {
+      return (focusExplanation ? why.current : question.current)?.focus();
+    }
     const { length } = answers.current.value;
     answers.current.focus();
     answers.current.setSelectionRange(length, length);
@@ -252,6 +266,7 @@ export function TaskEditor(props: {
         <Field>
           <FieldLabel htmlFor={`${id}-explanation`}>Why the answer is right</FieldLabel>
           <Textarea
+            ref={why}
             id={`${id}-explanation`}
             rows={2}
             maxLength={MAX_TEXT}

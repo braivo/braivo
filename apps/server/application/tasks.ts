@@ -3,14 +3,16 @@
 
 import type { Database } from "@braivo/db";
 
-import { parseTaskBody, type TaskBody } from "../content/index.ts";
+import { type ExplanationCounts, parseTaskBody, type TaskBody } from "../content/index.ts";
 import {
   type AuthoredTask,
+  type CourseTask,
   type TaskWriteResult,
   createTasks,
   findObjectivesOutsideOrganization,
   findTasksOutsideOrganization,
   markTasksRetired,
+  readCourseTasks,
   readObjectiveTasks,
   readTaskObjective,
   replaceTask,
@@ -190,4 +192,28 @@ export async function listObjectiveTasks(input: {
   if (outside !== undefined) return undefined;
 
   return readObjectiveTasks(database, objectiveId);
+}
+
+/** A course's tasks (`listCourseTasks`). */
+export type CourseTaskList = { tasks: CourseTask[]; counts: ExplanationCounts };
+
+/**
+ * A course's unretired tasks, all at once, for whoever may author in its
+ * organization, in the order learners meet them (`readCourseTasks`); with
+ * `withoutExplanation`, only those without one, so an assistant finds them
+ * without reading the course whole. `undefined` when the organization has no
+ * such course.
+ */
+export async function listCourseTasks(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  courseId: string;
+  withoutExplanation: boolean;
+}): Promise<CourseTaskList | undefined> {
+  const { database, organizationId, actingAs, courseId, withoutExplanation } = input;
+
+  await assertMayAuthor(database, { organizationId, userId: actingAs });
+
+  return readCourseTasks(database, organizationId, courseId, { withoutExplanation });
 }
