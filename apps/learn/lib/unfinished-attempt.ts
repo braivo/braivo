@@ -97,3 +97,35 @@ export function clearUnfinishedAttempt(learnerId: string, courseId: string) {
     // See above.
   }
 }
+
+/**
+ * A notice owed after a resend on load was refused for good (400, 403, 413).
+ * Kept apart from the attempt, already deleted, so it outlives a next-activity
+ * read that fails and is tried again; cleared once shown (learner-loop-20).
+ */
+const refusedKey = (learnerId: string, courseId: string) =>
+  `braivo.refusedAttempt:${learnerId}:${courseId}`;
+
+export function markRefusalNotice(learnerId: string, courseId: string) {
+  try {
+    sessionStorage.setItem(refusedKey(learnerId, courseId), "1");
+  } catch {
+    // See above: unsaid, rather than failing the page.
+  }
+}
+
+export function refusalNoticePending(learnerId: string, courseId: string): boolean {
+  try {
+    return sessionStorage.getItem(refusedKey(learnerId, courseId)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function clearRefusalNotice(learnerId: string, courseId: string) {
+  try {
+    sessionStorage.removeItem(refusedKey(learnerId, courseId));
+  } catch {
+    // See above.
+  }
+}

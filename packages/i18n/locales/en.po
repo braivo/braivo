@@ -448,6 +448,10 @@ msgstr "Continue"
 msgid "Continue as {account}"
 msgstr "Continue as {account}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Continue practising."
+msgstr "Continue practising."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
 msgstr "Continue with Google"
@@ -1819,6 +1823,10 @@ msgstr "This account is not a member of {organizationName}. Ask to be added, the
 msgid "This address cannot be changed later."
 msgstr "This address cannot be changed later."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "This answer couldn't be recorded."
+msgstr "This answer couldn't be recorded."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "This cancels its setup. You can add it again later."
 msgstr "This cancels its setup. You can add it again later."
@@ -2093,6 +2101,10 @@ msgstr "Your Google account's email is not verified. Sign in with a code instead
 #: packages/auth-client/sign-in.tsx
 msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
 msgstr "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Your last answer couldn't be recorded."
+msgstr "Your last answer couldn't be recorded."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Your learners see it on their site, and your team sees it here."

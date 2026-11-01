@@ -161,7 +161,12 @@ describe("the learn app in Polish", () => {
     expect(screen.getByText("Przećwiczmy to ponownie.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "comí" }));
 
-    expect(await screen.findByRole("region", { name: "Coś poszło nie tak." })).toBeTruthy();
+    const notice = await screen.findByRole("region", {
+      name: "Nie udało się zapisać tej odpowiedzi.",
+      description: "Ćwicz dalej.",
+    });
+    expect(within(notice).getByRole("button", { name: "Dalej" })).toBeTruthy();
+    expect(within(notice).getByRole("link", { name: "Twoje kursy" })).toBeTruthy();
   });
 
   test("asks the task and grades the answer", async () => {
@@ -359,5 +364,25 @@ describe("the learn app in Polish", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Wyślij" }));
 
     expect(await screen.findByText("Dziękujemy. Zgłoszenie zostało wysłane.")).toBeTruthy();
+  });
+
+  test("says, after a reload, that the answer it resent couldn't be recorded", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: () => new Promise(() => {}),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    cleanup();
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => anotherActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(413, "too large");
+      },
+    });
+    expect(
+      await screen.findByText("Nie udało się zapisać Twojej ostatniej odpowiedzi."),
+    ).toBeTruthy();
   });
 });

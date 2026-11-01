@@ -448,6 +448,10 @@ msgstr "Dalej"
 msgid "Continue as {account}"
 msgstr "Kontynuuj jako {account}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Continue practising."
+msgstr "Ćwicz dalej."
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
 msgstr "Kontynuuj z Google"
@@ -1819,6 +1823,10 @@ msgstr "To konto nie należy do organizacji „{organizationName}”. Poproś o 
 msgid "This address cannot be changed later."
 msgstr "Tego adresu nie można później zmienić."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "This answer couldn't be recorded."
+msgstr "Nie udało się zapisać tej odpowiedzi."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "This cancels its setup. You can add it again later."
 msgstr "To anuluje jej konfigurację. Możesz dodać ją ponownie później."
@@ -2093,6 +2101,10 @@ msgstr "Adres e-mail Twojego konta Google nie jest zweryfikowany. Zaloguj się k
 #: packages/auth-client/sign-in.tsx
 msgid "Your Google account's email no longer matches this account. Sign in with a code to the account's email."
 msgstr "Adres e-mail Twojego konta Google nie zgadza się już z tym kontem. Zaloguj się kodem wysłanym na adres e-mail tego konta."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Your last answer couldn't be recorded."
+msgstr "Nie udało się zapisać Twojej ostatniej odpowiedzi."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Your learners see it on their site, and your team sees it here."
