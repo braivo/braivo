@@ -205,6 +205,28 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
     expect(outbox.sent.some((sent) => sent.to === refusedEmail)).toBe(false);
   });
 
+  test("finds a waiting invitation for an address behind a hundred expired ones", async () => {
+    const email = newEmail();
+    await database.insert(invitation).values(
+      Array.from({ length: 100 }, (_, index) => ({
+        id: `invitations-api-stale-${index}`,
+        organizationId,
+        email,
+        role: "author",
+        status: "pending",
+        expiresAt: new Date(Date.now() - DAY),
+        createdAt: new Date(),
+        inviterId: admin.id,
+      })),
+    );
+    await invited(email, "admin");
+
+    const again = await invite(owner, { email, role: "author" });
+
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ code: "ALREADY_INVITED", role: "admin" });
+  });
+
   test("reports an invitation whose mail could not be sent apart from a refusal", async () => {
     const email = newEmail();
     outbox.failTo.add(email);

@@ -9,6 +9,7 @@ import {
   readInvitation,
   readMemberRolesByEmail,
   readOrganizationRoles,
+  readPendingInvitationRole,
   readPendingInvitations,
   readUserEmail,
 } from "../persistence/index.ts";
@@ -91,8 +92,11 @@ export async function inviteToOrganization(input: {
     throw new InvitationRefused("ALREADY_MEMBER", `${email} is already a member.`, { roles });
   }
   if (made === "already invited") {
-    const pending = await readPendingInvitations(database, { organizationId, now: new Date() });
-    const held = pending.find((each) => each.email === email)?.role;
+    const held = await readPendingInvitationRole(database, {
+      organizationId,
+      email,
+      now: new Date(),
+    });
     throw new InvitationRefused("ALREADY_INVITED", `${email} is already invited.`, { role: held });
   }
   if (made === "pending limit") {

@@ -59,6 +59,14 @@ export type PendingInvitation = {
   expiresAt: Date;
 };
 
+/** An organization's invitations waiting at `now`: pending and unexpired, as Better Auth leaves an expired one pending. */
+const waitingIn = (organizationId: string, now: Date) =>
+  and(
+    eq(invitation.organizationId, organizationId),
+    eq(invitation.status, "pending"),
+    gt(invitation.expiresAt, now),
+  );
+
 /** An organization's invitations still pending and unexpired at `now`, newest first. */
 export async function readPendingInvitations(
   database: Database,
@@ -74,13 +82,7 @@ export async function readPendingInvitations(
     })
     .from(invitation)
     .innerJoin(user, eq(user.id, invitation.inviterId))
-    .where(
-      and(
-        eq(invitation.organizationId, input.organizationId),
-        eq(invitation.status, "pending"),
-        gt(invitation.expiresAt, input.now),
-      ),
-    )
+    .where(waitingIn(input.organizationId, input.now))
     .orderBy(desc(invitation.createdAt), desc(invitation.id));
 
   return rows.map(({ inviterName, role, ...rest }) => ({
@@ -98,12 +100,20 @@ export async function countPendingInvitations(
   const [row] = await database
     .select({ count: count() })
     .from(invitation)
-    .where(
-      and(
-        eq(invitation.organizationId, input.organizationId),
-        eq(invitation.status, "pending"),
-        gt(invitation.expiresAt, input.now),
-      ),
-    );
+    .where(waitingIn(input.organizationId, input.now));
   return row?.count ?? 0;
+}
+
+/** The role of `email`'s invitation to this organization pending and unexpired at `now`, if any. */
+export async function readPendingInvitationRole(
+  database: Database,
+  input: { organizationId: string; email: string; now: Date },
+): Promise<string | undefined> {
+  const [row] = await database
+    .select({ role: invitation.role })
+    .from(invitation)
+    .where(and(waitingIn(input.organizationId, input.now), eq(invitation.email, input.email)))
+    .orderBy(desc(invitation.createdAt))
+    .limit(1);
+  return row ? (row.role ?? "member") : undefined;
 }

@@ -28,6 +28,7 @@ import {
   countPendingInvitations,
   organizationOwnsLearningContent,
   readOrganizationRoles,
+  readPendingInvitationRole,
 } from "../persistence/index.ts";
 import {
   aliasGoogleJwks,
@@ -516,9 +517,11 @@ export function createAuth(options: AuthOptions) {
         requireEmailVerificationOnInvitation: true,
         cancelPendingInvitationsOnReInvite: false,
         invitationExpiresIn: INVITATION_DAYS * 86_400,
-        // Better Auth 1.7.11 counts pending invitations from a read its
-        // adapter caps at 100 rows, so its limit could never pass 100:
-        // `beforeCreateInvitation` counts them instead.
+        // Better Auth (1.7.16) reads pending invitations, the organization's
+        // and an address's, capped at 100 rows before dropping expired ones,
+        // so its limit could never pass 100 and an address's live invitation
+        // could hide behind expired ones: `beforeCreateInvitation` checks both
+        // in SQL instead.
         invitationLimit: Number.POSITIVE_INFINITY,
         sendInvitationEmail: async ({ id, email, role, organization, inviter, invitation }) => {
           const delivery = await invitationDelivery.get();
@@ -595,12 +598,24 @@ export function createAuth(options: AuthOptions) {
                 message: "Invite as an author or an admin.",
               });
             }
-            // Counted, then created, not atomically: invitations at once may
-            // pass it by a few, as acceptances pass the member limit.
-            const waiting = await countPendingInvitations(options.database, {
-              organizationId: invitedTo.id,
-              now: new Date(),
-            });
+            const now = new Date();
+            const pending = { organizationId: invitedTo.id, now };
+            // Checked, then created, not atomically: two invitations to one
+            // address made at once may both be stored (accepting one, the
+            // other finds a member), and invitations at once may pass the
+            // limit by a few, as acceptances pass the member limit.
+            if (
+              await readPendingInvitationRole(options.database, {
+                ...pending,
+                email: invitation.email,
+              })
+            ) {
+              throw new APIError("BAD_REQUEST", {
+                code: "USER_IS_ALREADY_INVITED_TO_THIS_ORGANIZATION",
+                message: "This address is already invited.",
+              });
+            }
+            const waiting = await countPendingInvitations(options.database, pending);
             if (waiting >= PENDING_INVITATION_LIMIT) {
               throw new APIError("FORBIDDEN", {
                 code: "INVITATION_LIMIT_REACHED",
