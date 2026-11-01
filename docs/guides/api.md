@@ -73,7 +73,7 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
-# {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,
+# {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,"lastPractisedAt":"…",
 #  "objectives":[{…,"title":"Greetings","phase":"acquiring",
 #  "misses":{"count":1,"lastMissAt":"…","everSucceeded":false},…},
 #  {…,"title":"Numbers","phase":"unseen"}]}
@@ -82,7 +82,8 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/progress
 # {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,
 #  "learners":[{"userId":"…","name":"Owner","roles":["owner"],
-#  "standings":{"unseen":1,"acquiring":1,"retained":0,"due":0},"repeatedMisses":0}],
+#  "standings":{"unseen":1,"acquiring":1,"retained":0,"due":0},"repeatedMisses":0,
+#  "lastPractisedAt":"…"}],
 #  "objectives":[{"objectiveId":"…","title":"Greetings",
 #  "standings":{"unseen":0,"acquiring":1,"retained":0,"due":0},"repeatedMisses":[]},
 #  {…,"title":"Numbers",…}]}

@@ -45,6 +45,7 @@ describe("groups", () => {
     modelVersion: "v1",
     asOf: "2026-06-01T00:00:00.000Z",
     repeatedMissesThreshold: 3,
+    lastPractisedAt: null,
     objectives: [{ objectiveId: "o1", title: "Greetings", phase: "unseen", evidence: [] }],
   };
 
@@ -89,12 +90,14 @@ describe("groups", () => {
             name: "Lee Learner",
             standings: { unseen: 0, acquiring: 1, retained: 0, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
           {
             userId: "u3",
             name: "Lou Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
         ],
         objectives: [
@@ -137,7 +140,7 @@ describe("groups", () => {
         expect(
           within(learners)
             .getAllByRole("rowheader")
-            .map((cell) => cell.textContent),
+            .map((cell) => within(cell).getByRole("link").textContent),
         ).toEqual(["Lou Learner"]),
       );
       expect(
@@ -180,18 +183,21 @@ describe("groups", () => {
                 name: "Ana",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
                 repeatedMisses: 0,
+                lastPractisedAt: null,
               },
               {
                 userId: "y-222222",
                 name: "Ana",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
                 repeatedMisses: 0,
+                lastPractisedAt: null,
               },
               {
                 userId: "u3",
                 name: "Lou Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
                 repeatedMisses: 0,
+                lastPractisedAt: null,
               },
             ],
             objectives: [],
@@ -240,12 +246,14 @@ describe("groups", () => {
                 name: "Lee Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
                 repeatedMisses: 0,
+                lastPractisedAt: null,
               },
               {
                 userId: "u3",
                 name: "Lou Learner",
                 standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
                 repeatedMisses: 0,
+                lastPractisedAt: null,
               },
             ],
             objectives: [],
@@ -279,12 +287,14 @@ describe("groups", () => {
             name: "Lee Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
           {
             userId: "u3",
             name: "Lou Learner",
             standings: { unseen: 1, acquiring: 0, retained: 0, due: 0 },
             repeatedMisses: 0,
+            lastPractisedAt: null,
           },
         ],
         objectives: [],
@@ -299,7 +309,7 @@ describe("groups", () => {
       const rows = () =>
         within(screen.getByRole("table", { name: "Learners" }))
           .getAllByRole("rowheader")
-          .map((cell) => cell.textContent);
+          .map((cell) => within(cell).getByRole("link").textContent);
       const search = await screen.findByRole("searchbox", { name: "Find a learner" });
       expect(rows()).toEqual(["Lee Learner"]);
 
@@ -468,9 +478,27 @@ describe("groups", () => {
             asOf: "2026-06-01T12:05:00.000Z",
             repeatedMissesThreshold: 3,
             learners: [
-              { userId: "u2", name: "Lee Learner", standings: standings(2, 0), repeatedMisses: 0 },
-              { userId: "u3", name: "Lou Learner", standings: standings(0, 3), repeatedMisses: 0 },
-              { userId: "u4", name: "Ada Learner", standings: standings(0, 3), repeatedMisses: 0 },
+              {
+                userId: "u2",
+                name: "Lee Learner",
+                standings: standings(2, 0),
+                repeatedMisses: 0,
+                lastPractisedAt: null,
+              },
+              {
+                userId: "u3",
+                name: "Lou Learner",
+                standings: standings(0, 3),
+                repeatedMisses: 0,
+                lastPractisedAt: null,
+              },
+              {
+                userId: "u4",
+                name: "Ada Learner",
+                standings: standings(0, 3),
+                repeatedMisses: 0,
+                lastPractisedAt: null,
+              },
             ],
             objectives: [],
           }),
@@ -481,7 +509,7 @@ describe("groups", () => {
       const names = () =>
         within(learners)
           .getAllByRole("rowheader")
-          .map((cell) => cell.textContent);
+          .map((cell) => within(cell).getByRole("link").textContent);
       expect(names()).toEqual(["Ada Learner", "Lou Learner", "Lee Learner"]);
       fireEvent.change(screen.getByLabelText("Order"), { target: { value: "learning" } });
       await vi.waitFor(() =>

@@ -168,8 +168,18 @@ describe("the console", () => {
         courseProgress: async () => ({
           ...(await courseProgress()),
           learners: [
-            { ...members[1]!, standings: standings(1, 2, 4, 3), repeatedMisses: 0 },
-            { ...members[0]!, standings: standings(0, 0, 0, 0), repeatedMisses: 0 },
+            {
+              ...members[1]!,
+              standings: standings(1, 2, 4, 3),
+              repeatedMisses: 0,
+              lastPractisedAt: null,
+            },
+            {
+              ...members[0]!,
+              standings: standings(0, 0, 0, 0),
+              repeatedMisses: 0,
+              lastPractisedAt: null,
+            },
           ],
           objectives: [
             {
@@ -237,8 +247,10 @@ describe("the console", () => {
       const bars = Object.fromEntries(
         rows.map((row) => {
           const label = within(row).getByRole("rowheader");
+          // A learner by their link, without the last practice under it.
+          const name = (within(label).queryByRole("link") ?? label).textContent;
           const bar = label.querySelector<HTMLElement>(":scope > [aria-hidden]");
-          if (!bar) return [label.textContent, null];
+          if (!bar) return [name, null];
           expect(bar.getAttribute("aria-hidden")).toBe("true");
           const segments = [...bar.querySelectorAll<HTMLElement>(":scope > *")].map(
             ({ dataset, classList, style }) => {
@@ -248,7 +260,7 @@ describe("the console", () => {
             },
           );
           // The bar is no part of the row's name.
-          return [label.textContent, segments];
+          return [name, segments];
         }),
       );
       expect(bars).toEqual(expected);
@@ -263,6 +275,7 @@ describe("the console", () => {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
       repeatedMissesThreshold: 3,
+      lastPractisedAt: null,
       objectives: [
         {
           objectiveId: "o1",
@@ -389,6 +402,7 @@ describe("the console", () => {
           modelVersion: "v1",
           asOf: "2026-06-01T12:05:00.000Z",
           repeatedMissesThreshold: 3,
+          lastPractisedAt: null,
           objectives: [
             acquiring("o1", "Greetings", {
               count: 4,
@@ -440,6 +454,7 @@ describe("the console", () => {
           modelVersion: "v1",
           asOf,
           repeatedMissesThreshold: 3,
+          lastPractisedAt: null,
           objectives: ["o1", "o2", "o3"].map((objectiveId) => ({
             objectiveId,
             title: `Objective ${objectiveId}`,
@@ -487,6 +502,7 @@ describe("the console", () => {
           modelVersion: "v1",
           asOf: "2026-06-01T00:00:00.000Z",
           repeatedMissesThreshold: 3,
+          lastPractisedAt: null,
           objectives: [],
         }),
         listCourses: async () => [

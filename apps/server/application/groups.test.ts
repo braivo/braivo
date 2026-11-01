@@ -455,6 +455,7 @@ describe.skipIf(!connectionString)("groups", () => {
           name: ana,
           standings: { unseen: 0, acquiring: 0, retained: 1, due: 0 },
           repeatedMisses: 0,
+          lastPractisedAt: null,
         },
       ]);
       // Counted over that learner alone, not the organization.
@@ -555,6 +556,33 @@ describe.skipIf(!connectionString)("groups", () => {
       expect(read.overview.learners.map(({ userId }) => userId).sort()).toEqual(
         [admin, ana, ben, cleo, teacherA, teacherB].sort(),
       );
+    });
+
+    test("lists a member who leaves no longer, and again with their practice on rejoining", async () => {
+      await recordEvidence(database, { learnerId: cleo, organizationId }, [
+        { id: "attempt:1:greetings", objectiveId: greetings, outcome: "success", at: now },
+      ]);
+      const cleoPractised = async () => {
+        const read = await overview(admin);
+        if (read.kind !== "assessed") throw new Error("No overview");
+        return read.overview.learners.find(({ userId }) => userId === cleo)?.lastPractisedAt;
+      };
+      expect(await cleoPractised()).toEqual(now);
+
+      await database
+        .delete(member)
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, cleo)));
+      expect(await cleoPractised()).toBeUndefined();
+
+      // Rejoining brings their evidence back, never deleted with the membership.
+      await database.insert(member).values({
+        id: `${organizationId}:${cleo}`,
+        organizationId,
+        userId: cleo,
+        role: "member",
+        createdAt: now,
+      });
+      expect(await cleoPractised()).toEqual(now);
     });
 
     test("ends a teacher's access when the course leaves the group, and keeps the history", async () => {

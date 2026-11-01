@@ -242,7 +242,9 @@
 //        `dueAt` is when that starts to hold, past or future. `evidence`, on every
 //        objective unless left out, holds the outcome and time alone of each
 //        result its standing was replayed from: oldest first, ties in replay's
-//        order.
+//        order. `lastPractisedAt` is the latest attempt answered in Braivo on
+//        the course's objectives, `null` if none, never a result recorded
+//        elsewhere (progress-17).
 //        The shape is `LearnerProgressReport` serialized, pinned like the
 //        decision's.
 //
@@ -269,7 +271,8 @@
 //        `roles` only to an `owner` or `admin`: a teacher's learners carry none
 //        (access-26). `standings` count what each learner's report shows at
 //        the same moment, per learner and per objective; `retained` is
-//        retaining and not due. `CourseProgressOverview` serialized.
+//        retaining and not due. Each learner's `lastPractisedAt` is as in a
+//        learner's report. `CourseProgressOverview` serialized.
 //
 // `POST /api/organizations/:organizationId/learners/:learnerId/evidence` —
 // records what a learner did. The grader is the session's user and is never

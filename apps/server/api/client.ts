@@ -98,7 +98,7 @@ export type {
 export { courseRef, isUrlLabel, parseCourseRef, urlLabel } from "../content/course-ref.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
-export { learnerDayIn } from "../application/learner-day.ts";
+export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";
 
 /**
  * An answer the client could not use: a refusal, a status the method does not

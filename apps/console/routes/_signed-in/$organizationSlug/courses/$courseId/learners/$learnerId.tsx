@@ -11,6 +11,7 @@ import { Fragment, type ReactNode, useLayoutEffect } from "react";
 
 import { AsOf } from "#components/as-of";
 import { Disclosure } from "#components/disclosure";
+import { LastPractised } from "#components/last-practised";
 import { MissesSince } from "#components/misses-since";
 import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { validateProgressSearch } from "#lib/progress-search";
@@ -119,8 +120,16 @@ function LearnerProgress() {
           <span className="ms-2 font-mono text-sm font-normal text-muted-foreground">{tag}</span>
         )}
       </Heading>
-      <MutedText className="mb-4 block">
-        <AsOf at={report.asOf} />
+      <MutedText className="mb-4 flex flex-col gap-1">
+        <span>
+          <AsOf at={report.asOf} />
+        </span>
+        {/* Practice (progress-17), beside the standings it does not change. */}
+        {report.objectives.length > 0 && (
+          <span>
+            <LastPractised at={report.lastPractisedAt} asOf={report.asOf} detailed />
+          </span>
+        )}
       </MutedText>
       {/* A course is open to learners even before it has objectives. */}
       {report.objectives.length === 0 ? (
@@ -141,6 +150,13 @@ function LearnerProgress() {
                 Not started means no evidence yet. Learning means practice has begun; one missed{" "}
                 {threshold} or more times since the last correct answer says so under it. Show
                 answer counts as a miss.
+              </Trans>
+            </p>
+            {/* Or a standing earned elsewhere reads as practice gone missing. */}
+            <p>
+              <Trans>
+                Last practised counts questions answered here, Show answer included. Results
+                recorded elsewhere count toward standings, not practice.
               </Trans>
             </p>
           </div>

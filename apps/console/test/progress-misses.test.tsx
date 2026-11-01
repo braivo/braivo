@@ -29,11 +29,29 @@ function flagged(asOf = "2026-06-01T12:05:00.000Z"): CourseProgressOverview {
     asOf,
     repeatedMissesThreshold: 3,
     learners: [
-      { userId: "x-111111", name: "Ana", standings: learnerStandings, repeatedMisses: 1 },
-      { userId: "y-222222", name: "Ana", standings: learnerStandings, repeatedMisses: 0 },
-      { userId: "u5", name: "Ben", standings: learnerStandings, repeatedMisses: 1 },
-      { ...members[1]!, standings: learnerStandings, repeatedMisses: 2 },
-      { ...members[0]!, standings: learnerStandings, repeatedMisses: 0 },
+      {
+        userId: "x-111111",
+        name: "Ana",
+        standings: learnerStandings,
+        repeatedMisses: 1,
+        lastPractisedAt: null,
+      },
+      {
+        userId: "y-222222",
+        name: "Ana",
+        standings: learnerStandings,
+        repeatedMisses: 0,
+        lastPractisedAt: null,
+      },
+      {
+        userId: "u5",
+        name: "Ben",
+        standings: learnerStandings,
+        repeatedMisses: 1,
+        lastPractisedAt: null,
+      },
+      { ...members[1]!, standings: learnerStandings, repeatedMisses: 2, lastPractisedAt: null },
+      { ...members[0]!, standings: learnerStandings, repeatedMisses: 0, lastPractisedAt: null },
     ],
     objectives: [
       {
@@ -112,7 +130,7 @@ function learnerRows() {
     .getAllByRole("row")
     .slice(1)
     .map((row) => [
-      within(row).getByRole("rowheader").textContent,
+      within(within(row).getByRole("rowheader")).getByRole("link").textContent,
       within(row).getAllByRole("cell")[2]!.textContent,
     ]);
 }
@@ -156,6 +174,7 @@ describe("repeated misses on the course overview", () => {
           modelVersion: "v1",
           asOf: "2026-06-01T12:05:00.000Z",
           repeatedMissesThreshold: 3,
+          lastPractisedAt: null,
           objectives: [],
         }),
       },

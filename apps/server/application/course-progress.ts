@@ -22,6 +22,7 @@ import {
 } from "../persistence/index.ts";
 import { type AccessKind, mayReadLearnerData } from "./access.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
+import { lastPractised } from "./last-practised.ts";
 import { mayAdminister } from "./permission.ts";
 
 /**
@@ -77,8 +78,12 @@ export async function readCourseProgress(input: {
     ),
   ]);
 
+  const inCourse = new Set(objectiveIds);
+
   const assessed = members.map((member) => {
     const history = evidence.get(member.userId) ?? [];
+    // The instant alone: the console counts and dates it in the reader's zone (progress-17).
+    const lastPractisedAt = lastPractised(history, inCourse, now) ?? null;
     const standings = assessKnowledge({
       now,
       objectiveIds,
@@ -95,7 +100,7 @@ export async function readCourseProgress(input: {
         ? [{ objectiveId, misses: missed }]
         : [];
     });
-    return { member, standings, flagged };
+    return { member, standings, flagged, lastPractisedAt };
   });
   const byObjective = Map.groupBy(
     assessed.flatMap(({ standings }) => standings),
@@ -127,10 +132,11 @@ export async function readCourseProgress(input: {
       modelVersion: activeModel.version,
       asOf: now,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
-      learners: assessed.map(({ member, standings, flagged }) => ({
+      learners: assessed.map(({ member, standings, flagged, lastPractisedAt }) => ({
         ...member,
         standings: countStandings(standings),
         repeatedMisses: flagged.length,
+        lastPractisedAt,
       })),
       objectives: objectiveIds.map((objectiveId) => {
         const title = titles.get(objectiveId);
@@ -177,13 +183,19 @@ type FlaggedLearner = { userId: string; name: string; misses: Misses };
  * Repeated misses (progress-16), from `repeatedMissesThreshold` misses on, assessed at
  * `asOf`: a learner counts their objectives with them, and an objective names
  * those learners, most misses first, so the two tally alike.
+ *
+ * Each learner's `lastPractisedAt` is as in their report (progress-17).
  */
 export type CourseProgressOverview = {
   open: boolean;
   modelVersion: string;
   asOf: Date;
   repeatedMissesThreshold: number;
-  learners: (CourseLearner & { standings: StandingCounts; repeatedMisses: number })[];
+  learners: (CourseLearner & {
+    standings: StandingCounts;
+    repeatedMisses: number;
+    lastPractisedAt: Date | null;
+  })[];
   objectives: {
     objectiveId: string;
     title: string;

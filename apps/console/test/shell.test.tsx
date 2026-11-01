@@ -385,6 +385,7 @@ describe("the console", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [],
       }),
     };

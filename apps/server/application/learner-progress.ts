@@ -17,6 +17,7 @@ import {
 import { readObjectiveTitles, teaches } from "../persistence/index.ts";
 import { type AccessKind, mayReadLearnerData } from "./access.ts";
 import type { RequestHost } from "./host.ts";
+import { lastPractised } from "./last-practised.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { mayAdminister } from "./permission.ts";
 
@@ -84,6 +85,7 @@ export async function readLearnerProgress(input: {
       ...report,
       asOf: now,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
+      lastPractisedAt: lastPractised(learner.evidence, new Set(learner.objectiveIds), now) ?? null,
       objectives: report.objectives.map((standing) => {
         const title = titles.get(standing.objectiveId);
         // Never missing: the course references it, with deletes restricted.
@@ -115,10 +117,14 @@ export async function readLearnerProgress(input: {
  * since the objective's last success (progress-16); `repeatedMissesThreshold` is the
  * count from which one still being learned reads as repeated misses, so a
  * reader applies the same threshold as the console.
+ *
+ * `lastPractisedAt` is the latest attempt answered in Braivo on the course's
+ * objectives, `null` if none (progress-17).
  */
 export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
   asOf: Date;
   repeatedMissesThreshold: number;
+  lastPractisedAt: Date | null;
   objectives: (ReportedStanding & { evidence: Pick<Evidence, "outcome" | "at">[] })[];
 };
 

@@ -11,12 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@braivo/ui/components/table";
-import { msg, t } from "@lingui/core/macro";
+import { t } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { NoSuchSetting } from "#components/no-such-setting";
 import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { sayRoles } from "#lib/roles";
 import { pageHead } from "#lib/title";
 
 /**
@@ -41,20 +42,12 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/mem
   notFoundComponent: NoSuchSetting,
 });
 
-/** Each role as a school says it: a `member` is a learner, membership being enrollment (access-23). */
-const ROLE_NAMES = {
-  owner: msg`Owner`,
-  admin: msg`Admin`,
-  author: msg`Author`,
-  member: msg`Learner`,
-} as const;
-
 function Members() {
   const { members, groups } = Route.useLoaderData();
   const { user, organization } = Route.useRouteContext();
   const { i18n } = useLingui();
   const count = members.length;
-  // "Owner and Admin", in the reader's language.
+  // The groups each teaches, "Spanish A and Spanish B", in the reader's language.
   const listFormat = new Intl.ListFormat(i18n.locale, { type: "conjunction" });
   const groupsTaughtBy = (userId: string) =>
     groups
@@ -107,13 +100,7 @@ function Members() {
                 </div>
               </TableCell>
               <TableCell className="align-top whitespace-normal">
-                {listFormat.format(
-                  member.roles.map((role) =>
-                    Object.hasOwn(ROLE_NAMES, role)
-                      ? i18n._(ROLE_NAMES[role as keyof typeof ROLE_NAMES])
-                      : role,
-                  ),
-                )}
+                {sayRoles(i18n, member.roles)}
                 <Teaching groupNames={groupsTaughtBy(member.userId)} listFormat={listFormat} />
               </TableCell>
             </TableRow>

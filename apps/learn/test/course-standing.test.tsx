@@ -25,6 +25,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           {
             objectiveId: "a",
@@ -92,6 +93,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           { objectiveId: "a", title: "Greetings", phase: "unseen" },
           { objectiveId: "b", title: "Numbers", phase: "unseen" },
@@ -126,6 +128,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: reported,
       }),
       submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
@@ -186,6 +189,7 @@ describe("the learn app", () => {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
       repeatedMissesThreshold: 3,
+      lastPractisedAt: null,
       objectives: [
         pastTense === "unseen"
           ? { objectiveId: "o1", title: "Past tense", phase: "unseen" }
@@ -431,6 +435,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           retained("a", "Greetings", "2026-06-09T00:00:00.000Z"),
           // Shown rounded up, never early.
@@ -467,6 +472,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [retained("a", "Greetings", dueAt)],
       }),
     });
@@ -504,6 +510,7 @@ describe("the learn app", () => {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
       repeatedMissesThreshold: 3,
+      lastPractisedAt: null,
       objectives: [
         standing("a", "2026-06-11T01:00:00.000Z", "retaining"),
         // Today locally, though 10 June in UTC.
@@ -563,6 +570,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           {
             objectiveId: "a",
@@ -591,6 +599,7 @@ describe("the learn app", () => {
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
         repeatedMissesThreshold: 3,
+        lastPractisedAt: null,
         objectives: [
           {
             objectiveId: "a",

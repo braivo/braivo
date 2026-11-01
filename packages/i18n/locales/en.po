@@ -118,6 +118,10 @@ msgstr "{count, plural, one {# not started} other {# not started}}"
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# retained} other {# retained}}"
 
+#: apps/console/components/last-practised.tsx
+msgid "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} other {Last practised # days ago}}"
+msgstr "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} other {Last practised # days ago}}"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "{domain} now serves your learners."
 msgstr "{domain} now serves your learners."
@@ -166,6 +170,10 @@ msgstr "{successes, plural, one {# success} other {# successes}}"
 #: apps/console/components/task-review.tsx
 msgid "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
 msgstr "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
+
+#: apps/console/components/last-practised.tsx
+msgid "{when} ({exact})"
+msgstr "{when} ({exact})"
 
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
@@ -241,7 +249,7 @@ msgstr "Added {added}. Create its DNS records above."
 msgid "Adding…"
 msgstr "Adding…"
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Admin"
 msgstr "Admin"
 
@@ -273,7 +281,7 @@ msgstr "As of {time}"
 msgid "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 msgstr "As you, it will be able to read the material and courses of {organizationName}, and add material and the learning objectives it teaches."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Author"
 msgstr "Author"
 
@@ -642,8 +650,8 @@ msgid "Each learner's objectives, counted by standing."
 msgstr "Each learner's objectives, counted by standing."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-msgid "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whoever is searched for above."
-msgstr "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whoever is searched for above."
+msgid "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whatever the search or filter above."
+msgstr "Each objective's learners, counted by standing: {learners, plural, one {the # learner} other {all # learners}} on this page, whatever the search or filter above."
 
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Edit"
@@ -889,9 +897,21 @@ msgstr "Language: {name}"
 msgid "Last evidence"
 msgstr "Last evidence"
 
+#: apps/console/components/last-practised.tsx
+msgid "Last practised {date}"
+msgstr "Last practised {date}"
+
+#: apps/console/components/last-practised.tsx
+msgid "Last practised {exact}"
+msgstr "Last practised {exact}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
+msgid "Last practised counts questions answered here, Show answer included. Results recorded elsewhere count toward standings, not practice."
+msgstr "Last practised counts questions answered here, Show answer included. Results recorded elsewhere count toward standings, not practice."
+
 #: apps/console/components/group-form.tsx
+#: apps/console/lib/roles.ts
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Learner"
 
@@ -1079,8 +1099,16 @@ msgid "No groups yet"
 msgstr "No groups yet"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No learner matches “{query}” with this practice filter."
+msgstr "No learner matches “{query}” with this practice filter."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No learner matches “{query}”."
 msgstr "No learner matches “{query}”."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No learner matches this filter."
+msgstr "No learner matches this filter."
 
 #: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
@@ -1100,6 +1128,18 @@ msgstr "No objectives currently have repeated misses."
 msgid "No password to remember."
 msgstr "No password to remember."
 
+#: apps/console/components/last-practised.tsx
+msgid "No practice recorded yet"
+msgstr "No practice recorded yet"
+
+#: apps/console/components/last-practised.tsx
+msgid "No practice recorded yet on this course's objectives"
+msgstr "No practice recorded yet on this course's objectives"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "No practice yet: {none}"
+msgstr "No practice yet: {none}"
+
 #: apps/console/components/group-form.tsx
 msgid "No teacher can read this group's progress yet."
 msgstr "No teacher can read this group's progress yet."
@@ -1111,6 +1151,10 @@ msgstr "No teachers."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Not active yet"
 msgstr "Not active yet"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Not lately: {earlier}"
+msgstr "Not lately: {earlier}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Not quite"
@@ -1207,7 +1251,7 @@ msgstr "Organizations in this region are set up on its own site, where you sign 
 msgid "Organize learners, teachers, and courses. Teachers can read progress for the learners and courses in their groups."
 msgstr "Organize learners, teachers, and courses. Teachers can read progress for the learners and courses in their groups."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+#: apps/console/lib/roles.ts
 msgid "Owner"
 msgstr "Owner"
 
@@ -1225,10 +1269,18 @@ msgctxt "domain"
 msgid "Pending"
 msgstr "Pending"
 
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Practice in the last 7 days"
+msgstr "Practice in the last 7 days"
+
 #. Objectives practised today, by current standing: 2 retained · 1 learning
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practised today: {todaySummary}."
 msgstr "Practised today: {todaySummary}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Practised: {recent}"
+msgstr "Practised: {recent}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -1688,6 +1740,10 @@ msgstr "This sign-in has expired"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
 msgstr "To let a member read their learners' progress, make them a teacher in a <0>group</0>."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+msgid "Today and the 6 days before, in your time zone ({timeZone}): questions answered here on this course's objectives. Results recorded elsewhere count toward standings, not practice."
+msgstr "Today and the 6 days before, in your time zone ({timeZone}): questions answered here on this course's objectives. Results recorded elsewhere count toward standings, not practice."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "today at {time}"

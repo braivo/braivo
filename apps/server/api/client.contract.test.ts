@@ -816,6 +816,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       modelVersion: "v1",
       asOf: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/),
       repeatedMissesThreshold: 3,
+      lastPractisedAt: null,
       objectives: [
         {
           objectiveId: pastTense,
@@ -873,6 +874,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       roles: ["member"],
       standings: { unseen: 2, acquiring: 1, retained: 0, due: 0 },
       repeatedMisses: expect.any(Number),
+      lastPractisedAt: null,
     });
     expect(overview.objectives.find(({ objectiveId }) => objectiveId === fractions)).toEqual({
       objectiveId: fractions,
@@ -880,6 +882,30 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       standings: expect.objectContaining({ acquiring: 1 }),
       repeatedMisses: expect.any(Array),
     });
+  });
+
+  test("says when a learner last practised, as the moment they answered", async () => {
+    // An answer, not a result recorded elsewhere, is practice (progress-17);
+    // pinned through both reads, so a dropped or reshaped field fails here.
+    const before = Date.now();
+    await client.submitAttempt(
+      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } },
+      { headers: { cookie: learnerCookie } },
+    );
+    const after = Date.now();
+    const asTeacher = { headers: { cookie: teacherCookie } };
+
+    const overview = await client.courseProgress(progressCourseId, asTeacher);
+    const summary = await client.learnerProgress(
+      { courseId: progressCourseId, learnerId, includeHistory: false },
+      asTeacher,
+    );
+    const { lastPractisedAt } = overview.learners.find(({ userId }) => userId === learnerId)!;
+
+    expect(lastPractisedAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    expect(Date.parse(lastPractisedAt!)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(lastPractisedAt!)).toBeLessThanOrEqual(after);
+    expect(summary.lastPractisedAt).toBe(lastPractisedAt);
   });
 
   test("reads progress the session may not see as a 404", async () => {
