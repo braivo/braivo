@@ -64,7 +64,10 @@ describe("reporting a problem with a question", () => {
   test("is offered after Continue, never before it, and keeps Continue focused", async () => {
     await graded();
     // In the accessibility tree from the start, empty, so a later message is announced.
-    expect(screen.getByRole("status").textContent).toBe("");
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+    // Hidden visually alone: happy-dom applies no CSS, so `display: none` would pass unseen.
+    expect(status.className).toBe("sr-only");
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
     const report = screen.getByRole("button", { name: "Report a problem" });
