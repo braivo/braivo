@@ -1,6 +1,6 @@
 # 0033: Email goes out over SMTP, or to the log of an installation only its machine reaches
 
-Status: accepted (2026-10-06)
+Status: accepted (2026-10-06), amended (2026-11-01: an invitation's mail names the organization)
 
 ## Context
 
@@ -22,6 +22,6 @@ People sign in with a code sent by email ([ADR 0018](0018-sign-in-and-invitation
 ## Consequences
 
 - A deployment sets two variables, or does not start.
-- Messages are in the language the request prefers, English or Polish (localization-6), with an HTML body of plain strings and inline styles (shared rendering only once repeated layout or complexity makes them error-prone), and do not name the organization, which a self-serve owner names freely; each names the site its code is for, the installation's host or the learn domain's, as only there does it sign in ([ADR 0018](0018-sign-in-and-invitations.md)). Branding comes with the learn domain's sign-in page, which names the organization.
+- Messages are in the language the request prefers, English or Polish (localization-6), with an HTML body of plain strings and inline styles (shared rendering only once repeated layout or complexity makes them error-prone), and a sign-in code's does not name the organization, which a self-serve owner names freely; an invitation's names it, as plain text, since whom it is from is the message ([ADR 0018](0018-sign-in-and-invitations.md)). A code's mail names the site it is for, the installation's host or the learn domain's, as only there does it sign in ([ADR 0018](0018-sign-in-and-invitations.md)). Branding comes with the learn domain's sign-in page, which names the organization.
 - A slow SMTP server slows sign-in; acceptable until it is measured.
 - If handing a code to the transport throws, the address still waits its minute before another code (`claimSignInCode`; for a learn domain's codes, their row's `resend_at`). Releasing it could send two codes after an ambiguous failure, such as a timeout after the server accepted the first.

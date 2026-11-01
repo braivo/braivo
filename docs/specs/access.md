@@ -108,7 +108,7 @@ What the operator hands over on request: the operator's commands alone, no API r
 - What a learner's routes answer, a course outside their organizations included (learner-loop-3): [learner loop](learner-loop.md); who reads a report or an overview: [progress](progress.md), progress-1 and 12.
 - Identity reaches use cases as plain user IDs, resolved by the route, with the access kind where a use case reads others' data (access-45): [architecture](../architecture.md).
 - The language sign-in is in, and how its refusals are worded: [localization](localization.md).
-- Not here yet: ADR 0018's invitations to an organization as `member` or `admin`, and a console UI for members, roles, and settings (see Gaps).
+- Not here yet: ADR 0018's invitations to an organization as `member`, `author`, or `admin`, and a console UI for members and roles (see Gaps).
 
 ## Decisions
 
