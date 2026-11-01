@@ -19,13 +19,14 @@ import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better
 import { adminAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import * as z from "zod";
 
+import { INVITABLE_ROLES, type InvitableRole } from "../application/invitations.ts";
 import { mayAuthor } from "../application/permission.ts";
 import { describeLogCall } from "../logging.ts";
-import { mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
+import { invitationMail, mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
 import {
   claimSignInCode,
   organizationOwnsLearningContent,
-  readOrganizationSlug,
+  readOrganizationRoles,
 } from "../persistence/index.ts";
 import {
   aliasGoogleJwks,
@@ -34,6 +35,7 @@ import {
   fetchStrictlyPublic,
 } from "./client-metadata.ts";
 import { constraints } from "./constraints.ts";
+import { invitationDelivery } from "./invitations.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -147,6 +149,13 @@ const INVALID_EMAIL_OR_PASSWORD = {
  * below a school's.
  */
 export const MEMBERSHIP_LIMIT = 1_000;
+
+/**
+ * How long an invitation waits to be accepted (ADR 0018): a week, as a
+ * school's staff and families read mail over a weekend; Better Auth's 48 hours
+ * would not.
+ */
+const INVITATION_DAYS = 7;
 
 /**
  * Carries a failed send to the after hook, which refuses the request: Better
@@ -493,6 +502,35 @@ export function createAuth(options: AuthOptions) {
         // call it naming the user (`createOwnedOrganization`, ADR 0018).
         allowUserToCreateOrganization: false,
         membershipLimit: MEMBERSHIP_LIMIT,
+        // Invitations (ADR 0018), made only through Braivo's route, which
+        // calls `createInvitation` (`invitations.ts`): accepted only by a
+        // verified account with the invited email; a second invitation to a
+        // pending address refused, not replacing it; at most 1,000 waiting.
+        requireEmailVerificationOnInvitation: true,
+        cancelPendingInvitationsOnReInvite: false,
+        invitationExpiresIn: INVITATION_DAYS * 86_400,
+        invitationLimit: 1_000,
+        sendInvitationEmail: async ({ id, email, role, organization, inviter, invitation }) => {
+          const delivery = await invitationDelivery.get();
+          try {
+            await options.sendMail(
+              invitationMail({
+                to: email,
+                link: new URL(`/invitations/${encodeURIComponent(id)}`, options.baseURL).href,
+                organization: organization.name,
+                inviter: inviter.user.name || inviter.user.email,
+                // `beforeCreateInvitation` admits no other.
+                role: role as InvitableRole,
+                expiresAt: invitation.expiresAt,
+                locale: delivery.locale,
+              }),
+            );
+          } catch (error) {
+            await invitationDelivery.set({ ...delivery, sent: false });
+            // Rethrown for Better Auth to log; the invitation stays.
+            throw error;
+          }
+        },
         // Better Auth's own roles, and `author` (ADR 0048) with a member's
         // permissions, none over the organization: authoring is Braivo's to
         // check, so none of Better Auth's routes lets an author change a role,
@@ -503,8 +541,7 @@ export function createAuth(options: AuthOptions) {
             additionalFields: {
               // Whether a tool reads others' data here (ADR 0050), and who
               // last changed it and when. Never input: Better Auth's update,
-              // open to an `owner` or `admin` from any credential, must not
-              // change them. Never returned: it lists organizations to every
+              // were it reachable (access-54), must not change them. Never returned: it lists organizations to every
               // member and to tools, and only an administrator's browser
               // reads them (access-45).
               toolsReadLearnerData: {
@@ -537,17 +574,33 @@ export function createAuth(options: AuthOptions) {
             assertSlugAllowed(created.slug ?? "");
           },
           /**
-           * Refuses changing a slug until the console's rename, with its
-           * warning that links break, exists (ADR 0004). Resending the current
-           * slug is not a change, so a form sending every field works.
+           * Refuses a role no invitation carries, `owner` above all, which
+           * Better Auth lets an owner invite (ADR 0018). Braivo's route checks
+           * first, to answer in its words; this holds whoever calls.
            */
-          beforeUpdateOrganization: async ({ organization: changes, member }) => {
-            if (changes.slug === undefined) return;
-            const current = await readOrganizationSlug(options.database, member.organizationId);
-            if (changes.slug !== current) {
+          beforeCreateInvitation: async ({ invitation }) => {
+            if (!INVITABLE_ROLES.has(invitation.role)) {
               throw new APIError("BAD_REQUEST", {
-                code: "ORGANIZATION_SLUG_IMMUTABLE",
-                message: "An organization's slug cannot be changed yet.",
+                code: "ROLE_NOT_INVITABLE",
+                message: "Invite as an author or an admin.",
+              });
+            }
+          },
+          /**
+           * Refuses an account already a member, which Better Auth would
+           * insert again, failing on the unique membership (a 500 each time):
+           * added another way since it was invited, it keeps its roles, never
+           * taking the invitation's, which stays pending until it expires.
+           */
+          beforeAcceptInvitation: async ({ invitation: accepted, user: accepting }) => {
+            const roles = await readOrganizationRoles(options.database, {
+              organizationId: accepted.organizationId,
+              userId: accepting.id,
+            });
+            if (roles.length > 0) {
+              throw new APIError("BAD_REQUEST", {
+                code: "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION",
+                message: "You are already a member of this organization.",
               });
             }
           },
@@ -705,6 +758,9 @@ export function createAuth(options: AuthOptions) {
       "/email-otp/reset-password",
       "/email-otp/request-email-change",
       "/email-otp/change-email",
+      // Renaming is Braivo's (access-37), with its name limit; this would
+      // change the name, the slug, or the logo past it.
+      "/organization/update",
       // These answer any member, not only owners and admins: a learner would
       // read members' and invitations' emails, another's role, or, from
       // `remove-member`'s error, whether an email is a member's; a role change
@@ -715,11 +771,12 @@ export function createAuth(options: AuthOptions) {
       "/organization/get-active-member-role",
       "/organization/remove-member",
       "/organization/update-member-role",
-      // Invitations, until ADR 0018 guards them: with no verified email,
-      // whoever signs up with an invited address joins, and nothing checks the
-      // learn domain.
+      // Invitations are made, listed, and read through Braivo's routes (ADR
+      // 0018): `invite-member`'s `resend` skips `beforeCreateInvitation`,
+      // `list-invitations` returns the first 100 rows of every state, and
+      // `cancel-invitation` cancels whatever it finds. Accepting stays open,
+      // to a verified account with the invited email alone.
       "/organization/invite-member",
-      "/organization/accept-invitation",
       "/organization/reject-invitation",
       "/organization/cancel-invitation",
       "/organization/get-invitation",

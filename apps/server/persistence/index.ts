@@ -78,13 +78,17 @@ export {
   teaches,
   updateGroup,
 } from "./group.ts";
+export type { PendingInvitation } from "./invitation.ts";
+export { readInvitation, readPendingInvitations } from "./invitation.ts";
 export { ConflictingKey } from "./key.ts";
 export type { ListedOrganization, Member, Organization } from "./membership.ts";
 export {
   deleteNewOrganization,
+  readMemberRolesByEmail,
   readMembers,
   readMemberships,
   readOrganizationRoles,
+  readUserEmail,
 } from "./membership.ts";
 export type { ObjectiveSummary, Objective } from "./objective.ts";
 export {
@@ -99,7 +103,6 @@ export {
   findToolsReadLearnerData,
   organizationOwnsLearningContent,
   readOrganizationBySlug,
-  readOrganizationSlug,
   toolsMayReadLearnerData,
   updateOrganizationName,
   updateToolsReadLearnerData,

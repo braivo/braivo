@@ -22,6 +22,8 @@ import type {
   GroupDefinition,
   Handoff,
   HostOrganization,
+  InvitationPage,
+  InvitationResult,
   LearnerProgressReport,
   LearnerProgressSummary,
   LocatedCitation,
@@ -29,6 +31,7 @@ import type {
   ObjectiveSummary,
   Organization,
   OrganizationSetup,
+  PendingInvitation,
   QuotedCitation,
   ReportedTask,
   SessionUser,
@@ -79,6 +82,8 @@ export type {
   GroupDefinition,
   Handoff,
   HostOrganization,
+  InvitationPage,
+  InvitationResult,
   LearnerProgressReport,
   LearnerProgressStanding,
   LearnerProgressSummary,
@@ -91,6 +96,7 @@ export type {
   Organization,
   OrganizationSetup,
   Passage,
+  PendingInvitation,
   QuotedCitation,
   ReportedTask,
   SessionUser,
@@ -382,6 +388,32 @@ export type BraivoClient = {
    * throws a {@link BraivoError} with status 403.
    */
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
+
+  /**
+   * Invites `email` to an organization as `author` or `admin`, mailing them
+   * the invitation's link (ADR 0018), in the language `Accept-Language`
+   * prefers. Resolves to the invitation and whether its mail went, or to what
+   * the address already holds there. A browser's session alone, for an
+   * `owner` or `admin`; otherwise a {@link BraivoError}: 403, or 400 with
+   * `code` `EMAIL_INVALID` or `ROLE_NOT_INVITABLE`, 409 `PENDING_LIMIT`.
+   */
+  invite(
+    organizationId: string,
+    invitation: { email: string; role: "author" | "admin" },
+    options?: RequestOptions,
+  ): Promise<InvitationResult>;
+
+  /**
+   * An organization's invitations waiting to be accepted, newest first.
+   * Refused as `invite`, with status 403.
+   */
+  listInvitations(organizationId: string, options?: RequestOptions): Promise<PendingInvitation[]>;
+
+  /**
+   * An invitation as its page shows it, signed in or not, or `undefined` for
+   * one that does not exist.
+   */
+  invitation(invitationId: string, options?: RequestOptions): Promise<InvitationPage | undefined>;
 
   /**
    * The AI apps the signed-in person connected (ADR 0045), one per app and
@@ -1170,6 +1202,66 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { members } = await parsed<{ members: Member[] }>(response, doing);
       return members;
+    },
+
+    async invite(organizationId, invitation, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/invitations`,
+        invitation,
+        requestOptions,
+      );
+
+      const doing = `inviting to organization "${organizationId}"`;
+      if (response.status === 201) {
+        return {
+          outcome: "invited",
+          ...(await parsed<Omit<InvitationResult & { outcome: "invited" }, "outcome">>(
+            response,
+            doing,
+          )),
+        };
+      }
+      if (response.status === 409) {
+        const held = await parsed<{
+          error?: string;
+          code?: string;
+          roles?: string[];
+          role?: string;
+        }>(response, doing);
+        if (held.code === "ALREADY_MEMBER") {
+          return { outcome: "already a member", roles: held.roles ?? [] };
+        }
+        if (held.code === "ALREADY_INVITED") return { outcome: "already invited", role: held.role };
+        throw new BraivoError(
+          409,
+          `Braivo answered 409 ${doing}: ${held.error}`,
+          held.error,
+          held.code,
+        );
+      }
+      throw await unexpected(response, doing);
+    },
+
+    async listInvitations(organizationId, requestOptions) {
+      const response = await get(`${organizationPath(organizationId)}/invitations`, requestOptions);
+
+      const doing = `listing the invitations of organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ invitations: PendingInvitation[] }>(response, doing)).invitations;
+    },
+
+    async invitation(invitationId, requestOptions) {
+      const response = await get(
+        `/api/invitations/${encodeURIComponent(invitationId)}`,
+        requestOptions,
+      );
+
+      const doing = "reading an invitation";
+      if (response.status === 404) return undefined;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<InvitationPage>(response, doing);
     },
 
     async listConnections(requestOptions) {

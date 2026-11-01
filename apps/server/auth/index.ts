@@ -8,6 +8,7 @@
 export type { Auth } from "./auth.ts";
 export { AUTHOR_SCOPE, createAuth, ORGANIZATION_CLAIM, SIGN_IN_CODE } from "./auth.ts";
 export type { ClientMetadataFetch } from "./client-metadata.ts";
+export { createInvitation } from "./invitations.ts";
 export { addMember, createOrganization, createOwnedOrganization } from "./organization.ts";
 export { registerOAuthClient, removeOAuthClient } from "./oauth-client.ts";
 export {

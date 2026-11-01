@@ -109,6 +109,7 @@ export function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
+        listInvitations: async () => [],
         listGroups: async () => [],
         listObjectives: async () => [],
         // No learner reported anything, unless a test says otherwise.

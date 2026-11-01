@@ -42,6 +42,7 @@ const routes = [
   "POST /api/auth/sign-in/email-otp",
   "POST /api/auth/sign-in/social",
   "POST /api/auth/sign-out",
+  "POST /api/auth/organization/accept-invitation",
   "GET  /api/sign-in-settings",
   "POST /api/session/code",
   "GET  /api/session/sign-in",
@@ -76,6 +77,9 @@ const routes = [
   "GET  /api/organizations/:organizationId/members",
   "GET  /api/organizations/:organizationId/reports",
   "POST /api/organizations/:organizationId/reports/dismiss",
+  "GET  /api/organizations/:organizationId/invitations",
+  "POST /api/organizations/:organizationId/invitations",
+  "GET  /api/invitations/:invitationId",
   "GET  /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups/:groupId",
@@ -287,6 +291,7 @@ POST /api/auth/email-otp/send-verification-otp                                  
 POST /api/auth/sign-in/email-otp                                                400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-in/social                                                   400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-out                                                         200     200     200     200     403     403     415     415     1MB
+POST /api/auth/organization/accept-invitation                                   400     400     403     400     403     403     415     415     1MB
 GET  /api/sign-in-settings                                                      200     200     200     200       ·       ·       ·       ·       ·
 POST /api/session/code                                                          404     404     404     404     404     404     404     404     404
 GET  /api/session/sign-in                                                       404     404     404     404       ·       ·       ·       ·       ·
@@ -321,6 +326,9 @@ POST /api/organizations/:organizationId/tools-read-learner-data                 
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/reports                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/reports/dismiss                         401     400     403     401     403     403     403     403     1MB
+GET  /api/organizations/:organizationId/invitations                             401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/invitations                             401     400     403     401     403     403     403     403     1MB
+GET  /api/invitations/:invitationId                                             404     404     403     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  401     400     400     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/groups/:groupId                         401     400     400     401     403     403     403     403     1MB
@@ -362,6 +370,7 @@ POST /api/auth/email-otp/send-verification-otp                                  
 POST /api/auth/sign-in/email-otp                                                404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-in/social                                                   404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-out                                                         404     404     401     404     404     404     404     404     404
+POST /api/auth/organization/accept-invitation                                   404     404     401     404     404     404     404     404     404
 GET  /api/sign-in-settings                                                      200     200     401     200       ·       ·       ·       ·       ·
 POST /api/session/code                                                          400     400     401     400     403     403     403     403     1MB
 GET  /api/session/sign-in                                                       302     302     401     302       ·       ·       ·       ·       ·
@@ -396,6 +405,9 @@ POST /api/organizations/:organizationId/tools-read-learner-data                 
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/reports                                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/reports/dismiss                         404     404     401     404     404     404     404     404     404
+GET  /api/organizations/:organizationId/invitations                             404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/invitations                             404     404     401     404     404     404     404     404     404
+GET  /api/invitations/:invitationId                                             404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/groups/:groupId                         404     404     401     404     404     404     404     404     404

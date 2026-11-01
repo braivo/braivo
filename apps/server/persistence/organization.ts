@@ -38,19 +38,6 @@ export async function organizationOwnsLearningContent(
   return found.some((rows) => rows.length > 0);
 }
 
-/** An organization's slug, or `undefined` when there is no such organization. */
-export async function readOrganizationSlug(
-  database: Database,
-  organizationId: string,
-): Promise<string | undefined> {
-  const [row] = await database
-    .select({ slug: organization.slug })
-    .from(organization)
-    .where(eq(organization.id, organizationId));
-
-  return row?.slug;
-}
-
 /** An organization by its slug, or `undefined` when no organization has it. */
 export async function readOrganizationBySlug(
   database: Database,

@@ -23,6 +23,7 @@ import {
   presentsToolCredential,
   refuseUnstorable,
 } from "./guards.ts";
+import { invitationRoutes } from "./invitations.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { mcpEndpoint } from "./mcp.ts";
@@ -193,6 +194,7 @@ export function createApi(options: ApiOptions) {
     const installationOnly = [
       "/api/organizations",
       "/api/organization-setup",
+      "/api/invitations",
       "/api/auth",
       "/api/handoffs",
       "/api/oauth",
@@ -380,6 +382,7 @@ export function createApi(options: ApiOptions) {
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
   api.route("/", groupRoutes(guards, { database }));
   api.route("/", reportRoutes(guards, { database }));
+  api.route("/", invitationRoutes(guards, { auth, database }));
   api.route("/", connectionRoutes(guards, { database }));
 
   return api;

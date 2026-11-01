@@ -582,6 +582,30 @@
 // names and roles. 403 to a tool, too, while the organization does not let
 // tools read its learners' data (ADR 0050).
 //
+// `POST /api/organizations/:organizationId/invitations` `{ "email", "role" }`
+// — invites an address, trimmed and lowercased, as `author` or `admin`, for 7
+// days, mailing it the link `<origin>/invitations/<id>` in the language
+// `Accept-Language` weighs highest (ADR 0018): 201 `{ "invitation": { "id",
+// "email", "role", "expiresAt" }, "emailSent" }`, `emailSent` false when the
+// invitation was stored but its mail could not be sent. 400 `{ "error",
+// "code" }`, `EMAIL_INVALID` or `ROLE_NOT_INVITABLE` (`owner` and `member`
+// included); 409 `ALREADY_MEMBER` with the member's `roles`, `ALREADY_INVITED`
+// with the pending invitation's `role`, which stays, or `PENDING_LIMIT`, past
+// 1,000 waiting. 403 to anyone but an `owner` or `admin`, and to a tool.
+//
+// `GET /api/organizations/:organizationId/invitations` — the invitations
+// waiting to be accepted, newest first: `{ "invitations": [{ "id", "email",
+// "role", "inviter": { "name" }, "expiresAt" }] }`. 403 as for inviting.
+//
+// `GET /api/invitations/:invitationId` — an invitation as its page shows it,
+// with or without a session: `{ "organization": { "name" }, "status" }`,
+// `status` `pending`, `expired`, `canceled`, or `accepted`; with a session,
+// `recipient`, whether the account's email is the invitation's, and to the
+// recipient alone the organization's `slug`, the `role`, and the `inviter`'s
+// `{ "name" }`. Never the email. 404 for one that does not exist; 403 to a
+// tool. Accepting is Better Auth's `POST /api/auth/organization/accept-invitation`
+// `{ "invitationId" }`, for a verified account with the invited email alone.
+//
 // `GET /api/organizations/:organizationId/groups` — the organization's groups,
 // by name: `{ "groups": [{ "id", "organizationId", "name", "learners": [{
 // "userId", "name" }], "teachers": [...], "courses": [{ "id", "title" }] }]

@@ -6,12 +6,23 @@
 
 import type { Mail, SendMail } from "../mail/index.ts";
 
-/** Mail kept in memory, so a test reads its code as a person would. */
-export type Outbox = { sendMail: SendMail; sent: Mail[] };
+/**
+ * Mail kept in memory, so a test reads its code as a person would; mail to an
+ * address in `failTo` throws, as a transport refusing it would.
+ */
+export type Outbox = { sendMail: SendMail; sent: Mail[]; failTo: Set<string> };
 
 export function createOutbox(): Outbox {
   const sent: Mail[] = [];
-  return { sent, sendMail: async (mail) => void sent.push(mail) };
+  const failTo = new Set<string>();
+  return {
+    sent,
+    failTo,
+    sendMail: async (mail) => {
+      if (failTo.has(mail.to)) throw new Error("The transport refused the mail.");
+      sent.push(mail);
+    },
+  };
 }
 
 /** The code in the latest mail to `email`. */
