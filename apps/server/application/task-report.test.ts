@@ -8,10 +8,19 @@ import { and, eq, isNull } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
-import { createCourse, createObjectives } from "../persistence/index.ts";
+import { createCourse, createGroup, createObjectives } from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
+import { publish } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
-import { parseTaskReport, reportAttempt, type TaskReportInput } from "./task-report.ts";
+import { NotPermitted } from "./permission.ts";
+import {
+  dismissReports,
+  listReportedTasks,
+  parseTaskReport,
+  reportAttempt,
+  type TaskReportInput,
+} from "./task-report.ts";
+import { defineTasks, retireTasks } from "./tasks.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = testing.sharedDatabase(connectionString ?? "");
@@ -22,6 +31,12 @@ const learner = "task-report-test-learner";
 const classmate = "task-report-test-classmate";
 /** A member of the other organization only. */
 const outsider = "task-report-test-outsider";
+/** Administers the organization: reads and dismisses its reports. */
+const admin = "task-report-test-admin";
+/** Authors in it, and administers nothing. */
+const author = "task-report-test-author";
+/** Teaches a group taking the course, and holds no other role. */
+const teacher = "task-report-test-teacher";
 const installation: RequestHost = { hostname: "localhost", installation: true };
 const start = new Date("2026-06-01T00:00:00.000Z");
 const later = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
@@ -104,9 +119,14 @@ describe.skipIf(!connectionString)("a learner reporting a task (learner-loop-22)
     await runMigrations(connectionString ?? "");
     await testing.seedOrganization(database, {
       organizationId,
-      learnerIds: [learner, classmate],
+      learnerIds: [learner, classmate, author, teacher],
+      adminIds: [admin],
       at: start,
     });
+    await database
+      .update(member)
+      .set({ role: "author" })
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, author)));
     await testing.seedOrganization(database, {
       organizationId: otherOrganizationId,
       learnerIds: [outsider, learner],
@@ -412,5 +432,349 @@ describe.skipIf(!connectionString)("a learner reporting a task (learner-loop-22)
     await database.delete(user).where(eq(user.id, leaver));
 
     expect(await storedReports(leaver)).toEqual([]);
+  });
+});
+
+describe.skipIf(!connectionString)("the school reading and resolving reports (access-46)", () => {
+  /** A task of a new objective in a new published course, answered wrong by each of `learners`. */
+  async function reportedTask(
+    learners: readonly string[],
+    { reason = keyWrong, now = later(100) }: { reason?: TaskReportInput; now?: Date } = {},
+  ) {
+    const [objectiveId] = await createObjectives(database, organizationId, [
+      `Reported ${crypto.randomUUID()}`,
+    ]);
+    const taskId = await testing.createTask(database, {
+      organizationId,
+      objectiveId: objectiveId!,
+      body: choice("Reported?"),
+      createdAt: start,
+    });
+    const course = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Reported course",
+      objectiveIds: [objectiveId!],
+    });
+    for (const learnerId of learners) {
+      const attemptId = `${taskId}:${learnerId}`;
+      await answer(attemptId, taskId, { choice: 1 }, later(1), { learnerId, course: course.id });
+      await report(attemptId, reason, { learnerId, course: course.id, now });
+    }
+    return { objectiveId: objectiveId!, taskId, courseId: course.id };
+  }
+
+  /** `count` reports of one task by learners made for it, stored directly, a minute apart. */
+  async function manyReports(taskId: string, count: number) {
+    const people = Array.from({ length: count }, (_, index) => `task-report-test-many-${index}`);
+    await database
+      .insert(user)
+      .values(
+        people.map((id) => ({
+          id,
+          name: id,
+          email: `${id}@example.com`,
+          emailVerified: false,
+          createdAt: start,
+          updatedAt: start,
+        })),
+      )
+      .onConflictDoNothing();
+    const attempts = people.map((learnerId) => ({
+      learnerId,
+      organizationId,
+      id: `${taskId}:${learnerId}`,
+      taskId,
+      response: { choice: 1 },
+      at: start,
+    }));
+    await database.insert(attempt).values(attempts);
+    await database.insert(taskReport).values(
+      attempts.map(({ learnerId, id }, index) => ({
+        learnerId,
+        organizationId,
+        attemptId: id,
+        id: crypto.randomUUID(),
+        taskId,
+        reason: "confusing" as const,
+        createdAt: later(index),
+      })),
+    );
+  }
+
+  const list = (scope: Parameters<typeof listReportedTasks>[0]["scope"] = {}, actingAs = admin) =>
+    listReportedTasks({ database, organizationId, actingAs, accessKind: "browser", scope });
+  const dismiss = (reportIds: string[], actingAs = admin) =>
+    dismissReports({
+      database,
+      organizationId,
+      actingAs,
+      accessKind: "browser",
+      reportIds,
+      now: later(500),
+    });
+  const reportedIds = async (scope: Parameters<typeof list>[0] = {}) =>
+    (await list(scope)).tasks.map(({ id }) => id);
+
+  beforeAll(async () => {
+    const [objectiveId] = await createObjectives(database, organizationId, ["Taught"]);
+    const { id: taughtCourse } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Taught",
+      objectiveIds: [objectiveId!],
+    });
+    await createGroup(database, {
+      organizationId,
+      definition: {
+        name: "Class",
+        learnerIds: [learner],
+        teacherIds: [teacher],
+        courseIds: [taughtCourse],
+      },
+    });
+  });
+
+  beforeEach(async () => {
+    await testing.clearLearnerHistory(database, [learner, classmate]);
+  });
+
+  test("lists open reports per task, counted, with what each learner answered and wrote, naming no one", async () => {
+    await answer("a1", choiceTasks[0]!, { choice: 1 }, later(1));
+    await report("a1", { reason: "confusing", note: "Which one?" }, { now: later(10) });
+    await answer("c1", choiceTasks[0]!, { reveal: true }, later(2), { learnerId: classmate });
+    await report("c1", keyWrong, { learnerId: classmate, now: later(20) });
+
+    const { tasks, more } = await list({ taskId: choiceTasks[0]! });
+
+    expect(more).toBe(false);
+    expect(tasks).toEqual([
+      {
+        id: choiceTasks[0],
+        objectiveId: objectives[0],
+        kind: "choice",
+        prompt: "Question 1?",
+        options: ["right", "wrong"],
+        answer: 0,
+        reportCount: 2,
+        reports: [
+          {
+            id: expect.any(String),
+            reason: "key-wrong",
+            at: later(20),
+            response: { reveal: true },
+          },
+          {
+            id: expect.any(String),
+            reason: "confusing",
+            note: "Which one?",
+            at: later(10),
+            response: { choice: 1 },
+          },
+        ],
+      },
+    ]);
+    // Nothing about who: the keys are these alone.
+    expect(Object.keys(tasks[0]!.reports[0]!).sort()).toEqual(["at", "id", "reason", "response"]);
+    expect(JSON.stringify(tasks)).not.toContain(learner);
+    expect(JSON.stringify(tasks)).not.toContain(classmate);
+  });
+
+  test("lists the newest reported task first, scoped to an objective, a course, or a task", async () => {
+    const first = await reportedTask([learner], { now: later(100) });
+    const second = await reportedTask([classmate], { now: later(101) });
+
+    const ids = await reportedIds();
+    expect(ids.indexOf(second.taskId)).toBeLessThan(ids.indexOf(first.taskId));
+    expect(await reportedIds({ objectiveId: first.objectiveId })).toEqual([first.taskId]);
+    expect(await reportedIds({ courseId: second.courseId })).toEqual([second.taskId]);
+    expect(await reportedIds({ taskId: first.taskId })).toEqual([first.taskId]);
+    expect(await reportedIds({ courseId: "no-such-course" })).toEqual([]);
+  });
+
+  test("closes a task's reports once it is retired", async () => {
+    const { taskId } = await reportedTask([learner]);
+
+    await retireTasks({
+      database,
+      organizationId,
+      actingAs: admin,
+      taskIds: [taskId],
+      now: later(30),
+      byTool: false,
+    });
+
+    expect(await reportedIds({ taskId })).toEqual([]);
+  });
+
+  test("closes reports on the console's correction at once, and on a tool's once published, naming it meanwhile", async () => {
+    const corrected = await reportedTask([learner]);
+    const correct = (taskId: string, objectiveId: string, prompt: string, byTool: boolean) =>
+      defineTasks({
+        database,
+        organizationId,
+        actingAs: admin,
+        tasks: [{ objectiveId, body: choice(prompt), replaces: taskId }],
+        now: later(40),
+        byTool,
+      });
+
+    await correct(corrected.taskId, corrected.objectiveId, "Corrected?", false);
+    expect(await reportedIds({ taskId: corrected.taskId })).toEqual([]);
+
+    const { taskId, objectiveId } = await reportedTask([classmate]);
+    const [first] = await correct(taskId, objectiveId, "Proposed?", true);
+    expect((await list({ taskId })).tasks[0]?.pendingCorrectionId).toBe(first!.id);
+    // A tool editing its pending correction replaces it: the report names the new one.
+    const [second] = await defineTasks({
+      database,
+      organizationId,
+      actingAs: admin,
+      tasks: [{ objectiveId, body: choice("Proposed again?"), replaces: first!.id }],
+      now: later(41),
+      byTool: true,
+    });
+    expect((await list({ taskId })).tasks[0]?.pendingCorrectionId).toBe(second!.id);
+
+    await publish({
+      database,
+      organizationId,
+      actingAs: admin,
+      courseIds: [],
+      taskIds: [second!.id],
+      now: later(42),
+    });
+    expect(await reportedIds({ taskId })).toEqual([]);
+  });
+
+  test("forgets a pending correction once it is retired, the report open", async () => {
+    const { taskId, objectiveId } = await reportedTask([learner]);
+    const [proposal] = await defineTasks({
+      database,
+      organizationId,
+      actingAs: admin,
+      tasks: [{ objectiveId, body: choice("Proposed?"), replaces: taskId }],
+      now: later(40),
+      byTool: true,
+    });
+
+    await retireTasks({
+      database,
+      organizationId,
+      actingAs: admin,
+      taskIds: [proposal!.id],
+      now: later(41),
+      byTool: true,
+    });
+
+    const [listed] = (await list({ taskId })).tasks;
+    expect(listed?.id).toBe(taskId);
+    expect(listed).not.toHaveProperty("pendingCorrectionId");
+  });
+
+  test("dismisses exactly the reports shown, keeping who did it first, and leaves later ones open", async () => {
+    const { taskId, courseId } = await reportedTask([learner]);
+    const shown = (await list({ taskId })).tasks[0]!.reports.map(({ id }) => id);
+    // Sent after the reviewer read the page.
+    await answer("late", taskId, { choice: 1 }, later(2), {
+      learnerId: classmate,
+      course: courseId,
+    });
+    await report("late", keyWrong, { learnerId: classmate, course: courseId });
+
+    await dismiss(shown);
+    // A retry, by another administrator say, changes nothing.
+    await dismissReports({
+      database,
+      organizationId,
+      actingAs: admin,
+      accessKind: "browser",
+      reportIds: shown,
+      now: later(900),
+    });
+
+    const [left] = (await list({ taskId })).tasks;
+    expect(left?.reportCount).toBe(1);
+    expect(left?.reports.map(({ id }) => id)).not.toContain(shown[0]);
+    const [dismissed] = await database
+      .select({ by: taskReport.dismissedBy, at: taskReport.dismissedAt })
+      .from(taskReport)
+      .where(eq(taskReport.id, shown[0]!));
+    expect(dismissed).toEqual({ by: admin, at: later(500) });
+  });
+
+  test("lists 20 reports beside a task and every one by its ID, up to 1000", async () => {
+    const { taskId } = await reportedTask([]);
+    await manyReports(taskId, 1001);
+
+    const [preview] = (await list()).tasks.filter(({ id }) => id === taskId);
+    expect(preview?.reportCount).toBe(1001);
+    expect(preview?.reports).toHaveLength(20);
+
+    const [whole] = (await list({ taskId })).tasks;
+    expect(whole?.reports).toHaveLength(1000);
+    await dismiss(whole!.reports.map(({ id }) => id));
+
+    // The oldest, beyond the first thousand, is left, and listed now.
+    const [rest] = (await list({ taskId })).tasks;
+    expect(rest?.reportCount).toBe(1);
+    expect(rest?.reports).toHaveLength(1);
+  });
+
+  test("refuses whoever does not administer, and any tool, whatever the organization lets tools read", async () => {
+    const { taskId } = await reportedTask([learner]);
+    const [reportId] = (await list({ taskId })).tasks[0]!.reports.map(({ id }) => id);
+
+    for (const actingAs of [author, teacher, learner, outsider]) {
+      await expect(list({}, actingAs)).rejects.toBeInstanceOf(NotPermitted);
+      await expect(dismiss([reportId!], actingAs)).rejects.toBeInstanceOf(NotPermitted);
+    }
+    for (const allowed of [false, true]) {
+      await testing.setToolsReadLearnerData(database, organizationId, allowed);
+      await expect(
+        listReportedTasks({
+          database,
+          organizationId,
+          actingAs: admin,
+          accessKind: "tool",
+          scope: {},
+        }),
+      ).rejects.toBeInstanceOf(NotPermitted);
+      await expect(
+        dismissReports({
+          database,
+          organizationId,
+          actingAs: admin,
+          accessKind: "tool",
+          reportIds: [reportId!],
+          now: later(500),
+        }),
+      ).rejects.toBeInstanceOf(NotPermitted);
+    }
+    await testing.setToolsReadLearnerData(database, organizationId, false);
+    expect(await reportedIds({ taskId })).toEqual([taskId]);
+  });
+
+  test("refuses to dismiss another organization's report or an unknown one, dismissing nothing", async () => {
+    const { taskId } = await reportedTask([learner]);
+    const [mine] = (await list({ taskId })).tasks[0]!.reports.map(({ id }) => id);
+    await answer("f1", foreignTask, { choice: 1 }, later(1), { course: foreignCourseId });
+    await reportAttempt({
+      database,
+      learnerId: learner,
+      courseId: foreignCourseId,
+      host: installation,
+      attemptId: "f1",
+      report: keyWrong,
+      now: later(5),
+    });
+    const [theirs] = await database
+      .select({ id: taskReport.id })
+      .from(taskReport)
+      .where(eq(taskReport.organizationId, otherOrganizationId));
+
+    await expect(dismiss([mine!, theirs!.id])).rejects.toBeInstanceOf(NotPermitted);
+    await expect(dismiss([mine!, "no-such-report"])).rejects.toBeInstanceOf(NotPermitted);
+    expect(await reportedIds({ taskId })).toEqual([taskId]);
   });
 });

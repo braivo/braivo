@@ -40,6 +40,7 @@ import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "rea
 
 import { NoExplanation } from "#components/explanations";
 import { FindingLines } from "#components/findings";
+import { TaskReports } from "#components/task-reports";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /** A task as authored, published or pending, with the passages it cites. */
@@ -525,6 +526,14 @@ export function TaskList(props: {
               onRetired={onChanged}
             >
               <Passages citations={task.citations} sources={sources} />
+              {/* Learners' reports, where the page reads them for an administrator. */}
+              {task.published && (
+                <TaskReports
+                  taskId={task.id}
+                  editingLocked={pending || editing !== undefined}
+                  onAddAnswer={(answer) => onEdit({ taskId: task.id, answerToAdd: answer })}
+                />
+              )}
             </RetirableTask>
           </div>
         )}

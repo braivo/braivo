@@ -18,6 +18,7 @@ import { useId } from "react";
 import { AiAppGuideLink } from "#components/ai-app-guide-link";
 import { LearnersSite } from "#components/learners-site";
 import { LinkList, linkRow } from "#components/link-list";
+import { readReports, ReportedTasks } from "#components/task-reports";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -43,7 +44,9 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
       orNotFound(context.braivo.listCourses(id, { signal })),
       orNotFound(context.braivo.listObjectives(id, { signal })),
     ]);
-    return { courses, objectives };
+    // Unawaited: read beside the page, never holding it back (ADR 0052).
+    const reports = readReports(context.braivo, context.organization, {}, abortController.signal);
+    return { courses, objectives, reports };
   },
   head: (head) => pageHead(head, "Courses"),
   component: Courses,
@@ -55,7 +58,7 @@ const formatReviewCount = (count: number) =>
   `${count} ${count === 1 ? "task needs" : "tasks need"} review`;
 
 function Courses() {
-  const { courses, objectives } = Route.useLoaderData();
+  const { courses, objectives, reports } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
   const { learnDomain, aiEnabled } = Route.useRouteContext().organization;
   const id = useId();
@@ -95,6 +98,7 @@ function Courses() {
         at="Learners practise at"
         none="Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
       />
+      <ReportedTasks reports={reports} organizationSlug={organizationSlug} />
       {courses.length === 0 ? (
         <Empty>
           <EmptyHeader>

@@ -27,6 +27,7 @@ import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { mcpEndpoint } from "./mcp.ts";
 import { principalOf } from "./principal.ts";
+import { reportRoutes } from "./reports.ts";
 import { sessionRoutes } from "./session.ts";
 import type { OrganizationSetup, SignInSettings } from "./types.ts";
 
@@ -378,6 +379,7 @@ export function createApi(options: ApiOptions) {
   );
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
   api.route("/", groupRoutes(guards, { database }));
+  api.route("/", reportRoutes(guards, { database }));
   api.route("/", connectionRoutes(guards, { database }));
 
   return api;

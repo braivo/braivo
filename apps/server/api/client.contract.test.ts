@@ -272,6 +272,50 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await expect(other).rejects.toMatchObject({ status: 409, code: "ALREADY_REPORTED" });
   });
 
+  test("lists a task's open reports for an administrator, and dismisses them", async () => {
+    const attemptId = crypto.randomUUID();
+    await client.submitAttempt(
+      { courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
+      { headers: { cookie: learnerCookie } },
+    );
+    // The learner may have reported the task already: dismissed first, this one is stored.
+    const admin = { headers: { cookie: teacherCookie } };
+    const before = await client.listReportedTasks({ organizationId, taskId: pastTenseTask }, admin);
+    const earlier = before.tasks.flatMap(({ reports }) => reports.map(({ id }) => id));
+    if (earlier.length > 0)
+      await client.dismissReports({ organizationId, reportIds: earlier }, admin);
+    await client.reportAttempt(
+      { courseId, attemptId, reason: "confusing" },
+      { headers: { cookie: learnerCookie } },
+    );
+
+    const { tasks, more } = await client.listReportedTasks(
+      { organizationId, taskId: pastTenseTask },
+      admin,
+    );
+    expect(more).toBe(false);
+    expect(tasks).toEqual([
+      expect.objectContaining({
+        id: pastTenseTask,
+        reportCount: 1,
+        reports: [
+          {
+            id: expect.any(String),
+            reason: "confusing",
+            at: expect.any(String),
+            response: { choice: 1 },
+          },
+        ],
+      }),
+    ]);
+
+    await client.dismissReports({ organizationId, reportIds: [tasks[0]!.reports[0]!.id] }, admin);
+    expect(await client.listReportedTasks({ organizationId }, admin)).toEqual({
+      tasks: [],
+      more: false,
+    });
+  });
+
   test("lists a learner's courses in the shape it declares", async () => {
     const courses = await client.learnerCourses({ headers: { cookie: learnerCookie } });
 

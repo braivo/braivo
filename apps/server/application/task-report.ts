@@ -3,18 +3,23 @@
 
 import type { Database } from "@braivo/db";
 
-import { isStorableText } from "../content/index.ts";
+import { isStorableText, type TaskBody, type TaskResponse } from "../content/index.ts";
 import {
+  countOrganizationReports,
   insertTaskReport,
+  markReportsDismissed,
+  readOpenTaskReports,
   readCourseOrganization,
   readCourseTask,
   readEvidenceOutcome,
   readReportableAttempt,
+  type ReportScope,
   type TaskReportReason,
 } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
-import { isMember } from "./permission.ts";
+import { assertMayAdminister, isMember, NotPermitted } from "./permission.ts";
 
 export type { TaskReportReason } from "../persistence/index.ts";
 
@@ -141,3 +146,110 @@ export type ReportedAttempt =
       created: boolean;
       report: { reason: TaskReportReason; note?: string; at: Date };
     };
+
+/** Tasks listed at once, newest report first: a page's worth, never the whole history. */
+export const REPORTED_TASKS_LIMIT = 100;
+/** Reports listed per task beside it; one task's whole list is asked for by its ID. */
+export const REPORTS_PER_TASK = 20;
+/** One task's reports read, and dismissed, at once. */
+export const MAX_REPORTS_AT_ONCE = 1000;
+
+/**
+ * A task with open reports, as its reviewer reads it: the task as authored,
+ * the correction a tool wrote for it while that waits, how many reports are
+ * open (one per learner), and the newest of them, never naming a learner.
+ */
+export type ReportedTask = TaskBody & {
+  id: string;
+  objectiveId: string;
+  pendingCorrectionId?: string;
+  reportCount: number;
+  reports: {
+    id: string;
+    reason: TaskReportReason;
+    note?: string;
+    at: Date;
+    response: TaskResponse;
+  }[];
+};
+
+/**
+ * The organization's open reports for its `owner` or `admin`, in a browser
+ * alone (ADR 0052): a tool, whatever ADR 0050's setting, reads no learner's
+ * answer or note. Per task, most recently reported first: at most
+ * `REPORTED_TASKS_LIMIT` tasks (`more` when there were others), each with its
+ * `REPORTS_PER_TASK` newest; scoped to one task, its `MAX_REPORTS_AT_ONCE`.
+ */
+export async function listReportedTasks(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+  scope: ReportScope;
+}): Promise<{ tasks: ReportedTask[]; more: boolean }> {
+  const { database, organizationId, scope } = input;
+  await assertMayReviewReports(input);
+  const one = "taskId" in scope;
+  const { tasks, more } = await readOpenTaskReports(database, {
+    organizationId,
+    scope,
+    taskLimit: one ? 1 : REPORTED_TASKS_LIMIT,
+    reportsPerTask: one ? MAX_REPORTS_AT_ONCE : REPORTS_PER_TASK,
+  });
+  return {
+    more,
+    tasks: tasks.map(
+      ({ taskId, objectiveId, body, reportCount, pendingCorrectionId, reports }) => ({
+        ...(body as TaskBody),
+        id: taskId,
+        objectiveId,
+        ...(pendingCorrectionId !== undefined && { pendingCorrectionId }),
+        reportCount,
+        reports: reports.map(({ note, ...report }) => ({
+          ...report,
+          ...(note !== null && { note }),
+        })),
+      }),
+    ),
+  };
+}
+
+/**
+ * Dismisses exactly the reports named, the ones the reviewer was shown, so a
+ * report sent since stays open. A retry changes nothing: one dismissed
+ * already keeps who did it and when. Refused whole, as `NotPermitted`, if
+ * any is not the organization's.
+ */
+export async function dismissReports(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+  reportIds: readonly string[];
+  now: Date;
+}): Promise<void> {
+  const { database, organizationId, actingAs, now } = input;
+  await assertMayReviewReports(input);
+  const reportIds = [...new Set(input.reportIds)];
+  const owned = await countOrganizationReports(database, { organizationId, reportIds });
+  if (owned !== reportIds.length) {
+    throw new NotPermitted(`Not every report is organization "${organizationId}"'s.`);
+  }
+  await markReportsDismissed(database, { organizationId, reportIds, by: actingAs, at: now });
+}
+
+/** Refuses all but an `owner` or `admin` in a browser (ADR 0052). */
+async function assertMayReviewReports(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  accessKind: AccessKind;
+}): Promise<void> {
+  if (input.accessKind !== "browser") {
+    throw new NotPermitted("Only a browser reads and dismisses learners' reports.");
+  }
+  await assertMayAdminister(input.database, {
+    organizationId: input.organizationId,
+    userId: input.actingAs,
+  });
+}

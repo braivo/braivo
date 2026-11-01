@@ -9,6 +9,7 @@ import { Fragment, useRef, useState } from "react";
 
 import { ExplanationCount, useExplanationNote } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
+import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
   type Editing,
   formatTaskCount,
@@ -49,6 +50,13 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/objectives/$
     return {
       objective,
       tasks,
+      // Unawaited: read beside the page, never holding it back (ADR 0052).
+      reports: readReports(
+        context.braivo,
+        context.organization,
+        { objectiveId },
+        abortController.signal,
+      ),
       // The courses its tasks serve, by title, as listed.
       courses: courses.filter(({ id }) => objective.courseIds.includes(id)),
       sources: new Map(sources.map((source) => [source.id, source])),
@@ -65,7 +73,7 @@ function ObjectivePage() {
 }
 
 function Objective() {
-  const { objective, tasks, courses, sources } = Route.useLoaderData();
+  const { objective, tasks, courses, sources, reports } = Route.useLoaderData();
   const { organization } = Route.useRouteContext();
   // Focusable, to receive focus once Publish is done, or a task's change.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -234,15 +242,17 @@ function Objective() {
               : "None yet: learners are not asked about it."}
           </MutedText>
         )}
-        <TaskList
-          objectiveId={objective.id}
-          tasks={tasks}
-          sources={sources}
-          editing={editing}
-          onEdit={setEditingTask}
-          pending={publication.publishing !== undefined}
-          onChanged={focusHeading}
-        />
+        <TaskReportsProvider reports={reports}>
+          <TaskList
+            objectiveId={objective.id}
+            tasks={tasks}
+            sources={sources}
+            editing={editing}
+            onEdit={setEditingTask}
+            pending={publication.publishing !== undefined}
+            onChanged={focusHeading}
+          />
+        </TaskReportsProvider>
       </section>
     </>
   );

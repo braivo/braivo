@@ -109,6 +109,8 @@ export function renderAt(
         listMembers: async () => members,
         listGroups: async () => [],
         listObjectives: async () => [],
+        // No learner reported anything, unless a test says otherwise.
+        listReportedTasks: async () => ({ tasks: [], more: false }),
         listDomains: async () => ({
           domains: [{ hostname: "example.braivo.app" }],
           claims: [],

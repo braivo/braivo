@@ -338,6 +338,41 @@
 //        nothing and is checked no further than the session and origin, so its
 //        204 says nothing about permission to grade.
 //
+// `GET /api/organizations/:organizationId/reports` — the organization's open
+// reports of tasks (ADR 0052), for its `owner` or `admin` in a browser alone:
+// reports neither dismissed nor of a retired task. Per task, the most recently
+// reported first, at most 100 tasks, each with its 20 newest reports, newest
+// first; `?objectiveId=`, `?courseId=`, or `?taskId=`, at most one, scopes it,
+// a task's read answering its 1000 newest. No learner is named.
+//
+//   400  more than one scope, or an empty one
+//   401  no session
+//   403  not an `owner` or `admin` there, or a tool, whatever the organization
+//        lets tools read (ADR 0050), explained
+//   200  { "tasks": [{ "id": "…", "objectiveId": "…", "kind": "typed",
+//          "prompt": "…", "accepted": ["went"], "pendingCorrectionId": "…",
+//          "reportCount": 2, "reports": [{ "id": "…", "reason":
+//          "answer-correct", "note": "…", "at": "…", "response": { "text":
+//          "went." } }] }], "more": false }
+//
+//        Each task as authored (its body, as `…/objectives/:objectiveId/tasks`
+//        reads it), `pendingCorrectionId` while a tool's correction of it
+//        waits to be published, `reportCount` its open reports, one per
+//        learner; each report's `response` the attempt's, as sent, and
+//        `note` only when there is one. `more` when tasks were left out.
+//
+// `POST /api/organizations/:organizationId/reports/dismiss`, a JSON write,
+// `{ "reportIds": ["…"] }`, 1 to 1000: dismisses exactly those, so a report
+// sent after the read stays open, recording who and when; one dismissed
+// already keeps the first. Who as for reading them.
+//
+//   400  not 1 to 1000 IDs
+//   401  no session
+//   403  as for reading them, or the request could have been forged, or a
+//        report not the organization's (nothing is dismissed then)
+//   413  the body is larger than 1 MB
+//   204  dismissed
+//
 // `GET /api/organizations` — the organizations the signed-in user
 // administers (`owner` or `admin`), authors in (those or `author`, ADR 0048),
 // or teaches a group in, by name: `{ "organizations": [{ "id": "…", "name":

@@ -29,6 +29,7 @@ import type {
   Organization,
   OrganizationSetup,
   QuotedCitation,
+  ReportedTask,
   SessionUser,
   SignInSettings,
   Source,
@@ -89,6 +90,7 @@ export type {
   OrganizationSetup,
   Passage,
   QuotedCitation,
+  ReportedTask,
   SessionUser,
   SignInSettings,
   Source,
@@ -765,6 +767,27 @@ export type BraivoClient = {
    */
   retireTasks(
     input: { organizationId: string; taskIds: readonly string[] },
+    options?: RequestOptions,
+  ): Promise<void>;
+
+  /**
+   * The organization's open reports, for its `owner` or `admin` in a browser
+   * (ADR 0052): per task, the newest reported first, at most 100 tasks
+   * (`more` when there were others) with each one's 20 newest reports, or,
+   * scoped to one task, its 1000 newest. At most one of `objectiveId`,
+   * `courseId`, and `taskId` scopes it. 403 to anyone else, and to a tool.
+   */
+  listReportedTasks(
+    input: { organizationId: string; objectiveId?: string; courseId?: string; taskId?: string },
+    options?: RequestOptions,
+  ): Promise<{ tasks: ReportedTask[]; more: boolean }>;
+
+  /**
+   * Dismisses exactly these reports, the ones shown, so any sent since stays
+   * open; a retry changes nothing. 403 when any is not the organization's.
+   */
+  dismissReports(
+    input: { organizationId: string; reportIds: readonly string[] },
     options?: RequestOptions,
   ): Promise<void>;
 
@@ -1488,6 +1511,32 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { pages } = await parsed<{ pages: { page: string; text: string }[] }>(response, doing);
       return pages;
+    },
+
+    async listReportedTasks({ organizationId, ...scope }, requestOptions) {
+      const query = new URLSearchParams(
+        Object.entries(scope).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      );
+      const response = await get(
+        `${organizationPath(organizationId)}/reports${query.size > 0 ? `?${query}` : ""}`,
+        requestOptions,
+      );
+
+      const doing = `reading reports in organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<{ tasks: ReportedTask[]; more: boolean }>(response, doing);
+    },
+
+    async dismissReports({ organizationId, reportIds }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/reports/dismiss`,
+        { reportIds },
+        requestOptions,
+      );
+
+      if (response.status === 204) return;
+      throw await unexpected(response, `dismissing reports in organization "${organizationId}"`);
     },
 
     async retireTasks({ organizationId, taskIds }, requestOptions) {

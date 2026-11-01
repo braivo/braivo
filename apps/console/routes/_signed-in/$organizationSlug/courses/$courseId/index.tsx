@@ -38,6 +38,7 @@ import {
 } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
 import { LearnersSite } from "#components/learners-site";
+import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
   type Editing,
   formatTaskCount,
@@ -73,7 +74,14 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$cou
       context.braivo.readCourse({ organizationId, courseId: params.courseId }, { signal }),
     );
 
-    return { course };
+    // Unawaited: read beside the page, never holding it back (ADR 0052).
+    const reports = readReports(
+      context.braivo,
+      context.organization,
+      { courseId: params.courseId },
+      abortController.signal,
+    );
+    return { course, reports };
   },
   head: (head) => pageHead(head, head.loaderData?.course.title),
   component: CoursePage,
@@ -86,7 +94,7 @@ function CoursePage() {
 }
 
 function Course() {
-  const { course } = Route.useLoaderData();
+  const { course, reports } = Route.useLoaderData();
   const { organization, braivo } = Route.useRouteContext();
   const { courseId } = Route.useParams();
   const narrowed = Route.useSearch().without === "explanation";
@@ -371,21 +379,23 @@ function Course() {
             What it teaches
           </Heading>
           {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
-          {objectivesTaught.map(({ objective, place }) => (
-            <Objective
-              key={objective.id}
-              objective={objective}
-              place={place}
-              sources={sources}
-              shownIds={shownByObjective?.get(objective.id)}
-              onSaved={onSaved}
-              status={status}
-              editing={editing}
-              onEdit={edit}
-              pending={publishing || deleting || changingVisibility}
-              fallbackFocus={heading}
-            />
-          ))}
+          <TaskReportsProvider reports={reports}>
+            {objectivesTaught.map(({ objective, place }) => (
+              <Objective
+                key={objective.id}
+                objective={objective}
+                place={place}
+                sources={sources}
+                shownIds={shownByObjective?.get(objective.id)}
+                onSaved={onSaved}
+                status={status}
+                editing={editing}
+                onEdit={edit}
+                pending={publishing || deleting || changingVisibility}
+                fallbackFocus={heading}
+              />
+            ))}
+          </TaskReportsProvider>
         </section>
       )}
     </>

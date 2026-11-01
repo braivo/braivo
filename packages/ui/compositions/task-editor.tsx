@@ -41,14 +41,14 @@ export type EditableTask =
 const MAX_TEXT = 2000;
 
 /** The server's limits on a typed task's accepted answers. */
-const MAX_ACCEPTED = 20;
-const MAX_ACCEPTED_TEXT = 200;
+export const MAX_ACCEPTED = 20;
+export const MAX_ACCEPTED_TEXT = 200;
 
 /**
  * A typed answer as the server compares it (`normalizeAnswer`, `apps/server/content/answer.ts`):
  * two answers equal here are one answer listed twice, which it refuses.
  */
-function normalizeAnswer(text: string): string {
+export function normalizeAnswer(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFC")

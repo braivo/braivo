@@ -74,6 +74,8 @@ const routes = [
   "GET  /api/organizations/:organizationId/tools-read-learner-data",
   "POST /api/organizations/:organizationId/tools-read-learner-data",
   "GET  /api/organizations/:organizationId/members",
+  "GET  /api/organizations/:organizationId/reports",
+  "POST /api/organizations/:organizationId/reports/dismiss",
   "GET  /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups/:groupId",
@@ -317,6 +319,8 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/reports                                 401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/reports/dismiss                         401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  401     400     400     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/groups/:groupId                         401     400     400     401     403     403     403     403     1MB
@@ -390,6 +394,8 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/reports                                 404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/reports/dismiss                         404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/groups/:groupId                         404     404     401     404     404     404     404     404     404
