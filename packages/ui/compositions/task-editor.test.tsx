@@ -153,6 +153,19 @@ describe("editing a task", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Question"));
   });
 
+  test("opens at its explanation when asked, to write one it lacks", () => {
+    render(
+      <TaskEditor
+        task={{ kind: "choice", prompt: "Hola?", options: ["Hello", "Bye"], answer: 0 }}
+        focusExplanation
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(document.activeElement).toBe(screen.getByLabelText("Why the answer is right"));
+  });
+
   test("names the choice of correct option", () => {
     edit();
 

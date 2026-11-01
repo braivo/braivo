@@ -112,3 +112,31 @@ export function explanationReviewIds(tasks: readonly ReviewTask[]): Set<string> 
       .map(({ id }) => id),
   );
 }
+
+/**
+ * Beside Publish, of the tasks selected, how many have no explanation: "1 of
+ * the 2 selected tasks has no explanation.", or "The selected task has no
+ * explanation." when all lack one. A fact at the moment of deciding,
+ * never a dialog or a click; nothing when none lacks one.
+ */
+export function useExplanationNote(selected: readonly ReviewTask[]): string | undefined {
+  const { t } = useLingui();
+  const without = selected.filter((task) => !hasExplanation(task)).length;
+  const total = selected.length;
+  if (without === 0) return undefined;
+  // All of them, said so, never "1 of the 1".
+  if (without === total) {
+    return t({
+      message: plural(total, {
+        one: "The selected task has no explanation.",
+        other: "None of the # selected tasks has an explanation.",
+      }),
+    });
+  }
+  return t({
+    message: plural(without, {
+      one: `# of the ${total} selected tasks has no explanation.`,
+      other: `# of the ${total} selected tasks have no explanation.`,
+    }),
+  });
+}

@@ -7,6 +7,7 @@ import {
   countExplanations,
   courseRef,
   type SourceSummary,
+  type TaskWriteResult,
 } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -27,10 +28,14 @@ import { Spinner } from "@braivo/ui/components/spinner";
 import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
-import { type RefObject, useRef, useState } from "react";
+import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 
 import { CourseUrlLabel } from "#components/course-url-label";
-import { ExplanationCount, explanationReviewIds } from "#components/explanations";
+import {
+  ExplanationCount,
+  explanationReviewIds,
+  useExplanationNote,
+} from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
 import { LearnersSite } from "#components/learners-site";
 import {
@@ -49,6 +54,9 @@ import {
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { authorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
+
+/** The count line's DOM ID: the focus after the last task shown is fixed. */
+const EXPLANATION_COUNT_ID = "explanation-count";
 
 export const Route = createFileRoute("/_signed-in/$organizationSlug/courses/$courseId/")({
   // Narrowed to the tasks without an explanation; any other value shows all.
@@ -87,8 +95,10 @@ function Course() {
   // Focusable, to receive focus once Publish is done, its button gone or the
   // page changed, or once a change leaves a task's objective off the page.
   const heading = useRef<HTMLHeadingElement>(null);
-  // Present from the start, so what Publish did is announced.
-  const [statusMessage, setStatusMessage] = useState("");
+  // Present from the start, so what Publish did is announced; `at` a task
+  // shown, said beside it too, where the work goes on (`TaskList`'s `status`).
+  const [status, setStatus] = useState<{ message: string; at?: string }>({ message: "" });
+  const say = (message: string) => setStatus({ message });
   const selection = useTaskSelection();
   // Narrowed, what each objective shows (`explanationReviewIds`); Publish,
   // Select all, and the sections act on that alone, the course kept whole for
@@ -104,6 +114,60 @@ function Course() {
   const selectedTasks = shownPending.filter(({ id }) => selection.selectedIds.has(id));
   const counts = countExplanations(course.objectives.flatMap(({ tasks }) => tasks));
   const missing = counts.published.withoutExplanation + counts.pending.withoutExplanation;
+  // Narrowed, the tasks shown, in page order: Needs review's, then What it teaches'.
+  const shownOrder = narrowed
+    ? [
+        ...course.objectives.flatMap(({ id: objectiveId, tasks }) =>
+          tasks.filter(({ id, published }) => !published && isShown(objectiveId, id)),
+        ),
+        ...course.objectives.flatMap(({ id: objectiveId, tasks }) =>
+          tasks.filter(({ id, published }) => published && isShown(objectiveId, id)),
+        ),
+      ].map(({ id }) => id)
+    : [];
+  // Opening an editor clears what the last action said: the next save's words,
+  // even the same ones, are then a change the status announces.
+  const edit = (next: Editing | undefined) => {
+    if (next) say("");
+    setEditingTask(next);
+  };
+  // A correction saved while narrowed: said, and the focus moved, once the page shows it.
+  const [saved, setSaved] = useState<{
+    published: boolean;
+    focusOrder: readonly string[];
+  }>();
+  useLayoutEffect(() => {
+    if (!saved) return;
+    setSaved(undefined);
+    // Left without one among the published, as the count line says.
+    const left = counts.published.withoutExplanation;
+    // The task saved, if still shown, else the next one shown, never an
+    // objective's heading that left with its last task; at the end, the count.
+    const at = saved.focusOrder.find((id) => document.getElementById(`task-${id}`));
+    setStatus({
+      message: saved.published
+        ? t({
+            comment: "{left}: the published tasks still without an explanation",
+            message: `Saved and published. ${left} left.`,
+          })
+        : t`Saved. It waits for review.`,
+      at,
+    });
+    const target =
+      (at === undefined ? null : document.getElementById(`task-${at}`)) ??
+      document.getElementById(EXPLANATION_COUNT_ID) ??
+      heading.current;
+    target?.focus();
+    // Once per save, with the page as read again.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved]);
+  const onSaved = narrowed
+    ? (taskId: string, written: TaskWriteResult) =>
+        setSaved({
+          published: written.published,
+          focusOrder: [written.id, ...shownOrder.slice(shownOrder.indexOf(taskId) + 1)],
+        })
+    : undefined;
   // One editor on the page: saving a task's correction retires its pending
   // correction, which the other section shows. Open only while its task is
   // listed: a reload may show it corrected or retired by someone else.
@@ -116,10 +180,10 @@ function Course() {
   // It and an open editor each wait for the other: Publish reloads the page,
   // which would close an editor and lose its unsaved edit.
   const publication = usePublish({
-    onStart: () => setStatusMessage(""),
+    onStart: () => say(""),
     onDone: (message) => {
       heading.current?.focus();
-      setStatusMessage(message);
+      say(message);
     },
   });
   const publishing = publication.publishing !== undefined;
@@ -174,7 +238,7 @@ function Course() {
         </div>
       )}
       {(missing > 0 || narrowed) && (
-        <ExplanationCount counts={counts} alwaysShown={narrowed}>
+        <ExplanationCount counts={counts} alwaysShown={narrowed} id={EXPLANATION_COUNT_ID}>
           {/* Disabled while editing: narrowing could unmount the editor, and its text with it. */}
           <Button
             variant="outline"
@@ -207,8 +271,12 @@ function Course() {
           busy={deleting || changingVisibility}
         />
       )}
-      <MutedText role="status" className="mb-4 block empty:mb-0">
-        {statusMessage}
+      {/* Said beside a task instead, only heard here: this may be scrolled far away. */}
+      <MutedText
+        role="status"
+        className={status.at === undefined ? "mb-4 block empty:mb-0" : "sr-only"}
+      >
+        {status.message}
       </MutedText>
       {/* Its link's label, once the link reaches learners. */}
       {course.published && (
@@ -237,12 +305,12 @@ function Course() {
             publishing={publishing}
             onPending={(now) => {
               // The previous action's announcement, cleared.
-              if (now) setStatusMessage("");
+              if (now) say("");
               setChangingVisibility(now);
             }}
             onDone={(message) => {
               heading.current?.focus();
-              setStatusMessage(message);
+              say(message);
             }}
           />
         )}
@@ -253,14 +321,14 @@ function Course() {
             deleting={deleting}
             onDeleting={(now) => {
               // What Publish said last no longer holds once Delete is tried.
-              if (now) setStatusMessage("");
+              if (now) say("");
               setDeleting(now);
             }}
             editing={editing !== undefined}
             publishing={publishing}
             onRefused={(message) => {
               heading.current?.focus();
-              setStatusMessage(message);
+              say(message);
             }}
           />
         )}
@@ -281,10 +349,12 @@ function Course() {
               place={place}
               sources={sources}
               shownIds={shownByObjective?.get(objective.id)}
+              onSaved={onSaved}
+              status={status}
               showPending
               selection={selection}
               editing={editing}
-              onEdit={setEditingTask}
+              onEdit={edit}
               pending={publishing || deleting || changingVisibility}
               fallbackFocus={heading}
             />
@@ -305,8 +375,10 @@ function Course() {
               place={place}
               sources={sources}
               shownIds={shownByObjective?.get(objective.id)}
+              onSaved={onSaved}
+              status={status}
               editing={editing}
-              onEdit={setEditingTask}
+              onEdit={edit}
               pending={publishing || deleting || changingVisibility}
               fallbackFocus={heading}
             />
@@ -352,6 +424,7 @@ function PublishPending(props: {
     busy,
   } = props;
   const { t } = useLingui();
+  const explanationNote = useExplanationNote(selected);
 
   const action = (
     action: "selected" | "all",
@@ -417,9 +490,9 @@ function PublishPending(props: {
         note={
           editing
             ? `Save or cancel the open edit to ${course.published ? "publish" : "publish or delete"}.`
-            : narrowed
-              ? t`Publish acts only on the tasks shown.`
-              : undefined
+            : [narrowed && t`Publish acts only on the tasks shown.`, explanationNote]
+                .filter(Boolean)
+                .join(" ") || undefined
         }
         // Not beside another action's attempt, which it does not speak of.
         failures={busy ? 0 : publication.failures}
@@ -748,6 +821,10 @@ function Objective(props: {
   sources: ReadonlyMap<string, SourceSummary>;
   /** Only these of its tasks, by ID, when the page is narrowed. */
   shownIds?: ReadonlySet<string>;
+  /** A task of it corrected: `TaskList`'s. */
+  onSaved?: (taskId: string, saved: TaskWriteResult) => void;
+  /** The page's status: `TaskList`'s. */
+  status?: { message: string; at?: string };
   showPending?: true;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
@@ -763,6 +840,8 @@ function Objective(props: {
     place,
     sources,
     shownIds,
+    onSaved,
+    status,
     showPending,
     selection,
     editing,
@@ -811,6 +890,8 @@ function Objective(props: {
         tasks={objective.tasks}
         showPending={showPending}
         shownIds={shownIds}
+        onSaved={onSaved}
+        status={status}
         sources={sources}
         selection={selection}
         editing={editing}

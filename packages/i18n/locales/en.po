@@ -185,9 +185,17 @@ msgstr "{successes, plural, one {# success} other {# successes}}"
 msgid "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
 msgstr "{taskCount, plural, one {# of these tasks has checks to review} other {# of these tasks have checks to review}}"
 
+#: apps/console/components/explanations.tsx
+msgid "{total, plural, one {The selected task has no explanation.} other {None of the # selected tasks has an explanation.}}"
+msgstr "{total, plural, one {The selected task has no explanation.} other {None of the # selected tasks has an explanation.}}"
+
 #: apps/console/components/last-practised.tsx
 msgid "{when} ({exact})"
 msgstr "{when} ({exact})"
+
+#: apps/console/components/explanations.tsx
+msgid "{without, plural, one {# of the {total} selected tasks has no explanation.} other {# of the {total} selected tasks have no explanation.}}"
+msgstr "{without, plural, one {# of the {total} selected tasks has no explanation.} other {# of the {total} selected tasks have no explanation.}}"
 
 #: apps/console/components/explanations.tsx
 msgid "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
@@ -1449,11 +1457,20 @@ msgstr "Save"
 msgid "Save changes"
 msgstr "Save changes"
 
+#. {left}: the published tasks still without an explanation
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Saved and published. {left} left."
+msgstr "Saved and published. {left} left."
+
 #: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Saved."
 msgstr "Saved."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Saved. It waits for review."
+msgstr "Saved. It waits for review."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx

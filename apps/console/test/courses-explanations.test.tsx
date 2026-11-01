@@ -381,3 +381,266 @@ describe("an objective's tasks without an explanation", () => {
     expect(screen.getAllByText("No explanation")).toHaveLength(3);
   });
 });
+
+describe("fixing one in place", () => {
+  /** Braivo answering `readCourse` with `state()` as it is now, and `defineTasks` changing it. */
+  function braivo(state: () => AuthoredCourse, write: BraivoClient["defineTasks"]) {
+    return { readCourse: async () => state(), defineTasks: vi.fn(write) };
+  }
+  const explain = async (prompt: string, text: string) => {
+    const edit = await screen.findByRole("button", {
+      name: (name) => name === `Edit “${prompt}”` || name === `Edit unpublished task “${prompt}”`,
+    });
+    fireEvent.click(edit);
+    const why = screen.getByLabelText("Why the answer is right");
+    expect(document.activeElement).toBe(why);
+    fireEvent.change(why, { target: { value: text } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  };
+  /** Said in the page's status, which announces it: the element saying it. */
+  const said = (message: string) =>
+    vi.waitFor(() => {
+      const status = screen.getAllByRole("status").find((it) => it.textContent === message);
+      expect(status).toBeTruthy();
+      return status!;
+    });
+
+  test("keeps Edit and add at the answers, on a task without an explanation too", async () => {
+    const typed: Task = {
+      id: "t-typed",
+      kind: "typed",
+      prompt: "Say hello.",
+      accepted: ["Hello."],
+      citations: [],
+      published: true,
+      findings: [{ code: "typed-trailing-punctuation", answer: "Hello.", suggestion: "Hello" }],
+    };
+    renderCourse("", { readCourse: async () => course([typed], [explained], [explained]) });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit “Say hello.” and add “Hello”" }),
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText("Accepted answers, one a line"));
+  });
+
+  test("says a published gap's fix was published, how many are left, and focuses the next one shown", async () => {
+    let fixed = false;
+    const one = task("t-one", "One?");
+    const two = task("t-two", "Two?");
+    const oneFixed = task("t-one-fixed", "One?", { explanation: "Because one." });
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([fixed ? oneFixed : one, two], [bare], [explained]),
+        async () => {
+          fixed = true;
+          return [{ id: "t-one-fixed", added: true, published: true }];
+        },
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "3 of 4 published tasks have no explanation; 3 also cite no passage.",
+      ),
+    ).toBeTruthy();
+
+    await explain("One?", "Because one.");
+
+    // Heard from the page's status, far above, but seen atop the task focused next.
+    const status = await said("Saved and published. 2 left.");
+    expect(status.classList.contains("sr-only")).toBe(true);
+    expect(screen.queryByText("One?")).toBeNull();
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe("task-t-two"));
+    const shown = within(document.activeElement as HTMLElement).getByText(
+      "Saved and published. 2 left.",
+    );
+    expect(shown.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  test("focuses the next objective's task when the last of one leaves, and the count line after the very last", async () => {
+    const fixes = new Set<string>();
+    const gap = (id: string, prompt: string) =>
+      fixes.has(id) ? task(`${id}-fixed`, prompt, { explanation: "Fixed." }) : task(id, prompt);
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([explained, gap("t-a", "A?")], [gap("t-b", "B?")], [explained]),
+        async ({ tasks: [sent] }) => {
+          fixes.add(sent!.replaces!);
+          return [{ id: `${sent!.replaces}-fixed`, added: true, published: true }];
+        },
+      ),
+    );
+
+    await explain("A?", "Fixed.");
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe("task-t-b"));
+    expect(screen.queryByRole("article", { name: "1. Greetings" })).toBeNull();
+
+    await explain("B?", "Fixed.");
+    // No task left to say it beside: seen in the page's status, by the count line.
+    expect((await said("Saved and published. 0 left.")).classList.contains("sr-only")).toBe(false);
+    await vi.waitFor(() =>
+      expect(document.activeElement?.textContent).toBe("Every task has an explanation."),
+    );
+  });
+
+  test("says a pending task's fix waits for review, the published count unchanged", async () => {
+    let fixed = false;
+    const fixedWaiting = task("t-waiting-fixed", "Waiting?", {
+      published: false,
+      explanation: "Now explained.",
+    });
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([fixed ? fixedWaiting : waiting, bare], [explained], [explained]),
+        async () => {
+          fixed = true;
+          return [{ id: "t-waiting-fixed", added: true, published: false }];
+        },
+      ),
+    );
+
+    await explain("Waiting?", "Now explained.");
+
+    await said("Saved. It waits for review.");
+    expect(
+      screen.getByText("1 of 3 published tasks has no explanation; 1 also cites no passage."),
+    ).toBeTruthy();
+  });
+
+  test("announces a second save as the first, its status cleared when the next editor opens", async () => {
+    const fixes = new Set<string>();
+    const pendingGap = (id: string, prompt: string) =>
+      fixes.has(id)
+        ? task(`${id}-fixed`, prompt, { published: false, explanation: "Fixed." })
+        : task(id, prompt, { published: false });
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () =>
+          course(
+            [explained, pendingGap("t-a", "A?"), pendingGap("t-b", "B?")],
+            [explained],
+            [explained],
+          ),
+        async ({ tasks: [sent] }) => {
+          fixes.add(sent!.replaces!);
+          return [{ id: `${sent!.replaces}-fixed`, added: true, published: false }];
+        },
+      ),
+    );
+
+    await explain("A?", "Fixed.");
+    await said("Saved. It waits for review.");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit unpublished task “B?”" }));
+    expect(screen.queryByText("Saved. It waits for review.")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Why the answer is right"), {
+      target: { value: "Fixed." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await said("Saved. It waits for review.");
+  });
+
+  test("says it was published when Braivo answers so, though the page showed it pending", async () => {
+    let fixed = false;
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () =>
+          course(
+            [
+              explained,
+              fixed ? task("t-waiting-fixed", "Waiting?", { explanation: "Now." }) : waiting,
+            ],
+            [explained],
+            [explained],
+          ),
+        async () => {
+          fixed = true;
+          // Someone published it meanwhile: the correction took its state.
+          return [{ id: "t-waiting-fixed", added: true, published: true }];
+        },
+      ),
+    );
+
+    await explain("Waiting?", "Now.");
+    await said("Saved and published. 0 left.");
+  });
+
+  test("keeps the focus on a task saved still without an explanation, which stays shown", async () => {
+    let saved = false;
+    const reworded = task("t-reworded", "Bare, reworded?");
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([saved ? reworded : bare, task("t-next", "Next?")], [explained], [explained]),
+        async () => {
+          saved = true;
+          return [{ id: "t-reworded", added: true, published: true }];
+        },
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Bare?”" }));
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "Bare, reworded?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await said("Saved and published. 2 left.");
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe("task-t-reworded"));
+  });
+
+  test("announces nothing saved when a stale correction is refused and the page reloaded", async () => {
+    const { BraivoError } = await import("@braivo/server/client");
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([bare], [explained], [explained]),
+        async () => {
+          throw new BraivoError(409, "Task 0 replaces a task already retired.");
+        },
+      ),
+    );
+
+    await explain("Bare?", "Too late.");
+    fireEvent.click(await screen.findByRole("button", { name: "Reload the page" }));
+
+    await vi.waitFor(() => expect(screen.queryByLabelText("Why the answer is right")).toBeNull());
+    expect(screen.queryByText(/^Saved/)).toBeNull();
+  });
+
+  test("keeps the editor and its text when a save fails", async () => {
+    renderCourse(
+      "?without=explanation",
+      braivo(
+        () => course([bare], [explained], [explained]),
+        async () => {
+          throw new Error("offline");
+        },
+      ),
+    );
+
+    await explain("Bare?", "Kept.");
+
+    expect(await screen.findByText("The task could not be corrected. Try again.")).toBeTruthy();
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Why the answer is right").value).toBe(
+      "Kept.",
+    );
+  });
+
+  test("says beside Publish how many of the selected tasks have no explanation", async () => {
+    renderCourse("", {
+      readCourse: async () => course([waiting, waitingExplained], [explained], [explained]),
+    });
+
+    const select = async (prompt: string) =>
+      fireEvent.click(
+        await screen.findByRole("checkbox", { name: `Select unpublished task “${prompt}”` }),
+      );
+    await select("Waiting, explained?");
+    expect(screen.queryByText(/of the selected/)).toBeNull();
+    await select("Waiting?");
+    expect(screen.getByText("1 of the 2 selected tasks has no explanation.")).toBeTruthy();
+    await select("Waiting, explained?");
+    expect(screen.getByText("The selected task has no explanation.")).toBeTruthy();
+  });
+});

@@ -7,7 +7,7 @@ import { Badge } from "@braivo/ui/components/badge";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Fragment, useRef, useState } from "react";
 
-import { ExplanationCount } from "#components/explanations";
+import { ExplanationCount, useExplanationNote } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
 import {
   type Editing,
@@ -85,6 +85,7 @@ function Objective() {
     },
   });
   const publishedCourses = courses.filter(({ published }) => published);
+  const explanationNote = useExplanationNote(selected);
   const focusHeading = () => heading.current?.focus();
 
   const publishAction = (
@@ -184,7 +185,9 @@ function Objective() {
               publishAction("all", `Publish all (${pending.length})`, pending),
             ]}
             publishing={publication.publishing}
-            note={editing !== undefined ? "Save or cancel the open edit to publish." : undefined}
+            note={
+              editing !== undefined ? "Save or cancel the open edit to publish." : explanationNote
+            }
             failures={publication.failures}
           />
         </>
