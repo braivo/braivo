@@ -4,7 +4,7 @@
 import { type AddressInfo, createServer as createTcpServer, type Socket } from "node:net";
 import { createInterface } from "node:readline";
 
-import { type Database, runMigrations } from "@braivo/db";
+import { createDatabase, type Database, runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
 // Through the package's own name: the entry a Worker imports.
 import { createServer, type FileStore, readServerConfig, smtpMail } from "@braivo/server";
@@ -109,6 +109,48 @@ describe.skipIf(!connectionString)("createServer", () => {
         terms: "https://fernwood.example/terms",
       },
     });
+  });
+
+  // A Worker ends its pools once the response is ready (ADR 0034): a query
+  // still running then would fail.
+  test("answers only after Better Auth's setup, which queries the database", async () => {
+    const owned = createDatabase(connectionString ?? "");
+    const pool = owned.$client;
+    const query = pool.query.bind(pool) as (...args: unknown[]) => unknown;
+    const seed = Promise.withResolvers<void>();
+    let seeding = false;
+    // The OAuth provider recording `/mcp` as a resource, held until released.
+    pool.query = (async (...args: unknown[]) => {
+      const sql = (args[0] as { text?: string }).text ?? String(args[0]);
+      if (sql.includes("oauth_resource")) {
+        seeding = true;
+        await seed.promise;
+      }
+      return query(...args);
+    }) as typeof pool.query;
+    try {
+      const server = createServer({
+        config: readServerConfig({ BETTER_AUTH_SECRET: "x".repeat(32), BRAIVO_URL: baseUrl }),
+        database: owned,
+        sendMail: outbox.sendMail,
+      });
+      let answered = false;
+      // A route Better Auth has no part in.
+      const response = Promise.resolve(server.request(`${baseUrl}/api/sign-in-settings`)).finally(
+        () => {
+          answered = true;
+        },
+      );
+      await vi.waitFor(() => expect(seeding).toBe(true));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(answered).toBe(false);
+
+      seed.resolve();
+      expect((await response).status).toBe(200);
+    } finally {
+      seed.resolve();
+      await pool.end();
+    }
   });
 
   test("sends sign-in codes through the host's mail, on the configured origin alone", async () => {
