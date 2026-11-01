@@ -50,12 +50,20 @@ let classmate!: Signed;
 /** An organization admin: reads progress, and studies like any member. */
 let teacher!: Signed;
 let courseId!: string;
-/** The learner's organization's, and teaching nothing yet: always caught up. */
+/** The learner's organization's, and teaching nothing yet: always empty. */
 let emptyCourseId!: string;
 let foreignCourseId!: string;
 let pastTense!: string;
 /** A choice task on the past tense, correct at index 0. */
 let pastTenseTask!: string;
+
+/** Retains the past tense for `learnerId` a moment ago: caught up on the Spanish course. */
+function retainPastTense(learnerId: string) {
+  const moment = new Date(Math.floor(Date.now() / 1000) * 1000 - 60_000);
+  return recordEvidence(database, { learnerId, organizationId }, [
+    { id: "retained", objectiveId: pastTense, outcome: "success", at: moment },
+  ]);
+}
 
 function next(courseId: string, cookie?: string) {
   return api.request(`/api/courses/${courseId}/next`, cookie ? { headers: { cookie } } : undefined);
@@ -187,16 +195,17 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     // The same URL answers differently per cookie, so a shared cache reusing one
     // learner's decision for another would skip the session check entirely.
     const answered = await next(courseId, learner.cookie);
-    const caughtUp = await next(emptyCourseId, learner.cookie);
+    const empty = await next(emptyCourseId, learner.cookie);
+    await retainPastTense(learner.id);
+    const caughtUp = await next(courseId, learner.cookie);
     const unavailable = await next(foreignCourseId, learner.cookie);
     const refused = await next(courseId);
 
     // Asserted, so that identical failures could not pass as coverage of
     // different answers.
-    expect([answered.status, caughtUp.status, unavailable.status, refused.status]).toEqual([
-      200, 204, 404, 401,
-    ]);
-    for (const response of [answered, caughtUp, unavailable, refused]) {
+    const responses = [answered, empty, caughtUp, unavailable, refused];
+    expect(responses.map(({ status }) => status)).toEqual([200, 200, 204, 404, 401]);
+    for (const response of responses) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
   });
@@ -378,10 +387,25 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     // member reaches it. A classmate is a member too, so gets it as well; an
     // outsider asking about the same course does not.
     const outsider = await signUp();
+    await retainPastTense(learner.id);
+    await retainPastTense(classmate.id);
 
-    expect((await next(emptyCourseId, learner.cookie)).status).toBe(204);
-    expect((await next(emptyCourseId, classmate.cookie)).status).toBe(204);
-    expect((await next(emptyCourseId, outsider.cookie)).status).toBe(404);
+    expect((await next(courseId, learner.cookie)).status).toBe(204);
+    expect((await next(courseId, classmate.cookie)).status).toBe(204);
+    expect((await next(courseId, outsider.cookie)).status).toBe(404);
+  });
+
+  test("says a course with no objectives is empty, never caught up, to its members alone", async () => {
+    // Caught up would tell a learner on their first day that they had finished.
+    const outsider = await signUp();
+    for (const read of [next, activity]) {
+      for (const member of [learner, classmate]) {
+        const empty = await read(emptyCourseId, member.cookie);
+        expect(empty.status).toBe(200);
+        expect(await empty.json()).toEqual({ empty: true });
+      }
+      expect((await read(emptyCourseId, outsider.cookie)).status).toBe(404);
+    }
   });
 
   test("shows a content owner where a learner stands, in the documented shape", async () => {
@@ -701,7 +725,9 @@ describe.skipIf(!connectionString)("the learning routes", () => {
   test("answers activity as it answers the decision when there is none to give", async () => {
     expect((await activity(courseId)).status).toBe(401);
     expect((await activity(foreignCourseId, learner.cookie)).status).toBe(404);
-    expect((await activity(emptyCourseId, learner.cookie)).status).toBe(204);
+    expect((await activity(emptyCourseId, learner.cookie)).status).toBe(200);
+    await retainPastTense(learner.id);
+    expect((await activity(courseId, learner.cookie)).status).toBe(204);
   });
 
   test("answers the daily limit once only new objectives are left, and 400 to an unknown time zone", async () => {

@@ -236,9 +236,10 @@ function NextStep() {
   });
 
   /**
-   * Continue, an action rather than a reload, so that failing keeps the page
-   * (docs/apps.md): rechecks the session (access-6), then reads what comes
-   * next. Resolves whether it failed; failed, the learner's answer stays on
+   * Continue, and Check again, actions rather than reloads, so that failing
+   * keeps the page (docs/apps.md): rechecks the session (access-6), then reads
+   * what comes next with where the learner stands, together, so neither shows
+   * stale beside the other. Resolves whether it failed; failed, the learner's answer stays on
    * screen, kept for a reload. Signed out, or another account signed in meanwhile, the route
    * reloads, its guard deciding; a 401 or 404 from the read reloads the course,
    * which says why. Each response is ignored once `left` aborts or the route
@@ -291,6 +292,9 @@ function NextStep() {
       {summary.report && <ProgressSummary report={summary.report} stale={summary.stale} />}
       {!activity ? (
         <CaughtUp report={progress} />
+      ) : "empty" in activity ? (
+        // Not "caught up": nothing was ever there to finish.
+        <EmptyCourse />
       ) : "dailyLimit" in activity ? (
         <CaughtUp report={progress} limitReached />
       ) : "retryAfter" in activity ? (
@@ -301,8 +305,14 @@ function NextStep() {
         />
       ) : !("task" in activity) ? (
         // Not "caught up": the objective selected next has nothing to practise it
-        // with (glossary: No activity).
-        <NoPractice objectiveTitle={activity.objective.title} />
+        // with (glossary: No activity). Keyed by course, not load: Check again's
+        // outcome outlives its own reload, never another course's.
+        <NoActivity
+          key={load.courseId}
+          objectiveTitle={activity.objective.title}
+          report={progress}
+          onCheck={advance}
+        />
       ) : !isAnswerable(activity.task) ? (
         <UnsupportedTask />
       ) : (
@@ -481,33 +491,15 @@ function CaughtUp({
   report: LearnerProgressSummary | undefined;
   limitReached?: boolean;
 }) {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   // Rendering stays pure: now is when this notice first showed.
   const [now] = useState(() => new Date());
-  // Read moments apart from the activity, the report may already count one due,
-  // whose time has passed.
-  const next = report?.objectives
-    .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
-    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
+  const next = useNextReview(report, now);
   let status = limitReached
     ? t`You can start new material again tomorrow. Nothing is due right now.`
     : t`Nothing is due right now.`;
   if (next) {
-    const objectiveTitle = next.title;
-    const dueAt = roundUpToMinute(Date.parse(next.dueAt));
-    // Today and tomorrow by the calendar, not the 04:00 learner day: they name a clock time.
-    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const time = new Intl.DateTimeFormat(i18n.locale, { timeStyle: "short" }).format(dueAt);
-    let nextReviewAt: string;
-    if (dueAt.toDateString() === now.toDateString()) {
-      nextReviewAt = t`today at ${time}`;
-    } else if (dueAt.toDateString() === tomorrow.toDateString()) {
-      nextReviewAt = t`tomorrow at ${time}`;
-    } else {
-      // Apart from the time: some engines join a Polish date and time with no word.
-      const date = new Intl.DateTimeFormat(i18n.locale, { dateStyle: "full" }).format(dueAt);
-      nextReviewAt = t`on ${date} at ${time}`;
-    }
+    const { objectiveTitle, nextReviewAt } = next;
     status = limitReached
       ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, ${nextReviewAt}.`
       : t`Nothing is due right now. Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
@@ -542,6 +534,40 @@ function CaughtUp({
   );
 }
 
+/**
+ * The review that falls due first, if any objective is retained and not yet
+ * due: its objective's title and when, in words ("today at 16:20"). The
+ * model's time, not a promise of practice: an objective may have no task.
+ */
+function useNextReview(
+  report: LearnerProgressSummary | undefined,
+  now: Date | undefined,
+): { objectiveTitle: string; nextReviewAt: string } | undefined {
+  const { t, i18n } = useLingui();
+  if (!now) return undefined;
+  // Read moments apart from the activity, the report may already count one due,
+  // whose time has passed.
+  const next = report?.objectives
+    .flatMap((standing) => (standing.phase === "retaining" && !standing.due ? [standing] : []))
+    .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt))[0];
+  if (!next) return undefined;
+  const dueAt = roundUpToMinute(Date.parse(next.dueAt));
+  // Today and tomorrow by the calendar, not the 04:00 learner day: they name a clock time.
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const time = new Intl.DateTimeFormat(i18n.locale, { timeStyle: "short" }).format(dueAt);
+  let nextReviewAt: string;
+  if (dueAt.toDateString() === now.toDateString()) {
+    nextReviewAt = t`today at ${time}`;
+  } else if (dueAt.toDateString() === tomorrow.toDateString()) {
+    nextReviewAt = t`tomorrow at ${time}`;
+  } else {
+    // Apart from the time: some engines join a Polish date and time with no word.
+    const date = new Intl.DateTimeFormat(i18n.locale, { dateStyle: "full" }).format(dueAt);
+    nextReviewAt = t`on ${date} at ${time}`;
+  }
+  return { objectiveTitle: next.title, nextReviewAt };
+}
+
 type PresentedTask = Extract<Activity, { task: unknown }>["task"];
 
 /**
@@ -572,13 +598,108 @@ function UnsupportedTask() {
   );
 }
 
-function NoPractice({ objectiveTitle }: { objectiveTitle: string }) {
+/** A course with no objectives yet: never "caught up", which would say the learner finished. */
+function EmptyCourse() {
   const { t } = useLingui();
+  return (
+    <Notice title={t`This course has nothing to practise yet.`}>
+      <Button asChild variant="outline">
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
+      </Button>
+    </Notice>
+  );
+}
+
+/**
+ * The objective selected next has no task (glossary: No activity), whether
+ * none was written, it waits for review, or it was retired: one wording for
+ * all, revealing nothing unpublished, and claiming nobody was told. Practice
+ * returns when a task for it is published, or when another objective with one
+ * falls due, neither on a clock this page knows, so Check again reassures
+ * rather than polls: `onCheck` reads the activity and standing
+ * afresh, as Continue does, replacing this notice with whatever is there now.
+ */
+function NoActivity({
+  objectiveTitle,
+  report,
+  onCheck,
+}: {
+  objectiveTitle: string;
+  report: LearnerProgressSummary | undefined;
+  onCheck: (left: AbortSignal) => Promise<{ failed: boolean }>;
+}) {
+  const { t } = useLingui();
+  // Now is when the standing was read, so Check again renews it with the standing.
+  const nextReview = useNextReview(report, report && new Date(report.asOf));
+  const [checking, setChecking] = useState(false);
+  // Said after a check that found nothing, cleared while one runs, so a second
+  // says it again (docs/apps.md, a status mounted empty).
+  const [stillNothing, setStillNothing] = useState(false);
+  // Failures in a row, each a new alert (docs/apps.md); kept while a retry
+  // runs, so the button does not jump under the pointer, and 0 once one works.
+  const [failures, setFailures] = useState(0);
+  // Aborted when this notice goes away, as Practice's: what replaced it is current.
+  const lifetime = useRef<AbortController>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
+
+  function nextReviewLine({ objectiveTitle, nextReviewAt }: NonNullable<typeof nextReview>) {
+    return t`Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
+  }
+
+  async function check() {
+    const left = lifetime.current?.signal;
+    if (checking || !left) return;
+    setChecking(true);
+    setStillNothing(false);
+    try {
+      const { failed } = await onCheck(left);
+      if (left.aborted) return;
+      setFailures((count) => (failed ? count + 1 : 0));
+      setStillNothing(!failed);
+    } catch {
+      // A reload that failed itself: said as any other failure.
+      if (!left.aborted) setFailures((count) => count + 1);
+    } finally {
+      if (!left.aborted) setChecking(false);
+    }
+  }
+
   return (
     <Notice
       title={t`Nothing to practise right now`}
-      description={t`${objectiveTitle} comes next, but there's no practice for it yet.`}
-    />
+      description={
+        <>
+          <p>{t`Practice for ${objectiveTitle} isn't available right now.`}</p>
+          {nextReview && <p className="mt-2">{nextReviewLine(nextReview)}</p>}
+        </>
+      }
+    >
+      {failures > 0 && (
+        <Alert key={failures} variant="destructive">
+          <AlertDescription>
+            <Trans>Could not check for practice. Try again.</Trans>
+          </AlertDescription>
+        </Alert>
+      )}
+      {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+      <Button aria-disabled={checking} onClick={() => void check()}>
+        {checking ? t`Checking…` : t`Check again`}
+      </Button>
+      <Button asChild variant="outline">
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
+      </Button>
+      <p role="status" className="text-sm text-muted-foreground">
+        {stillNothing ? t`Still nothing to practise.` : ""}
+      </p>
+    </Notice>
   );
 }
 

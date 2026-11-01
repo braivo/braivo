@@ -146,10 +146,6 @@ msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
 msgid "{objective}: {counted}"
 msgstr "{objective}: {counted}"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "{objectiveTitle} comes next, but there's no practice for it yet."
-msgstr "Następny jest temat „{objectiveTitle}”, ale nie ma jeszcze do niego ćwiczeń."
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "{organization} · connected {date}"
 msgstr "{organization} · połączono {date}"
@@ -348,6 +344,10 @@ msgstr "Zmień na nauczyciela: {0}"
 msgid "Check"
 msgstr "Sprawdź"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Check again"
+msgstr "Sprawdź ponownie"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Check and activate"
 msgstr "Sprawdź i aktywuj"
@@ -357,6 +357,7 @@ msgid "Check your email"
 msgstr "Sprawdź pocztę"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Checking…"
 msgstr "Sprawdzanie…"
 
@@ -447,6 +448,10 @@ msgstr "Nie udało się dodać domeny. Spróbuj ponownie."
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Could not change the language. Try again."
 msgstr "Nie udało się zmienić języka. Spróbuj ponownie."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Could not check for practice. Try again."
+msgstr "Nie udało się sprawdzić, czy są ćwiczenia. Spróbuj ponownie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Could not check the domain. Try again."
@@ -1061,6 +1066,10 @@ msgstr "Nowy temat"
 msgid "New group"
 msgstr "Nowa grupa"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Next review due: {objectiveTitle}, {nextReviewAt}."
+msgstr "Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "No AI app is connected to your account."
 msgstr "Z Twoim kontem nie jest połączona żadna aplikacja AI."
@@ -1268,6 +1277,10 @@ msgstr "Hasło"
 msgctxt "domain"
 msgid "Pending"
 msgstr "Oczekująca"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practice for {objectiveTitle} isn't available right now."
+msgstr "Ćwiczenia z tematu „{objectiveTitle}” są obecnie niedostępne."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Practice in the last 7 days"
@@ -1549,6 +1562,10 @@ msgstr "Stan"
 msgid "Status unknown"
 msgstr "Stan nieznany"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Still nothing to practise."
+msgstr "Nadal nie ma nic do ćwiczenia."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "success"
 msgstr "sukces"
@@ -1692,6 +1709,10 @@ msgstr "Ten kurs nie istnieje albo nie masz wglądu w jego postępy."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "This course has no objectives yet, so there is no progress to report."
 msgstr "Ten kurs nie ma jeszcze celów, więc nie ma postępów do pokazania."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "This course has nothing to practise yet."
+msgstr "W tym kursie nie ma jeszcze nic do ćwiczenia."
 
 #: apps/console/components/group-form.tsx
 msgid "This does not change which courses learners can study."

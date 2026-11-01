@@ -208,8 +208,9 @@ export type BraivoClient = {
   /**
    * What the signed-in learner should do next in a course — the decision, its
    * objective, and a task to practise it unless the objective has none; the
-   * objective while its tasks rest; or the daily limit on new objectives, once
-   * reached with nothing else to do — or `undefined` when they are caught up.
+   * objective while its tasks rest; the daily limit on new objectives, once
+   * reached with nothing else to do; or `empty`, a course with no objectives
+   * yet — or `undefined` when they are caught up.
    * Days are counted in this runtime's time zone, a browser's being its user's. A
    * course that does not exist and one this learner may not see are both a
    * {@link BraivoError} with status 404, deliberately indistinguishable.

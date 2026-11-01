@@ -164,10 +164,26 @@ describe.skipIf(!connectionString)("choosing the next objective", () => {
     });
   });
 
-  test("reports a learner caught up on a course that teaches nothing yet", async () => {
-    // Caught up by the same reading: nothing needs attention. Treating an empty
-    // course as unavailable instead would tell its own learner it is not there.
-    expect(await choose(emptyCourse)).toEqual({ kind: "caught-up" });
+  test("says a course that teaches nothing yet is empty, not that its learner is caught up", async () => {
+    // Caught up would tell a learner on their first day that they finished;
+    // unavailable, that the course is not theirs.
+    expect(await choose(emptyCourse)).toEqual({ kind: "empty" });
+  });
+
+  test("decides among objectives with a task or without alike, unlike the activity", async () => {
+    // Integrators bring their own tasks: an acquiring objective without one of
+    // Braivo's still comes before an unseen one that has one.
+    await testing.createTask(database, {
+      organizationId,
+      objectiveId: fractions,
+      body: { kind: "choice", prompt: "Half of 4?", options: ["2", "3"], answer: 0 },
+      createdAt: daysAgo(1),
+    });
+    await recordEvidence(database, { learnerId: learner, organizationId }, [
+      evidence({ id: "missed", outcome: "failure", at: daysAgo(1) }),
+    ]);
+
+    expect(await decide(bothCourse)).toMatchObject({ objectiveId: pastTense, intent: "reteach" });
   });
 
   test("absorbs evidence that arrives after evidence it predates", async () => {

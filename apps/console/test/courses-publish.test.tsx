@@ -301,7 +301,7 @@ describe("the console", () => {
     expect(within(teaches).queryByText("Goodbye, in Spanish?")).toBeNull();
     expect(
       within(within(teaches).getByRole("article", { name: "2. Numbers" })).getByText(
-        "No published tasks: learners are not asked about it until you publish the one needing review above.",
+        "No published practice: learners skip this objective, and may run out of practice until you publish a task needing review above.",
       ),
     ).toBeTruthy();
 

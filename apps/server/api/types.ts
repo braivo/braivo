@@ -61,7 +61,8 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
  * (even if one without a task needs attention), the objective whose rest ends
  * first and in how many seconds to ask again; or, when only objectives not
  * started yet are left and as many were started today as a day allows, that
- * limit.
+ * limit; or, for a course with no objectives yet, `empty`, which is not
+ * caught up.
  */
 export type Activity =
   | {
@@ -71,7 +72,8 @@ export type Activity =
     }
   | { decision: LearningDecision; objective: Objective }
   | { objective: Objective; retryAfter: number }
-  | { dailyLimit: number };
+  | { dailyLimit: number }
+  | { empty: true };
 
 /** A learner's answer to a task, as posted in an attempt. */
 export type TaskResponse = content.TaskResponse;

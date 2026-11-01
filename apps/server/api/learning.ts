@@ -82,6 +82,9 @@ export function learningRoutes(
       // learner already entitled to the course.
       case "caught-up":
         return context.body(null, 204);
+      // Not caught up: nothing was ever there to finish.
+      case "empty":
+        return context.json({ empty: true });
       case "daily-limit":
         return context.json({ dailyLimit: next.limit });
       case "decided":
@@ -132,6 +135,8 @@ export function learningRoutes(
     switch (next.kind) {
       case "unavailable":
         return context.body(null, 404);
+      case "empty":
+        return context.json({ empty: true });
       case "caught-up":
         return context.body(null, 204);
       case "daily-limit":

@@ -25,10 +25,10 @@ import {
   RestingTask,
   RetiredTask,
 } from "../persistence/index.ts";
-import { NEW_OBJECTIVES_PER_DAY, limitNewObjectives } from "./daily-limit.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { isMember } from "./permission.ts";
+import { decidePractice, type Practice } from "./practice.ts";
 
 /**
  * Starts the ID of every evidence record graded from an attempt. Reserved:
@@ -56,10 +56,11 @@ const TASK_REST_ATTEMPTS = 3;
  * `chooseNextObjective` is the decision alone, for integrators with their own
  * tasks.
  *
- * Objectives with a task are selected from first, filtered before `learning` is
- * called (docs/specs/learning-model.md), so one without never holds up those
- * with one; it is decided, as no activity, only when none of those needs
- * attention or rests. Whether one made acquiring by outside evidence should
+ * Which objectives it selects among, and in what order, is `decidePractice`'s:
+ * those with a task first, filtered
+ * before `learning` is called (docs/specs/learning-model.md), so one without
+ * never holds up those with one; it is decided, as no activity, only when none
+ * of those needs attention or rests. Whether one made acquiring by outside evidence should
  * instead hold back later material is open (docs/specs/learner-loop.md, Gaps).
  */
 export async function chooseNextActivity(input: {
@@ -84,18 +85,19 @@ export async function chooseNextActivity(input: {
   });
   if (learner === undefined) return { kind: "unavailable" };
 
-  const select = (candidates: readonly string[]) =>
-    selectNext({ now, candidates, estimates: learner.estimates, model: activeModel });
-  const { candidates, heldBack } = limitNewObjectives(learner, { now, timeZone });
-  const withTasks = await readObjectivesWithTasks(database, candidates);
-  let tasked = candidates.filter((id) => withTasks.has(id));
+  const withTasks = await readObjectivesWithTasks(database, learner.objectiveIds);
+  const practice = decidePractice(learner, withTasks, { now, timeZone });
+  if (practice.kind !== "eligible") return await asActivity(practice);
 
   // While every task of the decided objective rests, select again without it,
   // so a learner practises something else, unseen objectives included
   // (docs/adr/0017-task-rest.md). `acquiring` outranks the rest, so it comes
   // back first once its rest ends.
+  const select = (candidates: readonly string[]) =>
+    selectNext({ now, candidates, estimates: learner.estimates, model: activeModel });
+  let candidates = practice.candidates;
   let resting: { objective: Objective; retryAt: Date } | undefined;
-  for (let decision = select(tasked); decision !== undefined; decision = select(tasked)) {
+  for (let decision = select(candidates); decision !== undefined; decision = select(candidates)) {
     const { objectiveId } = decision;
     const [task, objective] = await Promise.all([
       readNextTask(database, { learnerId, objectiveId }),
@@ -106,7 +108,7 @@ export async function chooseNextActivity(input: {
     // Its last task was retired since `withTasks` was read: one without a task now.
     if (task === undefined) {
       withTasks.delete(objectiveId);
-      tasked = tasked.filter((id) => id !== objectiveId);
+      candidates = candidates.filter((id) => id !== objectiveId);
       continue;
     }
 
@@ -130,19 +132,25 @@ export async function chooseNextActivity(input: {
     }
 
     if (resting === undefined || retryAt < resting.retryAt) resting = { objective, retryAt };
-    tasked = tasked.filter((id) => id !== objectiveId);
+    candidates = candidates.filter((id) => id !== objectiveId);
   }
   if (resting !== undefined) return { kind: "resting", ...resting };
 
-  const decision = select(candidates.filter((id) => !withTasks.has(id)));
-  if (decision === undefined) {
-    return heldBack
-      ? { kind: "daily-limit", limit: NEW_OBJECTIVES_PER_DAY }
-      : { kind: "caught-up" };
+  // Every objective selected lost its last task meanwhile: decided again as if
+  // they never had one, the same order without them (a resting one keeps its
+  // task, but none rests here).
+  const redecided = decidePractice(learner, withTasks, { now, timeZone });
+  // Unreachable: the loop ended because nothing with a task left needs attention.
+  if (redecided.kind === "eligible") throw new Error("Practice without a task to offer");
+  return await asActivity(redecided);
+
+  async function asActivity(state: Exclude<Practice, { kind: "eligible" }>): Promise<NextActivity> {
+    if (state.kind !== "no-activity") return state;
+    const { decision } = state;
+    const objective = await readObjective(database, decision.objectiveId);
+    if (objective === undefined) throw new Error(`Objective ${decision.objectiveId} is missing`);
+    return { kind: "no-activity", decision, objective };
   }
-  const objective = await readObjective(database, decision.objectiveId);
-  if (objective === undefined) throw new Error(`Objective ${decision.objectiveId} is missing`);
-  return { kind: "no-activity", decision, objective };
 }
 
 /**
@@ -181,6 +189,7 @@ async function restingUntil(
  */
 export type NextActivity =
   | { kind: "unavailable" }
+  | { kind: "empty" }
   | { kind: "caught-up" }
   | { kind: "daily-limit"; limit: number }
   | { kind: "no-activity"; decision: LearningDecision; objective: Objective }
