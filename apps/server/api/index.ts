@@ -342,8 +342,9 @@
 // reports of tasks (ADR 0052), for its `owner` or `admin` in a browser alone:
 // reports neither dismissed nor of a retired task. Per task, the most recently
 // reported first, at most 100 tasks, each with its 20 newest reports, newest
-// first; `?objectiveId=`, `?courseId=`, or `?taskId=`, at most one, scopes it,
-// a task's read answering its 1000 newest. No learner is named.
+// first, counted and listed as of one moment; `?objectiveId=`, `?courseId=`,
+// or `?taskId=`, at most one, scopes it, an objective's or a course's read
+// answering every reported task, a task's its 1000 newest. No learner is named.
 //
 //   400  more than one scope, or an empty one
 //   401  no session
@@ -351,14 +352,15 @@
 //        lets tools read (ADR 0050), explained
 //   200  { "tasks": [{ "id": "…", "objectiveId": "…", "kind": "typed",
 //          "prompt": "…", "accepted": ["went"], "pendingCorrectionId": "…",
-//          "reportCount": 2, "reports": [{ "id": "…", "reason":
+//          "reportCount": 2, "reasonCount": 1, "reports": [{ "id": "…", "reason":
 //          "answer-correct", "note": "…", "at": "…", "response": { "text":
 //          "went." } }] }], "more": false }
 //
 //        Each task as authored (its body, as `…/objectives/:objectiveId/tasks`
 //        reads it), `pendingCorrectionId` while a tool's correction of it
 //        waits to be published, `reportCount` its open reports, one per
-//        learner; each report's `response` the attempt's, as sent, and
+//        learner, `reasonCount` how many reasons they give, all of them,
+//        though the reports listed are fewer; each report's `response` the attempt's, as sent, and
 //        `note` only when there is one. `more` when tasks were left out.
 //
 // `POST /api/organizations/:organizationId/reports/dismiss`, a JSON write,

@@ -112,6 +112,7 @@ describe.skipIf(!connectionString)("the reports routes", () => {
           prompt: "Past of go?",
           accepted: ["went"],
           reportCount: 1,
+          reasonCount: 1,
           reports: [
             {
               id: expect.any(String),

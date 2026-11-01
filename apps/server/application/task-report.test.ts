@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { runMigrations } from "@braivo/db";
+import { createDatabase, runMigrations } from "@braivo/db";
 import { attempt, member, task, taskReport, user } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody, TaskResponse } from "../content/index.ts";
@@ -557,6 +557,7 @@ describe.skipIf(!connectionString)("the school reading and resolving reports (ac
         options: ["right", "wrong"],
         answer: 0,
         reportCount: 2,
+        reasonCount: 2,
         reports: [
           {
             id: expect.any(String),
@@ -719,6 +720,126 @@ describe.skipIf(!connectionString)("the school reading and resolving reports (ac
     const [rest] = (await list({ taskId })).tasks;
     expect(rest?.reportCount).toBe(1);
     expect(rest?.reports).toHaveLength(1);
+  });
+
+  test("counts the reasons of every open report, not only the 20 listed", async () => {
+    const { taskId, objectiveId } = await reportedTask([]);
+    await manyReports(taskId, 21);
+    // The newest 20 say the key is wrong; the oldest alone, that it is confusing.
+    await database
+      .update(taskReport)
+      .set({ reason: "key-wrong" })
+      .where(and(eq(taskReport.taskId, taskId), gt(taskReport.createdAt, later(0))));
+
+    const [listed] = (await list({ taskId })).tasks;
+    expect(listed?.reasonCount).toBe(2);
+    const [preview] = (await list({ objectiveId })).tasks;
+    expect(preview?.reports).toHaveLength(20);
+    expect(preview?.reports.every(({ reason }) => reason === "key-wrong")).toBe(true);
+    expect(preview?.reportCount).toBe(21);
+    expect(preview?.reasonCount).toBe(2);
+
+    const [oldest] = await database
+      .select({ id: taskReport.id })
+      .from(taskReport)
+      .where(and(eq(taskReport.taskId, taskId), eq(taskReport.reason, "confusing")));
+    await dismiss([oldest!.id]);
+    expect((await list({ taskId })).tasks[0]?.reasonCount).toBe(1);
+  });
+
+  test("lists every reported task of a course or an objective, and the organization's newest 100", async () => {
+    const { objectiveId, courseId: reportedCourse, taskId } = await reportedTask([learner]);
+    const others = await Promise.all(
+      Array.from({ length: 100 }, () =>
+        testing.createTask(database, {
+          organizationId,
+          objectiveId,
+          body: choice("Another?"),
+          createdAt: start,
+        }),
+      ),
+    );
+    const attempts = others.map((id) => ({
+      learnerId: learner,
+      organizationId,
+      id: `${id}:${learner}`,
+      taskId: id,
+      response: { choice: 1 },
+      at: start,
+    }));
+    await database.insert(attempt).values(attempts);
+    await database.insert(taskReport).values(
+      attempts.map(({ id, taskId: reported }) => ({
+        learnerId: learner,
+        organizationId,
+        attemptId: id,
+        id: crypto.randomUUID(),
+        taskId: reported,
+        reason: "confusing" as const,
+        createdAt: later(200),
+      })),
+    );
+
+    for (const scope of [{ objectiveId }, { courseId: reportedCourse }]) {
+      const { tasks, more } = await list(scope);
+      expect(tasks).toHaveLength(101);
+      expect(more).toBe(false);
+    }
+    const organizationWide = await list();
+    expect(organizationWide.tasks).toHaveLength(100);
+    expect(organizationWide.more).toBe(true);
+    // The oldest reported, left out there, is still on its page.
+    expect(organizationWide.tasks.map(({ id }) => id)).not.toContain(taskId);
+  });
+
+  test("counts and lists a task's reports in one snapshot, a dismissal meanwhile in neither", async () => {
+    const { taskId } = await reportedTask([learner]);
+    const shown = (await list({ taskId })).tasks[0]!.reports.map(({ id }) => id);
+
+    // Holds the read between its count and its reports: only the reports read attempts.
+    let locked!: () => void;
+    let release!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const lock = database.transaction(async (transaction) => {
+      await transaction.execute(sql`lock table ${attempt} in access exclusive mode`);
+      locked();
+      await released;
+    });
+    // Its own connection, named, so the wait found is this read's, not another suite's.
+    const url = new URL(connectionString ?? "");
+    url.searchParams.set("application_name", "task-report-snapshot-test");
+    const reader = createDatabase(url.toString());
+    try {
+      await isLocked;
+      const reading = listReportedTasks({
+        database: reader,
+        organizationId,
+        actingAs: admin,
+        accessKind: "browser",
+        scope: { taskId },
+      });
+      for (;;) {
+        const waiting = await database.execute<{ count: number }>(
+          sql`select count(*)::int as count from pg_stat_activity
+              where application_name = 'task-report-snapshot-test' and wait_event_type = 'Lock'`,
+        );
+        if (waiting.rows[0]!.count > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await dismiss(shown);
+      release();
+      await lock;
+
+      const [read] = (await reading).tasks;
+      expect(read?.reportCount).toBe(1);
+      expect(read?.reports.map(({ id }) => id)).toEqual(shown);
+    } finally {
+      release();
+      await lock;
+      await reader.$client.end();
+    }
+    expect(await reportedIds({ taskId })).toEqual([]);
   });
 
   test("refuses whoever does not administer, and any tool, whatever the organization lets tools read", async () => {

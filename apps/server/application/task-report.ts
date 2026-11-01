@@ -147,7 +147,11 @@ export type ReportedAttempt =
       report: { reason: TaskReportReason; note?: string; at: Date };
     };
 
-/** Tasks listed at once, newest report first: a page's worth, never the whole history. */
+/**
+ * The organization's reported tasks listed at once, newest report first: a
+ * page's worth, never the whole history. A course's or an objective's page,
+ * which renders each of its tasks, reads every one of its reported ones.
+ */
 export const REPORTED_TASKS_LIMIT = 100;
 /** Reports listed per task beside it; one task's whole list is asked for by its ID. */
 export const REPORTS_PER_TASK = 20;
@@ -157,13 +161,15 @@ export const MAX_REPORTS_AT_ONCE = 1000;
 /**
  * A task with open reports, as its reviewer reads it: the task as authored,
  * the correction a tool wrote for it while that waits, how many reports are
- * open (one per learner), and the newest of them, never naming a learner.
+ * open (one per learner) and how many reasons they give, and the newest of
+ * them, never naming a learner.
  */
 export type ReportedTask = TaskBody & {
   id: string;
   objectiveId: string;
   pendingCorrectionId?: string;
   reportCount: number;
+  reasonCount: number;
   reports: {
     id: string;
     reason: TaskReportReason;
@@ -177,7 +183,8 @@ export type ReportedTask = TaskBody & {
  * The organization's open reports for its `owner` or `admin`, in a browser
  * alone (ADR 0052): a tool, whatever ADR 0050's setting, reads no learner's
  * answer or note. Per task, most recently reported first: at most
- * `REPORTED_TASKS_LIMIT` tasks (`more` when there were others), each with its
+ * `REPORTED_TASKS_LIMIT` tasks organization-wide (`more` when there were
+ * others), every one in a course or an objective, each with its
  * `REPORTS_PER_TASK` newest; scoped to one task, its `MAX_REPORTS_AT_ONCE`.
  */
 export async function listReportedTasks(input: {
@@ -190,21 +197,23 @@ export async function listReportedTasks(input: {
   const { database, organizationId, scope } = input;
   await assertMayReviewReports(input);
   const one = "taskId" in scope;
+  const page = "courseId" in scope || "objectiveId" in scope;
   const { tasks, more } = await readOpenTaskReports(database, {
     organizationId,
     scope,
-    taskLimit: one ? 1 : REPORTED_TASKS_LIMIT,
+    taskLimit: one ? 1 : page ? undefined : REPORTED_TASKS_LIMIT,
     reportsPerTask: one ? MAX_REPORTS_AT_ONCE : REPORTS_PER_TASK,
   });
   return {
     more,
     tasks: tasks.map(
-      ({ taskId, objectiveId, body, reportCount, pendingCorrectionId, reports }) => ({
+      ({ taskId, objectiveId, body, reportCount, reasonCount, pendingCorrectionId, reports }) => ({
         ...(body as TaskBody),
         id: taskId,
         objectiveId,
         ...(pendingCorrectionId !== undefined && { pendingCorrectionId }),
         reportCount,
+        reasonCount,
         reports: reports.map(({ note, ...report }) => ({
           ...report,
           ...(note !== null && { note }),

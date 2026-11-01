@@ -772,10 +772,12 @@ export type BraivoClient = {
 
   /**
    * The organization's open reports, for its `owner` or `admin` in a browser
-   * (ADR 0052): per task, the newest reported first, at most 100 tasks
-   * (`more` when there were others) with each one's 20 newest reports, or,
-   * scoped to one task, its 1000 newest. At most one of `objectiveId`,
-   * `courseId`, and `taskId` scopes it. 403 to anyone else, and to a tool.
+   * (ADR 0052): per task, the newest reported first, each with its 20 newest
+   * reports, counted and listed as of one moment. Organization-wide, at most
+   * 100 tasks (`more` when there were others); scoped to an objective or a
+   * course, every reported task in it; to one task, its 1000 newest. At most
+   * one of `objectiveId`, `courseId`, and `taskId` scopes it. 403 to anyone
+   * else, and to a tool.
    */
   listReportedTasks(
     input: { organizationId: string; objectiveId?: string; courseId?: string; taskId?: string },

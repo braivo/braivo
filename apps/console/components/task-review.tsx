@@ -544,6 +544,14 @@ export function TaskList(props: {
             <AuthoredTask task={replaced}>
               <NoExplanation task={replaced} />
               <Passages citations={replaced.citations} sources={sources} />
+              {/* Its reports, which publishing the correction closes, here when
+                  the page shows it nowhere else (narrowed); no editor, as no Edit. */}
+              {shownIds !== undefined && !shownIds.has(replaced.id) && (
+                <TaskReports
+                  taskId={replaced.id}
+                  editingLocked={pending || editing !== undefined}
+                />
+              )}
             </AuthoredTask>
           </div>
         )}

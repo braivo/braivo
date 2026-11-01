@@ -344,42 +344,44 @@ function Course() {
           />
         )}
       </div>
-      {/* Pending work first (ADR 0039), each task once: here while it waits,
-          below once published. In both sections, whatever is focused or
-          scrolled to stops clear of Publish's sticky buttons, at their
-          tallest: two rows on a phone, and its one-line failure. */}
-      {objectivesToReview.length > 0 && (
-        <section aria-labelledby="pending" className="mb-10 flex flex-col gap-6 **:scroll-mt-40">
-          <Heading level={2} id="pending">
-            Needs review
-          </Heading>
-          {objectivesToReview.map(({ objective, place }) => (
-            <Objective
-              key={objective.id}
-              objective={objective}
-              place={place}
-              sources={sources}
-              shownIds={shownByObjective?.get(objective.id)}
-              onSaved={onSaved}
-              status={status}
-              showPending
-              selection={selection}
-              editing={editing}
-              onEdit={edit}
-              pending={publishing || deleting || changingVisibility}
-              fallbackFocus={heading}
-            />
-          ))}
-        </section>
-      )}
-      {/* Narrowed, gone with its last task shown, as the count line says why. */}
-      {(!narrowed || objectivesTaught.length > 0) && (
-        <section aria-labelledby="teaches" className="flex flex-col gap-6 **:scroll-mt-40">
-          <Heading level={2} id="teaches">
-            What it teaches
-          </Heading>
-          {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
-          <TaskReportsProvider reports={reports}>
+      {/* Learners' reports, under the published tasks, and beside a correction
+          the page shows without its task. */}
+      <TaskReportsProvider reports={reports}>
+        {/* Pending work first (ADR 0039), each task once: here while it waits,
+            below once published. In both sections, whatever is focused or
+            scrolled to stops clear of Publish's sticky buttons, at their
+            tallest: two rows on a phone, and its one-line failure. */}
+        {objectivesToReview.length > 0 && (
+          <section aria-labelledby="pending" className="mb-10 flex flex-col gap-6 **:scroll-mt-40">
+            <Heading level={2} id="pending">
+              Needs review
+            </Heading>
+            {objectivesToReview.map(({ objective, place }) => (
+              <Objective
+                key={objective.id}
+                objective={objective}
+                place={place}
+                sources={sources}
+                shownIds={shownByObjective?.get(objective.id)}
+                onSaved={onSaved}
+                status={status}
+                showPending
+                selection={selection}
+                editing={editing}
+                onEdit={edit}
+                pending={publishing || deleting || changingVisibility}
+                fallbackFocus={heading}
+              />
+            ))}
+          </section>
+        )}
+        {/* Narrowed, gone with its last task shown, as the count line says why. */}
+        {(!narrowed || objectivesTaught.length > 0) && (
+          <section aria-labelledby="teaches" className="flex flex-col gap-6 **:scroll-mt-40">
+            <Heading level={2} id="teaches">
+              What it teaches
+            </Heading>
+            {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
             {objectivesTaught.map(({ objective, place }) => (
               <Objective
                 key={objective.id}
@@ -395,9 +397,9 @@ function Course() {
                 fallbackFocus={heading}
               />
             ))}
-          </TaskReportsProvider>
-        </section>
-      )}
+          </section>
+        )}
+      </TaskReportsProvider>
     </>
   );
 }

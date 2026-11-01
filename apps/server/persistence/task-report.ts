@@ -6,6 +6,7 @@ import { attempt, courseObjective, learnerEvidence, task, taskReport } from "@br
 import { and, asc, count, desc, eq, inArray, isNull, lte, max, sql } from "drizzle-orm";
 
 import type { TaskResponse } from "../content/index.ts";
+import type { Transaction } from "./task.ts";
 
 /** One learner's attempt at one organization, as `taskReport` keys it. */
 export type AttemptKey = { learnerId: string; organizationId: string; attemptId: string };
@@ -115,6 +116,8 @@ export type ReportedTaskRow = {
   objectiveId: string;
   body: unknown;
   reportCount: number;
+  /** How many reasons its open reports give, all of them, not only those listed. */
+  reasonCount: number;
   /** The unpublished, unretired correction a tool wrote for it, if any (ADR 0039). */
   pendingCorrectionId: string | undefined;
   reports: OpenTaskReport[];
@@ -123,18 +126,30 @@ export type ReportedTaskRow = {
 /**
  * The organization's open reports, those undismissed of an unretired task,
  * grouped by task, the most recently reported task first: at most `taskLimit`
- * tasks (and whether there were more), each with its newest `reportsPerTask`.
+ * tasks, if given (and whether there were more), each with its newest
+ * `reportsPerTask`. One snapshot for its reads, so a dismissal landing between
+ * them never leaves a task counted with none of its reports listed.
  */
 export async function readOpenTaskReports(
   database: Database,
   input: {
     organizationId: string;
     scope: ReportScope;
-    taskLimit: number;
+    taskLimit?: number;
     reportsPerTask: number;
   },
 ): Promise<{ tasks: ReportedTaskRow[]; more: boolean }> {
-  const { organizationId, scope, taskLimit, reportsPerTask } = input;
+  return database.transaction((transaction) => readInSnapshot(transaction, input), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
+}
+
+async function readInSnapshot(
+  database: Transaction,
+  input: Parameters<typeof readOpenTaskReports>[1],
+): Promise<{ tasks: ReportedTaskRow[]; more: boolean }> {
+  const { organizationId, scope, taskLimit = Infinity, reportsPerTask } = input;
   const open = and(
     eq(taskReport.organizationId, organizationId),
     isNull(taskReport.dismissedAt),
@@ -157,12 +172,13 @@ export async function readOpenTaskReports(
       : undefined,
   );
 
-  const grouped = await database
+  const grouped = database
     .select({
       taskId: task.id,
       objectiveId: task.objectiveId,
       body: task.body,
       reportCount: count(),
+      reasonCount: sql<number>`count(distinct ${taskReport.reason})::int`,
     })
     .from(taskReport)
     .innerJoin(task, eq(task.id, taskReport.taskId))
@@ -170,8 +186,9 @@ export async function readOpenTaskReports(
     // By the task's key, which determines its other columns.
     .groupBy(task.id)
     .orderBy(desc(max(taskReport.createdAt)), asc(task.id))
-    .limit(taskLimit + 1);
-  const shown = grouped.slice(0, taskLimit);
+    .$dynamic();
+  const listed = await (taskLimit === Infinity ? grouped : grouped.limit(taskLimit + 1));
+  const shown = listed.slice(0, taskLimit);
   if (shown.length === 0) return { tasks: [], more: false };
   const taskIds = shown.map(({ taskId }) => taskId);
 
@@ -219,7 +236,7 @@ export async function readOpenTaskReports(
     );
 
   return {
-    more: grouped.length > taskLimit,
+    more: listed.length > taskLimit,
     tasks: shown.map((row) => ({
       ...row,
       pendingCorrectionId: corrections.find(({ replaces }) => replaces === row.taskId)?.id,

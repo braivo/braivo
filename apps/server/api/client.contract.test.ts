@@ -298,6 +298,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       expect.objectContaining({
         id: pastTenseTask,
         reportCount: 1,
+        reasonCount: 1,
         reports: [
           {
             id: expect.any(String),

@@ -122,14 +122,13 @@ export function ReportedTasks(props: {
       )}
       <LinkList>
         {read.tasks.map((task) => {
-          const reasons = new Set(task.reports.map(({ reason }) => reason));
           const latest = task.reports[0]?.reason;
+          // Of every open report, not only the newest listed.
+          const others = task.reasonCount - 1;
           const note = [
             learners(task.reportCount),
             ...(latest ? [REASONS[latest]] : []),
-            ...(reasons.size > 1
-              ? [`+${reasons.size - 1} more ${reasons.size === 2 ? "reason" : "reasons"}`]
-              : []),
+            ...(others > 0 ? [`+${others} more ${others === 1 ? "reason" : "reasons"}`] : []),
           ].join(" · ");
           const noteId = `${id}-${task.id}`;
           return (
@@ -234,8 +233,11 @@ function acceptableAnswer(task: ReportedTask, text: string): string | undefined 
  */
 export function TaskReports(props: {
   taskId: string;
-  /** Opens the task's editor with this answer added to its accepted ones. */
-  onAddAnswer: (answer: string) => void;
+  /**
+   * Opens the task's editor with this answer added to its accepted ones;
+   * without it, where the page offers no editor for the task, none is offered.
+   */
+  onAddAnswer?: (answer: string) => void;
   /** An editor open or Publish under way: no editor opens meanwhile. */
   editingLocked: boolean;
 }) {
@@ -290,11 +292,14 @@ export function TaskReports(props: {
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
       const [found] = tasks;
-      if (found) {
-        setWhole({ from, task: found });
-        setFocusDismiss(document.activeElement === showAllButton.current);
-      }
       setFailure(undefined);
+      if (!found) {
+        // Dismissed or retired meanwhile: the page reads its reports again, without these.
+        await router.invalidate({ sync: true });
+        return context?.announce("These reports were closed meanwhile.");
+      }
+      setWhole({ from, task: found });
+      setFocusDismiss(document.activeElement === showAllButton.current);
     } catch (thrown) {
       if (thrown instanceof BraivoError && thrown.status === 401) return void router.invalidate();
       fail("Could not load every report. Try again.");
@@ -347,7 +352,7 @@ export function TaskReports(props: {
                   ? `Typed: ${response.text}`
                   : `Chose: ${task.kind === "choice" ? (task.options[response.choice] ?? "an option no longer there") : "an option"}`;
             const addable =
-              report.reason === "answer-correct" && "text" in response
+              onAddAnswer && report.reason === "answer-correct" && "text" in response
                 ? acceptableAnswer(task, response.text)
                 : undefined;
             return (
@@ -372,7 +377,7 @@ export function TaskReports(props: {
                     size="sm"
                     className="h-auto min-h-8 w-fit py-1.5 whitespace-normal wrap-anywhere"
                     disabled={editingLocked}
-                    onClick={() => onAddAnswer(addable)}
+                    onClick={() => onAddAnswer?.(addable)}
                   >
                     Add “{addable}” to accepted answers
                   </Button>

@@ -46,6 +46,7 @@ const reportedGreeting: ReportedTask = {
   options: greetingTask.options,
   answer: 0,
   reportCount: 2,
+  reasonCount: 2,
   reports: [
     report("r2", "key-wrong", { choice: 1 }, "Adiós can be a greeting\nin passing."),
     report("r1", "confusing", { reveal: true }),
@@ -60,6 +61,7 @@ const reportedTyped = (...responses: string[]): ReportedTask => ({
   prompt: typedTask.prompt,
   accepted: typedTask.accepted,
   reportCount: responses.length,
+  reasonCount: 1,
   reports: responses.map((text, index) => report(`t${index}`, "answer-correct", { text })),
 });
 
@@ -232,6 +234,106 @@ describe("learners' reports", () => {
     );
   });
 
+  test("reads the page again when Show all finds the reports closed meanwhile, saying so", async () => {
+    let open = true;
+    const listReportedTasks = vi.fn<BraivoClient["listReportedTasks"]>(async (input) => {
+      // Another administrator dismissed them while this page was open.
+      if (input.taskId) open = false;
+      return { tasks: open ? [{ ...reportedGreeting, reportCount: 3 }] : [], more: false };
+    });
+    coursePage({ listReportedTasks });
+
+    fireEvent.click(await screen.findByText("Reported by 3 learners"));
+    fireEvent.click(screen.getByRole("button", { name: "Show all 3 reports" }));
+
+    expect(await screen.findByText("These reports were closed meanwhile.")).toBeTruthy();
+    expect(screen.queryByText(/Reported by/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Dismiss/ })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByText("These reports were closed meanwhile."));
+  });
+
+  test("shows a corrected task's reports beside its correction where the page shows it alone, never twice", async () => {
+    const correction = {
+      ...typedTask,
+      id: "t3",
+      accepted: ["New York", "NYC"],
+      published: false,
+      replaces: typedTask.id,
+    };
+    const withCorrection = {
+      ...course,
+      objectives: [
+        { ...course.objectives[0]!, tasks: [greetingTask, typedTask, correction] },
+        course.objectives[1]!,
+      ],
+    };
+    const braivo = {
+      readCourse: async () => withCorrection,
+      listReportedTasks: async () => ({
+        tasks: [{ ...reportedTyped("NY"), pendingCorrectionId: "t3" }],
+        more: false,
+      }),
+    };
+
+    // Narrowed to tasks without an explanation, the original shows only as published now.
+    renderAt("/example/courses/course-1?without=explanation", { braivo });
+    fireEvent.click(await screen.findByText("Reported by 1 learner"));
+    expect(screen.getByRole("button", { name: "Dismiss report" })).toBeTruthy();
+    // Its editor is not offered there, as its Edit is not.
+    expect(screen.queryByRole("button", { name: /to accepted answers/ })).toBeNull();
+    expect(screen.getAllByText("Reported by 1 learner")).toHaveLength(1);
+  });
+
+  test("shows a corrected task's reports once, under the task, when the page shows it", async () => {
+    const correction = { ...typedTask, id: "t3", published: false, replaces: typedTask.id };
+    coursePage({
+      readCourse: async () => ({
+        ...course,
+        objectives: [
+          { ...course.objectives[0]!, tasks: [greetingTask, typedTask, correction] },
+          course.objectives[1]!,
+        ],
+      }),
+      listReportedTasks: async () => ({
+        tasks: [{ ...reportedTyped("NY"), pendingCorrectionId: "t3" }],
+        more: false,
+      }),
+    });
+
+    expect(await screen.findAllByText("Reported by 1 learner")).toHaveLength(1);
+  });
+
+  test("counts every reason of a task's open reports on the organization's page, not only those listed", async () => {
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [],
+        listObjectives: async () => [],
+        listReportedTasks: async () => ({
+          // The 20 listed say the key is wrong; one older report gives another reason.
+          tasks: [
+            {
+              ...reportedGreeting,
+              reportCount: 21,
+              reasonCount: 2,
+              reports: Array.from({ length: 20 }, (_, index) =>
+                report(`k${index}`, "key-wrong", { choice: 1 }),
+              ),
+            },
+          ],
+          more: false,
+        }),
+      },
+    });
+
+    const section = await screen.findByRole("region", { name: "Reported by learners" });
+    expect(
+      within(section).getByRole("link", {
+        name: "Hello, in Spanish?",
+        description: "21 learners · The expected answer seems wrong · +1 more reason",
+      }),
+    ).toBeTruthy();
+  });
+
   test("says a correction waits, under the reports it will close", async () => {
     coursePage({
       listReportedTasks: async () => ({
@@ -267,6 +369,7 @@ describe("learners' reports", () => {
   const greetingReports = (count: number, shown: number, prefix = "r"): ReportedTask => ({
     ...reportedGreeting,
     reportCount: count,
+    reasonCount: 1,
     reports: Array.from({ length: shown }, (_, index) =>
       report(`${prefix}${index}`, "confusing", { choice: 1 }),
     ),
@@ -293,6 +396,7 @@ describe("learners' reports", () => {
     expect(screen.getByRole("button", { name: "Show all 22 reports" })).toBeTruthy();
   });
 
+  // A thousand reports rendered and queried by role: slow in happy-dom on a busy machine.
   test("says when a task has more reports than one read lists, rather than offering them again", async () => {
     const dismissReports = vi.fn<BraivoClient["dismissReports"]>(async () => {});
     coursePage({
@@ -316,7 +420,7 @@ describe("learners' reports", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss these 1000" }));
     await waitFor(() => expect(dismissReports).toHaveBeenCalled());
     expect(dismissReports.mock.calls[0]![0].reportIds).toHaveLength(1000);
-  });
+  }, 30_000);
 
   test("never shows one organization's reported tasks on another's page while it reads its own", async () => {
     const { router } = renderAt("/example", {
