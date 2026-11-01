@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@braivo/ui/components/dialog";
 import {
   Field,
@@ -86,6 +87,9 @@ export function ReportProblem(props: {
   }>();
   const [missingNote, setMissingNote] = useState(false);
   const [missingReason, setMissingReason] = useState(false);
+  // A send of the snapshot went unanswered: Braivo may hold it, so it stays as sent.
+  const uncertain = useRef(false);
+  const firstReason = useRef<HTMLButtonElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
   const noteField = useRef<HTMLTextAreaElement>(null);
@@ -124,7 +128,12 @@ export function ReportProblem(props: {
     // A resend is the snapshot alone.
     let report = sent;
     if (!report) {
-      if (!reason) return setMissingReason(true);
+      if (!reason) {
+        setMissingReason(true);
+        // The invalid control takes the focus (docs/apps.md): the first reason.
+        firstReason.current?.focus();
+        return;
+      }
       const trimmed = note.trim();
       if (reason === "other" && !trimmed) {
         setMissingNote(true);
@@ -143,13 +152,15 @@ export function ReportProblem(props: {
       if (left.aborted) return;
       if (error instanceof BraivoError) {
         if (error.status === 409 && error.code === "ALREADY_REPORTED") return finish("already");
-        // Refused as sent, so nothing is stored: the draft is the learner's again.
+        // Refused as sent, so this request stored nothing: the draft is the
+        // learner's again, unless an earlier send of it was lost, and may be stored.
         if ([400, 401, 403, 404, 413].includes(error.status)) {
-          setSent(undefined);
+          if (!uncertain.current) setSent(undefined);
           return fail(error.status === 401 ? "signed-out" : "refused");
         }
       }
       // Lost, timed out, or a 5xx: it may be stored, so only the same body is resent.
+      uncertain.current = true;
       fail("lost");
     } finally {
       if (!left.aborted) setSending(false);
@@ -161,9 +172,8 @@ export function ReportProblem(props: {
   }
 
   function finish(answer: "sent" | "already") {
-    const active = document.activeElement;
-    focusStatus.current =
-      isOpen.current || active === trigger.current || active === document.body || active === null;
+    // Only from the dialog or its button: a learner who closed it and moved on keeps their place.
+    focusStatus.current = isOpen.current || document.activeElement === trigger.current;
     setOpen(false);
     setDone(answer);
   }
@@ -175,22 +185,25 @@ export function ReportProblem(props: {
         ref={status}
         role="status"
         tabIndex={-1}
-        className="text-sm text-muted-foreground empty:hidden"
+        // Hidden only visually while empty, so it is in the accessibility tree before it speaks.
+        className={done ? "text-sm text-muted-foreground" : "sr-only"}
       >
         {done === "sent" && <Trans>Thanks. Your report was sent.</Trans>}
         {done === "already" && <Trans>You already reported this question.</Trans>}
       </p>
       {!done && (
         <Dialog open={open} onOpenChange={setOpen}>
-          <Button
-            ref={trigger}
-            variant="ghost"
-            // Its text, not its padding, in line with the question's (docs/apps.md).
-            className="-ms-3 self-start"
-            onClick={() => setOpen(true)}
-          >
-            <Trans>Report a problem</Trans>
-          </Button>
+          {/* The dialog's trigger, so closing it unsent hands the focus back here. */}
+          <DialogTrigger asChild>
+            <Button
+              ref={trigger}
+              variant="ghost"
+              // Its text, not its padding, in line with the question's (docs/apps.md).
+              className="-ms-3 self-start"
+            >
+              <Trans>Report a problem</Trans>
+            </Button>
+          </DialogTrigger>
           <DialogContent
             showCloseButton={false}
             // Room for a phone's keyboard: the form scrolls rather than leaving the screen.
@@ -235,6 +248,7 @@ export function ReportProblem(props: {
                     value={shown.reason ?? ""}
                     aria-disabled={locked || undefined}
                     aria-invalid={missingReason || undefined}
+                    aria-describedby={missingReason ? `${id}-reason-error` : undefined}
                     // Read-only while sent: Radix would change it on a click or an arrow key.
                     onValueChange={(value) => {
                       if (locked) return;
@@ -245,7 +259,11 @@ export function ReportProblem(props: {
                   >
                     {offered.map((value) => (
                       <Field key={value} orientation="horizontal">
-                        <RadioGroupItem value={value} id={`${id}-${value}`} />
+                        <RadioGroupItem
+                          value={value}
+                          id={`${id}-${value}`}
+                          ref={value === offered[0] ? firstReason : undefined}
+                        />
                         <FieldLabel
                           htmlFor={`${id}-${value}`}
                           className="font-normal wrap-anywhere"
@@ -256,7 +274,7 @@ export function ReportProblem(props: {
                     ))}
                   </RadioGroup>
                   {missingReason && (
-                    <FieldError>
+                    <FieldError id={`${id}-reason-error`}>
                       <Trans>Choose what's wrong.</Trans>
                     </FieldError>
                   )}

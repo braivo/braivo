@@ -63,6 +63,8 @@ const reasonsIn = (dialog: HTMLElement) =>
 describe("reporting a problem with a question", () => {
   test("is offered after Continue, never before it, and keeps Continue focused", async () => {
     await graded();
+    // In the accessibility tree from the start, empty, so a later message is announced.
+    expect(screen.getByRole("status").textContent).toBe("");
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
     const report = screen.getByRole("button", { name: "Report a problem" });
@@ -127,6 +129,13 @@ describe("reporting a problem with a question", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
     expect(within(dialog).getByText("Choose what's wrong.")).toBeTruthy();
+    // The first reason takes the focus, and the group says what is wrong.
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole("radio", { name: "My answer seems correct" }),
+    );
+    expect(within(dialog).getByRole("radiogroup").getAttribute("aria-describedby")).toBe(
+      within(dialog).getByText("Choose what's wrong.").id,
+    );
 
     fireEvent.click(within(dialog).getByRole("radio", { name: "Something else" }));
     const note = within(dialog).getByRole("textbox", { name: "What's wrong?" });
@@ -300,12 +309,16 @@ describe("reporting a problem with a question", () => {
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+    // Closed unsent, the focus is back on what opened it.
+    const trigger = screen.getByRole("button", { name: "Report a problem" });
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
     dialog = openReport();
     const note = within(dialog).getByRole("textbox", { name: "What's wrong?" });
     expect(note).toHaveProperty("value", "Odd");
     expect(note.hasAttribute("readonly")).toBe(true);
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
@@ -342,5 +355,54 @@ describe("reporting a problem with a question", () => {
     answer();
     expect(await screen.findByText("Thanks. Your report was sent.")).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Loading…" }));
+  });
+
+  test("leaves the focus where it is when a report is answered after the learner closed it and clicked away", async () => {
+    let answer!: () => void;
+    await graded({
+      reportAttempt: (input) =>
+        new Promise((resolve) => {
+          answer = () => resolve({ reason: input.reason, at: "2026-06-01T00:00:00.000Z" });
+        }),
+    });
+    const dialog = openReport();
+    fireEvent.click(within(dialog).getByRole("radio", { name: "The expected answer seems wrong" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Clicked on the feedback's text: nothing focused.
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    answer();
+    expect(await screen.findByText("Thanks. Your report was sent.")).toBeTruthy();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  test("keeps a report whose answer was lost read-only after a later refusal, and resends it unchanged", async () => {
+    const reportAttempt = vi
+      .fn<BraivoClient["reportAttempt"]>()
+      // Stored, perhaps, but its answer lost; then the session ended.
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockRejectedValueOnce(new BraivoError(401, "Unauthorized"))
+      .mockResolvedValueOnce({ reason: "other", note: "Odd", at: "2026-06-01T00:00:00.000Z" });
+    await graded({ reportAttempt });
+    const dialog = openReport();
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Something else" }));
+    const note = within(dialog).getByRole("textbox", { name: "What's wrong?" });
+    fireEvent.change(note, { target: { value: "Odd" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await within(dialog).findByText("Could not send. Try again.");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    expect(await within(dialog).findByRole("link", { name: "Sign in in a new tab" })).toBeTruthy();
+    expect(note.hasAttribute("readonly")).toBe(true);
+
+    // Signed in again in the other tab, Send resends what may be stored.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Thanks. Your report was sent.")).toBeTruthy();
+    const bodies = reportAttempt.mock.calls.map(([input]) => input);
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(bodies[2]).toEqual(bodies[0]);
   });
 });
