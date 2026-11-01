@@ -51,6 +51,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0047: Structured items in shapes Braivo defines, converted into keyed tasks by Braivo](0047-structured-items.md)
 - [0031: Each AI request is recorded, and an operator may set an organization's monthly quota](0031-ai-limits.md)
 - [0032: One history per learner, recorded and read per organization](0032-learner-history.md)
+- [0053: The operator exports and erases learners' data on its controller's instruction, and an erasure survives a restore](0053-learners-data.md) — proposed
 - [0033: Email goes out over SMTP, or to the log of an installation only its machine reaches](0033-email-over-smtp.md)
 - [0034: node-postgres, so the server reaches PostgreSQL from Bun or from Workers through Hyperdrive](0034-node-postgres.md)
 - [0039: Courses and tasks a tool writes wait to be published in the console](0039-published-in-the-console.md)
