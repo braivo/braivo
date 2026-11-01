@@ -149,6 +149,9 @@ function googleRefusal(error: string | undefined): MessageDescriptor | undefined
   if (error === "email_changed") {
     return msg`Your Google account's email no longer matches this account. Sign in with a code to the account's email.`;
   }
+  if (error === "email_not_authoritative") {
+    return msg`Google can't confirm this email address is still yours. Sign in with a code instead.`;
+  }
   return GOOGLE_FAILED;
 }
 

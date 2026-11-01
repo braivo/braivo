@@ -860,6 +860,10 @@ msgstr "Go back to the site you came from and sign in again."
 msgid "Go to the {selectedRegionName} site"
 msgstr "Go to the {selectedRegionName} site"
 
+#: packages/auth-client/sign-in.tsx
+msgid "Google can't confirm this email address is still yours. Sign in with a code instead."
+msgstr "Google can't confirm this email address is still yours. Sign in with a code instead."
+
 #: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx

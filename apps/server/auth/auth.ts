@@ -45,6 +45,25 @@ import { slugProblem } from "./slug.ts";
 export const DEVICE_CLIENTS: ReadonlySet<string> = new Set(["braivo-cli"]);
 
 /**
+ * Whether an OAuth provider's verification of `email` proves who holds the
+ * mailbox now (access-30); the caller checks it is verified at all. Google's
+ * does for `@gmail.com` and for a Workspace account, whose ID token carries
+ * `hd`; for any other address it can outlive the mailbox's ownership, letting
+ * a former owner reach the next one's account. `hd` need not equal the email's
+ * domain: a Workspace account may use a secondary one. Other providers fail
+ * closed until given a rule of their own.
+ */
+function providerIsAuthoritativeForEmail(
+  oauth: { providerId: string; profile?: Record<string, unknown> } | undefined,
+  email: unknown,
+): boolean {
+  if (oauth?.providerId !== "google") return false;
+  const hd = oauth.profile?.hd;
+  if (typeof hd === "string" && hd !== "") return true;
+  return typeof email === "string" && email.toLowerCase().endsWith("@gmail.com");
+}
+
+/**
  * What a remote MCP connection may be granted (ADR 0045): `braivo:author`,
  * an organization's material, objectives, and courses. `braivo:progress`,
  * learners' data, waits for its tools.
@@ -314,6 +333,15 @@ export function createAuth(options: AuthOptions) {
           return {
             error: "email_not_verified",
             errorDescription: "The sign-in provider has not verified this email.",
+          };
+        }
+        // Verified is not enough (ADR 0018); checked at creation, linking, and
+        // every sign-in alike.
+        if (!providerIsAuthoritativeForEmail(source.oauth, user.email)) {
+          return {
+            error: "email_not_authoritative",
+            errorDescription:
+              "The sign-in provider is not authoritative for this email; use a code.",
           };
         }
         // An account is whoever controls its email (ADR 0018): a provider

@@ -860,6 +860,10 @@ msgstr "Wróć do poprzedniej strony i zaloguj się ponownie."
 msgid "Go to the {selectedRegionName} site"
 msgstr "Przejdź do strony regionu: {selectedRegionName}"
 
+#: packages/auth-client/sign-in.tsx
+msgid "Google can't confirm this email address is still yours. Sign in with a code instead."
+msgstr "Google nie może potwierdzić, że ten adres e-mail nadal należy do Ciebie. Zaloguj się kodem."
+
 #: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
