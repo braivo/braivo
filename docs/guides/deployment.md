@@ -69,6 +69,92 @@ bun --no-env-file apps/server/cli/index.ts reviewer set-password --email reviewe
 
 It prints a random password once; `--password-stdin` reads one instead, 16 characters or more: a password manager's random one, since only length is checked. The reviewer signs in at `<BRAIVO_URL>/login?method=password`, which nothing links, before connecting their AI app; `/login` reached from a connection takes `&method=password` added too. Afterwards, `reviewer remove-password --email <email>` deletes the password and ends the account's sessions; disconnect its apps in the console (`Connected apps`), and drop the address from `BRAIVO_REVIEWER_EMAILS`.
 
+## Learners' data
+
+The operator exports a learner's data on request, with the same environment as `serve`. Who may ask for which scope, and who receives the file, is [ADR 0053](../adr/0053-learners-data.md)'s:
+
+```bash
+bun --no-env-file apps/server/cli/index.ts learner export --email learner@fernwood.example --organization fernwood --out fernwood-learner.json
+bun --no-env-file apps/server/cli/index.ts learner export --email learner@fernwood.example --account --out learner-account.json
+```
+
+- `--organization <slug>` exports what that school holds, on that school's instruction.
+- `--account` exports the account and every school's records of it, on the account holder's own verified request, each school holding records instructing too; it never goes to a school.
+- The command reads only, writes nothing to stdout, and creates `--out` readable by you alone, refusing one that exists. Send it over a secure, expiring transfer, then delete it, noting when in the request's register entry. The file is not the whole answer to an access request: purposes, recipients, and retention go with it.
+
+The file is JSON, `version` 1; a change to its format changes `version`. Times are ISO 8601 in UTC. Each organization lists its records oldest first; an account's organizations are ordered by name.
+
+```jsonc
+{
+  "format": "braivo-learner-export",
+  "version": 1,
+  "scope": "organization", // or "account"
+  "exportedAt": "2026-11-01T09:00:00.000Z",
+  "learner": { "name": "Sam Nowak", "email": "learner@fernwood.example" },
+  "organizations": [
+    {
+      "name": "Fernwood School",
+      "membership": { "roles": ["member"], "since": "2026-09-01T08:00:00.000Z" }, // null once membership ended, its history kept
+      "groups": [{ "name": "Class A English", "role": "learner" }], // or "teacher"
+      "attempts": [
+        {
+          "at": "2026-09-02T10:00:00.000Z",
+          // The prompt with a choice task's options (never which is correct) or a typed task's accepted answers; never the explanation.
+          "task": {
+            "kind": "choice",
+            "prompt": "Which greeting fits the morning?",
+            "options": ["Good evening", "Good morning"],
+          },
+          "response": { "choice": 1 }, // an index into options; or { "text": "…" }, or { "reveal": true } for Show answer
+          "outcome": "success", // or "failure"; null only if its grade is missing
+          // The learner's report of this attempt (ADR 0052), or null.
+          "report": {
+            "reason": "key-wrong", // or "answer-correct", "confusing", "unsupported", "other"
+            "note": "Good day fits too", // or null
+            "at": "2026-09-02T10:01:00.000Z",
+            "status": "open", // or "dismissed" by a reviewer; "closed" once its task is retired, even after a dismissal
+          },
+        },
+      ],
+      "evidence": [
+        {
+          "at": "2026-09-02T10:00:00.000Z",
+          "objective": "Greet someone for the time of day",
+          "outcome": "success", // or "failure"
+          "origin": "attempt", // or "outside": recorded from a grader elsewhere
+        },
+      ],
+    },
+  ],
+  // --account alone:
+  "account": {
+    "createdAt": "2026-09-01T07:55:00.000Z",
+    "signInProviders": ["google"], // "google", or "credential" for a reviewer's password; signing in by code adds none
+    "connectedApps": [
+      {
+        "name": "Claude",
+        "scopes": ["braivo:author"],
+        "connectedAt": "2026-09-03T12:00:00.000Z",
+        "updatedAt": "2026-09-03T12:00:00.000Z",
+      },
+    ],
+    "sessions": {
+      "console": [
+        { "createdAt": "2026-10-30T08:00:00.000Z", "expiresAt": "2026-11-06T08:00:00.000Z" },
+      ],
+      // Learn domains' sessions record no creation time.
+      "learn": [
+        {
+          "organization": "Fernwood School",
+          "hostname": "fernwood.example",
+          "expiresAt": "2026-11-06T08:00:00.000Z",
+        },
+      ],
+    },
+  },
+}
+```
+
 ## Configuration
 
 `bun run serve` reads its environment alone, never an env file, so the repository's development defaults cannot stand in for a setting a deployment left out; set the variables below in the service's environment, as with systemd's `EnvironmentFile=`. Run the operator's commands with `--no-env-file` too, as shown, or Bun loads those defaults into them ([ADR 0051](../adr/0051-environment-files.md)).
