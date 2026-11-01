@@ -6,8 +6,38 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
-import { beginners, readCourse } from "./fixtures.ts";
+import { beginners as unpractised, readCourse as readAny } from "./fixtures.ts";
 import { stall, waitOut, renderAt } from "./render.tsx";
+
+/**
+ * `beginners` with a published task for Numbers too, so publishing it leaves
+ * no objective without practice, which asks first (its own tests below).
+ */
+const beginners = {
+  ...unpractised,
+  objectives: [
+    unpractised.objectives[0]!,
+    {
+      ...unpractised.objectives[1]!,
+      tasks: [
+        {
+          id: "n1",
+          kind: "choice" as const,
+          prompt: "One, in Spanish?",
+          options: ["Uno", "Dos"],
+          answer: 0,
+          citations: [],
+          published: true,
+        },
+      ],
+    },
+  ],
+};
+
+/** Braivo's `readCourse` answering `beginners` as above. */
+async function readCourse(input: { courseId: string }) {
+  return input.courseId === beginners.id ? beginners : readAny(input);
+}
 
 describe("the console", () => {
   test("holds a tool's course for review until published, then says it was", async () => {
@@ -338,6 +368,14 @@ describe("the console", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Publish without tasks needing review" }),
     );
+    // Its Greetings' only task waits: asked first, saying so.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(
+      within(within(dialog).getByRole("list", { name: "Objectives without practice" }))
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Greetings"]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Publish anyway" }));
 
     expect(await screen.findByText("Course published.")).toBeTruthy();
     expect(publish).toHaveBeenCalledWith(
@@ -527,20 +565,17 @@ describe("the console", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Publish selected (1)" }));
     const selected = await screen.findByRole("alertdialog");
-    expect(
-      within(selected)
+    const courses = (dialog: HTMLElement) =>
+      within(within(dialog).getByRole("list", { name: "Courses" }))
         .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual(["Holiday Spanish"]);
-    fireEvent.click(within(selected).getByRole("button", { name: "Not yet" }));
+        .map((item) => item.textContent);
+    expect(courses(selected)).toEqual(["Holiday Spanish"]);
+    // Numbers' only task waits: said too, with Review them in place of Not yet.
+    fireEvent.click(within(selected).getByRole("button", { name: "Review them" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Publish all (2)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Publish all (2)" }));
     const all = await screen.findByRole("alertdialog");
-    expect(
-      within(all)
-        .getAllByRole("listitem")
-        .map((item) => item.textContent),
-    ).toEqual(["Counting", "Holiday Spanish"]);
+    expect(courses(all)).toEqual(["Counting", "Holiday Spanish"]);
   });
 
   test("moves the focus to the course's title once an objective's last pending task is retired", async () => {

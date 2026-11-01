@@ -27,15 +27,24 @@ import { Button } from "@braivo/ui/components/button";
 import { Checkbox } from "@braivo/ui/components/checkbox";
 import { Label } from "@braivo/ui/components/label";
 import { Spinner } from "@braivo/ui/components/spinner";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useRouteContext, useRouter } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
+import { FindingLines } from "#components/findings";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /** A task as authored, published or pending, with the passages it cites. */
 export type ReviewTask = AuthoredCourse["objectives"][number]["tasks"][number];
 
 type Citation = AuthoredCourse["objectives"][number]["citations"][number];
+
+/**
+ * The task whose editor is open on a page, and an answer to add to it, from
+ * a finding's suggestion: one editor at a time.
+ */
+export type Editing = { taskId: string; answerToAdd?: string };
 
 /** "1 task", "3 tasks". */
 export const formatTaskCount = (count: number) => (count === 1 ? "1 task" : `${count} tasks`);
@@ -169,11 +178,23 @@ export type PublishAction = {
   action: "selected" | "all";
   label: string;
   disabled: boolean;
-  /** Asked first, naming the published courses its tasks reach; none when it reaches none. */
+  /**
+   * Asked first, when there is something to say: what learners may run into
+   * once it is published, and the published courses its tasks reach.
+   */
   confirm?: {
     title: string;
-    description: string;
-    courses: readonly { id: string; title: string }[];
+    /**
+     * How many tasks sent have findings, and the titles of objectives it
+     * leaves without practice; Review them closes it, calling `onReview`.
+     */
+    checks?: {
+      taskCount: number;
+      objectivesWithoutPractice: readonly string[];
+      onReview: () => void;
+    };
+    /** The published courses its tasks reach, if any, after `description`. */
+    reach?: { description: string; courses: readonly { id: string; title: string }[] };
   };
   onPublish: () => void;
 };
@@ -229,6 +250,9 @@ function PublishButton(props: {
   onPublish: () => void;
 }) {
   const { variant, label, publishing, disabled, confirm, onPublish } = props;
+  const { t } = useLingui();
+  // Set by Review them, for the dialog's close to move the focus where it leads.
+  const reviewing = useRef(false);
 
   // aria-disabled, not disabled, while publishing, so that it keeps the focus
   // meanwhile; its click ignored then, opening no confirmation either.
@@ -252,32 +276,104 @@ function PublishButton(props: {
   );
 
   if (!confirm) return button(onPublish);
+  const { checks, reach } = confirm;
   return (
     <AlertDialog>
       {/* Radix opens it unless the click was prevented, as while publishing. */}
       <AlertDialogTrigger asChild>{button()}</AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // Only once closed: before, the dialog's focus trap takes it back.
+        onCloseAutoFocus={(event) => {
+          if (!reviewing.current) return;
+          reviewing.current = false;
+          event.preventDefault();
+          checks?.onReview();
+        }}
+      >
         <AlertDialogHeader>
-          <AlertDialogTitle>{confirm.title}</AlertDialogTitle>
-          <AlertDialogDescription>{confirm.description}</AlertDialogDescription>
+          <AlertDialogTitle className="wrap-anywhere">{confirm.title}</AlertDialogTitle>
         </AlertDialogHeader>
-        {/* Bounded and wrapped, so however many titles, and however long, the
-            buttons stay in view; focusable, so a keyboard scrolls it too. */}
-        <ul
-          aria-label="Courses"
-          tabIndex={0}
-          className="max-h-40 min-w-0 list-disc overflow-y-auto pl-6 text-sm wrap-break-word"
+        {/* Bounded by the window and wrapped, so however much it says, at 320px
+            or zoomed, the buttons stay in view; focusable, so a keyboard
+            scrolls it too. */}
+        <AlertDialogDescription
+          asChild
+          className="max-h-[50dvh] min-w-0 overflow-y-auto text-start wrap-break-word"
         >
-          {confirm.courses.map(({ id, title }) => (
-            <li key={id}>{title}</li>
-          ))}
-        </ul>
+          <div tabIndex={0} className="flex flex-col gap-2">
+            {checks && <PublishChecks {...checks} />}
+            {reach && (
+              <>
+                <p>{reach.description}</p>
+                <ul aria-label="Courses" className="list-disc pl-6">
+                  {reach.courses.map(({ id, title }) => (
+                    <li key={id}>{title}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </AlertDialogDescription>
         <AlertDialogFooter>
-          <AlertDialogCancel>Not yet</AlertDialogCancel>
-          <AlertDialogAction onClick={onPublish}>Publish</AlertDialogAction>
+          {checks ? (
+            <>
+              <AlertDialogCancel onClick={() => (reviewing.current = true)}>
+                {t`Review them`}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={onPublish}>{t`Publish anyway`}</AlertDialogAction>
+            </>
+          ) : (
+            <>
+              <AlertDialogCancel>Not yet</AlertDialogCancel>
+              <AlertDialogAction onClick={onPublish}>Publish</AlertDialogAction>
+            </>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+/**
+ * What to check before publishing: how many tasks sent have findings, and the
+ * objectives it leaves without a published task, by title.
+ */
+function PublishChecks(props: { taskCount: number; objectivesWithoutPractice: readonly string[] }) {
+  const { taskCount, objectivesWithoutPractice } = props;
+  const { t } = useLingui();
+  return (
+    <>
+      <p>{t`Some of this may not work as intended:`}</p>
+      <ul className="list-disc pl-6">
+        {taskCount > 0 && (
+          <li>
+            {t({
+              // Neutral: a check may be intended; each task's note says what it is.
+              message: plural(taskCount, {
+                one: "# of these tasks has checks to review",
+                other: "# of these tasks have checks to review",
+              }),
+            })}
+          </li>
+        )}
+        {objectivesWithoutPractice.length > 0 && (
+          <li>
+            {t({
+              message: plural(objectivesWithoutPractice.length, {
+                one: "# objective would have no practice:",
+                other: "# objectives would have no practice:",
+              }),
+            })}
+            <ul aria-label={t`Objectives without practice`} className="list-[circle] pl-6">
+              {objectivesWithoutPractice.map((title, index) => (
+                // Titles may repeat.
+                <li key={index}>{title}</li>
+              ))}
+            </ul>
+          </li>
+        )}
+      </ul>
+    </>
   );
 }
 
@@ -295,8 +391,8 @@ export function TaskList(props: {
   sources: ReadonlyMap<string, SourceSummary>;
   selection?: TaskSelection;
   /** The task whose editor is open on the page, if any: every other Edit waits for it. */
-  editing: string | undefined;
-  onEdit: (taskId: string | undefined) => void;
+  editing: Editing | undefined;
+  onEdit: (editing: Editing | undefined) => void;
   /** A page action (Publish, a course's Delete) is under way: no editor opens, as what follows would close it. */
   pending: boolean;
   /** A task was corrected or retired: focus what is still there to take it. */
@@ -313,6 +409,7 @@ export function TaskList(props: {
     pending,
     onChanged,
   } = props;
+  const { t } = useLingui();
   // The task whose Edit button takes focus back once its editor closes unsaved.
   const refocus = useRef<string>(undefined);
   const byId = new Map(tasks.map((task) => [task.id, task]));
@@ -325,10 +422,11 @@ export function TaskList(props: {
     const replaced = task.replaces === undefined ? undefined : byId.get(task.replaces);
     return (
       <Fragment key={task.id}>
-        {editing === task.id ? (
+        {editing?.taskId === task.id ? (
           <CorrectTask
             objectiveId={objectiveId}
             task={task}
+            answerToAdd={editing.answerToAdd}
             hasPendingCorrection={withPendingCorrection.has(task.id)}
             onDone={() => {
               onEdit(undefined);
@@ -355,10 +453,25 @@ export function TaskList(props: {
                 }}
                 // Not while retiring it, which could land under the edit, nor while Publish or Delete could close it.
                 disabled={retiring || pending || editing !== undefined}
-                onClick={() => onEdit(task.id)}
+                onClick={() => onEdit({ taskId: task.id })}
               >
                 Edit
               </Button>
+            )}
+            findings={(retiring) => (
+              <FindingLines
+                taskId={task.id}
+                findings={task.findings}
+                onAdd={{
+                  label: (answer) =>
+                    task.published
+                      ? t`Edit “${task.prompt}” and add “${answer}”`
+                      : t`Edit unpublished task “${task.prompt}” and add “${answer}”`,
+                  // As its Edit button.
+                  disabled: retiring || pending || editing !== undefined,
+                  add: (answer) => onEdit({ taskId: task.id, answerToAdd: answer }),
+                }}
+              />
             )}
             select={
               selection && (
@@ -405,13 +518,15 @@ const taskName = (task: ReviewTask) =>
 function CorrectTask(props: {
   objectiveId: string;
   task: ReviewTask;
+  /** An accepted answer to add, from a finding: the editor opens with it, focused there. */
+  answerToAdd?: string;
   /** A correction waits to replace it, which saving retires. */
   hasPendingCorrection: boolean;
   /** Corrected, or reloaded to find it changed: the page as stored is shown. */
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const { objectiveId, task, hasPendingCorrection, onDone, onCancel } = props;
+  const { objectiveId, task, answerToAdd, hasPendingCorrection, onDone, onCancel } = props;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -503,7 +618,7 @@ function CorrectTask(props: {
       )}
       {/* Disabled while saving, so the edit sent is the one shown, and Cancel cannot undo it. */}
       <fieldset disabled={saving} aria-busy={saving} className="min-w-0">
-        <TaskEditor task={task} onSave={save} onCancel={onCancel} />
+        <TaskEditor task={task} answerToAdd={answerToAdd} onSave={save} onCancel={onCancel} />
       </fieldset>
     </div>
   );
@@ -520,6 +635,8 @@ function RetirableTask(props: {
   task: ReviewTask;
   /** The task's Edit button, given whether it is retiring. */
   renderEdit: (retiring: boolean) => ReactNode;
+  /** What a learner may run into with it, under its answers, given whether it is retiring. */
+  findings: (retiring: boolean) => ReactNode;
   /** While it waits, its checkbox for Publish selected. */
   select?: ReactNode;
   /** A correction waits to replace it, which retiring retires too. */
@@ -530,7 +647,16 @@ function RetirableTask(props: {
   /** The passages it was written from. */
   children: ReactNode;
 }) {
-  const { task, renderEdit, select, hasPendingCorrection, corrects, onRetired, children } = props;
+  const {
+    task,
+    renderEdit,
+    findings,
+    select,
+    hasPendingCorrection,
+    corrects,
+    onRetired,
+    children,
+  } = props;
   const { prompt } = task;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
@@ -643,6 +769,7 @@ function RetirableTask(props: {
         )
       }
     >
+      {findings(retiring)}
       {children}
     </AuthoredTask>
   );

@@ -45,7 +45,7 @@ const MAX_ACCEPTED = 20;
 const MAX_ACCEPTED_TEXT = 200;
 
 /**
- * A typed answer as the server compares it (`normalizeAnswer`, `apps/server/content/task.ts`):
+ * A typed answer as the server compares it (`normalizeAnswer`, `apps/server/content/answer.ts`):
  * two answers equal here are one answer listed twice, which it refuses.
  */
 function normalizeAnswer(text: string): string {
@@ -75,26 +75,42 @@ function collapseWhitespace(text: string): string {
  * Not a form, as it may sit inside one (a draft's review): its buttons do not
  * submit, and Enter in an option saves the task, never that form. The question
  * wraps, to be read whole on a phone; its line breaks, saved, are spaces, as
- * the server stores it on one line. It takes focus when it opens; giving it
- * back on Save or Cancel is the caller's, which knows where it came from.
+ * the server stores it on one line. It takes focus when it opens, at the
+ * question, or, given a typed task's `answerToAdd`, at the end of its answers,
+ * with that one added last for the person to review. Giving the focus back on
+ * Save or Cancel is the caller's, which knows where it came from.
  */
 export function TaskEditor(props: {
   task: EditableTask;
+  /** Typed tasks only: added last to its accepted answers, to review. */
+  answerToAdd?: string;
   onSave: (task: EditableTask) => void;
   onCancel: () => void;
 }) {
-  const { task, onSave, onCancel } = props;
+  const { task, answerToAdd, onSave, onCancel } = props;
   const [prompt, setPrompt] = useState(task.prompt);
   const [options, setOptions] = useState<string[]>(task.kind === "choice" ? [...task.options] : []);
   const [answer, setAnswer] = useState(task.kind === "choice" ? task.answer : 0);
-  const [accepted, setAccepted] = useState(task.kind === "typed" ? task.accepted.join("\n") : "");
+  const [accepted, setAccepted] = useState(
+    task.kind === "typed"
+      ? [...task.accepted, ...(answerToAdd === undefined ? [] : [answerToAdd])].join("\n")
+      : "",
+  );
   const [explanation, setExplanation] = useState(task.explanation ?? "");
   const [problem, setProblem] = useState<string>();
   const id = useId();
   const question = useRef<HTMLTextAreaElement>(null);
+  const answers = useRef<HTMLTextAreaElement>(null);
 
   // Opened from a button that is now gone: focus continues here, not the page's top.
-  useEffect(() => question.current?.focus(), []);
+  useEffect(() => {
+    if (answerToAdd === undefined || !answers.current) return question.current?.focus();
+    const { length } = answers.current.value;
+    answers.current.focus();
+    answers.current.setSelectionRange(length, length);
+    // On opening only.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function save() {
     if (prompt.trim() === "") return setProblem("Write the question.");
@@ -188,6 +204,7 @@ export function TaskEditor(props: {
             <FieldLabel htmlFor={`${id}-accepted`}>Accepted answers, one a line</FieldLabel>
             <Textarea
               id={`${id}-accepted`}
+              ref={answers}
               aria-describedby={`${id}-accepted-description`}
               rows={3}
               value={accepted}

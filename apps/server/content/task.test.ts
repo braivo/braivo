@@ -3,8 +3,8 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
+import { normalizeAnswer } from "./answer.ts";
 import {
-  normalizeAnswer,
   gradeResponse,
   parseTaskBody,
   parseTaskResponse,

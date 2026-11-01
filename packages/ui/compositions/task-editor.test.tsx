@@ -184,6 +184,22 @@ describe("editing a typed task", () => {
     return { onSave, answers: screen.getByLabelText("Accepted answers, one a line") };
   }
 
+  test("opens with an answer added last, at the end of its accepted answers, to review it", () => {
+    render(
+      <TaskEditor
+        task={{ ...typed, accepted: ["rojo."] }}
+        answerToAdd="rojo"
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const answers = screen.getByLabelText<HTMLTextAreaElement>("Accepted answers, one a line");
+
+    expect(document.activeElement).toBe(answers);
+    expect(answers.value).toBe("rojo.\nrojo");
+    expect([answers.selectionStart, answers.selectionEnd]).toEqual([10, 10]);
+  });
+
   test("saves its accepted answers a line each, blank lines dropped, its language kept", () => {
     const { onSave, answers } = editTyped();
 

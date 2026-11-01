@@ -19,7 +19,7 @@ A learner should not need English to sign in and learn, in any language Braivo s
 ## Boundaries
 
 - **Not here:** course content and the language it is authored or generated in ([generation](generation.md)); the browser's own validation messages, such as for a required field left empty, which Braivo does not control. Sign-in and the learn flow keep their rules in [access](access.md) and the [learner loop](learner-loop.md), which point here for language and never restate it.
-- **Not yet:** the console past its sign-in pages, beyond its header, its sidebar, `/join`, `/consent`, and its settings (a shared component it shows, such as a source passage's page, already follows the language); an organization's language; a language menu in the learn app, which follows the browser, as a choice made on the console's `/login` is another host's.
+- **Not yet:** the console past its sign-in pages, beyond its header, its sidebar, `/join`, `/consent`, its settings, and what it says of a task's checks and asks of them at Publish ([authoring](authoring.md)) (a shared component it shows, such as a source passage's page, already follows the language); an organization's language; a language menu in the learn app, which follows the browser, as a choice made on the console's `/login` is another host's.
 
 ## Decisions
 

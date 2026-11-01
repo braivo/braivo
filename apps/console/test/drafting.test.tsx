@@ -307,6 +307,124 @@ describe("the console", () => {
     });
   });
 
+  test("says what a learner may run into with a drafted task, adding an answer to the draft alone", async () => {
+    const braivo = authoring();
+    const [greet, bye] = drafted.objectives;
+    braivo.draftCourse.mockResolvedValue({
+      ...drafted,
+      objectives: [
+        {
+          ...greet!,
+          tasks: [
+            { kind: "typed", prompt: "Hello?", accepted: ["Hola."], citations: [hello] },
+            greet!.tasks[1]!,
+          ],
+        },
+        bye!,
+      ],
+    } as typeof drafted);
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    expect(
+      await screen.findByText(
+        "“Hola.” is accepted, “Hola” is not: a learner who leaves out the final mark is marked wrong. Check whether it should count too.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit “Hello?” and add “Hola”" }));
+    const answers = screen.getByLabelText<HTMLTextAreaElement>("Accepted answers, one a line");
+    expect(answers.value).toBe("Hola.\nHola");
+    expect(document.activeElement).toBe(answers);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    // Changed in the draft, nothing sent: the note goes, the answer stays.
+    await vi.waitFor(() =>
+      expect(screen.queryByLabelText("Accepted answers, one a line")).toBeNull(),
+    );
+    expect(screen.queryByText(/is accepted, “Hola” is not/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
+    const [{ objectives }] = braivo.acceptDraft.mock.calls[0] as unknown as [
+      { objectives: { tasks: object[] }[] },
+    ];
+    expect(objectives[0]!.tasks[0]).toEqual({
+      kind: "typed",
+      prompt: "Hello?",
+      accepted: ["Hola.", "Hola"],
+      citations: [hello],
+    });
+  });
+
+  test("adds a suggested answer to its own task only, even once its objective was dropped mid-edit", async () => {
+    const braivo = authoring();
+    const [greet, bye] = drafted.objectives;
+    braivo.draftCourse.mockResolvedValue({
+      ...drafted,
+      objectives: [
+        {
+          ...greet!,
+          tasks: [{ kind: "typed", prompt: "Hello?", accepted: ["Hola."], citations: [hello] }],
+        },
+        {
+          ...bye!,
+          tasks: [{ kind: "typed", prompt: "Bye?", accepted: ["adiós"], citations: [hello] }],
+        },
+      ],
+    } as unknown as typeof drafted);
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello?” and add “Hola”" }));
+    // Dropping its objective closes the edit, the suggestion with it.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit “Bye?”" }));
+
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Accepted answers, one a line").value).toBe(
+      "adiós",
+    );
+
+    // Nor again on its own task's plain Edit, once cancelled.
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello?” and add “Hola”" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello?”" }));
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Accepted answers, one a line").value).toBe(
+      "Hola.",
+    );
+  });
+
+  test("says nothing of a drafted task unticked, as it will not be created", async () => {
+    const braivo = authoring();
+    const [greet, bye] = drafted.objectives;
+    braivo.draftCourse.mockResolvedValue({
+      ...drafted,
+      objectives: [
+        {
+          ...greet!,
+          tasks: [
+            { kind: "typed", prompt: "Hello?", accepted: ["Hola."], citations: [hello] },
+            greet!.tasks[1]!,
+          ],
+        },
+        bye!,
+      ],
+    } as typeof drafted);
+    renderAt("/example/sources/s1", { braivo });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    const add = { name: "Edit “Hello?” and add “Hola”" };
+    expect(await screen.findByRole("button", add)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep “Hello?”" }));
+    expect(screen.queryByRole("button", add)).toBeNull();
+    expect(screen.queryByText(/is accepted, “Hola” is not/)).toBeNull();
+
+    // Kept again, said again.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Keep “Hello?”" }));
+    expect(screen.getByRole("button", add)).toBeTruthy();
+  });
+
   test("creates a course with the owner's correction to an objective's title", async () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });

@@ -6,7 +6,9 @@ import { Badge } from "@braivo/ui/components/badge";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Fragment, useRef, useState } from "react";
 
+import { findingsId, hasFindings } from "#components/findings";
 import {
+  type Editing,
   formatTaskCount,
   type PublishAction,
   PublishBar,
@@ -71,8 +73,8 @@ function Objective() {
   const pending = tasks.filter(({ published }) => !published);
   const selected = pending.filter(({ id }) => selection.selectedIds.has(id));
   // One editor on the page, open only while its task is listed, as on a course's.
-  const [editingId, setEditingId] = useState<string>();
-  const editing = tasks.some(({ id }) => id === editingId) ? editingId : undefined;
+  const [editingTask, setEditingTask] = useState<Editing>();
+  const editing = tasks.some(({ id }) => id === editingTask?.taskId) ? editingTask : undefined;
   const publication = usePublish({
     onStart: () => setStatusMessage(""),
     onDone: (message) => {
@@ -91,15 +93,9 @@ function Objective() {
     action,
     label,
     disabled: editing !== undefined || sent.length === 0,
-    // Publishing here reaches each published course it is in: named first.
-    confirm:
-      publishedCourses.length === 0
-        ? undefined
-        : {
-            title: `Publish ${formatTaskCount(sent.length)}?`,
-            description: `Learners of ${publishedCourses.length === 1 ? "this course" : "these courses"} will be asked ${sent.length === 1 ? "it" : "them"}:`,
-            courses: publishedCourses,
-          },
+    // Asked first when some of them have findings, or they reach published
+    // courses, named. What a course is left without is its own page's to say.
+    confirm: confirmation(sent),
     onPublish: () => {
       if (editing !== undefined) return;
       void publication.publish(
@@ -109,6 +105,27 @@ function Objective() {
       );
     },
   });
+
+  function confirmation(sent: readonly ReviewTask[]): PublishAction["confirm"] {
+    const flagged = sent.filter(hasFindings);
+    if (flagged.length === 0 && publishedCourses.length === 0) return undefined;
+    return {
+      title: `Publish ${formatTaskCount(sent.length)}?`,
+      ...(flagged.length > 0 && {
+        checks: {
+          taskCount: flagged.length,
+          objectivesWithoutPractice: [],
+          onReview: () => document.getElementById(findingsId(flagged[0]!.id))?.focus(),
+        },
+      }),
+      ...(publishedCourses.length > 0 && {
+        reach: {
+          description: `Learners of ${publishedCourses.length === 1 ? "this course" : "these courses"} will be asked ${sent.length === 1 ? "it" : "them"}:`,
+          courses: publishedCourses,
+        },
+      }),
+    };
+  }
 
   return (
     <>
@@ -191,7 +208,7 @@ function Objective() {
             sources={sources}
             selection={selection}
             editing={editing}
-            onEdit={setEditingId}
+            onEdit={setEditingTask}
             pending={publication.publishing !== undefined}
             onChanged={focusHeading}
           />
@@ -209,7 +226,7 @@ function Objective() {
           tasks={tasks}
           sources={sources}
           editing={editing}
-          onEdit={setEditingId}
+          onEdit={setEditingTask}
           pending={publication.publishing !== undefined}
           onChanged={focusHeading}
         />

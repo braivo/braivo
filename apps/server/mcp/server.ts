@@ -70,7 +70,8 @@ task's correction. A pending task's replaces it at once; a published task's
 waits for its owner to publish it, the old one published meanwhile, and
 list_tasks shows it with replaces. retire_tasks withdraws a pending task; a
 published one is retired in Braivo's console. Neither regrades what learners
-already answered.`;
+already answered. A task's findings say what a learner may run into with it:
+review them before handing the course to its owner, as author_tasks says.`;
 
 /** What makes a refused call or a repeated one safe to send again. */
 const RETRYING = `Line breaks and spacing in a quote may differ from the source, nothing else. If
@@ -425,6 +426,12 @@ export function createMcpServer(
     async (input) => answer({ citations: await client.citeSources(input) }),
   );
 
+  /**
+   * What a task's `findings` mean and what to do about them: said where tasks
+   * are written and read back, so an agent fixes them before its owner reviews.
+   */
+  const FINDINGS = `A task may carry findings, what a learner may run into with it as written: typed-trailing-punctuation, an answer accepted with its final mark but not without it (suggestion, the answer to add); typed-literal-delimiters, an answer whose slash or parentheses are matched as written, not read as alternatives; choice-correct-alike, a correct option that differs from another only in case, quotes or apostrophes, or a final mark (differences). Review each, leaving one that is right as written: for a typed task, when the answer a learner would likely give should count, correct the task with it added; for a choice task, correct the distractor so it clearly differs from the correct option, which stays as it is; keep everything else. A published task with a correction pending takes no second one, and Braivo says so, naming it: read that correction; if it already resolves the finding, leave it for its owner to publish; otherwise correct the pending one's ID instead, keeping its edits.`;
+
   /** What every kind of task is authored with. */
   const taskFields = {
     objectiveId: z.string().min(1),
@@ -447,8 +454,7 @@ export function createMcpServer(
     "author_tasks",
     {
       title: "Author tasks",
-      description:
-        "Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Answers each task in order: its id; added, false for one there already, pending or published, so retrying is safe (a retired one is added anew); published, false while it waits for its owner to publish it; and for a pending correction of a published task, replaces, naming that task. With them, reviewUrl, when available: the console page where the content owner publishes them. New tasks wait for the content owner to publish them in Braivo's console, which you cannot do; published, a task serves every course its objective is in. Tasks are never edited: one task sent alone with replaces corrects one, and a published one's correction waits for publishing too; a correction regrades nothing already answered.",
+      description: `Adds tasks, each practising one objective and citing the passages it was written from: multiple-choice, or typed, where the learner types a short answer (a word, a phrase), recalling rather than recognising it. Answers each task in order: its id; added, false for one there already, pending or published, so retrying is safe (a retired one is added anew); published, false while it waits for its owner to publish it; for a pending correction of a published task, replaces, naming that task; and its findings, if any (below). With them, reviewUrl, when available: the console page where the content owner publishes them. New tasks wait for the content owner to publish them in Braivo's console, which you cannot do; published, a task serves every course its objective is in. Tasks are never edited: one task sent alone with replaces corrects one, and a published one's correction waits for publishing too; a correction regrades nothing already answered. ${FINDINGS}`,
       inputSchema: z.object({
         organizationId,
         tasks: z
@@ -515,8 +521,7 @@ export function createMcpServer(
     "list_tasks",
     {
       title: "List tasks",
-      description:
-        "An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a pending correction of a published task names it in replaces, and a pending task identical to one retired before is marked matchesRetiredTask. Read them before writing more, to review a course or to avoid near-duplicates.",
+      description: `An objective's tasks, oldest first, each with its ID, answer, the passages it cites, and whether it is published or waits for its owner to publish it; a pending correction of a published task names it in replaces, and a pending task identical to one retired before is marked matchesRetiredTask. Read them before writing more, to review a course or to avoid near-duplicates. ${FINDINGS}`,
       inputSchema: z.object({ organizationId, objectiveId: z.string().min(1) }),
       annotations: READ_ONLY,
     },
@@ -565,7 +570,7 @@ export function createMcpServer(
     {
       title: "Read a course",
       description:
-        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. A pending task identical to one retired before is marked matchesRetiredTask. Learners reach it only while it is published and not hidden by its owner (hidden). Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
+        "One course as authored: its objectives in the order learners meet them, each with the passages that teach it and its tasks, answers and quotes included. A pending task identical to one retired before is marked matchesRetiredTask, and a task carries findings as list_tasks says. Learners reach it only while it is published and not hidden by its owner (hidden). Read it to review a whole course at once; for less, list_objectives and list_tasks answer an objective at a time.",
       inputSchema: z.object({ organizationId, courseId: z.string().min(1) }),
       annotations: READ_ONLY,
     },

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type BraivoClient, BraivoError } from "@braivo/server/client";
+import { type BraivoClient, BraivoError, taskFindings } from "@braivo/server/client";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
@@ -251,6 +251,69 @@ describe("an objective's page", () => {
     expect(publish).toHaveBeenCalledWith(
       { organizationId: "org-1", taskIds: ["t1"] },
       { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  test("says what a learner may run into with its tasks, asking before publishing them", async () => {
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {});
+    const typed = (id: string, prompt: string, accepted: string[]) => ({
+      ...task(id, prompt),
+      kind: "typed" as const,
+      accepted,
+      options: undefined,
+      answer: undefined,
+      findings: taskFindings({ kind: "typed", prompt, accepted }),
+    });
+    renderAt("/example/objectives/numbers", {
+      braivo: {
+        listObjectives: async () => [numbers],
+        listTasks: async () => [
+          task("t1", "One?"),
+          typed("t2", "Two, in words?", ["Two."]),
+          typed("t3", "Three, in words?", ["Three!"]),
+        ],
+        listCourses: async () => [],
+        listSources: async () => sources,
+        publish,
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "“Two.” is accepted, “Two” is not: a learner who leaves out the final mark is marked wrong. Check whether it should count too.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Edit unpublished task “Three, in words?” and add “Three”",
+      }),
+    ).toBeTruthy();
+
+    // Asked first, though they reach no published course; the first selected one reviewed.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select unpublished task “One?”" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select unpublished task “Three, in words?”" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Publish selected (2)" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("1 of these tasks has checks to review");
+    expect(dialog.textContent).not.toContain("objective");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review them" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.getElementById("findings-t3")),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish selected (2)" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Publish anyway",
+      }),
+    );
+    await waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(
+        { organizationId: "org-1", taskIds: ["t1", "t3"] },
+        { signal: expect.any(AbortSignal) },
+      ),
     );
   });
 
