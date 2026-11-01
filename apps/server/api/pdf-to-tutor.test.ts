@@ -28,6 +28,7 @@ const page12 = "Hola significa hello.\nAdiós significa goodbye.";
 
 /** A model that reads the book above, and drafts from it, as a real one would. */
 const model: Model = {
+  id: "test-model",
   answer: async ({ name, files }) => {
     if (name === "transcribe") {
       expect(new TextDecoder().decode(files?.[0]?.bytes)).toBe(book);

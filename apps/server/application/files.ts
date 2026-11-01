@@ -9,7 +9,7 @@ import { extractPages } from "../ai/index.ts";
 import type { Page } from "../content/index.ts";
 import { readFile, recordFile, type StoredFile } from "../persistence/index.ts";
 import type { FileStore } from "../storage/index.ts";
-import { type Ai, InvalidAiRequest, modelFor } from "./ai.ts";
+import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 import { assertMayAuthor } from "./permission.ts";
 
 /** This installation was started without a file store, so keeps no files. */
@@ -140,7 +140,7 @@ export async function readFileText(input: {
   const { database, ai, files, organizationId, actingAs, fileId } = input;
   if (files === undefined) throw new FilesUnavailable();
 
-  const { model, charge } = await modelFor(database, ai, { organizationId, actingAs });
+  const { ask } = await aiFor(database, ai, { organizationId, actingAs });
   if (!FILE_ID.test(fileId)) return undefined;
   const file = await readFile(database, organizationId, fileId);
   if (!file) return undefined;
@@ -161,8 +161,19 @@ export async function readFileText(input: {
 
   const blob = await files.get(keyOf(organizationId, fileId));
   if (!blob) throw new Error(`File ${fileId} is recorded, and missing from the file store.`);
-  // Read before charging: a store failing here has asked no model anything.
+  // Read before asking: a store failing here has asked no model anything.
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  await charge("read", input.now);
-  return extractPages(model, { mediaType: file.contentType, bytes }, input.signal);
+  return ask({
+    kind: "read",
+    now: input.now,
+    signal: input.signal,
+    work: async (model) => {
+      const { pages, counts } = await extractPages(
+        model,
+        { mediaType: file.contentType, bytes },
+        input.signal,
+      );
+      return { result: pages, counts };
+    },
+  });
 }

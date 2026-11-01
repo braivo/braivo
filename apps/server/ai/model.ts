@@ -8,6 +8,8 @@
  * whoever asks validates it.
  */
 export type Model = {
+  /** The provider's name for the model, as the ledger records it, such as `claude-sonnet-5`. */
+  id: string;
   answer(request: {
     system: string;
     prompt: string;
@@ -26,9 +28,25 @@ export type Model = {
 /** A file a model reads: a PDF, or an image in a format models take. */
 export type ModelFile = { mediaType: string; bytes: Uint8Array };
 
+/**
+ * Why a model did not answer usably, as the ledger records it: a kind, never
+ * the message. The last three come after an answer arrived, from checking it.
+ */
+export type ModelFailureCode =
+  | "unreachable"
+  | "timeout"
+  | "provider-error"
+  | "cut-short"
+  | "wrong-shape"
+  | "invalid-output"
+  | "no-words";
+
 /** The model did not answer usably: unreachable, refused, or cut short. Nothing was stored. */
 export class ModelUnavailable extends Error {
-  constructor(message: string) {
+  constructor(
+    readonly failure: ModelFailureCode,
+    message: string,
+  ) {
     super(message);
     this.name = "ModelUnavailable";
   }
@@ -53,6 +71,7 @@ export function anthropicModel(options: {
   const send = options.fetch ?? globalThis.fetch;
 
   return {
+    id: options.model,
     async answer({ system, prompt, files = [], name, description, schema, signal }) {
       // The dialect marker is JSON Schema's, not a property the API reads.
       const inputSchema = { ...schema };
@@ -82,21 +101,28 @@ export function anthropicModel(options: {
           signal: AbortSignal.any([AbortSignal.timeout(TIMEOUT_MS), ...(signal ? [signal] : [])]),
         });
       } catch (error) {
-        throw new ModelUnavailable(`The model could not be reached: ${String(error)}`);
+        throw unreachable(error);
       }
 
       if (!response.ok) {
         await response.body?.cancel();
-        throw new ModelUnavailable(`The model answered ${response.status}.`);
+        throw new ModelUnavailable("provider-error", `The model answered ${response.status}.`);
+      }
+      // Read whole before parsing: a body cut off by a timeout or a lost
+      // connection is the model unreachable, and only a whole one that is no
+      // JSON is the wrong shape.
+      let body: string;
+      try {
+        body = await response.text();
+      } catch (error) {
+        throw unreachable(error);
       }
       // Its fields read as unknown: any answer but the expected one is the model failing (generation-12),
       // never a TypeError that would surface as a bare 500.
-      const message = ((await response.json().catch(() => null)) ?? {}) as {
-        stop_reason?: unknown;
-        content?: unknown;
-      };
+      const message = (parseJson(body) ?? {}) as { stop_reason?: unknown; content?: unknown };
       if (message.stop_reason === "max_tokens") {
         throw new ModelUnavailable(
+          "cut-short",
           "The model's answer was cut short; send less at once — a chapter, not a book.",
         );
       }
@@ -110,10 +136,37 @@ export function anthropicModel(options: {
           "name" in block &&
           block.name === name,
       );
-      if (!call) throw new ModelUnavailable("The model answered without the shape asked for.");
+      if (!call) {
+        throw new ModelUnavailable(
+          "wrong-shape",
+          "The model answered without the shape asked for.",
+        );
+      }
       return call.input;
     },
   };
+}
+
+/**
+ * A request that failed before a whole answer arrived: our own timeout, or
+ * anything else, a caller's abort included, which the caller tells apart by
+ * its own signal.
+ */
+function unreachable(error: unknown): ModelUnavailable {
+  return error instanceof Error && error.name === "TimeoutError"
+    ? new ModelUnavailable(
+        "timeout",
+        `The model did not answer in time, ${TIMEOUT_MS / 60_000} minutes; send less at once.`,
+      )
+    : new ModelUnavailable("unreachable", `The model could not be reached: ${String(error)}`);
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 /** A PDF as a document, anything else as an image: the two kinds the API reads. */

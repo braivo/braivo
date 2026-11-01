@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, test } from "vite-plus/test";
+import * as z from "zod";
 
-import { draftCourse } from "./draft.ts";
-import { extractPages } from "./extract.ts";
+import { DRAFT_OPERATION, draftCourse } from "./draft.ts";
+import { extractPages, READ_OPERATION } from "./extract.ts";
 import { anthropicModel, type Model, ModelUnavailable } from "./model.ts";
+import { fill, promptVersion } from "./operation.ts";
 
 const source = {
   id: "8c1f2d3e-0000-4000-8000-000000000001",
@@ -18,6 +20,7 @@ const source = {
 function answering(answer: unknown) {
   const asked: Parameters<Model["answer"]>[0][] = [];
   const model: Model = {
+    id: "test-model",
     answer: async (request) => {
       asked.push(request);
       return answer;
@@ -47,7 +50,7 @@ describe("drafting a course from a source", () => {
       ],
     });
 
-    const draft = await draftCourse(model, source, { audience: "grade 2, English speakers" });
+    const { draft } = await draftCourse(model, source, { audience: "grade 2, English speakers" });
 
     expect(draft).toEqual({
       objectives: [
@@ -115,7 +118,7 @@ describe("drafting a course from a source", () => {
       ],
     });
 
-    const draft = await draftCourse(model, source);
+    const { draft } = await draftCourse(model, source);
 
     expect(draft.objectives.map(({ tasks }) => tasks)).toEqual([
       [
@@ -186,7 +189,7 @@ describe("drafting a course from a source", () => {
       ],
     });
 
-    const draft = await draftCourse(model, source);
+    const { draft, counts } = await draftCourse(model, source);
 
     expect(draft.objectives).toMatchObject([
       {
@@ -208,6 +211,20 @@ describe("drafting a course from a source", () => {
       "Objective “Both”: the quote “Azul y rojo.” does not occur in the source.",
       "Objective “Both”: none of its quotes was found in the source.",
     ]);
+    // Counted as validation decides, one code per refusal line: never read back from the words.
+    expect(counts).toEqual({
+      proposed: { objectives: 4, tasks: 6 },
+      kept: { objectives: 1, tasks: 1 },
+      refusals: {
+        "task-invalid": 2,
+        "quote-missing": 3,
+        "task-without-quote": 1,
+        "quote-ambiguous": 1,
+        "title-invalid": 1,
+        "objective-without-task": 1,
+        "objective-without-quote": 1,
+      },
+    });
   });
 
   test("makes each objective a key of its own, so another draft makes others", async () => {
@@ -217,7 +234,7 @@ describe("drafting a course from a source", () => {
       ],
     };
 
-    const [first, second] = await Promise.all([
+    const [{ draft: first }, { draft: second }] = await Promise.all([
       draftCourse(answering(answer).model, source),
       draftCourse(answering(answer).model, source),
     ]);
@@ -238,7 +255,7 @@ describe("drafting a course from a source", () => {
       ),
     });
 
-    const draft = await draftCourse(model, { ...source, text: lines.join("\n") });
+    const { draft, counts } = await draftCourse(model, { ...source, text: lines.join("\n") });
 
     // Accepting sends every objective quote in one request, and every task
     // quote in another, each at most 200.
@@ -256,6 +273,13 @@ describe("drafting a course from a source", () => {
     expect(draft.refused).toContain(
       "Objective “Lines”, task “¿Línea 5?”: more than 5 tasks were drafted.",
     );
+    // 12 kept objectives each read 5 of 12 quotes and keep 5 of 6 tasks, each reading 3.
+    expect(counts).toEqual({
+      proposed: { objectives: 14, tasks: 84 },
+      kept: { objectives: 12, tasks: 60 },
+      refusals: { "objective-cap": 2, "task-cap": 12, "quote-cap": 72 },
+    });
+    expect(draft.refused).toHaveLength(86);
   });
 
   test("refuses a title the objective endpoint would", async () => {
@@ -270,7 +294,7 @@ describe("drafting a course from a source", () => {
       ],
     });
 
-    const draft = await draftCourse(model, source);
+    const { draft } = await draftCourse(model, source);
 
     expect(draft.objectives).toEqual([]);
     // Named, cut short, as the owner never saw it.
@@ -280,9 +304,10 @@ describe("drafting a course from a source", () => {
   });
 
   test("says the model failed when it answers in another shape", async () => {
-    await expect(draftCourse(answering({ courses: [] }).model, source)).rejects.toBeInstanceOf(
-      ModelUnavailable,
-    );
+    await expect(draftCourse(answering({ courses: [] }).model, source)).rejects.toMatchObject({
+      constructor: ModelUnavailable,
+      failure: "wrong-shape",
+    });
   });
 });
 
@@ -298,19 +323,30 @@ describe("reading a file's text", () => {
       ],
     });
 
-    expect(await extractPages(model, pdf)).toEqual([
-      { page: "i", text: "Índice" },
-      { page: "3", text: "Hola significa hello." },
-    ]);
+    expect(await extractPages(model, pdf)).toEqual({
+      pages: [
+        { page: "i", text: "Índice" },
+        { page: "3", text: "Hola significa hello." },
+      ],
+      // A blank page the model left out, as asked, is not knowable from its answer.
+      counts: { pages: 2, blankEntries: 1 },
+    });
     expect(asked[0]?.files).toEqual([pdf]);
   });
 
   test.each([
-    ["no words at all", { pages: [{ page: "1", text: " " }] }, "found no words"],
-    ["a page no source can have", { pages: [{ page: "", text: "Hola" }] }, "Page 0 needs `page`"],
-    ["another shape", { text: "Hola" }, "shape asked for"],
-  ])("says the model failed when it answers %s", async (_label, answer, message) => {
-    await expect(extractPages(answering(answer).model, pdf)).rejects.toThrow(message);
+    ["no words at all", { pages: [{ page: "1", text: " " }] }, "found no words", "no-words"],
+    [
+      "a page no source can have",
+      { pages: [{ page: "", text: "Hola" }] },
+      "Page 0 needs `page`",
+      "invalid-output",
+    ],
+    ["another shape", { text: "Hola" }, "shape asked for", "wrong-shape"],
+  ])("says the model failed when it answers %s", async (_label, answer, message, failure) => {
+    const reading = extractPages(answering(answer).model, pdf);
+    await expect(reading).rejects.toThrow(message);
+    await expect(reading).rejects.toMatchObject({ failure });
   });
 });
 
@@ -397,19 +433,154 @@ describe("Anthropic's Messages API", () => {
     ]);
   });
 
+  /** A fetch that fails as `error`, or answers headers and then fails reading the body as it. */
+  function failing(error: Error, at: "connecting" | "reading") {
+    return (async () => {
+      if (at === "connecting") throw error;
+      return new Response(
+        new ReadableStream({
+          pull: (controller) => controller.error(error),
+        }),
+      );
+    }) as unknown as typeof globalThis.fetch;
+  }
+  const timedOut = () => new DOMException("The operation timed out.", "TimeoutError");
+
   test.each([
-    ["an error status", replying(529, { error: "overloaded" }), "answered 529"],
-    ["an answer cut short", replying(200, { stop_reason: "max_tokens", content: [] }), "cut short"],
-    ["no call of the tool", replying(200, { content: [{ type: "text", text: "No." }] }), "shape"],
-    ["no message", replying(200, null), "shape"],
-    ["content that is no list", replying(200, { content: {} }), "shape"],
-    ["a null content block", replying(200, { content: [null] }), "shape"],
-  ])("fails as unavailable on %s", async (_label, { fetch }, message) => {
+    [
+      "an error status",
+      replying(529, { error: "overloaded" }).fetch,
+      "answered 529",
+      "provider-error",
+    ],
+    [
+      "an answer cut short",
+      replying(200, { stop_reason: "max_tokens", content: [] }).fetch,
+      "cut short",
+      "cut-short",
+    ],
+    [
+      "no call of the tool",
+      replying(200, { content: [{ type: "text", text: "No." }] }).fetch,
+      "shape",
+      "wrong-shape",
+    ],
+    ["no message", replying(200, null).fetch, "shape", "wrong-shape"],
+    ["content that is no list", replying(200, { content: {} }).fetch, "shape", "wrong-shape"],
+    ["a null content block", replying(200, { content: [null] }).fetch, "shape", "wrong-shape"],
+    [
+      "a body that is no JSON",
+      (async () => new Response("{")) as unknown as typeof globalThis.fetch,
+      "shape",
+      "wrong-shape",
+    ],
+    [
+      "no connection",
+      failing(new TypeError("fetch failed"), "connecting"),
+      "reached",
+      "unreachable",
+    ],
+    [
+      "a connection lost mid-answer",
+      failing(new TypeError("closed"), "reading"),
+      "reached",
+      "unreachable",
+    ],
+    ["its own timeout before answering", failing(timedOut(), "connecting"), "in time", "timeout"],
+    ["its own timeout mid-answer", failing(timedOut(), "reading"), "in time", "timeout"],
+  ])("fails as unavailable on %s", async (_label, fetch, message, failure) => {
     const model = anthropicModel({ apiKey: "key", model: "claude-sonnet-5", fetch });
 
     // The class, not just the words: only a `ModelUnavailable` becomes the explained 502.
     const answer = model.answer(request);
     await expect(answer).rejects.toBeInstanceOf(ModelUnavailable);
     await expect(answer).rejects.toThrow(message);
+    // Classified, for the ledger, which records a kind and never a message.
+    await expect(answer).rejects.toMatchObject({ failure });
+  });
+
+  test("is identified by the model it was configured with", () => {
+    const { fetch } = replying(200, {});
+    expect(anthropicModel({ apiKey: "key", model: "claude-opus-5-5", fetch }).id).toBe(
+      "claude-opus-5-5",
+    );
+  });
+});
+
+describe("an operation's prompt version", () => {
+  const version = promptVersion(DRAFT_OPERATION);
+
+  test("is 12 hex digits, the same in another process", async () => {
+    expect(version).toMatch(/^[0-9a-f]{12}$/);
+    expect(promptVersion(READ_OPERATION)).not.toBe(version);
+
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const { DRAFT_OPERATION } = await import(${JSON.stringify(new URL("./draft.ts", import.meta.url).pathname)});
+         const { promptVersion } = await import(${JSON.stringify(new URL("./operation.ts", import.meta.url).pathname)});
+         console.log(promptVersion(DRAFT_OPERATION));`,
+      ],
+      { stdout: "pipe" },
+    );
+    expect((await new Response(child.stdout).text()).trim()).toBe(version);
+  });
+
+  test.each([
+    ["the system text", { system: `${DRAFT_OPERATION.system} ` }],
+    ["the message template", { template: `${DRAFT_OPERATION.template}\n` }],
+    ["the default audience", { parts: { ...DRAFT_OPERATION.parts, audience: "adults" } }],
+    [
+      "the language clause",
+      { parts: { ...DRAFT_OPERATION.parts, language: " (in {{language}})" } },
+    ],
+    ["the tool's name", { tool: { ...DRAFT_OPERATION.tool, name: "draft" } }],
+    ["the tool's description", { tool: { ...DRAFT_OPERATION.tool, description: "Drafts." } }],
+    ["a schema field", { schema: z.object({ objectives: z.array(z.string()) }) }],
+  ])("changes with %s", (_label, change) => {
+    expect(promptVersion({ ...DRAFT_OPERATION, ...change })).not.toBe(version);
+  });
+
+  test("changes with the order of a schema's fields, which the model reads in order", () => {
+    const one = z.object({ a: z.string(), b: z.number() });
+    const same = z.object({ a: z.string(), b: z.number() });
+    const reordered = z.object({ b: z.number(), a: z.string() });
+    const of = (schema: z.ZodType) => promptVersion({ ...READ_OPERATION, schema });
+    expect(of(one)).toBe(of(same));
+    expect(of(one)).not.toBe(of(reordered));
+  });
+
+  test("is what drafting sends, whatever the audience, title, language, or material", async () => {
+    const { model, asked } = answering({ objectives: [] });
+
+    await draftCourse(model, source, { audience: "grade 2, English speakers" });
+    await draftCourse(model, { ...source, title: "Colores", text: "Verde.", language: undefined });
+
+    for (const request of asked) {
+      expect(request.system).toBe(DRAFT_OPERATION.system);
+      expect(request.name).toBe(DRAFT_OPERATION.tool.name);
+      expect(request.description).toBe(DRAFT_OPERATION.tool.description);
+      expect(request.schema).toEqual(z.toJSONSchema(DRAFT_OPERATION.schema));
+    }
+    // Only the template's placeholders differ, each filled once, never re-read.
+    expect(asked[0]!.prompt).toBe(
+      fill(DRAFT_OPERATION.template, {
+        audience: "grade 2, English speakers",
+        title: source.title,
+        language: fill(DRAFT_OPERATION.parts.language, { language: "es" }),
+        material: source.text,
+      }),
+    );
+    expect(asked[1]!.prompt).toBe(
+      fill(DRAFT_OPERATION.template, {
+        audience: DRAFT_OPERATION.parts.audience,
+        title: "Colores",
+        language: "",
+        material: "Verde.",
+      }),
+    );
+    expect(asked[1]!.prompt).toContain("Learners: young learners at school.");
+    expect(fill("{{a}} {{b}}", { a: "{{b}}", b: "x" })).toBe("{{b}} x");
   });
 });

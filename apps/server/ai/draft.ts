@@ -13,6 +13,7 @@ import {
   type TaskBody,
 } from "../content/index.ts";
 import { type Model, ModelUnavailable } from "./model.ts";
+import { answer, fill, type Operation } from "./operation.ts";
 
 /** A quote as the authoring endpoints take it, so an accepted draft is sent as it is. */
 export type DraftQuote = { sourceId: string; quote: string };
@@ -36,6 +37,32 @@ export type Draft = {
     tasks: (TaskBody & { citations: DraftQuote[] })[];
   }[];
   refused: string[];
+};
+
+/**
+ * Why a drafted item was refused, one code per line of `refused`, as the
+ * ledger counts them: taken where validation decides, never read back from
+ * the words.
+ */
+export type DraftRefusalCode =
+  | "objective-cap"
+  | "title-invalid"
+  | "task-cap"
+  | "task-invalid"
+  | "task-without-quote"
+  | "quote-cap"
+  | `quote-${"blank" | "too-long" | "missing" | "ambiguous"}`
+  | "objective-without-quote"
+  | "objective-without-task";
+
+/**
+ * How a draft went, for the ledger: what the model proposed, before any cap,
+ * what Braivo kept, and why it refused the rest. Numbers only, no content.
+ */
+export type DraftCounts = {
+  proposed: { objectives: number; tasks: number };
+  kept: { objectives: number; tasks: number };
+  refusals: Partial<Record<DraftRefusalCode, number>>;
 };
 
 /** Enough for a unit's worth of material; a larger one is several sources. */
@@ -122,6 +149,28 @@ For vocabulary, each word or phrase is its own objective, one meaning each. Writ
 
 Every quote is copied exactly from one continuous passage of the material and must occur only once in it: Braivo checks each one, and drops what it cannot find or finds more than once. Line breaks may be written as spaces; the words, their order, letter case, and punctuation stay as in the material. Material repeats itself: a word in a word list comes back in the examples, the dialogue, and the exercises, and so do whole example sentences. So before choosing a quote, look for its words elsewhere in the material, and if they are there, extend the quote with the words right next to it until no other place matches, such as the translation beside a word in a word list, a dialogue line's speaker, or an exercise's number. Never join words from separate places, and never paraphrase. For example, where a word list has "le pain" on the line above "the bread", the examples have "Je voudrais le pain, s'il vous plaît." and a dialogue has "Paul: Je voudrais le pain, s'il vous plaît.", quote "le pain the bread" or "Paul: Je voudrais le pain", never "le pain" or "Je voudrais le pain, s'il vous plaît". Teach only what the material teaches.`;
 
+/** What drafting tells the model; a request fills in the learners and the material. */
+export const DRAFT_OPERATION = {
+  system: SYSTEM,
+  template: `Learners: {{audience}}.
+Material: "{{title}}"{{language}}.
+
+<material>
+{{material}}
+</material>`,
+  parts: {
+    /** Who the course is for when the content owner says nothing. */
+    audience: "young learners at school",
+    /** Said only when the source names its language. */
+    language: ", in {{language}}",
+  },
+  tool: {
+    name: "draft_course",
+    description: "Proposes the course: its objectives, each with its quotes and tasks.",
+  },
+  schema: Answer,
+} satisfies Operation;
+
 /**
  * Drafts a course from one source with `model`, keeping only what Braivo would
  * accept, and only what traces to the source: a quote not found once in it, a
@@ -132,35 +181,40 @@ export async function draftCourse(
   model: Model,
   source: { id: string; title: string; text: string; language?: string },
   options: { audience?: string; signal?: AbortSignal } = {},
-): Promise<Draft> {
-  const answered = await model.answer({
-    system: SYSTEM,
-    prompt: [
-      `Learners: ${options.audience ?? "young learners at school"}.`,
-      `Material: "${source.title}"${source.language ? `, in ${source.language}` : ""}.`,
-      "",
-      "<material>",
-      source.text,
-      "</material>",
-    ].join("\n"),
-    name: "draft_course",
-    description: "Proposes the course: its objectives, each with its quotes and tasks.",
-    schema: z.toJSONSchema(Answer),
+): Promise<{ draft: Draft; counts: DraftCounts }> {
+  const { parts } = DRAFT_OPERATION;
+  const answered = await answer(model, DRAFT_OPERATION, {
+    values: {
+      audience: options.audience ?? parts.audience,
+      title: source.title,
+      language: source.language ? fill(parts.language, { language: source.language }) : "",
+      material: source.text,
+    },
     signal: options.signal,
   });
   const parsed = Answer.safeParse(answered);
   if (!parsed.success)
-    throw new ModelUnavailable("The model answered without the shape asked for.");
+    throw new ModelUnavailable("wrong-shape", "The model answered without the shape asked for.");
 
   const refused: string[] = [];
+  const refusals: DraftCounts["refusals"] = {};
+  const refuse = (code: DraftRefusalCode, line: string) => {
+    refused.push(line);
+    refusals[code] = (refusals[code] ?? 0) + 1;
+  };
   // Only the first `limit` quotes are looked for: each is a scan of the source,
   // and the model's answer is not what bounds how many it sends.
   const cite = (quotes: string[], where: string, limit: number): DraftQuote[] => {
-    if (quotes.length > limit) refused.push(`${where}: only its first ${limit} quotes are read.`);
+    if (quotes.length > limit) {
+      refuse("quote-cap", `${where}: only its first ${limit} quotes are read.`);
+    }
     return quotes.slice(0, limit).flatMap((quote) => {
       const location = locateQuote(source.text, quote);
       if (location.kind === "located") return [{ sourceId: source.id, quote }];
-      refused.push(`${where}: the quote ${named(quote)} ${QUOTE_REFUSALS[location.kind]}.`);
+      refuse(
+        `quote-${location.kind}`,
+        `${where}: the quote ${named(quote)} ${QUOTE_REFUSALS[location.kind]}.`,
+      );
       return [];
     });
   };
@@ -171,11 +225,11 @@ export async function draftCourse(
       ? `Objective ${named(objective.title)}`
       : "An untitled objective";
     if (index >= MAX_OBJECTIVES) {
-      refused.push(`${where}: more than ${MAX_OBJECTIVES} objectives were drafted.`);
+      refuse("objective-cap", `${where}: more than ${MAX_OBJECTIVES} objectives were drafted.`);
       continue;
     }
     if (!isStorableText(objective.title, MAX_TITLE)) {
-      refused.push(`${where}: its title is blank or over ${MAX_TITLE} characters.`);
+      refuse("title-invalid", `${where}: its title is blank or over ${MAX_TITLE} characters.`);
       continue;
     }
     const title = objective.title.trim();
@@ -184,7 +238,7 @@ export async function draftCourse(
     for (const [taskIndex, task] of objective.tasks.entries()) {
       const at = `${where}, ${task.prompt.trim() ? `task ${named(task.prompt)}` : "a task without a question"}`;
       if (taskIndex >= MAX_TASKS) {
-        refused.push(`${at}: more than ${MAX_TASKS} tasks were drafted.`);
+        refuse("task-cap", `${at}: more than ${MAX_TASKS} tasks were drafted.`);
         continue;
       }
       const { quotes, explanation, answerLanguage, ...fields } = task;
@@ -198,28 +252,44 @@ export async function draftCourse(
         ...(explanation?.trim() ? { explanation } : {}),
       });
       if ("problem" in body) {
-        refused.push(`${at}: the task ${body.problem}.`);
+        refuse("task-invalid", `${at}: the task ${body.problem}.`);
         continue;
       }
       const citations = cite(quotes, at, MAX_TASK_CITATIONS);
       // Braivo's own writing is held to more than a person's: what it drafts
       // traces to the source, or it is not proposed (ADR 0029).
       if (citations.length === 0) {
-        refused.push(`${at}: none of its quotes was found in the source.`);
+        refuse("task-without-quote", `${at}: none of its quotes was found in the source.`);
         continue;
       }
       tasks.push({ ...body.body, citations });
     }
 
     const citations = cite(objective.quotes, where, MAX_OBJECTIVE_CITATIONS);
-    if (citations.length === 0 || tasks.length === 0) {
-      refused.push(
-        `${where}: ${citations.length === 0 ? "none of its quotes was found in the source" : "none of its tasks was kept"}.`,
-      );
+    if (citations.length === 0) {
+      refuse("objective-without-quote", `${where}: none of its quotes was found in the source.`);
+      continue;
+    }
+    if (tasks.length === 0) {
+      refuse("objective-without-task", `${where}: none of its tasks was kept.`);
       continue;
     }
     objectives.push({ key: crypto.randomUUID(), title, citations, tasks });
   }
 
-  return { objectives, refused };
+  const proposed = parsed.data.objectives;
+  return {
+    draft: { objectives, refused },
+    counts: {
+      proposed: {
+        objectives: proposed.length,
+        tasks: proposed.reduce((sum, objective) => sum + objective.tasks.length, 0),
+      },
+      kept: {
+        objectives: objectives.length,
+        tasks: objectives.reduce((sum, objective) => sum + objective.tasks.length, 0),
+      },
+      refusals,
+    },
+  };
 }

@@ -21,7 +21,8 @@ export {
   updateCourseUrlLabel,
   readLearnerCourses,
 } from "./course.ts";
-export { recordAiRequest } from "./ai-request.ts";
+export type { AiRequestCompletion } from "./ai-request.ts";
+export { completeAiRequest, readAiRequests, reserveAiRequest } from "./ai-request.ts";
 export {
   type Connection,
   deleteConnection,

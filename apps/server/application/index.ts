@@ -26,6 +26,8 @@ export { citeSources, InvalidCitation, listObjectiveCitations } from "./citation
 export type { AuthoredCourse, CourseSummary } from "./courses.ts";
 export type { AccessKind } from "./access.ts";
 export type { Ai } from "./ai.ts";
+export type { AiReportRow } from "./ai-report.ts";
+export { readAiReport } from "./ai-report.ts";
 export type { CourseProgressOverview } from "./course-progress.ts";
 export { readCourseProgress } from "./course-progress.ts";
 export { AiLimitReached, AiNotEntitled, AiUnavailable, InvalidAiRequest } from "./ai.ts";
