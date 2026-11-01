@@ -35,7 +35,7 @@ import { Label } from "@braivo/ui/components/label";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useRouteContext, useRouter } from "@tanstack/react-router";
+import { useBlocker, useRouteContext, useRouter } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { NoExplanation } from "#components/explanations";
@@ -452,6 +452,7 @@ export function TaskList(props: {
           <CorrectTask
             objectiveId={objectiveId}
             task={task}
+            sources={sources}
             answerToAdd={editing.answerToAdd}
             hasPendingCorrection={withPendingCorrection.has(task.id)}
             onDone={(outcome) => {
@@ -552,11 +553,13 @@ const taskName = (task: ReviewTask) =>
 /**
  * Edits a task the only way an immutable one can be: its correction, with the
  * task's passages and option order, replaces it in one step. Not asked first,
- * unlike retiring, since learners always have one or the other.
+ * unlike retiring, since learners always have one or the other. Its passages
+ * stay in view, what an explanation is written from.
  */
 function CorrectTask(props: {
   objectiveId: string;
   task: ReviewTask;
+  sources: ReadonlyMap<string, SourceSummary>;
   /** An accepted answer to add, from a finding: the editor opens with it, focused there. */
   answerToAdd?: string;
   /** A correction waits to replace it, which saving retires. */
@@ -568,10 +571,27 @@ function CorrectTask(props: {
   onDone: (outcome: { saved: TaskWriteResult } | "reloaded") => void;
   onCancel: () => void;
 }) {
-  const { objectiveId, task, answerToAdd, hasPendingCorrection, onDone, onCancel } = props;
+  const { objectiveId, task, sources, answerToAdd, hasPendingCorrection, onDone, onCancel } = props;
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
+  const { t } = useLingui();
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  // Braivo has the edit: the page is only reading it back.
+  const [written, setWritten] = useState(false);
+  const unsaved = dirty && !written;
+  // Leaving with an unsaved edit asks first, as does reloading or closing the
+  // tab, while it is being sent too, as it may never arrive. A changed query
+  // counts, as it may hide the task (a course narrowed); a hash and the page's
+  // own reload do not.
+  useBlocker({
+    shouldBlockFn: ({ current, next }) =>
+      unsaved &&
+      (current.pathname !== next.pathname ||
+        JSON.stringify(current.search) !== JSON.stringify(next.search)) &&
+      !window.confirm(t`Leave this page? Your edit to this task will be lost.`),
+    enableBeforeUnload: () => unsaved,
+  });
   // `stale` when someone changed the task first, so saving again cannot help.
   const [error, setError] = useState<{ text: string; stale?: true }>();
   const alert = useRef<HTMLDivElement>(null);
@@ -606,6 +626,7 @@ function CorrectTask(props: {
         // Bounded: an identical correction retried after a lost answer returns the stored task.
         { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) },
       );
+      setWritten(true);
       // `sync`: resolved once the page is read again, not with the old one
       // while it reloads in the background, which would offer the old task to edit.
       await router.invalidate({ sync: true });
@@ -665,10 +686,12 @@ function CorrectTask(props: {
           task={task}
           answerToAdd={answerToAdd}
           focusExplanation={!hasExplanation(task)}
+          onDirtyChange={setDirty}
           onSave={save}
           onCancel={onCancel}
         />
       </fieldset>
+      <Passages citations={task.citations} sources={sources} />
     </div>
   );
 }

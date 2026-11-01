@@ -6,11 +6,12 @@
 
 import { activateLocale } from "@braivo/i18n";
 import type { AuthoredCourse, BraivoClient } from "@braivo/server/client";
+import { createBrowserHistory } from "@tanstack/react-router";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { beginners, school } from "./fixtures.ts";
-import { renderAt } from "./render.tsx";
+import { answerLeaving, renderAt } from "./render.tsx";
 
 type Task = AuthoredCourse["objectives"][number]["tasks"][number];
 
@@ -606,6 +607,51 @@ describe("fixing one in place", () => {
 
     await vi.waitFor(() => expect(screen.queryByLabelText("Why the answer is right")).toBeNull());
     expect(screen.queryByText(/^Saved/)).toBeNull();
+  });
+
+  test("asks before history narrows the page past an unsaved edit, and closes it for good if left", async () => {
+    const confirm = answerLeaving(false);
+    // Two entries of the course, narrowed then whole, as from two links.
+    window.history.replaceState(null, "", "/example/courses/course-1?without=explanation");
+    const history = createBrowserHistory();
+    onTestFinished(() => {
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    });
+    const { router } = renderAt("", {
+      braivo: { readCourse: async () => course([explained, bare], []) },
+      history,
+    });
+    await screen.findByRole("button", { name: "Show all" });
+    await router.navigate({
+      to: "/$organizationSlug/courses/$courseId",
+      params: { organizationSlug: "example", courseId: "course-1" },
+      search: {},
+    });
+    // An explained task, which the narrowed page does not show.
+    fireEvent.click(await screen.findByRole("button", { name: "Edit “Explained?”" }));
+    const why = () => screen.getByLabelText("Why the answer is right") as HTMLTextAreaElement;
+    fireEvent.change(why(), { target: { value: "Because, reworded." } });
+
+    history.back();
+    await vi.waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith("Leave this page? Your edit to this task will be lost."),
+    );
+    await vi.waitFor(() => expect(window.location.search).toBe(""));
+    expect(why().value).toBe("Because, reworded.");
+
+    confirm.mockReturnValue(true);
+    history.back();
+    await vi.waitFor(() =>
+      expect(router.state.location.search).toEqual({ without: "explanation" }),
+    );
+    expect(screen.queryByLabelText("Why the answer is right")).toBeNull();
+    // Nothing left waiting on an editor no longer there.
+    const showAll = screen.getByRole("button", { name: "Show all" }) as HTMLButtonElement;
+    expect(showAll.disabled).toBe(false);
+    fireEvent.click(showAll);
+    await screen.findByRole("button", { name: "Edit “Explained?”" });
+    expect(screen.queryByLabelText("Why the answer is right")).toBeNull();
   });
 
   test("keeps the editor and its text when a save fails", async () => {

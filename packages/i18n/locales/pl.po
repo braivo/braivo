@@ -1007,6 +1007,10 @@ msgstr "Uczysz się? Otwórz stronę otrzymaną od szkoły lub organizatora szko
 msgid "Leave this page? Your changes to this group will be lost."
 msgstr "Opuścić tę stronę? Twoje zmiany w tej grupie zostaną utracone."
 
+#: apps/console/components/task-review.tsx
+msgid "Leave this page? Your edit to this task will be lost."
+msgstr "Opuścić tę stronę? Twoje zmiany w tym zadaniu zostaną utracone."
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Zezwolić aplikacji {clientName} na pracę w organizacji „{organizationName}”?"

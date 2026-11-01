@@ -170,13 +170,16 @@ function Course() {
     : undefined;
   // One editor on the page: saving a task's correction retires its pending
   // correction, which the other section shows. Open only while its task is
-  // listed: a reload may show it corrected or retired by someone else.
+  // listed and shown: a reload may show it corrected or retired by someone
+  // else, and history may narrow the page past it. Closed for good then, so
+  // it never reopens, emptied, nor holds Show all and Publish disabled.
   const [editingTask, setEditingTask] = useState<Editing>();
-  const editing = course.objectives.some(({ tasks }) =>
-    tasks.some(({ id }) => id === editingTask?.taskId),
+  const editing = course.objectives.some(({ id: objectiveId, tasks }) =>
+    tasks.some(({ id }) => id === editingTask?.taskId && isShown(objectiveId, id)),
   )
     ? editingTask
     : undefined;
+  if (editingTask && !editing) setEditingTask(undefined);
   // It and an open editor each wait for the other: Publish reloads the page,
   // which would close an editor and lose its unsaved edit.
   const publication = usePublish({

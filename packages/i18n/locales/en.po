@@ -1007,6 +1007,10 @@ msgstr "Learning? Open the site your school or training provider gave you."
 msgid "Leave this page? Your changes to this group will be lost."
 msgstr "Leave this page? Your changes to this group will be lost."
 
+#: apps/console/components/task-review.tsx
+msgid "Leave this page? Your edit to this task will be lost."
+msgstr "Leave this page? Your edit to this task will be lost."
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Let {clientName} work in {organizationName}?"
 msgstr "Let {clientName} work in {organizationName}?"

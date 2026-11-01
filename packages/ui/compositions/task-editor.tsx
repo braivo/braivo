@@ -86,10 +86,12 @@ export function TaskEditor(props: {
   /** Typed tasks only: added last to its accepted answers, to review. */
   answerToAdd?: string;
   focusExplanation?: boolean;
+  /** Whether what it holds differs from `task`, an added `answerToAdd` included, as that changes. */
+  onDirtyChange?: (dirty: boolean) => void;
   onSave: (task: EditableTask) => void;
   onCancel: () => void;
 }) {
-  const { task, answerToAdd, focusExplanation, onSave, onCancel } = props;
+  const { task, answerToAdd, focusExplanation, onDirtyChange, onSave, onCancel } = props;
   const [prompt, setPrompt] = useState(task.prompt);
   const [options, setOptions] = useState<string[]>(task.kind === "choice" ? [...task.options] : []);
   const [answer, setAnswer] = useState(task.kind === "choice" ? task.answer : 0);
@@ -104,6 +106,13 @@ export function TaskEditor(props: {
   const question = useRef<HTMLTextAreaElement>(null);
   const answers = useRef<HTMLTextAreaElement>(null);
   const why = useRef<HTMLTextAreaElement>(null);
+  const dirty =
+    prompt !== task.prompt ||
+    explanation !== (task.explanation ?? "") ||
+    (task.kind === "choice"
+      ? answer !== task.answer || options.some((option, at) => option !== task.options[at])
+      : accepted !== task.accepted.join("\n"));
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   // Opened from a button that is now gone: focus continues here, not the page's top.
   useEffect(() => {
