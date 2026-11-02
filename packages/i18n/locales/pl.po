@@ -1801,8 +1801,8 @@ msgid "That's all the new material for today"
 msgstr "To już cały nowy materiał na dziś"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "The answer: {correctAnswer}"
-msgstr "Poprawna odpowiedź: {correctAnswer}"
+msgid "The answer: {markedAnswer}"
+msgstr "Poprawna odpowiedź: {markedAnswer}"
 
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."

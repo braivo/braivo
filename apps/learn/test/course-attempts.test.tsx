@@ -133,8 +133,10 @@ describe("the learn app", () => {
       // The same attempt, ID and all, so Braivo records it once.
       expect(lost.mock.calls[0]![0]!.response).toEqual(response);
       expect(submitAttempt.mock.calls[0]![0]).toEqual(lost.mock.calls[0]![0]);
-      expect(within(screen.getByRole("alert")).getByText(title)).toBeTruthy();
-      expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+      // A typed miss marks the answer's missed letter in a copy apart (course.test.tsx).
+      expect(screen.getByRole("alert").textContent).toBe(
+        `${title}The answer: bin${"text" in response ? "bin" : ""}`,
+      );
     },
   );
 

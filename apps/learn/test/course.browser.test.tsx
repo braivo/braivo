@@ -120,10 +120,15 @@ test("on a phone, keeps a long correct answer in the page, the pinned foot short
     submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
   });
 
-  await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
+  // A near miss, so its missed letters are marked: still read whole.
+  await userEvent.type(
+    await screen.findByRole("textbox"),
+    `${answer.replace("müde", "mude")}{Enter}`,
+  );
   const foot = (await screen.findByRole("button", { name: "Continue" })).parentElement!;
+  expect(document.querySelectorAll("mark")).toHaveLength(1);
   // Named in full, never cut, outside the foot, which keeps to the verdict and Continue.
-  expect(foot.contains(screen.getByText(`The answer: ${answer}`))).toBe(false);
+  expect(foot.contains(document.querySelector("mark"))).toBe(false);
   expect(within(foot).getByRole("alert").textContent).toBe("Not quite");
   // Read as the focus lands on Continue, as the foot's answer is in its alert.
   expect(

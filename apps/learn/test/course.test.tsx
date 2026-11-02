@@ -131,13 +131,60 @@ describe("the learn app", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send again" }));
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("Not quite" + "The answer: bin" + "bin");
     // Labelled as the learner's, apart from the answer the alert names.
     expect(screen.getByText("Your answer")).toBeTruthy();
     expect(submitAttempt.mock.calls.map(([input]) => input.response)).toEqual([
       { text: "ben" },
       { text: "ben" },
     ]);
+  });
+
+  test.each([
+    ["a letter wrong", "bin", "ben", ["i"]],
+    ["letters swapped", "receive", "recieve", ["e"]],
+    ["accents left out", "żółć", "zolc", ["ż", "ó", "ł", "ć"]],
+    ["a different word", "please", "plz", []],
+    ["the case alone", "Bin", "bin", []],
+    // What grading ignores is never marked, beside an error that counts.
+    ["a typographic apostrophe", "don’t go", "don't gx", ["o"]],
+    ["a run of spaces", "a  cat", "a cot", ["a"]],
+    // An extra letter marks nothing, not the right one beside it.
+    ["an extra letter", "café", "cafeé", []],
+  ])(
+    "marks in the answer what a missed typed one got wrong, for %s, read whole",
+    async (_, answer, typed, marked) => {
+      renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity: async () => typedActivity,
+        submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+      });
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: typed } });
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+      const alert = await screen.findByRole("alert");
+      expect([...alert.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(marked);
+      // Marks hidden from a screen reader, which reads the answer whole instead.
+      for (const mark of alert.querySelectorAll("mark")) {
+        expect(mark.closest('[aria-hidden="true"]')).not.toBeNull();
+      }
+      const read = alert.cloneNode(true) as Element;
+      for (const hidden of read.querySelectorAll('[aria-hidden="true"]')) hidden.remove();
+      expect(read.textContent).toBe(`Not quite` + `The answer: ${answer}`);
+    },
+  );
+
+  test("marks nothing in the answer Show answer gives", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Here it is" + "The answer: bin");
+    expect(alert.querySelector("mark")).toBeNull();
   });
 
   test("keeps Show answer focused and saying it is loading until the answer comes", async () => {

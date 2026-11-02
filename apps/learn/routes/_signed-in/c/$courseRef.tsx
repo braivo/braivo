@@ -33,6 +33,7 @@ import { CircleCheckIcon, CircleXIcon, EyeIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { AccountHeader } from "#components/account-header";
+import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
 import { ReportProblem } from "#components/report-problem";
@@ -1033,6 +1034,10 @@ function Practice({
   // run to 500 characters, an option to a sentence) would grow the pinned foot
   // over the question, so it goes in the page with the explanation instead.
   const answerInFoot = correctAnswer !== undefined && correctAnswer.length <= SHORT_ANSWER;
+  // What a missed typed answer got wrong, marked in the answer (Show answer typed nothing).
+  const markedAnswer = correctAnswer && (
+    <MarkedAnswer answer={correctAnswer} typed={sent && "text" in sent ? sent.text : undefined} />
+  );
 
   return (
     <section className="flex flex-col gap-6">
@@ -1118,7 +1123,7 @@ function Practice({
               Continue takes the focus (its description). */}
           {correctAnswer && !answerInFoot && (
             <p id={answerId} className="text-pretty wrap-break-word">
-              <Trans>The answer: {correctAnswer}</Trans>
+              <Trans>The answer: {markedAnswer}</Trans>
             </p>
           )}
           {grade.explanation && (
@@ -1173,7 +1178,7 @@ function Practice({
                   on the tint. */}
               {answerInFoot && (
                 <AlertDescription className="text-foreground">
-                  <Trans>The answer: {correctAnswer}</Trans>
+                  <Trans>The answer: {markedAnswer}</Trans>
                 </AlertDescription>
               )}
             </Alert>
