@@ -295,6 +295,36 @@ describe("the next attempt after a review", () => {
     expect(submitAttempt.mock.calls[2]![0]).toMatchObject({ reviewedTeaching: true });
   });
 
+  test("keeps a resumed answer's Send again as it was sent, whatever was reviewed since", async () => {
+    // Sent without a review, then reloaded before Continue: its feedback shows.
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: (_, options) => stall(options),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    cleanup();
+    renderAt("/c/4732", {
+      signedIn: true,
+      submitAttempt: async () => miss,
+      objectiveReview: async () => review,
+    });
+    await screen.findByRole("button", { name: "Continue" });
+    await openReview();
+    cleanup();
+
+    // Reloaded again, its resend lost this time: Send again sends it unchanged.
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue(miss);
+    renderAt("/c/4732", { signedIn: true, submitAttempt });
+    fireEvent.click(await screen.findByRole("button", { name: "Send again" }));
+    await screen.findByRole("button", { name: "Continue" });
+    expect(submitAttempt.mock.calls[1]![0]).toEqual(submitAttempt.mock.calls[0]![0]);
+    expect(submitAttempt.mock.calls[1]![0]).not.toHaveProperty("reviewedTeaching");
+  });
+
   test("marks it again when that attempt is refused for good", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
