@@ -659,18 +659,25 @@ describe("the console", () => {
     expect(addSource).not.toHaveBeenCalled();
   });
 
-  test("refuses more than Braivo adds at once before sending it, at the Text field", async () => {
+  test("refuses more than Braivo adds at once before sending it or its file, at the Text field", async () => {
     const addSource = vi.fn();
-    renderAt("/example/sources", { braivo: { ...added, addSource } });
+    const uploadFile = vi.fn();
+    renderAt("/example/sources", { braivo: { ...added, addSource, uploadFile } });
     await screen.findByText("No material yet");
 
-    addMaterial({ title: "Libro", text: "a".repeat(10_000_000) });
+    addMaterial({
+      title: "Libro",
+      text: "a".repeat(10_000_000),
+      // Not uploaded: it would stay stored for a source refused.
+      file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
+    });
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe(
       "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
     );
     expect(screen.getByLabelText("Text").closest("[data-slot=field]")?.contains(alert)).toBe(true);
+    expect(uploadFile).not.toHaveBeenCalled();
     expect(addSource).not.toHaveBeenCalled();
   });
 

@@ -166,7 +166,7 @@ export function PdfReview(props: {
                 checked={onlyFlagged}
                 onCheckedChange={(checked) => setOnlyFlagged(checked === true)}
               />
-              Needs a decision ({flagged.length})
+              Only flagged pages ({flagged.length})
             </label>
           )}
           <ol className="flex max-h-72 flex-col overflow-y-auto rounded-md border md:max-h-[32rem]">
@@ -174,9 +174,9 @@ export function PdfReview(props: {
               <li key={listed.position}>
                 <button
                   type="button"
-                  aria-current={listed.position === page.position ? "page" : undefined}
+                  aria-current={listed.position === page.position || undefined}
                   onClick={() => onSelect(listed.position)}
-                  className="flex min-h-11 w-full flex-wrap items-center gap-x-2 px-3 py-1.5 text-start text-sm aria-[current=page]:bg-muted aria-[current=page]:font-semibold md:min-h-0"
+                  className="flex min-h-11 w-full flex-wrap items-center gap-x-2 px-3 py-1.5 text-start text-sm aria-[current=true]:bg-muted aria-[current=true]:font-semibold md:min-h-0"
                 >
                   <span>Page {listed.position}</span>
                   <span className="text-muted-foreground">
@@ -209,6 +209,7 @@ export function PdfReview(props: {
             <Button
               type="button"
               variant="outline"
+              className="min-h-11 md:min-h-9"
               aria-disabled={!before}
               onClick={() => before && onSelect(before.position)}
             >
@@ -217,6 +218,7 @@ export function PdfReview(props: {
             <Button
               type="button"
               variant="outline"
+              className="min-h-11 md:min-h-9"
               aria-disabled={!after}
               onClick={() => after && onSelect(after.position)}
             >

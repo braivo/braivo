@@ -93,7 +93,7 @@ describe("adding a PDF read from its own text", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Printed page of page 1").value).toBe("i");
     expect(screen.queryByLabelText("Text of page 2")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
-    expect(entry(2).getAttribute("aria-current")).toBe("page");
+    expect(entry(2).getAttribute("aria-current")).toBe("true");
     fireEvent.change(screen.getByLabelText("Text of page 2"), {
       target: { value: "Adiós means goodbye." },
     });
@@ -283,7 +283,7 @@ describe("adding a PDF read from its own text", () => {
     await screen.findByRole("heading", { name: "Review the pages" });
     expect(within(pageList()).getAllByRole("button")).toHaveLength(120);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Needs a decision (2)" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Only flagged pages (2)" }));
     expect(
       within(pageList())
         .getAllByRole("button")
@@ -340,12 +340,18 @@ describe("adding a PDF read from its own text", () => {
     fireEvent.change(screen.getByLabelText("Text of page 1"), {
       target: { value: "Fernwood School, corrected" },
     });
+    fireEvent.change(screen.getByLabelText("The first page is printed page"), {
+      target: { value: "5" },
+    });
     const instead = screen.getByRole("button", { name: "Read the whole file with AI instead" });
 
+    instead.focus();
     fireEvent.click(instead);
     expect((await screen.findByRole("alert")).textContent).toBe(
       "This organization has used this month's AI requests.",
     );
+    // Still where the owner was, to try again.
+    expect(document.activeElement).toBe(instead);
     // The review, and the owner's edit, as they were.
     expect(screen.getByLabelText<HTMLTextAreaElement>("Text of page 1").value).toBe(
       "Fernwood School, corrected",
@@ -361,6 +367,15 @@ describe("adding a PDF read from its own text", () => {
       { organizationId: "org-1", fileId },
       { signal: expect.any(AbortSignal) },
     );
+    // A review of its own, taking the focus as the first did: the button is gone.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Review the pages" }));
+    // Numbered as the AI read it, and not read again.
+    expect(screen.getByLabelText<HTMLInputElement>("The first page is printed page").value).toBe(
+      "",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Read the whole file with AI instead" }),
+    ).toBeNull();
     // The AI's pages are read: kept, for the owner to review and save.
     expect(screen.getByRole("status").textContent).toBe("Saving 2\u00A0pages; 0 left out.");
     save();
@@ -378,6 +393,45 @@ describe("adding a PDF read from its own text", () => {
     );
     // Uploaded once: for the AI's two tries and the save.
     expect(braivo.uploadFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("asks before leaving while Braivo's AI reads the file under review", async () => {
+    const confirm = answerLeaving(false);
+    const { braivo, readPdf } = stubs([read(1, "Hola.")]);
+    braivo.readFileText.mockImplementation(stall);
+    const { router } = renderAt("/example/sources", {
+      braivo: { ...braivo, listCourses: async () => [] },
+      readPdf,
+    });
+    await attach();
+    await screen.findByRole("heading", { name: "Review the pages" });
+    fireEvent.click(screen.getByRole("button", { name: "Read the whole file with AI instead" }));
+    await vi.waitFor(() => expect(braivo.readFileText).toHaveBeenCalled());
+
+    void router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
+
+    await vi.waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith(
+        "Leave this page? The material you entered will be lost.",
+      ),
+    );
+    expect(screen.getByRole("heading", { name: "Review the pages" })).toBeTruthy();
+  });
+
+  test("forgets a refused file, offering no way to read it", async () => {
+    const { braivo, readPdf } = stubs([]);
+    renderAt("/example/sources", { braivo, readPdf });
+    await screen.findByText("No material yet");
+    const huge = new File(["%PDF"], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: 50_000_001 });
+    fireEvent.change(screen.getByLabelText("Original file"), { target: { files: [huge] } });
+    expect(screen.getByRole("radiogroup", { name: "Without pasted text, read" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add material" }));
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/over 50 MB/);
+    expect(screen.queryByRole("radiogroup", { name: "Without pasted text, read" })).toBeNull();
+    expect(readPdf).not.toHaveBeenCalled();
   });
 
   test("offers no AI reading where Braivo's AI is off", async () => {
@@ -418,7 +472,8 @@ describe("adding a PDF read from its own text", () => {
     fireEvent.click(screen.getByRole("button", { name: "Discard the review" }));
 
     expect(screen.queryByRole("heading", { name: "Review the pages" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Add material" })).toBeTruthy();
+    // The focus goes on, not with the button.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Add material" }));
     expect(screen.getByLabelText<HTMLInputElement>("Title").value).toBe("Unidad 1");
     expect(screen.getByLabelText<HTMLTextAreaElement>("Text").readOnly).toBe(false);
   });

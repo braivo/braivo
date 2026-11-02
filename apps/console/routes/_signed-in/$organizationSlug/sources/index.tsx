@@ -123,6 +123,9 @@ const REFUSED_TYPES = [
   "application/x-www-form-urlencoded",
 ];
 
+/** The largest PDF Braivo's AI reads (the server's `READABLE`). */
+const AI_PDF_BYTES = 24_000_000;
+
 /**
  * Why Braivo's AI would refuse to read `file`, as the server's `readFileText`
  * does (generation-2), saying what to do instead. Checked before uploading, so
@@ -131,7 +134,7 @@ const REFUSED_TYPES = [
 function readingProblem(file: File): string | undefined {
   const instead = "or paste its text in the Text field.";
   if (file.type === "application/pdf") {
-    if (file.size > 24_000_000) {
+    if (file.size > AI_PDF_BYTES) {
       return `Braivo's AI reads a PDF of at most 24 MB: split it, adding a chapter at a time, ${instead}`;
     }
   } else if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)) {
@@ -278,7 +281,7 @@ function AddSource() {
   }
   const abortOnUnmount = useAbortOnUnmount();
   const form = useRef<HTMLFormElement>(null);
-  // The file attached, as only a PDF offers how to read it.
+  // The file attached: a PDF offers a choice of reader.
   const [attached, setAttached] = useState<File>();
   // Where Braivo's AI is on: a PDF's own text, or the AI's reading of it.
   const [reader, setReader] = useState<"pdf" | "ai">("pdf");
@@ -287,8 +290,18 @@ function AddSource() {
   // The pages read from a PDF, under review until saved or discarded.
   const [review, setReview] = useState<ReviewedPage[]>();
   const reviewing = review !== undefined;
-  // The page under review shown.
+  // The page the review shows.
   const [current, setCurrent] = useState(1);
+  // Counts the reviews opened, keying each one's controls; `byAi`: the AI read
+  // this one, and reading again would spend another request.
+  const [opened, setOpened] = useState({ count: 0, byAi: false });
+  // Braivo's AI reading the file under review, which leaving would lose.
+  const [aiReading, setAiReading] = useState(false);
+  const openReview = (pages: ReviewedPage[], byAi: boolean) => {
+    setReview(pages);
+    setCurrent(1);
+    setOpened((last) => ({ count: last.count + 1, byAi }));
+  };
   // An edit answers a failure about the review; kept one function, so a page
   // the edit leaves as it was is not rendered again.
   const changeReview = useCallback<ChangeReview>((change) => {
@@ -297,12 +310,11 @@ function AddSource() {
   }, []);
   const readsPdf = (file: File) =>
     file.type === "application/pdf" && (organization.aiEnabled === false || reader === "pdf");
-  // The review, once shown, takes the focus: it is what comes next.
-  const reviewShown = useRef(false);
+  // Each review opened takes the focus, as it is what comes next; the AI's
+  // replacing one too, whose button went with the review it replaced.
   useLayoutEffect(() => {
-    if (reviewing && !reviewShown.current) document.getElementById(`${id}-review`)?.focus();
-    reviewShown.current = reviewing;
-  }, [reviewing, id]);
+    if (opened.count > 0) document.getElementById(`${id}-review`)?.focus();
+  }, [opened.count, id]);
   /**
    * Reads `file`'s own text in the browser, then opens its review; nothing is
    * uploaded until it is saved (sources-22).
@@ -326,8 +338,7 @@ function AddSource() {
           setStatus(`Reading the PDF: page ${done} of ${total}…`);
         },
       });
-      setReview(startReview(pages));
-      setCurrent(1);
+      openReview(startReview(pages), false);
     } catch (thrown) {
       if (!signal.aborted) fail(pdfFailure(thrown), "original");
     } finally {
@@ -343,10 +354,14 @@ function AddSource() {
    */
   async function readWithAi() {
     if (adding || !attached) return;
-    const unreadable = readingProblem(attached);
-    if (unreadable) return fail(unreadable);
+    if (attached.size > AI_PDF_BYTES) {
+      return fail(
+        "Braivo's AI reads a PDF of at most 24 MB, so it cannot read this one: keep this review, or split the PDF and add it a chapter at a time.",
+      );
+    }
     const signal = abortOnUnmount();
     setError(undefined);
+    setAiReading(true);
     setStatus("Uploading the file…");
     try {
       const fileId = await upload(attached, signal);
@@ -354,7 +369,7 @@ function AddSource() {
       const pages = await explainAiFailure(
         braivo.readFileText({ organizationId, fileId }, { signal }),
       );
-      setReview(
+      openReview(
         startReview(
           pages.map(({ page, text }, index) => ({
             position: index + 1,
@@ -363,16 +378,24 @@ function AddSource() {
             text,
           })),
         ),
+        true,
       );
-      setCurrent(1);
     } catch (thrown) {
       if (signal?.aborted) return;
+      if (thrown instanceof BraivoError && thrown.status === 401) {
+        return fail(
+          <>
+            You were signed out. <SignInAgainLink />, then try again: this review stays here.
+          </>,
+        );
+      }
       fail(
         thrown instanceof BraivoError
           ? thrown.reason || "Braivo's AI could not read the file. Try again."
           : "Braivo's AI could not read the file. Check your connection and try again.",
       );
     } finally {
+      setAiReading(false);
       setStatus(undefined);
     }
   }
@@ -380,8 +403,8 @@ function AddSource() {
   // Pasted material is long to gather again and only the form holds it, so
   // leaving with anything entered asks first, as does reloading or closing the
   // tab where the browser allows; a changed hash or query is no leaving. Not
-  // while adding: leaving then stops it, and success opens the source; but
-  // while a PDF is read, as nothing is sent yet and the form is all. A file
+  // while saving: leaving then stops it, and success opens the source; but
+  // while a PDF or the AI reads, as leaving would lose that reading. A file
   // is told by `files`, as not every DOM fills a file input's `value`.
   const unsaved = () =>
     Boolean(original.current?.files?.length) ||
@@ -394,7 +417,7 @@ function AddSource() {
       current.pathname !== next.pathname &&
       !window.confirm("Leave this page? The material you entered will be lost."),
     enableBeforeUnload: unsaved,
-    disabled: adding && !reading,
+    disabled: adding && !reading && !aiReading,
   });
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
@@ -439,6 +462,7 @@ function AddSource() {
     if (refusal) {
       // A file input has no other way to empty it.
       original.current!.value = "";
+      setAttached(undefined);
       const nextStep =
         text.trim() === ""
           ? "Paste its text in the Text field to add the material without it."
@@ -466,6 +490,32 @@ function AddSource() {
       if (unreadable) return fail(unreadable, "original");
     }
 
+    const fields = {
+      organizationId,
+      title: data.get("title") as string,
+      url: optional("url"),
+      language: languageTag(optional("language")),
+    };
+    // The request's size, refused before sending, as Braivo would refuse it
+    // with a bare 413. Before the upload too when the text is known: a file
+    // uploaded for a source refused stays stored. A file's ID is 64 characters.
+    const sized = (input: object): number | undefined => {
+      const bytes = new Blob([JSON.stringify(input)]).size;
+      if (bytes <= MAX_SOURCE_BYTES) return bytes;
+      if ("pages" in input) {
+        fail(
+          `${reviewed ? "The pages' text" : "Braivo's AI read the file, but its text"} is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.`,
+        );
+      } else {
+        fail(
+          "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
+          "text",
+        );
+      }
+    };
+    const known = reviewed ? { pages: reviewed } : text.trim() !== "" ? { text } : undefined;
+    if (known && !sized({ ...fields, original: file && "0".repeat(64), ...known })) return;
+
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
     const from = router.latestLocation.pathname;
@@ -478,13 +528,7 @@ function AddSource() {
       // retrying is safe, as the same file or source again stores nothing new
       // (docs/adr/0024-idempotent-authoring.md).
       const fileId = file ? await upload(file, signal) : undefined;
-      const source = {
-        organizationId,
-        title: data.get("title") as string,
-        url: optional("url"),
-        language: languageTag(optional("language")),
-        original: fileId,
-      };
+      const source = { ...fields, original: fileId };
       // No text pasted: the file's own, read page by page, so passages name their pages.
       // Unbounded: reading takes minutes, and a retry spends another AI request.
       let pages = reviewed;
@@ -502,18 +546,8 @@ function AddSource() {
       }
       setStatus("Adding…");
       const input = pages ? { ...source, pages } : { ...source, text };
-      const bytes = new Blob([JSON.stringify(input)]).size;
-      // Said before sending, which Braivo would refuse with a bare 413.
-      if (bytes > MAX_SOURCE_BYTES) {
-        return pages
-          ? fail(
-              `${reviewed ? "The pages' text" : "Braivo's AI read the file, but its text"} is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.`,
-            )
-          : fail(
-              "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
-              "text",
-            );
-      }
+      const bytes = sized(input);
+      if (!bytes) return;
       const sourceId = await braivo.addSource(input, {
         signal: withDeadline(signal, bodyDeadline(bytes)),
       });
@@ -598,7 +632,7 @@ function AddSource() {
               ref={text}
               name="text"
               rows={10}
-              // The review is of the file's text, not of this.
+              // Under review, the pages are what is saved, not this.
               readOnly={adding || reviewing}
               onInput={clearFieldError}
               {...ariaFor("text", `${id}-text-hint`)}
@@ -707,13 +741,14 @@ function AddSource() {
             )}
           {review && attached && (
             <PdfReview
+              key={`review-${opened.count}`}
               id={id}
               file={attached}
               pages={review}
               onChange={changeReview}
               current={current}
               onSelect={setCurrent}
-              readWithAi={organization.aiEnabled === false ? undefined : readWithAi}
+              readWithAi={organization.aiEnabled === false || opened.byAi ? undefined : readWithAi}
               locked={adding}
               error={error}
             />
@@ -738,10 +773,14 @@ function AddSource() {
                   type="button"
                   variant="outline"
                   aria-disabled={adding}
-                  onClick={() => {
+                  onClick={(event) => {
                     if (adding) return;
                     setReview(undefined);
                     setError(undefined);
+                    // This button goes with the review: on to what comes next.
+                    event.currentTarget.form
+                      ?.querySelector<HTMLButtonElement>("button[type=submit]")
+                      ?.focus();
                   }}
                 >
                   Discard the review
