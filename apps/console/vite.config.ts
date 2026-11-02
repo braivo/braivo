@@ -10,6 +10,7 @@ import { defineConfig, loadEnv } from "vite-plus";
 
 import { readDevPorts } from "../../tooling/dev-ports.ts";
 import { braivoApi } from "../../tooling/dev-proxy.ts";
+import { pdfjsFiles } from "../../tooling/pdfjs-files.ts";
 
 /**
  * The content owners' app, served from the root of Braivo's own origin
@@ -36,7 +37,11 @@ export default defineConfig(({ command, mode }) => {
       react(),
       bootLanguage(),
       tailwindcss(),
+      pdfjsFiles(),
     ],
+    // The PDF reader's worker is a module, as pdf.js is
+    // (docs/adr/0055-pdf-text-in-the-browser.md).
+    worker: { format: "es" as const },
     // Links to a `.localhost` learn domain reach the learn app's dev server, at the demo's
     // port or `bun run dev`'s (`lib/learn-url.ts`); a build's are HTTPS alone.
     ...(command === "serve" && {

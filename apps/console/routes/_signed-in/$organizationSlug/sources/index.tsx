@@ -13,19 +13,39 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
+import { RadioGroup, RadioGroupItem } from "@braivo/ui/components/radio-group";
 import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { InfoIcon } from "lucide-react";
-import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AiAppGuideLink } from "#components/ai-app-guide-link";
+import { PdfReview } from "#components/pdf-review";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
+import { PDF_LIMITS, PdfReadError } from "#lib/pdf/read";
+import {
+  type ChangeReview,
+  keptPages,
+  type ReviewedPage,
+  type ReviewField,
+  reviewProblem,
+  startReview,
+} from "#lib/pdf/review";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -124,6 +144,39 @@ function readingProblem(file: File): string | undefined {
 }
 
 /**
+ * Why the console could not read a PDF's own text, and what to do instead
+ * (sources-22). A damaged file is told by pdf.js failing, or taking too long.
+ */
+function pdfFailure(thrown: unknown): string {
+  const instead = "Save it again as a PDF, or paste its text in the Text field.";
+  const split = "split it, adding a chapter at a time.";
+  if (!(thrown instanceof PdfReadError)) return `This PDF could not be read. ${instead}`;
+  switch (thrown.problem) {
+    case "encrypted":
+      return "This PDF is locked: save an unlocked copy and attach that.";
+    case "too-many-pages":
+      return `This PDF has ${thrown.pages?.toLocaleString("en")} pages, more than the ${PDF_LIMITS.pages.toLocaleString("en")} Braivo reads at once: ${split}`;
+    case "too-much-text":
+      return `This PDF's text is over 10 MB, the most Braivo adds at once: ${split}`;
+    case "too-slow":
+      return `Reading this PDF took too long, so it was stopped: it may be damaged or built unusually. ${instead}`;
+    default:
+      return `This PDF could not be read: it may be damaged. ${instead}`;
+  }
+}
+
+/** "Saving 2 pages; 1 left out.", or how many pages still wait for a decision. */
+function savingSummary(pages: readonly ReviewedPage[]): string {
+  const of = (n: number) => `${n} ${n === 1 ? "page" : "pages"}`;
+  const undecided = pages.filter((page) => page.keep === undefined).length;
+  if (undecided > 0) {
+    return `${of(undecided)} to decide: keep ${undecided === 1 ? "it" : "each"}, or leave it out.`;
+  }
+  const kept = pages.filter((page) => page.keep).length;
+  return `Saving ${of(kept)}; ${pages.length - kept} left out.`;
+}
+
+/**
  * Suggested for a source's language, as the tag Braivo stores (sources-3) with
  * its name: a teacher knows "Spanish", not `es`.
  */
@@ -163,11 +216,11 @@ function titleOf(fileName: string): string {
   return stem.replaceAll("_", " ").replace(/\s+/g, " ").trim();
 }
 
-/** A field a failure can be about. */
-type FieldName = "text" | "original";
+/** A field a failure can be about: the form's, or one in the review of a PDF's pages. */
+type FieldName = "text" | "original" | ReviewField;
 
 function AddSource() {
-  const { braivo, organization } = Route.useRouteContext();
+  const { braivo, organization, readPdf } = Route.useRouteContext();
   const organizationId = organization.id;
   const router = useRouter();
   // The step under way while adding: reading a file can take a few minutes.
@@ -186,8 +239,12 @@ function AddSource() {
   const title = useRef<HTMLInputElement>(null);
   const text = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
-    if (error?.field) ({ text, original })[error.field].current?.focus();
-  }, [error]);
+    if (error?.field === "text" || error?.field === "original") {
+      ({ text, original })[error.field].current?.focus();
+    } else if (error?.field) {
+      document.getElementById(`${id}-${error.field}`)?.focus();
+    }
+  }, [error, id]);
   /** ARIA for `field`'s control, marked while the failure is about it. */
   const ariaFor = (field: FieldName, hintId: string) =>
     error?.field === field
@@ -208,11 +265,66 @@ function AddSource() {
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
   const abortOnUnmount = useAbortOnUnmount();
   const form = useRef<HTMLFormElement>(null);
+  // The file attached, as only a PDF offers how to read it.
+  const [attached, setAttached] = useState<File>();
+  // Where Braivo's AI is on: a PDF's own text, or the AI's reading of it.
+  const [reader, setReader] = useState<"pdf" | "ai">("pdf");
+  // Reading a PDF's own text: its Cancel, while it runs.
+  const [reading, setReading] = useState<AbortController>();
+  // The pages read from a PDF, under review until saved or discarded.
+  const [review, setReview] = useState<ReviewedPage[]>();
+  const reviewing = review !== undefined;
+  // An edit answers a failure about the review; kept one function, so a page
+  // the edit leaves as it was is not rendered again.
+  const changeReview = useCallback<ChangeReview>((change) => {
+    setReview((pages) => pages && change(pages));
+    setError((last) => (last?.field?.startsWith("page-") ? undefined : last));
+  }, []);
+  const readsPdf = (file: File) =>
+    file.type === "application/pdf" && (organization.aiEnabled === false || reader === "pdf");
+  // The review, once shown, takes the focus: it is what comes next.
+  const reviewShown = useRef(false);
+  useLayoutEffect(() => {
+    if (reviewing && !reviewShown.current) document.getElementById(`${id}-review`)?.focus();
+    reviewShown.current = reviewing;
+  }, [reviewing, id]);
+  /**
+   * Reads `file`'s own text in the browser, then opens its review; nothing is
+   * uploaded until it is saved (sources-22).
+   */
+  async function readText(file: File) {
+    const cancel = new AbortController();
+    // Stopped by Cancel, or by leaving the page, as a request would be.
+    const left = abortOnUnmount();
+    const signal = left ? AbortSignal.any([cancel.signal, left]) : cancel.signal;
+    setReading(cancel);
+    setError(undefined);
+    setStatus("Reading the PDF…");
+    // Said at most once a second, so a screen reader is not read every page.
+    let said = 0;
+    try {
+      const pages = await readPdf(file, {
+        signal,
+        onProgress: (done, total) => {
+          if (done < total && performance.now() - said < 1000) return;
+          said = performance.now();
+          setStatus(`Reading the PDF: page ${done} of ${total}…`);
+        },
+      });
+      setReview(startReview(pages));
+    } catch (thrown) {
+      if (!signal.aborted) fail(pdfFailure(thrown), "original");
+    } finally {
+      setReading(undefined);
+      setStatus(undefined);
+    }
+  }
 
   // Pasted material is long to gather again and only the form holds it, so
   // leaving with anything entered asks first, as does reloading or closing the
   // tab where the browser allows; a changed hash or query is no leaving. Not
-  // while adding: leaving then stops it, and success opens the source. A file
+  // while adding: leaving then stops it, and success opens the source; but
+  // while a PDF is read, as nothing is sent yet and the form is all. A file
   // is told by `files`, as not every DOM fills a file input's `value`.
   const unsaved = () =>
     Boolean(original.current?.files?.length) ||
@@ -225,7 +337,7 @@ function AddSource() {
       current.pathname !== next.pathname &&
       !window.confirm("Leave this page? The material you entered will be lost."),
     enableBeforeUnload: unsaved,
-    disabled: adding,
+    disabled: adding && !reading,
   });
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
@@ -245,9 +357,17 @@ function AddSource() {
       return title.current!.reportValidity();
     }
     const text = data.get("text") as string;
+    // A PDF's pages, as the owner left them in review.
+    let reviewed: { page: string; text: string }[] | undefined;
+    if (review) {
+      const problem = reviewProblem(review);
+      if (problem) return fail(problem.message, problem.field);
+      reviewed = keptPages(review);
+    }
     // Said before sending: Braivo would answer both with a bare status. The
     // file is removed, so adding again keeps the text without it.
     const refusal =
+      !review &&
       file &&
       (file.size > MAX_FILE_BYTES
         ? "The file is over 50 MB, the most Braivo keeps, so it was removed."
@@ -266,16 +386,17 @@ function AddSource() {
     if (text.trim() === "" && !file) {
       return fail(
         organization.aiEnabled === false
-          ? "Paste the material's text."
-          : "Paste the material's text, or attach the file for Braivo's AI to read.",
+          ? "Paste the material's text, or attach its PDF."
+          : "Paste the material's text, or attach the file for Braivo to read.",
         "text",
       );
     }
     // Only without pasted text: beside it, the file is kept unread.
-    if (text.trim() === "" && file) {
+    if (!review && text.trim() === "" && file) {
+      if (readsPdf(file)) return readText(file);
       if (organization.aiEnabled === false) {
         return fail(
-          `${AI_OFF_MESSAGE} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`,
+          `${AI_OFF_MESSAGE} Without it, Braivo reads only a PDF's own text: paste this file's text in the Text field, and the file is kept as its original.`,
           "text",
         );
       }
@@ -311,8 +432,8 @@ function AddSource() {
       };
       // No text pasted: the file's own, read page by page, so passages name their pages.
       // Unbounded: reading takes minutes, and a retry spends another AI request.
-      let pages: { page: string; text: string }[] | undefined;
-      if (fileId && text.trim() === "") {
+      let pages = reviewed;
+      if (!pages && fileId && text.trim() === "") {
         if (read.current?.fileId !== fileId) {
           setStatus("Braivo's AI is reading the file, which can take a few minutes…");
           read.current = {
@@ -331,7 +452,7 @@ function AddSource() {
       if (bytes > MAX_SOURCE_BYTES) {
         return pages
           ? fail(
-              "Braivo's AI read the file, but its text is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.",
+              `${reviewed ? "The pages' text" : "Braivo's AI read the file, but its text"} is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.`,
             )
           : fail(
               "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
@@ -422,14 +543,15 @@ function AddSource() {
               ref={text}
               name="text"
               rows={10}
-              readOnly={adding}
+              // The review is of the file's text, not of this.
+              readOnly={adding || reviewing}
               onInput={clearFieldError}
               {...ariaFor("text", `${id}-text-hint`)}
             />
             <FieldDescription id={`${id}-text-hint`}>
               {organization.aiEnabled === false
-                ? "The material's words as they read: what questions will quote. Paste them; a file attached below is kept as their original, not read."
-                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below for Braivo's AI to read — which can take a few minutes."}
+                ? "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach its PDF below. Text PDFs can be read without AI; scans need their text pasted. A file attached beside pasted text is kept as its original, not read."
+                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below. Text PDFs can be read without AI. Scans need their text pasted, or AI, which can take a few minutes."}
             </FieldDescription>
             {fieldError("text")}
           </Field>
@@ -473,11 +595,12 @@ function AddSource() {
               id={`${id}-original`}
               ref={original}
               type="file"
-              // A file input cannot be read-only.
-              disabled={adding}
+              // A file input cannot be read-only. Under review, the file is the one read.
+              disabled={adding || reviewing}
               onChange={(event) => {
                 clearFieldError();
                 const file = event.currentTarget.files?.[0];
+                setAttached(file);
                 const field = title.current;
                 if (!file || !field) return;
                 if (field.value.trim() !== "" && !titleFromFile.current) return;
@@ -494,19 +617,84 @@ function AddSource() {
             </FieldDescription>
             {fieldError("original")}
           </Field>
+          {organization.aiEnabled !== false &&
+            attached?.type === "application/pdf" &&
+            !reviewing && (
+              <FieldSet>
+                <FieldLegend variant="label" id={`${id}-reader`}>
+                  Without pasted text, read
+                </FieldLegend>
+                {/* Named by the legend too: it names the fieldset, not Radix's radiogroup within. */}
+                <RadioGroup
+                  aria-labelledby={`${id}-reader`}
+                  value={reader}
+                  onValueChange={(value) => !adding && setReader(value as "pdf" | "ai")}
+                  className="gap-y-0 md:gap-y-3"
+                >
+                  {(
+                    [
+                      ["pdf", "The text in the PDF, without AI"],
+                      ["ai", "The PDF with Braivo's AI, for a scan: it can take a few minutes"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <div key={value} className="flex items-center gap-2">
+                      <RadioGroupItem value={value} id={`${id}-reader-${value}`} />
+                      <FieldLabel
+                        htmlFor={`${id}-reader-${value}`}
+                        className="min-h-11 font-normal md:min-h-0"
+                      >
+                        {label}
+                      </FieldLabel>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+            )}
+          {review && attached && (
+            <PdfReview
+              id={id}
+              file={attached}
+              pages={review}
+              onChange={changeReview}
+              locked={adding}
+              error={error}
+            />
+          )}
           {error && !error.field && (
             <Alert key={error.count} variant="destructive">
               <AlertDescription>{error.message}</AlertDescription>
             </Alert>
           )}
           <Field>
-            <Button type="submit" aria-disabled={adding}>
-              Add material
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" aria-disabled={adding}>
+                {reviewing ? "Save source" : "Add material"}
+              </Button>
+              {reading && (
+                <Button type="button" variant="outline" onClick={() => reading.abort()}>
+                  Cancel
+                </Button>
+              )}
+              {reviewing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-disabled={adding}
+                  onClick={() => {
+                    if (adding) return;
+                    setReview(undefined);
+                    setError(undefined);
+                  }}
+                >
+                  Discard the review
+                </Button>
+              )}
+            </div>
             {/* The step under way while adding, in a live region present from the
                 start so the change is announced. */}
             <MutedText role="status">
-              {status ?? "Adding the same material again adds nothing."}
+              {status ??
+                (review ? savingSummary(review) : "Adding the same material again adds nothing.")}
             </MutedText>
           </Field>
         </FieldGroup>

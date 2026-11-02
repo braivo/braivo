@@ -49,6 +49,8 @@ describe("the console", () => {
     url?: string;
     language?: string;
     file?: File;
+    /** With Braivo's AI on, how a PDF without pasted text is read: its own text unless `ai`. */
+    reader?: "ai";
   }) {
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: fields.title } });
     fireEvent.change(screen.getByLabelText("Text"), { target: { value: fields.text } });
@@ -63,6 +65,8 @@ describe("the console", () => {
         target: { files: [fields.file] },
       });
     }
+    const ai = screen.queryByRole("radio", { name: /with Braivo's AI/ });
+    if (fields.reader === "ai" && ai) fireEvent.click(ai);
     fireEvent.click(screen.getByRole("button", { name: "Add material" }));
   }
 
@@ -376,6 +380,7 @@ describe("the console", () => {
     await screen.findByText("No material yet");
 
     addMaterial({
+      reader: "ai",
       title: "Mi libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -404,6 +409,7 @@ describe("the console", () => {
     expect(screen.getByText(/Braivo does not import what it links to/)).toBeTruthy();
 
     addMaterial({
+      reader: "ai",
       title: "Mi libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -438,6 +444,7 @@ describe("the console", () => {
     expect(status.textContent).toBe("Adding the same material again adds nothing.");
 
     addMaterial({
+      reader: "ai",
       title: "Mi libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -451,7 +458,7 @@ describe("the console", () => {
     expect(await screen.findByRole("heading", { name: "Unidad 1" })).toBeTruthy();
   });
 
-  test("asks for a file's text, uploading nothing, where Braivo's AI is off", async () => {
+  test("asks for a photo's text, uploading nothing, where Braivo's AI is off", async () => {
     const uploadFile = vi.fn(async () => ({ fileId: "f".repeat(64) }));
     const addSource = vi.fn(async () => "s1");
     renderAt("/example/sources", {
@@ -465,21 +472,22 @@ describe("the console", () => {
     expectAiAppGuide(form);
     // There on load, so not announced as an alert.
     expect(screen.queryByRole("alert")).toBeNull();
-    // Neither the hint nor an empty form's refusal promises reading.
-    expect(screen.queryByText(/for Braivo's AI to read/)).toBeNull();
+    // Neither the hint nor an empty form's refusal promises the AI's reading.
+    expect(screen.queryByText(/Braivo's AI to read/)).toBeNull();
+    expect(screen.getByText(/Text PDFs can be read without AI; scans need their text pasted/));
     addMaterial({ title: "Mi libro", text: "" });
-    expect(await screen.findByText("Paste the material's text.")).toBeTruthy();
-    const pdf = new File(["%PDF"], "libro.pdf", { type: "application/pdf" });
+    expect(await screen.findByText("Paste the material's text, or attach its PDF.")).toBeTruthy();
+    const photo = new File(["JPEG"], "libro.jpg", { type: "image/jpeg" });
 
-    addMaterial({ title: "Mi libro", text: "", file: pdf });
-    const refused = await screen.findByText(/It cannot read the file/);
+    addMaterial({ title: "Mi libro", text: "", file: photo });
+    const refused = await screen.findByText(/reads only a PDF's own text/);
     expect(refused.textContent).toMatch(
-      /off for this organization.*paste its text in the Text field/,
+      /off for this organization.*paste this file's text in the Text field/,
     );
     expect(uploadFile).not.toHaveBeenCalled();
 
     // Its text pasted, the file is kept beside it, unread.
-    addMaterial({ title: "Mi libro", text: "Hola.", file: pdf });
+    addMaterial({ title: "Mi libro", text: "Hola.", file: photo });
     await vi.waitFor(() =>
       expect(addSource).toHaveBeenCalledWith(
         expect.objectContaining({ text: "Hola.", original: "f".repeat(64) }),
@@ -505,6 +513,7 @@ describe("the console", () => {
     await screen.findByText("No material yet");
 
     addMaterial({
+      reader: "ai",
       title: "Mi libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -530,6 +539,7 @@ describe("the console", () => {
     await screen.findByText("No material yet");
 
     addMaterial({
+      reader: "ai",
       title: "Mi libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -551,9 +561,9 @@ describe("the console", () => {
     await screen.findByText("No material yet");
     const pdf = new File(["%PDF"], "libro.pdf", { type: "application/pdf" });
 
-    addMaterial({ title: "Mi libro", text: "", file: pdf });
+    addMaterial({ reader: "ai", title: "Mi libro", text: "", file: pdf });
     expect(await screen.findByText("The material could not be added. Try again.")).toBeTruthy();
-    addMaterial({ title: "Mi libro", text: "", file: pdf });
+    addMaterial({ reader: "ai", title: "Mi libro", text: "", file: pdf });
 
     expectProxyTimeoutExplained(await screen.findByText(/timed out/));
   });
@@ -577,9 +587,9 @@ describe("the console", () => {
     await screen.findByText("No material yet");
     const pdf = new File(["%PDF"], "libro.pdf", { type: "application/pdf" });
 
-    addMaterial({ title: "Mi libro", text: "", language: "en_US", file: pdf });
+    addMaterial({ reader: "ai", title: "Mi libro", text: "", language: "en_US", file: pdf });
     expect(await screen.findByText("The source's language must be a BCP 47 tag.")).toBeTruthy();
-    addMaterial({ title: "Mi libro", text: "", language: "en-US", file: pdf });
+    addMaterial({ reader: "ai", title: "Mi libro", text: "", language: "en-US", file: pdf });
 
     await vi.waitFor(() => expect(router.history.location.pathname).toBe("/example/sources/s1"));
     expect(readFileText).toHaveBeenCalledTimes(1);
@@ -594,7 +604,7 @@ describe("the console", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe(
-      "Paste the material's text, or attach the file for Braivo's AI to read.",
+      "Paste the material's text, or attach the file for Braivo to read.",
     );
     const text = screen.getByLabelText("Text");
     expect(document.activeElement).toBe(text);
@@ -634,6 +644,7 @@ describe("the console", () => {
     await screen.findByText("No material yet");
 
     addMaterial({
+      reader: "ai",
       title: "Libro",
       text: "",
       file: new File(["%PDF"], "libro.pdf", { type: "application/pdf" }),
@@ -751,6 +762,7 @@ describe("the console", () => {
 
       // No text, so the file is uploaded and read before the source is added.
       addMaterial({
+        reader: "ai",
         title: "Unidad 1",
         text: "",
         file: new File(["%PDF"], "unidad.pdf", { type: "application/pdf" }),
@@ -910,7 +922,7 @@ describe("the console", () => {
         "Braivo's AI reads an image of at most 7.5 MB: save it smaller, or paste its text in the Text field.",
       ],
     ] as const) {
-      addMaterial({ title: "Mi libro", text: "", file });
+      addMaterial({ reader: "ai", title: "Mi libro", text: "", file });
       await vi.waitFor(() => expect(screen.getByRole("alert").textContent).toBe(refusal));
     }
     expect(uploadFile).not.toHaveBeenCalled();
@@ -932,7 +944,7 @@ describe("the console", () => {
     renderAt("/example/sources", { braivo: { ...added, uploadFile, readFileText, addSource } });
     await screen.findByText("No material yet");
 
-    addMaterial({ title: "Mi libro", text, file });
+    addMaterial({ reader: "ai", title: "Mi libro", text, file });
 
     await vi.waitFor(() => expect(addSource).toHaveBeenCalled());
     expect(uploadFile).toHaveBeenCalledWith({ organizationId: "org-1", file }, expect.anything());

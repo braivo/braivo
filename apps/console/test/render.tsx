@@ -63,6 +63,8 @@ export function renderAt(
     getSession?: () => Promise<unknown>;
     /** The browser's, whose Back a blocker can stop, unlike a memory history's; `path` is then ignored. */
     history?: RouterHistory;
+    /** Reading a PDF's text layer, in place of one that reads nothing. */
+    readPdf?: AppContext["readPdf"];
   } = {},
 ) {
   // `u1`, as in `members`.
@@ -127,6 +129,7 @@ export function renderAt(
         ...stubs.braivo,
       } as unknown as AppContext["braivo"],
       visit,
+      readPdf: stubs.readPdf ?? (async () => Promise.reject(new Error("No PDF reader stubbed."))),
     },
   });
   render(<RouterProvider router={router} />);
