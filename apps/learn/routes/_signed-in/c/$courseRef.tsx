@@ -9,7 +9,6 @@ import {
   type Grade,
   type LearnerProgressSummary,
   type LearningDecision,
-  type LearnerProgressStanding,
   type TaskResponse,
   courseRef,
   learnerDayIn,
@@ -18,9 +17,8 @@ import {
 import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
-import { cn } from "@braivo/ui/lib/utils";
 import type { MessageDescriptor } from "@lingui/core";
-import { msg, plural } from "@lingui/core/macro";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   createFileRoute,
@@ -37,6 +35,8 @@ import { AccountHeader } from "#components/account-header";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
 import { ReportProblem } from "#components/report-problem";
+import { SESSION_LENGTH, type Session, SessionEnd, SessionRecap } from "#components/session-end";
+import { formatStandingCounts, StandingMeter } from "#components/standing";
 import { asSessionAuth } from "#lib/auth";
 import {
   ANSWER_DEADLINE_MS,
@@ -112,7 +112,7 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
     }
   },
   head: (head) => pageHead(head, head.loaderData?.title),
-  component: NextStep,
+  component: CoursePage,
   notFoundComponent: CourseNotFound,
   errorComponent: CourseError,
 });
@@ -247,6 +247,17 @@ function CourseNotFound() {
   );
 }
 
+/**
+ * One learner's practice in one course: keyed by both, so a session (and all
+ * else held in state) never passes to another account signed in meanwhile, or
+ * to another course; a reload for the same learner and course keeps it.
+ */
+function CoursePage() {
+  const { courseId } = Route.useLoaderData();
+  const { user } = Route.useRouteContext();
+  return <NextStep key={`${user.id}:${courseId}`} />;
+}
+
 function NextStep() {
   const routeLoad = Route.useLoaderData();
   const { braivo, user } = Route.useRouteContext();
@@ -258,7 +269,26 @@ function NextStep() {
   }>();
   const load = continued?.routeLoad === routeLoad ? continued.load : routeLoad;
   const { activity, progress, title, attemptId, resumed, lastAttemptRefused } = load;
-  const summary = useProgressAfterGrade(load);
+  // This visit's session: its answers, then its end (`SessionEnd`) once
+  // `SESSION_LENGTH` were graded, until Keep going starts another.
+  const [session, setSession] = useState<Session>({ answers: 0, right: 0 });
+  const [ended, setEnded] = useState<{ report: LearnerProgressSummary | undefined; at: Date }>();
+  const endNextReview = useNextReview(ended?.report, ended?.at);
+  const { t } = useLingui();
+  // Ten answers end a session, not the practice: with an objective due or
+  // still being learned, there is more now, and the next review's time,
+  // which leaves those out, would send the learner away till then.
+  const moreNow = ended?.report?.objectives.some(
+    (each) => each.phase === "acquiring" || (each.phase === "retaining" && each.due),
+  );
+  // Named as NoActivity's line is, so the two share one message.
+  let endReviewLine: string | undefined;
+  if (moreNow) {
+    endReviewLine = t`More to practise now.`;
+  } else if (endNextReview) {
+    const { objectiveTitle, nextReviewAt } = endNextReview;
+    endReviewLine = t`Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
+  }
   // Said once: the load holds it, so the mark goes as it shows.
   useEffect(() => {
     if (routeLoad.lastAttemptRefused) clearRefusalNotice(user.id, routeLoad.courseId);
@@ -270,16 +300,18 @@ function NextStep() {
   });
 
   /**
-   * Continue, and Check again, actions rather than reloads, so that failing
-   * keeps the page (docs/apps.md): rechecks the session (access-6), then reads
-   * what comes next with where the learner stands, together, so neither shows
-   * stale beside the other. Resolves whether it failed; failed, the learner's answer stays on
-   * screen, kept for a reload. Signed out, or another account signed in meanwhile, the route
-   * reloads, its guard deciding; a 401 or 404 from the read reloads the course,
-   * which says why. Each response is ignored once `left` aborts or the route
-   * loads again.
+   * Continue, Check again, and Keep going, actions rather than reloads, so that
+   * failing keeps the page (docs/apps.md): rechecks the session (access-6), then
+   * `read`s, which acts unless `superseded`. Resolves whether it failed;
+   * failed, what is on screen stays, the answer kept for a reload. Signed out,
+   * or another account signed in meanwhile, the route reloads, its guard
+   * deciding; a 401 or 404 from a read reloads the course, which says why. Each
+   * response is ignored once `left` aborts or the route loads again.
    */
-  async function advance(left: AbortSignal): Promise<{ failed: boolean }> {
+  async function proceed(
+    left: AbortSignal,
+    read: (superseded: () => boolean) => Promise<void>,
+  ): Promise<{ failed: boolean }> {
     const { courseId } = load;
     // Left, or reloaded meanwhile: an answer now would act on another page.
     const superseded = () => left.aborted || latestRouteLoad.current !== routeLoad;
@@ -290,24 +322,7 @@ function NextStep() {
         await router.invalidate({ sync: true });
         return { failed: false };
       }
-      const [activity, progress] = await Promise.all([
-        readActivity(braivo, courseId, left),
-        readProgress(braivo, courseId, user.id, left),
-      ]);
-      if (superseded()) return { failed: false };
-      clearUnfinishedAttempt(user.id, courseId);
-      setContinued({
-        routeLoad,
-        load: {
-          ...load,
-          activity,
-          progress,
-          attemptId: crypto.randomUUID(),
-          resumed: undefined,
-          // Said of the load that found it, not of what comes after.
-          lastAttemptRefused: false,
-        },
-      });
+      await read(superseded);
       return { failed: false };
     } catch (error) {
       if (superseded()) return { failed: false };
@@ -321,21 +336,97 @@ function NextStep() {
     }
   }
 
+  /** What comes next, with where the learner stands, together, so neither shows stale beside the other. */
+  function advance(left: AbortSignal) {
+    return proceed(left, async (superseded) => {
+      const { courseId } = load;
+      const [activity, progress] = await Promise.all([
+        readActivity(braivo, courseId, left),
+        readProgress(braivo, courseId, user.id, left),
+      ]);
+      if (superseded()) return;
+      clearUnfinishedAttempt(user.id, courseId);
+      setContinued({
+        routeLoad,
+        load: {
+          ...load,
+          activity,
+          progress,
+          attemptId: crypto.randomUUID(),
+          resumed: undefined,
+          // Said of the load that found it, not of what comes after.
+          lastAttemptRefused: false,
+        },
+      });
+    });
+  }
+
+  /** Counts a grade, taking the standing before the session's first as its start. */
+  function graded(grade: Grade) {
+    setSession((current) => ({
+      answers: current.answers + 1,
+      right: current.right + (grade.outcome === "success" ? 1 : 0),
+      start: current.answers === 0 ? load.progress : current.start,
+    }));
+  }
+
+  /**
+   * Continue: what comes next, or past the session's last answer its end,
+   * with where the learner stands read first, so it shows whole. The answer
+   * is forgotten as Continue past it would.
+   */
+  function continueSession(left: AbortSignal): Promise<{ failed: boolean }> {
+    if (session.answers < SESSION_LENGTH) return advance(left);
+    return proceed(left, async (superseded) => {
+      const report = await readProgress(braivo, load.courseId, user.id, left);
+      if (superseded()) return;
+      clearUnfinishedAttempt(user.id, load.courseId);
+      setEnded({ report, at: new Date() });
+    });
+  }
+
+  /** Keep going: what comes next, as Continue reads it, starting a new session. */
+  async function keepGoing(left: AbortSignal): Promise<{ failed: boolean }> {
+    const result = await advance(left);
+    if (!result.failed && !left.aborted) {
+      setSession({ answers: 0, right: 0 });
+      setEnded(undefined);
+    }
+    return result;
+  }
+
+  // Under way: a task, or once answered, a pause that does not end it (a rest,
+  // no activity), so the bar does not vanish as if the session restarted.
+  const practising =
+    activity !== undefined &&
+    ("task" in activity
+      ? isAnswerable(activity.task)
+      : session.answers > 0 && !("empty" in activity) && !("dailyLimit" in activity));
+  // Shown where practice stops for now, caught up or at the day's limit.
+  const sessionSoFar = session.answers > 0 ? session : undefined;
+
   return (
     <>
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
-      <FocusBar report={summary.report} stale={summary.stale} />
+      <FocusBar answers={ended ? SESSION_LENGTH : practising ? session.answers : undefined} />
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced. */}
       {lastAttemptRefused && <LastAttemptRefused key={attemptId} />}
-      {!activity ? (
-        <CaughtUp report={progress} />
+      {ended ? (
+        <SessionEnd
+          session={session}
+          report={ended.report}
+          nextReview={endReviewLine}
+          onKeepGoing={keepGoing}
+        />
+      ) : !activity ? (
+        <CaughtUp report={progress} session={sessionSoFar} />
       ) : "empty" in activity ? (
         // Not "caught up": nothing was ever there to finish.
         <EmptyCourse />
       ) : "dailyLimit" in activity ? (
-        <CaughtUp report={progress} limitReached />
+        <CaughtUp report={progress} session={sessionSoFar} limitReached />
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
@@ -363,8 +454,8 @@ function NextStep() {
           courseId={load.courseId}
           attemptId={attemptId}
           resumed={resumed}
-          onGraded={summary.onGraded}
-          onContinue={advance}
+          onGraded={graded}
+          onContinue={continueSession}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -394,196 +485,40 @@ function LastAttemptRefused() {
 }
 
 /**
- * What of the route's load the summary reads, typed by hand:
- * `ReturnType<typeof Route.useLoaderData>` is `any` here, through a cycle.
+ * The course page's only chrome: Close, back to the list, and while practising,
+ * the session's progress, `answers` of `SESSION_LENGTH`, moving with each grade.
  */
-type ProgressLoad = { courseId: string; progress: LearnerProgressSummary | undefined };
-
-/**
- * Where the learner stands, read again once an answer given here is graded, so
- * the counts agree with its feedback before Continue (progress-8). Meanwhile the
- * earlier counts are `stale`, hidden in place so the page does not jump; a failed
- * read leaves the summary out. A read belongs to the load it followed, not the
- * attempt: a reload resending the same attempt reads its own, and aborts this one.
- * A grade that resend found needs none: the loader read after it.
- */
-function useProgressAfterGrade(load: ProgressLoad) {
-  const { braivo, user } = Route.useRouteContext();
-  // By identity: each load returns a new object, its loader data unshared.
-  const [gradedLoad, setGradedLoad] = useState<ProgressLoad>();
-  const [read, setRead] = useState<{ load: ProgressLoad; report?: LearnerProgressSummary }>();
-  const graded = gradedLoad === load;
-  const readForLoad = read?.load === load;
-
-  useEffect(() => {
-    if (!graded) return;
-    const left = new AbortController();
-    void braivo
-      .learnerProgress(
-        { courseId: load.courseId, learnerId: user.id, includeHistory: false },
-        { signal: withDeadline(left.signal, OPTIONAL_READ_DEADLINE_MS) },
-      )
-      .catch(() => undefined)
-      .then((report) => {
-        if (!left.signal.aborted) setRead({ load, report });
-      });
-    return () => left.abort();
-  }, [graded, braivo, user.id, load]);
-
-  return {
-    report: graded && readForLoad ? read?.report : load.progress,
-    stale: graded && !readForLoad,
-    onGraded: () => setGradedLoad(load),
-  };
-}
-
-/**
- * In the summary's order, each alone, beside an objective's title, and
- * counted: a count's words agree with it, in three forms in Polish.
- */
-const PROGRESS_LABELS = {
-  retained: {
-    alone: msg({ message: "retained", comment: "After an objective's title: a form fitting any" }),
-    counted: (count: number) =>
-      msg({
-        message: plural(count, { one: "# retained", other: "# retained" }),
-        comment: "A count of objectives, the noun implied (Polish: temat)",
-      }),
-  },
-  dueForReview: {
-    alone: msg({
-      message: "due for review",
-      comment: "After an objective's title: a form fitting any",
-    }),
-    counted: (count: number) =>
-      msg({
-        message: plural(count, { one: "# due for review", other: "# due for review" }),
-        comment: "A count of objectives, the noun implied (Polish: temat)",
-      }),
-  },
-  learning: {
-    alone: msg({ message: "learning", comment: "After an objective's title: a form fitting any" }),
-    counted: (count: number) =>
-      msg({
-        message: plural(count, { one: "# learning", other: "# learning" }),
-        comment: "A count of objectives, the noun implied (Polish: temat)",
-      }),
-  },
-  notStarted: {
-    alone: msg({
-      message: "not started",
-      comment: "After an objective's title: a form fitting any",
-    }),
-    counted: (count: number) =>
-      msg({
-        message: plural(count, { one: "# not started", other: "# not started" }),
-        comment: "A count of objectives, the noun implied (Polish: temat)",
-      }),
-  },
-};
-type ProgressLabel = keyof typeof PROGRESS_LABELS;
-
-/**
- * The model's phases, with `due` splitting retaining, so the summary claims no
- * more than the model does: "retained", not "mastered", which Braivo does not define.
- */
-function labelOf(standing: LearnerProgressStanding): ProgressLabel {
-  if (standing.phase === "unseen") return "notStarted";
-  if (standing.phase === "acquiring") return "learning";
-  return standing.due ? "dueForReview" : "retained";
-}
-
-/** `standings` counted by label, in the summary's order, those with none left out: ["2 retained", "1 learning"]. */
-function formatStandingCounts(
-  standings: LearnerProgressStanding[],
-  t: ReturnType<typeof useLingui>["t"],
-) {
-  const labels = standings.map(labelOf);
-  return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
-    .map((label) => [label, labels.filter((each) => each === label).length] as const)
-    .filter(([, count]) => count > 0)
-    .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)));
-}
-
-/**
- * The course page's only chrome: Close, back to the list, and where the learner
- * stands as one meter, each objective a segment by standing, that opens into
- * the counts and each objective (progress-8). `stale`: the meter hidden, from
- * sight and screen readers, keeping its place; no report, no meter.
- */
-function FocusBar({
-  report,
-  stale,
-}: {
-  report: LearnerProgressSummary | undefined;
-  stale: boolean;
-}) {
+function FocusBar({ answers }: { answers: number | undefined }) {
   const { t } = useLingui();
-  const counts = report ? formatStandingCounts(report.objectives, t) : [];
-  // Each count whole where it fits, so a phone wraps between counts, not at "1 not" / "started".
-  const line = counts.map((count) => count.replaceAll(" ", "\u00a0")).join(" · ");
-  const total = report?.objectives.length ?? 0;
-
   return (
     // `-ms-3`: the icon, not its padding, at the page's edge, as a text button's.
-    <div className="-mt-3 mb-4 flex items-start gap-2">
+    <div className="-mt-3 mb-4 flex items-center gap-2">
       <Button asChild variant="ghost" size="icon" className="-ms-3 size-11 shrink-0">
         <Link to="/" aria-label={t`Close`}>
           <XIcon aria-hidden="true" className="size-5" />
         </Link>
       </Button>
-      {report && counts.length > 0 && (
-        <details
-          className={cn("group min-w-0 flex-1 text-sm", stale && "invisible")}
-          aria-hidden={stale || undefined}
+      {answers !== undefined && (
+        // Not shadcn's `Progress`, which never hands Radix its value, so is
+        // announced as indeterminate.
+        <div
+          role="progressbar"
+          aria-label={t`Session`}
+          aria-valuemin={0}
+          aria-valuemax={SESSION_LENGTH}
+          aria-valuenow={answers}
+          aria-valuetext={t`${answers} of ${SESSION_LENGTH} answered`}
+          className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted"
         >
-          <summary
-            aria-label={line}
-            className="flex min-h-11 cursor-pointer list-none items-center rounded-md outline-offset-2 focus-visible:outline-2 [&::-webkit-details-marker]:hidden"
-          >
-            <span
-              aria-hidden="true"
-              className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
-            >
-              {(Object.keys(PROGRESS_LABELS) as ProgressLabel[]).map((label) => {
-                const count = report.objectives.filter((each) => labelOf(each) === label).length;
-                return count > 0 ? (
-                  <span
-                    key={label}
-                    className={METER_FILLS[label]}
-                    style={{ width: `${(count / total) * 100}%` }}
-                  />
-                ) : null;
-              })}
-            </span>
-          </summary>
-          <div className="mt-2 wrap-break-word text-muted-foreground">
-            <p className="text-foreground">{line}</p>
-            <ul className="mt-2 flex flex-col gap-1">
-              {report.objectives.map((standing) => (
-                <li key={standing.objectiveId}>
-                  {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
+          <div
+            className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
+            style={{ width: `${(answers / SESSION_LENGTH) * 100}%` }}
+          />
+        </div>
       )}
     </div>
   );
 }
-
-/**
- * A segment's fill by standing, strongest for retained; not started is the
- * track. The brand's primary, so an organization's theme carries it (ADR 0011);
- * decoration only, the counts said in words.
- */
-const METER_FILLS: Record<ProgressLabel, string> = {
-  retained: "bg-primary",
-  dueForReview: "bg-primary/60",
-  learning: "bg-primary/30",
-  notStarted: "",
-};
 
 /**
  * Adds when the next review falls due, if any objective is retained and not
@@ -595,9 +530,12 @@ const METER_FILLS: Record<ProgressLabel, string> = {
  */
 function CaughtUp({
   report,
+  session,
   limitReached = false,
 }: {
   report: LearnerProgressSummary | undefined;
+  /** This visit's session, if answered: its recap, as practice stops before its end. */
+  session?: Session;
   limitReached?: boolean;
 }) {
   const { t } = useLingui();
@@ -629,6 +567,11 @@ function CaughtUp({
       description={
         <>
           <p>{status}</p>
+          {session && (
+            <div className="mt-2">
+              <SessionRecap session={session} report={report} />
+            </div>
+          )}
           {todaySummary && (
             <p className="mt-2">
               {t({
@@ -639,7 +582,10 @@ function CaughtUp({
           )}
         </>
       }
-    />
+    >
+      {/* Where the learner stands, as practice pauses (progress-8). */}
+      {report && <StandingMeter report={report} />}
+    </Notice>
   );
 }
 
@@ -957,7 +903,7 @@ function Practice({
   /** The answer a reload resent, shown graded or unconfirmed. */
   resumed?: Resumed;
   /** Braivo graded an answer sent here, by Send again too; not one a reload's resend found. */
-  onGraded: () => void;
+  onGraded: (grade: Grade) => void;
   /** Continue, under this practice's lifetime: whether it failed, keeping it on screen. */
   onContinue: (left: AbortSignal) => Promise<{ failed: boolean }>;
   /** No objective started yet: says how practice goes. */
@@ -1013,7 +959,7 @@ function Practice({
       if (left?.aborted) return;
       setGrade(answered);
       setUnconfirmedCount(0);
-      onGraded();
+      onGraded(answered);
     } catch (error) {
       // Kept unless refused (below): it may have been recorded. Left, not timed
       // out: a timeout is unconfirmed, below.

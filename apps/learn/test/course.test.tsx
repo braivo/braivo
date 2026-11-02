@@ -202,12 +202,11 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-    for (const read of [session, nextActivity]) {
+    // With the activity, on loading and on Continue: never on a grade alone.
+    for (const read of [session, nextActivity, learnerProgress]) {
       expect(read).toHaveBeenCalledTimes(2);
     }
     expect(learnerCourseByNumber).toHaveBeenCalledOnce();
-    // Also read once the answer was graded, before Continue.
-    expect(learnerProgress).toHaveBeenCalledTimes(3);
     expect(hostOrganization).toHaveBeenCalledTimes(1);
   });
 

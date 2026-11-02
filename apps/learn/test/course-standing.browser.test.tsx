@@ -9,7 +9,6 @@ import { expect, onTestFinished, test } from "vite-plus/test";
 import type {} from "vite-plus/test/browser-playwright";
 import { cdp, page } from "vite-plus/test/browser/context";
 
-import { activity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 /** How many lines `text` takes in `element`'s only text node, U+00A0 matching a space. */
@@ -26,9 +25,9 @@ function lineCount(element: Element, text: string): number {
 test("on a phone, wraps the standing summary between its counts, never inside one", async () => {
   await page.viewport(320, 568);
   const at = new Date().toISOString();
+  // Caught up, where it shows.
   renderAt("/c/4732", {
     signedIn: true,
-    nextActivity: async () => activity,
     learnerProgress: async () => ({
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
@@ -54,8 +53,6 @@ test("on a phone, wraps the standing summary between its counts, never inside on
   const counts = ["1 retained", "1 learning", "1 not started"];
   const line = counts.join(" · ");
   const summary = await screen.findByText(line);
-  // Shown once the meter opens, as a learner opens it.
-  summary.closest("details")!.open = true;
   await document.fonts.ready;
   // Wider than a phone, so it wraps.
   expect(lineCount(summary, line)).toBeGreaterThan(1);

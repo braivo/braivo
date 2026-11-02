@@ -4,23 +4,20 @@
 import {
   BraivoError,
   type BraivoClient,
-  type Grade,
   type LearnerProgressStanding,
   type LearnerProgressSummary,
 } from "@braivo/server/client";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
-import { OPTIONAL_READ_DEADLINE_MS } from "../lib/deadline.ts";
-import { SPANISH_ID, activity, anotherActivity, noProgress } from "./fixtures.ts";
-import { stall, waitOut, renderAt } from "./render.tsx";
+import { activity, anotherActivity, noProgress } from "./fixtures.ts";
+import { renderAt } from "./render.tsx";
 
 describe("the learn app", () => {
-  test("shows the learner where they stand in the course, read as themselves", async () => {
+  test("shows a caught-up learner where they stand in the course, read as themselves", async () => {
     const at = "2026-06-01T00:00:00.000Z";
     const { learnerProgress } = renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => activity,
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
@@ -59,14 +56,14 @@ describe("the learn app", () => {
       }),
     });
 
-    // A meter named by its counts, opening into them and which is which.
-    const line = "1 retained · 1 due for review · 1 learning · 2 not started";
-    const summary = await screen.findByLabelText(line);
+    // Which is which opens from the counts, by name.
+    const summary = await screen.findByText(
+      "1 retained · 1 due for review · 1 learning · 2 not started",
+    );
     const details = summary.closest("details")!;
     expect(details.open).toBe(false);
     fireEvent.click(summary);
     expect(details.open).toBe(true);
-    expect(within(details).getByText(line)).toBeTruthy();
     expect(
       within(details)
         .getAllByRole("listitem")
@@ -88,7 +85,6 @@ describe("the learn app", () => {
   test("leaves out empty counts", async () => {
     renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => activity,
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
@@ -210,177 +206,15 @@ describe("the learn app", () => {
     };
   }
 
-  test.each([
-    ["a wrong answer", "hablo", "failure", "acquiring", "1 learning · 1 not started"],
-    ["Show answer", "Show answer", "failure", "acquiring", "1 learning · 1 not started"],
-    ["a right answer", "hablé", "success", "retaining", "1 retained · 1 not started"],
-  ] as const)(
-    "counts %s where the learner stands before Continue, Continue keeping the focus",
-    async (_, press, outcome, phase, counted) => {
-      let reported = progressSummary("unseen");
-      const { learnerProgress } = renderAt("/c/4732", {
-        signedIn: true,
-        nextActivity: async () => activity,
-        learnerProgress: async () => reported,
-        submitAttempt: async () => {
-          reported = progressSummary(phase);
-          return { kind: "choice", outcome, correctChoice: 0 };
-        },
-      });
-      expect(await screen.findByText("2 not started")).toBeTruthy();
-
-      fireEvent.click(screen.getByRole("button", { name: press }));
-
-      expect(await screen.findByText(counted)).toBeTruthy();
-      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
-      expect(learnerProgress).toHaveBeenCalledTimes(2);
-      expect(learnerProgress).toHaveBeenLastCalledWith(
-        { courseId: "c1", learnerId: "ada", includeHistory: false },
-        { signal: expect.any(AbortSignal) },
-      );
-    },
-  );
-
-  test("hides the earlier counts while reading them again, and leaves them out past the deadline", async () => {
-    vi.useFakeTimers();
-    const grading = Promise.withResolvers<Grade>();
-    const { learnerProgress } = renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      learnerProgress: vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockImplementation((_input, options) => stall(options)),
-      submitAttempt: () => grading.promise,
-    });
-    await waitOut(0);
-    const before = screen.getByText("2 not started").closest("details")!;
-    expect(before.getAttribute("aria-hidden")).toBeNull();
-
-    // Not on the answer: on its grade.
-    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    await waitOut(0);
-    expect(before.getAttribute("aria-hidden")).toBeNull();
-    expect(learnerProgress).toHaveBeenCalledTimes(1);
-    grading.resolve({ kind: "choice", outcome: "failure", correctChoice: 0 });
-    await waitOut(0);
-
-    // Kept in place, so the page does not jump, but neither seen nor read.
-    expect(screen.getByText("Not quite")).toBeTruthy();
-    expect(before.getAttribute("aria-hidden")).toBe("true");
-    expect(before.className).toContain("invisible");
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
-
-    await waitOut(OPTIONAL_READ_DEADLINE_MS);
-    expect(screen.queryByText("2 not started")).toBeNull();
-    expect(screen.getByText("Not quite")).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
-  });
-
-  test("leaves the counts out, not the earlier ones back, when reading them again fails", async () => {
+  test("shows no standing beside a question: practice alone", async () => {
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
-      learnerProgress: vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockRejectedValue(new BraivoError(500, "unavailable")),
-      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+      learnerProgress: async () => progressSummary("acquiring"),
     });
-    expect(await screen.findByText("2 not started")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-
-    expect(await screen.findByText("Not quite")).toBeTruthy();
-    await vi.waitFor(() => expect(screen.queryByText("2 not started")).toBeNull());
-    expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
-  });
-
-  test.each(["Continue", "a reload resending the same answer"])(
-    "drops a read of the counts that answers after %s, showing the reload's",
-    async (how) => {
-      const late = Promise.withResolvers<LearnerProgressSummary>();
-      const learnerProgress = vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockReturnValueOnce(late.promise)
-        .mockResolvedValue(progressSummary("retaining"));
-      const { router, submitAttempt } = renderAt("/c/4732", {
-        signedIn: true,
-        nextActivity: async () => activity,
-        learnerProgress,
-        submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
-      });
-      expect(await screen.findByText("2 not started")).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-      expect(await screen.findByText("Not quite")).toBeTruthy();
-
-      if (how === "Continue") fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-      else await act(() => router.invalidate());
-      expect(await screen.findByText("1 retained · 1 not started")).toBeTruthy();
-
-      await act(async () => late.resolve(progressSummary("acquiring")));
-      expect(screen.getByText("1 retained · 1 not started")).toBeTruthy();
-      expect(screen.queryByText("1 learning · 1 not started")).toBeNull();
-      // The reload's own read, and no other.
-      expect(learnerProgress).toHaveBeenCalledTimes(3);
-      // The reload resent the same attempt, never a second one.
-      if (how !== "Continue") {
-        expect(submitAttempt).toHaveBeenCalledTimes(2);
-        expect(submitAttempt.mock.calls[1]![0]).toEqual(submitAttempt.mock.calls[0]![0]);
-      }
-    },
-  );
-
-  test("ignores an answer graded after the learner left for another course", async () => {
-    const abandoned = Promise.withResolvers<Grade>();
-    const { learnerProgress, router } = renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      learnerProgress: vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockResolvedValue(progressSummary("acquiring")),
-      // The first answer's grade arrives although leaving aborted its request.
-      submitAttempt: vi
-        .fn<BraivoClient["submitAttempt"]>()
-        .mockReturnValueOnce(abandoned.promise)
-        .mockResolvedValue({ kind: "choice", outcome: "failure", correctChoice: 0 }),
-    });
-    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
-
-    await act(() => router.navigate({ to: "/c/$courseRef", params: { courseRef: SPANISH_ID } }));
-    expect(await screen.findByText("2 not started")).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
-    expect(await screen.findByText("1 learning · 1 not started")).toBeTruthy();
-
-    await act(async () =>
-      abandoned.resolve({ kind: "choice", outcome: "success", correctChoice: 0 }),
-    );
-    expect(screen.getByText("1 learning · 1 not started")).toBeTruthy();
-    expect(learnerProgress).toHaveBeenCalledTimes(3);
-  });
-
-  test("shows the counts again once a reload reads them, after reading them again failed", async () => {
-    const { learnerProgress, router } = renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      learnerProgress: vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce(progressSummary("unseen"))
-        .mockRejectedValueOnce(new BraivoError(500, "unavailable"))
-        .mockResolvedValue(progressSummary("acquiring")),
-      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
-    });
-    expect(await screen.findByText("2 not started")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    await vi.waitFor(() => expect(screen.queryByText("2 not started")).toBeNull());
-
-    await act(() => router.invalidate());
-
-    expect(await screen.findByText("1 learning · 1 not started")).toBeTruthy();
-    expect(learnerProgress).toHaveBeenCalledTimes(3);
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(screen.queryByText("1 learning · 1 not started")).toBeNull();
   });
 
   test("tells a learner with nothing due that they are caught up", async () => {

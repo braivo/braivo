@@ -60,12 +60,16 @@ msgstr "Rola osoby {0}: nauczyciel."
 msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "{answers} of {SESSION_LENGTH} answered"
+msgstr "Odpowiedzi: {answers} z {SESSION_LENGTH}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 msgstr "{clientName} działa w organizacji, której treściami zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o nadanie Ci tam roli autora, a potem połącz ponownie."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
 
@@ -82,7 +86,7 @@ msgid "{count, plural, one {# learner} other {# learners}} you teach in this cou
 msgstr "{count, plural, one {# uczeń, którego uczysz} few {# uczniów, których uczysz} many {# uczniów, których uczysz} other {# ucznia, których uczysz}} w tym kursie, w Twoich grupach: {groupNames}."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# learning} other {# learning}}"
 msgstr "{count, plural, one {# w trakcie nauki} few {# w trakcie nauki} many {# w trakcie nauki} other {# w trakcie nauki}}"
 
@@ -109,12 +113,12 @@ msgid "{count, plural, one {# miss, no correct answer yet} other {# misses, no c
 msgstr "{count, plural, one {# błąd, jeszcze bez poprawnej odpowiedzi} few {# błędy, jeszcze bez poprawnej odpowiedzi} many {# błędów, jeszcze bez poprawnej odpowiedzi} other {# błędu, jeszcze bez poprawnej odpowiedzi}}, ostatni {latest}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
 msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# nierozpoczętych} other {# nierozpoczętego}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
@@ -180,6 +184,10 @@ msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (wkrótce)"
+
+#: apps/learn/components/session-end.tsx
+msgid "{right} of {answers} right."
+msgstr "Poprawnie: {right} z {answers}."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{successes, plural, one {# success} other {# successes}}"
@@ -554,6 +562,7 @@ msgstr "Nie udało się odłączyć aplikacji. Spróbuj ponownie."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
 
+#: apps/learn/components/session-end.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Could not load the next question. Try again."
 msgstr "Nie udało się wczytać następnego pytania. Spróbuj ponownie."
@@ -689,8 +698,12 @@ msgstr "Domena"
 msgid "Domains"
 msgstr "Domeny"
 
+#: apps/learn/components/session-end.tsx
+msgid "Done"
+msgstr "Zakończ"
+
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "due for review"
 msgstr "do powtórki"
 
@@ -942,6 +955,10 @@ msgstr "Nauczyciele tej grupy nie zobaczą postępów, dopóki nie będzie w nie
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
 
+#: apps/learn/components/session-end.tsx
+msgid "Keep going"
+msgstr "Ćwicz dalej"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Keep it"
@@ -1026,7 +1043,7 @@ msgid "Learners' site"
 msgstr "Strona dla uczniów"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "learning"
 msgstr "w trakcie nauki"
 
@@ -1083,6 +1100,7 @@ msgstr "Jasny"
 msgid "Loading"
 msgstr "Ładowanie"
 
+#: apps/learn/components/session-end.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Ładowanie…"
@@ -1095,6 +1113,10 @@ msgstr "Zarządzaj grupami"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Members"
 msgstr "Członkowie"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "More to practise now."
+msgstr "Masz jeszcze co ćwiczyć."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most objectives due"
@@ -1140,6 +1162,11 @@ msgstr "Nowy temat"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/new.tsx
 msgid "New group"
 msgstr "Nowa grupa"
+
+#. Objectives this session moved to retained, joined as a list
+#: apps/learn/components/session-end.tsx
+msgid "Newly retained: {titles}."
+msgstr "Nowo utrwalone tematy: {titles}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Next review due: {objectiveTitle}, {nextReviewAt}."
@@ -1253,7 +1280,7 @@ msgid "Not quite"
 msgstr "Nie tym razem"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "not started"
 msgstr "nie rozpoczęto"
 
@@ -1486,7 +1513,7 @@ msgid "Report a problem"
 msgstr "Zgłoś problem"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "retained"
 msgstr "utrwalono"
 
@@ -1583,6 +1610,14 @@ msgstr "Wysyłanie…"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
 msgstr "Wysłano ponownie na adres {address}. Użyj kodu z najnowszej wiadomości; wygasa po 10 minutach."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Session"
+msgstr "Sesja"
+
+#: apps/learn/components/session-end.tsx
+msgid "Session complete"
+msgstr "Koniec sesji"
 
 #: apps/console/components/organization-switcher.tsx
 msgid "Set up an organization"

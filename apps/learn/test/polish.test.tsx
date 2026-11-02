@@ -299,7 +299,6 @@ describe("the learn app in Polish", () => {
   ])("counts %i objective(s) not started as %s", async (count, line) => {
     renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => activity,
       learnerProgress: async () => notStarted(count),
     });
 
