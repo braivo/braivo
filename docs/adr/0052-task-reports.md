@@ -1,6 +1,6 @@
 # 0052: A learner reports a problem with a task they answered, and the school's administrators resolve it in the console
 
-Status: proposed (2026-11-01)
+Status: accepted (2026-11-02)
 
 ## Context
 
@@ -34,9 +34,11 @@ What a learner answered and wrote is their data. An `author` reaches none of it 
 
 ## Consequences
 
-- A learner who reported a wrong key meets the task again after its rest, and is graded wrong again, until a reviewer acts. How long reports stay open is the measure to watch; holding a reported task back for its reporter, when its objective has another, is the follow-up.
-- Show answer before reporting records a failure, even for a learner who knew the answer to a broken question; evidence graded by a task later retired as wrong still counts, an open authoring question ([authoring](../specs/authoring.md), Gaps).
+- Reporting changes neither grading nor which task is offered: a learner who reported a wrong key may meet the task again after its rest, and may be graded wrong again, until a reviewer acts. A report open a week, or a recurrence that costs trust sooner, even within a session, brings forward holding a reported task back for its reporter while its objective has another published task.
+- Show answer before reporting records a failure, even for a learner who knew the answer to a broken question; evidence graded by a task later retired as wrong still counts. Attempts stay as recorded; discounting or regrading is decided once confirmed defects change what learners practise or what a teacher concludes ([authoring](../specs/authoring.md), Gaps).
 - A learner who first reported a task as confusing and then sees its key is wrong is told they already reported it. If that shows, a new report replaces their open one.
 - Dismissed reports accumulate, each bound to a recorded attempt and a reviewer's dismissal.
-- Teachers of groups who do not administer, the learner hearing the outcome, and reports through `/mcp` wait for decisions of their own; the last for ADR 0050's confirmation to cover answers and notes.
+- A correction or Retire closes every report on its task, whatever each said: closed means the version left practice, not that a complaint was upheld. The learner hears an outcome only once a correction keeps a link to what it replaced, then that the question changed, in the app, never for a dismissal or a task withdrawn without one, and never promising credit ([authoring](../specs/authoring.md), Gaps).
+- Teachers of groups who do not administer read no reports until a contract for disclosing a learner's attempts to their teachers; an `author` may be handed a correction to make, written by the administrator, never a learner's answer or note.
+- AI may check a candidate correction against its cited passages, content alone. Any future analysis of which recorded answers a proposed correction would grade differently is computed by Braivo, never a model, and shown only to an authorized reviewer in a browser. Answers and notes reach a provider, through `/mcp` or Braivo's own AI, only once ADR 0050's confirmation covers them.
 - Reports are learner data: an export or erasure of a learner's data includes them.
