@@ -17,6 +17,7 @@ import {
 import { ChoiceQuestion, Heading, MutedText, SourcePassage, TypedQuestion } from "@braivo/ui";
 import { Alert, AlertDescription, AlertTitle } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
+import { cn } from "@braivo/ui/lib/utils";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -880,6 +881,9 @@ function Reason({ decision }: { decision: LearningDecision }) {
   }
 }
 
+/** UTF-16 units of a correct answer the foot holds, about three lines on a 320px phone: a rough bound, not a measure. */
+const SHORT_ANSWER = 60;
+
 /** In context, as each reads unlike the same English elsewhere ("Try again", the button). */
 const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
   introduce: msg({ message: "New", context: "Why a question comes now" }),
@@ -931,6 +935,8 @@ function Practice({
   // Describes the question, so the focus landing on it reads this too.
   const contextId = useId();
   const passagesId = useId();
+  const explanationId = useId();
+  const answerId = useId();
   const { decision, objective, task } = activity;
 
   // Aborted when this practice goes away, so an answer still in flight cannot
@@ -1023,6 +1029,10 @@ function Practice({
           ? task.options.find((option) => option.choice === correctChoice)?.text
           : undefined;
   const revealed = sent !== undefined && "reveal" in sent;
+  // In the foot with the verdict while short: a long one (a typed answer may
+  // run to 500 characters, an option to a sentence) would grow the pinned foot
+  // over the question, so it goes in the page with the explanation instead.
+  const answerInFoot = correctAnswer !== undefined && correctAnswer.length <= SHORT_ANSWER;
 
   return (
     <section className="flex flex-col gap-6">
@@ -1104,33 +1114,18 @@ function Practice({
       )}
       {grade && (
         <>
-          {/* `wrap-anywhere`: a grid, whose column is otherwise as wide as the
-              explanation's longest word, such as a link. */}
-          <Alert className="wrap-anywhere">
-            {grade.outcome === "success" ? (
-              <CircleCheckIcon aria-hidden="true" />
-            ) : revealed ? (
-              <EyeIcon aria-hidden="true" />
-            ) : (
-              <CircleXIcon aria-hidden="true" />
-            )}
-            <AlertTitle>
-              {grade.outcome === "success" ? t`Correct` : revealed ? t`Here it is` : t`Not quite`}
-            </AlertTitle>
-            {(correctAnswer || grade.explanation) && (
-              <AlertDescription>
-                {/* Named, not only marked, so a learner need not go back to the
-                    options once Continue takes the focus, or a phone scrolls them
-                    away. */}
-                {correctAnswer && (
-                  <p>
-                    <Trans>The answer: {correctAnswer}</Trans>
-                  </p>
-                )}
-                {grade.explanation && <p>{grade.explanation}</p>}
-              </AlertDescription>
-            )}
-          </Alert>
+          {/* Teaching, not a verdict: body text by the question, read as
+              Continue takes the focus (its description). */}
+          {correctAnswer && !answerInFoot && (
+            <p id={answerId} className="text-pretty wrap-break-word">
+              <Trans>The answer: {correctAnswer}</Trans>
+            </p>
+          )}
+          {grade.explanation && (
+            <p id={explanationId} className="text-pretty wrap-break-word">
+              {grade.explanation}
+            </p>
+          )}
           {grade.passages && (
             // Titled, so a learner reads the quotes as where the answer comes from.
             <section aria-labelledby={passagesId} className="flex flex-col gap-3">
@@ -1151,6 +1146,37 @@ function Practice({
             </section>
           )}
           <PinnedFoot>
+            {/* The verdict where the thumb and eye go next, beside Continue, in
+                the outcome's tint as the options mark it; the question stays in
+                view above. `wrap-anywhere`: a grid, whose column is otherwise as
+                wide as the answer's longest word, such as a link. */}
+            <Alert
+              className={cn(
+                "wrap-anywhere",
+                grade.outcome === "success"
+                  ? "border-primary bg-primary/10"
+                  : !revealed && "border-destructive bg-destructive/10",
+              )}
+            >
+              {grade.outcome === "success" ? (
+                <CircleCheckIcon aria-hidden="true" className="text-primary!" />
+              ) : revealed ? (
+                <EyeIcon aria-hidden="true" />
+              ) : (
+                <CircleXIcon aria-hidden="true" className="text-destructive!" />
+              )}
+              <AlertTitle>
+                {grade.outcome === "success" ? t`Correct` : revealed ? t`Here it is` : t`Not quite`}
+              </AlertTitle>
+              {/* Named, not only marked, so a learner need not go back to the
+                  options, which a phone may have scrolled away. Ink, not muted,
+                  on the tint. */}
+              {answerInFoot && (
+                <AlertDescription className="text-foreground">
+                  <Trans>The answer: {correctAnswer}</Trans>
+                </AlertDescription>
+              )}
+            </Alert>
             {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
             {continueFailures > 0 && (
               <Alert key={continueFailures} variant="destructive">
@@ -1160,7 +1186,18 @@ function Practice({
               </Alert>
             )}
             {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-            <Button size="lg" autoFocus aria-disabled={continuing} onClick={() => void next()}>
+            <Button
+              size="lg"
+              autoFocus
+              aria-disabled={continuing}
+              // What the page says beyond the verdict, read as the focus lands.
+              aria-describedby={
+                [correctAnswer && !answerInFoot && answerId, grade.explanation && explanationId]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+              onClick={() => void next()}
+            >
               {continuing ? t`Loading…` : t`Continue`}
             </Button>
           </PinnedFoot>

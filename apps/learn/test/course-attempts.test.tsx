@@ -45,7 +45,10 @@ describe("the learn app", () => {
 
     // The task answered, not the next one, graded as before the reload.
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablo.*Your answer/ })).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
@@ -512,7 +515,10 @@ describe("the learn app", () => {
       submitAttempt: async () => graded,
     });
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(1);
     expect(nextActivity).not.toHaveBeenCalled();
   });

@@ -36,7 +36,10 @@ describe("the learn app", () => {
     // marked correct once Continue takes the focus.
     const alert = screen.getByRole("alert");
     expect(within(alert).getByText("The answer: hablé")).toBeTruthy();
-    expect(within(alert).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledWith(
       { courseId: "c1", id: expect.any(String), taskId: "t1", response: { choice: 1 } },

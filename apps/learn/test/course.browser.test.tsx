@@ -3,7 +3,7 @@
 
 import "../styles.css";
 import { activateLocale } from "@braivo/i18n";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { expect, onTestFinished, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser/context";
 
@@ -30,7 +30,7 @@ test("on a phone, lines up Show answer's text and Close's icon with the question
   expect(Math.abs(close.getBoundingClientRect().left - left)).toBeLessThanOrEqual(1);
 });
 
-test("on a phone, keeps Continue in view below feedback longer than the screen", async () => {
+test("on a phone, keeps the verdict and Continue in view below feedback longer than the screen", async () => {
   await page.viewport(320, 568);
   renderAt("/c/4732", {
     signedIn: true,
@@ -53,6 +53,11 @@ test("on a phone, keeps Continue in view below feedback longer than the screen",
   expect(top).toBeGreaterThanOrEqual(0);
   expect(bottom).toBeLessThanOrEqual(568);
   expect(screen.queryByRole("button", { name: "Check" })).toBeNull();
+  // The verdict just above it, where the eye goes to move on, the explanation's length aside.
+  const verdict = screen.getByRole("alert").getBoundingClientRect();
+  expect(verdict.top).toBeGreaterThanOrEqual(0);
+  expect(top - verdict.bottom).toBeGreaterThanOrEqual(0);
+  expect(top - verdict.bottom).toBeLessThanOrEqual(24);
 });
 
 test("on a phone, scrolls a passage's link focused above the pinned Continue, never beneath it", async () => {
@@ -102,4 +107,27 @@ test("on a phone, in Polish, fits the answer field's placeholder whole, and Chec
   expect(top).toBeGreaterThanOrEqual(box.bottom);
   expect(Math.abs(width - box.width)).toBeLessThanOrEqual(1);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+});
+
+test("on a phone, keeps a long correct answer in the page, the pinned foot short", async () => {
+  await page.viewport(320, 568);
+  const answer = "Ich bin heute sehr müde, weil ich gestern lange gearbeitet habe. "
+    .repeat(4)
+    .trim();
+  renderAt("/c/4732", {
+    signedIn: true,
+    nextActivity: async () => typedActivity,
+    submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+  });
+
+  await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
+  const foot = (await screen.findByRole("button", { name: "Continue" })).parentElement!;
+  // Named in full, never cut, outside the foot, which keeps to the verdict and Continue.
+  expect(foot.contains(screen.getByText(`The answer: ${answer}`))).toBe(false);
+  expect(within(foot).getByRole("alert").textContent).toBe("Not quite");
+  // Read as the focus lands on Continue, as the foot's answer is in its alert.
+  expect(
+    within(foot).getByRole("button", { name: "Continue", description: `The answer: ${answer}` }),
+  ).toBe(document.activeElement);
+  expect(foot.getBoundingClientRect().height).toBeLessThan(568 / 3);
 });
