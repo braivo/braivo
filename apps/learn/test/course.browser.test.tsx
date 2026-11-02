@@ -5,7 +5,7 @@ import "../styles.css";
 import { activateLocale } from "@braivo/i18n";
 import { screen } from "@testing-library/react";
 import { expect, onTestFinished, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser/context";
+import { page, userEvent } from "vite-plus/test/browser/context";
 
 import { typedActivity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
@@ -18,17 +18,69 @@ function textEdges(element: Element) {
   return { left, right };
 }
 
-test("on a phone, lines up Show answer's text with the question's, and Sign out's with the page's edge", async () => {
+test("on a phone, lines up Show answer's text and Close's icon with the question's", async () => {
   await page.viewport(320, 568);
   renderAt("/c/4732", { signedIn: true, nextActivity: async () => typedActivity });
 
   const showAnswer = await screen.findByRole("button", { name: "Show answer" });
   const { left } = textEdges(screen.getByText("I am tired: Ich ___ müde."));
-  const signOut = screen.getByRole("button", { name: "Sign out" });
-  const { right } = signOut.parentElement!.getBoundingClientRect();
-  // Within a button's transparent 1px border.
+  const close = screen.getByRole("link", { name: "Close" }).querySelector("svg")!;
+  // Within a button's transparent 1px border; the icon's box, its glyph inset 2px of 24.
   expect(Math.abs(textEdges(showAnswer).left - left)).toBeLessThanOrEqual(1);
-  expect(Math.abs(textEdges(signOut).right - right)).toBeLessThanOrEqual(1);
+  expect(Math.abs(close.getBoundingClientRect().left - left)).toBeLessThanOrEqual(1);
+});
+
+test("on a phone, keeps Continue in view below feedback longer than the screen", async () => {
+  await page.viewport(320, 568);
+  renderAt("/c/4732", {
+    signedIn: true,
+    nextActivity: async () => typedActivity,
+    submitAttempt: async () => ({
+      kind: "typed",
+      outcome: "failure",
+      correctAnswer: "bin",
+      explanation: "Sein: ich bin, du bist, er ist. ".repeat(20),
+    }),
+  });
+
+  await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
+  const next = await screen.findByRole("button", { name: "Continue" });
+  // The page scrolls, yet read from its top, as feedback is, Continue sits on
+  // screen at its foot, with Check gone. From the top: focus alone scrolls to it.
+  expect(document.documentElement.scrollHeight).toBeGreaterThan(568);
+  window.scrollTo(0, 0);
+  const { top, bottom } = next.getBoundingClientRect();
+  expect(top).toBeGreaterThanOrEqual(0);
+  expect(bottom).toBeLessThanOrEqual(568);
+  expect(screen.queryByRole("button", { name: "Check" })).toBeNull();
+});
+
+test("on a phone, scrolls a passage's link focused above the pinned Continue, never beneath it", async () => {
+  await page.viewport(320, 568);
+  renderAt("/c/4732", {
+    signedIn: true,
+    nextActivity: async () => typedActivity,
+    submitAttempt: async () => ({
+      kind: "typed",
+      outcome: "failure",
+      correctAnswer: "bin",
+      passages: Array.from({ length: 6 }, (_, index) => ({
+        quote: "Ich bin müde, und du bist es auch. ".repeat(3),
+        source: { title: `Lesson ${index + 1}`, url: `https://example.com/${index + 1}` },
+      })),
+    }),
+  });
+
+  await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
+  const foot = (await screen.findByRole("button", { name: "Continue" })).parentElement!;
+  window.scrollTo(0, 0);
+  // Each link in turn, as Tab takes them, down the page.
+  for (const link of screen.getAllByRole("link", { name: /^Lesson / })) {
+    link.focus();
+    expect(link.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      foot.getBoundingClientRect().top,
+    );
+  }
 });
 
 test("on a phone, in Polish, fits the answer field's placeholder whole, and Check below it, as wide", async () => {

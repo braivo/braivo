@@ -54,6 +54,8 @@ test("on a phone, wraps the standing summary between its counts, never inside on
   const counts = ["1 retained", "1 learning", "1 not started"];
   const line = counts.join(" · ");
   const summary = await screen.findByText(line);
+  // Shown once the meter opens, as a learner opens it.
+  summary.closest("details")!.open = true;
   await document.fonts.ready;
   // Wider than a phone, so it wraps.
   expect(lineCount(summary, line)).toBeGreaterThan(1);

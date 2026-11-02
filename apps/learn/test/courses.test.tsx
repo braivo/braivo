@@ -104,6 +104,7 @@ describe("the learn app", () => {
           "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access.",
       });
       expect(within(notice).getByRole("link", { name: "Your courses" })).toBeTruthy();
+      // Not practice: the account's header, to sign out and in as another.
       expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
       expect(nextActivity).not.toHaveBeenCalled();
     },
@@ -160,7 +161,7 @@ describe("the learn app", () => {
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
-  test("shows that a page slow to load is on its way, under the header", async () => {
+  test("shows that a page slow to load is on its way", async () => {
     const loading = Promise.withResolvers<Activity | undefined>();
     renderAt("/", {
       signedIn: true,
@@ -173,7 +174,6 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("link", { name: "Spanish" }));
 
     expect(await screen.findByRole("status", { name: "Loading" }, { timeout: 2000 })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
     loading.resolve(activity);
     expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 2000 })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();

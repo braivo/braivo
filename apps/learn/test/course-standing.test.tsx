@@ -59,14 +59,14 @@ describe("the learn app", () => {
       }),
     });
 
-    const summary = await screen.findByText(
-      "1 retained · 1 due for review · 1 learning · 2 not started",
-    );
-    // Which is which opens from the counts, by name.
+    // A meter named by its counts, opening into them and which is which.
+    const line = "1 retained · 1 due for review · 1 learning · 2 not started";
+    const summary = await screen.findByLabelText(line);
     const details = summary.closest("details")!;
     expect(details.open).toBe(false);
     fireEvent.click(summary);
     expect(details.open).toBe(true);
+    expect(within(details).getByText(line)).toBeTruthy();
     expect(
       within(details)
         .getAllByRole("listitem")

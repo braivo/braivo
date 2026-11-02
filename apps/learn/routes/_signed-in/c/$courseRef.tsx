@@ -30,9 +30,12 @@ import {
   useLoaderData,
   useRouter,
 } from "@tanstack/react-router";
+import { CircleCheckIcon, CircleXIcon, EyeIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { AccountHeader } from "#components/account-header";
 import { Notice, useFocusOnMount } from "#components/notice";
+import { PinnedFoot } from "#components/pinned-foot";
 import { ReportProblem } from "#components/report-problem";
 import { asSessionAuth } from "#lib/auth";
 import {
@@ -217,26 +220,30 @@ async function resume(
 
 /**
  * A link sent to the learner may be for another account of theirs, or a
- * course not yet open to them: said, with the way back, Sign out above.
+ * course not yet open to them: said, with the way back, and the account's
+ * header, not practice's, so they can sign out and in as the other.
  */
 function CourseNotFound() {
   const { t } = useLingui();
   return (
-    <Notice
-      title={t`This course does not exist, or is not one of yours.`}
-      description={
-        <Trans>
-          If someone sent you a link to it, check that you are signed in with the right account, or
-          ask them for access.
-        </Trans>
-      }
-    >
-      <Button asChild variant="outline">
-        <Link to="/">
-          <Trans>Your courses</Trans>
-        </Link>
-      </Button>
-    </Notice>
+    <>
+      <AccountHeader />
+      <Notice
+        title={t`This course does not exist, or is not one of yours.`}
+        description={
+          <Trans>
+            If someone sent you a link to it, check that you are signed in with the right account,
+            or ask them for access.
+          </Trans>
+        }
+      >
+        <Button asChild variant="outline">
+          <Link to="/">
+            <Trans>Your courses</Trans>
+          </Link>
+        </Button>
+      </Notice>
+    </>
   );
 }
 
@@ -316,15 +323,9 @@ function NextStep() {
 
   return (
     <>
-      {/* As tall as a button (styles.css): a touch target's least. */}
-      <Link
-        to="/"
-        className="mb-2 inline-flex min-h-11 items-center text-sm text-muted-foreground underline"
-      >
-        <Trans>Your courses</Trans>
-      </Link>
-      {title && <Heading>{title}</Heading>}
-      {summary.report && <ProgressSummary report={summary.report} stale={summary.stale} />}
+      {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
+      {title && <h1 className="sr-only">{title}</h1>}
+      <FocusBar report={summary.report} stale={summary.stale} />
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced. */}
       {lastAttemptRefused && <LastAttemptRefused key={attemptId} />}
@@ -504,30 +505,85 @@ function formatStandingCounts(
     .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)));
 }
 
-/** `stale`: hidden, from sight and screen readers, keeping its place. */
-function ProgressSummary({ report, stale }: { report: LearnerProgressSummary; stale: boolean }) {
+/**
+ * The course page's only chrome: Close, back to the list, and where the learner
+ * stands as one meter, each objective a segment by standing, that opens into
+ * the counts and each objective (progress-8). `stale`: the meter hidden, from
+ * sight and screen readers, keeping its place; no report, no meter.
+ */
+function FocusBar({
+  report,
+  stale,
+}: {
+  report: LearnerProgressSummary | undefined;
+  stale: boolean;
+}) {
   const { t } = useLingui();
-  const counts = formatStandingCounts(report.objectives, t);
-  if (counts.length === 0) return null;
+  const counts = report ? formatStandingCounts(report.objectives, t) : [];
   // Each count whole where it fits, so a phone wraps between counts, not at "1 not" / "started".
   const line = counts.map((count) => count.replaceAll(" ", "\u00a0")).join(" · ");
+  const total = report?.objectives.length ?? 0;
 
   return (
-    <details
-      className={cn("mb-6 text-sm wrap-break-word text-muted-foreground", stale && "invisible")}
-      aria-hidden={stale || undefined}
-    >
-      <summary className="cursor-pointer">{line}</summary>
-      <ul className="mt-2 flex flex-col gap-1">
-        {report.objectives.map((standing) => (
-          <li key={standing.objectiveId}>
-            {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
-          </li>
-        ))}
-      </ul>
-    </details>
+    // `-ms-3`: the icon, not its padding, at the page's edge, as a text button's.
+    <div className="-mt-3 mb-4 flex items-start gap-2">
+      <Button asChild variant="ghost" size="icon" className="-ms-3 size-11 shrink-0">
+        <Link to="/" aria-label={t`Close`}>
+          <XIcon aria-hidden="true" className="size-5" />
+        </Link>
+      </Button>
+      {report && counts.length > 0 && (
+        <details
+          className={cn("group min-w-0 flex-1 text-sm", stale && "invisible")}
+          aria-hidden={stale || undefined}
+        >
+          <summary
+            aria-label={line}
+            className="flex min-h-11 cursor-pointer list-none items-center rounded-md outline-offset-2 focus-visible:outline-2 [&::-webkit-details-marker]:hidden"
+          >
+            <span
+              aria-hidden="true"
+              className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+            >
+              {(Object.keys(PROGRESS_LABELS) as ProgressLabel[]).map((label) => {
+                const count = report.objectives.filter((each) => labelOf(each) === label).length;
+                return count > 0 ? (
+                  <span
+                    key={label}
+                    className={METER_FILLS[label]}
+                    style={{ width: `${(count / total) * 100}%` }}
+                  />
+                ) : null;
+              })}
+            </span>
+          </summary>
+          <div className="mt-2 wrap-break-word text-muted-foreground">
+            <p className="text-foreground">{line}</p>
+            <ul className="mt-2 flex flex-col gap-1">
+              {report.objectives.map((standing) => (
+                <li key={standing.objectiveId}>
+                  {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
+
+/**
+ * A segment's fill by standing, strongest for retained; not started is the
+ * track. The brand's primary, so an organization's theme carries it (ADR 0011);
+ * decoration only, the counts said in words.
+ */
+const METER_FILLS: Record<ProgressLabel, string> = {
+  retained: "bg-primary",
+  dueForReview: "bg-primary/60",
+  learning: "bg-primary/30",
+  notStarted: "",
+};
 
 /**
  * Adds when the next review falls due, if any objective is retained and not
@@ -1105,6 +1161,13 @@ function Practice({
           {/* `wrap-anywhere`: a grid, whose column is otherwise as wide as the
               explanation's longest word, such as a link. */}
           <Alert className="wrap-anywhere">
+            {grade.outcome === "success" ? (
+              <CircleCheckIcon aria-hidden="true" />
+            ) : revealed ? (
+              <EyeIcon aria-hidden="true" />
+            ) : (
+              <CircleXIcon aria-hidden="true" />
+            )}
             <AlertTitle>
               {grade.outcome === "success" ? t`Correct` : revealed ? t`Here it is` : t`Not quite`}
             </AlertTitle>
@@ -1141,18 +1204,20 @@ function Practice({
               ))}
             </section>
           )}
-          {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
-          {continueFailures > 0 && (
-            <Alert key={continueFailures} variant="destructive">
-              <AlertDescription>
-                <Trans>Could not load the next question. Try again.</Trans>
-              </AlertDescription>
-            </Alert>
-          )}
-          {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-          <Button size="lg" autoFocus aria-disabled={continuing} onClick={() => void next()}>
-            {continuing ? t`Loading…` : t`Continue`}
-          </Button>
+          <PinnedFoot>
+            {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
+            {continueFailures > 0 && (
+              <Alert key={continueFailures} variant="destructive">
+                <AlertDescription>
+                  <Trans>Could not load the next question. Try again.</Trans>
+                </AlertDescription>
+              </Alert>
+            )}
+            {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+            <Button size="lg" autoFocus aria-disabled={continuing} onClick={() => void next()}>
+              {continuing ? t`Loading…` : t`Continue`}
+            </Button>
+          </PinnedFoot>
           {/* After Continue, never between it and the learner (ADR 0052). */}
           <ReportProblem
             send={(report, signal) =>

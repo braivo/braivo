@@ -587,7 +587,7 @@ describe("the learn app", () => {
     expect(screen.queryByText("You're caught up")).toBeNull();
   });
 
-  test("names the course, in its tab too, and leads back to the list", async () => {
+  test("names the course, in its tab too, and closes back to the list, alone on the screen", async () => {
     renderAt("/c/4732", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
@@ -600,7 +600,11 @@ describe("the learn app", () => {
 
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Spanish");
     await vi.waitFor(() => expect(document.title).toBe("Spanish · Fernwood"));
-    fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
+    // Practice is focused: no organization, account, or Sign out beside it.
+    expect(screen.queryByText("Fernwood")).toBeNull();
+    expect(screen.queryByText("Ada Learner")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Close" }));
 
     expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Fernwood"));

@@ -412,6 +412,10 @@ msgstr "Choose what's wrong."
 msgid "Client ID: {clientId}"
 msgstr "Client ID: {clientId}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Close"
+msgstr "Close"
+
 #: apps/console/components/organization-sidebar.tsx
 msgid "Close navigation"
 msgstr "Close navigation"
@@ -602,7 +606,7 @@ msgstr "Could not sign in with Google. Try again, or sign in with a code."
 
 #: apps/console/routes/_signed-in/route.tsx
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/_signed-in/route.tsx
+#: apps/learn/components/account-header.tsx
 msgid "Could not sign out. Try again."
 msgstr "Could not sign out. Try again."
 
@@ -1630,7 +1634,7 @@ msgid "Sign in with a password"
 msgstr "Sign in with a password"
 
 #: apps/console/components/account-menu.tsx
-#: apps/learn/routes/_signed-in/route.tsx
+#: apps/learn/components/account-header.tsx
 msgid "Sign out"
 msgstr "Sign out"
 

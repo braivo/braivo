@@ -262,7 +262,7 @@ describe("the learn app", () => {
 
       expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
       expect(screen.getByText("Past tense of 'hablar'?")).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Close" })).toBeTruthy();
       fireEvent.click(next);
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       // Continue reads what comes next, never the brand again.
@@ -698,7 +698,7 @@ describe("the learn app", () => {
     vi.useRealTimers();
 
     expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Close" })).toBeTruthy();
     expect(screen.getByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
 
     // Not continued past, so a reload resends it and shows its grade again.
@@ -765,16 +765,19 @@ describe("the learn app", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockResolvedValue(anotherActivity);
-    renderAt("/c/4732", { signedIn: true, session: async () => user, nextActivity });
+    const session = vi.fn(async () => user);
+    renderAt("/c/4732", { signedIn: true, session, nextActivity });
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     const next = await screen.findByRole("button", { name: "Continue" });
 
     user = { id: "bea", name: "Bea Learner" };
     fireEvent.click(next);
 
-    expect(await screen.findByText("Bea Learner")).toBeTruthy();
     expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+    // Continued as Ada, her answer would be forgotten: reloaded, it is kept for her.
     expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+    // The guard's, Continue's, and the reload's guard's, as Bea.
+    expect(session).toHaveBeenCalledTimes(3);
   });
 
   test("ignores a Continue still loading once the course reloaded, leaving the answer kept", async () => {
@@ -815,7 +818,7 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
     await vi.waitFor(() => expect(session).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getAllByRole("link", { name: "Your courses" })[0]!);
+    fireEvent.click(screen.getByRole("link", { name: "Close" }));
     await screen.findByText(/no courses/i);
     expect(session.mock.calls[1]?.[0]?.signal?.aborted).toBe(true);
     const calls = session.mock.calls.length;

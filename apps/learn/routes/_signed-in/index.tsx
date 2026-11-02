@@ -10,6 +10,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 
+import { AccountHeader } from "#components/account-header";
 import { Notice } from "#components/notice";
 import { READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -27,12 +28,16 @@ export const Route = createFileRoute("/_signed-in/")({
 function CoursesError() {
   const router = useRouter();
   const { t } = useLingui();
+  // With the header, so a learner whose list fails can still sign out.
   return (
-    <Notice title={t`Your courses could not be loaded.`}>
-      <Button onClick={() => router.invalidate()}>
-        <Trans>Try again</Trans>
-      </Button>
-    </Notice>
+    <>
+      <AccountHeader />
+      <Notice title={t`Your courses could not be loaded.`}>
+        <Button onClick={() => router.invalidate()}>
+          <Trans>Try again</Trans>
+        </Button>
+      </Notice>
+    </>
   );
 }
 
@@ -45,44 +50,52 @@ function Courses() {
   const { organization } = root.useLoaderData();
 
   return (
-    <section>
-      <Heading>
-        <Trans>Your courses</Trans>
-      </Heading>
-      {courses.length === 0 ? (
-        <Empty className="max-sm:p-6">
-          <EmptyHeader>
-            <EmptyTitle>
-              <Trans>No courses yet</Trans>
-            </EmptyTitle>
-            <EmptyDescription>
-              <Trans>Courses will appear here when they're available to you.</Trans>
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <ItemGroup className="gap-2">
-          {/* `ItemGroup` is a list, and a link is not a list item. A chevron and
+    <>
+      <AccountHeader />
+      <section>
+        <Heading>
+          <Trans>Your courses</Trans>
+        </Heading>
+        {courses.length === 0 ? (
+          <Empty className="max-sm:p-6">
+            <EmptyHeader>
+              <EmptyTitle>
+                <Trans>No courses yet</Trans>
+              </EmptyTitle>
+              <EmptyDescription>
+                <Trans>Courses will appear here when they're available to you.</Trans>
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ItemGroup className="gap-2">
+            {/* `ItemGroup` is a list, and a link is not a list item. A chevron and
             a press's fill mark each as a link on a phone, where nothing hovers. */}
-          {courses.map((course) => (
-            <div key={course.id} role="listitem">
-              <Item variant="outline" className="flex-nowrap active:bg-muted" asChild>
-                <Link
-                  to="/c/$courseRef"
-                  params={{ courseRef: organization ? courseRef(course) : course.id }}
-                >
-                  <ItemContent className="min-w-0">
-                    <ItemTitle className="line-clamp-none wrap-anywhere">{course.title}</ItemTitle>
-                  </ItemContent>
-                  <ItemActions className="shrink-0">
-                    <ChevronRightIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-                  </ItemActions>
-                </Link>
-              </Item>
-            </div>
-          ))}
-        </ItemGroup>
-      )}
-    </section>
+            {courses.map((course) => (
+              <div key={course.id} role="listitem">
+                <Item variant="outline" className="flex-nowrap active:bg-muted" asChild>
+                  <Link
+                    to="/c/$courseRef"
+                    params={{ courseRef: organization ? courseRef(course) : course.id }}
+                  >
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="line-clamp-none wrap-anywhere">
+                        {course.title}
+                      </ItemTitle>
+                    </ItemContent>
+                    <ItemActions className="shrink-0">
+                      <ChevronRightIcon
+                        className="size-4 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    </ItemActions>
+                  </Link>
+                </Item>
+              </div>
+            ))}
+          </ItemGroup>
+        )}
+      </section>
+    </>
   );
 }

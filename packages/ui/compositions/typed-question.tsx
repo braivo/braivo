@@ -106,16 +106,19 @@ export function TypedQuestion(props: {
             </p>
           )}
         </div>
-        <Button
-          type="submit"
-          size="lg"
-          // Out of the tab order while there is nothing to send; once sent, kept for the focus.
-          disabled={blank && !locked}
-          aria-disabled={locked}
-          className="h-11 sm:shrink-0"
-        >
-          {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
-        </Button>
+        {/* Gone once graded: the caller's next step takes over. */}
+        {outcome === undefined && (
+          <Button
+            type="submit"
+            size="lg"
+            // Out of the tab order while there is nothing to send; once sent, kept for the focus.
+            disabled={blank && !locked}
+            aria-disabled={locked}
+            className="h-11 sm:shrink-0"
+          >
+            {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
+          </Button>
+        )}
       </div>
     </form>
   );
