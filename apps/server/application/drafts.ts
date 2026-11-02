@@ -5,7 +5,7 @@ import type { Database } from "@braivo/db";
 
 import { type Draft, draftCourse } from "../ai/index.ts";
 import { readSource } from "../persistence/index.ts";
-import { type Ai, InvalidAiRequest, modelFor } from "./ai.ts";
+import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 
 /**
  * A few textbook chapters: what one draft can cover well and one answer can
@@ -46,7 +46,7 @@ export async function draftFromSource(input: {
     );
   }
 
-  const { model, charge } = await modelFor(database, ai, { organizationId, actingAs });
+  const { ask } = await aiFor(database, ai, { organizationId, actingAs });
 
   const source = await readSource(cachedDatabase, organizationId, sourceId);
   if (!source) return undefined;
@@ -56,6 +56,16 @@ export async function draftFromSource(input: {
     );
   }
 
-  await charge("draft", input.now);
-  return draftCourse(model, source, { audience, signal: input.signal });
+  return ask({
+    kind: "draft",
+    now: input.now,
+    signal: input.signal,
+    work: async (model) => {
+      const { draft, counts } = await draftCourse(model, source, {
+        audience,
+        signal: input.signal,
+      });
+      return { result: draft, counts };
+    },
+  });
 }

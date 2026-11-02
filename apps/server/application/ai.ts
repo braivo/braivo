@@ -3,8 +3,19 @@
 
 import type { Database } from "@braivo/db";
 
-import type { Model } from "../ai/index.ts";
-import { recordAiRequest } from "../persistence/index.ts";
+import {
+  DRAFT_OPERATION,
+  type Model,
+  ModelUnavailable,
+  promptVersion,
+  READ_OPERATION,
+} from "../ai/index.ts";
+import { describeError } from "../logging.ts";
+import {
+  type AiRequestCompletion,
+  completeAiRequest,
+  reserveAiRequest,
+} from "../persistence/index.ts";
 import { assertMayAuthor } from "./permission.ts";
 
 /**
@@ -70,18 +81,41 @@ export class InvalidAiRequest extends Error {
 }
 
 /**
- * The model, for an actor who may author in the organization when its operator
- * lets that organization spend on it; refused otherwise. `charge` counts one
- * request against the organization's month, and is called just before the
- * model is asked — so a request refused as invalid costs nothing, and one the
- * model fails still counts, as an attempt that may have been paid for
- * (docs/adr/0031-ai-limits.md). It refuses once the month's are used.
+ * Each kind of request's prompt version: the kind alone picks it, so callers
+ * cannot pass a mismatched one; `work` must still ask the kind's operation.
  */
-export async function modelFor(
+const PROMPT_VERSIONS = {
+  draft: promptVersion(DRAFT_OPERATION),
+  read: promptVersion(READ_OPERATION),
+};
+
+/** How long an answer waits for its completion to be recorded (generation-10). */
+const COMPLETION_WAIT_MS = 2_000;
+
+/**
+ * Requests of the model, for an actor who may author in the organization when
+ * its operator lets that organization spend on it; refused otherwise. Each `ask` is one
+ * request in the ledger (docs/adr/0031-ai-limits.md): reserved against the
+ * organization's month just before the model is asked — so a request refused
+ * as invalid costs nothing, and one the model fails still counts, as an
+ * attempt that may have been paid for; refused once the month's are used —
+ * then completed with how `work` went, whatever it threw.
+ */
+export async function aiFor(
   database: Database,
   ai: Ai | undefined,
   actor: { organizationId: string; actingAs: string },
-): Promise<{ model: Model; charge: (kind: "read" | "draft", now: Date) => Promise<void> }> {
+): Promise<{
+  ask: <T>(request: {
+    /** Which operation `work` asks: `draft` is `DRAFT_OPERATION`, `read` is `READ_OPERATION`. */
+    kind: keyof typeof PROMPT_VERSIONS;
+    now: Date;
+    /** The caller's: a failure once it has aborted is the caller leaving, not the model failing. */
+    signal?: AbortSignal;
+    /** Asks the model and checks its answer, counting what was proposed and kept. */
+    work: (model: Model) => Promise<{ result: T; counts: object }>;
+  }) => Promise<T>;
+}> {
   const { organizationId, actingAs } = actor;
   // Permission first, so a stranger learns nothing of the model or of which
   // organizations may use it (generation-8).
@@ -90,17 +124,57 @@ export async function modelFor(
   if (!aiEnabledFor(ai, organizationId)) throw new AiNotEntitled();
 
   const { model, monthlyLimit } = ai;
-  async function charge(kind: "read" | "draft", now: Date): Promise<void> {
-    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const recorded = await recordAiRequest(database, {
-      organizationId,
-      kind,
-      userId: actingAs,
-      at: now,
-      limit: monthlyLimit === undefined ? undefined : { count: monthlyLimit, since, until },
-    });
-    if (!recorded) throw new AiLimitReached(monthlyLimit!, until);
-  }
-  return { model, charge };
+  return {
+    ask: async ({ kind, now, signal, work }) => {
+      const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+      const id = await reserveAiRequest(database, {
+        organizationId,
+        kind,
+        userId: actingAs,
+        at: now,
+        model: model.id,
+        promptVersion: PROMPT_VERSIONS[kind],
+        limit: monthlyLimit === undefined ? undefined : { count: monthlyLimit, since, until },
+      });
+      if (id === undefined) throw new AiLimitReached(monthlyLimit!, until);
+
+      let completion: AiRequestCompletion;
+      try {
+        const { result, counts } = await work(model);
+        completion = { outcome: "succeeded", counts };
+        return result;
+      } catch (error) {
+        completion = signal?.aborted
+          ? { outcome: "aborted" }
+          : {
+              outcome: "failed",
+              failure: error instanceof ModelUnavailable ? error.failure : "error",
+            };
+        throw error;
+      } finally {
+        // Never in the way of the answer or the error: a row not completed
+        // stays `unknown`, and counts all the same. A write that stalls (a
+        // database that stops answering) is left to finish or fail on its
+        // own; the caller, who has paid for the answer, waits no longer.
+        const completing = completeAiRequest(database, id, {
+          ...completion!,
+          at: new Date(),
+        }).catch((error: unknown) => {
+          console.error(`An AI request was not completed in the ledger: ${describeError(error)}`);
+        });
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const late = new Promise<void>((resolve) => {
+          timer = setTimeout(() => {
+            console.error(
+              `An AI request's completion took over ${COMPLETION_WAIT_MS} ms; answering without it.`,
+            );
+            resolve();
+          }, COMPLETION_WAIT_MS);
+        });
+        await Promise.race([completing, late]);
+        clearTimeout(timer);
+      }
+    },
+  };
 }

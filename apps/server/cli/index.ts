@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 
 import { createDatabase, runMigrations } from "@braivo/db";
 
-import { registerLearnDomain } from "../application/index.ts";
+import { type AiReportRow, readAiReport, registerLearnDomain } from "../application/index.ts";
 import {
   addMember,
   createAuth,
@@ -28,6 +28,11 @@ const sendsNoMail: SendMail = () => Promise.reject(new Error("This command sends
 const USAGE = `Usage: bun apps/server/cli/index.ts <command>
 
 Running an installation (a content owner's commands are braivo's):
+  ai report [--since <YYYY-MM-DD>] [--organization <slug>]
+                Count the requests of the installation's AI since the date
+                (UTC; this month's first by default), for one organization or
+                all, by kind, model, and prompt version: how each went, and
+                what drafts kept of what the model proposed. Reads no content.
   config check  Check the environment serve reads, printing its first problem;
                 silent when there is none. Reaches no database.
   db migrate    Apply committed database migrations.
@@ -81,6 +86,37 @@ async function main(argv: readonly string[]): Promise<number> {
   if (argv.length === 2 && argv[0] === "db" && argv[1] === "migrate") {
     await runMigrations(readDatabaseUrl(process.env));
     console.log("Migrations applied.");
+    return 0;
+  }
+
+  if (argv[0] === "ai" && argv[1] === "report") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: { since: { type: "string" }, organization: { type: "string" } },
+    });
+    const today = new Date();
+    const since =
+      values.since === undefined
+        ? new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+        : new Date(`${values.since}T00:00:00.000Z`);
+    if (
+      Number.isNaN(since.getTime()) ||
+      (values.since !== undefined && since.toISOString().slice(0, 10) !== values.since)
+    ) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const database = createDatabase(readDatabaseUrl(process.env));
+    try {
+      const report = await readAiReport({ database, since, organizationSlug: values.organization });
+      console.log(
+        `AI requests since ${since.toISOString().slice(0, 10)} (UTC), ${values.organization ?? "all organizations"}:\n`,
+      );
+      console.log(report.length === 0 ? "None." : formatAiReport(report));
+    } finally {
+      await database.$client.end();
+    }
     return 0;
   }
 
@@ -303,6 +339,58 @@ async function main(argv: readonly string[]): Promise<number> {
 
   console.error(USAGE);
   return 1;
+}
+
+/** The report as a table, its columns as wide as their widest cell. */
+function formatAiReport(report: readonly AiReportRow[]): string {
+  const share = (kept: number, proposed: number) =>
+    proposed === 0 ? `${kept}/0` : `${kept}/${proposed} (${Math.round((100 * kept) / proposed)}%)`;
+  const listed = (counts: Iterable<[string, number]>) =>
+    [...counts].map(([name, count]) => `${name} ${count}`).join(", ");
+  const table = [
+    [
+      "kind",
+      "model",
+      "prompt",
+      "requests",
+      "succeeded",
+      "failed",
+      "aborted",
+      "unknown",
+      "kept objectives",
+      "kept tasks",
+      "top refusals",
+    ],
+    ...report.map((row) => [
+      row.kind,
+      row.model ?? "(not recorded)",
+      row.promptVersion ?? "(not recorded)",
+      String(row.requests),
+      String(row.succeeded),
+      listed(Object.entries(row.failed)) || "0",
+      String(row.aborted),
+      String(row.unknown),
+      row.draftCounts
+        ? share(row.draftCounts.kept.objectives, row.draftCounts.proposed.objectives)
+        : "",
+      row.draftCounts ? share(row.draftCounts.kept.tasks, row.draftCounts.proposed.tasks) : "",
+      listed(row.refusals.slice(0, 3)),
+    ]),
+  ];
+  const widths = table[0]!.map((_, column) =>
+    Math.max(...table.map((cells) => cells[column]!.length)),
+  );
+  return table
+    .map((cells) =>
+      cells
+        .map((cell, column) => cell.padEnd(widths[column]!))
+        .join("  ")
+        .trimEnd(),
+    )
+    .join("\n")
+    .concat(
+      "\n\nKept: passed Braivo's checks; not accepted by the owner, nor a judgement of quality. A refused task may count under two refusals.",
+    );
 }
 
 try {

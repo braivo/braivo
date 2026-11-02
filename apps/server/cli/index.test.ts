@@ -4,8 +4,9 @@
 import { fileURLToPath } from "node:url";
 
 import { createDatabase, runMigrations } from "@braivo/db";
-import { oauthClient, oauthClientResource } from "@braivo/db/schema";
+import { aiRequest, oauthClient, oauthClientResource } from "@braivo/db/schema";
 import { account, session, user } from "@braivo/db/schema/auth";
+import { seedOrganization } from "@braivo/db/testing";
 import { verifyPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vite-plus/test";
@@ -85,6 +86,100 @@ describe("the server's commands", () => {
 const connectionString = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!connectionString)("the server's commands, on a database", () => {
+  test("report AI requests by kind, model, and prompt, with outcomes and what drafts kept", async () => {
+    await runMigrations(connectionString ?? "");
+    const database = createDatabase(connectionString ?? "");
+    const organizationId = "cli-test-ai-report";
+    const other = "cli-test-ai-report-other";
+    const at = (day: string) => new Date(`2026-10-${day}T12:00:00.000Z`);
+    const row = (
+      organization: string,
+      day: string,
+      fields: Partial<typeof aiRequest.$inferInsert> = {},
+    ) => ({
+      id: crypto.randomUUID(),
+      organizationId: organization,
+      kind: "draft",
+      createdAt: at(day),
+      model: "claude-sonnet-5",
+      promptVersion: "aaaaaaaaaaaa",
+      ...fields,
+    });
+    const drafted = (proposed: number, kept: number, refusals: Record<string, number>) => ({
+      outcome: "succeeded",
+      counts: {
+        proposed: { objectives: proposed, tasks: proposed * 2 },
+        kept: { objectives: kept, tasks: kept * 2 },
+        refusals,
+      },
+    });
+    try {
+      for (const id of [organizationId, other]) {
+        await seedOrganization(database, { organizationId: id, learnerIds: [], at: at("01") });
+      }
+      await database.insert(aiRequest).values([
+        // Before --since: left out.
+        row(organizationId, "01", drafted(1, 1, {})),
+        row(organizationId, "10", drafted(10, 8, { "quote-ambiguous": 3, "task-invalid": 1 })),
+        row(organizationId, "11", drafted(6, 3, { "quote-ambiguous": 2, "quote-missing": 2 })),
+        // Proposed nothing: no share of nothing.
+        row(organizationId, "11", drafted(0, 0, {})),
+        row(organizationId, "12", { outcome: "failed", failure: "timeout" }),
+        row(organizationId, "12", { outcome: "aborted" }),
+        row(organizationId, "12", {}),
+        row(organizationId, "13", { promptVersion: "bbbbbbbbbbbb", ...drafted(4, 4, {}) }),
+        row(organizationId, "13", {
+          kind: "read",
+          outcome: "succeeded",
+          counts: {
+            pages: 3,
+            blankEntries: 0,
+          },
+        }),
+        // Recorded before the ledger knew its model, and never completed.
+        row(organizationId, "14", { kind: "read", model: null, promptVersion: null }),
+        // Another organization's: in the whole installation's report only.
+        row(other, "14", { outcome: "failed", failure: "provider-error" }),
+      ]);
+
+      const env = { DATABASE_URL: connectionString ?? "" };
+      const report = await run(
+        ["ai", "report", "--since", "2026-10-02", "--organization", organizationId],
+        env,
+      );
+      expect(report).toMatchObject({ code: 0, stderr: "" });
+      expect(report.stdout).toBe(
+        [
+          `AI requests since 2026-10-02 (UTC), ${organizationId}:`,
+          "",
+          "kind   model            prompt          requests  succeeded  failed     aborted  unknown  kept objectives  kept tasks   top refusals",
+          "draft  claude-sonnet-5  aaaaaaaaaaaa    6         3          timeout 1  1        1        11/16 (69%)      22/32 (69%)  quote-ambiguous 5, quote-missing 2, task-invalid 1",
+          "draft  claude-sonnet-5  bbbbbbbbbbbb    1         1          0          0        0        4/4 (100%)       8/8 (100%)",
+          "read   claude-sonnet-5  aaaaaaaaaaaa    1         1          0          0        0",
+          "read   (not recorded)   (not recorded)  1         0          0          0        1",
+          "",
+          "Kept: passed Braivo's checks; not accepted by the owner, nor a judgement of quality. A refused task may count under two refusals.",
+          "",
+        ].join("\n"),
+      );
+
+      const everyone = await run(["ai", "report", "--since", "2026-10-02"], env);
+      expect(everyone.stdout).toContain("AI requests since 2026-10-02 (UTC), all organizations:");
+      expect(everyone.stdout).toContain("provider-error 1");
+
+      expect(await run(["ai", "report", "--organization", "no-such-organization"], env)).toEqual({
+        code: 1,
+        stdout: "",
+        stderr: "No organization has the slug no-such-organization.\n",
+      });
+      expect((await run(["ai", "report", "--since", "October"], env)).code).toBe(1);
+    } finally {
+      await database.delete(aiRequest).where(eq(aiRequest.organizationId, organizationId));
+      await database.delete(aiRequest).where(eq(aiRequest.organizationId, other));
+      await database.$client.end();
+    }
+  });
+
   test("register a remote MCP client with several callbacks, then remove it", async () => {
     await runMigrations(connectionString ?? "");
     const env = {

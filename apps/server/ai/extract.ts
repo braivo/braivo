@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { joinPages, type Page } from "../content/index.ts";
 import { type Model, type ModelFile, ModelUnavailable } from "./model.ts";
+import { answer, type Operation } from "./operation.ts";
 
 /** What the model is asked to answer, and the only shape Braivo reads from it. */
 const Answer = z.object({
@@ -24,6 +25,22 @@ Transcribe each page's words exactly as printed, in their language, in reading o
 
 Label each page with the number printed on it — 12, iv — or, where none is printed, its place in the file from 1. Leave out pages without words.`;
 
+/** What reading a file tells the model; the file is all a request adds. */
+export const READ_OPERATION = {
+  system: SYSTEM,
+  template: "Transcribe this material, page by page.",
+  parts: {},
+  tool: { name: "transcribe", description: "Gives the material's text, page by page." },
+  schema: Answer,
+} satisfies Operation;
+
+/**
+ * How a reading went, for the ledger: the pages kept, and the blank entries
+ * the model returned anyway and Braivo dropped. A blank page it left out, as
+ * asked, is not knowable from its answer.
+ */
+export type ReadingCounts = { pages: number; blankEntries: number };
+
 /**
  * A document's or a photo's text, page by page, transcribed by `model`
  * (docs/adr/0030-server-extraction.md): what a content owner who cannot
@@ -34,28 +51,25 @@ export async function extractPages(
   model: Model,
   file: ModelFile,
   signal?: AbortSignal,
-): Promise<Page[]> {
-  const answered = await model.answer({
-    system: SYSTEM,
-    prompt: "Transcribe this material, page by page.",
-    files: [file],
-    name: "transcribe",
-    description: "Gives the material's text, page by page.",
-    schema: z.toJSONSchema(Answer),
-    signal,
-  });
+): Promise<{ pages: Page[]; counts: ReadingCounts }> {
+  const answered = await answer(model, READ_OPERATION, { files: [file], signal });
   const parsed = Answer.safeParse(answered);
   if (!parsed.success)
-    throw new ModelUnavailable("The model answered without the shape asked for.");
+    throw new ModelUnavailable("wrong-shape", "The model answered without the shape asked for.");
 
   const pages = parsed.data.pages.filter(({ text }) => text.trim() !== "");
+  if (pages.length === 0) {
+    throw new ModelUnavailable("no-words", "The model found no words to transcribe.");
+  }
   const joined = joinPages(pages);
   if ("problem" in joined) {
     throw new ModelUnavailable(
-      pages.length === 0
-        ? "The model found no words to transcribe."
-        : `The model's transcription cannot be a source: ${joined.problem}.`,
+      "invalid-output",
+      `The model's transcription cannot be a source: ${joined.problem}.`,
     );
   }
-  return pages;
+  return {
+    pages,
+    counts: { pages: pages.length, blankEntries: parsed.data.pages.length - pages.length },
+  };
 }

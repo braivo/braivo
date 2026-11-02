@@ -426,7 +426,9 @@ export const taskReport = pgTable(
  * reading a file, drafting a course — counted when asked, whether or not the
  * model answered, since a failed answer may still have been paid for. What an
  * operator's monthly limit is counted against, and a ledger of who spends
- * their credits (docs/adr/0031-ai-limits.md).
+ * their credits and of which model and prompt made what, and how it went
+ * (docs/adr/0031-ai-limits.md). Reserved before the model is asked, completed
+ * after; it holds no content.
  */
 export const aiRequest = pgTable(
   "ai_request",
@@ -440,7 +442,25 @@ export const aiRequest = pgTable(
     kind: text("kind").notNull(),
     /** Who asked, for the ledger; set null if their account goes. */
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    /** When it was reserved, before the model was asked: what the quota counts. */
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    /** The provider's name for the model asked, such as `claude-sonnet-5`; null on rows recorded before it was. */
+    model: text("model"),
+    /** The fingerprint of what Braivo told the model (`apps/server/ai/operation.ts`); null as `model`. */
+    promptVersion: text("prompt_version"),
+    /**
+     * How it went: `succeeded`, `failed` (see `failure`), `aborted` by whoever
+     * asked, or `unknown` until then, and for good if the process ended first.
+     */
+    outcome: text("outcome").notNull().default("unknown"),
+    /** Why it failed, a kind such as `timeout` or `wrong-shape`, never a message. */
+    failure: text("failure"),
+    /**
+     * Numbers only, never content: for a draft, objectives and tasks proposed
+     * and kept, and refusals by code; for a reading, pages.
+     */
+    counts: jsonb("counts"),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     index("ai_request_organization_created_idx").on(table.organizationId, table.createdAt),

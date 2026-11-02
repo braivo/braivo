@@ -571,6 +571,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     const { sourceId } = (await added.json()) as { sourceId: string };
     const asked: string[] = [];
     const model: Model = {
+      id: "test-model",
       answer: async ({ prompt }) => {
         asked.push(prompt);
         return {
@@ -684,6 +685,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
   test("reads a PDF's text, page by page, for an organization the operator lets", async () => {
     const files = directoryStore(mkdtempSync(join(tmpdir(), "braivo-materials-files-")));
     const model: Model = {
+      id: "test-model",
       answer: async ({ files: read }) => ({
         pages: [{ page: "1", text: `Leído: ${new TextDecoder().decode(read?.[0]?.bytes)}` }],
       }),
@@ -792,9 +794,11 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: {
         model: {
+          id: "test-model",
           answer: async () => {
             asked += 1;
-            if (asked === 1) throw new ModelUnavailable("The model answered 529.");
+            if (asked === 1)
+              throw new ModelUnavailable("provider-error", "The model answered 529.");
             return { objectives: [] };
           },
         },
@@ -854,7 +858,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
             : store.get(key),
       },
       ai: {
-        model: { answer: async () => ({ pages: [{ page: "1", text: "Hola." }] }) },
+        model: {
+          id: "test-model",
+          answer: async () => ({ pages: [{ page: "1", text: "Hola." }] }),
+        },
         organizations: "all",
         monthlyLimit: 1,
       },
@@ -896,8 +903,9 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: {
         model: {
+          id: "test-model",
           answer: async () => {
-            throw new ModelUnavailable("The model answered 529.");
+            throw new ModelUnavailable("provider-error", "The model answered 529.");
           },
         },
         organizations: "all",

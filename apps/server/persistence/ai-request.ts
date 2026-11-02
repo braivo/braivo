@@ -6,26 +6,38 @@ import { aiRequest } from "@braivo/db/schema";
 import { and, count, eq, gte, lt, sql } from "drizzle-orm";
 
 /**
- * Records one request of the installation's model for an organization — when,
+ * How a request of the model went, as its ledger row is completed: numbers and
+ * kinds only, never content or a message.
+ */
+export type AiRequestCompletion =
+  | { outcome: "succeeded"; counts: object }
+  | { outcome: "failed"; failure: string }
+  | { outcome: "aborted" };
+
+/**
+ * Reserves one request of the installation's model for an organization — when,
  * with `limit`, fewer than `limit` were recorded for it from `since` to
- * `until` — and says whether it did (docs/adr/0031-ai-limits.md). Bounded at
- * both ends, since requests reach here out of the order they were stamped in:
- * one of next month's recorded first is not this month's.
+ * `until` — and answers its ID, or `undefined` when the limit is reached
+ * (docs/adr/0031-ai-limits.md). Bounded at both ends, since requests reach
+ * here out of the order they were stamped in: one of next month's recorded
+ * first is not this month's. Every row counts, however it went.
  *
  * Counting and recording are one step under a lock on the organization, so two
  * requests racing for its last one cannot both have it.
  */
-export async function recordAiRequest(
+export async function reserveAiRequest(
   database: Database,
   input: {
     organizationId: string;
     kind: "read" | "draft";
     userId: string;
     at: Date;
+    model: string;
+    promptVersion: string;
     limit?: { count: number; since: Date; until: Date };
   },
-): Promise<boolean> {
-  const { organizationId, kind, userId, at, limit } = input;
+): Promise<string | undefined> {
+  const { organizationId, kind, userId, at, model, promptVersion, limit } = input;
 
   return database.transaction(async (transaction) => {
     if (limit) {
@@ -42,12 +54,67 @@ export async function recordAiRequest(
             lt(aiRequest.createdAt, limit.until),
           ),
         );
-      if ((row?.used ?? 0) >= limit.count) return false;
+      if ((row?.used ?? 0) >= limit.count) return undefined;
     }
 
+    const id = crypto.randomUUID();
     await transaction
       .insert(aiRequest)
-      .values({ id: crypto.randomUUID(), organizationId, kind, userId, createdAt: at });
-    return true;
+      .values({ id, organizationId, kind, userId, createdAt: at, model, promptVersion });
+    return id;
   });
+}
+
+/**
+ * Completes a reserved request with how it went, once: a row already
+ * completed keeps its first outcome.
+ */
+export async function completeAiRequest(
+  database: Database,
+  id: string,
+  completion: AiRequestCompletion & { at: Date },
+): Promise<void> {
+  await database
+    .update(aiRequest)
+    .set({
+      outcome: completion.outcome,
+      failure: completion.outcome === "failed" ? completion.failure : null,
+      counts: completion.outcome === "succeeded" ? completion.counts : null,
+      completedAt: completion.at,
+    })
+    .where(and(eq(aiRequest.id, id), eq(aiRequest.outcome, "unknown")));
+}
+
+/** An organization's AI requests from `since`, or every organization's, as the operator's report reads them: no user, no content. */
+export async function readAiRequests(
+  database: Database,
+  filter: { since: Date; organizationId?: string },
+): Promise<
+  {
+    kind: string;
+    model: string | null;
+    promptVersion: string | null;
+    outcome: string;
+    failure: string | null;
+    counts: unknown;
+  }[]
+> {
+  return database
+    .select({
+      kind: aiRequest.kind,
+      model: aiRequest.model,
+      promptVersion: aiRequest.promptVersion,
+      outcome: aiRequest.outcome,
+      failure: aiRequest.failure,
+      counts: aiRequest.counts,
+    })
+    .from(aiRequest)
+    .where(
+      and(
+        gte(aiRequest.createdAt, filter.since),
+        filter.organizationId === undefined
+          ? undefined
+          : eq(aiRequest.organizationId, filter.organizationId),
+      ),
+    );
 }

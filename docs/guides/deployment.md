@@ -90,7 +90,7 @@ Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `lo
 - `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own AI apps through `/mcp` ([assistants](assistants.md)).
 - `BRAIVO_AI_MODEL`: the model, `claude-sonnet-5` by default.
 - `BRAIVO_AI_ORGANIZATIONS`: comma-separated organization IDs allowed to use the key. Unset means every organization, and is refused with `BRAIVO_SELF_SERVE_DOMAIN`; an empty value or `*` is invalid, and the server refuses to start.
-- `BRAIVO_AI_MONTHLY_LIMIT`: how many AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another. Every request is recorded in `ai_request` either way.
+- `BRAIVO_AI_MONTHLY_LIMIT`: how many AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another. Every request is recorded in `ai_request` either way, with its model, prompt version, and how it went; `bun --no-env-file apps/server/cli/index.ts ai report [--since <YYYY-MM-DD>] [--organization <slug>]` counts them.
 
 AI requests may run for up to five minutes, so configure the proxy for that; nginx's `proxy_read_timeout`, for one, defaults to 60 seconds. A request the proxy cuts off may still count toward the organization's limit.
 
