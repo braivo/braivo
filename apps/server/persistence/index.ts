@@ -161,3 +161,5 @@ export {
   RetiredTask,
   StaleCorrection,
 } from "./task.ts";
+export type { FirstAnswersScope, FirstAttempt } from "./first-attempt.ts";
+export { readFirstAttempts } from "./first-attempt.ts";

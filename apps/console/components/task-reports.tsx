@@ -34,6 +34,7 @@ import {
 import { Disclosure } from "#components/disclosure";
 import { LinkList, linkRow } from "#components/link-list";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { useSettled } from "#lib/settled";
 
 /** A read's answer, or that it failed: a failure never fails the page. */
 type ReportsRead = { tasks: ReportedTask[]; more: boolean } | "failed";
@@ -56,19 +57,6 @@ export function readReports(
       { signal: withDeadline(signal, REQUEST_DEADLINE_MS) },
     )
     .catch((): ReportsRead => "failed");
-}
-
-/** What `promise` resolved to, the last one's kept while a reload reads again. */
-function useSettled<T>(promise: Promise<T> | undefined): T | undefined {
-  const [settled, setSettled] = useState<T>();
-  useEffect(() => {
-    let current = true;
-    void promise?.then((value) => current && setSettled(() => value));
-    return () => {
-      current = false;
-    };
-  }, [promise]);
-  return promise === undefined ? undefined : settled;
 }
 
 const REASONS: Record<ReportedTask["reports"][number]["reason"], string> = {

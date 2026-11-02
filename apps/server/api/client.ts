@@ -15,6 +15,7 @@ import type {
   DomainClaim,
   DomainList,
   Draft,
+  FirstAnswersSummary,
   Grade,
   GradedEvidence,
   Group,
@@ -75,6 +76,7 @@ export type {
   DomainClaim,
   DomainList,
   Draft,
+  FirstAnswersSummary,
   Grade,
   GradedEvidence,
   Group,
@@ -828,6 +830,18 @@ export type BraivoClient = {
     input: { organizationId: string; objectiveId?: string; courseId?: string; taskId?: string },
     options?: RequestOptions,
   ): Promise<{ tasks: ReportedTask[]; more: boolean }>;
+
+  /**
+   * How learners first answered each published task of a course or an
+   * objective (progress-18), for its `owner` or `admin` in a browser: counts
+   * withheld under `minLearners`, an objective's retired tasks beside.
+   * 403 to anyone else, and to a tool; 404 for a course or objective the
+   * organization does not have.
+   */
+  readFirstAnswers(
+    input: { organizationId: string } & ({ courseId: string } | { objectiveId: string }),
+    options?: RequestOptions,
+  ): Promise<FirstAnswersSummary>;
 
   /**
    * Dismisses exactly these reports, the ones shown, so any sent since stays
@@ -1646,6 +1660,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<{ tasks: ReportedTask[]; more: boolean }>(response, doing);
+    },
+
+    async readFirstAnswers({ organizationId, ...scope }, requestOptions) {
+      const response = await get(
+        `${organizationPath(organizationId)}/first-answers?${new URLSearchParams(scope)}`,
+        requestOptions,
+      );
+
+      const doing = `reading first answers in organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<FirstAnswersSummary>(response, doing);
     },
 
     async dismissReports({ organizationId, reportIds }, requestOptions) {

@@ -351,3 +351,6 @@ export type TaskWriteResult = {
  * key; and whether it is `published`, as it stands (ADR 0039).
  */
 export type CourseWriteResult = { courseId: string; added: boolean; published: boolean };
+
+/** How learners first answered a course's or an objective's tasks (progress-18). */
+export type FirstAnswersSummary = Json<application.FirstAnswersSummary>;

@@ -5,6 +5,7 @@ import { activateLocale } from "@braivo/i18n";
 import { cleanup, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { beginners } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 describe("the console in Polish", () => {
@@ -108,5 +109,38 @@ describe("the console in Polish", () => {
     expect(
       screen.getByRole("button", { name: "Dołącz do organizacji „Example School” jako autor" }),
     ).toBeTruthy();
+  });
+
+  test("says a task's first answers by their plural forms", async () => {
+    const task = beginners.objectives[0]!.tasks[0]!;
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => beginners,
+        readFirstAnswers: async () => ({
+          minLearners: 5,
+          tasks: [
+            {
+              id: task.id,
+              objectiveId: "greetings",
+              first: { learners: 22, correct: 2, incorrect: 5, revealed: 1, options: [2, 5] },
+              otherTasks: { responses: 13, learners: 7, correct: 9, incorrect: 3, revealed: 1 },
+            },
+          ],
+          retired: [],
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "Pierwsze odpowiedzi 22 uczniów: 2 poprawne, 5 błędnych, 1 prośba o pokazanie odpowiedzi.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Pozostałe pytania tego celu nauczania: 9 poprawnych, 3 błędne, 1 prośba o pokazanie odpowiedzi, spośród 13 pierwszych odpowiedzi 7 uczniów.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Jak liczone są pierwsze odpowiedzi")).toBeTruthy();
   });
 });
