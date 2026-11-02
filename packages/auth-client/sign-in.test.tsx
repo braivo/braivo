@@ -566,6 +566,9 @@ describe("SignIn", () => {
       );
     }
     expect(shown("email_changed")).toMatch(/^Your Google account's email no longer matches/);
+    expect(shown("email_not_authoritative")).toBe(
+      "Google can't confirm this email address is still yours. Sign in with a code instead.",
+    );
     expect(shown("invalid_code")).toBe(
       "Could not sign in with Google. Try again, or sign in with a code.",
     );
