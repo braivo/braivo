@@ -263,6 +263,19 @@ function AddSource() {
   // The last file read and its pages: correcting a refused title or language
   // and sending again does not pay for reading the same file twice.
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
+  // The file last uploaded and its ID: the same file again would send its
+  // bytes again, up to 50 MB, for the same ID, as when the AI read it from
+  // its review and it is then saved.
+  const uploaded = useRef<{ file: File; fileId: string }>(undefined);
+  async function upload(file: File, signal?: AbortSignal) {
+    if (uploaded.current?.file === file) return uploaded.current.fileId;
+    const { fileId } = await braivo.uploadFile(
+      { organizationId, file },
+      { signal: withDeadline(signal, bodyDeadline(file.size)) },
+    );
+    uploaded.current = { file, fileId };
+    return fileId;
+  }
   const abortOnUnmount = useAbortOnUnmount();
   const form = useRef<HTMLFormElement>(null);
   // The file attached, as only a PDF offers how to read it.
@@ -274,6 +287,8 @@ function AddSource() {
   // The pages read from a PDF, under review until saved or discarded.
   const [review, setReview] = useState<ReviewedPage[]>();
   const reviewing = review !== undefined;
+  // The page under review shown.
+  const [current, setCurrent] = useState(1);
   // An edit answers a failure about the review; kept one function, so a page
   // the edit leaves as it was is not rendered again.
   const changeReview = useCallback<ChangeReview>((change) => {
@@ -312,10 +327,52 @@ function AddSource() {
         },
       });
       setReview(startReview(pages));
+      setCurrent(1);
     } catch (thrown) {
       if (!signal.aborted) fail(pdfFailure(thrown), "original");
     } finally {
       setReading(undefined);
+      setStatus(undefined);
+    }
+  }
+
+  /**
+   * Has Braivo's AI read the file under review, for a scan the text layer
+   * missed: its pages replace the review only once the reading succeeds, so a
+   * failure, or a month's quota spent, keeps the owner's edits.
+   */
+  async function readWithAi() {
+    if (adding || !attached) return;
+    const unreadable = readingProblem(attached);
+    if (unreadable) return fail(unreadable);
+    const signal = abortOnUnmount();
+    setError(undefined);
+    setStatus("Uploading the file…");
+    try {
+      const fileId = await upload(attached, signal);
+      setStatus("Braivo's AI is reading the file, which can take a few minutes…");
+      const pages = await explainAiFailure(
+        braivo.readFileText({ organizationId, fileId }, { signal }),
+      );
+      setReview(
+        startReview(
+          pages.map(({ page, text }, index) => ({
+            position: index + 1,
+            label: page,
+            outcome: "text",
+            text,
+          })),
+        ),
+      );
+      setCurrent(1);
+    } catch (thrown) {
+      if (signal?.aborted) return;
+      fail(
+        thrown instanceof BraivoError
+          ? thrown.reason || "Braivo's AI could not read the file. Try again."
+          : "Braivo's AI could not read the file. Check your connection and try again.",
+      );
+    } finally {
       setStatus(undefined);
     }
   }
@@ -361,7 +418,12 @@ function AddSource() {
     let reviewed: { page: string; text: string }[] | undefined;
     if (review) {
       const problem = reviewProblem(review);
-      if (problem) return fail(problem.message, problem.field);
+      if (problem) {
+        // Shown first, so the focus can go to the control the problem is about.
+        const page = /^page-(\d+)-/.exec(problem.field ?? "");
+        if (page) setCurrent(Number(page[1]));
+        return fail(problem.message, problem.field);
+      }
       reviewed = keptPages(review);
     }
     // Said before sending: Braivo would answer both with a bare status. The
@@ -415,14 +477,7 @@ function AddSource() {
       // Each request bounded by its size, as wifi can stall with no error;
       // retrying is safe, as the same file or source again stores nothing new
       // (docs/adr/0024-idempotent-authoring.md).
-      const fileId = file
-        ? (
-            await braivo.uploadFile(
-              { organizationId, file },
-              { signal: withDeadline(signal, bodyDeadline(file.size)) },
-            )
-          ).fileId
-        : undefined;
+      const fileId = file ? await upload(file, signal) : undefined;
       const source = {
         organizationId,
         title: data.get("title") as string,
@@ -656,6 +711,9 @@ function AddSource() {
               file={attached}
               pages={review}
               onChange={changeReview}
+              current={current}
+              onSelect={setCurrent}
+              readWithAi={organization.aiEnabled === false ? undefined : readWithAi}
               locked={adding}
               error={error}
             />

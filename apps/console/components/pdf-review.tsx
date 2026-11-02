@@ -3,6 +3,8 @@
 
 import { Heading, MutedText } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
+import { Button } from "@braivo/ui/components/button";
+import { Checkbox } from "@braivo/ui/components/checkbox";
 import {
   Field,
   FieldDescription,
@@ -56,23 +58,31 @@ type FormError = { message: ReactNode; field?: string; count: number };
 
 /**
  * The pages a PDF's text layer gave, for the owner to correct and decide on
- * before they are saved as a source (sources-23): each page's printed label,
- * text, and Keep or Leave out, and the label of the first page, numbering the
- * rest from it. `error` is the form's, said under the control it is about.
- * `onChange` must keep its identity, as each page renders again only when it
- * changes: a book's review holds a thousand of them.
+ * before they are saved as a source (sources-23): the label of the first page,
+ * numbering the rest from it; a list of the pages, all or those flagged; and
+ * one page's printed label, text, and Keep or Leave out at a time, with
+ * Previous and Next. Edits stay with their page when moving. `current` is the
+ * page shown, the form's to set too, as a refusal shows the page it is about;
+ * `error` is the form's, said under the control it is about.
  */
 export function PdfReview(props: {
   id: string;
   file: File;
   pages: ReviewedPage[];
   onChange: ChangeReview;
+  current: number;
+  onSelect: (position: number) => void;
   /** While saving: what is shown is what is sent. */
   locked: boolean;
   error?: FormError;
+  /** Where Braivo's AI is on: reading the whole file with it instead. */
+  readWithAi?: () => void;
 }) {
-  const { id, pages, locked, error, onChange } = props;
+  const { id, pages, locked, error, onChange, current, onSelect } = props;
   const [first, setFirst] = useState("");
+  const flagged = pages.filter((page) => page.outcome !== "text");
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const listed = onlyFlagged && flagged.length > 0 ? flagged : pages;
   // The file in the browser's own viewer, at a page: what the reader doubted is
   // checked against the page itself, which only a person can do.
   const [href, setHref] = useState<string>();
@@ -89,6 +99,10 @@ export function PdfReview(props: {
       ),
     [locked, onChange],
   );
+  const page = pages.find((page) => page.position === current) ?? pages[0]!;
+  // Previous and Next go through the pages listed; from a page outside them, the nearest.
+  const before = listed.findLast((listed) => listed.position < page.position);
+  const after = listed.find((listed) => listed.position > page.position);
 
   return (
     <section aria-labelledby={`${id}-review`} className="flex flex-col gap-6">
@@ -122,23 +136,95 @@ export function PdfReview(props: {
         />
         <FieldDescription id={`${id}-first-hint`}>
           Numbers the pages from it. Left blank, pages keep the numbers the PDF gives them, or their
-          place from 1. Each can still be changed below.
+          place from 1. Each can still be changed on its page.
         </FieldDescription>
       </Field>
-      <ol className="flex flex-col gap-8">
-        {pages.map((page) => (
+      {props.readWithAi && (
+        <Field>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-auto min-h-9 self-start py-1.5 whitespace-normal"
+            aria-disabled={locked}
+            onClick={() => !locked && props.readWithAi?.()}
+            aria-describedby={`${id}-ai-hint`}
+          >
+            Read the whole file with AI instead
+          </Button>
+          <FieldDescription id={`${id}-ai-hint`}>
+            For a scan: Braivo's AI reads every page, which can take a few minutes. This review is
+            kept until its reading succeeds.
+          </FieldDescription>
+        </Field>
+      )}
+      {/* The list above the page on a phone, beside it from md. */}
+      <div className="flex flex-col gap-6 md:grid md:grid-cols-[14rem_1fr] md:items-start">
+        <nav aria-label="Pages" className="flex flex-col gap-2">
+          {flagged.length > 0 && (
+            <label className="flex min-h-11 items-center gap-2 text-sm md:min-h-0">
+              <Checkbox
+                checked={onlyFlagged}
+                onCheckedChange={(checked) => setOnlyFlagged(checked === true)}
+              />
+              Needs a decision ({flagged.length})
+            </label>
+          )}
+          <ol className="flex max-h-72 flex-col overflow-y-auto rounded-md border md:max-h-[32rem]">
+            {listed.map((listed) => (
+              <li key={listed.position}>
+                <button
+                  type="button"
+                  aria-current={listed.position === page.position ? "page" : undefined}
+                  onClick={() => onSelect(listed.position)}
+                  className="flex min-h-11 w-full flex-wrap items-center gap-x-2 px-3 py-1.5 text-start text-sm aria-[current=page]:bg-muted aria-[current=page]:font-semibold md:min-h-0"
+                >
+                  <span>Page {listed.position}</span>
+                  <span className="text-muted-foreground">
+                    <span className="sr-only">, printed</span> p. {listed.label}
+                  </span>
+                  {listed.outcome !== "text" && (
+                    <span className="text-muted-foreground">
+                      <span className="sr-only">,</span> {BADGES[listed.outcome]}
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">
+                    <span className="sr-only">,</span>{" "}
+                    {listed.keep === undefined ? "undecided" : listed.keep ? "kept" : "left out"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
+        <div className="flex flex-col gap-4">
           <ReviewPage
-            key={page.position}
             id={id}
             page={page}
             href={href}
             locked={locked}
             onEdit={edit}
-            // Only a failure about this page, so the others stay as they were.
             error={error?.field?.startsWith(`page-${page.position}-`) ? error : undefined}
           />
-        ))}
-      </ol>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              aria-disabled={!before}
+              onClick={() => before && onSelect(before.position)}
+            >
+              Previous page
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              aria-disabled={!after}
+              onClick={() => after && onSelect(after.position)}
+            >
+              Next page
+            </Button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -172,76 +258,74 @@ const ReviewPage = memo(function ReviewPage(props: {
   );
   const keep = invalid(`page-${page.position}-keep`);
   return (
-    <li>
-      <FieldSet>
-        <FieldLegend className="flex flex-wrap items-center gap-x-2">
-          Page {page.position}
-          <Badge variant={page.outcome === "text" ? "secondary" : "outline"}>
-            {BADGES[page.outcome]}
-          </Badge>
-        </FieldLegend>
-        {page.outcome !== "text" && (
-          <FieldDescription id={`${key}-note`}>
-            {NOTES[page.outcome]}{" "}
-            <a
-              href={props.href && `${props.href}#page=${page.position}`}
-              target="_blank"
-              rel="noreferrer"
-              className="underline"
-            >
-              Open page {page.position} of the PDF
-            </a>
-          </FieldDescription>
-        )}
-        <Field data-invalid={Boolean(label.message) || undefined}>
-          <FieldLabel htmlFor={`${key}-label`}>
-            Printed page<span className="sr-only"> of page {page.position}</span>
-          </FieldLabel>
-          <Input
-            id={`${key}-label`}
-            className="w-32"
-            value={page.label}
-            readOnly={locked}
-            onChange={(event) => onEdit(page.position, { label: event.currentTarget.value })}
-            {...label.aria}
-          />
-          {label.message}
-        </Field>
-        <Field data-invalid={Boolean(text.message) || undefined}>
-          <FieldLabel htmlFor={`${key}-text`}>
-            Text<span className="sr-only"> of page {page.position}</span>
-          </FieldLabel>
-          <Textarea
-            id={`${key}-text`}
-            rows={6}
-            value={page.text}
-            readOnly={locked}
-            onChange={(event) => onEdit(page.position, { text: event.currentTarget.value })}
-            {...text.aria}
-          />
-          {text.message}
-        </Field>
-        <Field data-invalid={Boolean(keep.message) || undefined}>
-          <RadioGroup
-            aria-label={`Page ${page.position}`}
-            value={page.keep === undefined ? "" : page.keep ? "keep" : "leave"}
-            onValueChange={(value) => onEdit(page.position, { keep: value === "keep" })}
-            className="flex flex-wrap gap-x-6 gap-y-0 md:gap-y-3"
-            {...keep.aria}
+    <FieldSet>
+      <FieldLegend className="flex flex-wrap items-center gap-x-2">
+        Page {page.position}
+        <Badge variant={page.outcome === "text" ? "secondary" : "outline"}>
+          {BADGES[page.outcome]}
+        </Badge>
+      </FieldLegend>
+      {page.outcome !== "text" && (
+        <FieldDescription id={`${key}-note`}>
+          {NOTES[page.outcome]}{" "}
+          <a
+            href={props.href && `${props.href}#page=${page.position}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
           >
-            {(["keep", "leave"] as const).map((value) => (
-              <div key={value} className="flex items-center gap-2">
-                {/* Keep is where a missing decision sends the focus. */}
-                <RadioGroupItem value={value} id={`${key}-${value}`} />
-                <FieldLabel htmlFor={`${key}-${value}`} className="min-h-11 font-normal md:min-h-0">
-                  {value === "keep" ? "Keep" : "Leave out"}
-                </FieldLabel>
-              </div>
-            ))}
-          </RadioGroup>
-          {keep.message}
-        </Field>
-      </FieldSet>
-    </li>
+            Open page {page.position} of the PDF
+          </a>
+        </FieldDescription>
+      )}
+      <Field data-invalid={Boolean(label.message) || undefined}>
+        <FieldLabel htmlFor={`${key}-label`}>
+          Printed page<span className="sr-only"> of page {page.position}</span>
+        </FieldLabel>
+        <Input
+          id={`${key}-label`}
+          className="w-32"
+          value={page.label}
+          readOnly={locked}
+          onChange={(event) => onEdit(page.position, { label: event.currentTarget.value })}
+          {...label.aria}
+        />
+        {label.message}
+      </Field>
+      <Field data-invalid={Boolean(text.message) || undefined}>
+        <FieldLabel htmlFor={`${key}-text`}>
+          Text<span className="sr-only"> of page {page.position}</span>
+        </FieldLabel>
+        <Textarea
+          id={`${key}-text`}
+          rows={6}
+          value={page.text}
+          readOnly={locked}
+          onChange={(event) => onEdit(page.position, { text: event.currentTarget.value })}
+          {...text.aria}
+        />
+        {text.message}
+      </Field>
+      <Field data-invalid={Boolean(keep.message) || undefined}>
+        <RadioGroup
+          aria-label={`Page ${page.position}`}
+          value={page.keep === undefined ? "" : page.keep ? "keep" : "leave"}
+          onValueChange={(value) => onEdit(page.position, { keep: value === "keep" })}
+          className="flex flex-wrap gap-x-6 gap-y-0 md:gap-y-3"
+          {...keep.aria}
+        >
+          {(["keep", "leave"] as const).map((value) => (
+            <div key={value} className="flex items-center gap-2">
+              {/* Keep is where a missing decision sends the focus. */}
+              <RadioGroupItem value={value} id={`${key}-${value}`} />
+              <FieldLabel htmlFor={`${key}-${value}`} className="min-h-11 font-normal md:min-h-0">
+                {value === "keep" ? "Keep" : "Leave out"}
+              </FieldLabel>
+            </div>
+          ))}
+        </RadioGroup>
+        {keep.message}
+      </Field>
+    </FieldSet>
   );
 });

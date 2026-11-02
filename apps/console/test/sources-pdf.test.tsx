@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { BraivoError } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
@@ -44,12 +45,26 @@ async function attach(file = pdf) {
 }
 
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Save source" }));
-const decide = (position: number, choice: "Keep" | "Leave out") =>
+/** The review's list of pages. */
+const pageList = () => screen.getByRole("navigation", { name: "Pages" });
+/** The entry for page `position` in the list, named by its position first. */
+const entry = (position: number) =>
+  within(pageList()).getByRole("button", { name: new RegExp(`^Page ${position}\\b`) });
+/** Shows page `position` from the list. */
+const show = (position: number) => fireEvent.click(entry(position));
+const decide = (position: number, choice: "Keep" | "Leave out") => {
+  show(position);
   fireEvent.click(
     within(screen.getByRole("radiogroup", { name: `Page ${position}` })).getByRole("radio", {
       name: choice,
     }),
   );
+};
+/** Each listed page's printed label, as the list shows it. */
+const listedLabels = () =>
+  within(pageList())
+    .getAllByRole("button")
+    .map((button) => /p\. ([^\s,]+)/.exec(button.textContent ?? "")?.[1]);
 
 describe("adding a PDF read from its own text", () => {
   test("where Braivo's AI is off, reads it, and saves the pages reviewed as a source naming it", async () => {
@@ -73,9 +88,12 @@ describe("adding a PDF read from its own text", () => {
       pdf,
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    // Labelled as the PDF prints them, the text correctable.
+    // Labelled as the PDF prints them, one page shown at a time, the text correctable.
+    expect(listedLabels()).toEqual(["i", "7"]);
     expect(screen.getByLabelText<HTMLInputElement>("Printed page of page 1").value).toBe("i");
-    expect(screen.getByLabelText<HTMLInputElement>("Printed page of page 2").value).toBe("7");
+    expect(screen.queryByLabelText("Text of page 2")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(entry(2).getAttribute("aria-current")).toBe("page");
     fireEvent.change(screen.getByLabelText("Text of page 2"), {
       target: { value: "Adiós means goodbye." },
     });
@@ -130,11 +148,7 @@ describe("adding a PDF read from its own text", () => {
     renderAt("/example/sources", { organizations: aiOff, braivo, readPdf });
     await attach();
     await screen.findByRole("heading", { name: "Review the pages" });
-    const labels = () =>
-      [1, 2, 3].map(
-        (position) =>
-          screen.getByLabelText<HTMLInputElement>(`Printed page of page ${position}`).value,
-      );
+    const labels = listedLabels;
     // Without labels in the PDF, each page's place.
     expect(labels()).toEqual(["1", "2", "3"]);
     const first = screen.getByLabelText("The first page is printed page");
@@ -144,6 +158,7 @@ describe("adding a PDF read from its own text", () => {
     fireEvent.change(first, { target: { value: "" } });
     expect(labels()).toEqual(["1", "2", "3"]);
     fireEvent.change(first, { target: { value: "5" } });
+    show(3);
     fireEvent.change(screen.getByLabelText("Printed page of page 3"), { target: { value: "vii" } });
     save();
 
@@ -182,15 +197,21 @@ describe("adding a PDF read from its own text", () => {
         .getByRole("radio", { name: "Keep" })
         .getAttribute("aria-checked"),
     ).toBe("true");
+    expect(entry(1).textContent).toMatch(/kept/);
     for (const position of [2, 3, 4]) {
+      show(position);
+      expect(entry(position).textContent).toMatch(/undecided/);
       const group = screen.getByRole("radiogroup", { name: `Page ${position}` });
       expect(within(group).queryByRole("radio", { checked: true })).toBeNull();
       const open = screen.getByRole("link", { name: `Open page ${position} of the PDF` });
       expect(open.getAttribute("href")).toMatch(new RegExp(`^blob:.*#page=${position}$`));
       expect(open.getAttribute("target")).toBe("_blank");
     }
+    show(2);
     expect(screen.getByText(/may not be what the page shows/)).toBeTruthy();
 
+    // The refusal shows the page it is about, wherever the owner is.
+    show(1);
     save();
     const undecided = await screen.findByRole("alert");
     expect(undecided.textContent).toBe("Keep page 2 or leave it out.");
@@ -231,6 +252,7 @@ describe("adding a PDF read from its own text", () => {
     await attach();
     await screen.findByRole("heading", { name: "Review the pages" });
 
+    show(2);
     const label = screen.getByLabelText("Printed page of page 2");
     fireEvent.change(label, { target: { value: "x".repeat(17) } });
     save();
@@ -240,12 +262,151 @@ describe("adding a PDF read from its own text", () => {
     expect(document.activeElement).toBe(label);
     expect(label.getAttribute("aria-invalid")).toBe("true");
 
-    fireEvent.change(label, { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Printed page of page 2"), { target: { value: "2" } });
     decide(1, "Leave out");
     decide(2, "Leave out");
     save();
     expect((await screen.findByRole("alert")).textContent).toBe("Keep at least one page.");
     expect(braivo.uploadFile).not.toHaveBeenCalled();
+  });
+
+  test("goes through a long book a page at a time, or only its pages needing a decision, keeping edits", async () => {
+    // A 120-page book, its pages 12 and 87 flagged.
+    const book = Array.from({ length: 120 }, (_, index) =>
+      read(index + 1, `Page ${index + 1} of the book.`, {
+        outcome: [12, 87].includes(index + 1) ? "doubtful" : "text",
+      }),
+    );
+    const { braivo, readPdf } = stubs(book);
+    renderAt("/example/sources", { organizations: aiOff, braivo, readPdf });
+    await attach();
+    await screen.findByRole("heading", { name: "Review the pages" });
+    expect(within(pageList()).getAllByRole("button")).toHaveLength(120);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Needs a decision (2)" }));
+    expect(
+      within(pageList())
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual([expect.stringMatching(/^Page 12\b/), expect.stringMatching(/^Page 87\b/)]);
+    // From page 1, Next goes to the first listed.
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByLabelText("Text of page 12")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.change(screen.getByLabelText("Text of page 87"), {
+      target: { value: "Page 87, corrected." },
+    });
+    expect(screen.getByRole("button", { name: "Next page" }).getAttribute("aria-disabled")).toBe(
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    expect(screen.getByLabelText("Text of page 12")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Text of page 87").value).toBe(
+      "Page 87, corrected.",
+    );
+    decide(87, "Keep");
+    decide(12, "Leave out");
+    save();
+
+    await vi.waitFor(() => expect(braivo.addSource).toHaveBeenCalled());
+    const [{ pages }] = braivo.addSource.mock.calls[0] as unknown as [
+      { pages: { page: string; text: string }[] },
+    ];
+    expect(pages).toHaveLength(119);
+    expect(pages[85]).toEqual({ page: "87", text: "Page 87, corrected." });
+  });
+
+  test("has Braivo's AI read the whole file instead, keeping the review until it succeeds", async () => {
+    const { braivo, readPdf } = stubs([
+      read(1, "Fernwood School", { outcome: "doubtful" }),
+      read(2, "Adios."),
+    ]);
+    braivo.readFileText
+      .mockRejectedValueOnce(
+        new BraivoError(
+          429,
+          "Braivo answered 429 reading a file's text.",
+          "This organization has used this month's AI requests.",
+        ),
+      )
+      .mockResolvedValueOnce([
+        { page: "1", text: "Unidad 1: los saludos." },
+        { page: "2", text: "Adiós." },
+      ]);
+    renderAt("/example/sources", { braivo, readPdf });
+    await attach();
+    await screen.findByRole("heading", { name: "Review the pages" });
+    fireEvent.change(screen.getByLabelText("Text of page 1"), {
+      target: { value: "Fernwood School, corrected" },
+    });
+    const instead = screen.getByRole("button", { name: "Read the whole file with AI instead" });
+
+    fireEvent.click(instead);
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This organization has used this month's AI requests.",
+    );
+    // The review, and the owner's edit, as they were.
+    expect(screen.getByLabelText<HTMLTextAreaElement>("Text of page 1").value).toBe(
+      "Fernwood School, corrected",
+    );
+
+    fireEvent.click(instead);
+    await vi.waitFor(() =>
+      expect(screen.getByLabelText<HTMLTextAreaElement>("Text of page 1").value).toBe(
+        "Unidad 1: los saludos.",
+      ),
+    );
+    expect(braivo.readFileText).toHaveBeenCalledWith(
+      { organizationId: "org-1", fileId },
+      { signal: expect.any(AbortSignal) },
+    );
+    // The AI's pages are read: kept, for the owner to review and save.
+    expect(screen.getByRole("status").textContent).toBe("Saving 2\u00A0pages; 0 left out.");
+    save();
+    await vi.waitFor(() =>
+      expect(braivo.addSource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pages: [
+            { page: "1", text: "Unidad 1: los saludos." },
+            { page: "2", text: "Adiós." },
+          ],
+          original: fileId,
+        }),
+        expect.anything(),
+      ),
+    );
+    // Uploaded once: for the AI's two tries and the save.
+    expect(braivo.uploadFile).toHaveBeenCalledTimes(1);
+  });
+
+  test("offers no AI reading where Braivo's AI is off", async () => {
+    const { braivo, readPdf } = stubs([read(1, "Hola.")]);
+    renderAt("/example/sources", { organizations: aiOff, braivo, readPdf });
+    await attach();
+    await screen.findByRole("heading", { name: "Review the pages" });
+    expect(
+      screen.queryByRole("button", { name: "Read the whole file with AI instead" }),
+    ).toBeNull();
+  });
+
+  test("has Braivo's AI read a PDF its own text could not give, once the owner chooses it", async () => {
+    const { braivo, readPdf } = stubs(() => Promise.reject(new PdfReadError("unreadable")));
+    braivo.readFileText.mockResolvedValue([{ page: "1", text: "Hola." }]);
+    renderAt("/example/sources", { braivo, readPdf });
+    await attach();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/could not be read/);
+
+    fireEvent.click(screen.getByRole("radio", { name: /with Braivo's AI/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add material" }));
+
+    await vi.waitFor(() =>
+      expect(braivo.addSource).toHaveBeenCalledWith(
+        expect.objectContaining({ pages: [{ page: "1", text: "Hola." }], original: fileId }),
+        expect.anything(),
+      ),
+    );
+    expect(readPdf).toHaveBeenCalledTimes(1);
   });
 
   test("discards a review, keeping the rest of the form", async () => {
