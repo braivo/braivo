@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { i18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { expect, onTestFinished, test, vi } from "vite-plus/test";
@@ -12,6 +15,7 @@ import {
   LANGUAGE_STORAGE_KEY,
   preferredLocale,
 } from "./index.tsx";
+import { LOCALES } from "./locales.ts";
 
 test("chooses the browser's most preferred language Braivo supports, else English", () => {
   expect(chooseLocale(["pl-PL"])).toBe("pl");
@@ -74,11 +78,25 @@ test("shows and keeps the language chosen last, whichever catalog arrives first"
     await activateLocale("en");
   });
 
-  // Polish's catalog is fetched; English's comes with the app, so it is shown first.
+  // Both catalogs come with the app, so Polish, chosen first, arrives first;
+  // English, chosen after, still wins.
   const polish = chooseLanguage("pl");
   await chooseLanguage("en");
   await polish;
 
   expect(i18n.locale).toBe("en");
   expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe("en");
+});
+
+// A catalog fetched at start-up strands its readers on the loading message
+// whenever the fetch fails, a deploy having replaced its file among them.
+// Static imports are bundled into the app, which a test of messages alone cannot tell apart.
+test("imports every supported language's catalog statically, so none is fetched", () => {
+  const source = readFileSync(join(import.meta.dirname, "index.tsx"), "utf8");
+  for (const locale of LOCALES) {
+    expect(source).toMatch(
+      new RegExp(`^import \\{ messages as \\w+ \\} from "\\./locales/${locale}\\.po";$`, "m"),
+    );
+  }
+  expect(source).not.toMatch(/\bimport\(/);
 });

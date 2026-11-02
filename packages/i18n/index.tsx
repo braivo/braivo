@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 import { LANGUAGE_STORAGE_KEY, type Locale, LOCALES, supportedLocale } from "./locales.ts";
 import { messages as english } from "./locales/en.po";
+import { messages as polish } from "./locales/pl.po";
 
 export { LANGUAGE_STORAGE_KEY, type Locale, LOCALES };
 
@@ -21,10 +22,16 @@ export { LANGUAGE_STORAGE_KEY, type Locale, LOCALES };
  */
 export const LANGUAGE_NAMES: Record<Locale, string> = { en: "English", pl: "Polski" };
 
-/** English, the fallback, comes with the app; another language is fetched once chosen. */
+/**
+ * Every shipped language comes with the app: a catalog fetched at start-up
+ * would strand its readers on the loading message whenever the fetch failed,
+ * as it does once a deploy replaces the file under a page left open. Async,
+ * so a language added later may be fetched once chosen, failing as
+ * localization-1 says.
+ */
 const catalogs: Record<Locale, () => Promise<{ messages: Messages }>> = {
   en: async () => ({ messages: english }),
-  pl: () => import("./locales/pl.po"),
+  pl: async () => ({ messages: polish }),
 };
 
 /**

@@ -43,7 +43,10 @@ import {
 } from "#lib/deadline";
 import { pageHead } from "#lib/title";
 import {
+  refusalNoticePending,
+  clearRefusalNotice,
   clearUnfinishedAttempt,
+  markRefusalNotice,
   type UnfinishedAttempt,
   unfinishedAttempt,
   saveUnfinishedAttempt,
@@ -89,6 +92,9 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
         // recorded once.
         attemptId: resumed?.attempt.id ?? crypto.randomUUID(),
         resumed,
+        // Read here, not by `resume`: a refusal found by a load that then
+        // failed is said by the load Try again makes.
+        lastAttemptRefused: refusalNoticePending(learnerId, courseId),
       };
     } catch (error) {
       if (left.aborted) throw error;
@@ -109,10 +115,16 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
 });
 
 /**
+ * Refusals the same answer would meet again, such as a request a page built
+ * before an update sends: no reload explains them, so the learner is told.
+ */
+const REFUSALS_SAID = [400, 403, 413];
+
+/**
  * Refusals after which an answer is forgotten, never resent: none records it,
  * and a 409 is not retried once the rest ends (ADR 0017).
  */
-const FINAL_REFUSALS = [400, 403, 404, 409, 413];
+const FINAL_REFUSALS = [...REFUSALS_SAID, 404, 409];
 
 /**
  * The course `ref` names: its ID, or its number, resolved to the ID (and
@@ -173,7 +185,8 @@ type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
  * Resends the answer this tab left unfinished in the course, if any, so a
  * reload before Continue still shows its feedback; its ID records it at most
  * once (learner-loop-11). Refused, it is forgotten and the course loads as
- * usual, showing the rest or what is there now.
+ * usual, showing the rest or what is there now; a refusal reloading cannot
+ * explain is marked, for the page to say.
  */
 async function resume(
   braivo: BraivoClient,
@@ -193,7 +206,9 @@ async function resume(
   } catch (error) {
     if (left.aborted || (error instanceof BraivoError && error.status === 401)) throw error;
     if (error instanceof BraivoError && FINAL_REFUSALS.includes(error.status)) {
+      // Forgotten first: storage too full for the notice has room once the attempt goes.
       clearUnfinishedAttempt(learnerId, courseId);
+      if (REFUSALS_SAID.includes(error.status)) markRefusalNotice(learnerId, courseId);
       return undefined;
     }
     return { attempt };
@@ -235,8 +250,12 @@ function NextStep() {
     load: typeof routeLoad;
   }>();
   const load = continued?.routeLoad === routeLoad ? continued.load : routeLoad;
-  const { activity, progress, title, attemptId, resumed } = load;
+  const { activity, progress, title, attemptId, resumed, lastAttemptRefused } = load;
   const summary = useProgressAfterGrade(load);
+  // Said once: the load holds it, so the mark goes as it shows.
+  useEffect(() => {
+    if (routeLoad.lastAttemptRefused) clearRefusalNotice(user.id, routeLoad.courseId);
+  }, [routeLoad, user.id]);
   // The route's load as of now, for a Continue that finishes after it changed.
   const latestRouteLoad = useRef(routeLoad);
   useLayoutEffect(() => {
@@ -272,7 +291,15 @@ function NextStep() {
       clearUnfinishedAttempt(user.id, courseId);
       setContinued({
         routeLoad,
-        load: { ...load, activity, progress, attemptId: crypto.randomUUID(), resumed: undefined },
+        load: {
+          ...load,
+          activity,
+          progress,
+          attemptId: crypto.randomUUID(),
+          resumed: undefined,
+          // Said of the load that found it, not of what comes after.
+          lastAttemptRefused: false,
+        },
       });
       return { failed: false };
     } catch (error) {
@@ -298,6 +325,9 @@ function NextStep() {
       </Link>
       {title && <Heading>{title}</Heading>}
       {summary.report && <ProgressSummary report={summary.report} stale={summary.stale} />}
+      {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
+          load, so one found by a reload in place mounts anew, and is announced. */}
+      {lastAttemptRefused && <LastAttemptRefused key={attemptId} />}
       {!activity ? (
         <CaughtUp report={progress} />
       ) : "empty" in activity ? (
@@ -344,6 +374,21 @@ function NextStep() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * That the answer a reload resent was refused for good, and is gone. A status
+ * mounted empty, filled after (docs/apps.md): one mounted filled may go unsaid.
+ */
+function LastAttemptRefused() {
+  const { t } = useLingui();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return (
+    <p role="status" className="mb-6 text-sm">
+      {mounted ? t`Your last answer couldn't be recorded.` : ""}
+    </p>
   );
 }
 
@@ -774,6 +819,38 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
 }
 
 /**
+ * An answer refused for good, forgotten already. No retry, unlike a failed
+ * load: this answer would be refused again. No cause either: a page built
+ * before an update is one, the write check (403) another. Continue loads the
+ * whole document, so such a page loads the current app, then the course its
+ * next activity.
+ */
+function RefusedAnswer() {
+  const { t } = useLingui();
+  const [reloading, setReloading] = useState(false);
+
+  function reload() {
+    if (reloading) return;
+    setReloading(true);
+    location.reload();
+  }
+
+  return (
+    <Notice title={t`This answer couldn't be recorded.`} description={t`Continue practising.`}>
+      {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+      <Button aria-disabled={reloading} onClick={reload}>
+        {reloading ? t`Loading…` : t`Continue`}
+      </Button>
+      <Button asChild variant="outline">
+        <Link to="/">
+          <Trans>Your courses</Trans>
+        </Link>
+      </Button>
+    </Notice>
+  );
+}
+
+/**
  * Why this comes now, from the values the decision was made on: decisions are
  * explainable. A reteach follows a failure, from a wrong answer or Show answer,
  * which the decision does not tell apart, so the wording claims neither.
@@ -897,7 +974,7 @@ function Practice({
           return;
         }
         // Refusals that would only repeat: choosing again cannot fix them.
-        if ([400, 403, 413].includes(error.status)) {
+        if (REFUSALS_SAID.includes(error.status)) {
           setRefused(true);
           return;
         }
@@ -930,8 +1007,7 @@ function Practice({
     }
   }
 
-  // No retry, unlike a failed load: this answer would be refused again.
-  if (refused) return <Notice title={t`Something went wrong.`} />;
+  if (refused) return <RefusedAnswer />;
 
   const correctChoice = grade?.kind === "choice" ? grade.correctChoice : undefined;
   // Named only on a failure: a typed answer may succeed on another accepted

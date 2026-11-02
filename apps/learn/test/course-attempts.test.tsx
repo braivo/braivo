@@ -270,7 +270,142 @@ describe("the learn app", () => {
     },
   );
 
-  test.each([400, 403, 404, 409, 413])(
+  /** An answer left on its way, so the next visit resends it. */
+  async function leaveAnswerUnfinished() {
+    const before = renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: () => new Promise(() => {}),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    await vi.waitFor(() => expect(before.submitAttempt).toHaveBeenCalledTimes(1));
+    cleanup();
+    return before.submitAttempt.mock.calls[0]![0]!;
+  }
+
+  const LAST_REFUSED = "Your last answer couldn't be recorded.";
+
+  test.each([400, 403, 413])(
+    "after a reload, says an answer refused with %i couldn't be recorded, above the next question, once",
+    async (status) => {
+      const sent = await leaveAnswerUnfinished();
+
+      const submitAttempt = vi
+        .fn<BraivoClient["submitAttempt"]>()
+        .mockRejectedValueOnce(new BraivoError(status, "refused"))
+        .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 1 });
+      renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity: async () => anotherActivity,
+        submitAttempt,
+      });
+      const question = await screen.findByRole("button", { name: "comí" });
+      const line = await screen.findByText(LAST_REFUSED);
+      expect(line.getAttribute("role")).toBe("status");
+      expect(
+        line.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Send again" })).toBeNull();
+      expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
+
+      // The next question is a new attempt, never the refused one again.
+      fireEvent.click(question);
+      expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+      expect(submitAttempt).toHaveBeenCalledTimes(2);
+      expect(submitAttempt.mock.calls[1]![0].id).not.toBe(sent.id);
+      // Said of that load alone: gone once the learner continues past it.
+      expect(screen.getByText(LAST_REFUSED)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+      await vi.waitFor(() => expect(screen.queryByText(LAST_REFUSED)).toBeNull());
+      expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+      cleanup();
+
+      const again = renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity: async () => anotherActivity,
+      });
+      expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+      expect(screen.queryByText(LAST_REFUSED)).toBeNull();
+      expect(again.submitAttempt).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    ["a rest", { objective: activity.objective, retryAfter: 600 }, "Take a short break"],
+    ["caught up", undefined, "You're caught up"],
+  ] as const)(
+    "after a reload, says an answer was refused above %s too",
+    async (_case, next, title) => {
+      await leaveAnswerUnfinished();
+      renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity: async () => next,
+        submitAttempt: async () => {
+          throw new BraivoError(400, "refused");
+        },
+      });
+      const notice = await screen.findByRole("region", { name: title });
+      const line = await screen.findByText(LAST_REFUSED);
+      expect(line.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    },
+  );
+
+  test("says an answer refused on a reload couldn't be recorded once the course loads after failing", async () => {
+    await leaveAnswerUnfinished();
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        .mockResolvedValue(anotherActivity),
+      submitAttempt: async () => {
+        throw new BraivoError(413, "too large");
+      },
+    });
+    const failed = await screen.findByRole("region", { name: "Something went wrong." });
+    expect(screen.queryByText(LAST_REFUSED)).toBeNull();
+
+    fireEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+    expect(await screen.findByText(LAST_REFUSED)).toBeTruthy();
+    cleanup();
+
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => anotherActivity });
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+    expect(screen.queryByText(LAST_REFUSED)).toBeNull();
+  });
+
+  test("says an answer refused on a reload couldn't be recorded when storage was full until it was forgotten", async () => {
+    await leaveAnswerUnfinished();
+    // Full while the refused answer is kept: room for the notice once it goes.
+    const kept = "braivo.unfinishedAttempt:ada:c1";
+    const items = new Map([[kept, sessionStorage.getItem(kept)!]]);
+    sessionStorage.clear();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem(key: string, value: string) {
+        if (items.has(kept)) throw new DOMException("Full", "QuotaExceededError");
+        items.set(key, value);
+      },
+      removeItem: (key: string) => items.delete(key),
+      clear: () => items.clear(),
+    });
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => anotherActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(400, "refused");
+      },
+    });
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+    expect(await screen.findByText(LAST_REFUSED)).toBeTruthy();
+  });
+
+  test.each([404, 409])(
     "after a reload, forgets an answer refused with %i and loads the course as usual",
     async (status) => {
       renderAt("/c/4732", {
@@ -291,6 +426,7 @@ describe("the learn app", () => {
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       expect(submitAttempt).toHaveBeenCalledTimes(1);
       expect(nextActivity).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText(LAST_REFUSED)).toBeNull();
       cleanup();
 
       const again = renderAt("/c/4732", {
@@ -311,7 +447,9 @@ describe("the learn app", () => {
       },
     });
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
-    expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
+    expect(
+      await screen.findByRole("region", { name: "This answer couldn't be recorded." }),
+    ).toBeTruthy();
     cleanup();
 
     const { submitAttempt } = renderAt("/c/4732", {
@@ -320,6 +458,8 @@ describe("the learn app", () => {
     });
     expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
     expect(submitAttempt).not.toHaveBeenCalled();
+    // Said on the page already: not again.
+    expect(screen.queryByText(LAST_REFUSED)).toBeNull();
   });
 
   test("sends a learner whose session ended during a reload to sign in, keeping their answer for after", async () => {
@@ -711,8 +851,11 @@ describe("the learn app", () => {
   });
 
   test.each([400, 403, 413])(
-    "gives up on an answer Braivo refuses with %i, rather than inviting another choice",
+    "offers a way forward from an answer Braivo refuses with %i: Continue reloads the page, or Your courses",
     async (status) => {
+      // Stubbed: happy-dom would load the document anew.
+      const reload = vi.spyOn(location, "reload").mockImplementation(() => {});
+      onTestFinished(() => reload.mockRestore());
       renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => activity,
@@ -723,9 +866,29 @@ describe("the learn app", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-      const notice = await screen.findByRole("region", { name: "Something went wrong." });
+      const notice = await screen.findByRole("region", {
+        name: "This answer couldn't be recorded.",
+        description: "Continue practising.",
+      });
       expect(document.activeElement).toBe(notice);
+      // White-label: the organization's brand, never the product's.
+      expect(notice.textContent).not.toMatch(/Braivo/);
       expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Send again" })).toBeNull();
+      // Forgotten, as it would be refused again.
+      expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
+      expect(within(notice).getByRole("link", { name: "Your courses" }).getAttribute("href")).toBe(
+        "/",
+      );
+
+      // A whole document load, so a page built before an update loads the current app.
+      const proceed = within(notice).getByRole("button", { name: "Continue" });
+      fireEvent.click(proceed);
+      expect(reload).toHaveBeenCalledOnce();
+      expect(proceed.textContent).toBe("Loading…");
+      expect(proceed.getAttribute("aria-disabled")).toBe("true");
+      fireEvent.click(proceed);
+      expect(reload).toHaveBeenCalledOnce();
     },
   );
 
