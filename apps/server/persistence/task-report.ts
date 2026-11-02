@@ -16,7 +16,7 @@ export type TaskReportReason = (typeof taskReport.$inferSelect)["reason"];
 /** A report as stored, what the learner sent and when it first arrived. */
 export type StoredTaskReport = { reason: TaskReportReason; note: string | null; at: Date };
 
-/** The learner's own attempt: its task, response, and the outcome its evidence holds. */
+/** The learner's own attempt: its task and response (its evidence's outcome is `readEvidenceOutcome`'s). */
 export async function readReportableAttempt(
   database: Database,
   key: AttemptKey,

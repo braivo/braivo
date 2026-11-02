@@ -79,10 +79,16 @@ const REASONS: Record<ReportedTask["reports"][number]["reason"], string> = {
   other: "Something else",
 };
 
+/** One task's reports one read lists, as the server's `MAX_REPORTS_AT_ONCE`. */
+const MAX_REPORTS_READ = 1000;
+
 const learners = (count: number) => `${count} ${count === 1 ? "learner" : "learners"}`;
 
-/** Where a task's reports are on its objective's page, which the organization's links to. */
-export const taskAnchor = (taskId: string) => `task-${taskId}`;
+/**
+ * Where a task's reports are on its objective's page, which the organization's
+ * links to: apart from `task-<id>`, the task's own, which focus moves to.
+ */
+export const taskAnchor = (taskId: string) => `task-reports-${taskId}`;
 
 /** A failed read of the reports, said once; Try again reads the page again. */
 function FailedRead() {
@@ -238,7 +244,7 @@ export function TaskReports(props: {
    * without it, where the page offers no editor for the task, none is offered.
    */
   onAddAnswer?: (answer: string) => void;
-  /** An editor open or Publish under way: no editor opens meanwhile. */
+  /** An editor open, Publish under way, or the task retiring: no editor opens meanwhile. */
   editingLocked: boolean;
 }) {
   const { taskId, onAddAnswer, editingLocked } = props;
@@ -407,7 +413,11 @@ export function TaskReports(props: {
               aria-disabled={busy !== undefined}
               onClick={() => void showAll()}
             >
-              {busy === "showing" ? "Loading…" : `Show all ${count} reports`}
+              {busy === "showing"
+                ? "Loading…"
+                : count > MAX_REPORTS_READ
+                  ? `Show the newest ${MAX_REPORTS_READ.toLocaleString("en")} reports`
+                  : `Show all ${count} reports`}
             </Button>
           )}
           {/* aria-disabled, so it keeps the focus while it dismisses (docs/apps.md). */}

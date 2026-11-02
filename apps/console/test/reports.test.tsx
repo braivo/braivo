@@ -303,6 +303,44 @@ describe("learners' reports", () => {
     expect(await screen.findAllByText("Reported by 1 learner")).toHaveLength(1);
   });
 
+  test("offers no answer to add while its task is retiring, as its Edit, and again once that fails", async () => {
+    let fail!: () => void;
+    coursePage({
+      listReportedTasks: async () => ({ tasks: [reportedTyped("NYC")], more: false }),
+      retireTasks: () =>
+        new Promise<never>((_resolve, reject) => {
+          fail = () => reject(new TypeError("Failed to fetch"));
+        }),
+    });
+
+    fireEvent.click(await screen.findByText("Reported by 1 learner"));
+    const add = () => screen.getByRole("button", { name: "Add “NYC” to accepted answers" });
+    expect(add()).toHaveProperty("disabled", false);
+    fireEvent.click(screen.getByRole("button", { name: `Retire “${typedTask.prompt}”` }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Retire" }),
+    );
+
+    await waitFor(() => expect(add()).toHaveProperty("disabled", true));
+    expect(screen.getByRole("button", { name: `Edit “${typedTask.prompt}”` })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    fail();
+    await waitFor(() => expect(add()).toHaveProperty("disabled", false));
+  });
+
+  test("keeps the task's own ID to the task, its reports under another", async () => {
+    coursePage({
+      listReportedTasks: async () => ({ tasks: [reportedTyped("NYC")], more: false }),
+    });
+
+    await screen.findByText("Reported by 1 learner");
+    expect(document.querySelectorAll(`[id="task-${typedTask.id}"]`)).toHaveLength(1);
+    expect(document.getElementById(`task-${typedTask.id}`)?.tagName).toBe("DIV");
+    expect(document.getElementById(`task-reports-${typedTask.id}`)?.tagName).toBe("DETAILS");
+  });
+
   test("counts every reason of a task's open reports on the organization's page, not only those listed", async () => {
     renderAt("/example", {
       braivo: {
@@ -408,7 +446,7 @@ describe("learners' reports", () => {
     });
 
     fireEvent.click(await screen.findByText("Reported by 1001 learners"));
-    const showAll = screen.getByRole("button", { name: "Show all 1001 reports" });
+    const showAll = screen.getByRole("button", { name: "Show the newest 1,000 reports" });
     showAll.focus();
     fireEvent.click(showAll);
     expect(

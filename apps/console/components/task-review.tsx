@@ -525,14 +525,19 @@ export function TaskList(props: {
               corrects={replaced?.prompt}
               onRetired={onChanged}
             >
-              <Passages citations={task.citations} sources={sources} />
-              {/* Learners' reports, where the page reads them for an administrator. */}
-              {task.published && (
-                <TaskReports
-                  taskId={task.id}
-                  editingLocked={pending || editing !== undefined}
-                  onAddAnswer={(answer) => onEdit({ taskId: task.id, answerToAdd: answer })}
-                />
+              {(retiring) => (
+                <>
+                  <Passages citations={task.citations} sources={sources} />
+                  {/* Learners' reports, where the page reads them for an administrator. */}
+                  {task.published && (
+                    <TaskReports
+                      taskId={task.id}
+                      // As its Edit button.
+                      editingLocked={retiring || pending || editing !== undefined}
+                      onAddAnswer={(answer) => onEdit({ taskId: task.id, answerToAdd: answer })}
+                    />
+                  )}
+                </>
               )}
             </RetirableTask>
           </div>
@@ -733,8 +738,8 @@ function RetirableTask(props: {
   /** While it waits to correct a published task, that task's prompt. */
   corrects?: string;
   onRetired: () => void;
-  /** The passages it was written from. */
-  children: ReactNode;
+  /** The passages it was written from, and its reports, given whether it is retiring. */
+  children: (retiring: boolean) => ReactNode;
 }) {
   const {
     task,
@@ -859,7 +864,7 @@ function RetirableTask(props: {
       }
     >
       {findings(retiring)}
-      {children}
+      {children(retiring)}
     </AuthoredTask>
   );
 }
