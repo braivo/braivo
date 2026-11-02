@@ -87,6 +87,9 @@ describe("the console in Polish", () => {
     expect(await screen.findByRole("button", { name: "Wyślij zaproszenie" })).toBeTruthy();
     const roles = screen.getByRole("radiogroup", { name: "Rola" });
     expect(within(roles).getByRole("radio", { name: "Autor" })).toBeTruthy();
+    expect(within(roles).getByRole("radio", { name: "Uczeń" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
     expect(screen.getByText("Zaproszenie od: Olive Owner. Wygasa 8 czerwca 2026.")).toBeTruthy();
     cleanup();
 
@@ -108,6 +111,24 @@ describe("the console in Polish", () => {
     expect(screen.getByText(/^Ada Admin zaprasza Cię\./)).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Dołącz do organizacji „Example School” jako autor" }),
+    ).toBeTruthy();
+    cleanup();
+
+    renderAt("/invitations/inv-2", {
+      braivo: {
+        invitation: async () => ({
+          organization: { name: "Example School", slug: "example" },
+          status: "accepted",
+          recipient: true,
+          role: "member",
+          inviter: { name: "Ada Admin" },
+          learnDomain: "learn.example.org",
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Przejdź do learn.example.org" }),
     ).toBeTruthy();
   });
 

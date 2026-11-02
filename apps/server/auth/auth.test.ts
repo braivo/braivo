@@ -757,7 +757,8 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
         id: invitationId,
         organizationId: id,
         email: invitee.email,
-        role: "member",
+        // Not a learner's, which also needs a learn domain to be accepted.
+        role: "author",
         status: "pending",
         expiresAt: new Date(Date.now() + 86_400_000),
         createdAt: new Date(),
@@ -811,7 +812,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     );
     expect(byInvitee.status).toBe(200);
     expect((await membersOf(id)).map((member) => member.role).toSorted()).toEqual([
-      "member",
+      "author",
       "owner",
     ]);
   });

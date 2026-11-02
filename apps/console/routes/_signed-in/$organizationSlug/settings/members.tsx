@@ -40,8 +40,8 @@ import { pageHead } from "#lib/title";
 
 /**
  * Who belongs to the organization, by name, with their roles (access-26),
- * and who is invited (access-50, 51): an author or an admin, by email
- * (ADR 0018); learners and removal stay the operator's for now. Teaching
+ * and who is invited (access-50, 51): a learner, an author, or an admin, by
+ * email (ADR 0018); removal stays the operator's for now. Teaching
  * belongs to groups, not roles (access-38), so each role shows with the
  * groups its member teaches.
  */
@@ -83,8 +83,8 @@ function Members() {
       <MutedText className="mb-4 block wrap-break-word">
         <Plural value={count} one="# member." other="# members." />{" "}
         <Trans>
-          Invite authors and admins here. Learners are added, and anyone removed, by whoever runs
-          Braivo for you.
+          Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for
+          you.
         </Trans>{" "}
         <Trans>
           To let a member read their learners' progress, make them a teacher in a{" "}
@@ -160,20 +160,28 @@ function Teaching({
 
 /** The roles an invitation offers, each with what it lets someone do (ADR 0048). */
 const INVITED_ROLES = [
+  { value: "member", label: msg`Learner`, does: msg`Practise its courses` },
   { value: "author", label: msg`Author`, does: msg`Manage and publish content` },
   { value: "admin", label: msg`Admin`, does: msg`Manage people, settings, and content` },
 ] as const;
 
 /** The last invitation's outcome; its count keys the message, so a repeat is announced too. */
-type Outcome = { email: string; result: InvitationResult | "failed" | "refused"; count: number };
+type Outcome = {
+  email: string;
+  result: InvitationResult | "failed" | "refused" | "no learn domain";
+  count: number;
+};
 
-/** Invites one address as an author or an admin, mailing them its link (access-50). */
+/** A role an invitation carries. */
+type InvitedRole = (typeof INVITED_ROLES)[number]["value"];
+
+/** Invites one address as a learner, an author, or an admin, mailing them its link (access-50). */
 function InviteForm() {
   const { organization, braivo } = Route.useRouteContext();
   const router = useRouter();
   const { t, i18n } = useLingui();
   const id = useId();
-  const [role, setRole] = useState<"author" | "admin">("author");
+  const [role, setRole] = useState<InvitedRole>("member");
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
 
@@ -207,7 +215,7 @@ function InviteForm() {
       next(result);
       if (result.outcome === "invited") {
         form.reset();
-        setRole("author");
+        setRole("member");
         // Lists it among those waiting, with its link.
         await router.invalidate();
       }
@@ -215,8 +223,14 @@ function InviteForm() {
       setPending(false);
       // Signed out meanwhile: the guard's check, run again, sends them to sign in.
       if (thrown instanceof BraivoError && thrown.status === 401) return router.invalidate();
-      const refused = thrown instanceof BraivoError && thrown.code === "EMAIL_INVALID";
-      next(refused ? "refused" : "failed");
+      const code = thrown instanceof BraivoError ? thrown.code : undefined;
+      next(
+        code === "EMAIL_INVALID"
+          ? "refused"
+          : code === "NO_LEARN_DOMAIN"
+            ? "no learn domain"
+            : "failed",
+      );
       // Perhaps no longer managing it: if so, the page, read again, says so.
       if (thrown instanceof BraivoError && thrown.status === 403) await router.invalidate();
     }
@@ -230,6 +244,10 @@ function InviteForm() {
       <Trans>Could not send the invitation. Try again.</Trans>
     ) : result === "refused" ? (
       <Trans>Enter a valid email address.</Trans>
+    ) : result === "no learn domain" ? (
+      <Trans>
+        Learners have no site to practise on yet, so none can be invited. Authors and admins can.
+      </Trans>
     ) : result?.outcome === "invited" && !result.emailSent ? (
       <Trans>
         {email} is invited, but the email could not be sent. Copy the link below and send it to
@@ -284,7 +302,7 @@ function InviteForm() {
             <RadioGroup
               aria-labelledby={`${id}-role`}
               value={role}
-              onValueChange={(value) => setRole(value as "author" | "admin")}
+              onValueChange={(value) => setRole(value as InvitedRole)}
             >
               {INVITED_ROLES.map(({ value, label, does }) => (
                 <div key={value} className="flex items-start gap-2">
@@ -350,6 +368,12 @@ function Invitations() {
       <Heading level={2} id={`${id}-heading`} className="mb-2">
         <Trans>Invitations</Trans>
       </Heading>
+      <MutedText className="mb-3 block wrap-break-word">
+        <Trans>
+          A link works only for the address it was sent to: whoever opens it still signs in with a
+          code sent to that email, or with Google.
+        </Trans>
+      </MutedText>
       <ul className="divide-y rounded-lg border">
         {invitations.map((invitation) => {
           const link = new URL(`/invitations/${invitation.id}`, window.location.origin).href;

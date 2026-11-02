@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { InvitationPage, InvitationResult, PendingInvitation } from "@braivo/server/client";
+import {
+  BraivoError,
+  type InvitationPage,
+  type InvitationResult,
+  type PendingInvitation,
+} from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
@@ -52,7 +57,7 @@ const acceptAnswering = (error?: { status: number; code?: string }) =>
   vi.fn(async (_path: string, _options: unknown) => ({ data: error ? null : {}, error }));
 
 /** Fills Members' invite form and sends it. */
-async function invite(email: string, role: "Author" | "Admin" = "Author") {
+async function invite(email: string, role: "Learner" | "Author" | "Admin" = "Author") {
   fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: email } });
   fireEvent.click(
     within(screen.getByRole("radiogroup", { name: "Role" })).getByRole("radio", { name: role }),
@@ -174,6 +179,13 @@ describe("invitations", () => {
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
     expect(router.state.location.search).toEqual({ redirect: "/invitations/inv-1" });
+    // Here to accept, so never sent off to a course's website.
+    expect(
+      await screen.findByText(
+        "Sign in with the email address the invitation was sent to, then accept it.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Here to learn\?/)).toBeNull();
   });
 
   test("tells another account the invitation is not theirs, and signs it out to use another", async () => {
@@ -282,6 +294,23 @@ describe("invitations", () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
   });
 
+  test("sends a learner already a member on to the learn site, not the console", async () => {
+    const { router, visit } = renderAt("/invitations/inv-1", {
+      braivo: {
+        invitation: async () =>
+          forOlive({ role: "member", member: true, learnDomain: "learn.example.org" }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "You already belong to Example School" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to learn.example.org" }));
+
+    expect(visit).toHaveBeenCalledWith("https://learn.example.org/api/session/sign-in");
+    expect(router.state.location.pathname).toBe("/invitations/inv-1");
+  });
+
   test.each([
     ["already a member", { status: 400, code: "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION" }],
     ["made a member meanwhile, failing", { status: 500 }],
@@ -357,6 +386,174 @@ describe("invitations", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(fourth.getAttribute("aria-disabled")).not.toBe("true");
     expect(router.state.location.pathname).toBe("/invitations/fourth");
+  });
+
+  test("invites a learner by default, and says the link still needs a sign-in", async () => {
+    const inviteStub = vi.fn(
+      async (_organizationId: string, invitation: { email: string; role: string }) =>
+        ({
+          outcome: "invited",
+          invitation: { ...pending("inv-3", invitation.email), role: invitation.role },
+          emailSent: true,
+        }) satisfies InvitationResult,
+    );
+    renderAt("/example/settings/members", {
+      braivo: {
+        invite: inviteStub,
+        listInvitations: async () => [
+          { ...pending("inv-3", "dee@school.example"), role: "member" },
+        ],
+      },
+    });
+
+    const roles = within(await screen.findByRole("radiogroup", { name: "Role" }));
+    expect(roles.getByRole("radio", { name: "Learner" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "dee@school.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+
+    await vi.waitFor(() =>
+      expect(inviteStub).toHaveBeenCalledWith(
+        "org-1",
+        { email: "dee@school.example", role: "member" },
+        expect.anything(),
+      ),
+    );
+    const listed = within(await screen.findByRole("region", { name: "Invitations" }));
+    expect(listed.getByText("Learner")).toBeTruthy();
+    expect(
+      listed.getByText(
+        "A link works only for the address it was sent to: whoever opens it still signs in with a code sent to that email, or with Google.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("says when learners have no site to be invited to", async () => {
+    renderAt("/example/settings/members", {
+      braivo: {
+        invite: async () => {
+          throw new BraivoError(409, "no site", undefined, "NO_LEARN_DOMAIN");
+        },
+        listInvitations: async () => [],
+      },
+    });
+
+    await invite("dee@school.example", "Learner");
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Learners have no site to practise on yet, so none can be invited. Authors and admins can.",
+    );
+  });
+
+  test("a learner joins, then goes on to the learn domain's sign-in, which hands the account over", async () => {
+    const answers = [
+      forOlive({ role: "member", learnDomain: "learn.example.org" }),
+      forOlive({ role: "member", status: "accepted", learnDomain: "learn.example.org" }),
+    ];
+    const $fetch = acceptAnswering();
+    const { visit } = renderAt("/invitations/inv-1", {
+      braivo: { invitation: async () => answers.shift() ?? answers[0]! },
+      $fetch,
+    });
+
+    expect(
+      await screen.findByText(/^Ada Admin invited you\. There, you will practise courses\./),
+    ).toBeTruthy();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Join Example School as a learner" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(visit).toHaveBeenCalledWith("https://learn.example.org/api/session/sign-in"),
+    );
+    // Shown before leaving: a document Back restores as it was offers to go on again.
+    expect(screen.getByRole("heading", { name: "You have joined Example School" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to learn.example.org" }));
+    expect(visit).toHaveBeenCalledTimes(2);
+  });
+
+  test("offers a learner who joined to go on to the learn site again, the membership kept", async () => {
+    const { visit } = renderAt("/invitations/inv-1", {
+      braivo: {
+        invitation: async () =>
+          forOlive({ role: "member", status: "accepted", learnDomain: "learn.example.org" }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "You have joined Example School" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("If signing in there did not finish, continue again: you stay a member."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to learn.example.org" }));
+
+    expect(visit).toHaveBeenCalledWith("https://learn.example.org/api/session/sign-in");
+  });
+
+  test("tells a learner when the school's site is not ready, keeping the invitation", async () => {
+    const $fetch = acceptAnswering({ status: 403, code: "NO_LEARN_DOMAIN" });
+    const { visit } = renderAt("/invitations/inv-1", {
+      braivo: { invitation: async () => forOlive({ role: "member", learnDomain: null }) },
+      $fetch,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Join Example School as a learner" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Example School's site for learners is not ready yet. Your invitation stays; try again later, or contact them.",
+    );
+    expect(visit).not.toHaveBeenCalled();
+  });
+
+  test("shows another invitation, opened after joining one, as not joined", async () => {
+    let joinedA = false;
+    const { router, visit } = renderAt("/invitations/a", {
+      braivo: {
+        invitation: async (id: string) =>
+          forOlive({
+            organization: { name: `School ${id.toUpperCase()}`, slug: id },
+            role: "member",
+            status: id === "a" && joinedA ? "accepted" : "pending",
+            learnDomain: `${id}.example.org`,
+          }),
+      },
+      $fetch: vi.fn(async () => {
+        joinedA = true;
+        return { data: {}, error: undefined };
+      }),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Join School A as a learner" }));
+    await screen.findByRole("button", { name: "Continue to a.example.org" });
+    await router.navigate({ to: "/invitations/$invitationId", params: { invitationId: "b" } });
+
+    expect(await screen.findByRole("button", { name: "Join School B as a learner" })).toBeTruthy();
+    expect(screen.queryByText(/You have joined/)).toBeNull();
+    expect(visit).toHaveBeenCalledTimes(1);
+  });
+
+  test("leaves the page someone went on to alone when an acceptance they left answers", async () => {
+    let answer!: (value: { data: object; error: undefined }) => void;
+    const { router } = renderAt("/invitations/a", {
+      braivo: {
+        invitation: async (id: string) =>
+          forOlive({ organization: { name: `School ${id.toUpperCase()}`, slug: "example" } }),
+        listCourses: async () => [],
+      },
+      $fetch: vi.fn(() => new Promise((resolve) => (answer = resolve))),
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Join School A as an author" }));
+    await router.navigate({ to: "/invitations/$invitationId", params: { invitationId: "b" } });
+    await screen.findByRole("button", { name: "Join School B as an author" });
+    answer({ data: {}, error: undefined });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(router.state.location.pathname).toBe("/invitations/b");
   });
 
   test("sends someone signed in but not yet named to name themselves first", async () => {

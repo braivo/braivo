@@ -1,23 +1,43 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Inviting an author or administrator, over HTTP (ADR 0018, access-27, 50 to
-// 54): who invites whom, the mail and its failure, who lists invitations, what
-// the page reads with and without a session, and who accepts.
+// Inviting a learner, an author, or an administrator, over HTTP (ADR 0018,
+// access-27, 50 to 54): who invites whom, the mail and its failure, who lists
+// invitations, what the page reads with and without a session, who accepts,
+// and a learner's way on to the learn domain.
 
 import { runMigrations } from "@braivo/db";
-import { invitation, member, organization, user } from "@braivo/db/schema";
+import { invitation, member, organization, organizationDomain, user } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
+import { registerLearnDomain } from "../application/index.ts";
+import {
+  baseUrl,
+  connectionString,
+  createTestApi,
+  learnerSessionOn,
+  type Signed,
+} from "./testing.ts";
 
 const { database, api, outbox, signUp, signUpAs } = createTestApi();
 
 const organizationId = "invitations-api-org";
 const invitationsPath = `/api/organizations/${organizationId}/invitations`;
 const at = new Date("2026-06-01T00:00:00.000Z");
+/** The organization's learn domain, registered by the tests that need one. */
+const learnOrigin = "https://invitations-test.example.com";
+const learnHostname = new URL(learnOrigin).hostname;
+const registerLearnSite = () =>
+  registerLearnDomain({
+    database,
+    baseUrl,
+    organizationSlug: organizationId,
+    hostname: learnHostname,
+  });
+const removeLearnSites = () =>
+  database.delete(organizationDomain).where(eq(organizationDomain.organizationId, organizationId));
 const DAY = 86_400_000;
 
 let owner!: Signed;
@@ -91,6 +111,7 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
 
   beforeEach(async () => {
     await database.delete(invitation).where(eq(invitation.organizationId, organizationId));
+    await removeLearnSites();
     outbox.failTo.clear();
   });
 
@@ -127,7 +148,7 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
   });
 
   test("refuses an owner invitation, and roles not offered", async () => {
-    for (const role of ["owner", "member", "teacher", ["author", "admin"], "author,admin"]) {
+    for (const role of ["owner", "teacher", ["author", "admin"], "author,admin", "member,admin"]) {
       const answered = await invite(owner, { email: newEmail(), role });
 
       expect(answered.status).toBe(400);
@@ -410,6 +431,85 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
       code: "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION",
     });
     expect(await rolesOf(recipient.id)).toEqual(["author"]);
+  });
+
+  test("invites a learner only while the organization has a learn domain", async () => {
+    const email = newEmail();
+
+    const refused = await invite(admin, { email, role: "member" });
+
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "NO_LEARN_DOMAIN" });
+    expect(
+      await database.select().from(invitation).where(eq(invitation.organizationId, organizationId)),
+    ).toEqual([]);
+    expect(outbox.sent.some((sent) => sent.to === email)).toBe(false);
+
+    await registerLearnSite();
+    const answered = await invite(admin, { email, role: "member" });
+
+    expect(answered.status).toBe(201);
+    expect(await answered.json()).toMatchObject({ invitation: { role: "member" } });
+    expect(outbox.sent.findLast((sent) => sent.to === email)?.text).toMatch(/as a learner/i);
+  });
+
+  test("refuses accepting a learner invitation while the learn domain is gone, keeping it pending", async () => {
+    await registerLearnSite();
+    const email = newEmail();
+    const id = await invited(email, "member");
+    const recipient = await signUpAs(email, "Ada Learner");
+    await removeLearnSites();
+
+    const refused = await accept(recipient, id);
+
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({ code: "NO_LEARN_DOMAIN" });
+    expect(await rolesOf(recipient.id)).toEqual([]);
+    const [stored] = await database
+      .select({ status: invitation.status })
+      .from(invitation)
+      .where(eq(invitation.id, id));
+    expect(stored?.status).toBe("pending");
+    expect(await (await preview(id, cookieOf(recipient))).json()).toMatchObject({
+      status: "pending",
+      learnDomain: null,
+    });
+
+    await registerLearnSite();
+    expect((await accept(recipient, id)).status).toBe(200);
+    expect(await rolesOf(recipient.id)).toEqual(["member"]);
+  });
+
+  test("a learner accepts on the installation's origin, then is handed to the learn domain without a second code", async () => {
+    await registerLearnSite();
+    const email = newEmail();
+    const id = await invited(email, "member");
+    const recipient = await signUpAs(email, "Ada Learner");
+    const codesBefore = outbox.sent.filter((sent) => sent.to === email).length;
+
+    // Only the recipient learns where it leads.
+    expect(await (await preview(id, cookieOf(recipient))).json()).toMatchObject({
+      role: "member",
+      learnDomain: learnHostname,
+    });
+    expect(await (await preview(id, cookieOf(learner))).json()).not.toHaveProperty("learnDomain");
+    expect(await (await preview(id)).json()).not.toHaveProperty("learnDomain");
+    expect((await accept(recipient, id)).status).toBe(200);
+
+    // The learn domain's own handoff start, its nonce cookie, then the code.
+    const learnerCookie = await learnerSessionOn(api, learnOrigin, recipient.cookie);
+    const session = await api.request(`${learnOrigin}/api/session`, {
+      headers: { cookie: learnerCookie },
+    });
+
+    expect(session.status).toBe(200);
+    expect(await session.json()).toMatchObject({ user: { id: recipient.id, name: "Ada Learner" } });
+    expect(outbox.sent.filter((sent) => sent.to === email)).toHaveLength(codesBefore);
+    // Accepted, the page still leads there: the way to try again.
+    expect(await (await preview(id, cookieOf(recipient))).json()).toMatchObject({
+      status: "accepted",
+      learnDomain: learnHostname,
+    });
   });
 
   test("refuses Better Auth's organization update, even to an owner", async () => {

@@ -14,6 +14,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ConsoleBrand, ConsoleSignInPage } from "#components/sign-in-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { learnUrl } from "#lib/learn-url";
 
 /**
  * Accepting an invitation to an organization (ADR 0018). Signed out, the
@@ -21,6 +22,7 @@ import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
  * account it was sent to accepts by pressing a button naming the school, the
  * role, and the account, never by arriving, so a wrong account on a shared
  * device is noticed. Another account is told so, and offered to sign out.
+ * A learner then goes to the learn domain, an author or admin to the console.
  */
 export const Route = createFileRoute("/invitations/$invitationId")({
   // Another invitation starts afresh: nothing pressed or refused carries over.
@@ -58,6 +60,10 @@ const ROLE_COPY: Record<
   string,
   { join: (school: string) => MessageDescriptor; does: MessageDescriptor }
 > = {
+  member: {
+    join: (school) => msg`Join ${school} as a learner`,
+    does: msg`There, you will practise courses.`,
+  },
   author: {
     join: (school) => msg`Join ${school} as an author`,
     does: msg`There, you will manage and publish learning content.`,
@@ -138,7 +144,8 @@ function InvitationState({
     );
   }
   if (!invitation.recipient) return <Mismatch email={email} />;
-  return <Accept invitation={invitation} email={email} />;
+  // Per account too: another signed in meanwhile has joined nothing.
+  return <Accept key={email} invitation={invitation} email={email} />;
 }
 
 /** An invitation that can no longer be accepted: what happened, and what to do. */
@@ -203,14 +210,27 @@ function Mismatch({ email }: { email: string }) {
   );
 }
 
+/**
+ * Leaves for the learn domain's own sign-in start, which sets its nonce
+ * cookie there and comes back to `/login?handoff=`, where the account just
+ * used is offered ("Continue as Ada"), then handed over without another code
+ * (ADR 0018, access-12 to 15). A navigation, kept in history, so Back returns
+ * here to try again.
+ */
+function toLearnSite(visit: (href: string) => void, hostname: string) {
+  visit(learnUrl(hostname, "/api/session/sign-in"));
+}
+
 function Accept({ invitation, email }: { invitation: InvitationPage; email: string }) {
-  const { auth } = Route.useRouteContext();
+  const { auth, braivo, visit } = Route.useRouteContext();
   const { invitationId } = Route.useParams();
   const router = useRouter();
   const { i18n } = useLingui();
   const [pending, setPending] = useState(false);
   const another = useAnotherAccount(pending);
   const [failure, setFailure] = useState<{ message: MessageDescriptor; count: number }>();
+  // The invitation as read again once a learner joined.
+  const [joined, setJoined] = useState<InvitationPage>();
   // An answer arriving after this page was left belongs to no page shown.
   const shown = useRef(true);
   useEffect(() => {
@@ -230,6 +250,7 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
       params: { organizationSlug: slug },
       replace: true,
     });
+  const learner = invitation.role === "member";
 
   async function accept() {
     if (pending || another.pending) return;
@@ -245,12 +266,31 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
       })
       .catch(() => undefined);
     if (!shown.current) return;
-    if (answer && !answer.error) return await toConsole();
+    if (answer && !answer.error) {
+      if (!learner) return await toConsole();
+      // Read again for the domain as it is now; without one, or unread, the
+      // page shows the membership and how to go on.
+      const read = await braivo
+        .invitation(invitationId, { signal: withDeadline(undefined, REQUEST_DEADLINE_MS) })
+        .catch(() => undefined);
+      if (!shown.current) return;
+      setPending(false);
+      if (!read?.learnDomain) return await router.invalidate();
+      // Shown before leaving, so a document Back restores as it was (the
+      // back-forward cache) offers to go on again, not a spinner.
+      setJoined(read);
+      return toLearnSite(visit, read.learnDomain);
+    }
     setPending(false);
     if (!answer) return fail(msg`Could not connect. Check your connection and try again.`);
     const { code } = answer.error as { code?: string };
     if (code === "ORGANIZATION_MEMBERSHIP_LIMIT_REACHED") {
       return fail(msg`${school} has no room for new members. Contact them.`);
+    }
+    if (code === "NO_LEARN_DOMAIN") {
+      return fail(
+        msg`${school}'s site for learners is not ready yet. Your invitation stays; try again later, or contact them.`,
+      );
     }
     fail(msg`Could not join. Try again.`);
     // Signed out or in as another account, cancelled, accepted, or made a
@@ -258,7 +298,27 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
     await router.invalidate();
   }
 
-  if (invitation.member && invitation.status !== "accepted") {
+  const current = joined ?? invitation;
+  const hostname = current.learnDomain;
+  // A member goes on where the invitation's role does: a learner at the
+  // learn domain, anyone else in the console.
+  const goOn = !learner ? (
+    <Button className="mt-6 w-full" onClick={() => void toConsole()}>
+      <Trans>Continue</Trans>
+    </Button>
+  ) : hostname ? (
+    <Button
+      className="mt-6 h-auto min-h-9 w-full py-1.5 whitespace-normal wrap-anywhere"
+      onClick={() => toLearnSite(visit, hostname)}
+    >
+      <Trans>Continue to {hostname}</Trans>
+    </Button>
+  ) : (
+    <MutedText className="mt-6 block wrap-break-word">
+      <Trans>{school}'s site for learners is not ready yet. Contact them.</Trans>
+    </MutedText>
+  );
+  if (current.member && current.status !== "accepted") {
     return (
       <>
         <Heading>
@@ -267,21 +327,24 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
         <MutedText className="wrap-break-word">
           <Trans>Your role there stays as it is.</Trans>
         </MutedText>
-        <Button className="mt-6 w-full" onClick={() => void toConsole()}>
-          <Trans>Continue</Trans>
-        </Button>
+        {goOn}
       </>
     );
   }
-  if (invitation.status === "accepted") {
+  if (current.status === "accepted") {
     return (
       <>
         <Heading>
           <Trans>You have joined {school}</Trans>
         </Heading>
-        <Button className="mt-6 w-full" onClick={() => void toConsole()}>
-          <Trans>Continue</Trans>
-        </Button>
+        {/* Back here, or the link opened again, after the learn domain's
+            sign-in did not finish: going on starts it afresh. */}
+        {learner && hostname && (
+          <MutedText className="block wrap-break-word">
+            <Trans>If signing in there did not finish, continue again: you stay a member.</Trans>
+          </MutedText>
+        )}
+        {goOn}
       </>
     );
   }

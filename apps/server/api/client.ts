@@ -392,16 +392,18 @@ export type BraivoClient = {
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
 
   /**
-   * Invites `email` to an organization as `author` or `admin`, mailing them
+   * Invites `email` to an organization as `member` (a learner), `author`, or
+   * `admin`, mailing them
    * the invitation's link (ADR 0018), in the language `Accept-Language`
    * prefers. Resolves to the invitation and whether its mail went, or to what
    * the address already holds there. A browser's session alone, for an
    * `owner` or `admin`; otherwise a {@link BraivoError}: 403, or 400 with
-   * `code` `EMAIL_INVALID` or `ROLE_NOT_INVITABLE`, 409 `PENDING_LIMIT`.
+   * `code` `EMAIL_INVALID` or `ROLE_NOT_INVITABLE`, 409 `PENDING_LIMIT` or
+   * `NO_LEARN_DOMAIN`.
    */
   invite(
     organizationId: string,
-    invitation: { email: string; role: "author" | "admin" },
+    invitation: { email: string; role: "member" | "author" | "admin" },
     options?: RequestOptions,
   ): Promise<InvitationResult>;
 

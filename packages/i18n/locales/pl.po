@@ -241,6 +241,14 @@ msgstr "Poprawnie: {right} z {answers}."
 msgid "{school} has no room for new members. Contact them."
 msgstr "Organizacja „{school}” nie ma miejsca dla nowych członków. Skontaktuj się z nią."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "{school}'s site for learners is not ready yet. Contact them."
+msgstr "Strona organizacji „{school}” dla uczniów nie jest jeszcze gotowa. Skontaktuj się z nią."
+
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "{school}'s site for learners is not ready yet. Your invitation stays; try again later, or contact them."
+msgstr "Strona organizacji „{school}” dla uczniów nie jest jeszcze gotowa. Zaproszenie pozostaje ważne: spróbuj ponownie później lub skontaktuj się z organizacją."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{successes, plural, one {# success} other {# successes}}"
 msgstr "{successes, plural, one {# sukces} few {# sukcesy} many {# sukcesów} other {# sukcesu}}"
@@ -289,6 +297,10 @@ msgstr "Grupa z tego formularza została już utworzona. Znajdziesz ją wśród 
 #: apps/console/components/organization-setup-form.tsx
 msgid "A home for your materials, courses, and learners."
 msgstr "Miejsce na Twoje materiały, kursy i uczniów."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "A link works only for the address it was sent to: whoever opens it still signs in with a code sent to that email, or with Google."
+msgstr "Link działa tylko dla adresu, na który go wysłano: kto go otworzy, i tak loguje się kodem wysłanym na ten adres lub przez Google."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Account"
@@ -531,6 +543,10 @@ msgstr "Kontynuuj jako {account}"
 msgid "Continue practising."
 msgstr "Ćwicz dalej."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "Continue to {hostname}"
+msgstr "Przejdź do {hostname}"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
 msgstr "Kontynuuj z Google"
@@ -634,6 +650,10 @@ msgstr "Nie udało się odłączyć aplikacji. Spróbuj ponownie."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
 
+#: apps/learn/routes/login.tsx
+msgid "Could not finish signing in. Try again from where you started, or sign in with a code."
+msgstr "Nie udało się dokończyć logowania. Spróbuj ponownie tam, gdzie zaczynasz, lub zaloguj się kodem."
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Could not join. Try again."
 msgstr "Nie udało się dołączyć. Spróbuj ponownie."
@@ -688,7 +708,6 @@ msgid "Could not send. Try again."
 msgstr "Nie udało się wysłać. Spróbuj ponownie."
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem."
@@ -1004,6 +1023,10 @@ msgstr "Tak widzą Cię inni w Twoich organizacjach."
 msgid "If a code arrives at {address}, enter it here. It expires in 10 minutes and works once."
 msgstr "Jeśli na adres {address} dotrze kod, wpisz go tutaj. Wygasa po 10 minutach i działa tylko raz."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "If signing in there did not finish, continue again: you stay a member."
+msgstr "Jeśli logowanie tam nie zostało dokończone, przejdź ponownie: nadal należysz do organizacji."
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
 msgstr "Jeśli ktoś wysłał Ci link do tego kursu, sprawdź, czy korzystasz z właściwego konta, albo poproś tę osobę o dostęp."
@@ -1042,8 +1065,8 @@ msgid "Invite"
 msgstr "Zaproś"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Invite authors and admins here. Learners are added, and anyone removed, by whoever runs Braivo for you."
-msgstr "Tutaj zapraszasz autorów i administratorów. Uczniów dodaje, a członków usuwa osoba, która prowadzi dla Ciebie Braivo."
+msgid "Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for you."
+msgstr "Tutaj zapraszasz uczniów, autorów i administratorów. Członków usuwa osoba, która prowadzi dla Ciebie Braivo."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Invited by {inviter}. Expires on {expires}."
@@ -1088,6 +1111,10 @@ msgstr "Nauczyciele tej grupy nie zobaczą postępów, dopóki nie będzie w nie
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school}"
 msgstr "Dołącz do organizacji „{school}”"
+
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "Join {school} as a learner"
+msgstr "Dołącz do organizacji „{school}” jako uczeń"
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school} as an admin"
@@ -1147,6 +1174,7 @@ msgstr "„Ostatnie ćwiczenia” obejmują pytania, na które uczeń odpowiedzi
 #: apps/console/components/group-form.tsx
 #: apps/console/lib/roles.ts
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Uczeń"
 
@@ -1167,6 +1195,10 @@ msgstr "Uczniowie mogą ćwiczyć pod każdym z tych adresów. Linki do udostęp
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Learners can't open this course for now."
 msgstr "Uczniowie nie mogą na razie otworzyć tego kursu."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Learners have no site to practise on yet, so none can be invited. Authors and admins can."
+msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń, więc nie można ich zaprosić. Autorów i administratorów można."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."
@@ -1557,6 +1589,10 @@ msgstr "Ćwiczenia z tematu „{objectiveTitle}” są obecnie niedostępne."
 msgid "Practice in the last 7 days"
 msgstr "Ćwiczenia w ostatnich 7 dniach"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Practise its courses"
+msgstr "Ćwiczenie na jej kursach"
+
 #. Objectives practised today, by current standing: 2 retained · 1 learning
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practised today: {todaySummary}."
@@ -1858,6 +1894,10 @@ msgstr "Zaloguj się, aby kontynuować"
 msgid "Sign in with a password"
 msgstr "Zaloguj się hasłem"
 
+#: apps/console/components/sign-in-page.tsx
+msgid "Sign in with the email address the invitation was sent to, then accept it."
+msgstr "Zaloguj się adresem e-mail, na który wysłano zaproszenie, a następnie je przyjmij."
+
 #: apps/console/components/account-menu.tsx
 #: apps/learn/components/account-header.tsx
 msgid "Sign out"
@@ -2056,6 +2096,10 @@ msgstr "Będziesz tam zarządzać materiałami do nauki i je publikować."
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "There, you will manage people, settings, and learning content."
 msgstr "Będziesz tam zarządzać osobami, ustawieniami i materiałami do nauki."
+
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "There, you will practise courses."
+msgstr "Będziesz tam ćwiczyć na kursach."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "They accept by signing in with this address."

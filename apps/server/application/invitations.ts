@@ -7,6 +7,7 @@ import * as z from "zod";
 import {
   type PendingInvitation,
   readInvitation,
+  readLearnDomain,
   readMemberRolesByEmail,
   readOrganizationRoles,
   readPendingInvitationRole,
@@ -18,12 +19,16 @@ import { assertMayAdminister } from "./permission.ts";
 export type { PendingInvitation } from "../persistence/index.ts";
 
 /**
- * The roles an invitation may carry (ADR 0018): an author or an administrator.
- * Never `owner`, which only creating an organization gives; not yet `member`,
- * a learner, whose invitation must also check the learn domain.
+ * The roles an invitation may carry (ADR 0018): a learner (`member`), an
+ * author, or an administrator. Never `owner`, which only creating an
+ * organization gives.
  */
-export type InvitableRole = "author" | "admin";
-export const INVITABLE_ROLES: ReadonlySet<string> = new Set<InvitableRole>(["author", "admin"]);
+export type InvitableRole = "member" | "author" | "admin";
+export const INVITABLE_ROLES: ReadonlySet<string> = new Set<InvitableRole>([
+  "member",
+  "author",
+  "admin",
+]);
 
 /**
  * Why an invitation was not made: `code` for a client to word it in its
@@ -37,7 +42,8 @@ export class InvitationRefused extends Error {
       | "ROLE_NOT_INVITABLE"
       | "ALREADY_MEMBER"
       | "ALREADY_INVITED"
-      | "PENDING_LIMIT",
+      | "PENDING_LIMIT"
+      | "NO_LEARN_DOMAIN",
     message: string,
     readonly held: { roles?: string[]; role?: string } = {},
   ) {
@@ -59,7 +65,9 @@ export type Invited = {
 type CreateInvitation = (invitation: {
   email: string;
   role: InvitableRole;
-}) => Promise<Invited | "already a member" | "already invited" | "pending limit">;
+}) => Promise<
+  Invited | "already a member" | "already invited" | "pending limit" | "no learn domain"
+>;
 
 /**
  * Invites `email` to an organization as `role`, for whoever administers it.
@@ -82,7 +90,10 @@ export async function inviteToOrganization(input: {
     throw new InvitationRefused("EMAIL_INVALID", "Enter an email address.");
   }
   if (typeof role !== "string" || !INVITABLE_ROLES.has(role)) {
-    throw new InvitationRefused("ROLE_NOT_INVITABLE", "Invite as an author or an admin.");
+    throw new InvitationRefused(
+      "ROLE_NOT_INVITABLE",
+      "Invite as a learner, an author, or an admin.",
+    );
   }
 
   // Narrowed by the check above.
@@ -98,6 +109,12 @@ export async function inviteToOrganization(input: {
       now: new Date(),
     });
     throw new InvitationRefused("ALREADY_INVITED", `${email} is already invited.`, { role: held });
+  }
+  if (made === "no learn domain") {
+    throw new InvitationRefused(
+      "NO_LEARN_DOMAIN",
+      "Learners have no site here yet; invite them once the organization has one.",
+    );
   }
   if (made === "pending limit") {
     throw new InvitationRefused(
@@ -134,6 +151,11 @@ export type InvitationPage = {
   member?: boolean;
   role?: string;
   inviter?: { name: string };
+  /**
+   * A learner's invitation, to its recipient: the hostname they continue on,
+   * the organization's latest, or `null` while it has none (ADR 0018).
+   */
+  learnDomain?: string | null;
 };
 
 export async function readInvitationPage(input: {
@@ -172,5 +194,8 @@ export async function readInvitationPage(input: {
     member: roles.length > 0,
     role: found.role,
     inviter: found.inviter,
+    ...(found.role === "member" && {
+      learnDomain: (await readLearnDomain(database, found.organizationId)) ?? null,
+    }),
   };
 }

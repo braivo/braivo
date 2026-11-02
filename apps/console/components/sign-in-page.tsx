@@ -5,7 +5,7 @@ import { ModeToggle, SignInPage } from "@braivo/ui";
 import { Separator } from "@braivo/ui/components/separator";
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans } from "@lingui/react/macro";
-import { GraduationCapIcon } from "lucide-react";
+import { GraduationCapIcon, MailIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { BraivoLogo } from "./braivo-logo.tsx";
@@ -58,6 +58,24 @@ export function LearnerNote() {
             <strong className="font-medium text-foreground">Here to learn?</strong> Sign in through
             your course's website.
           </Trans>
+        </span>
+      </p>
+    </>
+  );
+}
+
+/**
+ * Below the form, in the learner note's place, for someone signing in to
+ * accept an invitation: here, not on a course's website, is where they join.
+ */
+export function InvitationNote() {
+  return (
+    <>
+      <Separator className="my-6" />
+      <p className="flex gap-3 text-sm text-muted-foreground">
+        <MailIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>
+          <Trans>Sign in with the email address the invitation was sent to, then accept it.</Trans>
         </span>
       </p>
     </>

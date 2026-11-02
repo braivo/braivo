@@ -161,7 +161,7 @@ describe("the learn app", () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
   });
 
-  test("on its organization's domain, after Google's round trip failed, says so on the form, leaving only on a click", async () => {
+  test("on its organization's domain, after a handoff failed, says so on the form, leaving only on a click", async () => {
     const { visit } = renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
@@ -169,13 +169,15 @@ describe("the learn app", () => {
     });
 
     expect(
-      await screen.findByText("Could not sign in with Google. Try again, or sign in with a code."),
+      await screen.findByText(
+        "Could not finish signing in. Try again from where you started, or sign in with a code.",
+      ),
     ).toBeTruthy();
     expect(screen.getByLabelText("Email address")).toBeTruthy();
     expect(visit).not.toHaveBeenCalled();
   });
 
-  test("on its organization's domain, still says Google's round trip failed once Google is not offered", async () => {
+  test("on its organization's domain, says a handoff failed without naming Google, which an invitation's is not", async () => {
     renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
@@ -183,7 +185,9 @@ describe("the learn app", () => {
     });
 
     expect(
-      await screen.findByText("Could not sign in with Google. Try again, or sign in with a code."),
+      await screen.findByText(
+        "Could not finish signing in. Try again from where you started, or sign in with a code.",
+      ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
   });
@@ -251,7 +255,7 @@ describe("the learn app", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj się kodem.",
+        "Nie udało się dokończyć logowania. Spróbuj ponownie tam, gdzie zaczynasz, lub zaloguj się kodem.",
       ),
     ).toBeTruthy();
     cleanup();

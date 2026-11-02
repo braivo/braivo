@@ -16,6 +16,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ConsoleBrand,
   ConsoleStory,
+  InvitationNote,
   LearnerNote,
   ConsoleSignInPage,
 } from "#components/sign-in-page";
@@ -127,10 +128,13 @@ function Login() {
   const onSignedIn = () => router.navigate({ href: redirect ?? "/", replace: true });
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
+  // Returning to an invitation: a learner among them, who joins here, so
+  // neither sent to a course's website nor told what Braivo does for teachers.
+  const invited = redirect?.startsWith("/invitations/") === true;
   return (
     <ConsoleSignInPage
       brand={<ConsoleBrand />}
-      aside={<ConsoleStory />}
+      aside={invited ? undefined : <ConsoleStory />}
       footer={`© ${year} Braivo`}
     >
       {/* An account still without a name is named by `SignIn`'s step. */}
@@ -145,7 +149,7 @@ function Login() {
           onSignedIn={onSignedIn}
         />
       )}
-      <LearnerNote />
+      {invited ? <InvitationNote /> : <LearnerNote />}
     </ConsoleSignInPage>
   );
 }
