@@ -54,6 +54,8 @@ export function renderAt(
     ) => Promise<LearnerProgressSummary>;
     nextActivity?: BraivoClient["nextActivity"];
     submitAttempt?: BraivoClient["submitAttempt"];
+    /** Stores a report, answering it as sent, unless given. */
+    reportAttempt?: BraivoClient["reportAttempt"];
     /** The organization whose domain serves the app; none unless given. */
     hostOrganization?: BraivoClient["hostOrganization"];
     /** Braivo's answer to who is signed in, in place of `signedIn` and `user`. */
@@ -80,6 +82,14 @@ export function renderAt(
   const submitAttempt = vi.fn(
     options.submitAttempt ??
       (async () => ({ kind: "choice" as const, outcome: "success" as const, correctChoice: 0 })),
+  );
+  const reportAttempt = vi.fn<BraivoClient["reportAttempt"]>(
+    options.reportAttempt ??
+      (async ({ reason, note }) => ({
+        reason,
+        ...(note && { note }),
+        at: new Date().toISOString(),
+      })),
   );
   let signedIn = options.signedIn;
   const user = { ...(options.user ?? { id: "ada", name: "Ada Learner" }) };
@@ -121,6 +131,7 @@ export function renderAt(
     learnerProgress,
     nextActivity,
     submitAttempt,
+    reportAttempt,
   } as unknown as AppContext["braivo"];
   const visit = vi.fn<AppContext["visit"]>();
 
@@ -136,6 +147,7 @@ export function renderAt(
     learnerProgress,
     nextActivity,
     submitAttempt,
+    reportAttempt,
     router,
     signOut,
     visit,

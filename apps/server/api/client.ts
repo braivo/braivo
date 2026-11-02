@@ -29,6 +29,7 @@ import type {
   Organization,
   OrganizationSetup,
   QuotedCitation,
+  ReportedTask,
   SessionUser,
   SignInSettings,
   Source,
@@ -36,6 +37,8 @@ import type {
   SourceSlice,
   SourceSummary,
   TaskDraft,
+  TaskReport,
+  TaskReportReason,
   TaskResponse,
   TaskWriteResult,
   ToolsReadLearnerData,
@@ -87,6 +90,7 @@ export type {
   OrganizationSetup,
   Passage,
   QuotedCitation,
+  ReportedTask,
   SessionUser,
   SignInSettings,
   Source,
@@ -94,6 +98,8 @@ export type {
   SourceSlice,
   SourceSummary,
   TaskDraft,
+  TaskReport,
+  TaskReportReason,
   TaskResponse,
   TaskWriteResult,
   ToolsReadLearnerData,
@@ -238,6 +244,21 @@ export type BraivoClient = {
     input: { courseId: string; id: string; taskId: string; response: TaskResponse },
     options?: RequestOptions,
   ): Promise<Grade>;
+
+  /**
+   * Reports a problem with a task the signed-in learner answered, by its
+   * attempt (ADR 0052), resolving to the report as stored. Sending the same
+   * report again resolves to it unchanged, so a lost answer is retried with the
+   * same body. Refusals, as a {@link BraivoError}: 409 with `code`
+   * `ALREADY_REPORTED`, the attempt's report says otherwise or the task is
+   * reported already; 400 a body that is not a report, or `answer-correct` on
+   * an attempt that was no miss; 401 no session; 403 possibly forged; 404 the
+   * course or attempt not this learner's.
+   */
+  reportAttempt(
+    input: { courseId: string; attemptId: string; reason: TaskReportReason; note?: string },
+    options?: RequestOptions,
+  ): Promise<TaskReport>;
 
   /**
    * Where a learner stands on each objective in a course, for the learner, an
@@ -750,6 +771,29 @@ export type BraivoClient = {
   ): Promise<void>;
 
   /**
+   * The organization's open reports, for its `owner` or `admin` in a browser
+   * (ADR 0052): per task, the newest reported first, each with its 20 newest
+   * reports, counted and listed as of one moment. Organization-wide, at most
+   * 100 tasks (`more` when there were others); scoped to an objective or a
+   * course, every reported task in it; to one task, its 1000 newest. At most
+   * one of `objectiveId`, `courseId`, and `taskId` scopes it. 403 to anyone
+   * else, and to a tool.
+   */
+  listReportedTasks(
+    input: { organizationId: string; objectiveId?: string; courseId?: string; taskId?: string },
+    options?: RequestOptions,
+  ): Promise<{ tasks: ReportedTask[]; more: boolean }>;
+
+  /**
+   * Dismisses exactly these reports, the ones shown, so any sent since stays
+   * open; a retry changes nothing. 403 when any is not the organization's.
+   */
+  dismissReports(
+    input: { organizationId: string; reportIds: readonly string[] },
+    options?: RequestOptions,
+  ): Promise<void>;
+
+  /**
    * Creates a course over existing objectives, in the order learners meet them,
    * and resolves to its ID and whether it is published ({@link CourseWriteResult}).
    * With a `key`, sending the same course again — title and objectives in the
@@ -952,6 +996,21 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return parsed<Grade>(response, doing);
+    },
+
+    async reportAttempt({ courseId, attemptId, ...report }, requestOptions) {
+      const response = await post(
+        `/api/courses/${encodeURIComponent(courseId)}/attempts/${encodeURIComponent(attemptId)}/report`,
+        report,
+        requestOptions,
+      );
+
+      const doing = `reporting attempt "${attemptId}" in course "${courseId}"`;
+      if (response.status !== 201 && response.status !== 200) {
+        throw await unexpected(response, doing);
+      }
+
+      return parsed<TaskReport>(response, doing);
     },
 
     async learnerProgress(
@@ -1454,6 +1513,32 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const { pages } = await parsed<{ pages: { page: string; text: string }[] }>(response, doing);
       return pages;
+    },
+
+    async listReportedTasks({ organizationId, ...scope }, requestOptions) {
+      const query = new URLSearchParams(
+        Object.entries(scope).filter((entry): entry is [string, string] => entry[1] !== undefined),
+      );
+      const response = await get(
+        `${organizationPath(organizationId)}/reports${query.size > 0 ? `?${query}` : ""}`,
+        requestOptions,
+      );
+
+      const doing = `reading reports in organization "${organizationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<{ tasks: ReportedTask[]; more: boolean }>(response, doing);
+    },
+
+    async dismissReports({ organizationId, reportIds }, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/reports/dismiss`,
+        { reportIds },
+        requestOptions,
+      );
+
+      if (response.status === 204) return;
+      throw await unexpected(response, `dismissing reports in organization "${organizationId}"`);
     },
 
     async retireTasks({ organizationId, taskIds }, requestOptions) {

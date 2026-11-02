@@ -106,6 +106,22 @@ export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export { markPublished } from "./publication.ts";
 export type {
+  AttemptKey,
+  OpenTaskReport,
+  ReportedTaskRow,
+  ReportScope,
+  StoredTaskReport,
+  TaskReportReason,
+} from "./task-report.ts";
+export {
+  countOrganizationReports,
+  insertTaskReport,
+  markReportsDismissed,
+  readEvidenceOutcome,
+  readOpenTaskReports,
+  readReportableAttempt,
+} from "./task-report.ts";
+export type {
   AuthoredTask,
   CitedTaskPassage,
   CourseTask,

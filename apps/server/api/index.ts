@@ -206,6 +206,30 @@
 //        label of the page the words are on (ADR 0026). Given only after
 //        grading, since a passage could give the answer away.
 //
+// `POST /api/courses/:courseId/attempts/:attemptId/report` — the signed-in
+// learner reports a problem with a task they answered, named by their attempt
+// (ADR 0052), which fixes the task and the answer, so neither is sent. Body
+// `{ "reason": "key-wrong", "note": "…" }`: `reason` one of `answer-correct`
+// (only after a miss that was not Show answer), `key-wrong`, `confusing`,
+// `unsupported`, and `other` (a note required); `note` optional, at most 500
+// characters once trimmed, a blank one none. It changes nothing about the
+// attempt, its evidence, or what is offered next; a task retired since is
+// still reported. The learner's school reads it, without the learner's name.
+//
+//   401  no session
+//   400  the body is not a report, or `answer-correct` names a success or
+//        Show answer
+//   403  the request could have been forged, as for an attempt
+//   404  the course is not the learner's, as for an attempt, or the attempt
+//        is not theirs there, or is of a task outside the course
+//   409  `{ "error": "…", "code": "ALREADY_REPORTED" }`: the attempt's report
+//        says otherwise, or the learner has an undismissed report of the task
+//        from another attempt. A report is never changed.
+//   413  the body is larger than 1 MB
+//   201  stored: `{ "reason": "key-wrong", "note": "…", "at": "…" }`, `note`
+//        only when there is one
+//   200  the same report again: what is stored, dated when it first was
+//
 // `GET /api/courses/:courseId/learners/:learnerId/progress` — where a learner
 // stands on each objective in a course, for a content owner, a teacher, or the
 // learner. The reader is the session's user and must be the learner, hold
@@ -313,6 +337,43 @@
 //        the same way and writes no second row. An empty `evidence` records
 //        nothing and is checked no further than the session and origin, so its
 //        204 says nothing about permission to grade.
+//
+// `GET /api/organizations/:organizationId/reports` — the organization's open
+// reports of tasks (ADR 0052), for its `owner` or `admin` in a browser alone:
+// reports neither dismissed nor of a retired task. Per task, the most recently
+// reported first, at most 100 tasks, each with its 20 newest reports, newest
+// first, counted and listed as of one moment; `?objectiveId=`, `?courseId=`,
+// or `?taskId=`, at most one, scopes it, an objective's or a course's read
+// answering every reported task, a task's its 1000 newest. No learner is named.
+//
+//   400  more than one scope, or an empty one
+//   401  no session
+//   403  not an `owner` or `admin` there, or a tool, whatever the organization
+//        lets tools read (ADR 0050), explained
+//   200  { "tasks": [{ "id": "…", "objectiveId": "…", "kind": "typed",
+//          "prompt": "…", "accepted": ["went"], "pendingCorrectionId": "…",
+//          "reportCount": 2, "reasonCount": 1, "reports": [{ "id": "…", "reason":
+//          "answer-correct", "note": "…", "at": "…", "response": { "text":
+//          "went." } }] }], "more": false }
+//
+//        Each task as authored (its body, as `…/objectives/:objectiveId/tasks`
+//        reads it), `pendingCorrectionId` while a tool's correction of it
+//        waits to be published, `reportCount` its open reports, one per
+//        learner, `reasonCount` how many reasons they give, all of them,
+//        though the reports listed are fewer; each report's `response` the attempt's, as sent, and
+//        `note` only when there is one. `more` when tasks were left out.
+//
+// `POST /api/organizations/:organizationId/reports/dismiss`, a JSON write,
+// `{ "reportIds": ["…"] }`, 1 to 1000: dismisses exactly those, so a report
+// sent after the read stays open, recording who and when; one dismissed
+// already keeps the first. Who as for reading them.
+//
+//   400  not 1 to 1000 IDs
+//   401  no session
+//   403  as for reading them, or the request could have been forged, or a
+//        report not the organization's (nothing is dismissed then)
+//   413  the body is larger than 1 MB
+//   204  dismissed
 //
 // `GET /api/organizations` — the organizations the signed-in user
 // administers (`owner` or `admin`), authors in (those or `author`, ADR 0048),

@@ -40,6 +40,7 @@ import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "rea
 
 import { NoExplanation } from "#components/explanations";
 import { FindingLines } from "#components/findings";
+import { TaskReports } from "#components/task-reports";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 /** A task as authored, published or pending, with the passages it cites. */
@@ -524,7 +525,20 @@ export function TaskList(props: {
               corrects={replaced?.prompt}
               onRetired={onChanged}
             >
-              <Passages citations={task.citations} sources={sources} />
+              {(retiring) => (
+                <>
+                  <Passages citations={task.citations} sources={sources} />
+                  {/* Learners' reports, where the page reads them for an administrator. */}
+                  {task.published && (
+                    <TaskReports
+                      taskId={task.id}
+                      // As its Edit button.
+                      editingLocked={retiring || pending || editing !== undefined}
+                      onAddAnswer={(answer) => onEdit({ taskId: task.id, answerToAdd: answer })}
+                    />
+                  )}
+                </>
+              )}
             </RetirableTask>
           </div>
         )}
@@ -535,6 +549,14 @@ export function TaskList(props: {
             <AuthoredTask task={replaced}>
               <NoExplanation task={replaced} />
               <Passages citations={replaced.citations} sources={sources} />
+              {/* Its reports, which publishing the correction closes, here when
+                  the page shows it nowhere else (narrowed); no editor, as no Edit. */}
+              {shownIds !== undefined && !shownIds.has(replaced.id) && (
+                <TaskReports
+                  taskId={replaced.id}
+                  editingLocked={pending || editing !== undefined}
+                />
+              )}
             </AuthoredTask>
           </div>
         )}
@@ -716,8 +738,8 @@ function RetirableTask(props: {
   /** While it waits to correct a published task, that task's prompt. */
   corrects?: string;
   onRetired: () => void;
-  /** The passages it was written from. */
-  children: ReactNode;
+  /** The passages it was written from, and its reports, given whether it is retiring. */
+  children: (retiring: boolean) => ReactNode;
 }) {
   const {
     task,
@@ -842,7 +864,7 @@ function RetirableTask(props: {
       }
     >
       {findings(retiring)}
-      {children}
+      {children(retiring)}
     </AuthoredTask>
   );
 }

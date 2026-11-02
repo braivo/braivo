@@ -22,10 +22,18 @@ import { cn } from "@braivo/ui/lib/utils";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { createFileRoute, Link, notFound, redirect, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  redirect,
+  useLoaderData,
+  useRouter,
+} from "@tanstack/react-router";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Notice, useFocusOnMount } from "#components/notice";
+import { ReportProblem } from "#components/report-problem";
 import { asSessionAuth } from "#lib/auth";
 import {
   ANSWER_DEADLINE_MS,
@@ -823,6 +831,7 @@ function Practice({
   nothingStarted: boolean;
 }) {
   const { braivo, user } = Route.useRouteContext();
+  const { organization } = useLoaderData({ from: "__root__" });
   const router = useRouter();
   const { t } = useLingui();
   // From the moment it is sent, so the question shows what was sent.
@@ -1068,6 +1077,15 @@ function Practice({
           <Button size="lg" autoFocus aria-disabled={continuing} onClick={() => void next()}>
             {continuing ? t`Loading…` : t`Continue`}
           </Button>
+          {/* After Continue, never between it and the learner (ADR 0052). */}
+          <ReportProblem
+            send={(report, signal) =>
+              braivo.reportAttempt({ courseId, attemptId, ...report }, { signal })
+            }
+            missed={grade.outcome === "failure" && !revealed}
+            passages={grade.passages !== undefined}
+            organizationName={organization?.name}
+          />
         </>
       )}
     </section>

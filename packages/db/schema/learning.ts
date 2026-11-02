@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { sql } from "drizzle-orm";
 import {
   foreignKey,
   index,
@@ -353,6 +354,70 @@ export const attempt = pgTable(
     }).onDelete("restrict"),
     // Serves "which of an objective's tasks this learner saw least recently".
     index("attempt_learner_task_idx").on(table.learnerId, table.taskId, table.at),
+  ],
+);
+
+/**
+ * Why a learner reports a task: `answer-correct` (my answer seems correct),
+ * `key-wrong`, `confusing`, `unsupported` (the passage does not support it),
+ * or `other`, which needs a note (docs/adr/0052-task-reports.md).
+ */
+export const taskReportReason = pgEnum("task_report_reason", [
+  "answer-correct",
+  "key-wrong",
+  "confusing",
+  "unsupported",
+  "other",
+]);
+
+/**
+ * A learner's statement that a task they answered seems wrong, about one
+ * attempt, which fixes the task version they saw and their answer, so neither
+ * is stored again (docs/adr/0052-task-reports.md). Whether it is open is
+ * derived: dismissed, or closed by its task's retirement, never a status column
+ * that could race the retirement.
+ */
+export const taskReport = pgTable(
+  "task_report",
+  {
+    learnerId: text("learner_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    attemptId: text("attempt_id").notNull(),
+    /** Braivo's handle for a reviewer, naming neither the learner nor the attempt. */
+    id: text("id").notNull().unique("task_report_id_key"),
+    /** The attempt's, copied when the report is stored, for the reviewer's per-task reads. */
+    taskId: text("task_id").notNull(),
+    reason: taskReportReason("reason").notNull(),
+    /** Trimmed, 1–500 characters, or `null`. */
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true, mode: "date" }),
+    /** Kept as `null` once that account is gone; the time stays. */
+    dismissedBy: text("dismissed_by").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    // One report per attempt, and a resend finds it.
+    primaryKey({ columns: [table.learnerId, table.organizationId, table.attemptId] }),
+    // Cascading with the attempt, so erased with the account, as its attempts are.
+    foreignKey({
+      name: "task_report_attempt_fk",
+      columns: [table.learnerId, table.organizationId, table.attemptId],
+      foreignColumns: [attempt.learnerId, attempt.organizationId, attempt.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "task_report_task_fk",
+      columns: [table.organizationId, table.taskId],
+      foreignColumns: [task.organizationId, task.id],
+    }).onDelete("restrict"),
+    // One undismissed report per learner and task, racing requests included. A
+    // report closed by retirement still counts: a retired task never returns.
+    uniqueIndex("task_report_learner_task_uidx")
+      .on(table.learnerId, table.organizationId, table.taskId)
+      .where(sql`${table.dismissedAt} is null`),
+    // The reviewer's read: a task's undismissed reports.
+    index("task_report_open_idx")
+      .on(table.organizationId, table.taskId)
+      .where(sql`${table.dismissedAt} is null`),
   ],
 );
 

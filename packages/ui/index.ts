@@ -15,7 +15,13 @@ export { MutedText } from "./compositions/muted-text.tsx";
 export { SignInPage } from "./compositions/sign-in-page.tsx";
 export { SignInForm, type SignInStep, type SignInValues } from "./compositions/sign-in-form.tsx";
 export { SourcePassage } from "./compositions/source-passage.tsx";
-export { type EditableTask, TaskEditor } from "./compositions/task-editor.tsx";
+export {
+  type EditableTask,
+  MAX_ACCEPTED,
+  MAX_ACCEPTED_TEXT,
+  normalizeAnswer,
+  TaskEditor,
+} from "./compositions/task-editor.tsx";
 export { TypedQuestion } from "./compositions/typed-question.tsx";
 export {
   ModeToggle,

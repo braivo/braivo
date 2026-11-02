@@ -3,7 +3,7 @@
 
 import { cn } from "@braivo/ui/lib/utils";
 import { ChevronRightIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 /**
  * A native disclosure: `summary` toggles `children`. The summary is a touch
@@ -15,10 +15,22 @@ export function Disclosure(props: {
   summary: ReactNode;
   label?: string;
   className?: string;
+  /** For a link to lead to it. */
+  id?: string;
+  /** Open when it first shows; the reader's toggling wins after. */
+  defaultOpen?: boolean;
+  ref?: Ref<HTMLDetailsElement>;
   children: ReactNode;
 }) {
+  const { ref, id, defaultOpen, className } = props;
   return (
-    <details className={cn("group/disclosure", props.className)}>
+    <details
+      ref={ref}
+      id={id}
+      // Set when it changes: React leaves the reader's toggling alone while it stays.
+      open={defaultOpen}
+      className={cn("group/disclosure", className)}
+    >
       <summary
         aria-label={props.label}
         // The target's height is its `::after`'s, centred on the line: as the

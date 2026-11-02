@@ -63,6 +63,7 @@ const routes = [
   "GET  /api/courses/:courseId/next",
   "GET  /api/courses/:courseId/activity",
   "POST /api/courses/:courseId/attempts",
+  "POST /api/courses/:courseId/attempts/:attemptId/report",
   "GET  /api/courses/:courseId/learners/:learnerId/progress",
   "GET  /api/courses/:courseId/progress",
   "POST /api/organizations/:organizationId/publish",
@@ -73,6 +74,8 @@ const routes = [
   "GET  /api/organizations/:organizationId/tools-read-learner-data",
   "POST /api/organizations/:organizationId/tools-read-learner-data",
   "GET  /api/organizations/:organizationId/members",
+  "GET  /api/organizations/:organizationId/reports",
+  "POST /api/organizations/:organizationId/reports/dismiss",
   "GET  /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups",
   "POST /api/organizations/:organizationId/groups/:groupId",
@@ -305,6 +308,7 @@ GET  /api/courses                                                               
 GET  /api/courses/:courseId/next                                                401     404     404     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     404     404     401       ·       ·       ·       ·       ·
 POST /api/courses/:courseId/attempts                                            401     400     400     401     403     403     403     403     1MB
+POST /api/courses/:courseId/attempts/:attemptId/report                          401     400     400     401     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     404     404     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/progress                                            401     404     404     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/publish                                 401     400     403     401     403     403     403     403     1MB
@@ -315,6 +319,8 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/reports                                 401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/reports/dismiss                         401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  401     400     400     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/groups/:groupId                         401     400     400     401     403     403     403     403     1MB
@@ -377,6 +383,7 @@ GET  /api/courses                                                               
 GET  /api/courses/:courseId/next                                                401     401     401     404       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     401     401     404       ·       ·       ·       ·       ·
 POST /api/courses/:courseId/attempts                                            401     401     401     400     403     403     403     403     1MB
+POST /api/courses/:courseId/attempts/:attemptId/report                          401     401     401     400     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     401     401     404       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/progress                                            401     401     401     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/publish                                 404     404     401     404     404     404     404     404     404
@@ -387,6 +394,8 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
+GET  /api/organizations/:organizationId/reports                                 404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/reports/dismiss                         404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/groups                                  404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/groups/:groupId                         404     404     401     404     404     404     404     404     404
