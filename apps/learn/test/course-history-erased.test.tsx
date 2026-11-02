@@ -21,6 +21,7 @@ const graded: Awaited<ReturnType<BraivoClient["submitAttempt"]>> = {
   kind: "choice",
   outcome: "success",
   correctChoice: 0,
+  reviewable: false,
 };
 const afterwards = { ...anotherActivity, historyEpoch: 1 };
 const sessionBar = () =>
@@ -79,7 +80,7 @@ describe("the learn app, a history erased", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockResolvedValueOnce(activity)
-      .mockResolvedValue({ objective: activity.objective, retryAfter: 340 });
+      .mockResolvedValue({ objective: activity.objective, retryAfter: 340, reviewable: false });
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockResolvedValueOnce(graded)
@@ -105,7 +106,7 @@ describe("the learn app, a history erased", () => {
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
       .mockResolvedValueOnce(afterwards)
-      .mockResolvedValue({ objective: activity.objective, retryAfter: 340 });
+      .mockResolvedValue({ objective: activity.objective, retryAfter: 340, reviewable: false });
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(refused())

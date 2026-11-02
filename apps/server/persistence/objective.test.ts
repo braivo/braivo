@@ -12,6 +12,7 @@ import {
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
+import { createCitations } from "./citation.ts";
 import { createCourse, markCourseDeleted } from "./course.ts";
 import { ConflictingKey } from "./key.ts";
 import {
@@ -19,6 +20,7 @@ import {
   findObjectivesOutsideOrganization,
   readObjectives,
 } from "./objective.ts";
+import { createSource } from "./source.ts";
 import { createTasks, markTasksRetired } from "./task.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -52,8 +54,20 @@ describe.skipIf(!connectionString)("objectives", () => {
     ]);
 
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: fractions!, title: "Fractions", courseIds: [], pendingTaskCount: 0 },
-      { id: pastTense!, title: "Past tense", courseIds: [], pendingTaskCount: 0 },
+      {
+        id: fractions!,
+        title: "Fractions",
+        courseIds: [],
+        pendingTaskCount: 0,
+        pendingPassageCount: 0,
+      },
+      {
+        id: pastTense!,
+        title: "Past tense",
+        courseIds: [],
+        pendingTaskCount: 0,
+        pendingPassageCount: 0,
+      },
     ]);
   });
 
@@ -65,7 +79,13 @@ describe.skipIf(!connectionString)("objectives", () => {
 
     expect(mine).not.toBe(theirs);
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: mine!, title: "Past tense", courseIds: [], pendingTaskCount: 0 },
+      {
+        id: mine!,
+        title: "Past tense",
+        courseIds: [],
+        pendingTaskCount: 0,
+        pendingPassageCount: 0,
+      },
     ]);
   });
 
@@ -82,7 +102,7 @@ describe.skipIf(!connectionString)("objectives", () => {
     ).toEqual([theirs!, "no-such-objective"]);
   });
 
-  test("lists each objective's courses and its tasks pending review", async () => {
+  test("lists each objective's courses and its tasks and citations pending review", async () => {
     const [alone, shared, unplaced] = (await createObjectives(database, organizationId, [
       "Alone",
       "Shared",
@@ -121,11 +141,43 @@ describe.skipIf(!connectionString)("objectives", () => {
     await write(shared, ["One", "Two"], false);
     await write(unplaced, ["Three"], false);
     await write(theirs!, ["Theirs"], false, otherOrganizationId);
+    // A tool's citations wait; a person's are published as written.
+    const cite = async (organization: string, objectiveId: string, starts: number[], at?: Date) => {
+      const sourceId = await createSource(database, {
+        organizationId: organization,
+        title: "Lesson",
+        text: "Hola means hello.",
+        createdAt,
+      });
+      const passages = starts.map((start) => ({ objectiveId, sourceId, start, end: start + 4 }));
+      await createCitations(database, organization, passages, at);
+    };
+    await cite(organizationId, shared, [0, 5]);
+    await cite(organizationId, alone, [0], now);
+    await cite(otherOrganizationId, theirs!, [0]);
 
     expect(await readObjectives(database, organizationId)).toEqual([
-      { id: alone, title: "Alone", courseIds: [first], pendingTaskCount: 1 },
-      { id: shared, title: "Shared", courseIds: [first, second].toSorted(), pendingTaskCount: 2 },
-      { id: unplaced, title: "Unplaced", courseIds: [], pendingTaskCount: 1 },
+      {
+        id: alone,
+        title: "Alone",
+        courseIds: [first],
+        pendingTaskCount: 1,
+        pendingPassageCount: 0,
+      },
+      {
+        id: shared,
+        title: "Shared",
+        courseIds: [first, second].toSorted(),
+        pendingTaskCount: 2,
+        pendingPassageCount: 2,
+      },
+      {
+        id: unplaced,
+        title: "Unplaced",
+        courseIds: [],
+        pendingTaskCount: 1,
+        pendingPassageCount: 0,
+      },
     ]);
   });
 

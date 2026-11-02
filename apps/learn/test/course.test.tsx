@@ -20,6 +20,7 @@ describe("the learn app", () => {
         kind: "choice",
         outcome: "failure",
         correctChoice: 0,
+        reviewable: false,
         explanation: "Preterite.",
       }),
     });
@@ -71,7 +72,12 @@ describe("the learn app", () => {
       signedIn: true,
       nextActivity: async () => typedActivity,
       // Correct on another accepted spelling than the one Braivo names.
-      submitAttempt: async () => ({ kind: "typed", outcome: "success", correctAnswer: "bin" }),
+      submitAttempt: async () => ({
+        kind: "typed",
+        outcome: "success",
+        correctAnswer: "bin",
+        reviewable: false,
+      }),
     });
 
     const field = await screen.findByRole("textbox", { name: "I am tired: Ich ___ müde." });
@@ -126,7 +132,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValueOnce({ kind: "typed", outcome: "failure", correctAnswer: "bin" });
+      .mockResolvedValueOnce({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: "bin",
+        reviewable: false,
+      });
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
@@ -162,7 +173,12 @@ describe("the learn app", () => {
       renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => typedActivity,
-        submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+        submitAttempt: async () => ({
+          kind: "typed",
+          outcome: "failure",
+          correctAnswer: answer,
+          reviewable: false,
+        }),
       });
       fireEvent.change(await screen.findByRole("textbox"), { target: { value: typed } });
       fireEvent.click(screen.getByRole("button", { name: "Check" }));
@@ -183,7 +199,12 @@ describe("the learn app", () => {
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
-      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+      submitAttempt: async () => ({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: "bin",
+        reviewable: false,
+      }),
     });
     fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
 
@@ -209,7 +230,7 @@ describe("the learn app", () => {
     expect(show.getAttribute("aria-disabled")).toBe("true");
     expect(document.activeElement).toBe(show);
 
-    graded({ kind: "typed", outcome: "failure", correctAnswer: "bin" });
+    graded({ kind: "typed", outcome: "failure", correctAnswer: "bin", reviewable: false });
     expect(await screen.findByText("Here it is")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Loading…" })).toBeNull();
     // What was typed was not sent, so it is neither shown nor marked wrong.
@@ -222,7 +243,12 @@ describe("the learn app", () => {
     const { submitAttempt } = renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
-      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: false,
+      }),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
@@ -280,6 +306,7 @@ describe("the learn app", () => {
         kind: "choice",
         outcome: "failure",
         correctChoice: 0,
+        reviewable: false,
         passages: [
           {
             quote: "Hablé con mi madre.",
@@ -361,7 +388,7 @@ describe("the learn app", () => {
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
     await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(4));
 
-    graded({ kind: "choice", outcome: "success", correctChoice: 0 });
+    graded({ kind: "choice", outcome: "success", correctChoice: 0, reviewable: false });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("Correct");
 
@@ -707,7 +734,7 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
-    graded({ kind: "choice", outcome: "success", correctChoice: 0 });
+    graded({ kind: "choice", outcome: "success", correctChoice: 0, reviewable: false });
 
     expect((await screen.findByRole("alert")).textContent).toBe("Correct");
     expect(submitAttempt).toHaveBeenCalledTimes(1);

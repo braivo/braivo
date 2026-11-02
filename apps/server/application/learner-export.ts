@@ -57,6 +57,8 @@ type ExportedOrganization = {
     /** Its own type, so a new kind of response joins v1 only by being added here. */
     response: { choice: number } | { text: string } | { reveal: true };
     outcome: "success" | "failure" | null;
+    /** Whether the learner's app had shown them the objective's passages since their previous attempt on it (ADR 0054). */
+    reviewedTeaching: boolean;
     /**
      * The learner's report of it (ADR 0052): open; dismissed by a reviewer; or
      * closed, its task withdrawn, which says nothing of whether it was right.
@@ -129,11 +131,12 @@ export async function exportLearner(input: {
           .map(({ name, role }) => ({ name, role })),
         attempts: rows.attempts
           .filter((each) => each.organizationId === id)
-          .map(({ at, body, response, outcome, taskRetiredAt, report }) => ({
+          .map(({ at, body, response, outcome, reviewedTeaching, taskRetiredAt, report }) => ({
             at: at.toISOString(),
             task: taskContext(body as TaskBody),
             response: exportedResponse(response),
             outcome,
+            reviewedTeaching,
             report: report && {
               reason: report.reason,
               note: report.note,

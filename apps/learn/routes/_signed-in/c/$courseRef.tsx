@@ -9,6 +9,7 @@ import {
   type Grade,
   type LearnerProgressSummary,
   type LearningDecision,
+  type ObjectiveReview,
   type TaskResponse,
   countStandings,
   courseRef,
@@ -45,6 +46,7 @@ import {
   usePracticeSession,
 } from "#components/practice-session";
 import { ReportProblem } from "#components/report-problem";
+import { ReviewButton, ReviewTopic, useReviewing } from "#components/review-topic";
 import { formatCounts, StandingMeter } from "#components/standing";
 import { asSessionAuth } from "#lib/auth";
 import {
@@ -53,6 +55,7 @@ import {
   READ_DEADLINE_MS,
   withDeadline,
 } from "#lib/deadline";
+import { markReviewed, takeReviewed } from "#lib/reviewed";
 import { pageHead } from "#lib/title";
 import {
   readRefusalNotice,
@@ -214,10 +217,17 @@ async function resume(
 ): Promise<Resumed | undefined> {
   const attempt = unfinishedAttempt(learnerId, courseId);
   if (!attempt) return undefined;
-  const { id, activity, response } = attempt;
+  const { id, activity, response, reviewedTeaching } = attempt;
   try {
     const grade = await braivo.submitAttempt(
-      { courseId, id, taskId: activity.task.id, response, historyEpoch: activity.historyEpoch },
+      {
+        courseId,
+        id,
+        taskId: activity.task.id,
+        response,
+        historyEpoch: activity.historyEpoch,
+        ...(reviewedTeaching && { reviewedTeaching }),
+      },
       { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
     );
     return { attempt, grade };
@@ -230,6 +240,8 @@ async function resume(
       else if (REFUSALS_SAID.includes(error.status)) {
         markRefusalNotice(learnerId, courseId, "refused");
       }
+      // Recorded nothing: the review is the next attempt's to say.
+      if (reviewedTeaching) markReviewed(learnerId, activity.objective.id);
       return undefined;
     }
     return { attempt };
@@ -496,8 +508,10 @@ function NextStep() {
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
-          objectiveTitle={activity.objective.title}
+          courseId={load.courseId}
+          objective={activity.objective}
           retryAfter={activity.retryAfter}
+          reviewable={activity.reviewable}
         />
       ) : !("task" in activity) ? (
         // Not "caught up": the objective selected next has nothing to practise it
@@ -906,6 +920,25 @@ function reloadCourse(router: ReturnType<typeof useRouter>): Promise<void> {
   return router.invalidate({ filter: (match) => match.routeId === Route.id, sync: true });
 }
 
+/**
+ * An objective's review, for `ReviewTopic`. Signed out since, the course
+ * reloads, so the guard sends the learner to sign in; the review still says it
+ * could not load, should the reload not leave the page.
+ */
+async function readReview(
+  braivo: BraivoClient,
+  router: ReturnType<typeof useRouter>,
+  input: { courseId: string; objectiveId: string },
+  signal: AbortSignal,
+): Promise<ObjectiveReview | undefined> {
+  try {
+    return await braivo.objectiveReview(input, { signal });
+  } catch (error) {
+    if (error instanceof BraivoError && error.status === 401) await reloadCourse(router);
+    throw error;
+  }
+}
+
 /** For a time shown to the minute: an earlier one would bring the learner back too soon. */
 function roundUpToMinute(time: number): Date {
   const minute = 60_000;
@@ -933,18 +966,42 @@ function CourseError() {
   );
 }
 
-/** Every task for what comes next was answered recently. Reloads itself once one may be asked again. */
-function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retryAfter: number }) {
+/**
+ * Every task for what comes next was answered recently. Reloads itself once one
+ * may be asked again, never while the learner reviews the objective, which
+ * keeps the rest (ADR 0054): Back to practice then reloads at once if it ended
+ * meanwhile, or waits out what is left.
+ */
+function Resting({
+  courseId,
+  objective,
+  retryAfter,
+  reviewable,
+}: {
+  courseId: string;
+  objective: { id: string; title: string };
+  retryAfter: number;
+  reviewable: boolean;
+}) {
+  const { braivo, user } = Route.useRouteContext();
   const router = useRouter();
   const { t, i18n } = useLingui();
+  const objectiveTitle = objective.title;
   const delay = retryAfter * 1000;
   // Display only: the timer waits out the duration, so the device's clock cannot move it.
   const [retryAt] = useState(() => Date.now() + delay);
+  // The timer's own end, on a monotonic clock, kept while a review pauses it.
+  const [endsAt] = useState(() => performance.now() + delay);
+  const { reviewing, open: openReview, close: closeReview, button: reviewButton } = useReviewing();
 
   useEffect(() => {
-    const timer = setTimeout(() => void reloadCourse(router), delay);
+    if (reviewing) return;
+    const timer = setTimeout(
+      () => void reloadCourse(router),
+      Math.max(0, endsAt - performance.now()),
+    );
     return () => clearTimeout(timer);
-  }, [delay, router]);
+  }, [endsAt, router, reviewing]);
 
   const continuesAt = new Intl.DateTimeFormat(i18n.locale, {
     hour: "numeric",
@@ -952,10 +1009,28 @@ function Resting({ objectiveTitle, retryAfter }: { objectiveTitle: string; retry
   }).format(roundUpToMinute(retryAt));
 
   return (
-    <Notice
-      title={t`Take a short break`}
-      description={t`You practised ${objectiveTitle} recently. Practice continues at ${continuesAt}, so the next try shows what you remember.`}
-    />
+    <>
+      {reviewing && (
+        <ReviewTopic
+          title={objectiveTitle}
+          read={(signal) =>
+            readReview(braivo, router, { courseId, objectiveId: objective.id }, signal)
+          }
+          onShown={() => markReviewed(user.id, objective.id)}
+          onBack={closeReview}
+        />
+      )}
+      {/* Hidden, not unmounted, while reviewing: mounted again, the notice would
+          take the focus Back to practice returns to the button. */}
+      <div hidden={reviewing}>
+        <Notice
+          title={t`Take a short break`}
+          description={t`You practised ${objectiveTitle} recently. Practice continues at ${continuesAt}, so the next try shows what you remember.`}
+        >
+          {reviewable && <ReviewButton ref={reviewButton} variant="outline" onClick={openReview} />}
+        </Notice>
+      </div>
+    </>
   );
 }
 
@@ -1076,6 +1151,14 @@ function Practice({
   const explanationId = useId();
   const answerId = useId();
   const { decision, objective, task } = activity;
+  const { reviewing, open: openReview, close: closeReview, button: reviewButton } = useReviewing();
+  // Whether this attempt says the learner reviewed its objective: taken from the
+  // tab's mark when first sent, then the same for every resend (ADR 0054). A
+  // resumed attempt was sent already: absent, its answer is `false`, never
+  // taken again, or a review since would change it.
+  const reviewedTeaching = useRef<boolean | undefined>(
+    resumed && (resumed.attempt.reviewedTeaching ?? false),
+  );
 
   // Aborted when this practice goes away, so an answer still in flight cannot
   // act on whatever page the learner has moved on to. Created in the effect,
@@ -1091,12 +1174,26 @@ function Practice({
     const left = lifetime.current?.signal;
     setSent(response);
     setSending(true);
+    reviewedTeaching.current ??= takeReviewed(user.id, objective.id);
+    const reviewed = reviewedTeaching.current;
     // Before sending, kept until Continue: a reload can land after Braivo
     // records it and before its grade arrives, or before it is read.
-    saveUnfinishedAttempt(user.id, courseId, { id: attemptId, activity, response });
+    saveUnfinishedAttempt(user.id, courseId, {
+      id: attemptId,
+      activity,
+      response,
+      ...(reviewed && { reviewedTeaching: reviewed }),
+    });
     try {
       const answered = await braivo.submitAttempt(
-        { courseId, id: attemptId, taskId: task.id, response, historyEpoch: activity.historyEpoch },
+        {
+          courseId,
+          id: attemptId,
+          taskId: task.id,
+          response,
+          historyEpoch: activity.historyEpoch,
+          ...(reviewed && { reviewedTeaching: reviewed }),
+        },
         { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
       );
       // Left meanwhile: marking that page graded would cancel the next one's reread.
@@ -1109,7 +1206,11 @@ function Practice({
       // out: a timeout is unconfirmed, below.
       if (left?.aborted) return;
       if (error instanceof BraivoError) {
-        if (FINAL_REFUSALS.includes(error.status)) clearUnfinishedAttempt(user.id, courseId);
+        if (FINAL_REFUSALS.includes(error.status)) {
+          clearUnfinishedAttempt(user.id, courseId);
+          // Recorded nothing: the review is the next attempt's to say.
+          if (reviewed) markReviewed(user.id, objective.id);
+        }
         if (isHistoryErased(error)) markRefusalNotice(user.id, courseId, "history-erased");
         // Reloading explains these. 401: the guard sends the learner to sign
         // in. 404: the course is gone, or the task was retired while on screen;
@@ -1205,207 +1306,232 @@ function Practice({
   );
 
   return (
-    <section className="flex flex-1 flex-col gap-6">
-      <div id={contextId} className="flex flex-col wrap-break-word">
-        <MutedText>
-          {t(INTENT_LABELS[decision.intent])} · {objective.title}
-        </MutedText>
-        <Reason decision={decision} />
-        {/* In the question's description, so it is read as the focus lands there. */}
-        {nothingStarted && (
-          <MutedText className="mt-2">
-            <Trans>
-              One question at a time. What you get wrong comes back soon; what you get right returns
-              for review before you're likely to forget it.
-            </Trans>
-          </MutedText>
-        )}
-      </div>
-      {/* Typed first: a kind added later then fails to compile on `options`
-          rather than rendering as a typed question. */}
-      {task.kind === "typed" ? (
-        <TypedQuestion
-          prompt={task.prompt}
-          sent={sent && "text" in sent ? sent.text : undefined}
-          outcome={grade?.outcome}
-          pending={sending && !revealed}
-          locked={revealed}
-          onSubmit={(text) => submit({ text })}
-          ref={resumed ? undefined : focusedField}
-          aria-describedby={contextId}
-        />
-      ) : (
-        <ChoiceQuestion
-          prompt={task.prompt}
-          options={task.options}
-          chosen={sent && "choice" in sent ? sent.choice : undefined}
-          correctChoice={correctChoice}
-          pending={sending}
-          locked={revealed}
-          onChoose={(choice) => submit({ choice })}
-          // Resumed, the focus is on Send again or Continue, as when answered here.
-          ref={resumed ? undefined : focused}
-          aria-describedby={contextId}
+    <>
+      {reviewing && (
+        <ReviewTopic
+          title={objective.title}
+          read={(signal) =>
+            readReview(braivo, router, { courseId, objectiveId: objective.id }, signal)
+          }
+          onShown={() => markReviewed(user.id, objective.id)}
+          onBack={closeReview}
         />
       )}
-      {/* Before answering only: asking is an answer of its own, a failure, not
+      {/* Hidden, not unmounted, while reviewing: Back to practice finds the
+          feedback, a report sent or on its way, and Continue as they were. */}
+      <section hidden={reviewing} className="flex flex-1 flex-col gap-6">
+        <div id={contextId} className="flex flex-col wrap-break-word">
+          <MutedText>
+            {t(INTENT_LABELS[decision.intent])} · {objective.title}
+          </MutedText>
+          <Reason decision={decision} />
+          {/* In the question's description, so it is read as the focus lands there. */}
+          {nothingStarted && (
+            <MutedText className="mt-2">
+              <Trans>
+                One question at a time. What you get wrong comes back soon; what you get right
+                returns for review before you're likely to forget it.
+              </Trans>
+            </MutedText>
+          )}
+        </div>
+        {/* Typed first: a kind added later then fails to compile on `options`
+          rather than rendering as a typed question. */}
+        {task.kind === "typed" ? (
+          <TypedQuestion
+            prompt={task.prompt}
+            sent={sent && "text" in sent ? sent.text : undefined}
+            outcome={grade?.outcome}
+            pending={sending && !revealed}
+            locked={revealed}
+            onSubmit={(text) => submit({ text })}
+            ref={resumed ? undefined : focusedField}
+            aria-describedby={contextId}
+          />
+        ) : (
+          <ChoiceQuestion
+            prompt={task.prompt}
+            options={task.options}
+            chosen={sent && "choice" in sent ? sent.choice : undefined}
+            correctChoice={correctChoice}
+            pending={sending}
+            locked={revealed}
+            onChoose={(choice) => submit({ choice })}
+            // Resumed, the focus is on Send again or Continue, as when answered here.
+            ref={resumed ? undefined : focused}
+            aria-describedby={contextId}
+          />
+        )}
+        {/* Before answering only: asking is an answer of its own, a failure, not
           a hint (ADR 0038). Kept, locked, while it is sent, so it keeps the
           focus until the grade or Send again replaces it (docs/apps.md). */}
-      {(sent === undefined || (revealed && sending && unconfirmedCount === 0)) && (
-        <Button
-          variant="ghost"
-          // Its text, not its padding, in line with the question's.
-          className="-ms-3 self-start"
-          aria-disabled={sending}
-          onClick={() => !sending && submit({ reveal: true })}
-        >
-          {revealed ? t`Loading…` : t`Show answer`}
-        </Button>
-      )}
-      {unconfirmedCount > 0 && sent !== undefined && (
-        <>
-          {/* Only the alert is keyed, so failing again mounts a new one, not the
-              same one unchanged, while Send again keeps its node and focus. */}
-          <Alert key={unconfirmedCount} variant="destructive">
-            <AlertDescription>
-              <Trans>Your answer could not be confirmed.</Trans>
-            </AlertDescription>
-          </Alert>
-          {/* aria-disabled while resending, so that it keeps the focus. */}
+        {(sent === undefined || (revealed && sending && unconfirmedCount === 0)) && (
           <Button
-            size="lg"
-            autoFocus
+            variant="ghost"
+            // Its text, not its padding, in line with the question's.
+            className="-ms-3 self-start"
             aria-disabled={sending}
-            onClick={() => !sending && sendAgain(sent)}
+            onClick={() => !sending && submit({ reveal: true })}
           >
-            {sending ? t`Sending…` : t`Send again`}
+            {revealed ? t`Loading…` : t`Show answer`}
           </Button>
-        </>
-      )}
-      {grade && (
-        <>
-          {/* Teaching, not a verdict: body text by the question, read as
+        )}
+        {unconfirmedCount > 0 && sent !== undefined && (
+          <>
+            {/* Only the alert is keyed, so failing again mounts a new one, not the
+              same one unchanged, while Send again keeps its node and focus. */}
+            <Alert key={unconfirmedCount} variant="destructive">
+              <AlertDescription>
+                <Trans>Your answer could not be confirmed.</Trans>
+              </AlertDescription>
+            </Alert>
+            {/* aria-disabled while resending, so that it keeps the focus. */}
+            <Button
+              size="lg"
+              autoFocus
+              aria-disabled={sending}
+              onClick={() => !sending && sendAgain(sent)}
+            >
+              {sending ? t`Sending…` : t`Send again`}
+            </Button>
+          </>
+        )}
+        {grade && (
+          <>
+            {/* Teaching, not a verdict: body text by the question, read as
               Continue takes the focus (its description). */}
-          {correctAnswer && !answerInFoot && (
-            <p id={answerId} className="text-pretty wrap-break-word">
-              <Trans>The answer: {markedAnswer}</Trans>
-            </p>
-          )}
-          {grade.explanation && (
-            <p id={explanationId} className="text-pretty wrap-break-word">
-              {grade.explanation}
-            </p>
-          )}
-          {grade.passages && (
-            // Titled, so a learner reads the quotes as where the answer comes from.
-            <section aria-labelledby={passagesId} className="flex flex-col gap-3">
-              <Heading level={2} id={passagesId} className="mb-0">
-                <Trans>From your lessons</Trans>
-              </Heading>
-              {grade.passages.map((passage, index) => (
-                <SourcePassage
-                  // Stable for this grade: passages never change once graded.
-                  key={index}
-                  quote={passage.quote}
-                  title={passage.source.title}
-                  url={passage.source.url}
-                  at={passage.at}
-                  page={passage.page}
-                />
-              ))}
-            </section>
-          )}
-          {/* A wrapping row: the verdict, its flag beside it where both fit
+            {correctAnswer && !answerInFoot && (
+              <p id={answerId} className="text-pretty wrap-break-word">
+                <Trans>The answer: {markedAnswer}</Trans>
+              </p>
+            )}
+            {grade.explanation && (
+              <p id={explanationId} className="text-pretty wrap-break-word">
+                {grade.explanation}
+              </p>
+            )}
+            {grade.passages && (
+              // Titled, so a learner reads the quotes as where the answer comes from.
+              <section aria-labelledby={passagesId} className="flex flex-col gap-3">
+                <Heading level={2} id={passagesId} className="mb-0">
+                  <Trans>From your lessons</Trans>
+                </Heading>
+                {grade.passages.map((passage, index) => (
+                  <SourcePassage
+                    // Stable for this grade: passages never change once graded.
+                    key={index}
+                    quote={passage.quote}
+                    title={passage.source.title}
+                    url={passage.source.url}
+                    at={passage.at}
+                    page={passage.page}
+                  />
+                ))}
+              </section>
+            )}
+            {/* After a miss, Show answer included, with the teaching above, not in
+              the foot, which stays short; never between Continue and the
+              learner, who has the focus there. Not while Continue reads, which
+              would replace the feedback it returns to. */}
+            {grade.outcome === "failure" && grade.reviewable && (
+              <ReviewButton ref={reviewButton} disabled={continuing} onClick={openReview} />
+            )}
+            {/* A wrapping row: the verdict, its flag beside it where both fit
               (else on a line of its own, as larger text needs), then the rest
               across it. Placed by `order`, read in the page's: the flag after
               Continue, never between it and the learner. */}
-          <PinnedFoot className="flex-row flex-wrap">
-            {/* The verdict where the thumb and eye go next, beside Continue, in
+            <PinnedFoot className="flex-row flex-wrap">
+              {/* The verdict where the thumb and eye go next, beside Continue, in
                 the outcome's tint as the options mark it; the question stays in
                 view above. `wrap-anywhere`: a grid, whose column is otherwise as
                 wide as the answer's longest word, such as a link. */}
-            <Alert
-              className={cn(
-                // At least 10rem, or the whole row: never squeezed beside the flag, which
-                // fits beside it on a 320px phone at the default text size.
-                "order-1 min-w-[min(100%,10rem)] flex-1 wrap-anywhere",
-                grade.outcome === "success"
-                  ? "border-success bg-success/10"
-                  : !revealed && "border-destructive bg-destructive/10",
-              )}
-            >
-              {grade.outcome === "success" ? (
-                <CircleCheckIcon aria-hidden="true" className="text-success!" />
-              ) : revealed ? (
-                <EyeIcon aria-hidden="true" />
-              ) : (
-                <CircleXIcon aria-hidden="true" className="text-destructive!" />
-              )}
-              <AlertTitle>
-                {grade.outcome === "success" ? t`Correct` : revealed ? t`Here it is` : t`Not quite`}
-              </AlertTitle>
-              {/* Named, not only marked, so a learner need not go back to the
+              <Alert
+                className={cn(
+                  // At least 10rem, or the whole row: never squeezed beside the flag, which
+                  // fits beside it on a 320px phone at the default text size.
+                  "order-1 min-w-[min(100%,10rem)] flex-1 wrap-anywhere",
+                  grade.outcome === "success"
+                    ? "border-success bg-success/10"
+                    : !revealed && "border-destructive bg-destructive/10",
+                )}
+              >
+                {grade.outcome === "success" ? (
+                  <CircleCheckIcon aria-hidden="true" className="text-success!" />
+                ) : revealed ? (
+                  <EyeIcon aria-hidden="true" />
+                ) : (
+                  <CircleXIcon aria-hidden="true" className="text-destructive!" />
+                )}
+                <AlertTitle>
+                  {grade.outcome === "success"
+                    ? t`Correct`
+                    : revealed
+                      ? t`Here it is`
+                      : t`Not quite`}
+                </AlertTitle>
+                {/* Named, not only marked, so a learner need not go back to the
                   options, which a phone may have scrolled away. Ink, not muted,
                   on the tint. */}
-              {answerInFoot && (
-                <AlertDescription className="text-foreground">
-                  <Trans>The answer: {markedAnswer}</Trans>
-                </AlertDescription>
-              )}
-              {/* Too long for the foot, the answer is in the page, maybe under
+                {answerInFoot && (
+                  <AlertDescription className="text-foreground">
+                    <Trans>The answer: {markedAnswer}</Trans>
+                  </AlertDescription>
+                )}
+                {/* Too long for the foot, the answer is in the page, maybe under
                   it: a way there, never a step before Continue. */}
-              {correctAnswer && !answerInFoot && (
-                <AlertDescription>
-                  {/* Wrapping, as a phrase in a narrow cell may need to. */}
-                  <Button
-                    variant="link"
-                    className="h-auto min-h-0 p-0 text-left whitespace-normal text-foreground"
-                    onClick={() =>
-                      document.getElementById(answerId)?.scrollIntoView({ block: "center" })
-                    }
-                  >
-                    <Trans>See the answer</Trans>
-                  </Button>
-                </AlertDescription>
-              )}
-            </Alert>
-            {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
-            {continueFailures > 0 && (
-              <Alert key={continueFailures} variant="destructive" className="order-3">
-                <AlertDescription>
-                  <Trans>Could not load the next question. Try again.</Trans>
-                </AlertDescription>
+                {correctAnswer && !answerInFoot && (
+                  <AlertDescription>
+                    {/* Wrapping, as a phrase in a narrow cell may need to. */}
+                    <Button
+                      variant="link"
+                      className="h-auto min-h-0 p-0 text-left whitespace-normal text-foreground"
+                      onClick={() =>
+                        document.getElementById(answerId)?.scrollIntoView({ block: "center" })
+                      }
+                    >
+                      <Trans>See the answer</Trans>
+                    </Button>
+                  </AlertDescription>
+                )}
               </Alert>
-            )}
-            {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-            <Button
-              size="lg"
-              className="order-4 w-full"
-              autoFocus
-              aria-disabled={continuing}
-              // What the page says beyond the verdict, read as the focus lands.
-              aria-describedby={
-                [correctAnswer && !answerInFoot && answerId, grade.explanation && explanationId]
-                  .filter(Boolean)
-                  .join(" ") || undefined
-              }
-              onClick={() => void next()}
-            >
-              {continuing ? t`Loading…` : t`Continue`}
-            </Button>
-            <ReportProblem
-              triggerClassName="order-2 shrink-0"
-              statusClassName="order-5 basis-full"
-              send={(report, signal) =>
-                braivo.reportAttempt({ courseId, attemptId, ...report }, { signal })
-              }
-              missed={grade.outcome === "failure" && !revealed}
-              passages={grade.passages !== undefined}
-              organizationName={organization?.name}
-            />
-          </PinnedFoot>
-        </>
-      )}
-    </section>
+              {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
+              {continueFailures > 0 && (
+                <Alert key={continueFailures} variant="destructive" className="order-3">
+                  <AlertDescription>
+                    <Trans>Could not load the next question. Try again.</Trans>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
+              <Button
+                size="lg"
+                className="order-4 w-full"
+                autoFocus
+                aria-disabled={continuing}
+                // What the page says beyond the verdict, read as the focus lands.
+                aria-describedby={
+                  [correctAnswer && !answerInFoot && answerId, grade.explanation && explanationId]
+                    .filter(Boolean)
+                    .join(" ") || undefined
+                }
+                onClick={() => void next()}
+              >
+                {continuing ? t`Loading…` : t`Continue`}
+              </Button>
+              <ReportProblem
+                triggerClassName="order-2 shrink-0"
+                statusClassName="order-5 basis-full"
+                send={(report, signal) =>
+                  braivo.reportAttempt({ courseId, attemptId, ...report }, { signal })
+                }
+                missed={grade.outcome === "failure" && !revealed}
+                passages={grade.passages !== undefined}
+                organizationName={organization?.name}
+              />
+            </PinnedFoot>
+          </>
+        )}
+      </section>
+    </>
   );
 }

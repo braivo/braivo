@@ -259,6 +259,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
     });
     const answered = await submitAttempt({
       historyEpoch: 0,
+      reviewedTeaching: false,
       ...course,
       host: learnHost,
       attemptId: "retry",

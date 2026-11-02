@@ -119,6 +119,7 @@ function answer(
     attemptId: input.id,
     taskId: at.tasks[input.task ?? 0]!,
     response: { choice: 0 },
+    reviewedTeaching: false,
     historyEpoch: input.epoch,
     now: input.now ?? new Date(),
   });
@@ -686,6 +687,7 @@ describe.skipIf(!connectionString)("erasing one school's history", () => {
             attemptId: "in-flight",
             taskId: fern.tasks[0]!,
             response: { choice: 0 },
+            reviewedTeaching: false,
             at: new Date(),
             restWindowStart: new Date(0),
             restAttempts: 3,

@@ -31,6 +31,7 @@ import type {
   LearnerProgressSummary,
   LocatedCitation,
   Member,
+  ObjectiveReview,
   ObjectiveSummary,
   Organization,
   OrganizationSetup,
@@ -98,6 +99,7 @@ export type {
   ManagedCourse,
   Member,
   Objective,
+  ObjectiveReview,
   ObjectiveSummary,
   Organization,
   OrganizationSetup,
@@ -266,9 +268,23 @@ export type BraivoClient = {
       response: TaskResponse;
       /** As the activity it answers said; a resend sends the same. */
       historyEpoch: number;
+      /** The learner reviewed the objective since their previous attempt on it (ADR 0054). */
+      reviewedTeaching?: boolean;
     },
     options?: RequestOptions,
   ): Promise<Grade>;
+
+  /**
+   * The passages the signed-in learner reviews an objective they answered on
+   * by (ADR 0054), or `undefined` when there are none to show. Reading it
+   * records nothing. A {@link BraivoError} with status 404 for a course or
+   * objective not theirs, or one they have not answered on yet, alike; 401 no
+   * session.
+   */
+  objectiveReview(
+    input: { courseId: string; objectiveId: string },
+    options?: RequestOptions,
+  ): Promise<ObjectiveReview | undefined>;
 
   /**
    * Reports a problem with a task the signed-in learner answered, by its
@@ -592,15 +608,21 @@ export type BraivoClient = {
   listCourses(organizationId: string, options?: RequestOptions): Promise<CourseSummary[]>;
 
   /**
-   * Publishes what a person reviewed, the organization's courses `courseIds`
-   * and tasks `taskIds`, all or none, so learners reach them (ADR 0039). Only
-   * from a browser: a tool's token is refused, 403. A course the organization
-   * has not, or a task retired or corrected since, fails it all, a
-   * {@link BraivoError} with status 409: reload and publish what is shown;
-   * another organization's task, 403.
+   * Publishes what a person reviewed, the organization's courses `courseIds`,
+   * tasks `taskIds`, and objectives' `citations` by key, all or none, so
+   * learners reach them (ADR 0039, ADR 0054). Only from a browser: a tool's
+   * token is refused, 403. A course or citation the organization has not, or a
+   * task retired or corrected since, fails it all, a {@link BraivoError} with
+   * status 409: reload and publish what is shown; another organization's
+   * task, 403.
    */
   publish(
-    input: { organizationId: string; courseIds?: string[]; taskIds?: string[] },
+    input: {
+      organizationId: string;
+      courseIds?: string[];
+      taskIds?: string[];
+      citations?: LocatedCitation[];
+    },
     options?: RequestOptions,
   ): Promise<void>;
 
@@ -1133,6 +1155,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return parsed<Grade>(response, doing);
     },
 
+    async objectiveReview({ courseId, objectiveId }, requestOptions) {
+      const response = await get(
+        `/api/courses/${encodeURIComponent(courseId)}/objectives/${encodeURIComponent(objectiveId)}/review`,
+        requestOptions,
+      );
+
+      const doing = `reading the review of objective "${objectiveId}" in course "${courseId}"`;
+      if (response.status === 204) return undefined;
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return parsed<ObjectiveReview>(response, doing);
+    },
+
     async reportAttempt({ courseId, attemptId, ...report }, requestOptions) {
       const response = await post(
         `/api/courses/${encodeURIComponent(courseId)}/attempts/${encodeURIComponent(attemptId)}/report`,
@@ -1497,10 +1532,13 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return courses;
     },
 
-    async publish({ organizationId, courseIds = [], taskIds = [] }, requestOptions) {
+    async publish(
+      { organizationId, courseIds = [], taskIds = [], citations = [] },
+      requestOptions,
+    ) {
       const response = await post(
         `${organizationPath(organizationId)}/publish`,
-        { courseIds, taskIds },
+        { courseIds, taskIds, citations },
         requestOptions,
       );
 

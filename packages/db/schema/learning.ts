@@ -3,6 +3,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   foreignKey,
   index,
   integer,
@@ -343,6 +344,13 @@ export const attempt = pgTable(
     organizationId: text("organization_id").notNull(),
     taskId: text("task_id").notNull(),
     response: jsonb("response").notNull(),
+    /**
+     * The learner's app showed them the objective's passages since their
+     * previous attempt on it: exposure metadata for calibration, read by
+     * neither grading nor the model, and part of the attempt's identity
+     * (docs/adr/0054-review-shows-an-objectives-own-passages.md).
+     */
+    reviewedTeaching: boolean("reviewed_teaching").notNull().default(false),
     at: timestamp("at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (table) => [
@@ -623,6 +631,14 @@ export const objectiveCitation = pgTable(
     sourceId: text("source_id").notNull(),
     start: integer("start").notNull(),
     end: integer("end").notNull(),
+    /**
+     * When a person published it, null while it waits: a learner's review
+     * shows it only once published. A browser's citation is published as it is
+     * written, a tool's when the console publishes the passages its page showed
+     * (docs/adr/0039-published-in-the-console.md,
+     * docs/adr/0054-review-shows-an-objectives-own-passages.md).
+     */
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
   },
   (table) => [
     // The same passage cited twice for one objective is one citation, so a

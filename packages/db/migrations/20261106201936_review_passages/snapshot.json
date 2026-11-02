@@ -1,0 +1,81 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "b9a87a17-b343-4f24-9100-89502ac606fe",
+  "prevIds": [
+    "9c1ee137-9d6d-484e-b2bd-fa8f5b8dedaa"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "attempt",
+        "reviewed_teaching"
+      ],
+      "writes": [
+        "s|col|public.attempt.reviewed_teaching",
+        "n|col|public.attempt.reviewed_teaching",
+        "e|col|public.attempt.reviewed_teaching"
+      ],
+      "reads": [
+        "n|tbl|public.attempt",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "objective_citation",
+        "published_at"
+      ],
+      "writes": [
+        "s|col|public.objective_citation.published_at",
+        "n|col|public.objective_citation.published_at",
+        "e|col|public.objective_citation.published_at"
+      ],
+      "reads": [
+        "n|tbl|public.objective_citation",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "attempt",
+        "name": "reviewed_teaching",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "objective_citation",
+        "name": "published_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

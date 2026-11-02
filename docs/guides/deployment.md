@@ -109,6 +109,7 @@ The file is JSON, `version` 1; a change to its format changes `version`. Times a
           },
           "response": { "choice": 1 }, // an index into options; or { "text": "…" }, or { "reveal": true } for Show answer
           "outcome": "success", // or "failure"; null only if its grade is missing
+          "reviewedTeaching": false, // true when the app had shown the learner the objective's passages since their previous attempt on it (ADR 0054)
           // The learner's report of this attempt (ADR 0052), or null.
           "report": {
             "reason": "key-wrong", // or "answer-correct", "confusing", "unsupported", "other"

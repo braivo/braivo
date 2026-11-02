@@ -227,6 +227,7 @@ describe.skipIf(!connectionString)("tasks", () => {
     const answer = (attemptId: string) =>
       submitAttempt({
         historyEpoch: 0,
+        reviewedTeaching: false,
         database,
         learnerId: learner,
         courseId,

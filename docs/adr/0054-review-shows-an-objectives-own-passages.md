@@ -1,6 +1,6 @@
 # 0054: Review shows an objective's own passages, once the learner has answered on it
 
-Status: proposed (2026-11-02)
+Status: accepted (2026-11-07). Amends [ADR 0021](0021-citations.md) for passages shown before an attempt, and [ADR 0039](0039-published-in-the-console.md) for citations carrying their publication.
 
 ## Context
 
@@ -12,7 +12,7 @@ Three rules bound what a review may be. ADR 0021 shows a learner a task's passag
 
 - **The learner opens it; nothing opens it for them.** **Review this topic** is offered in the feedback after a miss, Show answer included, and while the objective's tasks rest, for an objective with at least one citation a review would show. A threshold of misses, or a review shown automatically, would be a parameter with no evidence behind it and an interruption to a learner who understood.
 - **It shows the objective's own cited passages, nothing else.** Each as a task's passages are shown (quote, source title and link, moment or page), in the same order, at most five: drafting cites at most five per objective; a tool may cite more, and the first five are shown. No authored note and no generated text: the material is the owner's own words, published by a person.
-- **Only citations a person published.** A tool may cite an objective at any time, and [ADR 0039](0039-published-in-the-console.md) lets nothing a tool writes reach learners until someone publishes it, so a citation carries the state, as a task does: a browser's is published as written, accepting a reviewed draft; a tool's waits until Publish on a course's page, which shows each objective's citations and sends the keys of those pending it showed, with whatever else it publishes or alone. Citations stored before this rule wait too: nothing records that a person saw them.
+- **Only citations a person published.** A tool may cite an objective at any time, and [ADR 0039](0039-published-in-the-console.md) lets nothing a tool writes reach learners until someone publishes it, so a citation carries the state, as a task does: a browser's is published as written, accepting a reviewed draft; a tool's waits until Publish on a course's page, which shows each objective's citations and sends the keys of those pending it showed, alone or with whatever else it publishes; beside other work, the owner may hold them back. Citations stored before this rule wait too: nothing records that a person saw them.
 - **Only once the learner has evidence on the objective** at its organization. This amends ADR 0021: an objective's passages are shown before an attempt on it, but never before the learner's first, so a review is never a preview of the answers. After a first answer, a passage may still give away a sibling task's answer; that is accepted below, as the cost of re-teaching from the material itself.
 - **Opening it records nothing** on the server: no evidence, no attempt, no change to a rest, the shuffle, or selection. It never releases a resting task.
 - **The next answer counts in full.** The passages are study before an attempt, closed while the learner answers, so the attempt is unaided as the learning model reads what a grader admits. Its success moves the objective as any success does; later reviews, spaced by the model, settle whether it is retained.
@@ -34,9 +34,9 @@ Three rules bound what a review may be. ADR 0021 shows a learner a task's passag
 
 ## Consequences
 
-- **Accepted inflation:** after a review, a sibling task may be offered at once, and one success moves `acquiring` to `retaining`. v1 reads that as uncertain retention, never as corrected. If the pilot shows successes after a review followed by failed reviews, the first change is a rest of the whole objective after a review, or keeping it out of the next activity; both need review state on the server.
-- `reviewedTeaching` is the tab's: lost with the tab, blind to a review on another device, and it may last until the next day. Calibration reads it as a lower bound on exposure, never as proof that the learner read anything.
+- **Accepted inflation:** after a review, a sibling task may be offered at once, and one success moves `acquiring` to `retaining`. v1 reads that as uncertain retention, never as corrected: it may overestimate retention for a while, and the spaced reviews that follow test it. If the pilot shows successes after a review followed by failed reviews, the first change is a rest of the whole objective after a review, or keeping it out of the next activity; both need review state on the server.
+- `reviewedTeaching` is the tab's: lost with the tab, blind to a review on another device, and it may last until the next day. Calibration reads it as a lower bound on exposure, never as proof that the learner read or understood anything.
 - A wrong objective citation shows in the review as it already shapes drafting; citations cannot be removed ([ADR 0021](0021-citations.md)), which is authoring's gap.
-- Material that is only a vocabulary table or an exercise reviews poorly: the passages carry no explanation. The authored note is the follow-up.
-- A course already published reviews nothing until a person publishes its citations from its page, as for its pending tasks, the organization's page marking it Needs review meanwhile; one shared by courses reaches each course's reviews at once, which the confirmation names.
+- Source passages may explain poorly, as material that is only a vocabulary table or an exercise does. An authored note follows only if use shows that need.
+- Existing citations need publishing: review work for owners, but nothing reaches learners that nobody demonstrably approved. A course already published reviews nothing until a person publishes its citations from its page, as for its pending tasks, the organization's page marking it Needs review meanwhile; one shared by courses reaches each course's reviews at once, which the confirmation names.
 - A grade and a resting activity say whether the objective can be reviewed (`reviewable`), one existence check each, so the app offers no button that would open nothing.

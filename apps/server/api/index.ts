@@ -172,9 +172,11 @@
 // one, 200 answers the objective whose rest ends first and in how many seconds
 // to ask again: whole seconds, rounded up, and a duration rather than a date,
 // so the client's clock does not matter. No decision: it may no longer hold
-// when the rest ends.
+// when the rest ends. `reviewable` says whether its review (below) would show
+// a passage, for a client offering one meanwhile.
 //
-//   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540 }
+//   { "objective": { "id": "…", "title": "Greetings" }, "retryAfter": 540,
+//     "reviewable": true }
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
@@ -190,19 +192,23 @@
 // the resend records nothing twice and answers the same grade, where a fresh ID
 // would record it again. A 409 is not such a case. Resend `historyEpoch` as first
 // sent: it says which of the learner's histories here the answer belongs to
-// (learner-loop-25).
+// (learner-loop-25). `"reviewedTeaching": true` says the learner reviewed the
+// objective (below) since their previous attempt on it: stored with the attempt,
+// for calibration, changing neither grade nor evidence (ADR 0054); absent is
+// `false`, and a resend must send the same.
 //
 //   401  no session
 //   400  the body is not an attempt, `id` is empty or too long, `historyEpoch` is
-//        missing or not a non-negative integer, or the response cannot answer
-//        the task or names more than one of `choice`, `text`, and `reveal`
+//        missing or not a non-negative integer, the response cannot answer the
+//        task or names more than one of `choice`, `text`, and `reveal`, or
+//        `reviewedTeaching` is not a boolean
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task,
 //        or the task was retired (a resend of an attempt recorded before that
 //        still answers its grade)
-//   409  `id` was already used at this organization for a different task or
-//        response, or the task is resting for this learner since their latest
-//        answer to it. Either way, ask for the activity again rather than
+//   409  `id` was already used at this organization for a different task,
+//        response, or `reviewedTeaching`, or the task is resting for this
+//        learner since their latest answer to it. Either way, ask for the activity again rather than
 //        resending. `{ "error": "…", "code": "HISTORY_ERASED" }`: a new `id`
 //        under a `historyEpoch` other than the learner's current one here,
 //        recording nothing; final, so forget the answer, and read the activity
@@ -223,7 +229,21 @@
 //        transcript — the second the words are said at, to open the video
 //        there (ADR 0025); `page` only when it is a paged document — the
 //        label of the page the words are on (ADR 0026). Given only after
-//        grading, since a passage could give the answer away.
+//        grading, since a passage could give the answer away. Every grade
+//        carries `"reviewable": true` or `false`: whether the review of the
+//        task's objective (below) would show a passage.
+//
+// `GET /api/courses/:courseId/objectives/:objectiveId/review` — the passages
+// the signed-in learner reviews an objective they answered on by (ADR 0054):
+// those of its citations a person published, at most five, shaped and
+// ordered as a grade's. Reading it records nothing.
+//
+//   401  no session
+//   404  the course is not the learner's, as for the activity, or the
+//        objective is not in it, or the learner has no evidence on it yet:
+//        never a way to read passages before a first answer
+//   204  nothing to show
+//   200  `{ "title": "Greetings", "passages": [{ "quote": "…", "source": { "title": "…" } }] }`
 //
 // `POST /api/courses/:courseId/attempts/:attemptId/report` — the signed-in
 // learner reports a problem with a task they answered, named by their attempt
@@ -496,8 +516,9 @@
 //
 // `GET /api/organizations/:organizationId/objectives` — answers
 // `{ "objectives": [{ "id": "…", "title": "…", "courseIds": ["…"],
-// "pendingTaskCount": 2 }] }`, by title: the courses each is in, which its
-// tasks serve, and how many of its tasks wait for review (ADR 0039). That is
+// "pendingTaskCount": 2, "pendingPassageCount": 1 }] }`, by title: the courses
+// each is in, which its tasks serve, and how many of its tasks and citations
+// wait for review (ADR 0039). That is
 // a listing order and not content order: the sequence a learner meets
 // objectives in belongs to a course.
 //

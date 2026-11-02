@@ -282,6 +282,8 @@ async function seedClassroom(input: {
   const objectiveId = (index: number) => objectiveIds[index]!;
   await citeSources({
     ...authoring,
+    now: createdAt,
+    byTool: false,
     citations: OBJECTIVES.map(({ quote }, index) => ({
       objectiveId: objectiveId(index),
       sourceId,
@@ -402,6 +404,7 @@ async function practise(input: {
       throw new Error(`Practice step ${index} has no wrong answer written for a typed task.`);
     }
     const submitted = await submitAttempt({
+      reviewedTeaching: false,
       database,
       learnerId,
       courseId,

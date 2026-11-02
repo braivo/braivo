@@ -13,7 +13,7 @@ import { inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
-import { createCourse, createObjectives, createTasks } from "../persistence/index.ts";
+import { createCourse, createObjectives, createSource, createTasks } from "../persistence/index.ts";
 import { createApi } from "./app.ts";
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
@@ -460,8 +460,20 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     // Titles come back trimmed, and listed by title rather than by creation.
     expect(await listed.json()).toMatchObject({
       objectives: expect.arrayContaining([
-        { id: objectiveIds[0]!, title: "Conditional", courseIds: [], pendingTaskCount: 0 },
-        { id: objectiveIds[1]!, title: "Subjunctive", courseIds: [], pendingTaskCount: 0 },
+        {
+          id: objectiveIds[0]!,
+          title: "Conditional",
+          courseIds: [],
+          pendingTaskCount: 0,
+          pendingPassageCount: 0,
+        },
+        {
+          id: objectiveIds[1]!,
+          title: "Subjunctive",
+          courseIds: [],
+          pendingTaskCount: 0,
+          pendingPassageCount: 0,
+        },
       ]),
     });
   });
@@ -1207,6 +1219,93 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
       expect(await publishedAt([first, second])).toEqual(when);
     });
 
+    test("publishes an objective's citations a tool wrote only by the keys a page sends, all or nothing", async () => {
+      const { objectiveId } = await sharedObjective("Cited");
+      const sourceId = await createSource(database, {
+        organizationId,
+        title: "Cited",
+        text: "One passage. Another passage.",
+        createdAt: at,
+      });
+      const cite = async (headers: Record<string, string>, quote: string) => {
+        const response = await api.request(`/api/organizations/${organizationId}/citations`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ citations: [{ objectiveId, sourceId, quote }] }),
+        });
+        expect(response.status).toBe(200);
+        const { citations } = (await response.json()) as {
+          citations: { objectiveId: string; sourceId: string; start: number; end: number }[];
+        };
+        return citations[0]!;
+      };
+      const create = await api.request(`/api/organizations/${organizationId}/courses`, {
+        method: "POST",
+        headers: asTool,
+        body: JSON.stringify({ title: "Cited: proposed", objectiveIds: [objectiveId] }),
+      });
+      const { courseId: proposed } = (await create.json()) as { courseId: string };
+      /** The objective's citations as the course's page reads them, and whether it is published. */
+      const page = async () => {
+        const response = await api.request(
+          `/api/organizations/${organizationId}/courses/${proposed}`,
+          { headers: { cookie: teacher.cookie } },
+        );
+        const { published, objectives } = (await response.json()) as {
+          published: boolean;
+          objectives: { citations: { quote: string; published: boolean }[] }[];
+        };
+        return {
+          published,
+          citations: objectives[0]!.citations.map(({ quote, published }) => [quote, published]),
+        };
+      };
+
+      const tools = await cite(asTool, "One passage.");
+      // A person's is published as written, as a person's tasks are.
+      await cite(inConsole, "Another passage.");
+      expect(await page()).toEqual({
+        published: false,
+        citations: [
+          ["One passage.", false],
+          ["Another passage.", true],
+        ],
+      });
+
+      // Published with the course the page showed, or not at all.
+      const unknown = { ...tools, start: tools.start + 1 };
+      expect(
+        (await publish(inConsole, { courseIds: [proposed], citations: [tools, unknown] })).status,
+      ).toBe(409);
+      expect((await publish(asTool, { courseIds: [proposed], citations: [tools] })).status).toBe(
+        403,
+      );
+      for (const citations of [
+        [{ ...tools, start: "0" }],
+        [{ ...tools, end: 2 ** 31 }],
+        [{ ...tools, start: -1 }],
+        [{ ...tools, objectiveId: "" }],
+        "x",
+      ]) {
+        expect((await publish(inConsole, { courseIds: [proposed], citations })).status).toBe(400);
+      }
+      expect((await page()).citations[0]).toEqual(["One passage.", false]);
+      expect((await page()).published).toBe(false);
+
+      expect((await publish(inConsole, { courseIds: [proposed], citations: [tools] })).status).toBe(
+        204,
+      );
+      expect(await page()).toEqual({
+        published: true,
+        citations: [
+          ["One passage.", true],
+          ["Another passage.", true],
+        ],
+      });
+      // A citation alone, already published, changes nothing.
+      expect((await publish(inConsole, { citations: [tools] })).status).toBe(204);
+    });
+
     test("holds a bank's import at its size: 257 tasks in two batches, 20 published", async () => {
       const objectiveIds = await createObjectives(
         database,
@@ -1535,7 +1634,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
         {
           id: red,
           title: "Red",
-          citations: [{ sourceId, start: 0, end: 12, quote: "Rojo es red." }],
+          citations: [{ sourceId, start: 0, end: 12, quote: "Rojo es red.", published: true }],
           tasks: [
             {
               id: taskId,
@@ -1706,6 +1805,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           source: { title: "Unidad 3", url: "https://www.youtube.com/watch?v=colores" },
         },
       ],
+      reviewable: false,
     });
   });
 
@@ -1754,7 +1854,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(byLearner.status).toBe(403);
     expect([atLimit.status, overLimit.status]).toEqual([200, 400]);
     expect(await read.json()).toEqual({
-      citations: [{ sourceId, start: 13, end: 28, quote: "uno, dos, tres." }],
+      citations: [{ sourceId, start: 13, end: 28, quote: "uno, dos, tres.", published: true }],
     });
     expect(read.headers.get("cache-control")).toBe("private, no-store");
   });

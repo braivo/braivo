@@ -28,16 +28,9 @@ import {
   sql,
 } from "drizzle-orm";
 
-import {
-  type ExplanationCounts,
-  momentOf,
-  pageOf,
-  type Pagination,
-  type TaskBody,
-  type TaskResponse,
-  type Timing,
-} from "../content/index.ts";
+import { type ExplanationCounts, type TaskBody, type TaskResponse } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
+import { type LearnerPassage, toLearnerPassage } from "./citation.ts";
 import { HistoryErased } from "./learner-history.ts";
 
 type Task = { id: string; objectiveId: string; body: TaskBody };
@@ -571,14 +564,7 @@ async function lockObjectiveTasks(
 }
 
 /** A passage a task cites, with its quote and what a reader needs to find its source. */
-export type CitedTaskPassage = TaskCitation & {
-  quote: string;
-  /** The second of the recording it is said at, when the source is a timed transcript. */
-  at?: number;
-  /** The label of the page it is on, when the source is a paged document. */
-  page?: string;
-  source: { title: string; url?: string };
-};
+export type CitedTaskPassage = TaskCitation & LearnerPassage;
 
 /**
  * The passages a task cites, by source title and then position in the text:
@@ -605,17 +591,12 @@ export async function readTaskCitations(
     .where(eq(taskCitation.taskId, taskId))
     .orderBy(asc(source.title), asc(taskCitation.sourceId), asc(taskCitation.start));
 
-  return rows.map(({ title, url, timing, pagination, ...citation }) => {
-    // Where the passage begins in the original, when the source keeps that.
-    const at = timing === null ? undefined : momentOf(timing as Timing, citation.start);
-    const page = pagination === null ? undefined : pageOf(pagination as Pagination, citation.start);
-    return {
-      ...citation,
-      ...(at === undefined ? {} : { at }),
-      ...(page === undefined ? {} : { page }),
-      source: url === null ? { title } : { title, url },
-    };
-  });
+  return rows.map((row) => ({
+    sourceId: row.sourceId,
+    start: row.start,
+    end: row.end,
+    ...toLearnerPassage(row),
+  }));
 }
 
 /**
@@ -969,9 +950,9 @@ export async function readCourseTask(
  * Stores an attempt and the evidence graded from it, together or not at all.
  *
  * Returns the outcome that stands. Resubmitting the same attempt — same ID,
- * task, and response — stores nothing and returns the outcome recorded, even
- * if grading would now say otherwise, so a client may retry after a lost
- * answer; its evidence keeps the first submission's date. The same ID with
+ * task, response, and `reviewedTeaching` — stores nothing and returns the
+ * outcome recorded, even if grading would now say otherwise, so a client may
+ * retry after a lost answer; its evidence keeps the first submission's date. The same ID with
  * anything else is `ConflictingAttempt`.
  * IDs are the organization's, as evidence IDs are: the same ID at another
  * organization is another attempt.
@@ -1002,6 +983,8 @@ export async function recordAttempt(
     attemptId: string;
     taskId: string;
     response: TaskResponse;
+    /** Exposure metadata, stored as sent: nothing here reads it. */
+    reviewedTeaching: boolean;
     at: Date;
     restWindowStart: Date;
     restAttempts: number;
@@ -1017,6 +1000,7 @@ export async function recordAttempt(
     attemptId,
     taskId,
     response,
+    reviewedTeaching,
     at,
     restWindowStart,
     restAttempts,
@@ -1026,13 +1010,17 @@ export async function recordAttempt(
 
   const inserted = await transaction
     .insert(attempt)
-    .values({ id: attemptId, learnerId, organizationId, taskId, response, at })
+    .values({ id: attemptId, learnerId, organizationId, taskId, response, reviewedTeaching, at })
     .onConflictDoNothing({ target: [attempt.learnerId, attempt.organizationId, attempt.id] })
     .returning({ id: attempt.id });
 
   if (inserted.length === 0) {
     const [stored] = await transaction
-      .select({ taskId: attempt.taskId, response: attempt.response })
+      .select({
+        taskId: attempt.taskId,
+        response: attempt.response,
+        reviewedTeaching: attempt.reviewedTeaching,
+      })
       .from(attempt)
       .where(
         and(
@@ -1041,7 +1029,11 @@ export async function recordAttempt(
           eq(attempt.id, attemptId),
         ),
       );
-    if (stored?.taskId !== taskId || !isDeepStrictEqual(stored.response, response)) {
+    if (
+      stored?.taskId !== taskId ||
+      !isDeepStrictEqual(stored.response, response) ||
+      stored.reviewedTeaching !== reviewedTeaching
+    ) {
       throw new ConflictingAttempt(attemptId);
     }
     const [recorded] = await transaction

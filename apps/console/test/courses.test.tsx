@@ -161,6 +161,51 @@ describe("the console", () => {
     expect(screen.queryByRole("region", { name: "Other objectives" })).toBeNull();
   });
 
+  test("marks every published course whose objectives have a tool's passages waiting", async () => {
+    const course = { urlLabel: "x", published: true, hidden: false, pendingTaskCount: 0 };
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [
+          { ...course, id: "c1", number: 1001, title: "Spanish" },
+          { ...course, id: "c2", number: 1002, title: "French" },
+          { ...course, id: "c3", number: 1003, title: "German" },
+          { ...course, id: "c4", number: 1004, title: "Italian" },
+        ],
+        listObjectives: async () => [
+          // Shared: each course's page publishes them, so each says so.
+          {
+            id: "o1",
+            title: "Greetings",
+            courseIds: ["c1", "c2"],
+            pendingTaskCount: 0,
+            pendingPassageCount: 1,
+          },
+          // Its tasks counted, the passages publish with them.
+          {
+            id: "o2",
+            title: "Cases",
+            courseIds: ["c3"],
+            pendingTaskCount: 2,
+            pendingPassageCount: 3,
+          },
+          {
+            id: "o3",
+            title: "Numbers",
+            courseIds: ["c4"],
+            pendingTaskCount: 0,
+            pendingPassageCount: 0,
+          },
+        ],
+      },
+    });
+
+    expect(await screen.findByRole("link", { name: "Spanish (needs review)" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "French (needs review)" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "German (2 tasks need review)" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Italian" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Other objectives" })).toBeNull();
+  });
+
   test("says where an organization's learners practise, or that they have nowhere yet", async () => {
     renderAt("/example", { braivo: { listCourses: async () => [] } });
     const site = await screen.findByRole("link", { name: "example.braivo.app" });

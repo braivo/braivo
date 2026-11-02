@@ -80,7 +80,7 @@ export const beginners = {
     {
       id: "greetings",
       title: "Greetings",
-      citations: [{ sourceId: "s1", start: 0, end: 5, quote: "Hola." }],
+      citations: [{ sourceId: "s1", start: 0, end: 5, quote: "Hola.", published: true }],
       tasks: [
         {
           id: "t1",

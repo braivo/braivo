@@ -73,7 +73,7 @@ export type Activity =
       task: { id: string } & content.PresentedTask;
     }
   | { decision: LearningDecision; objective: Objective }
-  | { objective: Objective; retryAfter: number }
+  | { objective: Objective; retryAfter: number; reviewable: boolean }
   | { dailyLimit: number }
   | { empty: true };
 
@@ -82,9 +82,16 @@ export type TaskResponse = content.TaskResponse;
 
 /**
  * How an attempt was graded, as `POST /api/courses/:courseId/attempts` answers
- * it: with the passages the task was written from, when it cites any.
+ * it: with the passages the task was written from, when it cites any, and
+ * whether its objective's review would show a passage (ADR 0054).
  */
-export type Grade = content.Grade & { passages?: Passage[] };
+export type Grade = content.Grade & { passages?: Passage[]; reviewable: boolean };
+
+/**
+ * What a learner reviews an objective they answered on by, as
+ * `GET /api/courses/:courseId/objectives/:objectiveId/review` answers it (ADR 0054).
+ */
+export type ObjectiveReview = { title: string; passages: Passage[] };
 
 /** Why a learner reports a task (ADR 0052). */
 export type TaskReportReason = application.TaskReportReason;
@@ -134,9 +141,15 @@ export type Objective = { id: string; title: string };
 
 /**
  * An objective as its organization lists it: `courseIds`, the courses it is
- * in, which its tasks serve; `pendingTaskCount`, its tasks pending review.
+ * in, which its tasks serve; `pendingTaskCount`, its tasks pending review;
+ * `pendingPassageCount`, its citations pending review, which a page of any
+ * course it is in publishes.
  */
-export type ObjectiveSummary = Objective & { courseIds: string[]; pendingTaskCount: number };
+export type ObjectiveSummary = Objective & {
+  courseIds: string[];
+  pendingTaskCount: number;
+  pendingPassageCount: number;
+};
 
 /**
  * An organization as those who work in it find it; `slug` is its console
@@ -287,7 +300,17 @@ export type AuthoredCourse = ManagedCourse & {
   objectives: {
     id: string;
     title: string;
-    citations: { sourceId: string; start: number; end: number; quote: string }[];
+    /**
+     * Not `published` while it waits for its owner to publish it in the
+     * console: a learner's review shows only published ones (ADR 0054).
+     */
+    citations: {
+      sourceId: string;
+      start: number;
+      end: number;
+      quote: string;
+      published: boolean;
+    }[];
     tasks: AuthoredTask[];
     /**
      * The organization's other published courses it is in: a task of it,

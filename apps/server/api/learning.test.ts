@@ -15,7 +15,13 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 import { NEW_OBJECTIVES_PER_DAY } from "../application/daily-limit.ts";
 import { registerLearnDomain } from "../application/index.ts";
 import { activeModel, REPEATED_MISSES_THRESHOLD } from "../learning/index.ts";
-import { createCourse, createObjectives, recordEvidence } from "../persistence/index.ts";
+import {
+  createCitations,
+  createCourse,
+  createObjectives,
+  createSource,
+  recordEvidence,
+} from "../persistence/index.ts";
 import {
   baseUrl,
   connectionString,
@@ -971,15 +977,16 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       outcome: "failure",
       correctChoice: 0,
       explanation: "Preterite.",
+      reviewable: false,
     });
 
     // Its only task rests, since the learner was just shown the answer.
     // Whole seconds; the exact boundary is the application tests'.
-    const { objective, retryAfter } = (await (await activity(courseId, learner.cookie)).json()) as {
-      objective: unknown;
-      retryAfter: number;
-    };
+    const { objective, retryAfter, reviewable } = (await (
+      await activity(courseId, learner.cookie)
+    ).json()) as { objective: unknown; retryAfter: number; reviewable: boolean };
     expect(objective).toEqual({ id: pastTense, title: "Past tense" });
+    expect(reviewable).toBe(false);
     expect(Number.isInteger(retryAfter)).toBe(true);
     expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(600);
@@ -1020,6 +1027,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       kind: "typed",
       outcome: "success",
       correctAnswer: "bin",
+      reviewable: false,
     });
 
     const resent = await postAttempt(wordCourse, attempt, learner.cookie);
@@ -1028,6 +1036,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       kind: "typed",
       outcome: "success",
       correctAnswer: "bin",
+      reviewable: false,
     });
     expect(await stored(learner.id)).toHaveLength(1);
 
@@ -1068,12 +1077,90 @@ describe.skipIf(!connectionString)("the learning routes", () => {
         learner.cookie,
       ),
       await postAttempt("c%00", attempt, learner.cookie),
+      // A boolean or nothing (ADR 0054).
+      await postAttempt(courseId, { ...attempt, reviewedTeaching: "true" }, learner.cookie),
+      await postAttempt(courseId, { ...attempt, reviewedTeaching: null }, learner.cookie),
     ];
 
     expect(refusals.map((response) => response.status)).toEqual([
-      401, 403, 400, 400, 400, 400, 404, 400, 400, 400, 400, 404,
+      401, 403, 400, 400, 400, 400, 404, 400, 400, 400, 400, 404, 400, 400,
     ]);
     expect(await stored(learner.id)).toEqual([]);
+  });
+
+  test("reviews an objective the learner answered on, and nothing before (learner-loop-24)", async () => {
+    const [rule] = (await createObjectives(database, organizationId, ["Preterite"])) as [string];
+    const [uncited] = (await createObjectives(database, organizationId, ["Uncited"])) as [string];
+    const unit = await createSource(database, {
+      organizationId,
+      title: "Unidad 4",
+      text: "Hablé con mi madre.",
+      url: "https://example.com/unidad-4",
+      createdAt: at,
+    });
+    await createCitations(
+      database,
+      organizationId,
+      [{ objectiveId: rule, sourceId: unit, start: 0, end: 19 }],
+      at,
+    );
+    const { id: ruleCourse } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Grammar",
+      objectiveIds: [rule, uncited],
+    });
+    const ruleTask = await testing.createTask(database, {
+      organizationId,
+      objectiveId: rule,
+      body: { kind: "choice", prompt: "Hablé?", options: ["past", "present"], answer: 0 },
+      createdAt: at,
+    });
+    const review = (objectiveId: string, cookie?: string) =>
+      api.request(
+        `/api/courses/${ruleCourse}/objectives/${objectiveId}/review`,
+        cookie ? { headers: { cookie } } : undefined,
+      );
+
+    expect((await review(rule)).status).toBe(401);
+    // Never a preview of the answers.
+    expect((await review(rule, learner.cookie)).status).toBe(404);
+
+    const missed = await postAttempt(
+      ruleCourse,
+      { id: crypto.randomUUID(), taskId: ruleTask, response: { choice: 1 } },
+      learner.cookie,
+    );
+    expect(await missed.json()).toMatchObject({ outcome: "failure", reviewable: true });
+
+    const shown = await review(rule, learner.cookie);
+    expect(shown.status).toBe(200);
+    expect(shown.headers.get("cache-control")).toBe("private, no-store");
+    expect(await shown.json()).toEqual({
+      title: "Preterite",
+      passages: [
+        {
+          quote: "Hablé con mi madre.",
+          source: { title: "Unidad 4", url: "https://example.com/unidad-4" },
+        },
+      ],
+    });
+    // Reading it records nothing.
+    expect(await stored(learner.id)).toHaveLength(1);
+    // Answered on, the course's other objective has nothing to show.
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      { id: "uncited", objectiveId: uncited, outcome: "failure", at: recordedAt },
+    ]);
+    expect((await review(uncited, learner.cookie)).status).toBe(204);
+    // Another learner, who never answered on it, and an objective outside the course.
+    expect((await review(rule, classmate.cookie)).status).toBe(404);
+    expect(
+      (
+        await api.request(`/api/courses/${courseId}/objectives/${rule}/review`, {
+          headers: { cookie: learner.cookie },
+        })
+      ).status,
+    ).toBe(404);
   });
 
   test("refuses a body that is not UTF-8, recording nothing", async () => {
@@ -1155,6 +1242,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
       outcome: "success",
       correctChoice: 0,
       explanation: "Preterite.",
+      reviewable: false,
     });
     expect(await stored(teacher.id)).toHaveLength(1);
   });
