@@ -120,7 +120,7 @@ A member of any role who teaches a group also reads its learners' progress, and 
 - [ADR 0048](../adr/0048-author-role.md): an `author` manages and publishes content without administering the organization or reaching learners' data.
 - [ADR 0049](../adr/0049-app-security-headers.md): each app's `_headers` is its policy; no inline script.
 - [ADR 0050](../adr/0050-tools-read-learner-data.md): an organization decides whether tools read its learners' data, off by default.
-- [ADR 0052](../adr/0052-task-reports.md) (proposed): learners' reports of tasks are read and dismissed by an `owner` or `admin` in a browser, never by a tool.
+- [ADR 0052](../adr/0052-task-reports.md): learners' reports of tasks are read and dismissed by an `owner` or `admin` in a browser, never by a tool.
 
 ## Gaps
 
@@ -133,6 +133,7 @@ A member of any role who teaches a group also reads its learners' progress, and 
 | A group change records no actor                                                                                                                                                   | Who gave a teacher access to learners' progress, in the console or through which agent, cannot be answered                                                                                                | Decide with what content records ([authoring](authoring.md) gaps), before an MCP tool changes groups                                                              |
 | No console UI to change members or roles (only to list them). Better Auth's own organization update is still open to an owner or admin, beside access-37, without its name limit. | Removing a member, or taking `author` from one, takes the database; giving `author` takes the operator's `add-member` for someone not yet a member; a name over 100 characters by a raw Better Auth call. | Members and roles follow invitations (ADR 0018 step 4; ADR 0048 suggests labelling `author` "Manage and publish content" there); close Better Auth's update then. |
 | A teacher of groups alone cannot connect an AI app at `/mcp`: its one scope is `braivo:author` (access-40)                                                                        | Their AI app cannot read their groups' progress                                                                                                                                                           | `braivo:progress` (ADR 0045)                                                                                                                                      |
+| Authors and group teachers cannot inspect learners' reports of tasks (access-46)                                                                                                  | A subject's author or a group's teacher learns of a disputed task only through an administrator                                                                                                           | Teachers after a contract for disclosing a learner's attempts to them; an author gets a correction to make from an administrator, content only (ADR 0052)         |
 
 ## Entry points
 
