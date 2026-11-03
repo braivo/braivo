@@ -8,6 +8,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { createConsoleAuth } from "./lib/auth.ts";
+import { readPdf } from "./lib/pdf/read.ts";
 import { createConsoleRouter } from "./router.tsx";
 
 // Chosen before React renders: a menu's stored choice, else the browser's (ADR 0035).
@@ -21,6 +22,7 @@ const router = createConsoleRouter({
     braivo: createClient(),
     auth: createConsoleAuth(origin),
     visit: (href) => window.location.assign(href),
+    readPdf,
   },
 });
 

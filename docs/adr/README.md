@@ -64,3 +64,4 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0016: Route files mirror the URL, and a guard lives in its folder](0016-route-files.md)
 - [0035: Lingui for learner-facing localization](0035-lingui-localization.md)
 - [0049: Each app ships its security policy as `_headers`, and runs no inline script](0049-app-security-headers.md)
+- [0055: The console reads a PDF's text layer in the browser, and the owner reviews its pages before saving them](0055-pdf-text-in-the-browser.md)

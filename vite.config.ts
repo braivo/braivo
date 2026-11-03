@@ -3,8 +3,10 @@
 
 import { lingui } from "@lingui/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
-import { configDefaults, defineConfig } from "vite-plus";
+import { configDefaults, defineConfig, type PluginOption } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
+
+import { pdfjsFiles } from "./tooling/pdfjs-files.ts";
 
 /** What the shadcn CLI generates into `packages/ui` (ADR 0011, ADR 0012). */
 const shadcnOutput = [
@@ -59,10 +61,16 @@ const localized = (name: string, root: string) => ({
 
 /**
  * For a project's browser tests: in Chromium, with Tailwind too, so a test
- * measures the controls as the apps style them.
+ * measures the controls as the apps style them, plus what the `app` needs.
  */
-const inChromium = (name: string, root: string) => ({
-  plugins: [lingui({ macroTransform: true }), tailwindcss()],
+const inChromium = (
+  name: string,
+  root: string,
+  app: { plugins?: PluginOption[]; optimizeDeps?: { include: string[] } } = {},
+) => ({
+  ...app,
+  plugins: [lingui({ macroTransform: true }), tailwindcss(), ...(app.plugins ?? [])],
+  worker: { format: "es" as const },
   test: {
     name,
     root,
@@ -229,7 +237,12 @@ export default defineConfig({
       localized("learn", "apps/learn"),
       inChromium("learn-browser", "apps/learn"),
       localized("console", "apps/console"),
-      inChromium("console-browser", "apps/console"),
+      // The console reads PDFs with pdf.js, whose support files it serves;
+      // optimized up front, or Vite reloads the first test to load it.
+      inChromium("console-browser", "apps/console", {
+        plugins: [pdfjsFiles()],
+        optimizeDeps: { include: ["pdfjs-dist", "pdfjs-dist/build/pdf.worker.mjs"] },
+      }),
     ],
   },
 });

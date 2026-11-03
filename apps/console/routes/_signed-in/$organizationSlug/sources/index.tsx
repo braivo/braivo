@@ -13,19 +13,39 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
+import { RadioGroup, RadioGroupItem } from "@braivo/ui/components/radio-group";
 import { Textarea } from "@braivo/ui/components/textarea";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import { InfoIcon } from "lucide-react";
-import { type ReactNode, type SubmitEvent, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type SubmitEvent,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AiAppGuideLink } from "#components/ai-app-guide-link";
+import { PdfReview } from "#components/pdf-review";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
+import { PDF_LIMITS, PdfReadError } from "#lib/pdf/read";
+import {
+  type ChangeReview,
+  keptPages,
+  type ReviewedPage,
+  type ReviewField,
+  reviewProblem,
+  startReview,
+} from "#lib/pdf/review";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -103,6 +123,9 @@ const REFUSED_TYPES = [
   "application/x-www-form-urlencoded",
 ];
 
+/** The largest PDF Braivo's AI reads (the server's `READABLE`). */
+const AI_PDF_BYTES = 24_000_000;
+
 /**
  * Why Braivo's AI would refuse to read `file`, as the server's `readFileText`
  * does (generation-2), saying what to do instead. Checked before uploading, so
@@ -111,7 +134,7 @@ const REFUSED_TYPES = [
 function readingProblem(file: File): string | undefined {
   const instead = "or paste its text in the Text field.";
   if (file.type === "application/pdf") {
-    if (file.size > 24_000_000) {
+    if (file.size > AI_PDF_BYTES) {
       return `Braivo's AI reads a PDF of at most 24 MB: split it, adding a chapter at a time, ${instead}`;
     }
   } else if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)) {
@@ -121,6 +144,39 @@ function readingProblem(file: File): string | undefined {
   } else {
     return "Braivo's AI reads PDFs and PNG, JPEG, GIF, or WebP images. Paste this file's text or transcript in the Text field to keep the file as its original.";
   }
+}
+
+/**
+ * Why the console could not read a PDF's own text, and what to do instead
+ * (sources-22). A damaged file is told by pdf.js failing, or taking too long.
+ */
+function pdfFailure(thrown: unknown): string {
+  const instead = "Save it again as a PDF, or paste its text in the Text field.";
+  const split = "split it, adding a chapter at a time.";
+  if (!(thrown instanceof PdfReadError)) return `This PDF could not be read. ${instead}`;
+  switch (thrown.problem) {
+    case "encrypted":
+      return "This PDF is locked: save an unlocked copy and attach that.";
+    case "too-many-pages":
+      return `This PDF has ${thrown.pages?.toLocaleString("en")} pages, more than the ${PDF_LIMITS.pages.toLocaleString("en")} Braivo reads at once: ${split}`;
+    case "too-much-text":
+      return `This PDF's text is over 10 MB, the most Braivo adds at once: ${split}`;
+    case "too-slow":
+      return `Reading this PDF took too long, so it was stopped: it may be damaged or built unusually. ${instead}`;
+    default:
+      return `This PDF could not be read: it may be damaged. ${instead}`;
+  }
+}
+
+/** "Saving 2 pages; 1 left out.", or how many pages still wait for a decision. */
+function savingSummary(pages: readonly ReviewedPage[]): string {
+  const of = (n: number) => `${n} ${n === 1 ? "page" : "pages"}`;
+  const undecided = pages.filter((page) => page.keep === undefined).length;
+  if (undecided > 0) {
+    return `${of(undecided)} to decide: keep ${undecided === 1 ? "it" : "each"}, or leave it out.`;
+  }
+  const kept = pages.filter((page) => page.keep).length;
+  return `Saving ${of(kept)}; ${pages.length - kept} left out.`;
 }
 
 /**
@@ -163,11 +219,11 @@ function titleOf(fileName: string): string {
   return stem.replaceAll("_", " ").replace(/\s+/g, " ").trim();
 }
 
-/** A field a failure can be about. */
-type FieldName = "text" | "original";
+/** A field a failure can be about: the form's, or one in the review of a PDF's pages. */
+type FieldName = "text" | "original" | ReviewField;
 
 function AddSource() {
-  const { braivo, organization } = Route.useRouteContext();
+  const { braivo, organization, readPdf } = Route.useRouteContext();
   const organizationId = organization.id;
   const router = useRouter();
   // The step under way while adding: reading a file can take a few minutes.
@@ -186,8 +242,12 @@ function AddSource() {
   const title = useRef<HTMLInputElement>(null);
   const text = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
-    if (error?.field) ({ text, original })[error.field].current?.focus();
-  }, [error]);
+    if (error?.field === "text" || error?.field === "original") {
+      ({ text, original })[error.field].current?.focus();
+    } else if (error?.field) {
+      document.getElementById(`${id}-${error.field}`)?.focus();
+    }
+  }, [error, id]);
   /** ARIA for `field`'s control, marked while the failure is about it. */
   const ariaFor = (field: FieldName, hintId: string) =>
     error?.field === field
@@ -206,13 +266,145 @@ function AddSource() {
   // The last file read and its pages: correcting a refused title or language
   // and sending again does not pay for reading the same file twice.
   const read = useRef<{ fileId: string; pages: { page: string; text: string }[] }>(undefined);
+  // The file last uploaded and its ID: the same file again would send its
+  // bytes again, up to 50 MB, for the same ID, as when the AI read it from
+  // its review and it is then saved.
+  const uploaded = useRef<{ file: File; fileId: string }>(undefined);
+  async function upload(file: File, signal?: AbortSignal) {
+    if (uploaded.current?.file === file) return uploaded.current.fileId;
+    const { fileId } = await braivo.uploadFile(
+      { organizationId, file },
+      { signal: withDeadline(signal, bodyDeadline(file.size)) },
+    );
+    uploaded.current = { file, fileId };
+    return fileId;
+  }
   const abortOnUnmount = useAbortOnUnmount();
   const form = useRef<HTMLFormElement>(null);
+  // The file attached: a PDF offers a choice of reader.
+  const [attached, setAttached] = useState<File>();
+  // Where Braivo's AI is on: a PDF's own text, or the AI's reading of it.
+  const [reader, setReader] = useState<"pdf" | "ai">("pdf");
+  // Reading a PDF's own text: its Cancel, while it runs.
+  const [reading, setReading] = useState<AbortController>();
+  // The pages read from a PDF, under review until saved or discarded.
+  const [review, setReview] = useState<ReviewedPage[]>();
+  const reviewing = review !== undefined;
+  // The page the review shows.
+  const [current, setCurrent] = useState(1);
+  // Counts the reviews opened, keying each one's controls; `byAi`: the AI read
+  // this one, and reading again would spend another request.
+  const [opened, setOpened] = useState({ count: 0, byAi: false });
+  // Braivo's AI reading the file under review, which leaving would lose.
+  const [aiReading, setAiReading] = useState(false);
+  const openReview = (pages: ReviewedPage[], byAi: boolean) => {
+    setReview(pages);
+    setCurrent(1);
+    setOpened((last) => ({ count: last.count + 1, byAi }));
+  };
+  // An edit answers a failure about the review; kept one function, so a page
+  // the edit leaves as it was is not rendered again.
+  const changeReview = useCallback<ChangeReview>((change) => {
+    setReview((pages) => pages && change(pages));
+    setError((last) => (last?.field?.startsWith("page-") ? undefined : last));
+  }, []);
+  const readsPdf = (file: File) =>
+    file.type === "application/pdf" && (organization.aiEnabled === false || reader === "pdf");
+  // Each review opened takes the focus, as it is what comes next; the AI's
+  // replacing one too, whose button went with the review it replaced.
+  useLayoutEffect(() => {
+    if (opened.count > 0) document.getElementById(`${id}-review`)?.focus();
+  }, [opened.count, id]);
+  /**
+   * Reads `file`'s own text in the browser, then opens its review; nothing is
+   * uploaded until it is saved (sources-22).
+   */
+  async function readText(file: File) {
+    const cancel = new AbortController();
+    // Stopped by Cancel, or by leaving the page, as a request would be.
+    const left = abortOnUnmount();
+    const signal = left ? AbortSignal.any([cancel.signal, left]) : cancel.signal;
+    setReading(cancel);
+    setError(undefined);
+    setStatus("Reading the PDF…");
+    // Said at most once a second, so a screen reader is not read every page.
+    let said = 0;
+    try {
+      const pages = await readPdf(file, {
+        signal,
+        onProgress: (done, total) => {
+          if (done < total && performance.now() - said < 1000) return;
+          said = performance.now();
+          setStatus(`Reading the PDF: page ${done} of ${total}…`);
+        },
+      });
+      openReview(startReview(pages), false);
+    } catch (thrown) {
+      if (!signal.aborted) fail(pdfFailure(thrown), "original");
+    } finally {
+      setReading(undefined);
+      setStatus(undefined);
+    }
+  }
+
+  /**
+   * Has Braivo's AI read the file under review, for a scan the text layer
+   * missed: its pages replace the review only once the reading succeeds, so a
+   * failure, or a month's quota spent, keeps the owner's edits.
+   */
+  async function readWithAi() {
+    if (adding || !attached) return;
+    if (attached.size > AI_PDF_BYTES) {
+      return fail(
+        "Braivo's AI reads a PDF of at most 24 MB, so it cannot read this one: keep this review, or split the PDF and add it a chapter at a time.",
+      );
+    }
+    const signal = abortOnUnmount();
+    setError(undefined);
+    setAiReading(true);
+    setStatus("Uploading the file…");
+    try {
+      const fileId = await upload(attached, signal);
+      setStatus("Braivo's AI is reading the file, which can take a few minutes…");
+      const pages = await explainAiFailure(
+        braivo.readFileText({ organizationId, fileId }, { signal }),
+      );
+      openReview(
+        startReview(
+          pages.map(({ page, text }, index) => ({
+            position: index + 1,
+            label: page,
+            outcome: "text",
+            text,
+          })),
+        ),
+        true,
+      );
+    } catch (thrown) {
+      if (signal?.aborted) return;
+      if (thrown instanceof BraivoError && thrown.status === 401) {
+        return fail(
+          <>
+            You were signed out. <SignInAgainLink />, then try again: this review stays here.
+          </>,
+        );
+      }
+      fail(
+        thrown instanceof BraivoError
+          ? thrown.reason || "Braivo's AI could not read the file. Try again."
+          : "Braivo's AI could not read the file. Check your connection and try again.",
+      );
+    } finally {
+      setAiReading(false);
+      setStatus(undefined);
+    }
+  }
 
   // Pasted material is long to gather again and only the form holds it, so
   // leaving with anything entered asks first, as does reloading or closing the
   // tab where the browser allows; a changed hash or query is no leaving. Not
-  // while adding: leaving then stops it, and success opens the source. A file
+  // while saving: leaving then stops it, and success opens the source; but
+  // while a PDF or the AI reads, as leaving would lose that reading. A file
   // is told by `files`, as not every DOM fills a file input's `value`.
   const unsaved = () =>
     Boolean(original.current?.files?.length) ||
@@ -225,7 +417,7 @@ function AddSource() {
       current.pathname !== next.pathname &&
       !window.confirm("Leave this page? The material you entered will be lost."),
     enableBeforeUnload: unsaved,
-    disabled: adding,
+    disabled: adding && !reading && !aiReading,
   });
 
   async function submit(event: SubmitEvent<HTMLFormElement>) {
@@ -245,9 +437,22 @@ function AddSource() {
       return title.current!.reportValidity();
     }
     const text = data.get("text") as string;
+    // A PDF's pages, as the owner left them in review.
+    let reviewed: { page: string; text: string }[] | undefined;
+    if (review) {
+      const problem = reviewProblem(review);
+      if (problem) {
+        // Shown first, so the focus can go to the control the problem is about.
+        const page = /^page-(\d+)-/.exec(problem.field ?? "");
+        if (page) setCurrent(Number(page[1]));
+        return fail(problem.message, problem.field);
+      }
+      reviewed = keptPages(review);
+    }
     // Said before sending: Braivo would answer both with a bare status. The
     // file is removed, so adding again keeps the text without it.
     const refusal =
+      !review &&
       file &&
       (file.size > MAX_FILE_BYTES
         ? "The file is over 50 MB, the most Braivo keeps, so it was removed."
@@ -257,6 +462,7 @@ function AddSource() {
     if (refusal) {
       // A file input has no other way to empty it.
       original.current!.value = "";
+      setAttached(undefined);
       const nextStep =
         text.trim() === ""
           ? "Paste its text in the Text field to add the material without it."
@@ -266,22 +472,49 @@ function AddSource() {
     if (text.trim() === "" && !file) {
       return fail(
         organization.aiEnabled === false
-          ? "Paste the material's text."
-          : "Paste the material's text, or attach the file for Braivo's AI to read.",
+          ? "Paste the material's text, or attach its PDF."
+          : "Paste the material's text, or attach the file for Braivo to read.",
         "text",
       );
     }
     // Only without pasted text: beside it, the file is kept unread.
-    if (text.trim() === "" && file) {
+    if (!review && text.trim() === "" && file) {
+      if (readsPdf(file)) return readText(file);
       if (organization.aiEnabled === false) {
         return fail(
-          `${AI_OFF_MESSAGE} It cannot read the file: paste its text in the Text field, and the file is kept as its original.`,
+          `${AI_OFF_MESSAGE} Without it, Braivo reads only a PDF's own text: paste this file's text in the Text field, and the file is kept as its original.`,
           "text",
         );
       }
       const unreadable = readingProblem(file);
       if (unreadable) return fail(unreadable, "original");
     }
+
+    const fields = {
+      organizationId,
+      title: data.get("title") as string,
+      url: optional("url"),
+      language: languageTag(optional("language")),
+    };
+    // The request's size, refused before sending, as Braivo would refuse it
+    // with a bare 413. Before the upload too when the text is known: a file
+    // uploaded for a source refused stays stored. A file's ID is 64 characters.
+    const sized = (input: object): number | undefined => {
+      const bytes = new Blob([JSON.stringify(input)]).size;
+      if (bytes <= MAX_SOURCE_BYTES) return bytes;
+      if ("pages" in input) {
+        fail(
+          `${reviewed ? "The pages' text" : "Braivo's AI read the file, but its text"} is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.`,
+        );
+      } else {
+        fail(
+          "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
+          "text",
+        );
+      }
+    };
+    const known = reviewed ? { pages: reviewed } : text.trim() !== "" ? { text } : undefined;
+    if (known && !sized({ ...fields, original: file && "0".repeat(64), ...known })) return;
 
     const signal = abortOnUnmount();
     // The page, as `remountDeps` tells pages apart: a changed hash is no leaving.
@@ -294,25 +527,12 @@ function AddSource() {
       // Each request bounded by its size, as wifi can stall with no error;
       // retrying is safe, as the same file or source again stores nothing new
       // (docs/adr/0024-idempotent-authoring.md).
-      const fileId = file
-        ? (
-            await braivo.uploadFile(
-              { organizationId, file },
-              { signal: withDeadline(signal, bodyDeadline(file.size)) },
-            )
-          ).fileId
-        : undefined;
-      const source = {
-        organizationId,
-        title: data.get("title") as string,
-        url: optional("url"),
-        language: languageTag(optional("language")),
-        original: fileId,
-      };
+      const fileId = file ? await upload(file, signal) : undefined;
+      const source = { ...fields, original: fileId };
       // No text pasted: the file's own, read page by page, so passages name their pages.
       // Unbounded: reading takes minutes, and a retry spends another AI request.
-      let pages: { page: string; text: string }[] | undefined;
-      if (fileId && text.trim() === "") {
+      let pages = reviewed;
+      if (!pages && fileId && text.trim() === "") {
         if (read.current?.fileId !== fileId) {
           setStatus("Braivo's AI is reading the file, which can take a few minutes…");
           read.current = {
@@ -326,18 +546,8 @@ function AddSource() {
       }
       setStatus("Adding…");
       const input = pages ? { ...source, pages } : { ...source, text };
-      const bytes = new Blob([JSON.stringify(input)]).size;
-      // Said before sending, which Braivo would refuse with a bare 413.
-      if (bytes > MAX_SOURCE_BYTES) {
-        return pages
-          ? fail(
-              "Braivo's AI read the file, but its text is over 10 MB, the most Braivo adds at once: split the file and add it a chapter at a time.",
-            )
-          : fail(
-              "The text is over 10 MB, the most Braivo adds at once: add it a chapter at a time.",
-              "text",
-            );
-      }
+      const bytes = sized(input);
+      if (!bytes) return;
       const sourceId = await braivo.addSource(input, {
         signal: withDeadline(signal, bodyDeadline(bytes)),
       });
@@ -422,14 +632,15 @@ function AddSource() {
               ref={text}
               name="text"
               rows={10}
-              readOnly={adding}
+              // Under review, the pages are what is saved, not this.
+              readOnly={adding || reviewing}
               onInput={clearFieldError}
               {...ariaFor("text", `${id}-text-hint`)}
             />
             <FieldDescription id={`${id}-text-hint`}>
               {organization.aiEnabled === false
-                ? "The material's words as they read: what questions will quote. Paste them; a file attached below is kept as their original, not read."
-                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below for Braivo's AI to read — which can take a few minutes."}
+                ? "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach its PDF below. Text PDFs can be read without AI; scans need their text pasted. A file attached beside pasted text is kept as its original, not read."
+                : "The material's words as they read: what questions will quote. Paste them, or leave this empty and attach the PDF or a photo below. Text PDFs can be read without AI. Scans need their text pasted, or AI, which can take a few minutes."}
             </FieldDescription>
             {fieldError("text")}
           </Field>
@@ -473,11 +684,12 @@ function AddSource() {
               id={`${id}-original`}
               ref={original}
               type="file"
-              // A file input cannot be read-only.
-              disabled={adding}
+              // A file input cannot be read-only. Under review, the file is the one read.
+              disabled={adding || reviewing}
               onChange={(event) => {
                 clearFieldError();
                 const file = event.currentTarget.files?.[0];
+                setAttached(file);
                 const field = title.current;
                 if (!file || !field) return;
                 if (field.value.trim() !== "" && !titleFromFile.current) return;
@@ -494,19 +706,92 @@ function AddSource() {
             </FieldDescription>
             {fieldError("original")}
           </Field>
+          {organization.aiEnabled !== false &&
+            attached?.type === "application/pdf" &&
+            !reviewing && (
+              <FieldSet>
+                <FieldLegend variant="label" id={`${id}-reader`}>
+                  Without pasted text, read
+                </FieldLegend>
+                {/* Named by the legend too: it names the fieldset, not Radix's radiogroup within. */}
+                <RadioGroup
+                  aria-labelledby={`${id}-reader`}
+                  value={reader}
+                  onValueChange={(value) => !adding && setReader(value as "pdf" | "ai")}
+                  className="gap-y-0 md:gap-y-3"
+                >
+                  {(
+                    [
+                      ["pdf", "The text in the PDF, without AI"],
+                      ["ai", "The PDF with Braivo's AI, for a scan: it can take a few minutes"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <div key={value} className="flex items-center gap-2">
+                      <RadioGroupItem value={value} id={`${id}-reader-${value}`} />
+                      <FieldLabel
+                        htmlFor={`${id}-reader-${value}`}
+                        className="min-h-11 font-normal md:min-h-0"
+                      >
+                        {label}
+                      </FieldLabel>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+            )}
+          {review && attached && (
+            <PdfReview
+              key={`review-${opened.count}`}
+              id={id}
+              file={attached}
+              pages={review}
+              onChange={changeReview}
+              current={current}
+              onSelect={setCurrent}
+              readWithAi={organization.aiEnabled === false || opened.byAi ? undefined : readWithAi}
+              locked={adding}
+              error={error}
+            />
+          )}
           {error && !error.field && (
             <Alert key={error.count} variant="destructive">
               <AlertDescription>{error.message}</AlertDescription>
             </Alert>
           )}
           <Field>
-            <Button type="submit" aria-disabled={adding}>
-              Add material
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" aria-disabled={adding}>
+                {reviewing ? "Save source" : "Add material"}
+              </Button>
+              {reading && (
+                <Button type="button" variant="outline" onClick={() => reading.abort()}>
+                  Cancel
+                </Button>
+              )}
+              {reviewing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  aria-disabled={adding}
+                  onClick={(event) => {
+                    if (adding) return;
+                    setReview(undefined);
+                    setError(undefined);
+                    // This button goes with the review: on to what comes next.
+                    event.currentTarget.form
+                      ?.querySelector<HTMLButtonElement>("button[type=submit]")
+                      ?.focus();
+                  }}
+                >
+                  Discard the review
+                </Button>
+              )}
+            </div>
             {/* The step under way while adding, in a live region present from the
                 start so the change is announced. */}
             <MutedText role="status">
-              {status ?? "Adding the same material again adds nothing."}
+              {status ??
+                (review ? savingSummary(review) : "Adding the same material again adds nothing.")}
             </MutedText>
           </Field>
         </FieldGroup>
