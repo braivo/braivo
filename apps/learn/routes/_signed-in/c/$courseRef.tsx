@@ -37,13 +37,7 @@ import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
 import { ReportProblem } from "#components/report-problem";
-import {
-  newlyRetained,
-  SESSION_LENGTH,
-  type Session,
-  SessionEnd,
-  SessionRecap,
-} from "#components/session-end";
+import { SESSION_LENGTH, type Session, SessionEnd, SessionRecap } from "#components/session-end";
 import { formatStandingCounts, StandingMeter } from "#components/standing";
 import { asSessionAuth } from "#lib/auth";
 import {
@@ -280,23 +274,14 @@ function NextStep() {
   // This visit's session: its answers, then its end (`SessionEnd`) once
   // `SESSION_LENGTH` were graded, until Keep going starts another.
   const [session, setSession] = useState<Session>({ answers: 0, right: 0 });
-  const [ended, setEnded] = useState<{ report: LearnerProgressSummary | undefined; at: Date }>();
-  const endNextReview = useNextReview(ended?.report, ended?.at);
-  const { t } = useLingui();
-  // Ten answers end a session, not the practice: with an objective due or
-  // still being learned, there is more now, and the next review's time,
-  // which leaves those out, would send the learner away till then.
-  const moreNow = ended?.report?.objectives.some(
-    (each) => each.phase === "acquiring" || (each.phase === "retaining" && each.due),
-  );
-  // Named as NoActivity's line is, so the two share one message.
-  let endReviewLine: string | undefined;
-  if (moreNow) {
-    endReviewLine = t`More to practise now.`;
-  } else if (endNextReview) {
-    const { objectiveTitle, nextReviewAt } = endNextReview;
-    endReviewLine = t`Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
-  }
+  // The end, with what the selector offers next, read with it: `next`
+  // undefined when that read failed, so nothing is claimed of it.
+  const [ended, setEnded] = useState<{
+    report: LearnerProgressSummary | undefined;
+    next: { activity: Activity | undefined } | undefined;
+    at: Date;
+  }>();
+  const endStep = useEndStep(ended);
   // Said once: the load holds it, so the mark goes as it shows.
   useEffect(() => {
     if (routeLoad.lastAttemptRefused) clearRefusalNotice(user.id, routeLoad.courseId);
@@ -382,12 +367,22 @@ function NextStep() {
     });
   }
 
-  /** Counts a grade, taking the standing before the session's first as its start. */
-  function graded(grade: Grade) {
+  // The attempts this session is done with: those it counted, and those a
+  // load's resend found graded, which it never counts (learner-loop-23). A
+  // grade found again for one, as a reload's resend then Send again find it,
+  // counts nothing; one first confirmed by Send again counts once.
+  const handled = useRef(new Set<string>());
+  useLayoutEffect(() => {
+    if (routeLoad.resumed?.grade) handled.current.add(routeLoad.resumed.attempt.id);
+  }, [routeLoad]);
+
+  /** Counts a grade, as this page saw it, once per attempt. */
+  function graded(attempt: string, grade: Grade) {
+    if (handled.current.has(attempt)) return;
+    handled.current.add(attempt);
     setSession((current) => ({
       answers: current.answers + 1,
       right: current.right + (grade.outcome === "success" ? 1 : 0),
-      start: current.answers === 0 ? load.progress : current.start,
     }));
   }
 
@@ -399,10 +394,21 @@ function NextStep() {
   function continueSession(left: AbortSignal): Promise<{ failed: boolean }> {
     if (session.answers < SESSION_LENGTH) return advance(left);
     return proceed(left, async () => {
-      const report = await readProgress(braivo, load.courseId, user.id, left);
+      const [next, report] = await Promise.all([
+        readActivity(braivo, load.courseId, left).then(
+          (activity) => ({ activity }),
+          // Unknown for now, the score still said; but signed out, or the course
+          // gone, as Continue says it (`proceed`): the course reloads.
+          (error: unknown) => {
+            if (error instanceof BraivoError && [401, 404].includes(error.status)) throw error;
+            return undefined;
+          },
+        ),
+        readProgress(braivo, load.courseId, user.id, left),
+      ]);
       return () => {
         clearUnfinishedAttempt(user.id, load.courseId);
-        setEnded({ report, at: new Date() });
+        setEnded({ report, next, at: new Date() });
       };
     });
   }
@@ -411,6 +417,7 @@ function NextStep() {
   async function keepGoing(left: AbortSignal): Promise<{ failed: boolean }> {
     const result = await advance(left);
     if (!result.failed && !left.aborted) {
+      handled.current = new Set();
       setSession({ answers: 0, right: 0 });
       setEnded(undefined);
     }
@@ -442,7 +449,8 @@ function NextStep() {
         <SessionEnd
           session={session}
           report={ended.report}
-          nextReview={endReviewLine}
+          nextStep={endStep.line}
+          goOn={endStep.goOn}
           onKeepGoing={keepGoing}
         />
       ) : !activity ? (
@@ -575,16 +583,7 @@ function CaughtUp({
   const { t } = useLingui();
   // Rendering stays pure: now is when this notice first showed.
   const [now] = useState(() => new Date());
-  const next = useNextReview(report, now);
-  let status = limitReached
-    ? t`You can start new material again tomorrow. Nothing is due right now.`
-    : t`Nothing is due right now.`;
-  if (next) {
-    const { objectiveTitle, nextReviewAt } = next;
-    status = limitReached
-      ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, ${nextReviewAt}.`
-      : t`Nothing is due right now. Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
-  }
+  const status = useStoppedLine(report, now, limitReached);
   const dayOf = learnerDayIn();
   const today = dayOf(now);
   const todaySummary = formatStandingCounts(
@@ -603,7 +602,7 @@ function CaughtUp({
           <p>{status}</p>
           {session && (
             <div className="mt-2">
-              <SessionRecap session={session} retained={newlyRetained(session, report).size} />
+              <SessionRecap session={session} />
             </div>
           )}
           {todaySummary && (
@@ -618,11 +617,71 @@ function CaughtUp({
       }
     >
       {/* Where the learner stands, as practice pauses (progress-8). */}
-      {report && (
-        <StandingMeter report={report} newlyRetained={session && newlyRetained(session, report)} />
-      )}
+      {report && <StandingMeter report={report} />}
     </Notice>
   );
+}
+
+/**
+ * A session end's next step, from the activity read with it (learner-loop-23),
+ * never inferred from standings, which say what is known, not what can be
+ * practised (a resting task, one unpublished, the day's limit): more now, and
+ * Keep going (`goOn`), only where a question waits; else why practice stops
+ * and when it resumes, Done alone. Unread, it claims nothing, and Keep going
+ * stays, to try again.
+ */
+function useEndStep(
+  ended:
+    | {
+        report: LearnerProgressSummary | undefined;
+        next: { activity: Activity | undefined } | undefined;
+        at: Date;
+      }
+    | undefined,
+): { line: string | undefined; goOn: boolean } {
+  const { t, i18n } = useLingui();
+  const activity = ended?.next?.activity;
+  const limitReached = activity !== undefined && "dailyLimit" in activity;
+  const stopped = useStoppedLine(ended?.report, ended?.at, limitReached);
+  if (!ended?.next) return { line: undefined, goOn: true };
+  if (activity === undefined || limitReached) return { line: stopped, goOn: false };
+  if ("task" in activity) {
+    return isAnswerable(activity.task)
+      ? { line: t`More to practise now.`, goOn: true }
+      : { line: undefined, goOn: false };
+  }
+  if ("retryAfter" in activity) {
+    const continuesAt = new Intl.DateTimeFormat(i18n.locale, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(roundUpToMinute(ended.at.getTime() + activity.retryAfter * 1000));
+    return { line: t`Practice continues at ${continuesAt}.`, goOn: false };
+  }
+  // No activity, or none at all: nothing to promise.
+  return { line: undefined, goOn: false };
+}
+
+/**
+ * Why practice stops for now, in a line: nothing due, or the day's limit on
+ * new material (`limitReached`), and when the next review falls due, if any.
+ * Shared by caught up and a session's end, so the two say it alike.
+ */
+function useStoppedLine(
+  report: LearnerProgressSummary | undefined,
+  now: Date | undefined,
+  limitReached: boolean,
+): string {
+  const { t } = useLingui();
+  const next = useNextReview(report, now);
+  if (!next) {
+    return limitReached
+      ? t`You can start new material again tomorrow. Nothing is due right now.`
+      : t`Nothing is due right now.`;
+  }
+  const { objectiveTitle, nextReviewAt } = next;
+  return limitReached
+    ? t`You can start new material again tomorrow. Next review due: ${objectiveTitle}, ${nextReviewAt}.`
+    : t`Nothing is due right now. Next review due: ${objectiveTitle}, ${nextReviewAt}.`;
 }
 
 /**
@@ -942,7 +1001,7 @@ function Practice({
   /** The answer a reload resent, shown graded or unconfirmed. */
   resumed?: Resumed;
   /** Braivo graded an answer sent here, by Send again too; not one a reload's resend found. */
-  onGraded: (grade: Grade) => void;
+  onGraded: (attempt: string, grade: Grade) => void;
   /** Continue, under this practice's lifetime: whether it failed, keeping it on screen. */
   onContinue: (left: AbortSignal) => Promise<{ failed: boolean }>;
   /** No objective started yet: says how practice goes. */
@@ -1000,7 +1059,7 @@ function Practice({
       if (left?.aborted) return;
       setGrade(answered);
       setUnconfirmedCount(0);
-      onGraded(answered);
+      onGraded(attemptId, answered);
     } catch (error) {
       // Kept unless refused (below): it may have been recorded. Left, not timed
       // out: a timeout is unconfirmed, below.

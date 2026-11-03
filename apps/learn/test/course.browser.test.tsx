@@ -174,7 +174,7 @@ test.each([
   },
 );
 
-test("on a phone, ends a session that retained ten long objectives with Keep going on the first screen", async () => {
+test("on a phone, ends a session with Keep going and Done on the first screen, however long the standing's list", async () => {
   await page.viewport(320, 568);
   const titles = Array.from(
     { length: 10 },
@@ -214,7 +214,6 @@ test("on a phone, ends a session that retained ten long objectives with Keep goi
   }
 
   const keepGoing = await screen.findByRole("button", { name: "Keep going" });
-  expect(screen.getByText("10 newly retained.")).toBeTruthy();
   expect(keepGoing.getBoundingClientRect().bottom).toBeLessThanOrEqual(568);
   expect(
     screen.getByRole("link", { name: "Done" }).getBoundingClientRect().bottom,

@@ -6,7 +6,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
 import { SESSION_LENGTH } from "../components/session-end.tsx";
-import { unfinishedAttempt } from "../lib/unfinished-attempt.ts";
+import { saveUnfinishedAttempt, unfinishedAttempt } from "../lib/unfinished-attempt.ts";
 import { SPANISH_ID, activity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
@@ -63,53 +63,53 @@ const submitAttempt: BraivoClient["submitAttempt"] = async ({ response }) => ({
   correctChoice: 0,
 });
 
-describe("the learn app", () => {
-  test(
-    "ends a session after ten answers with its score, what it retained, and where the learner stands",
-    { timeout: 20_000 },
-    async () => {
-      const nextActivity = vi.fn<BraivoClient["nextActivity"]>(async () => activity);
-      renderAt("/c/4732", {
-        signedIn: true,
-        nextActivity,
-        learnerProgress: vi
-          .fn<BraivoClient["learnerProgress"]>()
-          .mockResolvedValueOnce(standing("unseen"))
-          .mockResolvedValue(standing("retaining")),
-        submitAttempt,
-      });
-      expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
-      expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
+// Most tests here answer ten questions first: under a loaded suite, more than a test's default five seconds.
+describe("the learn app", { timeout: 20_000 }, () => {
+  test("ends a session after ten answers with what it saw, the question waiting, and where the learner stands", async () => {
+    const nextActivity = vi.fn<BraivoClient["nextActivity"]>(async () => activity);
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity,
+      learnerProgress: vi
+        .fn<BraivoClient["learnerProgress"]>()
+        .mockResolvedValueOnce(standing("unseen"))
+        .mockResolvedValue(standing("retaining")),
+      submitAttempt,
+    });
+    expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
+    expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
 
-      await answer(SESSION_LENGTH, [3, 7]);
-      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await answer(SESSION_LENGTH, [3, 7]);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-      const end = await screen.findByRole("region", {
-        name: "Session complete",
-        description: /^8 of 10 right\. 1 newly retained\. Next review due: Past tense, /,
-      });
-      expect(document.activeElement).toBe(end);
-      // Which one, in the standing's list, after the next step however long it runs.
-      const standings = within(end).getByText("1 retained · 1 not started");
-      fireEvent.click(standings);
-      expect(within(end).getByText("Past tense: newly retained")).toBeTruthy();
-      expect(
-        within(end).getByRole("link", { name: "Done" }).compareDocumentPosition(standings) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-      expect(sessionBar()).toBe(`${SESSION_LENGTH} of ${SESSION_LENGTH} answered`);
-      // The end, not an eleventh question; the last answer forgotten, as Continue past it would.
-      expect(nextActivity).toHaveBeenCalledTimes(SESSION_LENGTH);
-      expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
-      expect(within(end).getByRole("link", { name: "Done" }).getAttribute("href")).toBe("/");
+    // What the page saw, not the course's change (Past tense retained since,
+    // which evidence from elsewhere could have done); a question waits next.
+    const end = await screen.findByRole("region", {
+      name: "Session complete",
+      description: "8 of 10 right. More to practise now.",
+    });
+    expect(document.activeElement).toBe(end);
+    // Where the learner stands, as it is, after the actions however long its list runs.
+    const standings = within(end).getByText("1 retained · 1 not started");
+    expect(
+      within(end).getByRole("link", { name: "Done" }).compareDocumentPosition(standings) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(sessionBar()).toBe(`${SESSION_LENGTH} of ${SESSION_LENGTH} answered`);
+    // The end, not an eleventh question, though what comes next was read with it;
+    // the last answer forgotten, as Continue past it would.
+    expect(nextActivity).toHaveBeenCalledTimes(SESSION_LENGTH + 1);
+    expect(screen.queryByText("Past tense of 'hablar'?")).toBeNull();
+    expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
+    expect(within(end).getByRole("link", { name: "Done" }).getAttribute("href")).toBe("/");
 
-      fireEvent.click(within(end).getByRole("button", { name: "Keep going" }));
-      // Ten rounds before it: under a loaded suite, more than the default second.
-      expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 5000 })).toBeTruthy();
-      expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
-      expect(nextActivity).toHaveBeenCalledTimes(SESSION_LENGTH + 1);
-    },
-  );
+    fireEvent.click(within(end).getByRole("button", { name: "Keep going" }));
+    // Ten rounds before it: under a loaded suite, more than the default second.
+    expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 5000 })).toBeTruthy();
+    expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
+    // Read afresh: what the end read is no reservation.
+    expect(nextActivity).toHaveBeenCalledTimes(SESSION_LENGTH + 2);
+  });
 
   test("says the score alone when where the learner stands cannot be read at the end", async () => {
     renderAt("/c/4732", {
@@ -126,7 +126,7 @@ describe("the learn app", () => {
 
     const end = await screen.findByRole("region", {
       name: "Session complete",
-      description: "10 of 10 right.",
+      description: "10 of 10 right. More to practise now.",
     });
     expect(within(end).queryByText(/not started/)).toBeNull();
   });
@@ -148,7 +148,7 @@ describe("the learn app", () => {
     expect(screen.getByRole("region", { name: "Session complete" })).toBeTruthy();
 
     fireEvent.click(keepGoing);
-    expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 5000 })).toBeTruthy();
   });
 
   test("rechecks the account before a session's end, reloading as another signed in meanwhile", async () => {
@@ -210,62 +210,156 @@ describe("the learn app", () => {
     await act(() => router.invalidate());
     const caughtUp = await screen.findByRole("region", { name: "You're caught up" });
     expect(within(caughtUp).getByText("1 of 1 right.")).toBeTruthy();
-    expect(within(caughtUp).getByText("1 newly retained.")).toBeTruthy();
+    // What the page saw alone: no claim on the course's standing, which shows as it is.
+    expect(within(caughtUp).queryByText(/newly|retained\./)).toBeNull();
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
-  test("names as newly retained only what was not started or learning as the session began, and when to come back", async () => {
-    const due = standing("retaining");
-    const objectives = due.objectives.map((each) =>
-      each.phase === "retaining" ? { ...each, due: true } : each,
-    );
-    renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      // Past tense due for review as the session starts, retained again by its end.
-      learnerProgress: vi
-        .fn<BraivoClient["learnerProgress"]>()
-        .mockResolvedValueOnce({ ...due, objectives })
-        .mockResolvedValue(standing("retaining")),
-      submitAttempt,
-    });
+  test.each([
+    ["caught up", undefined, /^Nothing is due right now\. Next review due: Past tense, /, false],
+    [
+      "the day's limit",
+      { dailyLimit: 20 },
+      /^You can start new material again tomorrow\. Next review due: Past tense, /,
+      false,
+    ],
+    // Its tasks resting after a miss: standing says learning, yet nothing to answer now.
+    [
+      "a rest",
+      { objective: activity.objective, retryAfter: 600 },
+      /^Practice continues at /,
+      false,
+    ],
+    [
+      "no task to practise with",
+      { decision: activity.decision, objective: activity.objective },
+      null,
+      false,
+    ],
+  ] as const)(
+    "ends a session that reaches %s with why practice stops, and Done alone",
+    async (_, next, line, goOn) => {
+      const nextActivity = vi
+        .fn<BraivoClient["nextActivity"]>()
+        .mockResolvedValue(activity)
+        .mockResolvedValueOnce(activity);
+      renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity,
+        learnerProgress: async () => standing("retaining"),
+        submitAttempt,
+      });
+      await answer(SESSION_LENGTH);
+      // What the selector offers after the tenth answer.
+      nextActivity.mockResolvedValue(next as Awaited<ReturnType<BraivoClient["nextActivity"]>>);
+      fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+      const end = await screen.findByRole("region", { name: "Session complete" });
+      const said = end.querySelector('[data-slot="empty-description"]')!.textContent!;
+      expect(said.startsWith("10 of 10 right.")).toBe(true);
+      if (line) expect(said.slice("10 of 10 right.".length)).toMatch(line);
+      else expect(said).toBe("10 of 10 right.");
+      expect(within(end).queryByText("More to practise now.")).toBeNull();
+      expect(within(end).queryByRole("button", { name: "Keep going" }) !== null).toBe(goOn);
+      // Done the main action where Keep going is not.
+      expect(within(end).getByRole("link", { name: "Done" }).dataset.variant).toBe("default");
+    },
+  );
+
+  test("offers Keep going and claims nothing of what comes next when that cannot be read", async () => {
+    const nextActivity = vi.fn<BraivoClient["nextActivity"]>(async () => activity);
+    renderAt("/c/4732", { signedIn: true, nextActivity, submitAttempt });
     await answer(SESSION_LENGTH);
+    nextActivity.mockRejectedValueOnce(new BraivoError(500, "unavailable"));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    const end = await screen.findByRole("region", { name: "Session complete" });
-    expect(within(end).queryByText(/newly retained/)).toBeNull();
-    expect(within(end).getByText(/^Next review due: Past tense, /)).toBeTruthy();
+    const end = await screen.findByRole("region", {
+      name: "Session complete",
+      description: "10 of 10 right.",
+    });
+    // Never caught up for want of an answer: Keep going tries again.
+    fireEvent.click(within(end).getByRole("button", { name: "Keep going" }));
+    expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 5000 })).toBeTruthy();
   });
 
-  test("says there is more to practise now, not when the next review falls due, while an objective is due", async () => {
-    const retained = standing("retaining");
-    renderAt("/c/4732", {
-      signedIn: true,
-      nextActivity: async () => activity,
-      learnerProgress: async () => ({
-        ...retained,
-        objectives: [
-          // Past tense retained, its review tomorrow; Greetings due now.
-          retained.objectives[0]!,
-          {
-            objectiveId: "o2",
-            title: "Greetings",
-            phase: "retaining",
-            lastEvidenceAt: "2026-06-01T00:00:00.000Z",
-            stability: 1,
-            retrievability: 0.5,
-            due: true,
-            dueAt: "2026-06-01T12:00:00.000Z",
-          },
-        ],
-      }),
-      submitAttempt,
-    });
+  test("reloads the course, not a session's end, when the course is gone by its tenth answer", async () => {
+    const nextActivity = vi.fn<BraivoClient["nextActivity"]>(async () => activity);
+    renderAt("/c/4732", { signedIn: true, nextActivity, submitAttempt });
     await answer(SESSION_LENGTH);
+    nextActivity.mockRejectedValue(new BraivoError(404, "not found"));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    const end = await screen.findByRole("region", { name: "Session complete" });
-    expect(within(end).getByText("More to practise now.")).toBeTruthy();
-    expect(within(end).queryByText(/^Next review due/)).toBeNull();
+    expect(
+      await screen.findByRole("region", {
+        name: "This course does not exist, or is not one of yours.",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Session complete" })).toBeNull();
+    // Gone, the course takes the answer with it, as on Continue.
+    expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
+  });
+
+  test("counts an answer once when a reload's resend, then Send again, finds its grade again", async () => {
+    const success = { kind: "choice", outcome: "success", correctChoice: 0 } as const;
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockResolvedValueOnce(success)
+      // The reload's resend of the same attempt, lost.
+      .mockRejectedValueOnce(new BraivoError(500, "unavailable"))
+      .mockResolvedValue(success);
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      // Continue's read, signed out for the moment: the course reloads in place.
+      .mockRejectedValueOnce(new BraivoError(401, "session could not be used"))
+      .mockResolvedValue(activity);
+    renderAt("/c/4732", { signedIn: true, nextActivity, submitAttempt });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send again" }));
+    await screen.findByRole("button", { name: "Continue" });
+
+    // One attempt, sent three times: one answer, one right.
+    expect(new Set(submitAttempt.mock.calls.map(([input]) => input.id)).size).toBe(1);
+    expect(sessionBar()).toBe(`1 of ${SESSION_LENGTH} answered`);
+  });
+
+  test("counts an answer first confirmed by Send again, once", async () => {
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 0 });
+    renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send again" }));
+    await screen.findByRole("button", { name: "Continue" });
+
+    expect(sessionBar()).toBe(`1 of ${SESSION_LENGTH} answered`);
+  });
+
+  test("never counts an answer from a visit before, even once a recovery finds its grade again", async () => {
+    saveUnfinishedAttempt("ada", "c1", { id: "before", activity, response: { choice: 0 } });
+    const success = { kind: "choice", outcome: "success", correctChoice: 0 } as const;
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      // The visit's resend finds its grade: not this session's answer.
+      .mockResolvedValueOnce(success)
+      // An in-place recovery resends it again, lost; Send again finds it.
+      .mockRejectedValueOnce(new BraivoError(500, "unavailable"))
+      .mockResolvedValue(success);
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockRejectedValueOnce(new BraivoError(401, "session could not be used"))
+      .mockResolvedValue(activity);
+    renderAt("/c/4732", { signedIn: true, nextActivity, submitAttempt });
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
+    fireEvent.click(await screen.findByRole("button", { name: "Send again" }));
+    await screen.findByRole("button", { name: "Continue" });
+
+    expect(new Set(submitAttempt.mock.calls.map(([input]) => input.id))).toEqual(
+      new Set(["before"]),
+    );
+    expect(sessionBar()).toBe(`0 of ${SESSION_LENGTH} answered`);
   });
 });

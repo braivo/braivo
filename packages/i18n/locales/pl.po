@@ -189,11 +189,6 @@ msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (wkrótce)"
 
-#. A count of objectives a session moved to retained, the noun implied (Polish: temat)
-#: apps/learn/components/session-end.tsx
-msgid "{retained, plural, one {# newly retained.} other {# newly retained.}}"
-msgstr "{retained, plural, one {# nowo utrwalony.} few {# nowo utrwalone.} many {# nowo utrwalonych.} other {# nowo utrwalonego.}}"
-
 #: apps/learn/components/session-end.tsx
 msgid "{right} of {answers} right."
 msgstr "Poprawnie: {right} z {answers}."
@@ -1172,11 +1167,6 @@ msgstr "Nowy temat"
 msgid "New group"
 msgstr "Nowa grupa"
 
-#. After an objective's title: a form fitting any
-#: apps/learn/components/standing.tsx
-msgid "newly retained"
-msgstr "nowo utrwalono"
-
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
@@ -1396,6 +1386,10 @@ msgstr "Hasło"
 msgctxt "domain"
 msgid "Pending"
 msgstr "Oczekująca"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practice continues at {continuesAt}."
+msgstr "Ćwiczenia wznowią się o {continuesAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practice for {objectiveTitle} isn't available right now."
