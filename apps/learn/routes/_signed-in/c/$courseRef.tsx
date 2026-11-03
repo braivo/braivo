@@ -408,7 +408,10 @@ function NextStep() {
   const sessionSoFar = session.answers > 0 ? session : undefined;
 
   return (
-    <>
+    // At least the screen's height, `main`'s bottom padding taken back, so a
+    // graded answer's foot (`PinnedFoot`) sits at the screen's foot however
+    // short the page: Continue in one place every question.
+    <div className="-mb-6 flex min-h-[calc(100dvh-1.5rem)] flex-col">
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
       <FocusBar answers={ended ? SESSION_LENGTH : practising ? session.answers : undefined} />
@@ -467,7 +470,7 @@ function NextStep() {
           }
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -494,7 +497,7 @@ function FocusBar({ answers }: { answers: number | undefined }) {
   const { t } = useLingui();
   return (
     // `-ms-3`: the icon, not its padding, at the page's edge, as a text button's.
-    <div className="-mt-3 mb-4 flex items-center gap-2">
+    <div className="-mt-3 mb-4 flex flex-wrap items-center gap-x-2">
       <Button asChild variant="ghost" size="icon" className="-ms-3 size-11 shrink-0">
         <Link to="/" aria-label={t`Close`}>
           <XIcon aria-hidden="true" className="size-5" />
@@ -510,7 +513,8 @@ function FocusBar({ answers }: { answers: number | undefined }) {
           aria-valuemax={SESSION_LENGTH}
           aria-valuenow={answers}
           aria-valuetext={t`${answers} of ${SESSION_LENGTH} answered`}
-          className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted"
+          // Never squeezed to nothing beside its count: with larger text, the row wraps.
+          className="h-2.5 min-w-24 flex-1 overflow-hidden rounded-full bg-muted"
         >
           <div
             className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
@@ -1040,7 +1044,7 @@ function Practice({
   );
 
   return (
-    <section className="flex flex-col gap-6">
+    <section className="flex flex-1 flex-col gap-6">
       <div id={contextId} className="flex flex-col wrap-break-word">
         <MutedText>
           {t(INTENT_LABELS[decision.intent])} · {objective.title}
@@ -1150,14 +1154,20 @@ function Practice({
               ))}
             </section>
           )}
-          <PinnedFoot>
+          {/* A wrapping row: the verdict, its flag beside it where both fit
+              (else on a line of its own, as larger text needs), then the rest
+              across it. Placed by `order`, read in the page's: the flag after
+              Continue, never between it and the learner. */}
+          <PinnedFoot className="flex-row flex-wrap">
             {/* The verdict where the thumb and eye go next, beside Continue, in
                 the outcome's tint as the options mark it; the question stays in
                 view above. `wrap-anywhere`: a grid, whose column is otherwise as
                 wide as the answer's longest word, such as a link. */}
             <Alert
               className={cn(
-                "wrap-anywhere",
+                // At least 10rem, or the whole row: never squeezed beside the flag, which
+                // fits beside it on a 320px phone at the default text size.
+                "order-1 min-w-[min(100%,10rem)] flex-1 wrap-anywhere",
                 grade.outcome === "success"
                   ? "border-success bg-success/10"
                   : !revealed && "border-destructive bg-destructive/10",
@@ -1181,10 +1191,26 @@ function Practice({
                   <Trans>The answer: {markedAnswer}</Trans>
                 </AlertDescription>
               )}
+              {/* Too long for the foot, the answer is in the page, maybe under
+                  it: a way there, never a step before Continue. */}
+              {correctAnswer && !answerInFoot && (
+                <AlertDescription>
+                  {/* Wrapping, as a phrase in a narrow cell may need to. */}
+                  <Button
+                    variant="link"
+                    className="h-auto min-h-0 p-0 text-left whitespace-normal text-foreground"
+                    onClick={() =>
+                      document.getElementById(answerId)?.scrollIntoView({ block: "center" })
+                    }
+                  >
+                    <Trans>See the answer</Trans>
+                  </Button>
+                </AlertDescription>
+              )}
             </Alert>
             {/* Above Continue, as Send again's; keyed, so failing again mounts a new one. */}
             {continueFailures > 0 && (
-              <Alert key={continueFailures} variant="destructive">
+              <Alert key={continueFailures} variant="destructive" className="order-3">
                 <AlertDescription>
                   <Trans>Could not load the next question. Try again.</Trans>
                 </AlertDescription>
@@ -1193,6 +1219,7 @@ function Practice({
             {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
             <Button
               size="lg"
+              className="order-4 w-full"
               autoFocus
               aria-disabled={continuing}
               // What the page says beyond the verdict, read as the focus lands.
@@ -1205,16 +1232,17 @@ function Practice({
             >
               {continuing ? t`Loading…` : t`Continue`}
             </Button>
+            <ReportProblem
+              triggerClassName="order-2 shrink-0"
+              statusClassName="order-5 basis-full"
+              send={(report, signal) =>
+                braivo.reportAttempt({ courseId, attemptId, ...report }, { signal })
+              }
+              missed={grade.outcome === "failure" && !revealed}
+              passages={grade.passages !== undefined}
+              organizationName={organization?.name}
+            />
           </PinnedFoot>
-          {/* After Continue, never between it and the learner (ADR 0052). */}
-          <ReportProblem
-            send={(report, signal) =>
-              braivo.reportAttempt({ courseId, attemptId, ...report }, { signal })
-            }
-            missed={grade.outcome === "failure" && !revealed}
-            passages={grade.passages !== undefined}
-            organizationName={organization?.name}
-          />
         </>
       )}
     </section>

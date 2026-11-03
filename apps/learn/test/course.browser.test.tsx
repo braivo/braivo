@@ -129,10 +129,113 @@ test("on a phone, keeps a long correct answer in the page, the pinned foot short
   expect(document.querySelectorAll("mark")).toHaveLength(1);
   // Named in full, never cut, outside the foot, which keeps to the verdict and Continue.
   expect(foot.contains(document.querySelector("mark"))).toBe(false);
-  expect(within(foot).getByRole("alert").textContent).toBe("Not quite");
+  expect(within(foot).getByText("Not quite")).toBeTruthy();
   // Read as the focus lands on Continue, as the foot's answer is in its alert.
   expect(
     within(foot).getByRole("button", { name: "Continue", description: `The answer: ${answer}` }),
   ).toBe(document.activeElement);
   expect(foot.getBoundingClientRect().height).toBeLessThan(568 / 3);
+  // A way to it from the verdict, wherever the page left it: on screen, clear of the foot.
+  await userEvent.click(within(foot).getByRole("button", { name: "See the answer" }));
+  const shown = document.querySelector("mark")!.closest("p")!.getBoundingClientRect();
+  await expect
+    .poll(() => document.querySelector("mark")!.closest("p")!.getBoundingClientRect().bottom)
+    .toBeLessThanOrEqual(foot.getBoundingClientRect().top);
+  expect(shown.top).toBeGreaterThanOrEqual(0);
 });
+
+test.each([
+  [375, 667],
+  [1280, 900],
+])(
+  "at %ix%i, puts Continue at the screen's foot after a short answer too, the report flag beside the verdict, after Continue",
+  async (width, height) => {
+    await page.viewport(width, height);
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+    });
+
+    await userEvent.type(await screen.findByRole("textbox"), "ben{Enter}");
+    const next = await screen.findByRole("button", { name: "Continue" });
+    // In one place every question: the foot's padding from the screen's edge, however short the page.
+    expect(height - next.getBoundingClientRect().bottom).toBeLessThanOrEqual(16);
+    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(height);
+    // Beside the verdict, on its line, at the default text size.
+    const flag = screen.getByRole("button", { name: "Report a problem" }).getBoundingClientRect();
+    const verdict = screen.getByRole("alert").getBoundingClientRect();
+    expect(flag.left).toBeGreaterThanOrEqual(verdict.right);
+    expect(flag.top).toBeLessThan(verdict.bottom);
+    // Tab leaves Continue for the flag: nothing between the learner and Continue.
+    expect(document.activeElement).toBe(next);
+    await userEvent.keyboard("{Tab}");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Report a problem" }));
+  },
+);
+
+test("on a phone, keeps a notice its own height in the screen-high course page", async () => {
+  await page.viewport(375, 667);
+  renderAt("/c/4732", { signedIn: true });
+
+  const notice = await screen.findByRole("region", { name: "You're caught up" });
+  // Not stretched to the screen's foot, its words floating in the middle.
+  expect(notice.getBoundingClientRect().height).toBeLessThan(667 / 2);
+});
+
+/** Whether two boxes share any area. */
+function intersects(one: DOMRect, other: DOMRect) {
+  return (
+    one.left < other.right &&
+    other.left < one.right &&
+    one.top < other.bottom &&
+    other.top < one.bottom
+  );
+}
+
+test.each(["en", "pl"] as const)(
+  "on a phone with text twice as large, in %s, keeps the verdict, its flag, and the answer's link apart and on screen",
+  async (locale) => {
+    await activateLocale(locale);
+    document.documentElement.style.fontSize = "225%";
+    onTestFinished(async () => {
+      document.documentElement.style.fontSize = "";
+      await activateLocale("en");
+    });
+    await page.viewport(320, 568);
+    const answer = "Ich bin heute sehr müde, weil ich gestern lange gearbeitet habe.";
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+    });
+
+    await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
+    const alert = await screen.findByRole("alert");
+    const title = alert.querySelector('[data-slot="alert-title"]')!;
+    const flag = screen.getByRole("button", {
+      name: locale === "pl" ? "Zgłoś problem" : "Report a problem",
+    });
+    const link = within(alert).getByRole("button");
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    for (const line of range.getClientRects()) {
+      expect(intersects(flag.getBoundingClientRect(), line)).toBe(false);
+    }
+    expect(link.getBoundingClientRect().right).toBeLessThanOrEqual(
+      alert.getBoundingClientRect().right,
+    );
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+    // The session's bar keeps a width beside its count.
+    expect(screen.getByRole("progressbar").getBoundingClientRect().width).toBeGreaterThan(40);
+    // Taller than half the screen, the foot scrolls with the page rather than covering it.
+    const foot = screen.getByRole("button", {
+      name: locale === "pl" ? "Dalej" : "Continue",
+    }).parentElement!;
+    const { position } = getComputedStyle(foot);
+    expect(position === "sticky" ? foot.getBoundingClientRect().height <= 568 / 2 : true).toBe(
+      true,
+    );
+    expect(["sticky", "static"]).toContain(position);
+  },
+);

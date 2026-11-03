@@ -1582,6 +1582,10 @@ msgstr "Zobacz członków"
 msgid "See sources"
 msgstr "Zobacz materiały źródłowe"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "See the answer"
+msgstr "Zobacz odpowiedź"
+
 #: apps/learn/components/report-problem.tsx
 msgid "Send"
 msgstr "Wyślij"

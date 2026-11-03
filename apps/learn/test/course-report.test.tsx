@@ -67,7 +67,7 @@ describe("reporting a problem with a question", () => {
     const status = screen.getByRole("status");
     expect(status.textContent).toBe("");
     // Hidden visually alone: happy-dom applies no CSS, so `display: none` would pass unseen.
-    expect(status.className).toBe("sr-only");
+    expect(status.classList.contains("sr-only")).toBe(true);
 
     const continueButton = screen.getByRole("button", { name: "Continue" });
     const report = screen.getByRole("button", { name: "Report a problem" });
