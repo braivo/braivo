@@ -820,11 +820,12 @@ describe.skipIf(!connectionString)("the school reading and resolving reports (ac
         scope: { taskId },
       });
       for (;;) {
-        const waiting = await database.execute<{ count: number }>(
+        const [waiting] = await database.execute<{ count: number }>(
           sql`select count(*)::int as count from pg_stat_activity
               where application_name = 'task-report-snapshot-test' and wait_event_type = 'Lock'`,
+          "objects",
         );
-        if (waiting.rows[0]!.count > 0) break;
+        if (waiting!.count > 0) break;
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       await dismiss(shown);

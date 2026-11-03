@@ -70,9 +70,10 @@ function addLesson(organization = organizationId) {
  * `holder` is a transaction, which keeps its connection.
  */
 async function blocks(holder: Transaction, racing: Promise<unknown>): Promise<boolean> {
-  const [{ pid }] = (await holder.execute(sql`select pg_backend_pid() as pid`)).rows as [
-    { pid: number },
-  ];
+  const [{ pid }] = (await holder.execute<{ pid: number }>(
+    sql`select pg_backend_pid() as pid`,
+    "objects",
+  )) as [{ pid: number }];
   let settled = false;
   void racing.then(
     () => (settled = true),
@@ -82,8 +83,9 @@ async function blocks(holder: Transaction, racing: Promise<unknown>): Promise<bo
     // Through `holder`, which waits on nothing, so the check needs no other connection.
     const waiting = await holder.execute(
       sql`select 1 from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))`,
+      "objects",
     );
-    if (waiting.rows.length > 0) return true;
+    if (waiting.length > 0) return true;
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   return false;

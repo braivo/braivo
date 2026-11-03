@@ -346,10 +346,11 @@ describe.skipIf(!connectionString)("signing in on a learn domain by code", () =>
       // Waiting for the row while the code is still good: what this proves.
       await vi.waitFor(
         async () => {
-          const { rows } = await database.execute<{ waiting: number }>(
+          const rows = await database.execute<{ waiting: number }>(
             sql`select count(*)::int as waiting from pg_stat_activity
                 where datname = current_database() and wait_event_type = 'Lock'
                   and query like '%learner_sign_in_code%'`,
+            "objects",
           );
           expect(rows[0]?.waiting).toBeGreaterThan(0);
         },

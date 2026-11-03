@@ -11,7 +11,8 @@ const CLASS_NAME = /^\w{1,64}$/;
 /**
  * An error as a log may hold it: each class down its causes, with its code,
  * such as `DrizzleQueryError < DatabaseError 23505`. Never a message, a stack,
- * or any other field: Drizzle's message carries the query's parameters, and a
+ * or any other field: pg's message can quote a parameter (`invalid input
+ * syntax for type uuid: "…"`), as Drizzle's does with `paramsInErrors`, and a
  * mail transport's names the recipient, so either can hold an email, a
  * learner's answer, or a token.
  */

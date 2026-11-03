@@ -101,6 +101,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       # An exact version: setup-uv publishes no major tags since v8.
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
       # No `bun install`: the script shells out to uvx and needs no packages.
       - run: bun run license:check
