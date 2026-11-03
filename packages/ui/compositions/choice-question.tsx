@@ -96,7 +96,7 @@ export function ChoiceQuestion(props: {
               className={cn(
                 "h-auto flex-wrap justify-between gap-y-1 py-3 text-left whitespace-normal aria-disabled:opacity-100",
                 // Important: the theme's unlayered outline border and fill (globals.css) would win.
-                correct && "border-primary! bg-primary/10!",
+                correct && "border-success! bg-success/10!",
                 wrong && "border-destructive! bg-destructive/10!",
               )}
             >
@@ -115,10 +115,10 @@ export function ChoiceQuestion(props: {
                 )}
                 {text}
               </span>
-              {/* An icon beside each label: in a theme whose primary is near
-                  black, the correct option's colour alone reads as selected. */}
+              {/* An icon and a word beside each mark: colour alone never says
+                  right or wrong (WCAG 1.4.1). */}
               {correct && (
-                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+                <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-success">
                   <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
                   <Trans context="Marks the correct option">Correct</Trans>
                 </span>

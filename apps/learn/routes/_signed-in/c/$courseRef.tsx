@@ -1159,12 +1159,12 @@ function Practice({
               className={cn(
                 "wrap-anywhere",
                 grade.outcome === "success"
-                  ? "border-primary bg-primary/10"
+                  ? "border-success bg-success/10"
                   : !revealed && "border-destructive bg-destructive/10",
               )}
             >
               {grade.outcome === "success" ? (
-                <CircleCheckIcon aria-hidden="true" className="text-primary!" />
+                <CircleCheckIcon aria-hidden="true" className="text-success!" />
               ) : revealed ? (
                 <EyeIcon aria-hidden="true" />
               ) : (

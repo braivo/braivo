@@ -93,7 +93,7 @@ export function TypedQuestion(props: {
             className={cn(
               "h-11 text-base",
               // Important: the theme's unlayered field border and fill (globals.css) would win.
-              sent !== undefined && outcome === "success" && "border-primary! bg-primary/10!",
+              sent !== undefined && outcome === "success" && "border-success! bg-success/10!",
             )}
           />
           {/* Held close, as the field's caption, so under the field, not under
