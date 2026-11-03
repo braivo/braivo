@@ -174,6 +174,53 @@ test.each([
   },
 );
 
+test("on a phone, ends a session that retained ten long objectives with Keep going on the first screen", async () => {
+  await page.viewport(320, 568);
+  const titles = Array.from(
+    { length: 10 },
+    (_, index) => `Objective ${index + 1}: greet someone politely at a particular time of day`,
+  );
+  const standing = (phase: "unseen" | "retaining") => ({
+    modelVersion: "v1",
+    asOf: "2026-06-01T00:00:00.000Z",
+    repeatedMissesThreshold: 3,
+    lastPractisedAt: null,
+    objectives: titles.map((title, index) =>
+      phase === "unseen"
+        ? { objectiveId: `o${index}`, title, phase }
+        : {
+            objectiveId: `o${index}`,
+            title,
+            phase,
+            lastEvidenceAt: "2026-06-01T00:00:00.000Z",
+            stability: 1,
+            retrievability: 1,
+            due: false,
+            dueAt: "2026-06-02T00:00:00.000Z",
+          },
+    ),
+  });
+  let read = 0;
+  renderAt("/c/4732", {
+    signedIn: true,
+    nextActivity: async () => typedActivity,
+    learnerProgress: async () => standing(read++ === 0 ? "unseen" : "retaining"),
+    submitAttempt: async () => ({ kind: "typed", outcome: "success", correctAnswer: "bin" }),
+  });
+
+  for (let each = 0; each < 10; each++) {
+    await userEvent.type(await screen.findByRole("textbox"), "bin{Enter}");
+    await userEvent.click(await screen.findByRole("button", { name: "Continue" }));
+  }
+
+  const keepGoing = await screen.findByRole("button", { name: "Keep going" });
+  expect(screen.getByText("10 newly retained.")).toBeTruthy();
+  expect(keepGoing.getBoundingClientRect().bottom).toBeLessThanOrEqual(568);
+  expect(
+    screen.getByRole("link", { name: "Done" }).getBoundingClientRect().bottom,
+  ).toBeLessThanOrEqual(568);
+}, 30_000);
+
 test("on a phone, keeps a notice its own height in the screen-high course page", async () => {
   await page.viewport(375, 667);
   renderAt("/c/4732", { signedIn: true });

@@ -37,7 +37,13 @@ import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
 import { ReportProblem } from "#components/report-problem";
-import { SESSION_LENGTH, type Session, SessionEnd, SessionRecap } from "#components/session-end";
+import {
+  newlyRetained,
+  SESSION_LENGTH,
+  type Session,
+  SessionEnd,
+  SessionRecap,
+} from "#components/session-end";
 import { formatStandingCounts, StandingMeter } from "#components/standing";
 import { asSessionAuth } from "#lib/auth";
 import {
@@ -491,7 +497,8 @@ function LastAttemptRefused() {
 
 /**
  * The course page's only chrome: Close, back to the list, and while practising,
- * the session's progress, `answers` of `SESSION_LENGTH`, moving with each grade.
+ * the session's progress, `answers` of `SESSION_LENGTH`, as a bar and in words,
+ * moving with each grade.
  */
 function FocusBar({ answers }: { answers: number | undefined }) {
   const { t } = useLingui();
@@ -521,6 +528,13 @@ function FocusBar({ answers }: { answers: number | undefined }) {
             style={{ width: `${(answers / SESSION_LENGTH) * 100}%` }}
           />
         </div>
+      )}
+      {/* Said in words too, so the bar reads as this session's, not the
+          course's; the bar says it to a screen reader already. */}
+      {answers !== undefined && (
+        <span aria-hidden="true" className="shrink-0 text-sm text-muted-foreground tabular-nums">
+          {t`${answers} of ${SESSION_LENGTH}`}
+        </span>
       )}
     </div>
   );
@@ -575,7 +589,7 @@ function CaughtUp({
           <p>{status}</p>
           {session && (
             <div className="mt-2">
-              <SessionRecap session={session} report={report} />
+              <SessionRecap session={session} retained={newlyRetained(session, report).size} />
             </div>
           )}
           {todaySummary && (
@@ -590,7 +604,9 @@ function CaughtUp({
       }
     >
       {/* Where the learner stands, as practice pauses (progress-8). */}
-      {report && <StandingMeter report={report} />}
+      {report && (
+        <StandingMeter report={report} newlyRetained={session && newlyRetained(session, report)} />
+      )}
     </Notice>
   );
 }

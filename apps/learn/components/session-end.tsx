@@ -4,6 +4,7 @@
 import type { LearnerProgressSummary } from "@braivo/server/client";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function SessionEnd({
   onKeepGoing: (left: AbortSignal) => Promise<{ failed: boolean }>;
 }) {
   const { t } = useLingui();
+  const retained = newlyRetained(session, report);
   const [going, setGoing] = useState(false);
   // Failures in a row, each a new alert (docs/apps.md).
   const [failures, setFailures] = useState(0);
@@ -77,12 +79,11 @@ export function SessionEnd({
       title={t`Session complete`}
       description={
         <>
-          <SessionRecap session={session} report={report} />
+          <SessionRecap session={session} retained={retained.size} />
           {nextReview && <p className="mt-2">{nextReview}</p>}
         </>
       }
     >
-      {report && <StandingMeter report={report} />}
       {failures > 0 && (
         <Alert key={failures} variant="destructive">
           <AlertDescription>
@@ -100,42 +101,52 @@ export function SessionEnd({
           <Trans>Done</Trans>
         </Link>
       </Button>
+      {/* After the next step: its list may run long, never pushing the step away. */}
+      {report && <StandingMeter report={report} newlyRetained={retained} />}
     </Notice>
   );
 }
 
 /**
- * What a session did: how many of its answers were right, and the objectives
- * it brought to retained, from not started or learning as it began; a review
- * kept retained is not news. Without both standings, the score alone.
+ * The objectives a session brought to retained, by ID: from not started or
+ * learning as it began; a review kept retained is not news. None without both
+ * standings.
  */
-export function SessionRecap({
-  session,
-  report,
-}: {
-  session: Session;
-  report: LearnerProgressSummary | undefined;
-}) {
-  const { t, i18n } = useLingui();
+export function newlyRetained(
+  session: Session,
+  report: LearnerProgressSummary | undefined,
+): Set<string> {
   const before = new Map(session.start?.objectives.map((each) => [each.objectiveId, each]));
-  const newlyRetained = (report?.objectives ?? []).filter((now) => {
-    const then = before.get(now.objectiveId);
-    if (!then || labelOf(now) !== "retained") return false;
-    const was = labelOf(then);
-    return was === "notStarted" || was === "learning";
-  });
-  const titles = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(
-    newlyRetained.map(({ title }) => title),
+  return new Set(
+    (report?.objectives ?? [])
+      .filter((now) => {
+        const then = before.get(now.objectiveId);
+        if (!then || labelOf(now) !== "retained") return false;
+        const was = labelOf(then);
+        return was === "notStarted" || was === "learning";
+      })
+      .map(({ objectiveId }) => objectiveId),
   );
+}
+
+/**
+ * What a session did, in a line or two however many objectives moved: how
+ * many of its answers were right, and how many objectives it newly retained.
+ * Which ones, the standing's list says (`StandingMeter`'s `newlyRetained`),
+ * below the next step rather than before it.
+ */
+export function SessionRecap({ session, retained }: { session: Session; retained: number }) {
+  const { t } = useLingui();
   const { answers, right } = session;
   return (
     <>
       <p>{t`${right} of ${answers} right.`}</p>
-      {newlyRetained.length > 0 && (
+      {retained > 0 && (
         <p className="mt-2">
           {t({
-            message: `Newly retained: ${titles}.`,
-            comment: "Objectives this session moved to retained, joined as a list",
+            message: plural(retained, { one: "# newly retained.", other: "# newly retained." }),
+            comment:
+              "A count of objectives a session moved to retained, the noun implied (Polish: temat)",
           })}
         </p>
       )}

@@ -86,10 +86,17 @@ describe("the learn app", () => {
 
       const end = await screen.findByRole("region", {
         name: "Session complete",
-        description: /^8 of 10 right\. Newly retained: Past tense\. Next review due: Past tense, /,
+        description: /^8 of 10 right\. 1 newly retained\. Next review due: Past tense, /,
       });
       expect(document.activeElement).toBe(end);
-      expect(within(end).getByText("1 retained · 1 not started")).toBeTruthy();
+      // Which one, in the standing's list, after the next step however long it runs.
+      const standings = within(end).getByText("1 retained · 1 not started");
+      fireEvent.click(standings);
+      expect(within(end).getByText("Past tense: newly retained")).toBeTruthy();
+      expect(
+        within(end).getByRole("link", { name: "Done" }).compareDocumentPosition(standings) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
       expect(sessionBar()).toBe(`${SESSION_LENGTH} of ${SESSION_LENGTH} answered`);
       // The end, not an eleventh question; the last answer forgotten, as Continue past it would.
       expect(nextActivity).toHaveBeenCalledTimes(SESSION_LENGTH);
@@ -203,7 +210,7 @@ describe("the learn app", () => {
     await act(() => router.invalidate());
     const caughtUp = await screen.findByRole("region", { name: "You're caught up" });
     expect(within(caughtUp).getByText("1 of 1 right.")).toBeTruthy();
-    expect(within(caughtUp).getByText("Newly retained: Past tense.")).toBeTruthy();
+    expect(within(caughtUp).getByText("1 newly retained.")).toBeTruthy();
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
@@ -226,7 +233,7 @@ describe("the learn app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     const end = await screen.findByRole("region", { name: "Session complete" });
-    expect(within(end).queryByText(/^Newly retained/)).toBeNull();
+    expect(within(end).queryByText(/newly retained/)).toBeNull();
     expect(within(end).getByText(/^Next review due: Past tense, /)).toBeTruthy();
   });
 

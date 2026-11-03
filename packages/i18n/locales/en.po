@@ -61,6 +61,10 @@ msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "{answers} of {SESSION_LENGTH}"
+msgstr "{answers} of {SESSION_LENGTH}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "{answers} of {SESSION_LENGTH} answered"
 msgstr "{answers} of {SESSION_LENGTH} answered"
 
@@ -184,6 +188,11 @@ msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added wi
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (coming soon)"
+
+#. A count of objectives a session moved to retained, the noun implied (Polish: temat)
+#: apps/learn/components/session-end.tsx
+msgid "{retained, plural, one {# newly retained.} other {# newly retained.}}"
+msgstr "{retained, plural, one {# newly retained.} other {# newly retained.}}"
 
 #: apps/learn/components/session-end.tsx
 msgid "{right} of {answers} right."
@@ -1163,10 +1172,10 @@ msgstr "New"
 msgid "New group"
 msgstr "New group"
 
-#. Objectives this session moved to retained, joined as a list
-#: apps/learn/components/session-end.tsx
-msgid "Newly retained: {titles}."
-msgstr "Newly retained: {titles}."
+#. After an objective's title: a form fitting any
+#: apps/learn/components/standing.tsx
+msgid "newly retained"
+msgstr "newly retained"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Next review due: {objectiveTitle}, {nextReviewAt}."

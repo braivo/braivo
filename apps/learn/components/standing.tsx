@@ -85,12 +85,25 @@ const METER_FILLS: Record<ProgressLabel, string> = {
   notStarted: "",
 };
 
+/** Beside an objective's title, for one a session just brought to retained. */
+const NEWLY_RETAINED = msg({
+  message: "newly retained",
+  comment: "After an objective's title: a form fitting any",
+});
+
 /**
  * Where the learner stands (progress-8): a meter, each standing a segment in
  * proportion to its objectives, over its counts, which open into each objective
- * by title. Nothing for a report with no objectives.
+ * by title, those in `newlyRetained` (IDs) said so. Nothing for a report with
+ * no objectives.
  */
-export function StandingMeter({ report }: { report: LearnerProgressSummary }) {
+export function StandingMeter({
+  report,
+  newlyRetained,
+}: {
+  report: LearnerProgressSummary;
+  newlyRetained?: ReadonlySet<string>;
+}) {
   const { t } = useLingui();
   const counts = formatStandingCounts(report.objectives, t);
   if (counts.length === 0) return null;
@@ -118,7 +131,12 @@ export function StandingMeter({ report }: { report: LearnerProgressSummary }) {
         <ul className="flex flex-col gap-1">
           {report.objectives.map((standing) => (
             <li key={standing.objectiveId}>
-              {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
+              {standing.title}:{" "}
+              {t(
+                newlyRetained?.has(standing.objectiveId)
+                  ? NEWLY_RETAINED
+                  : PROGRESS_LABELS[labelOf(standing)].alone,
+              )}
             </li>
           ))}
         </ul>
