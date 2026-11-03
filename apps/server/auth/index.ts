@@ -6,7 +6,14 @@
 // See docs/adr/0006-better-auth.md.
 
 export type { Auth } from "./auth.ts";
-export { AUTHOR_SCOPE, createAuth, ORGANIZATION_CLAIM, SIGN_IN_CODE } from "./auth.ts";
+export {
+  AUTHOR_SCOPE,
+  createAuth,
+  INVITATION_DAYS,
+  MEMBERSHIP_LIMIT,
+  ORGANIZATION_CLAIM,
+  SIGN_IN_CODE,
+} from "./auth.ts";
 export type { ClientMetadataFetch } from "./client-metadata.ts";
 export { createInvitation } from "./invitations.ts";
 export { addMember, createOrganization, createOwnedOrganization } from "./organization.ts";

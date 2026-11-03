@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { invitation, organizationDomain } from "@braivo/db/schema";
+import { invitation, invitationMailClaim, organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -527,34 +527,55 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
   });
 
-  test("invites, lists invitations, and reads one in the shapes it declares", async () => {
+  test("invites, resends, lists invitations, and reads one in the shapes it declares", async () => {
     const asAdmin = { headers: { cookie: teacherCookie } };
     // None an earlier run left, so they never pile up to the pending limit.
     await database.delete(invitation).where(eq(invitation.organizationId, organizationId));
     const email = `contract-invited-${crypto.randomUUID()}@example.com`;
 
-    const made = await client.invite(organizationId, { email, role: "author" }, asAdmin);
+    const submitted = await client.invite(
+      organizationId,
+      { emails: [email, email.toUpperCase(), learnerEmail, "nobody"], role: "author" },
+      asAdmin,
+    );
 
-    if (made.outcome !== "invited") throw new Error(`Inviting came to "${made.outcome}".`);
-    expect(made).toMatchObject({ invitation: { email, role: "author" }, emailSent: true });
+    expect(submitted.membersLeft).toEqual(expect.any(Number));
+    const [made, member, nobody] = submitted.results;
+    if (made?.outcome !== "invited") throw new Error(`Inviting came to "${made?.outcome}".`);
+    expect(made).toMatchObject({ email, invitation: { email, role: "author" }, emailSent: true });
     expect(typeof made.invitation.expiresAt).toBe("string");
-    expect(await client.invite(organizationId, { email, role: "admin" }, asAdmin)).toEqual({
-      outcome: "already invited",
-      role: "author",
-    });
+    expect(member).toEqual({ email: learnerEmail, outcome: "already a member", roles: ["member"] });
+    expect(nobody).toEqual({ email: "nobody", outcome: "refused", code: "EMAIL_INVALID" });
+    expect(submitted.results).toHaveLength(3);
     expect(
-      await client.invite(organizationId, { email: learnerEmail, role: "admin" }, asAdmin),
-    ).toEqual({ outcome: "already a member", roles: ["member"] });
+      (await client.invite(organizationId, { emails: [email], role: "admin" }, asAdmin)).results,
+    ).toEqual([{ email, outcome: "already invited", role: "author" }]);
     await expect(
-      client.invite(organizationId, { email: "nobody", role: "author" }, asAdmin),
-    ).rejects.toMatchObject({ status: 400, code: "EMAIL_INVALID" });
+      client.invite(organizationId, { emails: [], role: "author" }, asAdmin),
+    ).rejects.toMatchObject({ status: 400, code: "EMAILS_INVALID" });
+    await expect(
+      client.resendInvitation(organizationId, made.invitation.id, asAdmin),
+    ).rejects.toMatchObject({ status: 429, code: "RECIPIENT_COOLDOWN" });
+    await database
+      .update(invitationMailClaim)
+      .set({ claimedAt: new Date(Date.now() - 2 * 60_000) })
+      .where(eq(invitationMailClaim.email, email));
+    const resent = await client.resendInvitation(organizationId, made.invitation.id, asAdmin);
+    expect(resent).toMatchObject({
+      email,
+      outcome: "invited",
+      invitation: { id: made.invitation.id, email, role: "author" },
+      emailSent: true,
+    });
+    expect(typeof resent.invitation.expiresAt).toBe("string");
     const listed = await client.listInvitations(organizationId, asAdmin);
-    expect(listed.find((each) => each.email === email)).toEqual({
+    expect(listed.membersLeft).toEqual(submitted.membersLeft);
+    expect(listed.invitations.find((each) => each.email === email)).toEqual({
       id: made.invitation.id,
       email,
       role: "author",
       inviter: { name: expect.any(String) },
-      expiresAt: made.invitation.expiresAt,
+      expiresAt: resent.invitation.expiresAt,
     });
     await expect(
       client.listInvitations(organizationId, { headers: { cookie: learnerCookie } }),

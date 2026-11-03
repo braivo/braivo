@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 
 import {
   addSource,
@@ -16,7 +16,7 @@ import {
 } from "../application/index.ts";
 import { sliceSource } from "../content/index.ts";
 import type { FileStore } from "../storage/index.ts";
-import { type Guards, jsonBody, limitBody } from "./guards.ts";
+import { disableBunIdleTimeout, type Guards, jsonBody, limitBody } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 
 /**
@@ -94,21 +94,6 @@ const MAX_FILE_BYTES = 50_000_000;
  * citation is easiest to review at.
  */
 const MAX_SOURCE_BYTES = 10_000_000;
-
-/**
- * Lifts Bun's idle timeout from this request, for a call to the installation's
- * model. Bun, Hono's `env` here, closes a connection idle for ten seconds, and
- * a model reading a chapter takes longer: the request waits instead for as long
- * as the model may take (`ai`'s own timeout). Last before the use case, once
- * the request is known valid. Elsewhere `env` is something else, such as a
- * Worker's bindings, so `timeout` is called only if callable: a binding is a
- * value or a resource object, never a bare function. Not `typeof Bun`, which
- * `bunFree` refuses here.
- */
-function disableBunIdleTimeout(context: Context): void {
-  const server = context.env as { timeout?: unknown } | undefined;
-  if (typeof server?.timeout === "function") server.timeout(context.req.raw, 0);
-}
 
 /** What the materials routes use of `ApiOptions`, with `cachedDatabase` resolved. */
 type MaterialsOptions = {

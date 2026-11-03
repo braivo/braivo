@@ -72,19 +72,30 @@ describe("the console in Polish", () => {
   test("invites and accepts in Polish, the school's name quoted as a name", async () => {
     renderAt("/example/settings/members", {
       braivo: {
-        listInvitations: async () => [
-          {
-            id: "inv-1",
-            email: "ada@school.example",
-            role: "author",
-            inviter: { name: "Olive Owner" },
-            expiresAt: "2026-06-08T12:00:00.000Z",
-          },
-        ],
+        listInvitations: async () => ({
+          membersLeft: 3,
+          invitations: [
+            {
+              id: "inv-1",
+              email: "ada@school.example",
+              role: "author",
+              inviter: { name: "Olive Owner" },
+              expiresAt: "2026-06-08T12:00:00.000Z",
+            },
+          ],
+        }),
       },
     });
 
-    expect(await screen.findByRole("button", { name: "Wyślij zaproszenie" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Wyślij zaproszenia" })).toBeTruthy();
+    expect(screen.getByLabelText("Adresy e-mail")).toBeTruthy();
+    // 3 "few" in Polish.
+    expect(
+      screen.getByText("Miejsce dla jeszcze 3 członków. Zaproszenie nie rezerwuje miejsca."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Wyślij ponownie do ada@school.example" }),
+    ).toBeTruthy();
     const roles = screen.getByRole("radiogroup", { name: "Rola" });
     expect(within(roles).getByRole("radio", { name: "Autor" })).toBeTruthy();
     expect(within(roles).getByRole("radio", { name: "Uczeń" }).getAttribute("aria-checked")).toBe(

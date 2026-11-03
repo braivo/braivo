@@ -108,17 +108,19 @@ export {
   listConnections,
 } from "./connections.ts";
 export {
-  INVITABLE_ROLES,
+  type CreateInvitationResult,
   type InvitableRole,
+  type InvitationBatchResult,
+  type InvitationResult,
   type InvitationPage,
   InvitationRefused,
-  type Invited,
   inviteToOrganization,
   listInvitations,
   type PendingInvitation,
   readInvitationPage,
+  resendInvitation,
 } from "./invitations.ts";
-export { NotPermitted } from "./permission.ts";
+export { NotPermitted, SignedOut } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";
 /** Persistence's shapes the use cases answer, named here as `ConflictingEvidence` is below. */

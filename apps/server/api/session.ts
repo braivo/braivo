@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { getIP } from "@better-auth/core/utils/ip";
 import type { Database } from "@braivo/db";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -26,6 +25,7 @@ import {
   HANDOFF_COOKIE,
   jsonBody,
   LEARNER_COOKIE,
+  perClientLimit,
   presentsToolCredential,
 } from "./guards.ts";
 import type { SignInSettings } from "./types.ts";
@@ -50,32 +50,6 @@ const signInBody = z.object({
   code: z.string().regex(new RegExp(`^\\d{${SIGN_IN_CODE.digits}}$`)),
 });
 const nameBody = z.object({ name: z.string().trim().min(1).max(MAX_NAME_LENGTH) });
-
-/**
- * At most `max` requests a minute to a route from one client, told apart as
- * Better Auth's limiter tells them (`getIP`: `X-Forwarded-For`, true only
- * behind a proxy that sets it, IPv6 by its /64); unlimited for one it cannot
- * tell. Counts are dropped whole each minute: one lookup a request, one
- * minute's clients in memory. Per process and best effort, as Better Auth's
- * are; the database holds the one code a minute per address.
- */
-function perClientLimit(auth: Auth, max: number) {
-  let counts = new Map<string, number>();
-  let minuteEndsAt = 0;
-  return createMiddleware(async (context, next) => {
-    const client = getIP(context.req.raw, auth.options);
-    if (!client) return next();
-    const now = Date.now();
-    if (now >= minuteEndsAt) {
-      counts = new Map();
-      minuteEndsAt = now + 60_000;
-    }
-    const count = (counts.get(client) ?? 0) + 1;
-    if (count > max) return context.body(null, 429);
-    counts.set(client, count);
-    return next();
-  });
-}
 
 /** Sized as Better Auth's code limits: a school's classes behind one address (access-2). */
 const CLIENT_LIMIT = 120;

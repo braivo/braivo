@@ -5,11 +5,13 @@ import {
   BraivoError,
   type InvitationPage,
   type InvitationResult,
+  type InvitationBatchResult,
   type PendingInvitation,
 } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
+import { PAGE_SCROLLER } from "../lib/page-scroller.ts";
 import { renderAt } from "./render.tsx";
 
 // Inviting from Members (access-50, 51) and accepting at `/invitations/<id>`
@@ -56,13 +58,29 @@ function stubClipboard() {
 const acceptAnswering = (error?: { status: number; code?: string }) =>
   vi.fn(async (_path: string, _options: unknown) => ({ data: error ? null : {}, error }));
 
+/** What a list of invitations answers: those waiting, and room for 995 more members. */
+const waiting = (invitations: PendingInvitation[]) => ({ invitations, membersLeft: 995 });
+
+/** A submission inviting each address, its mail sent. */
+const allInvited = (emails: string[], role: string): InvitationBatchResult => ({
+  results: emails.map((email, index) => ({
+    email,
+    outcome: "invited",
+    invitation: { ...pending(`inv-${index + 1}`, email), role },
+    emailSent: true,
+  })),
+  membersLeft: 995,
+});
+
 /** Fills Members' invite form and sends it. */
-async function invite(email: string, role: "Learner" | "Author" | "Admin" = "Author") {
-  fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: email } });
+async function invite(emails: string, role: "Learner" | "Author" | "Admin" = "Author") {
+  fireEvent.change(await screen.findByLabelText("Email addresses"), {
+    target: { value: emails },
+  });
   fireEvent.click(
     within(screen.getByRole("radiogroup", { name: "Role" })).getByRole("radio", { name: role }),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
 }
 
 describe("invitations", () => {
@@ -70,20 +88,18 @@ describe("invitations", () => {
     const writeText = stubClipboard();
     const invited: PendingInvitation[] = [];
     const inviteStub = vi.fn(
-      async (_organizationId: string, invitation: { email: string; role: string }) => {
-        invited.push(pending("inv-1", invitation.email));
-        return {
-          outcome: "invited",
-          invitation: { ...pending("inv-1", invitation.email), role: invitation.role },
-          emailSent: true,
-        } satisfies InvitationResult;
+      async (_organizationId: string, submission: { emails: string[]; role: string }) => {
+        // Normalized, as Braivo stores it.
+        const emails = submission.emails.map((email) => email.trim().toLowerCase());
+        invited.push(pending("inv-1", emails[0]!));
+        return allInvited(emails, submission.role);
       },
     );
     const $fetch = acceptAnswering();
     const { router } = renderAt("/example/settings/members", {
       braivo: {
         invite: inviteStub,
-        listInvitations: async () => [...invited],
+        listInvitations: async () => waiting([...invited]),
         invitation: async () => forOlive(),
         listCourses: async () => [],
       },
@@ -94,14 +110,12 @@ describe("invitations", () => {
 
     expect(inviteStub).toHaveBeenCalledWith(
       "org-1",
-      { email: "ada@school.example", role: "author" },
+      { emails: ["Ada@School.Example"], role: "author" },
       expect.objectContaining({ headers: { "Accept-Language": "en" } }),
     );
     await vi.waitFor(() =>
       expect(
-        screen
-          .getAllByRole("status")
-          .some((status) => status.textContent === "Invitation sent to ada@school.example."),
+        screen.getAllByRole("status").some((status) => status.textContent === "1 of 1 invited."),
       ).toBe(true),
     );
     const listed = within(await screen.findByRole("region", { name: "Invitations" }));
@@ -130,37 +144,230 @@ describe("invitations", () => {
     );
   });
 
-  test("says when the invitation's email could not be sent, and what an address already holds", async () => {
-    const answers: InvitationResult[] = [
-      {
-        outcome: "invited",
-        invitation: { ...pending("inv-2", "bo@school.example") },
-        emailSent: false,
-      },
-      { outcome: "already a member", roles: ["author"] },
-      { outcome: "already invited", role: "admin" },
-    ];
+  test("invites a class at once, reporting each address and keeping those to try again", async () => {
+    const inviteStub = vi.fn<
+      (
+        organizationId: string,
+        submission: unknown,
+        options?: unknown,
+      ) => Promise<InvitationBatchResult>
+    >(async () => ({
+      results: [
+        {
+          email: "ada@school.example",
+          outcome: "invited",
+          invitation: pending("inv-1", "ada@school.example"),
+          emailSent: true,
+        },
+        {
+          email: "bo@school.example",
+          outcome: "invited",
+          invitation: pending("inv-2", "bo@school.example"),
+          emailSent: false,
+        },
+        { email: "cy@school.example", outcome: "already invited", role: "admin" },
+        { email: "avery@school.example", outcome: "already a member", roles: ["author"] },
+        { email: "nobody", outcome: "refused", code: "EMAIL_INVALID" },
+        { email: "dan@school.example", outcome: "refused", code: "RECIPIENT_DAILY_LIMIT" },
+        { email: "eve@school.example", outcome: "refused", code: "RECIPIENT_COOLDOWN" },
+        { email: "fay@school.example", outcome: "refused", code: "ORGANIZATION_HOURLY_LIMIT" },
+        { email: "gil@school.example", outcome: "refused", code: "PENDING_LIMIT" },
+        { email: "hal@school.example", outcome: "failed" },
+      ],
+      membersLeft: 994,
+    }));
+    let membersLeft = 995;
     renderAt("/example/settings/members", {
-      braivo: { invite: async () => answers.shift()!, listInvitations: async () => [] },
+      braivo: {
+        invite: async (...args: Parameters<typeof inviteStub>) => {
+          membersLeft = 994;
+          return inviteStub(...args);
+        },
+        listInvitations: async () => ({ invitations: [], membersLeft }),
+      },
     });
 
-    await invite("bo@school.example");
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "bo@school.example is invited, but the email could not be sent. Copy the link below and send it to them.",
+    expect(
+      await screen.findByText("Room for 995 more members. An invitation reserves no place."),
+    ).toBeTruthy();
+    await invite(
+      "ada@school.example, bo@school.example; cy@school.example\navery@school.example nobody dan@school.example eve@school.example fay@school.example gil@school.example hal@school.example ada@school.example",
     );
-    await invite("avery@school.example", "Admin");
+
+    expect(inviteStub).toHaveBeenCalledWith(
+      "org-1",
+      {
+        emails: [
+          "ada@school.example",
+          "bo@school.example",
+          "cy@school.example",
+          "avery@school.example",
+          "nobody",
+          "dan@school.example",
+          "eve@school.example",
+          "fay@school.example",
+          "gil@school.example",
+          "hal@school.example",
+          "ada@school.example",
+        ],
+        role: "author",
+      },
+      expect.anything(),
+    );
+    const results = within(await screen.findByRole("list", { name: "Results" }));
+    expect(results.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "ada@school.example: Invitation sent.",
+      expect.stringMatching(
+        /^bo@school\.example: Invited, but the email may not have gone\. Copy link/,
+      ),
+      "cy@school.example: Already invited, as Admin. The invitation stays as it is.",
+      "avery@school.example: Already a member, as Author.",
+      "nobody: Not a valid email address.",
+      "dan@school.example: Sent three invitations in the last 24 hours. Try again later.",
+      "eve@school.example: Sent an invitation a moment ago. Try again in a minute.",
+      "fay@school.example: 300 invitations were sent from here this hour. Try again later.",
+      "gil@school.example: Too many invitations are waiting. Wait for some to be accepted or expire.",
+      "hal@school.example: Could not be invited. Try again.",
+    ]);
+    // The summary says what needs doing, not only how many went.
+    expect(
+      screen
+        .getAllByRole("status")
+        .some(
+          ({ textContent }) =>
+            textContent ===
+            "2 of 10 invited. 1 email may not have gone: copy its link below. 6 addresses kept above to try again.",
+        ),
+    ).toBe(true);
+    // Its link, copied beside its result, not looked for in the list below.
+    const writeText = stubClipboard();
+    fireEvent.click(results.getByRole("button", { name: "Copy link" }));
     await vi.waitFor(() =>
-      expect(screen.getByText("avery@school.example is already a member, as Author.")).toBeTruthy(),
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/invitations/inv-2`),
     );
-    expect(screen.queryByRole("alert")).toBeNull();
-    await invite("cy@school.example");
+    // Those that may work on another try stay, to fix or send again.
+    expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+      "nobody\ndan@school.example\neve@school.example\nfay@school.example\ngil@school.example\nhal@school.example",
+    );
     await vi.waitFor(() =>
       expect(
-        screen.getByText(
-          "cy@school.example is already invited, as Admin. Their invitation stays as it is.",
-        ),
+        screen.getByText("Room for 994 more members. An invitation reserves no place."),
       ).toBeTruthy(),
     );
+  });
+
+  test("says why a whole submission was refused, keeping the addresses", async () => {
+    const refusals = [
+      new BraivoError(400, "too many", undefined, "TOO_MANY_ADDRESSES"),
+      new BraivoError(409, "no site", undefined, "NO_LEARN_DOMAIN"),
+      new BraivoError(401, "signed out"),
+      new BraivoError(500, "broken"),
+    ];
+    renderAt("/example/settings/members", {
+      braivo: {
+        invite: async () => {
+          throw refusals.shift()!;
+        },
+        listInvitations: async () => waiting([]),
+      },
+    });
+
+    await invite("ada@school.example");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Invite at most 100 addresses at once.",
+    );
+    // About the field: said there, marked, and focused, to correct it.
+    const field = screen.getByLabelText("Email addresses");
+    expect(field.getAttribute("aria-invalid")).toBe("true");
+    expect(field.getAttribute("aria-describedby")).toContain(screen.getByRole("alert").id);
+    expect(document.activeElement).toBe(field);
+    fireEvent.change(field, { target: { value: "ada@school.example " } });
+    expect(field.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Learners have no site to practise on yet, so none can be invited. Authors and admins can.",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "You were signed out. Sign in again in a new tab, then send again: the addresses stay here.",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toBe(
+        "Could not send the invitations. Some may have gone: reload the page to see which, then try again.",
+      ),
+    );
+    expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+      "ada@school.example ",
+    );
+  });
+
+  test("resends an invitation, saying it went or why not", async () => {
+    const answers: (InvitationResult | BraivoError)[] = [
+      {
+        email: "ada@school.example",
+        outcome: "invited",
+        invitation: pending("inv-1", "ada@school.example"),
+        emailSent: true,
+      },
+      new BraivoError(429, "cooldown", undefined, "RECIPIENT_COOLDOWN"),
+      {
+        email: "ada@school.example",
+        outcome: "invited",
+        invitation: pending("inv-1", "ada@school.example"),
+        emailSent: false,
+      },
+      {
+        email: "ada@school.example",
+        outcome: "invited",
+        invitation: pending("inv-1", "ada@school.example"),
+        emailSent: true,
+      },
+    ];
+    const resendInvitation = vi.fn(async () => {
+      const answer = answers.shift()!;
+      if (answer instanceof BraivoError) throw answer;
+      return answer as InvitationResult & { outcome: "invited" };
+    });
+    renderAt("/example/settings/members", {
+      braivo: {
+        resendInvitation,
+        listInvitations: async () => waiting([pending("inv-1", "ada@school.example")]),
+      },
+    });
+
+    const listed = within(await screen.findByRole("region", { name: "Invitations" }));
+    const resend = listed.getByRole("button", { name: "Resend to ada@school.example" });
+    fireEvent.click(resend);
+
+    const status = await listed.findByText("Sent again.");
+    expect(status.getAttribute("role")).toBe("status");
+    expect(resendInvitation).toHaveBeenCalledWith(
+      "org-1",
+      "inv-1",
+      expect.objectContaining({ headers: { "Accept-Language": "en" } }),
+    );
+    fireEvent.click(resend);
+    await vi.waitFor(() =>
+      expect(listed.getByRole("alert").textContent).toBe(
+        "Sent an invitation a moment ago. Try again in a minute.",
+      ),
+    );
+    fireEvent.click(resend);
+    await vi.waitFor(() =>
+      expect(listed.getByRole("alert").textContent).toBe(
+        "The email may not have gone. Copy the link instead.",
+      ),
+    );
+    fireEvent.click(resend);
+    // The same region, its text changed: one mounted already filled is not reliably announced.
+    await vi.waitFor(() => expect(status.textContent).toBe("Sent again."));
+    expect(status.isConnected).toBe(true);
   });
 
   test("shows someone signed out the school's name and leads them to sign in, then back", async () => {
@@ -388,35 +595,238 @@ describe("invitations", () => {
     expect(router.state.location.pathname).toBe("/invitations/fourth");
   });
 
+  test("keeps pasted addresses when a resend finds the session ended", async () => {
+    const { router } = renderAt("/example/settings/members", {
+      braivo: {
+        resendInvitation: async () => {
+          throw new BraivoError(401, "signed out");
+        },
+        listInvitations: async () => waiting([pending("inv-1", "ada@school.example")]),
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Email addresses"), {
+      target: { value: "bo@school.example" },
+    });
+
+    const listed = within(await screen.findByRole("region", { name: "Invitations" }));
+    fireEvent.click(listed.getByRole("button", { name: "Resend to ada@school.example" }));
+
+    await vi.waitFor(() =>
+      expect(listed.getByRole("alert").textContent).toBe(
+        "You were signed out. Sign in again in a new tab, then resend.",
+      ),
+    );
+    expect(router.state.location.pathname).toBe("/example/settings/members");
+    expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+      "bo@school.example",
+    );
+  });
+
+  test("keeps pasted addresses when the connection fails, for a resend or a submission", async () => {
+    let offline = false;
+    renderAt("/example/settings/members", {
+      braivo: {
+        resendInvitation: async () => {
+          offline = true;
+          throw new TypeError("Failed to fetch");
+        },
+        invite: async () => {
+          throw new TypeError("Failed to fetch");
+        },
+        listInvitations: async () => {
+          if (offline) throw new TypeError("Failed to fetch");
+          return waiting([pending("inv-1", "ada@school.example")]);
+        },
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Email addresses"), {
+      target: { value: "bo@school.example" },
+    });
+
+    const listed = within(await screen.findByRole("region", { name: "Invitations" }));
+    fireEvent.click(listed.getByRole("button", { name: "Resend to ada@school.example" }));
+    await vi.waitFor(() =>
+      expect(listed.getByRole("alert").textContent).toBe("Could not resend. Try again."),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("alert")
+          .some(({ textContent }) => textContent?.startsWith("Could not send the invitations.")),
+      ).toBe(true),
+    );
+
+    expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+      "bo@school.example",
+    );
+  });
+
+  test("keeps pasted addresses through a page that failed to load again after a resend", async () => {
+    let reads = 0;
+    renderAt("/example/settings/members", {
+      braivo: {
+        resendInvitation: async () => ({
+          email: "ada@school.example",
+          outcome: "invited",
+          invitation: pending("inv-1", "ada@school.example"),
+          emailSent: true,
+        }),
+        listInvitations: async () => {
+          // The read after the resend fails; the one Try again asks for answers.
+          if (++reads === 2) throw new TypeError("Failed to fetch");
+          return waiting([pending("inv-1", "ada@school.example")]);
+        },
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Email addresses"), {
+      target: { value: "bo@school.example" },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Resend to ada@school.example" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+
+    await vi.waitFor(() =>
+      expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+        "bo@school.example",
+      ),
+    );
+  });
+
+  test("keeps an unsent draft whole, its role too, for its own account alone", async () => {
+    let user = { id: "u1", name: "Olive Owner", email: "olive@example.com" };
+    const { router } = renderAt("/example/settings/members", {
+      getSession: async () => ({ data: { user }, error: null }),
+      braivo: { invitation: async () => undefined },
+    });
+    // The role first, as easily as the addresses first.
+    fireEvent.click(
+      within(await screen.findByRole("radiogroup", { name: "Role" })).getByRole("radio", {
+        name: "Author",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Email addresses"), {
+      target: { value: "future-author@school.example" },
+    });
+    const away = () =>
+      router.navigate({ to: "/invitations/$invitationId", params: { invitationId: "none" } });
+    const back = async () => {
+      await router.navigate({ href: "/example/settings/members" });
+      return (await screen.findByLabelText("Email addresses")) as HTMLTextAreaElement;
+    };
+
+    await away();
+    expect((await back()).value).toBe("future-author@school.example");
+    expect(screen.getByRole("radio", { name: "Author" }).getAttribute("aria-checked")).toBe("true");
+
+    await away();
+    user = { id: "u2", name: "Pat Admin", email: "pat@example.com" };
+    expect((await back()).value).toBe("");
+    expect(screen.getByRole("radio", { name: "Learner" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+  });
+
+  test("keeps the addresses to retry from a submission answered after leaving", async () => {
+    let answer!: (submission: InvitationBatchResult) => void;
+    const { router } = renderAt("/example/settings/members", {
+      braivo: {
+        invite: () => new Promise((resolve) => (answer = resolve)),
+        invitation: async () => undefined,
+      },
+    });
+    await invite("ada@school.example bo@school.example");
+    await router.navigate({ to: "/invitations/$invitationId", params: { invitationId: "none" } });
+    answer({
+      results: [
+        allInvited(["ada@school.example"], "author").results[0]!,
+        { email: "bo@school.example", outcome: "failed" },
+      ],
+      membersLeft: 995,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await router.navigate({ href: "/example/settings/members" });
+
+    const field = (await screen.findByLabelText("Email addresses")) as HTMLTextAreaElement;
+    expect(field.value).toBe("bo@school.example");
+    expect(screen.getByRole("radio", { name: "Author" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  test("keeps the page where it was, on a phone or wider, as the list refreshes after sending", async () => {
+    renderAt("/example/settings/members", {
+      braivo: { invite: async () => allInvited(["ada@school.example"], "author") },
+    });
+    await screen.findByLabelText("Email addresses");
+    const scroller = document.querySelector(PAGE_SCROLLER) as HTMLElement;
+    scroller.scrollTop = 300;
+    window.scrollTo(0, 500);
+
+    await invite("ada@school.example");
+    await vi.waitFor(() =>
+      expect(
+        screen.getAllByRole("status").some(({ textContent }) => textContent === "1 of 1 invited."),
+      ).toBe(true),
+    );
+    // The list, read again, rendered.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(scroller.scrollTop).toBe(300);
+    expect(window.scrollY).toBe(500);
+  });
+
+  test("keeps a draft changed since its submission, its addresses alike, from a late answer", async () => {
+    let answer!: (submission: InvitationBatchResult) => void;
+    const { router } = renderAt("/example/settings/members", {
+      braivo: {
+        invite: () => new Promise((resolve) => (answer = resolve)),
+        invitation: async () => undefined,
+      },
+    });
+    const away = () =>
+      router.navigate({ to: "/invitations/$invitationId", params: { invitationId: "none" } });
+    const back = () => router.navigate({ href: "/example/settings/members" });
+    await invite("ada@school.example");
+    await away();
+    await back();
+    // The same address, now as an admin.
+    fireEvent.click(await screen.findByRole("radio", { name: "Admin" }));
+    answer({ results: [{ email: "ada@school.example", outcome: "failed" }], membersLeft: 995 });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await away();
+    await back();
+
+    expect((await screen.findByRole("radio", { name: "Admin" })).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect((screen.getByLabelText("Email addresses") as HTMLTextAreaElement).value).toBe(
+      "ada@school.example",
+    );
+  });
+
   test("invites a learner by default, and says the link still needs a sign-in", async () => {
     const inviteStub = vi.fn(
-      async (_organizationId: string, invitation: { email: string; role: string }) =>
-        ({
-          outcome: "invited",
-          invitation: { ...pending("inv-3", invitation.email), role: invitation.role },
-          emailSent: true,
-        }) satisfies InvitationResult,
+      async (_organizationId: string, submission: { emails: string[]; role: string }) =>
+        allInvited(submission.emails, submission.role),
     );
     renderAt("/example/settings/members", {
       braivo: {
         invite: inviteStub,
-        listInvitations: async () => [
-          { ...pending("inv-3", "dee@school.example"), role: "member" },
-        ],
+        listInvitations: async () =>
+          waiting([{ ...pending("inv-3", "dee@school.example"), role: "member" }]),
       },
     });
 
     const roles = within(await screen.findByRole("radiogroup", { name: "Role" }));
     expect(roles.getByRole("radio", { name: "Learner" }).getAttribute("aria-checked")).toBe("true");
-    fireEvent.change(screen.getByLabelText("Email address"), {
+    fireEvent.change(screen.getByLabelText("Email addresses"), {
       target: { value: "dee@school.example" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
 
     await vi.waitFor(() =>
       expect(inviteStub).toHaveBeenCalledWith(
         "org-1",
-        { email: "dee@school.example", role: "member" },
+        { emails: ["dee@school.example"], role: "member" },
         expect.anything(),
       ),
     );
@@ -427,23 +837,6 @@ describe("invitations", () => {
         "A link works only for the address it was sent to: whoever opens it still signs in with a code sent to that email, or with Google.",
       ),
     ).toBeTruthy();
-  });
-
-  test("says when learners have no site to be invited to", async () => {
-    renderAt("/example/settings/members", {
-      braivo: {
-        invite: async () => {
-          throw new BraivoError(409, "no site", undefined, "NO_LEARN_DOMAIN");
-        },
-        listInvitations: async () => [],
-      },
-    });
-
-    await invite("dee@school.example", "Learner");
-
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Learners have no site to practise on yet, so none can be invited. Authors and admins can.",
-    );
   });
 
   test("a learner joins, then goes on to the learn domain's sign-in, which hands the account over", async () => {

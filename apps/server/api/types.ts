@@ -180,13 +180,17 @@ export type Member = { userId: string; name: string; roles: string[] };
 export type PendingInvitation = Json<application.PendingInvitation>;
 
 /**
- * What inviting an address came to (access-50): invited, and whether the mail
- * went; or what the address already holds there, which it keeps.
+ * What inviting one address came to (access-50): invited, and whether the
+ * mail went; what the address already holds there, which it keeps; refused,
+ * and why; or failed, to try again.
  */
-export type InvitationResult =
-  | ({ outcome: "invited" } & Json<application.Invited>)
-  | { outcome: "already a member"; roles: string[] }
-  | { outcome: "already invited"; role: string | undefined };
+export type InvitationResult = Json<application.InvitationResult>;
+
+/** A role an invitation carries: `member` (a learner), `author`, or `admin`. */
+export type InvitableRole = application.InvitableRole;
+
+/** A submission's answer (access-50): each distinct address's result, and how many more members fit. */
+export type InvitationBatchResult = Json<application.InvitationBatchResult>;
 
 /** An invitation as its page shows it (access-52): more only to the account it was sent to. */
 export type InvitationPage = Json<application.InvitationPage>;

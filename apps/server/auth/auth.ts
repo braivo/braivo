@@ -19,10 +19,16 @@ import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better
 import { adminAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import * as z from "zod";
 
-import { INVITABLE_ROLES, type InvitableRole } from "../application/invitations.ts";
+import { type InvitableRole, isInvitableRole } from "../application/invitations.ts";
 import { mayAuthor } from "../application/permission.ts";
 import { describeLogCall } from "../logging.ts";
-import { invitationMail, mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
+import {
+  invitationLink,
+  invitationMail,
+  mailLocale,
+  type SendMail,
+  signInCodeMail,
+} from "../mail/index.ts";
 import {
   claimSignInCode,
   countPendingInvitations,
@@ -158,7 +164,7 @@ export const MEMBERSHIP_LIMIT = 1_000;
  * school's staff and families read mail over a weekend; Better Auth's 48 hours
  * would not.
  */
-const INVITATION_DAYS = 7;
+export const INVITATION_DAYS = 7;
 
 /**
  * The most invitations an organization has waiting at once (ADR 0018), apart
@@ -541,7 +547,7 @@ export function createAuth(options: AuthOptions) {
             await options.sendMail(
               invitationMail({
                 to: email,
-                link: new URL(`/invitations/${encodeURIComponent(id)}`, options.baseURL).href,
+                link: invitationLink(options.baseURL, id),
                 organization: organization.name,
                 inviter: inviter.user.name || inviter.user.email,
                 // `beforeCreateInvitation` admits no other.
@@ -604,7 +610,7 @@ export function createAuth(options: AuthOptions) {
            * first, to answer in its words; this holds whoever calls.
            */
           beforeCreateInvitation: async ({ invitation, organization: invitedTo }) => {
-            if (!INVITABLE_ROLES.has(invitation.role)) {
+            if (!isInvitableRole(invitation.role)) {
               throw new APIError("BAD_REQUEST", {
                 code: "ROLE_NOT_INVITABLE",
                 message: "Invite as a learner, an author, or an admin.",

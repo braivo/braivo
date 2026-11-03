@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, expect, onTestFinished, vi } from "vite-plus/test";
 
 import type { AppContext } from "../lib/context.ts";
+import { invitationDrafts } from "../lib/invitation-drafts.ts";
 import { createConsoleRouter } from "../router.tsx";
 import { members, courseProgress, school } from "./fixtures.ts";
 
@@ -20,6 +21,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   sessionStorage.clear();
+  invitationDrafts.clear();
 });
 
 /** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
@@ -109,7 +111,7 @@ export function renderAt(
       braivo: {
         listOrganizations: async () => stubs.organizations ?? [school],
         listMembers: async () => members,
-        listInvitations: async () => [],
+        listInvitations: async () => ({ invitations: [], membersLeft: 995 }),
         listGroups: async () => [],
         listObjectives: async () => [],
         // No learner reported anything, unless a test says otherwise.

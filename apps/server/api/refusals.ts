@@ -26,6 +26,7 @@ import {
   InvalidTask,
   ModelUnavailable,
   NotPermitted,
+  SignedOut,
   PublishedCourse,
   PublishedTask,
   StaleCorrection,
@@ -94,6 +95,7 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   if (error instanceof ModelUnavailable) return context.json({ error: error.message }, 502);
   // Explained, unlike other 403s: the same person may do it in the console (ADR 0039).
   if (error instanceof PublishedTask) return context.json({ error: error.message }, 403);
+  if (error instanceof SignedOut) return context.body(null, 401);
   if (error instanceof NotPermitted) return context.body(null, 403);
   throw error;
 }

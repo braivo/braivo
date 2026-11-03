@@ -18,6 +18,17 @@ export class NotPermitted extends Error {
 }
 
 /**
+ * Refused because the session ended partway through a request whose guard
+ * passed it: a 401, so the page offers sign-in rather than taking itself away.
+ */
+export class SignedOut extends NotPermitted {
+  constructor(message: string) {
+    super(message);
+    this.name = "SignedOut";
+  }
+}
+
+/**
  * Roles that administer an organization: its people, groups, settings, every
  * learner's progress, and evidence recorded for learners. A learner is a
  * `member`, so membership alone must not be enough: evidence is what every

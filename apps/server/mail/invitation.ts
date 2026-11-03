@@ -58,6 +58,11 @@ const escapeHtml = (text: string) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!,
   );
 
+/** An invitation's page, the link its mail carries and Members copies (ADR 0018). */
+export function invitationLink(baseUrl: string, invitationId: string): string {
+  return new URL(`/invitations/${encodeURIComponent(invitationId)}`, baseUrl).href;
+}
+
 /**
  * The email inviting `to` to an organization (ADR 0018): the school, the
  * inviter, the role in plain words, the link, and when it expires, in the
