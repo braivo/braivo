@@ -10,6 +10,7 @@ import {
   type LearnerProgressSummary,
   type LearningDecision,
   type TaskResponse,
+  countStandings,
   courseRef,
   learnerDayIn,
   parseCourseRef,
@@ -36,9 +37,15 @@ import { AccountHeader } from "#components/account-header";
 import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
+import {
+  SESSION_LENGTH,
+  type PracticeSession,
+  SessionEnd,
+  SessionRecap,
+  usePracticeSession,
+} from "#components/practice-session";
 import { ReportProblem } from "#components/report-problem";
-import { SESSION_LENGTH, type Session, SessionEnd, SessionRecap } from "#components/session-end";
-import { formatStandingCounts, StandingMeter } from "#components/standing";
+import { formatCounts, StandingMeter } from "#components/standing";
 import { asSessionAuth } from "#lib/auth";
 import {
   ANSWER_DEADLINE_MS,
@@ -273,15 +280,15 @@ function NextStep() {
   const { activity, progress, title, attemptId, resumed, lastAttemptRefused } = load;
   // This visit's session: its answers, then its end (`SessionEnd`) once
   // `SESSION_LENGTH` were graded, until Keep going starts another.
-  const [session, setSession] = useState<Session>({ answers: 0, right: 0 });
+  const { session, count, restart } = usePracticeSession(routeLoad.resumed);
   // The end, with what the selector offers next, read with it: `next`
   // undefined when that read failed, so nothing is claimed of it.
-  const [ended, setEnded] = useState<{
+  const [end, setEnd] = useState<{
     report: LearnerProgressSummary | undefined;
     next: { activity: Activity | undefined } | undefined;
     at: Date;
   }>();
-  const endStep = useEndStep(ended);
+  const endStep = useEndStep(end);
   // Said once: the load holds it, so the mark goes as it shows.
   useEffect(() => {
     if (routeLoad.lastAttemptRefused) clearRefusalNotice(user.id, routeLoad.courseId);
@@ -316,9 +323,9 @@ function NextStep() {
     // Awaited below, or dropped with the session's failure: never unhandled.
     reading.catch(() => {});
     try {
-      const session = await braivo.session({ signal: withDeadline(left, READ_DEADLINE_MS) });
+      const account = await braivo.session({ signal: withDeadline(left, READ_DEADLINE_MS) });
       if (superseded()) return { failed: false };
-      if (session?.id !== user.id || !session.name.trim()) {
+      if (account?.id !== user.id || !account.name.trim()) {
         await router.invalidate({ sync: true });
         return { failed: false };
       }
@@ -367,25 +374,6 @@ function NextStep() {
     });
   }
 
-  // The attempts this session is done with: those it counted, and those a
-  // load's resend found graded, which it never counts (learner-loop-23). A
-  // grade found again for one, as a reload's resend then Send again find it,
-  // counts nothing; one first confirmed by Send again counts once.
-  const handled = useRef(new Set<string>());
-  useLayoutEffect(() => {
-    if (routeLoad.resumed?.grade) handled.current.add(routeLoad.resumed.attempt.id);
-  }, [routeLoad]);
-
-  /** Counts a grade, as this page saw it, once per attempt. */
-  function graded(attempt: string, grade: Grade) {
-    if (handled.current.has(attempt)) return;
-    handled.current.add(attempt);
-    setSession((current) => ({
-      answers: current.answers + 1,
-      right: current.right + (grade.outcome === "success" ? 1 : 0),
-    }));
-  }
-
   /**
    * Continue: what comes next, or past the session's last answer its end,
    * with where the learner stands read first, so it shows whole. The answer
@@ -408,7 +396,7 @@ function NextStep() {
       ]);
       return () => {
         clearUnfinishedAttempt(user.id, load.courseId);
-        setEnded({ report, next, at: new Date() });
+        setEnd({ report, next, at: new Date() });
       };
     });
   }
@@ -417,9 +405,8 @@ function NextStep() {
   async function keepGoing(left: AbortSignal): Promise<{ failed: boolean }> {
     const result = await advance(left);
     if (!result.failed && !left.aborted) {
-      handled.current = new Set();
-      setSession({ answers: 0, right: 0 });
-      setEnded(undefined);
+      restart();
+      setEnd(undefined);
     }
     return result;
   }
@@ -441,16 +428,16 @@ function NextStep() {
     <div className="-mb-6 flex min-h-[calc(100dvh-1.5rem)] flex-col">
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
-      <FocusBar answers={ended ? SESSION_LENGTH : practising ? session.answers : undefined} />
+      <PracticeBar answers={end ? SESSION_LENGTH : practising ? session.answers : undefined} />
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced. */}
       {lastAttemptRefused && <LastAttemptRefused key={attemptId} />}
-      {ended ? (
+      {end ? (
         <SessionEnd
           session={session}
-          report={ended.report}
-          nextStep={endStep.line}
-          goOn={endStep.goOn}
+          report={end.report}
+          nextStep={endStep.nextStep}
+          canKeepGoing={endStep.canKeepGoing}
           onKeepGoing={keepGoing}
         />
       ) : !activity ? (
@@ -487,7 +474,7 @@ function NextStep() {
           courseId={load.courseId}
           attemptId={attemptId}
           resumed={resumed}
-          onGraded={graded}
+          onGraded={count}
           onContinue={continueSession}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
@@ -522,8 +509,10 @@ function LastAttemptRefused() {
  * the session's progress, `answers` of `SESSION_LENGTH`, as a bar and in words,
  * moving with each grade.
  */
-function FocusBar({ answers }: { answers: number | undefined }) {
+function PracticeBar({ answers }: { answers: number | undefined }) {
   const { t } = useLingui();
+  // Named for translators: a placeholder takes the variable's name.
+  const total = SESSION_LENGTH;
   return (
     // `-ms-3`: the icon, not its padding, at the page's edge, as a text button's.
     <div className="-mt-3 mb-4 flex flex-wrap items-center gap-x-2">
@@ -541,7 +530,7 @@ function FocusBar({ answers }: { answers: number | undefined }) {
           aria-valuemin={0}
           aria-valuemax={SESSION_LENGTH}
           aria-valuenow={answers}
-          aria-valuetext={t`${answers} of ${SESSION_LENGTH} answered`}
+          aria-valuetext={t`${answers} of ${total} answered`}
           // Never squeezed to nothing beside its count: with larger text, the row wraps.
           className="h-2.5 min-w-24 flex-1 overflow-hidden rounded-full bg-muted"
         >
@@ -555,7 +544,7 @@ function FocusBar({ answers }: { answers: number | undefined }) {
           course's; the bar says it to a screen reader already. */}
       {answers !== undefined && (
         <span aria-hidden="true" className="shrink-0 text-sm text-muted-foreground tabular-nums">
-          {t`${answers} of ${SESSION_LENGTH}`}
+          {t`${answers} of ${total}`}
         </span>
       )}
     </div>
@@ -577,20 +566,22 @@ function CaughtUp({
 }: {
   report: LearnerProgressSummary | undefined;
   /** This visit's session, if answered: its recap, as practice stops before its end. */
-  session?: Session;
+  session?: PracticeSession;
   limitReached?: boolean;
 }) {
   const { t } = useLingui();
   // Rendering stays pure: now is when this notice first showed.
   const [now] = useState(() => new Date());
-  const status = useStoppedLine(report, now, limitReached);
+  const status = useCaughtUpStatus(report, now, limitReached);
   const dayOf = learnerDayIn();
   const today = dayOf(now);
-  const todaySummary = formatStandingCounts(
-    report?.objectives.filter(
-      (standing) =>
-        standing.phase !== "unseen" && dayOf(new Date(standing.lastEvidenceAt)) === today,
-    ) ?? [],
+  const todaySummary = formatCounts(
+    countStandings(
+      report?.objectives.filter(
+        (standing) =>
+          standing.phase !== "unseen" && dayOf(new Date(standing.lastEvidenceAt)) === today,
+      ) ?? [],
+    ),
     t,
   ).join(" · ");
   const title = limitReached ? t`That's all the new material for today` : t`You're caught up`;
@@ -626,39 +617,39 @@ function CaughtUp({
  * A session end's next step, from the activity read with it (learner-loop-23),
  * never inferred from standings, which say what is known, not what can be
  * practised (a resting task, one unpublished, the day's limit): more now, and
- * Keep going (`goOn`), only where a question waits; else why practice stops
+ * Keep going (`canKeepGoing`), only where a question waits; else why practice stops
  * and when it resumes, Done alone. Unread, it claims nothing, and Keep going
  * stays, to try again.
  */
 function useEndStep(
-  ended:
+  end:
     | {
         report: LearnerProgressSummary | undefined;
         next: { activity: Activity | undefined } | undefined;
         at: Date;
       }
     | undefined,
-): { line: string | undefined; goOn: boolean } {
+): { nextStep: string | undefined; canKeepGoing: boolean } {
   const { t, i18n } = useLingui();
-  const activity = ended?.next?.activity;
+  const activity = end?.next?.activity;
   const limitReached = activity !== undefined && "dailyLimit" in activity;
-  const stopped = useStoppedLine(ended?.report, ended?.at, limitReached);
-  if (!ended?.next) return { line: undefined, goOn: true };
-  if (activity === undefined || limitReached) return { line: stopped, goOn: false };
+  const stopped = useCaughtUpStatus(end?.report, end?.at, limitReached);
+  if (!end?.next) return { nextStep: undefined, canKeepGoing: true };
+  if (activity === undefined || limitReached) return { nextStep: stopped, canKeepGoing: false };
   if ("task" in activity) {
     return isAnswerable(activity.task)
-      ? { line: t`More to practise now.`, goOn: true }
-      : { line: undefined, goOn: false };
+      ? { nextStep: t`More to practise now.`, canKeepGoing: true }
+      : { nextStep: undefined, canKeepGoing: false };
   }
   if ("retryAfter" in activity) {
     const continuesAt = new Intl.DateTimeFormat(i18n.locale, {
       hour: "numeric",
       minute: "2-digit",
-    }).format(roundUpToMinute(ended.at.getTime() + activity.retryAfter * 1000));
-    return { line: t`Practice continues at ${continuesAt}.`, goOn: false };
+    }).format(roundUpToMinute(end.at.getTime() + activity.retryAfter * 1000));
+    return { nextStep: t`Practice continues at ${continuesAt}.`, canKeepGoing: false };
   }
   // No activity, or none at all: nothing to promise.
-  return { line: undefined, goOn: false };
+  return { nextStep: undefined, canKeepGoing: false };
 }
 
 /**
@@ -666,7 +657,7 @@ function useEndStep(
  * new material (`limitReached`), and when the next review falls due, if any.
  * Shared by caught up and a session's end, so the two say it alike.
  */
-function useStoppedLine(
+function useCaughtUpStatus(
   report: LearnerProgressSummary | undefined,
   now: Date | undefined,
   limitReached: boolean,
@@ -976,7 +967,7 @@ function Reason({ decision }: { decision: LearningDecision }) {
 }
 
 /** UTF-16 units of a correct answer the foot holds, about three lines on a 320px phone: a rough bound, not a measure. */
-const SHORT_ANSWER = 60;
+const FOOT_ANSWER_MAX_LENGTH = 60;
 
 /** In context, as each reads unlike the same English elsewhere ("Try again", the button). */
 const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
@@ -1126,7 +1117,8 @@ function Practice({
   // In the foot with the verdict while short: a long one (a typed answer may
   // run to 500 characters, an option to a sentence) would grow the pinned foot
   // over the question, so it goes in the page with the explanation instead.
-  const answerInFoot = correctAnswer !== undefined && correctAnswer.length <= SHORT_ANSWER;
+  const answerInFoot =
+    correctAnswer !== undefined && correctAnswer.length <= FOOT_ANSWER_MAX_LENGTH;
   // What a missed typed answer got wrong, marked in the answer (Show answer typed nothing).
   const markedAnswer = correctAnswer && (
     <MarkedAnswer answer={correctAnswer} typed={sent && "text" in sent ? sent.text : undefined} />

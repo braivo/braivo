@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { LearnerProgressSummary } from "@braivo/server/client";
+import type { Grade, LearnerProgressSummary } from "@braivo/server/client";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Notice } from "#components/notice";
 import { StandingMeter } from "#components/standing";
@@ -24,12 +24,47 @@ export const SESSION_LENGTH = 10;
  * with evidence from anywhere (another tab, a shared objective, an import), so
  * it is shown as it stands, never claimed as this session's doing.
  */
-export type Session = { answers: number; right: number };
+export type PracticeSession = { answers: number; right: number };
+
+/**
+ * This visit's session as the page counts it (learner-loop-23): each attempt
+ * once, whatever finds its grade (`count`), until `restart` begins another.
+ * The attempts it is done with are those it counted and those a load's resend
+ * found graded (`resumed`, per load), which it never counts: a grade found
+ * again for one, as a reload's resend then Send again find it, counts nothing,
+ * while one first confirmed by Send again counts once.
+ */
+export function usePracticeSession(
+  resumed: { attempt: { id: string }; grade?: unknown } | undefined,
+) {
+  const [session, setSession] = useState<PracticeSession>({ answers: 0, right: 0 });
+  const handled = useRef(new Set<string>());
+  // In the commit that shows the load, before anything on it can count.
+  useLayoutEffect(() => {
+    if (resumed?.grade) handled.current.add(resumed.attempt.id);
+  }, [resumed]);
+
+  function count(attempt: string, grade: Grade) {
+    if (handled.current.has(attempt)) return;
+    handled.current.add(attempt);
+    setSession((current) => ({
+      answers: current.answers + 1,
+      right: current.right + (grade.outcome === "success" ? 1 : 0),
+    }));
+  }
+
+  function restart() {
+    handled.current = new Set();
+    setSession({ answers: 0, right: 0 });
+  }
+
+  return { session, count, restart };
+}
 
 /**
  * The end of a session: its recap (`SessionRecap`), what comes next in words
  * (`nextStep`: more now, when practice resumes, or when to come back), Keep
- * going where it leads to a question (`goOn`), else Done alone, then where the
+ * going where it leads to a question (`canKeepGoing`), else Done alone, then where the
  * learner stands (`report`; left out if unread, the score still said). Whole
  * as it mounts, so the focus landing on it reads all of it. Keep going reads
  * what comes next afresh as Continue does (`onKeepGoing`), staying here,
@@ -39,13 +74,13 @@ export function SessionEnd({
   session,
   report,
   nextStep,
-  goOn,
+  canKeepGoing,
   onKeepGoing,
 }: {
-  session: Session;
+  session: PracticeSession;
   report: LearnerProgressSummary | undefined;
   nextStep: string | undefined;
-  goOn: boolean;
+  canKeepGoing: boolean;
   onKeepGoing: (left: AbortSignal) => Promise<{ failed: boolean }>;
 }) {
   const { t } = useLingui();
@@ -95,12 +130,12 @@ export function SessionEnd({
       {/* Full width, as Continue: the next step under the thumb. Offered only
           where a question waits (or it is unknown): never a step to a stop.
           aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-      {goOn && (
+      {canKeepGoing && (
         <Button size="lg" className="w-full" aria-disabled={going} onClick={() => void keepGoing()}>
           {going ? t`Loading…` : t`Keep going`}
         </Button>
       )}
-      <Button asChild size="lg" variant={goOn ? "outline" : "default"} className="w-full">
+      <Button asChild size="lg" variant={canKeepGoing ? "outline" : "default"} className="w-full">
         <Link to="/">
           <Trans>Done</Trans>
         </Link>
@@ -112,7 +147,7 @@ export function SessionEnd({
 }
 
 /** What a session did, as this page saw it: how many of its answers were right. */
-export function SessionRecap({ session }: { session: Session }) {
+export function SessionRecap({ session }: { session: PracticeSession }) {
   const { t } = useLingui();
   const { answers, right } = session;
   return <p>{t`${right} of ${answers} right.`}</p>;

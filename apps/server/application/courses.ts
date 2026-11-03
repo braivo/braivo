@@ -35,6 +35,7 @@ import {
 import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
 import { assertMayAuthor, NotPermitted } from "./permission.ts";
+import { type CourseStanding, countStandings } from "./standing.ts";
 
 /**
  * Creates a course over the organization's own objectives, in the order given;
@@ -275,18 +276,6 @@ export async function listLearnerCourses(input: {
 }
 
 /**
- * How many of a course's objectives stand where, as the learner sees them
- * (progress-8): retained and not due, due for review, learning (acquiring),
- * and not started (unseen).
- */
-export type CourseStanding = {
-  retained: number;
-  dueForReview: number;
-  learning: number;
-  notStarted: number;
-};
-
-/**
  * The courses `listLearnerCourses` lists, each with where the learner stands
  * in it at `now`: what a course list shows to say what waits where. The
  * learner's evidence is replayed once per organization, as every decision
@@ -321,22 +310,15 @@ export async function listLearnerCoursesWithStanding(input: {
   );
   return courses.map((course) => {
     const scope = scopes.get(course.id);
-    const standing: CourseStanding = { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 };
-    if (scope) {
-      const report = assessKnowledge({
-        now,
-        objectiveIds: scope.objectiveIds,
-        estimates: estimates.get(scope.organizationId)!,
-        model: activeModel,
-      });
-      for (const objective of report.objectives) {
-        if (objective.phase === "unseen") standing.notStarted++;
-        else if (objective.phase === "acquiring") standing.learning++;
-        else if (objective.due) standing.dueForReview++;
-        else standing.retained++;
-      }
-    }
-    return { ...course, standing };
+    const { objectives } = scope
+      ? assessKnowledge({
+          now,
+          objectiveIds: scope.objectiveIds,
+          estimates: estimates.get(scope.organizationId)!,
+          model: activeModel,
+        })
+      : { objectives: [] };
+    return { ...course, standing: countStandings(objectives) };
   });
 }
 

@@ -112,6 +112,8 @@ export { countExplanations, hasExplanation } from "../content/explanation.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
 export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";
+export type { Standing } from "../application/standing.ts";
+export { countStandings, standingOf } from "../application/standing.ts";
 
 /**
  * An answer the client could not use: a refusal, a status the method does not

@@ -1,19 +1,26 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type {
-  CourseStanding,
-  LearnerProgressStanding,
-  LearnerProgressSummary,
+import {
+  type CourseStanding,
+  countStandings,
+  type LearnerProgressSummary,
+  type Standing,
+  standingOf,
 } from "@braivo/server/client";
+import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
 /**
- * In the summary's order, each alone, beside an objective's title, and
- * counted: a count's words agree with it, in three forms in Polish.
+ * Each standing (`standingOf`) in words, in the summary's order: alone, beside
+ * an objective's title, and counted, a count's words agreeing with it, in
+ * three forms in Polish. Typed by `Standing`, so one Braivo adds has words.
  */
-const PROGRESS_LABELS = {
+const STANDING_LABELS: Record<
+  Standing,
+  { alone: MessageDescriptor; counted: (count: number) => MessageDescriptor }
+> = {
   retained: {
     alone: msg({ message: "retained", comment: "After an objective's title: a form fitting any" }),
     counted: (count: number) =>
@@ -53,38 +60,11 @@ const PROGRESS_LABELS = {
       }),
   },
 };
-type ProgressLabel = keyof typeof PROGRESS_LABELS;
-
-/**
- * The model's phases, with `due` splitting retaining, so the summary claims no
- * more than the model does: "retained", not "mastered", which Braivo does not define.
- */
-export function labelOf(standing: LearnerProgressStanding): ProgressLabel {
-  if (standing.phase === "unseen") return "notStarted";
-  if (standing.phase === "acquiring") return "learning";
-  return standing.due ? "dueForReview" : "retained";
-}
-
-/** `standings` counted by label: as Braivo counts a course in a list (`CourseStanding`). */
-export function countStandings(standings: LearnerProgressStanding[]): CourseStanding {
-  const counts: CourseStanding = { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 };
-  for (const standing of standings) counts[labelOf(standing)]++;
-  return counts;
-}
-
 /** `counts` in words, in the summary's order, those with none left out: ["2 retained", "1 learning"]. */
 export function formatCounts(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]) {
-  return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
+  return (Object.keys(STANDING_LABELS) as Standing[])
     .filter((label) => counts[label] > 0)
-    .map((label) => t(PROGRESS_LABELS[label].counted(counts[label])));
-}
-
-/** `standings` counted by label, in words: `formatCounts` of `countStandings`. */
-export function formatStandingCounts(
-  standings: LearnerProgressStanding[],
-  t: ReturnType<typeof useLingui>["t"],
-) {
-  return formatCounts(countStandings(standings), t);
+    .map((label) => t(STANDING_LABELS[label].counted(counts[label])));
 }
 
 /**
@@ -102,7 +82,7 @@ export function countsLine(counts: CourseStanding, t: ReturnType<typeof useLingu
  * track. The brand's primary, so an organization's theme carries it (ADR 0011);
  * decoration only, the counts said in words.
  */
-const METER_FILLS: Record<ProgressLabel, string> = {
+const STANDING_FILLS: Record<Standing, string> = {
   retained: "bg-primary",
   dueForReview: "bg-primary/60",
   learning: "bg-primary/30",
@@ -117,11 +97,11 @@ export function StandingBar({ counts }: { counts: CourseStanding }) {
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
   return (
     <span aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-      {(Object.keys(PROGRESS_LABELS) as ProgressLabel[]).map((label) =>
+      {(Object.keys(STANDING_LABELS) as Standing[]).map((label) =>
         counts[label] > 0 ? (
           <span
             key={label}
-            className={METER_FILLS[label]}
+            className={STANDING_FILLS[label]}
             style={{ width: `${(counts[label] / total) * 100}%` }}
           />
         ) : null,
@@ -150,7 +130,7 @@ export function StandingMeter({ report }: { report: LearnerProgressSummary }) {
         <ul className="flex flex-col gap-1">
           {report.objectives.map((standing) => (
             <li key={standing.objectiveId}>
-              {standing.title}: {t(PROGRESS_LABELS[labelOf(standing)].alone)}
+              {standing.title}: {t(STANDING_LABELS[standingOf(standing)].alone)}
             </li>
           ))}
         </ul>

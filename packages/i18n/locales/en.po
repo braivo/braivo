@@ -61,12 +61,12 @@ msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "{answers} of {SESSION_LENGTH}"
-msgstr "{answers} of {SESSION_LENGTH}"
+msgid "{answers} of {total}"
+msgstr "{answers} of {total}"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "{answers} of {SESSION_LENGTH} answered"
-msgstr "{answers} of {SESSION_LENGTH} answered"
+msgid "{answers} of {total} answered"
+msgstr "{answers} of {total} answered"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
@@ -189,7 +189,7 @@ msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added wi
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (coming soon)"
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 msgid "{right} of {answers} right."
 msgstr "{right} of {answers} right."
 
@@ -566,7 +566,7 @@ msgstr "Could not disconnect the app. Try again."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Could not disconnect. Check your connection and try again."
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Could not load the next question. Try again."
 msgstr "Could not load the next question. Try again."
@@ -702,7 +702,7 @@ msgstr "Domain"
 msgid "Domains"
 msgstr "Domains"
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 msgid "Done"
 msgstr "Done"
 
@@ -959,7 +959,7 @@ msgstr "Its teachers will see no progress until it has learners and a course."
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 msgid "Keep going"
 msgstr "Keep going"
 
@@ -1104,7 +1104,7 @@ msgstr "Light"
 msgid "Loading"
 msgstr "Loading"
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Loading…"
@@ -1622,7 +1622,7 @@ msgstr "Sent again to {address}. Use the code in the latest email; it expires in
 msgid "Session"
 msgstr "Session"
 
-#: apps/learn/components/session-end.tsx
+#: apps/learn/components/practice-session.tsx
 msgid "Session complete"
 msgstr "Session complete"
 

@@ -23,7 +23,8 @@ export {
 export type { ReportScope } from "../persistence/index.ts";
 export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
-export type { AuthoredCourse, CourseStanding, CourseSummary } from "./courses.ts";
+export type { AuthoredCourse, CourseSummary } from "./courses.ts";
+export type { CourseStanding, Standing } from "./standing.ts";
 export type { AccessKind } from "./access.ts";
 export type { Ai } from "./ai.ts";
 export type { AiReportRow } from "./ai-report.ts";

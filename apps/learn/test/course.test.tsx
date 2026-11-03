@@ -140,17 +140,10 @@ describe("the learn app", () => {
     ]);
   });
 
+  // Which characters, for every kind of slip, `lib/missed-characters.test.ts`; here, how they show.
   test.each([
     ["a letter wrong", "bin", "ben", ["i"]],
-    ["letters swapped", "receive", "recieve", ["e"]],
-    ["accents left out", "żółć", "zolc", ["ż", "ó", "ł", "ć"]],
     ["a different word", "please", "plz", []],
-    ["the case alone", "Bin", "bin", []],
-    // What grading ignores is never marked, beside an error that counts.
-    ["a typographic apostrophe", "don’t go", "don't gx", ["o"]],
-    ["a run of spaces", "a  cat", "a cot", ["a"]],
-    // An extra letter marks nothing, not the right one beside it.
-    ["an extra letter", "café", "cafeé", []],
   ])(
     "marks in the answer what a missed typed one got wrong, for %s, read whole",
     async (_, answer, typed, marked) => {

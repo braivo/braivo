@@ -5,7 +5,7 @@ import { BraivoError, type BraivoClient, type LearnerProgressSummary } from "@br
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
-import { SESSION_LENGTH } from "../components/session-end.tsx";
+import { SESSION_LENGTH } from "../components/practice-session.tsx";
 import { saveUnfinishedAttempt, unfinishedAttempt } from "../lib/unfinished-attempt.ts";
 import { SPANISH_ID, activity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
@@ -238,7 +238,7 @@ describe("the learn app", { timeout: 20_000 }, () => {
     ],
   ] as const)(
     "ends a session that reaches %s with why practice stops, and Done alone",
-    async (_, next, line, goOn) => {
+    async (_, next, line, canKeepGoing) => {
       const nextActivity = vi
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValue(activity)
@@ -260,7 +260,7 @@ describe("the learn app", { timeout: 20_000 }, () => {
       if (line) expect(said.slice("10 of 10 right.".length)).toMatch(line);
       else expect(said).toBe("10 of 10 right.");
       expect(within(end).queryByText("More to practise now.")).toBeNull();
-      expect(within(end).queryByRole("button", { name: "Keep going" }) !== null).toBe(goOn);
+      expect(within(end).queryByRole("button", { name: "Keep going" }) !== null).toBe(canKeepGoing);
       // Done the main action where Keep going is not.
       expect(within(end).getByRole("link", { name: "Done" }).dataset.variant).toBe("default");
     },
