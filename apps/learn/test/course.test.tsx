@@ -252,10 +252,11 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
-    // With the activity, on loading and on Continue: never on a grade alone.
-    for (const read of [session, nextActivity, learnerProgress]) {
+    for (const read of [session, nextActivity]) {
       expect(read).toHaveBeenCalledTimes(2);
     }
+    // On loading; not for the question Continue found, which shows no standing.
+    expect(learnerProgress).toHaveBeenCalledOnce();
     expect(learnerCourseByNumber).toHaveBeenCalledOnce();
     expect(hostOrganization).toHaveBeenCalledTimes(1);
   });

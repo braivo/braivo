@@ -309,8 +309,12 @@ function NextStep() {
 
   /**
    * Continue, Check again, and Keep going, actions rather than reloads, so that
-   * failing keeps the page (docs/apps.md): rechecks the session (access-6), then
-   * `read`s, which acts unless `superseded`. Resolves whether it failed;
+   * failing keeps the page (docs/apps.md): rechecks the session (access-6) while
+   * it `read`s, one round trip rather than two before what comes next, and
+   * acts on the reads (`read`'s result, applied) or their failure only once the
+   * session is this learner's: what another account signed in meanwhile was
+   * shown is dropped unseen, and its refusal clears nothing of this learner's.
+   * Resolves whether it failed;
    * failed, what is on screen stays, the answer kept for a reload. Signed out,
    * or another account signed in meanwhile, the route reloads, its guard
    * deciding; a 401 or 404 from a read reloads the course, which says why. Each
@@ -318,11 +322,14 @@ function NextStep() {
    */
   async function proceed(
     left: AbortSignal,
-    read: (superseded: () => boolean) => Promise<void>,
+    read: () => Promise<() => void>,
   ): Promise<{ failed: boolean }> {
     const { courseId } = load;
     // Left, or reloaded meanwhile: an answer now would act on another page.
     const superseded = () => left.aborted || latestRouteLoad.current !== routeLoad;
+    const reading = read();
+    // Awaited below, or dropped with the session's failure: never unhandled.
+    reading.catch(() => {});
     try {
       const session = await braivo.session({ signal: withDeadline(left, READ_DEADLINE_MS) });
       if (superseded()) return { failed: false };
@@ -330,7 +337,8 @@ function NextStep() {
         await router.invalidate({ sync: true });
         return { failed: false };
       }
-      await read(superseded);
+      const apply = await reading;
+      if (!superseded()) apply();
       return { failed: false };
     } catch (error) {
       if (superseded()) return { failed: false };
@@ -344,28 +352,33 @@ function NextStep() {
     }
   }
 
-  /** What comes next, with where the learner stands, together, so neither shows stale beside the other. */
+  /**
+   * What comes next, and only where practice stops there (caught up, a rest,
+   * no activity), the notices that show it, where the learner stands
+   * (progress-8): a question shows none, so it never waits on, or costs, a
+   * whole-course replay; a stop pays one more round trip, rarely.
+   */
   function advance(left: AbortSignal) {
-    return proceed(left, async (superseded) => {
+    return proceed(left, async () => {
       const { courseId } = load;
-      const [activity, progress] = await Promise.all([
-        readActivity(braivo, courseId, left),
-        readProgress(braivo, courseId, user.id, left),
-      ]);
-      if (superseded()) return;
-      clearUnfinishedAttempt(user.id, courseId);
-      setContinued({
-        routeLoad,
-        load: {
-          ...load,
-          activity,
-          progress,
-          attemptId: crypto.randomUUID(),
-          resumed: undefined,
-          // Said of the load that found it, not of what comes after.
-          lastAttemptRefused: false,
-        },
-      });
+      const activity = await readActivity(braivo, courseId, left);
+      const asking = activity !== undefined && "task" in activity && isAnswerable(activity.task);
+      const progress = asking ? undefined : await readProgress(braivo, courseId, user.id, left);
+      return () => {
+        clearUnfinishedAttempt(user.id, courseId);
+        setContinued({
+          routeLoad,
+          load: {
+            ...load,
+            activity,
+            progress,
+            attemptId: crypto.randomUUID(),
+            resumed: undefined,
+            // Said of the load that found it, not of what comes after.
+            lastAttemptRefused: false,
+          },
+        });
+      };
     });
   }
 
@@ -385,11 +398,12 @@ function NextStep() {
    */
   function continueSession(left: AbortSignal): Promise<{ failed: boolean }> {
     if (session.answers < SESSION_LENGTH) return advance(left);
-    return proceed(left, async (superseded) => {
+    return proceed(left, async () => {
       const report = await readProgress(braivo, load.courseId, user.id, left);
-      if (superseded()) return;
-      clearUnfinishedAttempt(user.id, load.courseId);
-      setEnded({ report, at: new Date() });
+      return () => {
+        clearUnfinishedAttempt(user.id, load.courseId);
+        setEnded({ report, at: new Date() });
+      };
     });
   }
 

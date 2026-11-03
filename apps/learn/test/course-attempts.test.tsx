@@ -767,6 +767,71 @@ describe("the learn app", () => {
     expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
   });
 
+  test("on Continue, reads what comes next while rechecking the session, showing it only once the session is the learner's", async () => {
+    const checked = Promise.withResolvers<{ id: string; name: string }>();
+    const session = vi
+      .fn<BraivoClient["session"]>()
+      .mockResolvedValueOnce({ id: "ada", name: "Ada Learner" })
+      .mockReturnValueOnce(checked.promise);
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, session, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // One round trip, not two: the read starts while the session check is out.
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
+    expect(session).toHaveBeenCalledTimes(2);
+    await act(async () => {});
+    expect(screen.queryByText("Past tense of 'comer'?")).toBeNull();
+
+    await act(async () => checked.resolve({ id: "ada", name: "Ada Learner" }));
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+  });
+
+  test("on Continue, shows the next question without reading where the learner stands, which a question never shows", async () => {
+    const learnerProgress = vi
+      .fn<BraivoClient["learnerProgress"]>()
+      .mockResolvedValueOnce(noProgress)
+      .mockImplementation((_input, options) => stall(options));
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, learnerProgress, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // Well inside the standing's own deadline: nothing waits on it.
+    expect(
+      await screen.findByText("Past tense of 'comer'?", undefined, { timeout: 500 }),
+    ).toBeTruthy();
+    // Never read for a question: the page's load read it once, and nothing since.
+    expect(learnerProgress).toHaveBeenCalledOnce();
+  });
+
+  test("on Continue, lets a refusal read as another account signed in meanwhile clear nothing of the first one's", async () => {
+    let user = { id: "ada", name: "Ada Learner" };
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      // As Bea, the course is not hers.
+      .mockRejectedValueOnce(new BraivoError(404, "not found"))
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, session: async () => user, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    user = { id: "bea", name: "Bea Learner" };
+    fireEvent.click(next);
+
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(3));
+    // Ada's answer, kept for her: the 404 was Bea's.
+    expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+  });
+
   test("on Continue, reloads the course as another account signed in meanwhile, keeping the first one's answer for them", async () => {
     let user = { id: "ada", name: "Ada Learner" };
     const nextActivity = vi
