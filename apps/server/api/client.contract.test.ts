@@ -337,6 +337,26 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     ]);
   });
 
+  test("lists a learner's courses with where they stand, in the shape it declares", async () => {
+    const signedIn = { headers: { cookie: learnerCookie } };
+    const courses = await client.learnerCoursesWithStanding(signedIn);
+
+    // The plain list's courses, in its order, each with its counts.
+    expect(courses.map(({ id }) => id)).toEqual(
+      (await client.learnerCourses(signedIn)).map(({ id }) => id),
+    );
+    expect(courses.find(({ id }) => id === emptyCourseId)).toEqual({
+      id: emptyCourseId,
+      number: expect.any(Number),
+      title: "Not started",
+      urlLabel: "not-started",
+      standing: { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 },
+    });
+    // Every objective of a course counted once.
+    const { standing } = courses.find(({ id }) => id === progressCourseId)!;
+    expect(Object.values(standing).reduce((sum, count) => sum + count)).toBe(3);
+  });
+
   test("finds a learner's course by number in the shape it declares, on its domain alone", async () => {
     const signedIn = { headers: { cookie: learnerCookie } };
     const spanish = (await client.learnerCourses(signedIn)).find(({ id }) => id === courseId)!;

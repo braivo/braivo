@@ -8,6 +8,7 @@ import type {
   Connection,
   Course,
   CourseProgressOverview,
+  CourseStanding,
   CourseSummary,
   CourseTaskList,
   CourseWriteResult,
@@ -63,6 +64,7 @@ export type {
   Connection,
   Course,
   CourseProgressOverview,
+  CourseStanding,
   CourseSummary,
   CourseTaskList,
   CourseWriteResult,
@@ -298,6 +300,15 @@ export type BraivoClient = {
    * that one's.
    */
   learnerCourses(options?: RequestOptions): Promise<Course[]>;
+
+  /**
+   * The same courses, each with where the learner stands in it (`standing`):
+   * what a course list shows of what waits where. Replays the learner's
+   * evidence, so the plain list is the cheaper read where none is shown.
+   */
+  learnerCoursesWithStanding(
+    options?: RequestOptions,
+  ): Promise<(Course & { standing: CourseStanding })[]>;
 
   /**
    * The signed-in learner's course numbered `number` on this organization's
@@ -1049,6 +1060,19 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       const { courses } = await parsed<{ courses: Course[] }>(response, doing);
+      return courses;
+    },
+
+    async learnerCoursesWithStanding(requestOptions) {
+      const response = await get("/api/courses?standing=true", requestOptions);
+
+      const doing = "listing the learner's courses with where they stand";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      const { courses } = await parsed<{ courses: (Course & { standing: CourseStanding })[] }>(
+        response,
+        doing,
+      );
       return courses;
     },
 

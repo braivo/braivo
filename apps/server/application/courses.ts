@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { isUrlLabel } from "../content/index.ts";
+import { activeModel, assessKnowledge, replay } from "../learning/index.ts";
 import {
   type AuthoredTask,
   type CitedPassage,
@@ -17,9 +18,11 @@ import {
   markCourseDeleted,
   markPublished,
   readCourseObjectives,
+  readObjectivesForCourses,
   readCourses,
   readDomainOrganization,
   readLearnerCourses,
+  readLearnerEvidence,
   readObjectiveCitations,
   readObjectiveTasks,
   readObjectiveTitles,
@@ -269,6 +272,72 @@ export async function listLearnerCourses(input: {
   return served
     ? readLearnerCourses(database, learnerId, { organizationId: served.id, number })
     : [];
+}
+
+/**
+ * How many of a course's objectives stand where, as the learner sees them
+ * (progress-8): retained and not due, due for review, learning (acquiring),
+ * and not started (unseen).
+ */
+export type CourseStanding = {
+  retained: number;
+  dueForReview: number;
+  learning: number;
+  notStarted: number;
+};
+
+/**
+ * The courses `listLearnerCourses` lists, each with where the learner stands
+ * in it at `now`: what a course list shows to say what waits where. The
+ * learner's evidence is replayed once per organization, as every decision
+ * replays it whole (ADR 0009), not once per course.
+ */
+export async function listLearnerCoursesWithStanding(input: {
+  database: Database;
+  learnerId: string;
+  host: RequestHost;
+  now: Date;
+}): Promise<(Course & { standing: CourseStanding })[]> {
+  const { database, learnerId, now } = input;
+  const courses = await listLearnerCourses(input);
+  const scopes = await readObjectivesForCourses(
+    database,
+    courses.map(({ id }) => id),
+  );
+  const organizations = new Set([...scopes.values()].map(({ organizationId }) => organizationId));
+  const estimates = new Map(
+    await Promise.all(
+      [...organizations].map(
+        async (organizationId) =>
+          [
+            organizationId,
+            replay(
+              await readLearnerEvidence(database, { learnerId, organizationId }, now),
+              activeModel,
+            ),
+          ] as const,
+      ),
+    ),
+  );
+  return courses.map((course) => {
+    const scope = scopes.get(course.id);
+    const standing: CourseStanding = { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 };
+    if (scope) {
+      const report = assessKnowledge({
+        now,
+        objectiveIds: scope.objectiveIds,
+        estimates: estimates.get(scope.organizationId)!,
+        model: activeModel,
+      });
+      for (const objective of report.objectives) {
+        if (objective.phase === "unseen") standing.notStarted++;
+        else if (objective.phase === "acquiring") standing.learning++;
+        else if (objective.due) standing.dueForReview++;
+        else standing.retained++;
+      }
+    }
+    return { ...course, standing };
+  });
 }
 
 /**

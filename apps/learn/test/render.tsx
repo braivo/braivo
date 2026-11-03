@@ -45,6 +45,8 @@ export function renderAt(
   options: {
     signedIn: boolean;
     learnerCourses?: BraivoClient["learnerCourses"];
+    /** Unread, as past its deadline, unless given: the list shows without standings. */
+    learnerCoursesWithStanding?: BraivoClient["learnerCoursesWithStanding"];
     /** Spanish, `c1`, as 4732, unless given. */
     learnerCourseByNumber?: BraivoClient["learnerCourseByNumber"];
     /** As the app calls it: standings only, without evidence. */
@@ -72,6 +74,12 @@ export function renderAt(
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
+  const learnerCoursesWithStanding = vi.fn<BraivoClient["learnerCoursesWithStanding"]>(
+    options.learnerCoursesWithStanding ??
+      (async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+  );
   const learnerCourseByNumber = vi.fn<BraivoClient["learnerCourseByNumber"]>(
     options.learnerCourseByNumber ??
       (async (number) =>
@@ -127,6 +135,7 @@ export function renderAt(
     nameAccount,
     signOut,
     learnerCourses,
+    learnerCoursesWithStanding,
     learnerCourseByNumber,
     learnerProgress,
     nextActivity,
@@ -143,6 +152,7 @@ export function renderAt(
 
   return {
     learnerCourses,
+    learnerCoursesWithStanding,
     learnerCourseByNumber,
     learnerProgress,
     nextActivity,

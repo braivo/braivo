@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { LearnerProgressStanding, LearnerProgressSummary } from "@braivo/server/client";
+import type {
+  CourseStanding,
+  LearnerProgressStanding,
+  LearnerProgressSummary,
+} from "@braivo/server/client";
 import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
@@ -61,16 +65,36 @@ export function labelOf(standing: LearnerProgressStanding): ProgressLabel {
   return standing.due ? "dueForReview" : "retained";
 }
 
-/** `standings` counted by label, in the summary's order, those with none left out: ["2 retained", "1 learning"]. */
+/** `standings` counted by label: as Braivo counts a course in a list (`CourseStanding`). */
+export function countStandings(standings: LearnerProgressStanding[]): CourseStanding {
+  const counts: CourseStanding = { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 };
+  for (const standing of standings) counts[labelOf(standing)]++;
+  return counts;
+}
+
+/** `counts` in words, in the summary's order, those with none left out: ["2 retained", "1 learning"]. */
+export function formatCounts(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]) {
+  return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
+    .filter((label) => counts[label] > 0)
+    .map((label) => t(PROGRESS_LABELS[label].counted(counts[label])));
+}
+
+/** `standings` counted by label, in words: `formatCounts` of `countStandings`. */
 export function formatStandingCounts(
   standings: LearnerProgressStanding[],
   t: ReturnType<typeof useLingui>["t"],
 ) {
-  const labels = standings.map(labelOf);
-  return (Object.keys(PROGRESS_LABELS) as ProgressLabel[])
-    .map((label) => [label, labels.filter((each) => each === label).length] as const)
-    .filter(([, count]) => count > 0)
-    .map(([label, count]) => t(PROGRESS_LABELS[label].counted(count)));
+  return formatCounts(countStandings(standings), t);
+}
+
+/**
+ * Counts as one line, each count whole where it fits, so a phone wraps between
+ * counts, not at "1 not" / "started": "2 retained · 1 learning".
+ */
+export function countsLine(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]): string {
+  return formatCounts(counts, t)
+    .map((count) => count.replaceAll(" ", "\u00a0"))
+    .join(" · ");
 }
 
 /**
@@ -84,6 +108,27 @@ const METER_FILLS: Record<ProgressLabel, string> = {
   learning: "bg-primary/30",
   notStarted: "",
 };
+
+/**
+ * The meter: each standing a segment in proportion to its objectives. Hidden
+ * from assistive technology: its caller says the counts in words.
+ */
+export function StandingBar({ counts }: { counts: CourseStanding }) {
+  const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+  return (
+    <span aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+      {(Object.keys(PROGRESS_LABELS) as ProgressLabel[]).map((label) =>
+        counts[label] > 0 ? (
+          <span
+            key={label}
+            className={METER_FILLS[label]}
+            style={{ width: `${(counts[label] / total) * 100}%` }}
+          />
+        ) : null,
+      )}
+    </span>
+  );
+}
 
 /** Beside an objective's title, for one a session just brought to retained. */
 const NEWLY_RETAINED = msg({
@@ -105,26 +150,13 @@ export function StandingMeter({
   newlyRetained?: ReadonlySet<string>;
 }) {
   const { t } = useLingui();
-  const counts = formatStandingCounts(report.objectives, t);
-  if (counts.length === 0) return null;
-  // Each count whole where it fits, so a phone wraps between counts, not at "1 not" / "started".
-  const line = counts.map((count) => count.replaceAll(" ", " ")).join(" · ");
-  const total = report.objectives.length;
+  if (report.objectives.length === 0) return null;
+  const counts = countStandings(report.objectives);
+  const line = countsLine(counts, t);
 
   return (
     <div className="flex w-full flex-col gap-2 text-left text-sm">
-      <span aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
-        {(Object.keys(PROGRESS_LABELS) as ProgressLabel[]).map((label) => {
-          const count = report.objectives.filter((each) => labelOf(each) === label).length;
-          return count > 0 ? (
-            <span
-              key={label}
-              className={METER_FILLS[label]}
-              style={{ width: `${(count / total) * 100}%` }}
-            />
-          ) : null;
-        })}
-      </span>
+      <StandingBar counts={counts} />
       <details className="wrap-break-word text-muted-foreground">
         {/* Padded to a touch target, keeping the browser's marker, which flex would drop. */}
         <summary className="cursor-pointer py-3">{line}</summary>

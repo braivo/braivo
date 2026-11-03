@@ -124,7 +124,17 @@
 // only that organization's.
 // 401 without a session, as on any host but an organization's domain or
 // `BRAIVO_URL`'s; otherwise 200 with
-// `{ "courses": [{ "id": "…", "title": "…" }] }`, possibly empty.
+// `{ "courses": [{ "id": "…", "number": 4732, "title": "…", "urlLabel": "…" }] }`,
+// possibly empty.
+//   ?number=4732   only the course so numbered, on its organization's domain
+//                  (none on `BRAIVO_URL`'s); 400 for a number not written as one.
+//   ?standing=true each course also carries the signed-in learner's own
+//                  standing in it at the moment of the request, counted as
+//                  the learner's progress report counts it:
+//                    "standing": { "retained": 3, "dueForReview": 1,
+//                                  "learning": 0, "notStarted": 2 }
+//                  The learner's evidence is replayed once per organization.
+//                  400 for any other value, or beside `number`.
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective, with a task to practise it or, while its tasks

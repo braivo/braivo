@@ -669,6 +669,160 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
   });
 
+  test("lists each course with where the learner stands in it when asked, and only so", async () => {
+    await retainPastTense(learner.id);
+    const list = (query: string, cookie = learner.cookie) =>
+      api.request(`/api/courses${query}`, { headers: { cookie } });
+
+    const response = await list("?standing=true");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const { courses } = (await response.json()) as {
+      courses: { id: string; standing: Record<string, number> }[];
+    };
+    const standing = (id: string) => courses.find((each) => each.id === id)?.standing;
+    expect(standing(courseId)).toEqual({
+      retained: 1,
+      dueForReview: 0,
+      learning: 0,
+      notStarted: 0,
+    });
+    expect(standing(emptyCourseId)).toEqual({
+      retained: 0,
+      dueForReview: 0,
+      learning: 0,
+      notStarted: 0,
+    });
+    // Their own standing: a classmate's evidence is not theirs.
+    const theirs = (await (await list("?standing=true", classmate.cookie)).json()) as {
+      courses: { id: string; standing: Record<string, number> }[];
+    };
+    expect(theirs.courses.find((each) => each.id === courseId)?.standing.notStarted).toBe(1);
+
+    // The plain list stays plain; anything but `true`, or beside a number, is refused.
+    const plain = (await (await list("")).json()) as { courses: object[] };
+    expect(plain.courses.every((each) => !("standing" in each))).toBe(true);
+    for (const query of ["?standing=false", "?standing=", "?standing=true&number=1"]) {
+      expect((await list(query)).status, query).toBe(400);
+    }
+    expect((await api.request("/api/courses?standing=true")).status).toBe(401);
+  });
+
+  test("counts each course's standing as the learner's own progress report counts it, as of now", async () => {
+    type Standing = { phase: string; due?: boolean };
+    const counted = async () => {
+      const { courses } = (await (
+        await api.request("/api/courses?standing=true", { headers: { cookie: learner.cookie } })
+      ).json()) as { courses: { id: string; standing: Record<string, number> }[] };
+      return courses.find(({ id }) => id === courseId)!.standing;
+    };
+    // The report's standings, counted the same way: what the list must agree with.
+    const reported = async () => {
+      const { objectives } = (await (
+        await progress(courseId, learner.id, learner.cookie)
+      ).json()) as {
+        objectives: Standing[];
+      };
+      const counts = { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 };
+      for (const { phase, due } of objectives) {
+        if (phase === "unseen") counts.notStarted++;
+        else if (phase === "acquiring") counts.learning++;
+        else if (due) counts.dueForReview++;
+        else counts.retained++;
+      }
+      return counts;
+    };
+    const now = Math.floor(Date.now() / 1000) * 1000;
+
+    // Learning: a miss a moment ago.
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      {
+        id: "standing-miss",
+        objectiveId: pastTense,
+        outcome: "failure",
+        at: new Date(now - 60_000),
+      },
+    ]);
+    expect(await counted()).toEqual({ retained: 0, dueForReview: 0, learning: 1, notStarted: 0 });
+    expect(await counted()).toEqual(await reported());
+
+    // A success dated a minute ahead is not yet evidence: still learning.
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      {
+        id: "standing-ahead",
+        objectiveId: pastTense,
+        outcome: "success",
+        at: new Date(now + 60_000),
+      },
+    ]);
+    expect((await counted()).learning).toBe(1);
+
+    // Due: retained long ago, its review now past.
+    await testing.clearLearnerHistory(database, [learner.id]);
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      {
+        id: "standing-old",
+        objectiveId: pastTense,
+        outcome: "success",
+        at: new Date(now - 90 * 86_400_000),
+      },
+    ]);
+    expect(await counted()).toEqual({ retained: 0, dueForReview: 1, learning: 0, notStarted: 0 });
+    expect(await counted()).toEqual(await reported());
+
+    // Two courses sharing the objective count it alike: evidence is the organization's (ADR 0009).
+    const { id: sharingCourseId } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Spanish revision",
+      objectiveIds: [pastTense],
+    });
+    // A course of a second organization the learner is also in: listed on the
+    // installation's host, so only the domain's ceiling can keep it off that domain.
+    const secondOrganizationId = "learning-test-standing-org";
+    await testing.seedOrganization(database, {
+      organizationId: secondOrganizationId,
+      learnerIds: [learner.id],
+      at,
+    });
+    const [theirObjective] = await createObjectives(database, secondOrganizationId, ["Numbers"]);
+    const { id: secondCourseId } = await createCourse(database, {
+      published: true,
+      organizationId: secondOrganizationId,
+      title: "Portuguese numbers",
+      objectiveIds: [theirObjective!],
+    });
+    const listed = async (origin: string, cookie: string) =>
+      (
+        (await (
+          await api.request(`${origin}/api/courses?standing=true`, { headers: { cookie } })
+        ).json()) as { courses: { id: string; standing: object }[] }
+      ).courses;
+
+    const everywhere = await listed(baseUrl, learner.cookie);
+    const ids = everywhere.map(({ id }) => id);
+    expect(ids).toContain(courseId);
+    expect(ids).toContain(secondCourseId);
+    expect(everywhere.find(({ id }) => id === sharingCourseId)?.standing).toEqual(await counted());
+    expect(everywhere.find(({ id }) => id === secondCourseId)?.standing).toEqual({
+      retained: 0,
+      dueForReview: 0,
+      learning: 0,
+      notStarted: 1,
+    });
+
+    // On an organization's domain, that organization's courses alone, with their standing.
+    const onDomain = await listed(
+      organizationOrigin,
+      await learnerSessionOn(api, organizationOrigin, learner.cookie),
+    );
+    const domainIds = onDomain.map(({ id }) => id);
+    expect(domainIds).toContain(courseId);
+    expect(domainIds).not.toContain(secondCourseId);
+    expect(domainIds).not.toContain(foreignCourseId);
+    expect(onDomain.find(({ id }) => id === courseId)?.standing).toEqual(await counted());
+  });
+
   test("finds a course by its number on its own organization's domain alone", async () => {
     // A member of both, whose organizations each number a course alike.
     const both = await signUp();
