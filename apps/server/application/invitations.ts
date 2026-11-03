@@ -8,6 +8,7 @@ import * as z from "zod";
 import { describeError } from "../logging.ts";
 import { invitationLink, invitationMail, type SendMail } from "../mail/index.ts";
 import {
+  cancelPendingInvitation,
   claimInvitationMail,
   countMembers,
   type MailBoundCode,
@@ -16,15 +17,16 @@ import {
   readInvitation,
   readLearnDomain,
   readMemberRolesByEmail,
+  readMemberships,
+  readExpiredInvitations,
   readOrganizationInvitation,
-  readOrganizationRoles,
   readPendingInvitationRole,
   readPendingInvitations,
   readUser,
   releaseInvitationMail,
   renewInvitation,
 } from "../persistence/index.ts";
-import { assertMayAdminister, NotPermitted } from "./permission.ts";
+import { assertMayAdminister, authors, NotPermitted } from "./permission.ts";
 
 export type { PendingInvitation } from "../persistence/index.ts";
 
@@ -70,6 +72,9 @@ export class InvitationRefused extends Error {
       | "ROLE_NOT_INVITABLE"
       | "NO_LEARN_DOMAIN"
       | "INVITATION_NOT_FOUND"
+      | "INVITATION_ACCEPTED"
+      | "INVITATION_ACCEPTING"
+      | "INVITATION_CANCELED"
       | "NOT_PENDING"
       | "ALREADY_MEMBER"
       | "ALREADY_INVITED"
@@ -396,8 +401,60 @@ function refusalOf(result: InvitationResult): Error {
 }
 
 /**
- * An organization's invitations waiting to be accepted, for whoever
- * administers it, and how many more members fit.
+ * Cancels a pending invitation of an organization, for whoever administers it
+ * (ADR 0018), expired or not; never one accepted or cancelled already, unlike
+ * Better Auth's, which cancels whatever it finds. Better Auth's acceptance
+ * claims the invitation, then makes the member, and gives the claim back if
+ * that fails: so acceptance came first only once the address is a member; a
+ * claim alone is acceptance under way. One seen pending again is tried again.
+ */
+export async function cancelInvitation(input: {
+  database: Database;
+  organizationId: string;
+  actingAs: string;
+  invitationId: string;
+}): Promise<{ invitation: { id: string; status: "canceled" } }> {
+  const { database, organizationId, actingAs, invitationId } = input;
+  await assertMayAdminister(database, { organizationId, userId: actingAs });
+
+  for (let tries = 0; tries < 3; tries++) {
+    if (await cancelPendingInvitation(database, { organizationId, invitationId })) {
+      return { invitation: { id: invitationId, status: "canceled" } };
+    }
+    const found = await readOrganizationInvitation(database, { organizationId, invitationId });
+    if (!found) throw new InvitationRefused("INVITATION_NOT_FOUND", "No such invitation.");
+    if (found.status === "accepted") {
+      const roles = await readMemberRolesByEmail(database, { organizationId, email: found.email });
+      if (roles.length > 0) {
+        throw new InvitationRefused(
+          "INVITATION_ACCEPTED",
+          "This invitation was accepted before it could be cancelled.",
+        );
+      }
+      // Claimed, its member not made yet; or one whose member was removed since.
+      throw new InvitationRefused(
+        "INVITATION_ACCEPTING",
+        "This invitation is being accepted; look again in a moment.",
+      );
+    }
+    if (found.status !== "pending") {
+      throw new InvitationRefused("INVITATION_CANCELED", "This invitation was cancelled already.");
+    }
+  }
+  // Claimed and given back each time: acceptance is still under way.
+  throw new InvitationRefused(
+    "INVITATION_ACCEPTING",
+    "This invitation is being accepted; look again in a moment.",
+  );
+}
+
+/** The most expired invitations listed: a page's worth, invited again one at a time. */
+const MAX_EXPIRED_LISTED = 100;
+
+/**
+ * An organization's invitations waiting to be accepted, and those expired
+ * worth inviting again (`readExpiredInvitations`), for whoever administers
+ * it, and how many more members fit.
  */
 export async function listInvitations(input: {
   database: Database;
@@ -405,14 +462,19 @@ export async function listInvitations(input: {
   actingAs: string;
   memberLimit: number;
   now: Date;
-}): Promise<{ invitations: PendingInvitation[]; membersLeft: number }> {
+}): Promise<{
+  invitations: PendingInvitation[];
+  expired: PendingInvitation[];
+  membersLeft: number;
+}> {
   const { database, organizationId, actingAs, now } = input;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
-  const [invitations, members] = await Promise.all([
+  const [invitations, expired, members] = await Promise.all([
     readPendingInvitations(database, { organizationId, now }),
+    readExpiredInvitations(database, { organizationId, now, limit: MAX_EXPIRED_LISTED }),
     countMembers(database, organizationId),
   ]);
-  return { invitations, membersLeft: Math.max(0, input.memberLimit - members) };
+  return { invitations, expired, membersLeft: Math.max(0, input.memberLimit - members) };
 }
 
 /**
@@ -427,11 +489,19 @@ export type InvitationPage = {
   status: "pending" | "expired" | "canceled" | "accepted";
   recipient?: boolean;
   member?: boolean;
+  /** The role offered: what accepting made them, not what they hold now. */
   role?: string;
   inviter?: { name: string };
   /**
-   * A learner's invitation, to its recipient: the hostname they continue on,
-   * the organization's latest, or `null` while it has none (ADR 0018).
+   * A member, to its recipient: where they go on as they are now, not as
+   * invited, since their role may have changed (access-56): the console where
+   * they author, administer, or teach, the learn domain where they only learn.
+   */
+  continueTo?: "console" | "learn";
+  /**
+   * Where a learner goes on, to its recipient: a member who only learns, or a
+   * non-member invited as a learner. The hostname, the organization's latest,
+   * or `null` while it has none (ADR 0018).
    */
   learnDomain?: string | null;
 };
@@ -461,19 +531,33 @@ export async function readInvitationPage(input: {
   const email = (await readUser(database, viewer))?.email;
   const recipient = email?.toLowerCase() === found.email.toLowerCase();
   if (!recipient) return { ...page, recipient };
-  const roles = await readOrganizationRoles(database, {
-    organizationId: found.organizationId,
-    userId: viewer,
-  });
+  // As they are now, whatever the invitation offered: a member by another
+  // way, or one whose role changed since accepting (access-52).
+  const continueTo = await memberDestination(database, viewer, found.organizationId);
+  const learner = continueTo ? continueTo === "learn" : found.role === "member";
   return {
     organization: found.organization,
     status,
     recipient,
-    member: roles.length > 0,
+    member: continueTo !== null,
     role: found.role,
     inviter: found.inviter,
-    ...(found.role === "member" && {
+    ...(continueTo && { continueTo }),
+    ...(learner && {
       learnDomain: (await readLearnDomain(database, found.organizationId)) ?? null,
     }),
   };
+}
+
+/** Where a member goes on in an organization, as the console lists it (`listOrganizations`). */
+async function memberDestination(
+  database: Database,
+  userId: string,
+  organizationId: string,
+): Promise<"console" | "learn" | null> {
+  const held = (await readMemberships(database, userId)).find(
+    ({ organization }) => organization.id === organizationId,
+  );
+  if (!held) return null;
+  return authors(held.roles) || held.teaches ? "console" : "learn";
 }

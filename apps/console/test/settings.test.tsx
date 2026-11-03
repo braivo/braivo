@@ -1062,11 +1062,12 @@ describe("the console", () => {
 
       const rows = screen.getAllByRole("row").map((row) => row.textContent);
       expect(rows).toEqual([
-        "NameRole",
+        "NameRoleActions",
         "Olive OwnerYouOwner and AdminTeaches 7B",
-        "Lee LearnerLearnerTeaches 7A and 7B",
+        // Two of one name, told apart by the end of their user ID.
+        "Lee Learneru2LearnerTeaches 7A and 7B",
         "Ada AdminAdminTeaches 7B",
-        "Lee LearnerLearner",
+        "Lee Learneru4Learner",
         "Avery AuthorAuthor",
       ]);
     });

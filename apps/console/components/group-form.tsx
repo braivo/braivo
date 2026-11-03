@@ -91,6 +91,8 @@ export function GroupForm(props: {
   organization: Organization;
   members: Member[];
   courses: Course[];
+  /** The organization's groups as read, to mark whoever learns in none. */
+  groups: Group[];
   group?: Group;
 }) {
   const { braivo, members, courses } = props;
@@ -382,6 +384,11 @@ export function GroupForm(props: {
     byName(role === "teacher" ? shown.teacherIds : shown.learnerIds);
   const teachers = people("teacher");
   const learners = people("learner");
+  // Members learning in a group, as the groups were read; anyone else, who an
+  // administrator placing a new class looks for, is marked.
+  const grouped = new Set(
+    props.groups.flatMap((each) => each.learners.map(({ userId }) => userId)),
+  );
   const removing = change?.remove !== undefined;
 
   return (
@@ -490,6 +497,7 @@ export function GroupForm(props: {
                     ...person(userId),
                     checked: learners.includes(userId),
                     taken: teachers.includes(userId) ? t`Teacher` : undefined,
+                    note: grouped.has(userId) ? undefined : t`Not in a group`,
                   }))}
                   onToggle={(userId, checked) => setRole(userId, checked ? "learner" : null)}
                 />
@@ -516,8 +524,8 @@ export function GroupForm(props: {
               footer={
                 <FieldDescription>
                   <Trans>
-                    Only the organization's members can be added. Ask whoever runs Braivo for you to
-                    add anyone missing first.
+                    Only the organization's members can be added. Invite anyone missing in Members
+                    first.
                   </Trans>{" "}
                   <Link
                     to="/$organizationSlug/settings/members"
@@ -749,7 +757,15 @@ function Picker({
   label: string;
   search: string;
   none: string;
-  options: { id: string; name: string; tag?: string; checked: boolean; taken?: string }[];
+  /** `taken`, in the other role, cannot be chosen here; `note` says something of one that can. */
+  options: {
+    id: string;
+    name: string;
+    tag?: string;
+    checked: boolean;
+    taken?: string;
+    note?: string;
+  }[];
   onToggle: (id: string, checked: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -771,7 +787,10 @@ function Picker({
                 <CommandItem
                   key={option.id}
                   value={option.id}
-                  keywords={[option.name, ...(option.tag ? [option.tag] : [])]}
+                  keywords={[
+                    option.name,
+                    ...[option.tag, option.note].filter((each) => each !== undefined),
+                  ]}
                   disabled={option.taken !== undefined}
                   data-checked={option.checked}
                   onSelect={() => props.onToggle(option.id, !option.checked)}
@@ -783,8 +802,10 @@ function Picker({
                     {option.name}
                     <NameTag tag={option.tag} />
                   </span>
-                  {option.taken && (
-                    <span className="shrink-0 text-xs text-muted-foreground">{option.taken}</span>
+                  {(option.taken ?? option.note) && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {option.taken ?? option.note}
+                    </span>
                   )}
                   {/* Said, not only shown as a check: the list's own "selected"
                       is the highlighted item, which choosing toggles. */}

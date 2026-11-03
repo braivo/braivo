@@ -75,11 +75,14 @@ const routes = [
   "GET  /api/organizations/:organizationId/tools-read-learner-data",
   "POST /api/organizations/:organizationId/tools-read-learner-data",
   "GET  /api/organizations/:organizationId/members",
+  "POST /api/organizations/:organizationId/members/:userId/remove",
+  "POST /api/organizations/:organizationId/members/:userId/role",
   "GET  /api/organizations/:organizationId/reports",
   "POST /api/organizations/:organizationId/reports/dismiss",
   "GET  /api/organizations/:organizationId/invitations",
   "POST /api/organizations/:organizationId/invitations",
   "POST /api/organizations/:organizationId/invitations/:invitationId/resend",
+  "POST /api/organizations/:organizationId/invitations/:invitationId/cancel",
   "GET  /api/invitations/:invitationId",
   "GET  /api/organizations/:organizationId/first-answers",
   "GET  /api/organizations/:organizationId/groups",
@@ -326,11 +329,14 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/members                                 401     403     403     401       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/members/:userId/remove                  401     403     403     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/members/:userId/role                    401     403     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/reports                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/reports/dismiss                         401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/invitations                             401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/invitations                             401     403     403     401     403     403     403     403     1MB
 POST /api/organizations/:organizationId/invitations/:invitationId/resend        401     403     403     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/invitations/:invitationId/cancel        401     403     403     401     403     403     403     403     1MB
 GET  /api/invitations/:invitationId                                             404     404     403     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/first-answers                           401     400     403     401       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
@@ -407,11 +413,14 @@ POST /api/organizations/:organizationId/rename                                  
 GET  /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/tools-read-learner-data                 404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/members                                 404     404     401     404       ·       ·       ·       ·       ·
+POST /api/organizations/:organizationId/members/:userId/remove                  404     404     401     404     404     404     404     404     404
+POST /api/organizations/:organizationId/members/:userId/role                    404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/reports                                 404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/reports/dismiss                         404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/invitations                             404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/invitations                             404     404     401     404     404     404     404     404     404
 POST /api/organizations/:organizationId/invitations/:invitationId/resend        404     404     401     404     404     404     404     404     404
+POST /api/organizations/:organizationId/invitations/:invitationId/cancel        404     404     401     404     404     404     404     404     404
 GET  /api/invitations/:invitationId                                             404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/first-answers                           404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·

@@ -22,7 +22,9 @@ import { learnUrl } from "#lib/learn-url";
  * account it was sent to accepts by pressing a button naming the school, the
  * role, and the account, never by arriving, so a wrong account on a shared
  * device is noticed. Another account is told so, and offered to sign out.
- * A learner then goes to the learn domain, an author or admin to the console.
+ * A learner then goes to the learn domain, an author or admin to the console;
+ * the link opened again goes on as they are now, or says they are not a
+ * member.
  */
 export const Route = createFileRoute("/invitations/$invitationId")({
   // Another invitation starts afresh: nothing pressed or refused carries over.
@@ -300,9 +302,10 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
 
   const current = joined ?? invitation;
   const hostname = current.learnDomain;
-  // A member goes on where the invitation's role does: a learner at the
-  // learn domain, anyone else in the console.
-  const goOn = !learner ? (
+  // A member goes on as they are now, not as invited (access-52): a learner
+  // at the learn domain, anyone else in the console.
+  const toLearn = current.continueTo ? current.continueTo === "learn" : learner;
+  const goOn = !toLearn ? (
     <Button className="mt-6 w-full" onClick={() => void toConsole()}>
       <Trans>Continue</Trans>
     </Button>
@@ -318,6 +321,23 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
       <Trans>{school}'s site for learners is not ready yet. Contact them.</Trans>
     </MutedText>
   );
+  // Accepted, no member: removed since, or an acceptance not finished, which
+  // Better Auth marks accepted before it makes the member, and undoes if that fails.
+  if (current.status === "accepted" && !current.member) {
+    return (
+      <>
+        <Heading>
+          <Trans>You are not a member of {school}</Trans>
+        </Heading>
+        <MutedText className="block wrap-break-word">
+          <Trans>
+            If you have just joined, reload this page in a moment. Otherwise, ask them for a new
+            invitation.
+          </Trans>
+        </MutedText>
+      </>
+    );
+  }
   if (current.member && current.status !== "accepted") {
     return (
       <>
@@ -339,7 +359,7 @@ function Accept({ invitation, email }: { invitation: InvitationPage; email: stri
         </Heading>
         {/* Back here, or the link opened again, after the learn domain's
             sign-in did not finish: going on starts it afresh. */}
-        {learner && hostname && (
+        {toLearn && hostname && (
           <MutedText className="block wrap-break-word">
             <Trans>If signing in there did not finish, continue again: you stay a member.</Trans>
           </MutedText>

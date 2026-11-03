@@ -80,9 +80,11 @@ export {
 } from "./group.ts";
 export type { MailBoundCode, MailBounds, PendingInvitation } from "./invitation.ts";
 export {
+  cancelPendingInvitation,
   claimInvitationMail,
   countPendingInvitations,
   readInvitation,
+  readExpiredInvitations,
   readOrganizationInvitation,
   readPendingInvitationRole,
   readPendingInvitations,
@@ -99,6 +101,8 @@ export {
   readMemberships,
   readOrganizationRoles,
   readUser,
+  deleteMember,
+  updateMemberRole,
 } from "./membership.ts";
 export type { ObjectiveSummary, Objective } from "./objective.ts";
 export {

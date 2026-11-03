@@ -5,6 +5,7 @@ import type { Database } from "@braivo/db";
 import { type Context, Hono } from "hono";
 
 import {
+  cancelInvitation,
   type InvitableRole,
   InvitationRefused,
   inviteToOrganization,
@@ -48,7 +49,7 @@ function refused(context: Context, error: InvitationRefused) {
 }
 
 /**
- * Invitations to an organization (ADR 0018): made, resent, and listed by
+ * Invitations to an organization (ADR 0018): made, resent, cancelled, and listed by
  * whoever administers it, in a browser; a tool neither invites nor reads
  * invitees' emails. Accepting is Better Auth's own `accept-invitation`.
  */
@@ -131,6 +132,28 @@ export function invitationRoutes(
             locale: mailLocale(context.req.header("accept-language")),
             invitationDays: INVITATION_DAYS,
             now: new Date(),
+          }),
+        );
+      } catch (error) {
+        if (error instanceof InvitationRefused) return refused(context, error);
+        return organizationRefusal(context, error);
+      }
+    },
+  );
+
+  routes.post(
+    `${path}/:invitationId/cancel`,
+    ...trustedJsonWrite(),
+    requireAccount,
+    async (context) => {
+      if (presentsToolCredential(context)) return context.body(null, 403);
+      try {
+        return context.json(
+          await cancelInvitation({
+            database,
+            organizationId: context.req.param("organizationId"),
+            actingAs: context.var.userId,
+            invitationId: context.req.param("invitationId"),
           }),
         );
       } catch (error) {

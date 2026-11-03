@@ -824,8 +824,8 @@ export function createAuth(options: AuthOptions) {
       // These answer any member, not only owners and admins: a learner would
       // read members' and invitations' emails, another's role, or, from
       // `remove-member`'s error, whether an email is a member's; a role change
-      // needs a member-row ID nothing left lists. Braivo serves the roster;
-      // changing another member takes the database until ADR 0018.
+      // needs a member-row ID nothing left lists. Braivo serves the roster,
+      // removal, and role changes, never an owner's (access-56).
       "/organization/list-members",
       "/organization/get-full-organization",
       "/organization/get-active-member-role",

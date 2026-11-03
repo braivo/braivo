@@ -6,12 +6,33 @@ import {
   type InvitableRole,
   type InvitationResult,
   type InvitationBatchResult,
+  type Member,
   type PendingInvitation,
 } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@braivo/ui/components/alert-dialog";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@braivo/ui/components/dropdown-menu";
 import {
   Field,
   FieldDescription,
@@ -36,13 +57,23 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg, t } from "@lingui/core/macro";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { CircleExclamationPointIcon } from "lucide-react";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { CircleExclamationPointIcon, EllipsisIcon } from "lucide-react";
+import {
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { CopyButton } from "#components/copy-button";
+import { NameTag } from "#components/name-tag";
 import { NoSuchSetting } from "#components/no-such-setting";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { type InvitationDraft, invitationDrafts } from "#lib/invitation-drafts";
+import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { refreshInPlace } from "#lib/page-scroller";
 import { administratorsOnly, orNotFound } from "#lib/refusals";
 import { sayRoles } from "#lib/roles";
@@ -50,11 +81,11 @@ import { pageHead } from "#lib/title";
 
 /**
  * Who belongs to the organization, by name, with their roles (access-26),
+ * each but an owner and oneself given another role or removed (access-56);
  * and who is invited (access-50, 51): learners, authors, or admins, up to
- * 100 addresses at once, each reported, and Resend (ADR 0018); removal stays
- * the operator's for now. Teaching
- * belongs to groups, not roles (access-38), so each role shows with the
- * groups its member teaches.
+ * 100 addresses at once, each reported, with Resend and Cancel, and those
+ * expired to invite again (ADR 0018). Teaching belongs to groups, not roles
+ * (access-38), so each role shows with the groups its member teaches.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/members")({
   beforeLoad: administratorsOnly,
@@ -77,7 +108,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/mem
 
 function Members() {
   const { members, groups } = Route.useLoaderData();
-  const { user, organization } = Route.useRouteContext();
+  const { organization, user } = Route.useRouteContext();
   const { i18n } = useLingui();
   const count = members.length;
   // The groups each teaches, "Spanish A and Spanish B", in the reader's language.
@@ -93,10 +124,7 @@ function Members() {
       </Heading>
       <MutedText className="mb-4 block wrap-break-word">
         <Plural value={count} one="# member." other="# members." />{" "}
-        <Trans>
-          Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for
-          you.
-        </Trans>{" "}
+        <Trans>Invite learners, authors, and admins here.</Trans>{" "}
         <Trans>
           To let a member read their learners' progress, make them a teacher in a{" "}
           <Link
@@ -112,43 +140,7 @@ function Members() {
       {/* Per account: another signed in meanwhile finds no draft of this one's. */}
       <InviteForm key={user.id} />
       <Invitations />
-      <Heading level={2} className="mt-8 mb-2">
-        <Trans>Members</Trans>
-      </Heading>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>
-              {/* A person's, which Polish words apart from a thing's. */}
-              <Trans context="person">Name</Trans>
-            </TableHead>
-            <TableHead>
-              <Trans>Role</Trans>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {members.map((member) => (
-            <TableRow key={member.userId}>
-              <TableCell className="align-top whitespace-normal">
-                {/* A gap, not a margin, so a badge that wraps starts where the name does. */}
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="wrap-anywhere">{member.name}</span>
-                  {member.userId === user.id && (
-                    <Badge variant="secondary">
-                      <Trans>You</Trans>
-                    </Badge>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="align-top whitespace-normal">
-                {sayRoles(i18n, member.roles)}
-                <Teaching groupNames={groupsTaughtBy(member.userId)} listFormat={listFormat} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <MemberList members={members} groupsTaughtBy={groupsTaughtBy} listFormat={listFormat} />
     </>
   );
 }
@@ -167,6 +159,307 @@ function Teaching({
     <MutedText className="block wrap-anywhere">
       <Trans>Teaches {names}</Trans>
     </MutedText>
+  );
+}
+
+/** What came of acting on a member or an invitation: said, or alerted; its count keys a repeat. */
+type Notice = { said?: ReactNode; alert?: ReactNode; count: number };
+
+/**
+ * A notice's setter that counts, so an alert said twice is announced twice
+ * (docs/apps.md), and a failure's words: signed out, the page stays, since
+ * the invite field may hold pasted addresses; refused because the page is
+ * stale (403, 404, 409), the page is read again, which shows how things stand,
+ * the focus going to `heading` if the control that had it went with its row.
+ */
+function useNotice(heading: RefObject<HTMLHeadingElement | null>) {
+  const router = useRouter();
+  const [notice, setNotice] = useState<Notice>();
+  // A reread just answered, which may have removed the row whose control had
+  // the focus: checked once, on the commit after it, then forgotten.
+  const [reread, setReread] = useState(0);
+  useLayoutEffect(() => {
+    if (reread === 0) return;
+    const focused = document.activeElement;
+    if (!focused || focused === document.body || !focused.isConnected) heading.current?.focus();
+  }, [reread, heading]);
+  const say = (next: Omit<Notice, "count">) =>
+    setNotice((last) => ({ ...next, count: (last?.count ?? 0) + 1 }));
+  async function failed(thrown: unknown, words: ReactNode) {
+    const status = thrown instanceof BraivoError ? thrown.status : undefined;
+    if (status === 401) {
+      return say({
+        alert: (
+          <Trans>
+            You were signed out.{" "}
+            <a href="/login" target="_blank" rel="noopener" className="underline">
+              Sign in again in a new tab
+            </a>
+            , then try again.
+          </Trans>
+        ),
+      });
+    }
+    say({ alert: words });
+    if (status !== 403 && status !== 404 && status !== 409) return;
+    // No longer theirs to manage, the reread may leave the page; else it stays where it was.
+    await (status === 403 ? router.invalidate() : refreshInPlace(router));
+    // Rendered after the reread's own commit, so its rows are as read.
+    setReread((count) => count + 1);
+  }
+  return { notice, say, failed } as const;
+}
+
+/** A notice's two regions, mounted once so a status filled later is announced. */
+function NoticeRegions({ notice, className }: { notice: Notice | undefined; className?: string }) {
+  return (
+    <>
+      <p role="status" className={`text-sm wrap-anywhere text-muted-foreground ${className ?? ""}`}>
+        {notice?.said}
+      </p>
+      {notice?.alert && (
+        <Alert key={notice.count} variant="destructive" className="mb-3">
+          <CircleExclamationPointIcon />
+          <AlertDescription className="wrap-break-word">{notice.alert}</AlertDescription>
+        </Alert>
+      )}
+    </>
+  );
+}
+
+/** The one role an administrator gives, of the roles a member holds: the widest. */
+const widestRole = (roles: readonly string[]): InvitableRole =>
+  roles.includes("admin") ? "admin" : roles.includes("author") ? "author" : "member";
+
+/**
+ * The members, each with their roles and the groups they teach, and, for
+ * each but an owner and oneself, a menu giving another role or removing
+ * them (access-56). What came of it is said above the table: a removed
+ * member's row is gone once the page is read again.
+ */
+function MemberList(props: {
+  members: Member[];
+  groupsTaughtBy: (userId: string) => string[];
+  listFormat: Intl.ListFormat;
+}) {
+  const { user } = Route.useRouteContext();
+  const { i18n } = useLingui();
+  const id = useId();
+  const heading = useRef<HTMLHeadingElement>(null);
+  const actions = useNotice(heading);
+  // Two members of one name told apart wherever one is acted on.
+  const tags = sharedNameTags(props.members);
+  return (
+    <section aria-labelledby={`${id}-heading`} className="mt-8">
+      <Heading ref={heading} tabIndex={-1} level={2} id={`${id}-heading`} className="mb-2">
+        <Trans>Members</Trans>
+      </Heading>
+      <NoticeRegions notice={actions.notice} className="mb-2" />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>
+              {/* A person's, which Polish words apart from a thing's. */}
+              <Trans context="person">Name</Trans>
+            </TableHead>
+            <TableHead>
+              <Trans>Role</Trans>
+            </TableHead>
+            <TableHead className="w-0">
+              <span className="sr-only">
+                <Trans>Actions</Trans>
+              </span>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {props.members.map((member) => (
+            <TableRow key={member.userId}>
+              <TableCell className="align-top whitespace-normal">
+                {/* A gap, not a margin, so a badge that wraps starts where the name does. */}
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="wrap-anywhere">
+                    {member.name}
+                    <NameTag tag={tags.get(member.userId)} />
+                  </span>
+                  {member.userId === user.id && (
+                    <Badge variant="secondary">
+                      <Trans>You</Trans>
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="align-top whitespace-normal">
+                {sayRoles(i18n, member.roles)}
+                <Teaching
+                  groupNames={props.groupsTaughtBy(member.userId)}
+                  listFormat={props.listFormat}
+                />
+              </TableCell>
+              <TableCell className="py-1 text-end align-top">
+                {member.userId !== user.id && !member.roles.includes("owner") && (
+                  <MemberActions
+                    member={member}
+                    name={nameWithTag(member.name, tags.get(member.userId))}
+                    actions={actions}
+                    heading={heading}
+                  />
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </section>
+  );
+}
+
+/**
+ * One member's menu: their role, chosen among Learner, Author, and Admin and
+ * applied at once, and removing them, asked first.
+ */
+function MemberActions(props: {
+  member: Member;
+  /** Their name, tagged when another member shares it. */
+  name: string;
+  actions: ReturnType<typeof useNotice>;
+  heading: RefObject<HTMLHeadingElement | null>;
+}) {
+  const { member, name, actions, heading } = props;
+  const { organization, braivo } = Route.useRouteContext();
+  const router = useRouter();
+  const { i18n, t } = useLingui();
+  const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  // The dialog opens from the menu, not a trigger of its own: closed, it gives the focus back here.
+  const menuButton = useRef<HTMLButtonElement>(null);
+
+  /** A refusal that trying again cannot undo, said so; its row is read again. */
+  function refusal(thrown: unknown) {
+    const code = thrown instanceof BraivoError ? thrown.code : undefined;
+    if (code === "MEMBER_NOT_FOUND") return <Trans>{name} is no longer a member.</Trans>;
+    if (code === "MEMBER_IS_OWNER") {
+      return <Trans>{name} is an owner now, whose membership is not changed here.</Trans>;
+    }
+    return undefined;
+  }
+
+  async function changeRole(role: InvitableRole) {
+    if (pending || role === widestRole(member.roles)) return;
+    setPending(true);
+    try {
+      const changed = await braivo.setMemberRole(organization.id, member.userId, role, {
+        signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+      });
+      const roles = sayRoles(i18n, changed.roles);
+      actions.say({
+        said: (
+          <Trans>
+            {name} is now {roles}.
+          </Trans>
+        ),
+      });
+      await refreshInPlace(router);
+    } catch (thrown) {
+      await actions.failed(
+        thrown,
+        refusal(thrown) ?? <Trans>Could not change {name}'s role. Try again.</Trans>,
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function remove() {
+    if (pending) return;
+    setPending(true);
+    try {
+      await braivo.removeMember(organization.id, member.userId, {
+        signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+      });
+      actions.say({ said: <Trans>{name} was removed.</Trans> });
+      await refreshInPlace(router);
+      // Their row, and the menu that had the focus, are gone.
+      heading.current?.focus();
+    } catch (thrown) {
+      await actions.failed(
+        thrown,
+        refusal(thrown) ?? <Trans>Could not remove {name}. Try again.</Trans>,
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            ref={menuButton}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t`Change or remove ${name}`}
+            aria-disabled={pending}
+          >
+            {pending ? <Spinner aria-hidden="true" /> : <EllipsisIcon aria-hidden="true" />}
+          </Button>
+        </DropdownMenuTrigger>
+        {/* Wide enough for "Administrator" and its check, in Polish too. */}
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuLabel>
+            <Trans>Role</Trans>
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={widestRole(member.roles)}
+            onValueChange={(value) => void changeRole(value as InvitableRole)}
+          >
+            {INVITED_ROLES.map(({ value, label }) => (
+              <DropdownMenuRadioItem key={value} value={value} disabled={pending}>
+                {i18n._(label)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={pending}
+            onSelect={() => setConfirming(true)}
+          >
+            <Trans>Remove…</Trans>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirming} onOpenChange={setConfirming}>
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            // Kept, or still to be removed: their menu. Removed, `remove` moves it on.
+            event.preventDefault();
+            menuButton.current?.focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="wrap-anywhere">
+              <Trans>Remove {name}?</Trans>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <Trans>
+                They leave its groups and can no longer practise or work here. Their learning
+                history is kept. You can invite them again.
+              </Trans>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              <Trans>Keep them</Trans>
+            </AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void remove()}>
+              <Trans>Remove</Trans>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -509,8 +802,24 @@ function InviteForm() {
   );
 }
 
-/** Mails a waiting invitation again (access-50): the same link, its expiry renewed. */
-function ResendButton({ invitation }: { invitation: PendingInvitation }) {
+/**
+ * Mails a waiting invitation again (access-55): the same link, its expiry
+ * renewed; or, `expired`, invites its address anew, a new link.
+ */
+function ResendButton({
+  invitation,
+  expiredList,
+}: {
+  invitation: PendingInvitation;
+  /**
+   * Its list's notice and heading: invited again, its row leaves this list
+   * for the waiting one, so what came of it is said there, the focus moved there.
+   */
+  expiredList?: {
+    notice: ReturnType<typeof useNotice>;
+    heading: RefObject<HTMLHeadingElement | null>;
+  };
+}) {
   const { organization, braivo } = Route.useRouteContext();
   const router = useRouter();
   const { i18n } = useLingui();
@@ -534,13 +843,24 @@ function ResendButton({ invitation }: { invitation: PendingInvitation }) {
         headers: { "Accept-Language": i18n.locale },
       });
       setPending(false);
-      say(
-        resent.emailSent
-          ? { sent: true }
-          : { alert: msg`The email may not have gone. Copy the link instead.` },
-      );
+      if (expiredList) {
+        expiredList.notice.say({
+          said: resent.emailSent ? (
+            <Trans>Invited {email} again.</Trans>
+          ) : (
+            <Trans>Invited {email} again, but the email may not have gone. Copy its link.</Trans>
+          ),
+        });
+      } else {
+        say(
+          resent.emailSent
+            ? { sent: true }
+            : { alert: msg`The email may not have gone. Copy the link instead.` },
+        );
+      }
       // Its expiry renewed, or, expired meanwhile, a new link.
       await refreshInPlace(router);
+      expiredList?.heading.current?.focus();
     } catch (thrown) {
       setPending(false);
       // Addresses pasted above may be all the page holds: it stays (docs/apps.md).
@@ -549,6 +869,21 @@ function ResendButton({ invitation }: { invitation: PendingInvitation }) {
       }
       const code = thrown instanceof BraivoError ? thrown.code : undefined;
       const refused = code === undefined ? undefined : REFUSED[code];
+      if (expiredList) {
+        // Its row may leave with the reread: said, and the focus kept, by its list.
+        return expiredList.notice.failed(
+          thrown,
+          refused ? (
+            i18n._(refused)
+          ) : code === "ALREADY_INVITED" ? (
+            <Trans>{email} is already invited again.</Trans>
+          ) : code === "ALREADY_MEMBER" ? (
+            <Trans>{email} is a member now.</Trans>
+          ) : (
+            <Trans>Could not invite {email} again. Try again.</Trans>
+          ),
+        );
+      }
       say({ alert: refused ?? msg`Could not resend. Try again.` });
       // Accepted, cancelled, or no longer theirs to manage: the page, read
       // again, says so. Not after a failed connection or server, whose reread
@@ -566,18 +901,19 @@ function ResendButton({ invitation }: { invitation: PendingInvitation }) {
         variant="outline"
         size="sm"
         aria-disabled={pending}
-        aria-label={i18n._(msg`Resend to ${email}`)}
+        aria-label={i18n._(expiredList ? msg`Invite ${email} again` : msg`Resend to ${email}`)}
         onClick={() => void resend()}
       >
         {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
-        <Trans>Resend</Trans>
+        {expiredList ? <Trans>Invite again</Trans> : <Trans>Resend</Trans>}
       </Button>
-      {/* Mounted once, cleared while resending, so each "Sent again." is announced. */}
-      <p role="status" className="basis-full text-sm text-muted-foreground">
+      {/* Mounted once, cleared while resending, so each "Sent again." is announced;
+          shown after the row's other actions, which it would otherwise push down. */}
+      <p role="status" className="order-last basis-full text-sm text-muted-foreground">
         {said?.sent && !pending && <Trans>Sent again.</Trans>}
       </p>
       {said?.alert && (
-        <p key={said.count} role="alert" className="basis-full text-sm text-destructive">
+        <p key={said.count} role="alert" className="order-last basis-full text-sm text-destructive">
           {said.alert === "signed out" ? (
             <Trans>
               You were signed out.{" "}
@@ -595,51 +931,155 @@ function ResendButton({ invitation }: { invitation: PendingInvitation }) {
   );
 }
 
-/** Invitations waiting to be accepted, each with its link to copy (access-51). */
+/**
+ * Cancels a waiting invitation (access-57), so its link admits no one. One
+ * accepted first is said so: they are a member, or about to be.
+ */
+function CancelButton(props: {
+  invitation: PendingInvitation;
+  notice: ReturnType<typeof useNotice>;
+  heading: RefObject<HTMLHeadingElement | null>;
+}) {
+  const { invitation, notice, heading } = props;
+  const { organization, braivo } = Route.useRouteContext();
+  const router = useRouter();
+  const { t } = useLingui();
+  const [pending, setPending] = useState(false);
+  const email = invitation.email;
+
+  async function cancel() {
+    if (pending) return;
+    setPending(true);
+    try {
+      await braivo.cancelInvitation(organization.id, invitation.id, {
+        signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
+      });
+      notice.say({ said: <Trans>Cancelled the invitation to {email}.</Trans> });
+      await refreshInPlace(router);
+      // Its row, and this button, are gone.
+      heading.current?.focus();
+    } catch (thrown) {
+      const code = thrown instanceof BraivoError ? thrown.code : undefined;
+      await notice.failed(
+        thrown,
+        code === "INVITATION_ACCEPTED" ? (
+          <Trans>
+            {email} accepted the invitation before it could be cancelled. Remove them from members
+            if they should not be here.
+          </Trans>
+        ) : code === "INVITATION_ACCEPTING" ? (
+          <Trans>
+            {email} is accepting the invitation right now, so it cannot be cancelled. Look at the
+            members again in a moment.
+          </Trans>
+        ) : code === "INVITATION_CANCELED" ? (
+          <Trans>The invitation to {email} was cancelled already.</Trans>
+        ) : (
+          <Trans>Could not cancel the invitation to {email}. Try again.</Trans>
+        ),
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      aria-disabled={pending}
+      aria-label={t`Cancel the invitation to ${email}`}
+      onClick={() => void cancel()}
+    >
+      {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
+      <Trans>Cancel</Trans>
+    </Button>
+  );
+}
+
+/**
+ * Invitations waiting to be accepted, each with its link to copy, Resend, and
+ * Cancel (access-51), then those expired, to invite again. Shown while any
+ * is listed, or something done here is still said.
+ */
 function Invitations() {
-  const { invitations } = Route.useLoaderData();
+  const { invitations, expired } = Route.useLoaderData();
   const { i18n, t } = useLingui();
   const id = useId();
-  if (invitations.length === 0) return null;
+  const heading = useRef<HTMLHeadingElement>(null);
+  const notice = useNotice(heading);
+  if (invitations.length === 0 && expired.length === 0 && !notice.notice) return null;
   const date = new Intl.DateTimeFormat(i18n.locale, { dateStyle: "long" });
   return (
     <section aria-labelledby={`${id}-heading`} className="mt-8">
-      <Heading level={2} id={`${id}-heading`} className="mb-2">
+      <Heading ref={heading} tabIndex={-1} level={2} id={`${id}-heading`} className="mb-2">
         <Trans>Invitations</Trans>
       </Heading>
-      <MutedText className="mb-3 block wrap-break-word">
-        <Trans>
-          A link works only for the address it was sent to: whoever opens it still signs in with a
-          code sent to that email, or with Google.
-        </Trans>
-      </MutedText>
-      <ul className="divide-y rounded-lg border">
-        {invitations.map((invitation) => {
-          const link = linkTo(invitation.id);
-          const inviter = invitation.inviter.name;
-          const expires = date.format(new Date(invitation.expiresAt));
-          return (
-            <li key={invitation.id} className="grid gap-1 p-3">
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="font-medium wrap-anywhere">{invitation.email}</span>
-                <Badge variant="secondary">{sayRoles(i18n, [invitation.role])}</Badge>
-              </div>
-              <MutedText className="block wrap-break-word">
-                <Trans>
-                  Invited by {inviter}. Expires on {expires}.
-                </Trans>
-              </MutedText>
-              <div className="flex flex-wrap items-center gap-x-2">
-                <span className="font-mono text-xs wrap-anywhere text-muted-foreground">
-                  {link}
-                </span>
-                <CopyButton value={link} label={t`Copy link`} />
-                <ResendButton invitation={invitation} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <NoticeRegions notice={notice.notice} className="mb-2" />
+      {invitations.length > 0 && (
+        <>
+          <MutedText className="mb-3 block wrap-break-word">
+            <Trans>
+              A link works only for the address it was sent to: whoever opens it still signs in with
+              a code sent to that email, or with Google.
+            </Trans>
+          </MutedText>
+          <ul className="divide-y rounded-lg border">
+            {invitations.map((invitation) => {
+              const link = linkTo(invitation.id);
+              const inviter = invitation.inviter.name;
+              const expires = date.format(new Date(invitation.expiresAt));
+              return (
+                <li key={invitation.id} className="grid gap-1 p-3">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="font-medium wrap-anywhere">{invitation.email}</span>
+                    <Badge variant="secondary">{sayRoles(i18n, [invitation.role])}</Badge>
+                  </div>
+                  <MutedText className="block wrap-break-word">
+                    <Trans>
+                      Invited by {inviter}. Expires on {expires}.
+                    </Trans>
+                  </MutedText>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-mono text-xs wrap-anywhere text-muted-foreground">
+                      {link}
+                    </span>
+                    <CopyButton value={link} label={t`Copy link`} />
+                    <ResendButton invitation={invitation} />
+                    <CancelButton invitation={invitation} notice={notice} heading={heading} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      {expired.length > 0 && (
+        <>
+          <Heading level={3} className="mt-6 mb-2">
+            <Trans>Expired</Trans>
+          </Heading>
+          <ul aria-label={t`Expired`} className="divide-y rounded-lg border">
+            {expired.map((invitation) => {
+              const expiredOn = date.format(new Date(invitation.expiresAt));
+              return (
+                <li key={invitation.id} className="grid gap-1 p-3">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="font-medium wrap-anywhere">{invitation.email}</span>
+                    <Badge variant="secondary">{sayRoles(i18n, [invitation.role])}</Badge>
+                  </div>
+                  <MutedText className="block wrap-break-word">
+                    <Trans>Expired on {expiredOn}.</Trans>
+                  </MutedText>
+                  <div className="flex flex-wrap items-center gap-x-2">
+                    <ResendButton invitation={invitation} expiredList={{ notice, heading }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

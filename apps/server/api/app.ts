@@ -27,6 +27,7 @@ import { invitationRoutes } from "./invitations.ts";
 import { learningRoutes } from "./learning.ts";
 import { materialsRoutes } from "./materials.ts";
 import { mcpEndpoint } from "./mcp.ts";
+import { memberRoutes } from "./members.ts";
 import { principalOf } from "./principal.ts";
 import { reportRoutes } from "./reports.ts";
 import { sessionRoutes } from "./session.ts";
@@ -383,6 +384,7 @@ export function createApi(options: ApiOptions) {
   api.route("/", groupRoutes(guards, { database }));
   api.route("/", reportRoutes(guards, { database }));
   api.route("/", invitationRoutes(guards, { auth, database, baseUrl, sendMail }));
+  api.route("/", memberRoutes(guards, { database }));
   api.route("/", connectionRoutes(guards, { database }));
 
   return api;

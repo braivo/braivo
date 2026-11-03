@@ -425,13 +425,53 @@ export type BraivoClient = {
   ): Promise<InvitationResult & { outcome: "invited" }>;
 
   /**
-   * An organization's invitations waiting to be accepted, newest first, and
-   * how many more members fit. Refused as `invite`, with status 403.
+   * Cancels a pending invitation, expired or not, so its link admits no one.
+   * Refused as `invite`, or a {@link BraivoError}: 404 for none there, or 409
+   * with `code` `INVITATION_ACCEPTED` (acceptance came first: they are a
+   * member), `INVITATION_ACCEPTING` (being accepted at the moment), or
+   * `INVITATION_CANCELED`.
+   */
+  cancelInvitation(
+    organizationId: string,
+    invitationId: string,
+    options?: RequestOptions,
+  ): Promise<{ invitation: { id: string; status: "canceled" } }>;
+
+  /**
+   * An organization's invitations waiting to be accepted, newest first; those
+   * expired worth inviting again, each address's latest and not a member, at
+   * most 100, newest first; and how many more members fit. Refused as
+   * `invite`, with status 403.
    */
   listInvitations(
     organizationId: string,
     options?: RequestOptions,
-  ): Promise<{ invitations: PendingInvitation[]; membersLeft: number }>;
+  ): Promise<{
+    invitations: PendingInvitation[];
+    expired: PendingInvitation[];
+    membersLeft: number;
+  }>;
+
+  /**
+   * Removes a member from an organization: they leave its groups, their
+   * learning history kept. A browser's session alone, for an `owner` or
+   * `admin`; otherwise a {@link BraivoError}: 403, 404 for no such member, or
+   * 409 with `code` `MEMBER_IS_OWNER` (an owner's membership) or
+   * `OWN_MEMBERSHIP` (one's own).
+   */
+  removeMember(organizationId: string, userId: string, options?: RequestOptions): Promise<void>;
+
+  /**
+   * Gives a member exactly one role, `member` (a learner), `author`, or
+   * `admin`, resolving to them as they then stand. Refused as
+   * `removeMember`, or 400 `ROLE_NOT_ASSIGNABLE`.
+   */
+  setMemberRole(
+    organizationId: string,
+    userId: string,
+    role: "member" | "author" | "admin",
+    options?: RequestOptions,
+  ): Promise<Member>;
 
   /**
    * An invitation as its page shows it, signed in or not, or `undefined` for
@@ -1264,13 +1304,52 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return parsed<InvitationResult & { outcome: "invited" }>(response, doing);
     },
 
+    async cancelInvitation(organizationId, invitationId, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/invitations/${encodeURIComponent(invitationId)}/cancel`,
+        undefined,
+        requestOptions,
+      );
+
+      const doing = `cancelling invitation "${invitationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+      return parsed<{ invitation: { id: string; status: "canceled" } }>(response, doing);
+    },
+
     async listInvitations(organizationId, requestOptions) {
       const response = await get(`${organizationPath(organizationId)}/invitations`, requestOptions);
 
       const doing = `listing the invitations of organization "${organizationId}"`;
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      return parsed<{ invitations: PendingInvitation[]; membersLeft: number }>(response, doing);
+      return parsed<{
+        invitations: PendingInvitation[];
+        expired: PendingInvitation[];
+        membersLeft: number;
+      }>(response, doing);
+    },
+
+    async removeMember(organizationId, userId, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/members/${encodeURIComponent(userId)}/remove`,
+        undefined,
+        requestOptions,
+      );
+
+      const doing = `removing member "${userId}"`;
+      if (response.status !== 204) throw await unexpected(response, doing);
+    },
+
+    async setMemberRole(organizationId, userId, role, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/members/${encodeURIComponent(userId)}/role`,
+        { role },
+        requestOptions,
+      );
+
+      const doing = `changing the role of member "${userId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+      return (await parsed<{ member: Member }>(response, doing)).member;
     },
 
     async invitation(invitationId, requestOptions) {

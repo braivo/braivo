@@ -143,6 +143,22 @@ msgstr "{days, plural, =0 {Ostatnie ćwiczenia: dzisiaj} =1 {Ostatnie ćwiczenia
 msgid "{domain} now serves your learners."
 msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{email} accepted the invitation before it could be cancelled. Remove them from members if they should not be here."
+msgstr "Zaproszenie dla {email} zostało przyjęte, zanim udało się je anulować. Jeśli ta osoba nie powinna tu być, usuń ją z członków."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{email} is a member now."
+msgstr "Adres {email} należy już do członków."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{email} is accepting the invitation right now, so it cannot be cancelled. Look at the members again in a moment."
+msgstr "Osoba z adresem {email} właśnie przyjmuje zaproszenie, więc nie można go teraz anulować. Za chwilę sprawdź listę członków."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{email} is already invited again."
+msgstr "Adres {email} został już ponownie zaproszony."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# błąd} few {# błędy} many {# błędów} other {# błędu}}"
@@ -187,6 +203,22 @@ msgstr "{membersLeft, plural, one {Miejsce dla jeszcze # członka. Zaproszenie n
 #: apps/console/components/first-answers.tsx
 msgid "{minLearners, plural, one {Not enough answers yet (fewer than # learner).} other {Not enough answers yet (fewer than # learners).}}"
 msgstr "{minLearners, plural, one {Jeszcze za mało odpowiedzi (mniej niż # uczeń).} few {Jeszcze za mało odpowiedzi (mniej niż # uczniów).} many {Jeszcze za mało odpowiedzi (mniej niż # uczniów).} other {Jeszcze za mało odpowiedzi (mniej niż # ucznia).}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{name} is an owner now, whose membership is not changed here."
+msgstr "{name} ma teraz rolę właściciela, a członkostwa właściciela nie można tu zmienić."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{name} is no longer a member."
+msgstr "{name} nie jest już członkiem."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{name} is now {roles}."
+msgstr "{name} ma teraz rolę: {roles}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{name} was removed."
+msgstr "Usunięto: {name}."
 
 #: apps/learn/components/report-problem.tsx
 msgid "{noteLength} of {MAX_NOTE} characters"
@@ -316,6 +348,10 @@ msgstr "Konto"
 msgid "Account: {name}"
 msgstr "Konto: {name}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Actions"
+msgstr "Działania"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Activate"
 msgstr "Aktywuj"
@@ -443,10 +479,19 @@ msgstr "Kontynuując, akceptujesz <0>Regulamin</0> i <1>Politykę prywatności</
 msgid "By name"
 msgstr "Alfabetycznie"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 #: apps/console/routes/_signed-in/consent.tsx
 #: apps/learn/components/report-problem.tsx
 msgid "Cancel"
 msgstr "Anuluj"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Cancel the invitation to {email}"
+msgstr "Anuluj zaproszenie dla {email}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Cancelled the invitation to {email}."
+msgstr "Anulowano zaproszenie dla {email}."
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Cancelling…"
@@ -456,6 +501,10 @@ msgstr "Anulowanie…"
 #: apps/console/components/findings.tsx
 msgid "case"
 msgstr "wielkością liter"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Change or remove {name}"
+msgstr "Zmień lub usuń: {name}"
 
 #: apps/console/components/group-form.tsx
 msgid "Change to learner"
@@ -607,6 +656,14 @@ msgstr "Nie udało się dodać domeny. Spróbuj ponownie."
 msgid "Could not be invited. Try again."
 msgstr "Nie udało się zaprosić. Spróbuj ponownie."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not cancel the invitation to {email}. Try again."
+msgstr "Nie udało się anulować zaproszenia dla {email}. Spróbuj ponownie."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not change {name}'s role. Try again."
+msgstr "Nie udało się zmienić roli osoby {name}. Spróbuj ponownie."
+
 #: apps/console/components/language-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/route.tsx
@@ -672,6 +729,10 @@ msgstr "Nie udało się odłączyć. Sprawdź połączenie i spróbuj ponownie."
 msgid "Could not finish signing in. Try again from where you started, or sign in with a code."
 msgstr "Nie udało się dokończyć logowania. Spróbuj ponownie tam, gdzie zaczynasz, lub zaloguj się kodem."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not invite {email} again. Try again."
+msgstr "Nie udało się ponownie zaprosić {email}. Spróbuj ponownie."
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Could not join. Try again."
 msgstr "Nie udało się dołączyć. Spróbuj ponownie."
@@ -696,6 +757,10 @@ msgstr "Nie udało się odświeżyć. Spróbuj ponownie."
 #: apps/console/components/group-form.tsx
 msgid "Could not reload the group. Try again."
 msgstr "Nie udało się wczytać grupy ponownie. Spróbuj jeszcze raz."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not remove {name}. Try again."
+msgstr "Nie udało się usunąć osoby {name}. Spróbuj ponownie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Could not remove the domain. Try again."
@@ -966,6 +1031,14 @@ msgstr "Rozwiń panel boczny"
 msgid "Expected to manage one? Ask its owner, or whoever set Braivo up for you, to add you."
 msgstr "Masz zarządzać organizacją? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie Cię."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Expired"
+msgstr "Wygasłe"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Expired on {expiredOn}."
+msgstr "Wygasło {expiredOn}."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "failure"
 msgstr "błąd"
@@ -1053,6 +1126,10 @@ msgid "If someone sent you a link to it, check that you are signed in with the r
 msgstr "Jeśli ktoś wysłał Ci link do tego kursu, sprawdź, czy korzystasz z właściwego konta, albo poproś tę osobę o dostęp."
 
 #: apps/console/routes/invitations/$invitationId.tsx
+msgid "If you have just joined, reload this page in a moment. Otherwise, ask them for a new invitation."
+msgstr "Jeśli właśnie dołączasz, odśwież tę stronę za chwilę. W przeciwnym razie poproś organizację o nowe zaproszenie."
+
+#: apps/console/routes/invitations/$invitationId.tsx
 msgid "If you still need to join, ask {school}."
 msgstr "Jeśli nadal chcesz dołączyć, skontaktuj się z organizacją „{school}”."
 
@@ -1086,12 +1163,28 @@ msgid "Invite"
 msgstr "Zaproś"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invite {email} again"
+msgstr "Zaproś ponownie: {email}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invite again"
+msgstr "Zaproś ponownie"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Invite at most 100 addresses at once."
 msgstr "Naraz możesz zaprosić najwyżej 100 adresów."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for you."
-msgstr "Tutaj zapraszasz uczniów, autorów i administratorów. Członków usuwa osoba, która prowadzi dla Ciebie Braivo."
+msgid "Invite learners, authors, and admins here."
+msgstr "Tutaj zapraszasz uczniów, autorów i administratorów."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invited {email} again, but the email may not have gone. Copy its link."
+msgstr "Ponownie zaproszono {email}, ale e-mail mógł nie zostać wysłany. Skopiuj link do zaproszenia."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invited {email} again."
+msgstr "Ponownie zaproszono {email}."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Invited by {inviter}. Expires on {expires}."
@@ -1173,6 +1266,10 @@ msgstr "Zostaw wyłączone"
 #: apps/console/components/group-form.tsx
 msgid "Keep the name to {MAX_TITLE} characters."
 msgstr "Nazwa może mieć najwyżej {MAX_TITLE} znaków."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Keep them"
+msgstr "Nie usuwaj"
 
 #: apps/console/components/account-menu.tsx
 #: apps/console/components/language-menu.tsx
@@ -1497,6 +1594,10 @@ msgstr "To nie jest prawidłowy adres e-mail."
 msgid "Not active yet"
 msgstr "Jeszcze nieaktywne"
 
+#: apps/console/components/group-form.tsx
+msgid "Not in a group"
+msgstr "Bez grupy"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Not lately: {earlier}"
 msgstr "Dawniej: {earlier}"
@@ -1554,8 +1655,8 @@ msgid "One question at a time. What you get wrong comes back soon; what you get 
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
 
 #: apps/console/components/group-form.tsx
-msgid "Only the organization's members can be added. Ask whoever runs Braivo for you to add anyone missing first."
-msgstr "Można dodać tylko członków organizacji. Brakujące osoby najpierw musi dodać ten, kto prowadzi dla Ciebie Braivo."
+msgid "Only the organization's members can be added. Invite anyone missing in Members first."
+msgstr "Można dodać tylko członków organizacji. Brakujące osoby najpierw zaproś w sekcji Członkowie."
 
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Open navigation"
@@ -1700,6 +1801,7 @@ msgstr "Wczytano ponownie. Twoje niezapisane zmiany są nadal widoczne."
 
 #: apps/console/components/group-form.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Remove"
 msgstr "Usuń"
 
@@ -1716,9 +1818,17 @@ msgstr "Usuń {hostname}"
 msgid "Remove {hostname}?"
 msgstr "Usunąć {hostname}?"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Remove {name}?"
+msgstr "Usunąć osobę {name}?"
+
 #: apps/console/components/group-form.tsx
 msgid "Remove the characters in the name that are not text."
 msgstr "Usuń z nazwy znaki, które nie są tekstem."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Remove…"
+msgstr "Usuń…"
 
 #. placeholder {0}: person(userId).name
 #. placeholder {0}: titles.get(courseId)
@@ -2119,6 +2229,10 @@ msgstr "E-mail mógł nie zostać wysłany. Skopiuj zamiast tego link."
 msgid "The expected answer seems wrong"
 msgstr "Odpowiedź uznana za poprawną wydaje się błędna"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "The invitation to {email} was cancelled already."
+msgstr "Zaproszenie dla {email} zostało już anulowane."
+
 #: apps/console/components/sign-in-page.tsx
 msgid "The learning engine behind your courses"
 msgstr "Silnik nauki stojący za Twoimi kursami"
@@ -2169,6 +2283,10 @@ msgstr "Będziesz tam ćwiczyć na kursach."
 #: apps/console/components/group-form.tsx
 msgid "They can read the progress of this group's learners in its courses."
 msgstr "Widzą postępy uczniów tej grupy w jej kursach."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "They leave its groups and can no longer practise or work here. Their learning history is kept. You can invite them again."
+msgstr "Ta osoba opuści swoje grupy i nie będzie już mogła tu ćwiczyć ani pracować. Jej historia nauki zostanie zachowana. Możesz zaprosić ją ponownie."
 
 #: apps/console/routes/login.tsx
 msgid "This account is not a member of {organizationName}. Ask to be added, then try again."
@@ -2416,6 +2534,10 @@ msgid "You are invited. Sign in with the email address the invitation was sent t
 msgstr "Masz zaproszenie. Zaloguj się adresem e-mail, na który je wysłano."
 
 #: apps/console/routes/invitations/$invitationId.tsx
+msgid "You are not a member of {school}"
+msgstr "Nie należysz do organizacji „{school}”"
+
+#: apps/console/routes/invitations/$invitationId.tsx
 msgid "You are signed in as {email}. Sign in with the address it was sent to."
 msgstr "Zalogowano jako {email}. Zaloguj się adresem, na który je wysłano."
 
@@ -2455,6 +2577,10 @@ msgstr "Wylogowano Cię. <0>Zaloguj się ponownie w nowej karcie</0>, a potem wy
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "You were signed out. <0>Sign in again in a new tab</0>, then send again: the addresses stay here."
 msgstr "Wylogowano Cię. <0>Zaloguj się ponownie w nowej karcie</0>, a potem wyślij jeszcze raz: adresy zostaną tutaj."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "You were signed out. <0>Sign in again in a new tab</0>, then try again."
+msgstr "Wylogowano Cię. <0>Zaloguj się ponownie w nowej karcie</0>, a potem spróbuj ponownie."
 
 #: apps/learn/components/report-problem.tsx
 msgid "You were signed out. <0>Sign in in a new tab</0>, then send again."

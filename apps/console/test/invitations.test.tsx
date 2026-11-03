@@ -59,7 +59,11 @@ const acceptAnswering = (error?: { status: number; code?: string }) =>
   vi.fn(async (_path: string, _options: unknown) => ({ data: error ? null : {}, error }));
 
 /** What a list of invitations answers: those waiting, and room for 995 more members. */
-const waiting = (invitations: PendingInvitation[]) => ({ invitations, membersLeft: 995 });
+const waiting = (invitations: PendingInvitation[], expired: PendingInvitation[] = []) => ({
+  invitations,
+  expired,
+  membersLeft: 995,
+});
 
 /** A submission inviting each address, its mail sent. */
 const allInvited = (emails: string[], role: string): InvitationBatchResult => ({
@@ -183,7 +187,7 @@ describe("invitations", () => {
           membersLeft = 994;
           return inviteStub(...args);
         },
-        listInvitations: async () => ({ invitations: [], membersLeft }),
+        listInvitations: async () => ({ invitations: [], expired: [], membersLeft }),
       },
     });
 
@@ -446,7 +450,8 @@ describe("invitations", () => {
   test("continues into the console from an invitation already accepted", async () => {
     const { router } = renderAt("/invitations/inv-1", {
       braivo: {
-        invitation: async () => forOlive({ status: "accepted" }),
+        invitation: async () =>
+          forOlive({ status: "accepted", member: true, continueTo: "console" }),
         listCourses: async () => [],
       },
     });
@@ -457,6 +462,47 @@ describe("invitations", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
+  });
+
+  test("an author made a learner since goes on to the learn domain, not the console", async () => {
+    const { visit } = renderAt("/invitations/inv-1", {
+      braivo: {
+        invitation: async () =>
+          forOlive({
+            status: "accepted",
+            member: true,
+            continueTo: "learn",
+            learnDomain: "learn.example.org",
+          }),
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Continue to learn.example.org" }));
+
+    expect(visit).toHaveBeenCalledWith("https://learn.example.org/api/session/sign-in");
+  });
+
+  test("says someone removed since, or not yet made a member, is not one, offering nowhere to go on", async () => {
+    renderAt("/invitations/inv-1", {
+      braivo: {
+        invitation: async () =>
+          forOlive({ role: "member", status: "accepted", member: false, learnDomain: null }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "You are not a member of Example School",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "If you have just joined, reload this page in a moment. Otherwise, ask them for a new invitation.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Continue/ })).toBeNull();
+    expect(screen.queryByText(/you stay a member/)).toBeNull();
   });
 
   test("keeps the page when joining is refused, saying why", async () => {
@@ -486,7 +532,7 @@ describe("invitations", () => {
   test("tells an account already a member, by another way, that it belongs, its role kept", async () => {
     const { router } = renderAt("/invitations/inv-1", {
       braivo: {
-        invitation: async () => forOlive({ role: "admin", member: true }),
+        invitation: async () => forOlive({ role: "admin", member: true, continueTo: "console" }),
         listCourses: async () => [],
       },
     });
@@ -501,11 +547,16 @@ describe("invitations", () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/example"));
   });
 
-  test("sends a learner already a member on to the learn site, not the console", async () => {
+  test("sends a member who only learns on to the learn site, though invited to author", async () => {
     const { router, visit } = renderAt("/invitations/inv-1", {
       braivo: {
         invitation: async () =>
-          forOlive({ role: "member", member: true, learnDomain: "learn.example.org" }),
+          forOlive({
+            role: "author",
+            member: true,
+            continueTo: "learn",
+            learnDomain: "learn.example.org",
+          }),
       },
     });
 
@@ -842,7 +893,13 @@ describe("invitations", () => {
   test("a learner joins, then goes on to the learn domain's sign-in, which hands the account over", async () => {
     const answers = [
       forOlive({ role: "member", learnDomain: "learn.example.org" }),
-      forOlive({ role: "member", status: "accepted", learnDomain: "learn.example.org" }),
+      forOlive({
+        role: "member",
+        status: "accepted",
+        member: true,
+        continueTo: "learn",
+        learnDomain: "learn.example.org",
+      }),
     ];
     const $fetch = acceptAnswering();
     const { visit } = renderAt("/invitations/inv-1", {
@@ -866,11 +923,268 @@ describe("invitations", () => {
     expect(visit).toHaveBeenCalledTimes(2);
   });
 
+  test("an admin cancels an invitation, which leaves the list, saying so", async () => {
+    let invitations = [
+      pending("inv-1", "ada@school.example"),
+      pending("inv-2", "bo@school.example"),
+    ];
+    const cancelInvitation = vi.fn(async (_organizationId: string, invitationId: string) => {
+      invitations = invitations.filter(({ id }) => id !== invitationId);
+      return { invitation: { id: invitationId, status: "canceled" as const } };
+    });
+    renderAt("/example/settings/members", {
+      braivo: { listInvitations: async () => waiting(invitations), cancelInvitation },
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cancel the invitation to ada@school.example" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("status")
+          .some(
+            ({ textContent }) => textContent === "Cancelled the invitation to ada@school.example.",
+          ),
+      ).toBe(true),
+    );
+    expect(cancelInvitation).toHaveBeenCalledWith("org-1", "inv-1", expect.anything());
+    const listed = within(screen.getByRole("region", { name: "Invitations" }));
+    await vi.waitFor(() => expect(listed.queryByText("ada@school.example")).toBeNull());
+    expect(listed.getByText("bo@school.example")).toBeTruthy();
+    expect(document.activeElement).toBe(listed.getByRole("heading", { name: "Invitations" }));
+
+    // The last one cancelled, the section stays while it says so.
+    fireEvent.click(
+      listed.getByRole("button", { name: "Cancel the invitation to bo@school.example" }),
+    );
+    await vi.waitFor(() => expect(listed.queryByText("bo@school.example")).toBeNull());
+    expect(
+      screen
+        .getAllByRole("status")
+        .some(
+          ({ textContent }) => textContent === "Cancelled the invitation to bo@school.example.",
+        ),
+    ).toBe(true);
+  });
+
+  test("says when acceptance came before the cancel, and shows them among the members", async () => {
+    let joined = false;
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () =>
+          waiting(joined ? [] : [pending("inv-1", "ada@school.example")]),
+        listMembers: async () => [
+          { userId: "u1", name: "Olive Owner", roles: ["owner"] },
+          ...(joined ? [{ userId: "u9", name: "Ada Lovelace", roles: ["author"] }] : []),
+        ],
+        cancelInvitation: async () => {
+          joined = true;
+          throw new BraivoError(409, "Accepted.", undefined, "INVITATION_ACCEPTED");
+        },
+      },
+    });
+
+    const cancel = await screen.findByRole("button", {
+      name: "Cancel the invitation to ada@school.example",
+    });
+    cancel.focus();
+    fireEvent.click(cancel);
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "ada@school.example accepted the invitation before it could be cancelled. Remove them from members if they should not be here.",
+    );
+    expect(await screen.findByRole("cell", { name: "Ada Lovelace" })).toBeTruthy();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    // Its row gone with the button, the focus goes to the list's heading.
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Invitations" })),
+    );
+  });
+
+  test("says an acceptance under way is not yet a membership, when the cancel meets it", async () => {
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => waiting([pending("inv-1", "ada@school.example")]),
+        cancelInvitation: async () => {
+          throw new BraivoError(409, "Being accepted.", undefined, "INVITATION_ACCEPTING");
+        },
+      },
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cancel the invitation to ada@school.example" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "ada@school.example is accepting the invitation right now, so it cannot be cancelled. Look at the members again in a moment.",
+    );
+  });
+
+  test("says why an expired invitation was not invited again, after its row has gone", async () => {
+    const expired = {
+      ...pending("inv-old", "cy@school.example"),
+      expiresAt: "2026-05-20T12:00:00.000Z",
+    };
+    let lists = { invitations: [] as PendingInvitation[], expired: [expired] };
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => waiting(lists.invitations, lists.expired),
+        resendInvitation: async () => {
+          // Another administrator invited the address again meanwhile.
+          lists = { invitations: [pending("inv-new", "cy@school.example")], expired: [] };
+          throw new BraivoError(409, "Already invited.", undefined, "ALREADY_INVITED");
+        },
+      },
+    });
+
+    const again = await screen.findByRole("button", { name: "Invite cy@school.example again" });
+    again.focus();
+    fireEvent.click(again);
+
+    await vi.waitFor(() => expect(screen.queryByRole("list", { name: "Expired" })).toBeNull());
+    expect(screen.getByRole("alert").textContent).toBe(
+      "cy@school.example is already invited again.",
+    );
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Invitations" })),
+    );
+  });
+
+  test("keeps the page where it was as a refusal reads the list again", async () => {
+    const expired = {
+      ...pending("inv-old", "cy@school.example"),
+      expiresAt: "2026-05-20T12:00:00.000Z",
+    };
+    let reads = 0;
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => (reads++, waiting([], [expired])),
+        resendInvitation: async () => {
+          throw new BraivoError(409, "Full.", undefined, "PENDING_LIMIT");
+        },
+      },
+    });
+    const again = await screen.findByRole("button", { name: "Invite cy@school.example again" });
+    const scroller = document.querySelector(PAGE_SCROLLER) as HTMLElement;
+    scroller.scrollTop = 300;
+    window.scrollTo(0, 500);
+    const readsBefore = reads;
+
+    fireEvent.click(again);
+
+    await screen.findByRole("alert");
+    await vi.waitFor(() => expect(reads).toBe(readsBefore + 1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(scroller.scrollTop).toBe(300);
+    expect(window.scrollY).toBe(500);
+  });
+
+  test("moves the focus only for the section whose row a reread removed", async () => {
+    const stays = pending("inv-1", "ada@school.example");
+    let made = false;
+    renderAt("/example/settings/members", {
+      braivo: {
+        // Refused, yet still listed: the button keeps the focus.
+        listInvitations: async () => waiting([stays]),
+        cancelInvitation: async () => {
+          throw new BraivoError(409, "Cancelled.", undefined, "INVITATION_CANCELED");
+        },
+        listMembers: async () => [
+          { userId: "u1", name: "Olive Owner", roles: ["owner"] },
+          { userId: "u3", name: "Ada Admin", roles: made ? ["owner"] : ["admin"] },
+        ],
+        setMemberRole: async () => {
+          made = true;
+          throw new BraivoError(409, "Owner.", undefined, "MEMBER_IS_OWNER");
+        },
+      },
+    });
+    const cancel = await screen.findByRole("button", {
+      name: "Cancel the invitation to ada@school.example",
+    });
+    cancel.focus();
+    fireEvent.click(cancel);
+    await screen.findByText("The invitation to ada@school.example was cancelled already.");
+    await vi.waitFor(() => expect(document.activeElement).toBe(cancel));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Change or remove Ada Admin" }), {
+      key: "Enter",
+    });
+    fireEvent.click(
+      within(await screen.findByRole("menu")).getByRole("menuitemradio", { name: "Author" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Change or remove Ada Admin" })).toBeNull(),
+    );
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getAllByRole("heading", { name: "Members" })[1]),
+    );
+  });
+
+  test("lists expired invitations apart, each invited again with a new link", async () => {
+    const expired = {
+      ...pending("inv-old", "cy@school.example"),
+      expiresAt: "2026-05-20T12:00:00.000Z",
+    };
+    let lists: { invitations: PendingInvitation[]; expired: PendingInvitation[] } = {
+      invitations: [],
+      expired: [expired],
+    };
+    const resendInvitation = vi.fn(async () => {
+      const renewed = pending("inv-new", "cy@school.example");
+      lists = { invitations: [renewed], expired: [] };
+      return {
+        email: renewed.email,
+        outcome: "invited" as const,
+        invitation: renewed,
+        emailSent: true,
+      };
+    });
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => waiting(lists.invitations, lists.expired),
+        resendInvitation,
+      },
+    });
+
+    const old = within(await screen.findByRole("list", { name: "Expired" }));
+    expect(old.getByText("cy@school.example")).toBeTruthy();
+    expect(old.getByText("Expired on May 20, 2026.")).toBeTruthy();
+    // No link to copy, nor Cancel: it admits no one.
+    expect(old.queryByRole("button", { name: "Copy link" })).toBeNull();
+    expect(old.queryByRole("button", { name: /^Cancel/ })).toBeNull();
+    fireEvent.click(old.getByRole("button", { name: "Invite cy@school.example again" }));
+
+    await vi.waitFor(() => expect(screen.queryByRole("list", { name: "Expired" })).toBeNull());
+    expect(
+      screen
+        .getAllByRole("status")
+        .some(({ textContent }) => textContent === "Invited cy@school.example again."),
+    ).toBe(true);
+    // Its row and the button gone, the focus goes to the list's heading.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Invitations" }));
+    expect(resendInvitation).toHaveBeenCalledWith("org-1", "inv-old", expect.anything());
+    expect(
+      within(screen.getByRole("region", { name: "Invitations" })).getByText(
+        /\/invitations\/inv-new$/,
+      ),
+    ).toBeTruthy();
+  });
+
   test("offers a learner who joined to go on to the learn site again, the membership kept", async () => {
     const { visit } = renderAt("/invitations/inv-1", {
       braivo: {
         invitation: async () =>
-          forOlive({ role: "member", status: "accepted", learnDomain: "learn.example.org" }),
+          forOlive({
+            role: "member",
+            status: "accepted",
+            member: true,
+            continueTo: "learn",
+            learnDomain: "learn.example.org",
+          }),
       },
     });
 
@@ -910,7 +1224,9 @@ describe("invitations", () => {
           forOlive({
             organization: { name: `School ${id.toUpperCase()}`, slug: id },
             role: "member",
-            status: id === "a" && joinedA ? "accepted" : "pending",
+            ...(id === "a" && joinedA
+              ? { status: "accepted", member: true, continueTo: "learn" }
+              : { status: "pending" }),
             learnDomain: `${id}.example.org`,
           }),
       },

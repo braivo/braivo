@@ -610,6 +610,14 @@
 // names and roles. 403 to a tool, too, while the organization does not let
 // tools read its learners' data (ADR 0050).
 //
+// `POST /api/organizations/:organizationId/members/:userId/remove` — removes
+// a member: 204. They leave the organization's groups; their learning history
+// stays. `POST …/members/:userId/role` `{ "role" }` — sets their roles to
+// exactly `member` (a learner), `author`, or `admin`: 200 `{ "member": {
+// "userId", "name", "roles" } }`, 400 `ROLE_NOT_ASSIGNABLE` for another role.
+// Both: 404 `MEMBER_NOT_FOUND`; 409 `MEMBER_IS_OWNER`, whoever holds `owner`, or `OWN_MEMBERSHIP`,
+// one's own membership; 403 to anyone but an `owner` or `admin`, and to a tool.
+//
 // `POST /api/organizations/:organizationId/invitations` `{ "emails": ["…"],
 // "role" }` — invites up to 100 addresses, each trimmed and lowercased,
 // repeats dropped, as `member` (a learner), `author`, or `admin`, for 7 days,
@@ -643,15 +651,26 @@
 // `GET /api/organizations/:organizationId/invitations` — the invitations
 // waiting to be accepted, newest first, and `membersLeft` as above: `{
 // "invitations": [{ "id", "email", "role", "inviter": { "name" }, "expiresAt"
-// }], "membersLeft" }`. 403 as for inviting.
+// }], "expired": […], "membersLeft" }`, `expired` in the same shape, each
+// address's latest invitation when it expired unaccepted and the address is
+// not a member, at most 100. 403 as for inviting.
+//
+// `POST …/invitations/:invitationId/cancel` — cancels a pending invitation,
+// expired or not: 200 `{ "invitation": { "id", "status": "canceled" } }`. 404
+// `INVITATION_NOT_FOUND`; 409 `INVITATION_ACCEPTED`, acceptance having come
+// first and made the member, `INVITATION_ACCEPTING`, claimed by an acceptance
+// with no member yet, or `INVITATION_CANCELED`. 403 as for inviting.
 //
 // `GET /api/invitations/:invitationId` — an invitation as its page shows it,
 // with or without a session: `{ "organization": { "name" }, "status" }`,
 // `status` `pending`, `expired`, `canceled`, or `accepted`; with a session,
 // `recipient`, whether the account's email is the invitation's, and to the
 // recipient alone the organization's `slug`, the `role`, and the `inviter`'s
-// `{ "name" }`, and for a learner's invitation `learnDomain`, the hostname to
-// continue on, `null` while there is none. Never the email. 404 for one that
+// `{ "name" }`, `member`, whether they are one there, by this invitation or
+// another way, and if so `continueTo`, where they go on as they are now, not
+// as invited: `console` or `learn`; and `learnDomain`, the hostname to
+// continue on, `null` while there is none, for a member who continues to
+// `learn` or a non-member invited as a learner. Never the email. 404 for one that
 // does not exist; 403 to a tool. Accepting is Better Auth's `POST
 // /api/auth/organization/accept-invitation` `{ "invitationId" }`, for a
 // verified account with the invited email alone, a learner's only while the

@@ -122,6 +122,59 @@ export async function readMembers(database: Database, organizationId: string): P
   return rows.map(({ role, ...person }) => ({ ...person, roles: splitRoles(role) }));
 }
 
+/** Whether a stored role string, comma-separated, includes `owner`. */
+const holdsOwner = sql`'owner' = any(string_to_array(replace(${member.role}, ' ', ''), ','))`;
+
+/**
+ * Removes a member who holds no `owner`, atomically on that: their groups go
+ * with the membership (ADR 0042), their learning history stays, kept per
+ * learner (ADR 0032). Answers what was found.
+ */
+export async function deleteMember(
+  database: Database,
+  input: { organizationId: string; userId: string },
+): Promise<"removed" | "owner" | "not a member"> {
+  const where = and(
+    eq(member.organizationId, input.organizationId),
+    eq(member.userId, input.userId),
+  );
+  const rows = await database
+    .delete(member)
+    .where(and(where, sql`not ${holdsOwner}`))
+    .returning({ id: member.id });
+  if (rows.length > 0) return "removed";
+  return (await readOrganizationRoles(database, input)).length > 0 ? "owner" : "not a member";
+}
+
+/**
+ * Sets a member's roles to exactly `role`, where they hold no `owner`,
+ * atomically on that, answering them as they then stand.
+ */
+export async function updateMemberRole(
+  database: Database,
+  input: { organizationId: string; userId: string; role: "member" | "author" | "admin" },
+): Promise<Member | "owner" | "not a member"> {
+  const [row] = await database
+    .update(member)
+    .set({ role: input.role })
+    .where(
+      and(
+        eq(member.organizationId, input.organizationId),
+        eq(member.userId, input.userId),
+        sql`not ${holdsOwner}`,
+      ),
+    )
+    .returning({ userId: member.userId, role: member.role });
+  if (!row) {
+    return (await readOrganizationRoles(database, input)).length > 0 ? "owner" : "not a member";
+  }
+  const [named] = await database
+    .select({ name: user.name })
+    .from(user)
+    .where(eq(user.id, row.userId));
+  return { userId: row.userId, name: named?.name ?? "", roles: splitRoles(row.role) };
+}
+
 function splitRoles(role: string): string[] {
   return role.split(",").map((each) => each.trim());
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale } from "@braivo/i18n";
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { beginners } from "./fixtures.ts";
@@ -69,11 +69,75 @@ describe("the console in Polish", () => {
     ]);
   });
 
+  test("changes and removes members, cancels and invites again, in Polish", async () => {
+    const waitingOne = {
+      id: "inv-1",
+      email: "ada@school.example",
+      role: "author",
+      inviter: { name: "Olive Owner" },
+      expiresAt: "2026-06-08T12:00:00.000Z",
+    };
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => ({
+          membersLeft: 3,
+          invitations: [waitingOne],
+          expired: [
+            {
+              ...waitingOne,
+              id: "inv-0",
+              email: "bo@school.example",
+              expiresAt: "2026-05-20T12:00:00.000Z",
+            },
+          ],
+        }),
+        setMemberRole: async () => ({ userId: "u2", name: "Lee Learner", roles: ["author"] }),
+      },
+    });
+
+    expect(
+      await screen.findByText(/Tutaj zapraszasz uczniów, autorów i administratorów\./),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Anuluj zaproszenie dla ada@school.example" }),
+    ).toBeTruthy();
+    const expired = within(screen.getByRole("list", { name: "Wygasłe" }));
+    expect(expired.getByText("Wygasło 20 maja 2026.")).toBeTruthy();
+    expect(
+      expired.getByRole("button", { name: "Zaproś ponownie: bo@school.example" }),
+    ).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Zmień lub usuń: Lee Learner" }), {
+      key: "Enter",
+    });
+    const menu = within(await screen.findByRole("menu"));
+    fireEvent.click(menu.getByRole("menuitemradio", { name: "Autor" }));
+    await vi.waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("status")
+          .some(({ textContent }) => textContent === "Lee Learner ma teraz rolę: Autor."),
+      ).toBe(true),
+    );
+    fireEvent.keyDown(screen.getByRole("button", { name: "Zmień lub usuń: Lee Learner" }), {
+      key: "Enter",
+    });
+    fireEvent.click(
+      within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Usuń…" }),
+    );
+    const dialog = within(
+      await screen.findByRole("alertdialog", { name: "Usunąć osobę Lee Learner?" }),
+    );
+    expect(dialog.getByText(/Jej historia nauki zostanie zachowana\./)).toBeTruthy();
+    expect(dialog.getByRole("button", { name: "Nie usuwaj" })).toBeTruthy();
+  });
+
   test("invites and accepts in Polish, the school's name quoted as a name", async () => {
     renderAt("/example/settings/members", {
       braivo: {
         listInvitations: async () => ({
           membersLeft: 3,
+          expired: [],
           invitations: [
             {
               id: "inv-1",
@@ -133,6 +197,8 @@ describe("the console in Polish", () => {
           recipient: true,
           role: "member",
           inviter: { name: "Ada Admin" },
+          member: true,
+          continueTo: "learn",
           learnDomain: "learn.example.org",
         }),
       },
@@ -140,6 +206,28 @@ describe("the console in Polish", () => {
 
     expect(
       await screen.findByRole("button", { name: "Przejdź do learn.example.org" }),
+    ).toBeTruthy();
+    cleanup();
+
+    renderAt("/invitations/inv-3", {
+      braivo: {
+        invitation: async () => ({
+          organization: { name: "Example School", slug: "example" },
+          status: "accepted",
+          recipient: true,
+          role: "member",
+          inviter: { name: "Ada Admin" },
+          member: false,
+          learnDomain: null,
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Nie należysz do organizacji „Example School”",
+      }),
     ).toBeTruthy();
   });
 
