@@ -47,13 +47,15 @@ function Root() {
   useLayoutEffect(() => {
     document.documentElement.toggleAttribute("data-learn-domain", learnDomain === true);
   }, [learnDomain]);
-  // `/login` (`ConsoleSignInPage`) and the signed-in pages (beside their sidebar or under their header)
-  // render their own `<main>`; loading or failed, they get this column.
+  // `/login` and an invitation (`ConsoleSignInPage`) and the signed-in pages (beside their
+  // sidebar or under their header) render their own `<main>`; loading or failed, they get this column.
   const framed = useMatches({
     select: (matches) =>
       matches.some(
         (match) =>
-          (match.routeId === "/login" || match.routeId === "/_signed-in") &&
+          (match.routeId === "/login" ||
+            match.routeId === "/invitations/$invitationId" ||
+            match.routeId === "/_signed-in") &&
           match.status === "success",
       ),
   });

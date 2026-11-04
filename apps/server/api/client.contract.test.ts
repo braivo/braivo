@@ -7,8 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { organizationDomain } from "@braivo/db/schema";
+import { invitation, organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { codeSentTo } from "../auth/testing.ts";
@@ -507,6 +508,45 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       .catch((thrown: unknown) => thrown);
     expect(rejected).toBeInstanceOf(BraivoError);
     expect(rejected as BraivoError).toMatchObject({ status: 403 });
+  });
+
+  test("invites, lists invitations, and reads one in the shapes it declares", async () => {
+    const asAdmin = { headers: { cookie: teacherCookie } };
+    // None an earlier run left, so they never pile up to the pending limit.
+    await database.delete(invitation).where(eq(invitation.organizationId, organizationId));
+    const email = `contract-invited-${crypto.randomUUID()}@example.com`;
+
+    const made = await client.invite(organizationId, { email, role: "author" }, asAdmin);
+
+    if (made.outcome !== "invited") throw new Error(`Inviting came to "${made.outcome}".`);
+    expect(made).toMatchObject({ invitation: { email, role: "author" }, emailSent: true });
+    expect(typeof made.invitation.expiresAt).toBe("string");
+    expect(await client.invite(organizationId, { email, role: "admin" }, asAdmin)).toEqual({
+      outcome: "already invited",
+      role: "author",
+    });
+    expect(
+      await client.invite(organizationId, { email: learnerEmail, role: "admin" }, asAdmin),
+    ).toEqual({ outcome: "already a member", roles: ["member"] });
+    await expect(
+      client.invite(organizationId, { email: "nobody", role: "author" }, asAdmin),
+    ).rejects.toMatchObject({ status: 400, code: "EMAIL_INVALID" });
+    const listed = await client.listInvitations(organizationId, asAdmin);
+    expect(listed.find((each) => each.email === email)).toEqual({
+      id: made.invitation.id,
+      email,
+      role: "author",
+      inviter: { name: expect.any(String) },
+      expiresAt: made.invitation.expiresAt,
+    });
+    await expect(
+      client.listInvitations(organizationId, { headers: { cookie: learnerCookie } }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(await client.invitation(made.invitation.id)).toEqual({
+      organization: { name: expect.any(String) },
+      status: "pending",
+    });
+    expect(await client.invitation("contract-no-such-invitation")).toBeUndefined();
   });
 
   test("defines, changes, and lists groups in the shapes it declares", async () => {

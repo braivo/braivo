@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { activateLocale } from "@braivo/i18n";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { renderAt } from "./render.tsx";
@@ -66,5 +66,47 @@ describe("the console in Polish", () => {
       "Ostatnie ćwiczenia: wczoraj",
       "Ostatnie ćwiczenia: 5 dni temu",
     ]);
+  });
+
+  test("invites and accepts in Polish, the school's name quoted as a name", async () => {
+    renderAt("/example/settings/members", {
+      braivo: {
+        listInvitations: async () => [
+          {
+            id: "inv-1",
+            email: "ada@school.example",
+            role: "author",
+            inviter: { name: "Olive Owner" },
+            expiresAt: "2026-06-08T12:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(await screen.findByRole("button", { name: "Wyślij zaproszenie" })).toBeTruthy();
+    const roles = screen.getByRole("radiogroup", { name: "Rola" });
+    expect(within(roles).getByRole("radio", { name: "Autor" })).toBeTruthy();
+    expect(screen.getByText("Zaproszenie od: Olive Owner. Wygasa 8 czerwca 2026.")).toBeTruthy();
+    cleanup();
+
+    renderAt("/invitations/inv-1", {
+      braivo: {
+        invitation: async () => ({
+          organization: { name: "Example School", slug: "example" },
+          status: "pending",
+          recipient: true,
+          role: "author",
+          inviter: { name: "Ada Admin" },
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Dołącz do organizacji „Example School”" }),
+    ).toBeTruthy();
+    expect(screen.getByText(/^Ada Admin zaprasza Cię\./)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Dołącz do organizacji „Example School” jako autor" }),
+    ).toBeTruthy();
   });
 });

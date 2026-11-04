@@ -107,6 +107,17 @@ export {
   mayRefresh,
   listConnections,
 } from "./connections.ts";
+export {
+  INVITABLE_ROLES,
+  type InvitableRole,
+  type InvitationPage,
+  InvitationRefused,
+  type Invited,
+  inviteToOrganization,
+  listInvitations,
+  type PendingInvitation,
+  readInvitationPage,
+} from "./invitations.ts";
 export { NotPermitted } from "./permission.ts";
 export { InvalidEvidence, recordGradedEvidence } from "./record-evidence.ts";
 export { addSource, getSource, InvalidSource, listSources } from "./sources.ts";

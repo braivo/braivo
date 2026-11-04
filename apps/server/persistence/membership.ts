@@ -41,6 +41,29 @@ export async function readOrganizationRoles(
   return row ? splitRoles(row.role) : [];
 }
 
+/** The roles of whoever holds `email` in this organization, none when they are not a member. */
+export async function readMemberRolesByEmail(
+  database: Database,
+  input: { organizationId: string; email: string },
+): Promise<string[]> {
+  const [row] = await database
+    .select({ role: member.role })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, input.organizationId), eq(user.email, input.email)));
+
+  return row ? splitRoles(row.role) : [];
+}
+
+/** An account's email, or `undefined` when there is no such account. */
+export async function readUserEmail(
+  database: Database,
+  userId: string,
+): Promise<string | undefined> {
+  const [row] = await database.select({ email: user.email }).from(user).where(eq(user.id, userId));
+  return row?.email;
+}
+
 /**
  * Every organization this user is in, by name, with their roles there and
  * whether they teach any of its groups (ADR 0042).

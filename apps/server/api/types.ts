@@ -176,6 +176,21 @@ export type ToolsReadLearnerData = Json<application.ToolsReadLearnerData>;
 /** A member as those who manage the organization see them: no email. */
 export type Member = { userId: string; name: string; roles: string[] };
 
+/** An invitation waiting to be accepted, as an organization's administrators list it (access-51). */
+export type PendingInvitation = Json<application.PendingInvitation>;
+
+/**
+ * What inviting an address came to (access-50): invited, and whether the mail
+ * went; or what the address already holds there, which it keeps.
+ */
+export type InvitationResult =
+  | ({ outcome: "invited" } & Json<application.Invited>)
+  | { outcome: "already a member"; roles: string[] }
+  | { outcome: "already invited"; role: string | undefined };
+
+/** An invitation as its page shows it (access-52): more only to the account it was sent to. */
+export type InvitationPage = Json<application.InvitationPage>;
+
 /** One of a person's remote MCP connections, as `GET /api/connections` lists it (access-42). */
 export type Connection = Json<application.Connection>;
 

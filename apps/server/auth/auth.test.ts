@@ -63,8 +63,6 @@ const slugs = {
   halfDeleted: "auth-test-half-deleted",
   ownsNothing: "auth-test-owns-nothing",
   full: "auth-test-full",
-  renamed: "auth-test-renamed",
-  renamedAgain: "auth-test-renamed-again",
   hasDomain: "auth-test-has-domain",
   noOwner: "auth-test-no-owner",
   selfServe: "auth-test-self-serve",
@@ -670,10 +668,10 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // Alone or beside `member`, `author` grants nothing here; beside `admin`, it takes nothing away.
     for (const role of ["author", "member,author"]) {
       await as(role);
-      expect(await statuses()).toEqual([403, 404, 404, 404, 404]);
+      expect(await statuses()).toEqual([404, 404, 404, 404, 404]);
     }
     await as("admin,author");
-    expect(await statuses()).toEqual([200, 404, 404, 404, 404]);
+    expect(await statuses()).toEqual([404, 404, 404, 404, 404]);
     await as("author");
     const deleted = await post("/organization/delete", { organizationId: id }, headers);
     expect(deleted.status).toBe(403);
@@ -742,7 +740,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     expect(created.status).toBe(401);
   });
 
-  test("answers none of Better Auth's invitation endpoints, and stored invitations stay pending", async () => {
+  test("answers none of Better Auth's invitation endpoints but accepting, which takes the invited email", async () => {
     // Each request, from the account it expects, succeeds without the switch,
     // so only the switch refuses it.
     const id = await createOwned(slugs.invites);
@@ -779,11 +777,6 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       post("/organization/cancel-invitation", { invitationId: invitationIds.cancel }, ownerHeaders),
       call(`/organization/list-invitations?organizationId=${id}`, { headers: ownerHeaders }),
       post(
-        "/organization/accept-invitation",
-        { invitationId: invitationIds.accept },
-        inviteeHeaders,
-      ),
-      post(
         "/organization/reject-invitation",
         { invitationId: invitationIds.reject },
         inviteeHeaders,
@@ -792,7 +785,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       call("/organization/list-user-invitations", { headers: inviteeHeaders }),
     ]);
 
-    expect(answers.map((answer) => answer.status)).toEqual(Array(7).fill(404));
+    expect(answers.map((answer) => answer.status)).toEqual(Array(6).fill(404));
     const { invitation } = authTables;
     const stored = await database
       .select({ id: invitation.id, status: invitation.status })
@@ -804,6 +797,23 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
         .map((invitationId) => ({ id: invitationId, status: "pending" })),
     );
     expect((await membersOf(id)).map((member) => member.userId)).toEqual([inviter!.userId]);
+    // Not the owner, whose email is not the invitation's; the invitee, yes.
+    const byOwner = await post(
+      "/organization/accept-invitation",
+      { invitationId: invitationIds.accept },
+      ownerHeaders,
+    );
+    expect(byOwner.status).toBe(403);
+    const byInvitee = await post(
+      "/organization/accept-invitation",
+      { invitationId: invitationIds.accept },
+      inviteeHeaders,
+    );
+    expect(byInvitee.status).toBe(200);
+    expect((await membersOf(id)).map((member) => member.role).toSorted()).toEqual([
+      "member",
+      "owner",
+    ]);
   });
 
   test("answers no member listing, role, removal, or role change, to a learner or the owner", async () => {
@@ -851,23 +861,6 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     await expect(created).rejects.toThrow(slugProblem(slug));
   });
 
-  test("refuses changing a slug, but not resending it with other changes", async () => {
-    const cookie = ownerCookie;
-    const id = await createOwned(slugs.renamed);
-    const update = (data: Record<string, string>) =>
-      post("/organization/update", { organizationId: id, data }, { cookie });
-
-    const changed = await update({ slug: slugs.renamedAgain });
-    const resent = await update({ name: "Renamed School", slug: slugs.renamed });
-
-    expect(changed.status).toBe(400);
-    expect(await changed.json()).toMatchObject({ code: "ORGANIZATION_SLUG_IMMUTABLE" });
-    expect(resent.status).toBe(200);
-    const { organization } = authTables;
-    const [stored] = await database.select().from(organization).where(eq(organization.id, id));
-    expect(stored).toMatchObject({ name: "Renamed School", slug: slugs.renamed });
-  });
-
   test("creates an organization keeping tools from its learners' data, and never changes that", async () => {
     // Braivo's rules decide who changes it (ADR 0050), not Better Auth's
     // update, which any `owner` or `admin` reaches from any credential.
@@ -883,22 +876,15 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     };
 
     expect(await stored()).toMatchObject(unchanged);
+    // Better Auth's update, which would take the fields as input, is closed.
     const updated = await post(
       "/organization/update",
-      {
-        organizationId: id,
-        data: {
-          name: "Tools Setting",
-          toolsReadLearnerData: true,
-          toolsReadLearnerDataChangedBy: ownerId,
-          toolsReadLearnerDataChangedAt: "2026-06-01T00:00:00.000Z",
-        },
-      },
+      { organizationId: id, data: { toolsReadLearnerData: true } },
       { cookie: ownerCookie },
     );
 
-    expect(updated.status).toBe(200);
-    expect(await stored()).toMatchObject({ name: "Tools Setting", ...unchanged });
+    expect(updated.status).toBe(404);
+    expect(await stored()).toMatchObject(unchanged);
     // Only an administrator's browser reads any of it (access-45), not every
     // member or tool through Better Auth's answers that carry an organization.
     await database
@@ -916,7 +902,7 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
       await post("/organization/set-active", { organizationId: id }, { cookie: ownerCookie })
     ).json()) as Record<string, unknown>;
     for (const answered of [listed.find((entry) => entry.id === id), activated]) {
-      expect(answered).toMatchObject({ id, name: "Tools Setting" });
+      expect(answered).toMatchObject({ id });
       expect(Object.keys(answered ?? {})).not.toEqual(
         expect.arrayContaining([expect.stringMatching(/^toolsReadLearnerData/)]),
       );
@@ -944,13 +930,13 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     // whenever `NODE_ENV` is `test`, and this would pass.
     const id = await createOwned(slugs.foreignOrigin);
 
-    const updated = await post(
-      "/organization/update",
-      { organizationId: id, data: { name: "Foreign Origin" } },
+    const activated = await post(
+      "/organization/set-active",
+      { organizationId: id },
       { cookie: ownerCookie, origin: "https://evil.example" },
     );
 
-    expect(updated.status).toBe(403);
+    expect(activated.status).toBe(403);
   });
 
   test("refuses to delete an organization that still owns learning content", async () => {
