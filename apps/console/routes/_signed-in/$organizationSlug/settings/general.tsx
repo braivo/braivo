@@ -30,7 +30,7 @@ import { Switch } from "@braivo/ui/components/switch";
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon } from "lucide-react";
+import { CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { NoSuchSetting } from "#components/no-such-setting";
@@ -192,7 +192,7 @@ function General() {
         </div>
         {outcome?.saved === false && (
           <Alert key={outcome.count} variant="destructive" className="mt-4">
-            <CircleAlertIcon />
+            <CircleExclamationPointIcon />
             <AlertDescription>{outcome.message}</AlertDescription>
           </Alert>
         )}
@@ -228,11 +228,11 @@ function ToolsSetting() {
   // Unconfirmed: no answer, or the server's failure, which may follow the change.
   const [outcome, setOutcome] = useState<"saved" | "refused" | "unconfirmed">();
   useEffect(() => {
-    let current = true;
-    void toolsSetting.then((read) => current && !saveSent.current && setSetting(read ?? "failed"));
-    return () => {
-      current = false;
-    };
+    const stale = new AbortController();
+    void toolsSetting.then(
+      (read) => !stale.signal.aborted && !saveSent.current && setSetting(read ?? "failed"),
+    );
+    return () => stale.abort();
   }, [toolsSetting]);
 
   async function save(allowed: boolean) {
@@ -265,7 +265,7 @@ function ToolsSetting() {
   if (setting === "failed") {
     return (
       <Alert variant="destructive" className="mt-8">
-        <CircleAlertIcon />
+        <CircleExclamationPointIcon />
         <AlertDescription>
           <Trans>
             Could not load whether tools read learners' data. Reload the page to try again.
@@ -320,7 +320,7 @@ function ToolsSetting() {
       </p>
       {(outcome === "refused" || outcome === "unconfirmed") && (
         <Alert variant="destructive" className="mt-4">
-          <CircleAlertIcon />
+          <CircleExclamationPointIcon />
           <AlertDescription>
             {outcome === "refused" ? (
               <Trans>Could not save whether tools read learners' data. Try again.</Trans>

@@ -32,7 +32,7 @@ import {
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon } from "lucide-react";
+import { CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { CopyButton } from "#components/copy-button";
@@ -336,7 +336,7 @@ function Claim(props: {
       )}
       {failure && (
         <Alert key={failure.count} variant="destructive" className="mt-4">
-          <CircleAlertIcon />
+          <CircleExclamationPointIcon />
           <AlertDescription>{failure.message}</AlertDescription>
         </Alert>
       )}
@@ -471,7 +471,7 @@ function AddDomain() {
       </p>
       {failure && (
         <Alert key={failure.count} variant="destructive" className="mt-4">
-          <CircleAlertIcon />
+          <CircleExclamationPointIcon />
           <AlertDescription>{failure.message}</AlertDescription>
         </Alert>
       )}

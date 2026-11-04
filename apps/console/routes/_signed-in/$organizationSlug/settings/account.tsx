@@ -17,7 +17,7 @@ import { Spinner } from "@braivo/ui/components/spinner";
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon } from "lucide-react";
+import { CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -132,7 +132,7 @@ function Account() {
         </div>
         {outcome?.saved === false && (
           <Alert key={outcome.count} variant="destructive" className="mt-4">
-            <CircleAlertIcon />
+            <CircleExclamationPointIcon />
             <AlertDescription>
               <Trans>Could not save your name. Try again.</Trans>
             </AlertDescription>

@@ -21,16 +21,16 @@
     "@better-auth/mcp": "catalog:",
     "@braivo/db": "workspace:*",
     "@braivo/i18n": "workspace:*",
-    "@modelcontextprotocol/server": "2.3.1",
+    "@modelcontextprotocol/server": "2.4.0",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
-    "hono": "^4.13.13",
-    "jose": "6.2.12",
-    "nodemailer": "^10.1.7",
+    "hono": "^4.13.16",
+    "jose": "6.2.15",
+    "nodemailer": "^10.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/client": "2.4.0",
     "auth": "catalog:",
     "vite-plus": "catalog:"
   }

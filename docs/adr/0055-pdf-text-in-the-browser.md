@@ -16,7 +16,7 @@ A spike measured the browser instead, on synthetic fixtures in Chrome on an M1 l
 - **Text as drawn, normalized lightly.** Lines in content-stream order, joined by a space within a paragraph; a printed hyphen at a line's end kept; ligature characters spelled out; NFC. pdf.js does no layout analysis, so columns drawn line by line across the page interleave, and it drops soft hyphens, so a word split by one reads with a space.
 - **The owner reviews before anything is stored**, in the add form: each page's printed label (the PDF's `/PageLabels`, else its place, or numbered from the first page's printed number), its text, and Keep or Leave out. A page read cleanly starts kept; a flagged one waits for a decision, with a link opening that page of the file in the browser's own viewer, so nothing the reader doubted is saved or dropped unseen. Saving uploads the PDF and adds the kept pages as a paged source naming it ([ADR 0026](0026-paged-documents.md), [ADR 0028](0028-original-files.md)), through the endpoints any caller uses ([ADR 0020](0020-source-content.md)): the server learns nothing new, and no AI request is made or counted.
 - **AI stays a choice.** Where Braivo's AI is on, a PDF without pasted text is still read this way unless the owner chooses the AI, for a scan: before reading, or from the review, whose pages the AI's replace only once its reading succeeds. A photo still goes to the AI.
-- **pdf.js pinned** (`6.4.299`): the rule was calibrated, and the soft hyphen observed, on that version; an upgrade reruns the reader's browser tests.
+- **pdf.js pinned** (`6.5.438`): the rule was calibrated, and the soft hyphen observed, on 6.4.299; the reader's browser tests pass on the pinned version, and an upgrade reruns them.
 
 ## Alternatives rejected
 

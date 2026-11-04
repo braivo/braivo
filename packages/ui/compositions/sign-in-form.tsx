@@ -3,7 +3,13 @@
 
 import { Trans, useLingui } from "@lingui/react/macro";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { ArrowLeftIcon, ArrowRightIcon, CircleAlertIcon, ClockIcon, LockIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CircleExclamationPointIcon,
+  ClockIcon,
+  LockIcon,
+} from "lucide-react";
 import {
   type ComponentProps,
   type SubmitEvent,
@@ -310,7 +316,7 @@ export function SignInForm(props: {
             a status region mounted with its text may go unannounced. */}
         {props.error && (
           <Alert variant={props.wait ? "default" : "destructive"}>
-            {props.wait ? <ClockIcon /> : <CircleAlertIcon />}
+            {props.wait ? <ClockIcon /> : <CircleExclamationPointIcon />}
             <AlertDescription>{props.error}</AlertDescription>
           </Alert>
         )}

@@ -214,6 +214,22 @@ const languageTag = (typed?: string) => typed && (TAG_BY_NAME.get(typed.toLowerC
  * A title from a file's name: without its extension, underscores read as
  * spaces ("Unidad_1.pdf" is "Unidad 1").
  */
+/**
+ * `say`, at most once a second but always for the last page, so a screen
+ * reader is not read every page. Outside the component: its clock belongs to
+ * one read, not to a render.
+ */
+function everySecond(
+  say: (done: number, total: number) => void,
+): (done: number, total: number) => void {
+  let said = -Infinity;
+  return (done, total) => {
+    if (done < total && performance.now() - said < 1000) return;
+    said = performance.now();
+    say(done, total);
+  };
+}
+
 function titleOf(fileName: string): string {
   const stem = fileName.replace(/\.[^.]+$/, "") || fileName;
   return stem.replaceAll("_", " ").replace(/\s+/g, " ").trim();
@@ -327,16 +343,12 @@ function AddSource() {
     setReading(cancel);
     setError(undefined);
     setStatus("Reading the PDF…");
-    // Said at most once a second, so a screen reader is not read every page.
-    let said = 0;
     try {
       const pages = await readPdf(file, {
         signal,
-        onProgress: (done, total) => {
-          if (done < total && performance.now() - said < 1000) return;
-          said = performance.now();
-          setStatus(`Reading the PDF: page ${done} of ${total}…`);
-        },
+        onProgress: everySecond((done, total) =>
+          setStatus(`Reading the PDF: page ${done} of ${total}…`),
+        ),
       });
       openReview(startReview(pages), false);
     } catch (thrown) {

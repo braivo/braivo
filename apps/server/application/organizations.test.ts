@@ -330,13 +330,12 @@ describe.skipIf(!connectionString)("whether tools read an organization's learner
       // Released once both updates wait on the row, so each meets the other's.
       await vi.waitFor(
         async () => {
-          const [row] = (
-            await database.execute<{ count: string }>(
-              sql`select count(*) as count from pg_stat_activity
-                  where datname = current_database() and wait_event_type = 'Lock'
-                    and query like 'update "organization"%'`,
-            )
-          ).rows;
+          const [row] = await database.execute<{ count: string }>(
+            sql`select count(*) as count from pg_stat_activity
+                where datname = current_database() and wait_event_type = 'Lock'
+                  and query like 'update "organization"%'`,
+            "objects",
+          );
           expect(Number(row?.count)).toBe(2);
         },
         { timeout: 5_000 },

@@ -24,7 +24,7 @@
     "@tanstack/react-router": "catalog:",
     "better-auth": "catalog:",
     "lucide-react": "catalog:",
-    "pdfjs-dist": "6.4.299",
+    "pdfjs-dist": "6.5.438",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

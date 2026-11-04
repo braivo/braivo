@@ -8,7 +8,7 @@ import { Field, FieldDescription, FieldLabel } from "@braivo/ui/components/field
 import { Input } from "@braivo/ui/components/input";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon } from "lucide-react";
+import { CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -136,7 +136,7 @@ export function CourseUrlLabel(props: {
       </div>
       {outcome?.saved === false && (
         <Alert key={outcome.count} variant="destructive" className="mt-4">
-          <CircleAlertIcon />
+          <CircleExclamationPointIcon />
           <AlertDescription>{outcome.message}</AlertDescription>
         </Alert>
       )}

@@ -179,14 +179,14 @@ describe.skipIf(!connectionString)("a failure's log", () => {
 
     expect(response.status).toBe(500);
     // Better Auth logs the failed query, through Braivo's logger, and throws
-    // its own error in its place.
+    // its own error with the query's as its cause.
     expect(logged).toEqual([
       "[Better Auth] DrizzleQueryError < DatabaseError 42P01",
       {
         message: "Request failed",
         method: "GET",
         route: "/api/organizations",
-        error: "APIError",
+        error: "APIError < DrizzleQueryError < DatabaseError 42P01",
       },
     ]);
     expectNothingPersonal();

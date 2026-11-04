@@ -6,7 +6,7 @@ Status: accepted (2026-10-29)
 
 Development needs working defaults and a committed list of what can be set, while a developer's secrets stay out of Git and reach each linked worktree, whose setup copies the files `.worktreeinclude` lists ([ADR 0014](0014-worktree-setup.md)). A deployment needs the opposite: `apps/server/config.ts` refuses to start on a missing setting rather than run on a value nobody meant for that installation, which a development default loaded in production would defeat.
 
-Verified on Bun 1.4.3: without `--env-file`, Bun loads `.env`, `.env.<NODE_ENV>` (`development` while unset), `.env.local` (skipped under `test`), then `.env.<NODE_ENV>.local`, each over the one before and the shell over all; `--no-env-file` loads none, even in a script run by `bun run`. Vite ranks `.env.<mode>` over `.env.local`, the reverse, and production builds skip `.env.development`.
+Verified on Bun 1.4.4: without `--env-file`, Bun loads `.env`, `.env.<NODE_ENV>` (`development` while unset), `.env.local` (skipped under `test`), then `.env.<NODE_ENV>.local`, each over the one before and the shell over all; `--no-env-file` loads none, even in a script run by `bun run`. Vite ranks `.env.<mode>` over `.env.local`, the reverse, and production builds skip `.env.development`.
 
 ## Decision
 

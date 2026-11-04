@@ -45,11 +45,14 @@ const createdAt = new Date("2026-01-01T00:00:00.000Z");
 /** Until some statement like `pattern` (SQL `like`) waits for another transaction's lock. */
 async function waitForLock(pattern: string): Promise<void> {
   for (let tries = 0; tries < 100; tries++) {
-    const waiting = await database.execute(sql`
+    const waiting = await database.execute(
+      sql`
       select 1 from pg_stat_activity
       where datname = current_database() and wait_event_type = 'Lock'
-        and query like ${pattern}`);
-    if (waiting.rows.length > 0) return;
+        and query like ${pattern}`,
+      "objects",
+    );
+    if (waiting.length > 0) return;
     await Bun.sleep(20);
   }
   throw new Error(`No statement like ${pattern} waited for a lock.`);

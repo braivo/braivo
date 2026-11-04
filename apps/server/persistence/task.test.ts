@@ -33,8 +33,9 @@ async function waitingOnShareLock(stopped: () => boolean): Promise<void> {
   while (!stopped()) {
     const waiting = await database.execute(
       sql`select 1 from pg_stat_activity where wait_event_type = 'Lock' and query ilike '%for share%'`,
+      "objects",
     );
-    if (waiting.rows.length > 0) return;
+    if (waiting.length > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
@@ -302,8 +303,9 @@ describe.skipIf(!connectionString)("task invariants", () => {
         const waiting = await database.execute(
           sql`select 1 from pg_locks where locktype = 'advisory' and not granted
               and ((classid::bigint << 32) | objid::bigint) = ${key}`,
+          "objects",
         );
-        if (waiting.rows.length > 0) break;
+        if (waiting.length > 0) break;
         await new Promise((resolve) => setTimeout(resolve, 5));
       }
       expect(done).toBe(false);

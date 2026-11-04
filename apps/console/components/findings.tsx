@@ -12,7 +12,7 @@
 import type { Finding } from "@braivo/server/client";
 import { Button } from "@braivo/ui/components/button";
 import { useLingui } from "@lingui/react/macro";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleExclamationPointIcon } from "lucide-react";
 
 /** Whether a task has something a learner may run into, as written. */
 export const hasFindings = (task: { findings?: readonly Finding[] }) =>
@@ -57,7 +57,7 @@ export function FindingLines(props: {
         {findings.map((finding, index) => (
           // By index: fixed for this task's text, and two may read alike.
           <li key={index} className="flex gap-2">
-            <TriangleAlertIcon
+            <TriangleExclamationPointIcon
               aria-hidden="true"
               className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
             />

@@ -17,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@braivo/ui/components/radio-group";
 import { t } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute } from "@tanstack/react-router";
-import { CircleAlertIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { CircleExclamationPointIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useId, useState } from "react";
 
 import { pageHead } from "#lib/title";
@@ -103,7 +103,7 @@ function Preferences() {
           </NativeSelect>
           {failed && (
             <Alert key={failures} variant="destructive">
-              <CircleAlertIcon />
+              <CircleExclamationPointIcon />
               <AlertDescription>{t`Could not change the language. Try again.`}</AlertDescription>
             </Alert>
           )}
