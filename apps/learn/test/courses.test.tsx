@@ -5,11 +5,63 @@ import type { Activity, BraivoClient } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
-import { READ_DEADLINE_MS } from "../lib/deadline.ts";
+import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS } from "../lib/deadline.ts";
 import { SPANISH_ID, activity } from "./fixtures.ts";
 import { stall, waitOut, renderAt } from "./render.tsx";
 
+/** `text`, as a screen reader reads it: a count's no-break spaces as spaces. */
+function spaced(text: string) {
+  return (description: string) => description.replace(/\s/gu, " ") === text;
+}
+
 describe("the learn app", () => {
+  test("shows on each course where the learner stands in it, from one read", async () => {
+    const spanish = { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" };
+    const french = { id: "c2", number: 4733, title: "French", urlLabel: "french" };
+    const empty = { id: "c3", number: 4734, title: "German", urlLabel: "german" };
+    const { learnerCoursesWithStanding } = renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [french, empty, spanish],
+      learnerCoursesWithStanding: async () => [
+        { ...french, standing: { retained: 0, dueForReview: 2, learning: 0, notStarted: 1 } },
+        { ...empty, standing: { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 } },
+        { ...spanish, standing: { retained: 3, dueForReview: 0, learning: 1, notStarted: 0 } },
+      ],
+    });
+
+    // Named by the title, the counts its description, in each card's order.
+    expect(
+      await screen.findByRole("link", {
+        name: "French",
+        description: spaced("2 due for review · 1 not started"),
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", {
+        name: "Spanish",
+        description: spaced("3 retained · 1 learning"),
+      }),
+    ).toBeTruthy();
+    // Nothing to stand on: the title alone.
+    expect(screen.getByRole("link", { name: "German", description: "" })).toBeTruthy();
+    expect(learnerCoursesWithStanding).toHaveBeenCalledOnce();
+  });
+
+  test("lists the courses without standings when those are not read within their deadline", async () => {
+    vi.useFakeTimers();
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [
+        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+      ],
+      learnerCoursesWithStanding: (options) => stall(options),
+    });
+    await waitOut(OPTIONAL_READ_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByRole("link", { name: "Spanish", description: "" })).toBeTruthy();
+  });
+
   test("lists the learner's courses, each a way into it by its number", async () => {
     const { learnerCourses, router } = renderAt("/", {
       signedIn: true,
@@ -104,6 +156,7 @@ describe("the learn app", () => {
           "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access.",
       });
       expect(within(notice).getByRole("link", { name: "Your courses" })).toBeTruthy();
+      // Not practice: the account's header, to sign out and in as another.
       expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
       expect(nextActivity).not.toHaveBeenCalled();
     },
@@ -160,7 +213,7 @@ describe("the learn app", () => {
     expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
   });
 
-  test("shows that a page slow to load is on its way, under the header", async () => {
+  test("shows that a page slow to load is on its way", async () => {
     const loading = Promise.withResolvers<Activity | undefined>();
     renderAt("/", {
       signedIn: true,
@@ -173,7 +226,6 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("link", { name: "Spanish" }));
 
     expect(await screen.findByRole("status", { name: "Loading" }, { timeout: 2000 })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
     loading.resolve(activity);
     expect(await screen.findByRole("button", { name: "hablé" }, { timeout: 2000 })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading" })).toBeNull();

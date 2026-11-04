@@ -8,7 +8,7 @@ import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, onTestFinished, test } from "vite-plus/test";
 import { cdp, userEvent } from "vite-plus/test/browser/context";
 
 import { Button } from "./components/button.tsx";
@@ -408,6 +408,36 @@ describe.each(["light", "dark"])("in the neutral theme, %s", (theme) => {
       expect(wrong[part], part).not.toEqual(correct[part]);
     }
     expect(drawn(screen.getByRole("textbox"))).toEqual(correct);
+  });
+
+  test("a right answer's mark reads at 4.5:1 as text and 3:1 as an edge, whatever the brand", () => {
+    setTheme();
+    // A brand whose primary is the ink: right must still read as right, not as selected.
+    document.documentElement.style.setProperty("--primary", "var(--foreground)");
+    onTestFinished(() => {
+      document.documentElement.style.removeProperty("--primary");
+    });
+    render(
+      <I18nProvider i18n={i18n}>
+        <ChoiceQuestion
+          prompt="Ich ___ müde."
+          options={[
+            { choice: 1, text: "bin" },
+            { choice: 2, text: "bist" },
+          ]}
+          chosen={1}
+          correctChoice={1}
+          onChoose={() => {}}
+        />
+      </I18nProvider>,
+    );
+    const option = screen.getByRole("button", { name: /^bin\b/ });
+    const fill = over(paint(settled(option).backgroundColor), surface(option));
+    const label = screen.getByText("Correct", { selector: "span" });
+    expect(contrast(paint(settled(label).color), fill)).toBeGreaterThanOrEqual(4.5);
+    expect(borderContrast(option)).toBeGreaterThanOrEqual(LEAST);
+    // Neither the brand's colour nor the ink.
+    expect(settled(option).borderTopColor).not.toBe(getComputedStyle(document.body).color);
   });
 
   test("a graded answer shows focus outside its marked edge", async () => {

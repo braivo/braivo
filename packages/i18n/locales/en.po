@@ -60,12 +60,20 @@ msgstr "{0} is a teacher."
 msgid "{0}: {learners}"
 msgstr "{0}: {learners}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "{answers} of {total}"
+msgstr "{answers} of {total}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "{answers} of {total} answered"
+msgstr "{answers} of {total} answered"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 msgstr "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# due for review} other {# due for review}}"
 msgstr "{count, plural, one {# due for review} other {# due for review}}"
 
@@ -82,7 +90,7 @@ msgid "{count, plural, one {# learner} other {# learners}} you teach in this cou
 msgstr "{count, plural, one {# learner} other {# learners}} you teach in this course, across your groups: {groupNames}."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# learning} other {# learning}}"
 msgstr "{count, plural, one {# learning} other {# learning}}"
 
@@ -109,12 +117,12 @@ msgid "{count, plural, one {# miss, no correct answer yet} other {# misses, no c
 msgstr "{count, plural, one {# miss, no correct answer yet} other {# misses, no correct answer yet}}, latest {latest}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# not started} other {# not started}}"
 msgstr "{count, plural, one {# not started} other {# not started}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# retained} other {# retained}}"
 
@@ -180,6 +188,10 @@ msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added wi
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (coming soon)"
+
+#: apps/learn/components/practice-session.tsx
+msgid "{right} of {answers} right."
+msgstr "{right} of {answers} right."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{successes, plural, one {# success} other {# successes}}"
@@ -412,6 +424,10 @@ msgstr "Choose what's wrong."
 msgid "Client ID: {clientId}"
 msgstr "Client ID: {clientId}"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Close"
+msgstr "Close"
+
 #: apps/console/components/organization-sidebar.tsx
 msgid "Close navigation"
 msgstr "Close navigation"
@@ -550,6 +566,7 @@ msgstr "Could not disconnect the app. Try again."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Could not disconnect. Check your connection and try again."
 
+#: apps/learn/components/practice-session.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Could not load the next question. Try again."
 msgstr "Could not load the next question. Try again."
@@ -602,7 +619,7 @@ msgstr "Could not sign in with Google. Try again, or sign in with a code."
 
 #: apps/console/routes/_signed-in/route.tsx
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/_signed-in/route.tsx
+#: apps/learn/components/account-header.tsx
 msgid "Could not sign out. Try again."
 msgstr "Could not sign out. Try again."
 
@@ -685,8 +702,12 @@ msgstr "Domain"
 msgid "Domains"
 msgstr "Domains"
 
+#: apps/learn/components/practice-session.tsx
+msgid "Done"
+msgstr "Done"
+
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "due for review"
 msgstr "due for review"
 
@@ -938,6 +959,10 @@ msgstr "Its teachers will see no progress until it has learners and a course."
 msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 
+#: apps/learn/components/practice-session.tsx
+msgid "Keep going"
+msgstr "Keep going"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Keep it"
@@ -1022,7 +1047,7 @@ msgid "Learners' site"
 msgstr "Learners' site"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "learning"
 msgstr "learning"
 
@@ -1079,6 +1104,7 @@ msgstr "Light"
 msgid "Loading"
 msgstr "Loading"
 
+#: apps/learn/components/practice-session.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Loading…"
@@ -1091,6 +1117,10 @@ msgstr "Manage groups"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Members"
 msgstr "Members"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "More to practise now."
+msgstr "More to practise now."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most objectives due"
@@ -1249,7 +1279,7 @@ msgid "Not quite"
 msgstr "Not quite"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "not started"
 msgstr "not started"
 
@@ -1356,6 +1386,10 @@ msgstr "Password"
 msgctxt "domain"
 msgid "Pending"
 msgstr "Pending"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practice continues at {continuesAt}."
+msgstr "Practice continues at {continuesAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practice for {objectiveTitle} isn't available right now."
@@ -1482,7 +1516,7 @@ msgid "Report a problem"
 msgstr "Report a problem"
 
 #. After an objective's title: a form fitting any
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/standing.tsx
 msgid "retained"
 msgstr "retained"
 
@@ -1551,6 +1585,10 @@ msgstr "See members"
 msgid "See sources"
 msgstr "See sources"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "See the answer"
+msgstr "See the answer"
+
 #: apps/learn/components/report-problem.tsx
 msgid "Send"
 msgstr "Send"
@@ -1579,6 +1617,14 @@ msgstr "Sending…"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
 msgstr "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Session"
+msgstr "Session"
+
+#: apps/learn/components/practice-session.tsx
+msgid "Session complete"
+msgstr "Session complete"
 
 #: apps/console/components/organization-switcher.tsx
 msgid "Set up an organization"
@@ -1630,7 +1676,7 @@ msgid "Sign in with a password"
 msgstr "Sign in with a password"
 
 #: apps/console/components/account-menu.tsx
-#: apps/learn/routes/_signed-in/route.tsx
+#: apps/learn/components/account-header.tsx
 msgid "Sign out"
 msgstr "Sign out"
 
@@ -1762,8 +1808,8 @@ msgid "That's all the new material for today"
 msgstr "That's all the new material for today"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-msgid "The answer: {correctAnswer}"
-msgstr "The answer: {correctAnswer}"
+msgid "The answer: {markedAnswer}"
+msgstr "The answer: {markedAnswer}"
 
 #: packages/auth-client/sign-in.tsx
 msgid "The code could not be sent. Try again in a minute."

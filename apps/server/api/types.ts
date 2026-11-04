@@ -108,6 +108,12 @@ export type Passage = application.Passage;
 export type Course = { id: string; number: number; title: string; urlLabel: string };
 
 /**
+ * How many of a course's objectives stand where for the learner: retained and
+ * not due, due for review, learning, and not started (progress-8's counts).
+ */
+export type CourseStanding = application.CourseStanding;
+
+/**
  * A course as those allowed to author in its organization see it: `published` once a
  * person published it in the console, before which no learner reaches it;
  * `hidden` while a person has hidden it from learners since (ADR 0039).

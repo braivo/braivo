@@ -449,6 +449,35 @@ export async function readPublishedCoursesByObjective(
 }
 
 /**
+ * Each of these courses' organization and objectives, in content order, in
+ * one query: what a list of courses with standings is computed from. A course
+ * with no objectives has an empty list; one missing is left out.
+ */
+export async function readObjectivesForCourses(
+  database: Database,
+  courseIds: readonly string[],
+): Promise<Map<string, { organizationId: string; objectiveIds: string[] }>> {
+  const courses = new Map<string, { organizationId: string; objectiveIds: string[] }>();
+  if (courseIds.length === 0) return courses;
+  const rows = await database
+    .select({
+      courseId: course.id,
+      organizationId: course.organizationId,
+      objectiveId: courseObjective.objectiveId,
+    })
+    .from(course)
+    .leftJoin(courseObjective, eq(courseObjective.courseId, course.id))
+    .where(inArray(course.id, [...courseIds]))
+    .orderBy(asc(course.id), asc(courseObjective.position));
+  for (const { courseId, organizationId, objectiveId } of rows) {
+    let entry = courses.get(courseId);
+    if (!entry) courses.set(courseId, (entry = { organizationId, objectiveIds: [] }));
+    if (objectiveId !== null) entry.objectiveIds.push(objectiveId);
+  }
+  return courses;
+}
+
+/**
  * A course's objectives in content order, ready to hand to `learning` as its
  * candidate list.
  *

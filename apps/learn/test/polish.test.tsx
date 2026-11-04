@@ -197,7 +197,7 @@ describe("the learn app in Polish", () => {
           "Powtórka · Past tense Czas na powtórkę: masz około 72% szans, że teraz sobie przypomnisz.",
       }),
     ).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Twoje kursy" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Zamknij" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "hablo" }));
 
     const alert = await screen.findByRole("alert");
@@ -299,7 +299,6 @@ describe("the learn app in Polish", () => {
   ])("counts %i objective(s) not started as %s", async (count, line) => {
     renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => activity,
       learnerProgress: async () => notStarted(count),
     });
 

@@ -13,6 +13,7 @@ export {
   DeletedCourseKey,
   markCourseDeleted,
   readCourseObjectives,
+  readObjectivesForCourses,
   readCourseOrganization,
   readCourses,
   readPublishedCoursesByObjective,

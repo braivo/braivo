@@ -45,7 +45,10 @@ describe("the learn app", () => {
 
     // The task answered, not the next one, graded as before the reload.
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablo.*Your answer/ })).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Continue" }));
@@ -130,8 +133,10 @@ describe("the learn app", () => {
       // The same attempt, ID and all, so Braivo records it once.
       expect(lost.mock.calls[0]![0]!.response).toEqual(response);
       expect(submitAttempt.mock.calls[0]![0]).toEqual(lost.mock.calls[0]![0]);
-      expect(within(screen.getByRole("alert")).getByText(title)).toBeTruthy();
-      expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+      // A typed miss marks the answer's missed letter in a copy apart (course.test.tsx).
+      expect(screen.getByRole("alert").textContent).toBe(
+        `${title}The answer: bin${"text" in response ? "bin" : ""}`,
+      );
     },
   );
 
@@ -262,7 +267,7 @@ describe("the learn app", () => {
 
       expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
       expect(screen.getByText("Past tense of 'hablar'?")).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Close" })).toBeTruthy();
       fireEvent.click(next);
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       // Continue reads what comes next, never the brand again.
@@ -512,7 +517,10 @@ describe("the learn app", () => {
       submitAttempt: async () => graded,
     });
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledTimes(1);
     expect(nextActivity).not.toHaveBeenCalled();
   });
@@ -698,7 +706,7 @@ describe("the learn app", () => {
     vi.useRealTimers();
 
     expect(await screen.findByText("Could not load the next question. Try again.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Close" })).toBeTruthy();
     expect(screen.getByText("Correct", { selector: GRADE_TITLE })).toBeTruthy();
 
     // Not continued past, so a reload resends it and shows its grade again.
@@ -759,11 +767,58 @@ describe("the learn app", () => {
     expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
   });
 
-  test("on Continue, reloads the course as another account signed in meanwhile, keeping the first one's answer for them", async () => {
+  test("on Continue, reads what comes next while rechecking the session, showing it only once the session is the learner's", async () => {
+    const checked = Promise.withResolvers<{ id: string; name: string }>();
+    const session = vi
+      .fn<BraivoClient["session"]>()
+      .mockResolvedValueOnce({ id: "ada", name: "Ada Learner" })
+      .mockReturnValueOnce(checked.promise);
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, session, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // One round trip, not two: the read starts while the session check is out.
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(2));
+    expect(session).toHaveBeenCalledTimes(2);
+    await act(async () => {});
+    expect(screen.queryByText("Past tense of 'comer'?")).toBeNull();
+
+    await act(async () => checked.resolve({ id: "ada", name: "Ada Learner" }));
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+  });
+
+  test("on Continue, shows the next question without reading where the learner stands, which a question never shows", async () => {
+    const learnerProgress = vi
+      .fn<BraivoClient["learnerProgress"]>()
+      .mockResolvedValueOnce(noProgress)
+      .mockImplementation((_input, options) => stall(options));
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    renderAt("/c/4732", { signedIn: true, learnerProgress, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+
+    // Well inside the standing's own deadline: nothing waits on it.
+    expect(
+      await screen.findByText("Past tense of 'comer'?", undefined, { timeout: 500 }),
+    ).toBeTruthy();
+    // Never read for a question: the page's load read it once, and nothing since.
+    expect(learnerProgress).toHaveBeenCalledOnce();
+  });
+
+  test("on Continue, lets a refusal read as another account signed in meanwhile clear nothing of the first one's", async () => {
     let user = { id: "ada", name: "Ada Learner" };
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
+      // As Bea, the course is not hers.
+      .mockRejectedValueOnce(new BraivoError(404, "not found"))
       .mockResolvedValue(anotherActivity);
     renderAt("/c/4732", { signedIn: true, session: async () => user, nextActivity });
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
@@ -772,9 +827,30 @@ describe("the learn app", () => {
     user = { id: "bea", name: "Bea Learner" };
     fireEvent.click(next);
 
-    expect(await screen.findByText("Bea Learner")).toBeTruthy();
-    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+    await vi.waitFor(() => expect(nextActivity).toHaveBeenCalledTimes(3));
+    // Ada's answer, kept for her: the 404 was Bea's.
     expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+  });
+
+  test("on Continue, reloads the course as another account signed in meanwhile, keeping the first one's answer for them", async () => {
+    let user = { id: "ada", name: "Ada Learner" };
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue(anotherActivity);
+    const session = vi.fn(async () => user);
+    renderAt("/c/4732", { signedIn: true, session, nextActivity });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const next = await screen.findByRole("button", { name: "Continue" });
+
+    user = { id: "bea", name: "Bea Learner" };
+    fireEvent.click(next);
+
+    expect(await screen.findByText("Past tense of 'comer'?")).toBeTruthy();
+    // Continued as Ada, her answer would be forgotten: reloaded, it is kept for her.
+    expect(unfinishedAttempt("ada", "c1")).toBeDefined();
+    // The guard's, Continue's, and the reload's guard's, as Bea.
+    expect(session).toHaveBeenCalledTimes(3);
   });
 
   test("ignores a Continue still loading once the course reloaded, leaving the answer kept", async () => {
@@ -815,7 +891,7 @@ describe("the learn app", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
     await vi.waitFor(() => expect(session).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getAllByRole("link", { name: "Your courses" })[0]!);
+    fireEvent.click(screen.getByRole("link", { name: "Close" }));
     await screen.findByText(/no courses/i);
     expect(session.mock.calls[1]?.[0]?.signal?.aborted).toBe(true);
     const calls = session.mock.calls.length;

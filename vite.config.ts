@@ -165,6 +165,7 @@ export default defineConfig({
                     "!../content/explanation.ts",
                     "!../content/findings.ts",
                     "!../application/learner-day.ts",
+                    "!../application/standing.ts",
                   ],
                   message: "Another module's API is its `index.ts`.",
                 },

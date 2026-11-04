@@ -36,7 +36,10 @@ describe("the learn app", () => {
     // marked correct once Continue takes the focus.
     const alert = screen.getByRole("alert");
     expect(within(alert).getByText("The answer: hablé")).toBeTruthy();
-    expect(within(alert).getByText("Preterite.")).toBeTruthy();
+    // Body text by the question, read as Continue takes the focus.
+    expect(
+      screen.getByRole("button", { name: "Continue", description: "Preterite." }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledWith(
       { courseId: "c1", id: expect.any(String), taskId: "t1", response: { choice: 1 } },
@@ -128,13 +131,53 @@ describe("the learn app", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send again" }));
     expect(await screen.findByText("Not quite")).toBeTruthy();
-    expect(within(screen.getByRole("alert")).getByText("The answer: bin")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("Not quite" + "The answer: bin" + "bin");
     // Labelled as the learner's, apart from the answer the alert names.
     expect(screen.getByText("Your answer")).toBeTruthy();
     expect(submitAttempt.mock.calls.map(([input]) => input.response)).toEqual([
       { text: "ben" },
       { text: "ben" },
     ]);
+  });
+
+  // Which characters, for every kind of slip, `lib/missed-characters.test.ts`; here, how they show.
+  test.each([
+    ["a letter wrong", "bin", "ben", ["i"]],
+    ["a different word", "please", "plz", []],
+  ])(
+    "marks in the answer what a missed typed one got wrong, for %s, read whole",
+    async (_, answer, typed, marked) => {
+      renderAt("/c/4732", {
+        signedIn: true,
+        nextActivity: async () => typedActivity,
+        submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+      });
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: typed } });
+      fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+      const alert = await screen.findByRole("alert");
+      expect([...alert.querySelectorAll("mark")].map((mark) => mark.textContent)).toEqual(marked);
+      // Marks hidden from a screen reader, which reads the answer whole instead.
+      for (const mark of alert.querySelectorAll("mark")) {
+        expect(mark.closest('[aria-hidden="true"]')).not.toBeNull();
+      }
+      const read = alert.cloneNode(true) as Element;
+      for (const hidden of read.querySelectorAll('[aria-hidden="true"]')) hidden.remove();
+      expect(read.textContent).toBe(`Not quite` + `The answer: ${answer}`);
+    },
+  );
+
+  test("marks nothing in the answer Show answer gives", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => typedActivity,
+      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Show answer" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Here it is" + "The answer: bin");
+    expect(alert.querySelector("mark")).toBeNull();
   });
 
   test("keeps Show answer focused and saying it is loading until the answer comes", async () => {
@@ -205,9 +248,9 @@ describe("the learn app", () => {
     for (const read of [session, nextActivity]) {
       expect(read).toHaveBeenCalledTimes(2);
     }
+    // On loading; not for the question Continue found, which shows no standing.
+    expect(learnerProgress).toHaveBeenCalledOnce();
     expect(learnerCourseByNumber).toHaveBeenCalledOnce();
-    // Also read once the answer was graded, before Continue.
-    expect(learnerProgress).toHaveBeenCalledTimes(3);
     expect(hostOrganization).toHaveBeenCalledTimes(1);
   });
 
@@ -587,7 +630,7 @@ describe("the learn app", () => {
     expect(screen.queryByText("You're caught up")).toBeNull();
   });
 
-  test("names the course, in its tab too, and leads back to the list", async () => {
+  test("names the course, in its tab too, and closes back to the list, alone on the screen", async () => {
     renderAt("/c/4732", {
       signedIn: true,
       hostOrganization: async () => ({ name: "Fernwood" }),
@@ -600,7 +643,11 @@ describe("the learn app", () => {
 
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Spanish");
     await vi.waitFor(() => expect(document.title).toBe("Spanish · Fernwood"));
-    fireEvent.click(screen.getByRole("link", { name: "Your courses" }));
+    // Practice is focused: no organization, account, or Sign out beside it.
+    expect(screen.queryByText("Fernwood")).toBeNull();
+    expect(screen.queryByText("Ada Learner")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Close" }));
 
     expect(await screen.findByRole("link", { name: "French" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Fernwood"));

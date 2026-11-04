@@ -40,7 +40,9 @@ export function Notice({
       ref={focused}
       tabIndex={-1}
       // Half shadcn's padding on a phone, where its p-12 left the words a narrow column.
-      className="max-sm:p-6"
+      // `flex-none`: its own height, not shadcn's `flex-1`, which in the course
+      // page's screen-high column stretched it to the screen's foot.
+      className="flex-none max-sm:p-6"
       role="region"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}

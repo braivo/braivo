@@ -23,9 +23,11 @@ import {
 } from "@braivo/ui/components/field";
 import { RadioGroup, RadioGroupItem } from "@braivo/ui/components/radio-group";
 import { Textarea } from "@braivo/ui/components/textarea";
+import { cn } from "@braivo/ui/lib/utils";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { FlagIcon } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { ANSWER_DEADLINE_MS, withDeadline } from "#lib/deadline";
@@ -46,7 +48,7 @@ const REASON_LABELS: Record<TaskReportReason, MessageDescriptor> = {
 type Report = { reason: TaskReportReason; note?: string };
 
 /**
- * Report a problem, under a task's feedback, after Continue (ADR 0052): a
+ * Report a problem, a flag by a task's feedback, after Continue (ADR 0052): a
  * dialog of the reasons that fit this grade and a note. What is sent is a
  * snapshot, read-only from Send until Braivo answers it or refuses it, and
  * resent unchanged, so a body Braivo may hold already is never replaced by
@@ -63,8 +65,11 @@ export function ReportProblem(props: {
   passages: boolean;
   /** Who will read it; "Your school" when the brand could not be read. */
   organizationName: string | undefined;
+  /** Where the flag, and the status replacing it once sent, sit, as the caller lays them out. */
+  triggerClassName?: string;
+  statusClassName?: string;
 }) {
-  const { send, missed, passages, organizationName } = props;
+  const { send, missed, passages, organizationName, triggerClassName, statusClassName } = props;
   const { t } = useLingui();
   const id = useId();
   const [open, setOpenState] = useState(false);
@@ -186,7 +191,7 @@ export function ReportProblem(props: {
         role="status"
         tabIndex={-1}
         // Hidden only visually while empty, so it is in the accessibility tree before it speaks.
-        className={done ? "text-sm text-muted-foreground" : "sr-only"}
+        className={cn(done ? "text-sm text-muted-foreground" : "sr-only", statusClassName)}
       >
         {done === "sent" && <Trans>Thanks. Your report was sent.</Trans>}
         {done === "already" && <Trans>You already reported this question.</Trans>}
@@ -195,13 +200,16 @@ export function ReportProblem(props: {
         <Dialog open={open} onOpenChange={setOpen}>
           {/* The dialog's trigger, so closing it unsent hands the focus back here. */}
           <DialogTrigger asChild>
+            {/* A flag, named in words, as on most practice apps: small beside
+                the verdict, never competing with Continue. */}
             <Button
               ref={trigger}
               variant="ghost"
-              // Its text, not its padding, in line with the question's (docs/apps.md).
-              className="-ms-3 self-start"
+              size="icon"
+              aria-label={t`Report a problem`}
+              className={cn("size-11", triggerClassName)}
             >
-              <Trans>Report a problem</Trans>
+              <FlagIcon aria-hidden="true" />
             </Button>
           </DialogTrigger>
           <DialogContent

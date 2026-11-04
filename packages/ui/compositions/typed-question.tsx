@@ -93,7 +93,7 @@ export function TypedQuestion(props: {
             className={cn(
               "h-11 text-base",
               // Important: the theme's unlayered field border and fill (globals.css) would win.
-              sent !== undefined && outcome === "success" && "border-primary! bg-primary/10!",
+              sent !== undefined && outcome === "success" && "border-success! bg-success/10!",
             )}
           />
           {/* Held close, as the field's caption, so under the field, not under
@@ -106,16 +106,19 @@ export function TypedQuestion(props: {
             </p>
           )}
         </div>
-        <Button
-          type="submit"
-          size="lg"
-          // Out of the tab order while there is nothing to send; once sent, kept for the focus.
-          disabled={blank && !locked}
-          aria-disabled={locked}
-          className="h-11 sm:shrink-0"
-        >
-          {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
-        </Button>
+        {/* Gone once graded: the caller's next step takes over. */}
+        {outcome === undefined && (
+          <Button
+            type="submit"
+            size="lg"
+            // Out of the tab order while there is nothing to send; once sent, kept for the focus.
+            disabled={blank && !locked}
+            aria-disabled={locked}
+            className="h-11 sm:shrink-0"
+          >
+            {pending ? <Spinner aria-label={t`Loading`} /> : <Trans>Check</Trans>}
+          </Button>
+        )}
       </div>
     </form>
   );

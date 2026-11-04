@@ -48,7 +48,6 @@ function NotFound() {
 }
 
 function Root() {
-  const { organization } = Route.useLoaderData();
   // `/login` is a page of its own, `SignInPage`, naming the organization itself.
   const signingIn = useMatches({
     select: (matches) => matches.some(({ routeId }) => routeId === "/login"),
@@ -66,7 +65,6 @@ function Root() {
     <>
       <HeadContent />
       <main className="mx-auto max-w-xl p-6">
-        {organization && <p className="mb-6 font-semibold">{organization.name}</p>}
         <Outlet />
       </main>
     </>

@@ -9,6 +9,7 @@ import {
   chooseNextObjective,
   isTimeZone,
   listLearnerCourses,
+  listLearnerCoursesWithStanding,
   parseTaskReport,
   readCourseProgress,
   readLearnerProgress,
@@ -100,12 +101,25 @@ export function learningRoutes(
 
   /**
    * The courses the signed-in learner may study, from the session alone; with
-   * `?number=`, the one so numbered, as a learn domain's `/c/4732` names it.
+   * `?number=`, the one so numbered, as a learn domain's `/c/4732` names it;
+   * with `?standing=true`, each with where the learner stands in it, which a
+   * number's lookup, read on every course page, never pays for.
    */
   routes.get("/api/courses", requireLearner, async (context) => {
     const numbered = context.req.query("number");
     const number = numbered === undefined ? undefined : parseCourseNumber(numbered);
     if (numbered !== undefined && number === undefined) return context.body(null, 400);
+    const standing = context.req.query("standing");
+    if (standing !== undefined) {
+      if (standing !== "true" || numbered !== undefined) return context.body(null, 400);
+      const courses = await listLearnerCoursesWithStanding({
+        database,
+        learnerId: context.var.learner.id,
+        host: requestHost(context),
+        now: new Date(),
+      });
+      return context.json({ courses });
+    }
     const courses = await listLearnerCourses({
       database,
       learnerId: context.var.learner.id,
