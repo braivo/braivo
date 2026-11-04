@@ -2,11 +2,17 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { open, unlink } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 import { createDatabase, runMigrations } from "@braivo/db";
 
-import { type AiReportRow, readAiReport, registerLearnDomain } from "../application/index.ts";
+import {
+  type AiReportRow,
+  exportLearner,
+  readAiReport,
+  registerLearnDomain,
+} from "../application/index.ts";
 import {
   addMember,
   createAuth,
@@ -57,6 +63,11 @@ Running an installation (a content owner's commands are braivo's):
   oauth-client remove --client-id <id>
                 Remove a client and its connections: at once, /mcp refuses
                 its access tokens and refreshing refuses its refresh tokens.
+  learner export --email <email> (--organization <slug> | --account) --out <file>
+                Write the learner's data to <file>, a new file only you may
+                read: what one organization holds (for that school), or the
+                whole account's (for the account holder). JSON, in the
+                format docs/guides/deployment.md describes; reads only.
   reviewer set-password --email <email> [--password-stdin]
                 Let an existing account sign in with a password at
                 /login?method=password, for an app directory's reviewer, while
@@ -260,6 +271,47 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
+  if (argv[0] === "learner" && argv[1] === "export") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: {
+        email: { type: "string" },
+        organization: { type: "string" },
+        account: { type: "boolean" },
+        out: { type: "string" },
+      },
+    });
+    const { email, organization, account, out } = values;
+    // Exactly one scope, never a default: a school's request and the account
+    // holder's disclose different things (docs/adr/0053-learners-data.md).
+    if (!email || !out || (organization === undefined) === (account !== true)) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const databaseUrl = readDatabaseUrl(process.env);
+    const database = createDatabase(databaseUrl);
+    try {
+      const exported = await exportLearner({
+        database,
+        email,
+        scope: organization === undefined ? "account" : { organizationSlug: organization },
+        at: new Date(),
+      });
+      await writeNewPrivateFile(out, `${JSON.stringify(exported, null, 2)}\n`);
+      // Status to stderr, stdout left empty: nothing of the export lands in a
+      // pipe or a log by mistake, and the file stays its only copy.
+      const { host, pathname } = new URL(databaseUrl);
+      const where = organization === undefined ? "the account" : organization;
+      console.error(
+        `Exported ${where}'s records of ${exported.learner.email} from ${host}${pathname} to ${out}.`,
+      );
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
   if (argv[0] === "reviewer" && (argv[1] === "set-password" || argv[1] === "remove-password")) {
     const { values } = parseArgs({
       args: argv.slice(2),
@@ -391,6 +443,27 @@ function formatAiReport(report: readonly AiReportRow[]): string {
     .concat(
       "\n\nKept: passed Braivo's checks; not accepted by the owner, nor a judgement of quality. A refused task may count under two refusals.",
     );
+}
+
+/**
+ * Creates `path`, refusing one that exists, readable by the operator alone,
+ * and removes it again if writing fails, so a partial export is never left.
+ */
+async function writeNewPrivateFile(path: string, contents: string): Promise<void> {
+  const file = await open(path, "wx", 0o600).catch((error: NodeJS.ErrnoException) => {
+    throw error.code === "EEXIST" ? new Error(`${path} exists; name a new file.`) : error;
+  });
+  try {
+    // The mode `open` takes is narrowed by the umask, never widened; set it whole.
+    await file.chmod(0o600);
+    await file.writeFile(contents);
+    await file.sync();
+    await file.close();
+  } catch (error) {
+    await file.close().catch(() => {});
+    await unlink(path);
+    throw error;
+  }
 }
 
 try {

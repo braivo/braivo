@@ -59,6 +59,7 @@ export {
   renewLearnerSession,
 } from "./learner-session.ts";
 export type { CheckedCode } from "./learner-sign-in-code.ts";
+export { readLearnerExport } from "./learner-export.ts";
 export {
   checkLearnerSignInCode,
   nameUnnamedUser,

@@ -81,6 +81,7 @@ export {
   redeemHandoff,
   startHandoff,
 } from "./learner-sessions.ts";
+export { exportLearner } from "./learner-export.ts";
 export { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
 export { nameNewLearner, sendLearnerSignInCode, signInLearner } from "./learner-sign-in.ts";
