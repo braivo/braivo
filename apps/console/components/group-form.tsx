@@ -35,7 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@braivo/ui/components/p
 import { Spinner } from "@braivo/ui/components/spinner";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import { Link, useBlocker, useNavigate, useRouter } from "@tanstack/react-router";
-import { CircleAlertIcon, PlusIcon } from "lucide-react";
+import { CircleExclamationPointIcon, PlusIcon } from "lucide-react";
 import {
   type FormEvent,
   type ReactNode,
@@ -621,7 +621,7 @@ export function GroupForm(props: {
         </div>
         {outcome?.saved === false && (
           <Alert key={outcome.count} variant="destructive" className="mt-4">
-            <CircleAlertIcon />
+            <CircleExclamationPointIcon />
             <AlertDescription className="wrap-break-word">
               <p>{outcome.message}</p>
               {outcome.reload && (

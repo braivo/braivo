@@ -25,7 +25,7 @@ import { Spinner } from "@braivo/ui/components/spinner";
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useRouter } from "@tanstack/react-router";
-import { ArrowRightIcon, CircleAlertIcon } from "lucide-react";
+import { ArrowRightIcon, CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { flushSync } from "react-dom";
 
@@ -355,7 +355,7 @@ export function OrganizationSetupForm(props: OrganizationSetup & { braivo: Braiv
             )}
             {error && (
               <Alert variant="destructive">
-                <CircleAlertIcon />
+                <CircleExclamationPointIcon />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
