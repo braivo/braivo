@@ -41,17 +41,20 @@ async function waitingOnShareLock(stopped: () => boolean): Promise<void> {
 }
 
 function record(attemptId: string, outcome: "success" | "failure" = "success") {
-  return recordAttempt(database, {
-    learnerId: learner,
-    organizationId,
-    attemptId,
-    taskId,
-    response: { choice: 0 },
-    at,
-    restWindowStart: at,
-    restAttempts: 3,
-    evidence: { id: `attempt:${attemptId}`, objectiveId, outcome },
-  });
+  return database.transaction((transaction) =>
+    recordAttempt(transaction, {
+      learnerId: learner,
+      organizationId,
+      attemptId,
+      taskId,
+      response: { choice: 0 },
+      at,
+      restWindowStart: at,
+      restAttempts: 3,
+      staleEpoch: false,
+      evidence: { id: `attempt:${attemptId}`, objectiveId, outcome },
+    }),
+  );
 }
 
 /** Requires TEST_DATABASE_URL: locking is the database's to do. */
@@ -141,17 +144,20 @@ describe.skipIf(!connectionString)("storing a task and an attempt", () => {
         published: true,
       })
     ).map(({ id }) => id) as [string];
-    await recordAttempt(database, {
-      learnerId: learner,
-      organizationId,
-      attemptId: "stored",
-      taskId: stored,
-      response: { choice: 1 },
-      at,
-      restWindowStart: at,
-      restAttempts: 3,
-      evidence: { id: "attempt:stored", objectiveId: objective, outcome: "failure" },
-    });
+    await database.transaction((transaction) =>
+      recordAttempt(transaction, {
+        learnerId: learner,
+        organizationId,
+        attemptId: "stored",
+        taskId: stored,
+        response: { choice: 1 },
+        at,
+        restWindowStart: at,
+        restAttempts: 3,
+        staleEpoch: false,
+        evidence: { id: "attempt:stored", objectiveId: objective, outcome: "failure" },
+      }),
+    );
 
     expect(
       await database

@@ -222,6 +222,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     // it: a rename on either side stops matching here.
     expect(activity).toEqual({
       decision: { objectiveId: pastTense, modelVersion: "v1", intent: "introduce" },
+      historyEpoch: 0,
       objective: { id: pastTense, title: "Past tense" },
       task: {
         id: pastTenseTask,
@@ -237,7 +238,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
   test("submits an attempt the server grades, and sees its only task rest", async () => {
     const grade = await client.submitAttempt(
-      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } },
+      {
+        historyEpoch: 0,
+        courseId,
+        id: crypto.randomUUID(),
+        taskId: pastTenseTask,
+        response: { choice: 1 },
+      },
       { headers: { cookie: learnerCookie } },
     );
     expect(grade).toEqual({ kind: "choice", outcome: "failure", correctChoice: 0 });
@@ -249,7 +256,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
 
     const early = client.submitAttempt(
-      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } },
+      {
+        historyEpoch: 0,
+        courseId,
+        id: crypto.randomUUID(),
+        taskId: pastTenseTask,
+        response: { choice: 0 },
+      },
       { headers: { cookie: learnerCookie } },
     );
     await expect(early).rejects.toBeInstanceOf(BraivoError);
@@ -260,7 +273,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     const signedIn = { headers: { cookie: learnerCookie } };
     const attemptId = crypto.randomUUID();
     await client.submitAttempt(
-      { courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
+      { historyEpoch: 0, courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
       signedIn,
     );
 
@@ -276,7 +289,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   test("lists a task's open reports for an administrator, and dismisses them", async () => {
     const attemptId = crypto.randomUUID();
     await client.submitAttempt(
-      { courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
+      { historyEpoch: 0, courseId, id: attemptId, taskId: pastTenseTask, response: { choice: 1 } },
       { headers: { cookie: learnerCookie } },
     );
     // The learner may have reported the task already: dismissed first, this one is stored.
@@ -1030,6 +1043,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(report).toEqual({
       modelVersion: "v1",
       asOf: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/),
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [
@@ -1104,7 +1118,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     // pinned through both reads, so a dropped or reshaped field fails here.
     const before = Date.now();
     await client.submitAttempt(
-      { courseId, id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } },
+      {
+        historyEpoch: 0,
+        courseId,
+        id: crypto.randomUUID(),
+        taskId: pastTenseTask,
+        response: { choice: 0 },
+      },
       { headers: { cookie: learnerCookie } },
     );
     const after = Date.now();
@@ -1134,6 +1154,40 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
 
     expect(rejected).toBeInstanceOf(BraivoError);
     expect(rejected as BraivoError).toMatchObject({ status: 404 });
+  });
+
+  test("sends a history epoch, and surfaces one that is not current as HISTORY_ERASED", async () => {
+    const refused = { status: 409, code: "HISTORY_ERASED" };
+    await expect(
+      client.submitAttempt(
+        {
+          courseId,
+          id: crypto.randomUUID(),
+          taskId: pastTenseTask,
+          response: { choice: 1 },
+          historyEpoch: 7,
+        },
+        { headers: { cookie: learnerCookie } },
+      ),
+    ).rejects.toMatchObject(refused);
+    await expect(
+      client.recordEvidence(
+        {
+          organizationId,
+          learnerId,
+          evidence: [
+            {
+              id: "contract-stale",
+              objectiveId: pastTense,
+              outcome: "success",
+              at: at.toISOString(),
+            },
+          ],
+          historyEpoch: 7,
+        },
+        { headers: { cookie: teacherCookie } },
+      ),
+    ).rejects.toMatchObject(refused);
   });
 
   test("surfaces a result that disagrees with its ID's as a 409", async () => {

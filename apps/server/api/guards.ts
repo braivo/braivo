@@ -91,6 +91,11 @@ export async function jsonBody(context: Context): Promise<unknown> {
   }
 }
 
+/** Whether a request names a history epoch: a count, as `learner_history_state` holds it. */
+export function isHistoryEpoch(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
 /**
  * Where `value` holds a key or a string Braivo could not store as sent
  * (`isStorable`), named for a refusal (`tasks[0].prompt`, `""` for `value`

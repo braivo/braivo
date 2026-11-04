@@ -388,7 +388,7 @@ describe.skipIf(!connectionString)("what each organization role reaches", () => 
 
     expect((await client.learnerCourses(options)).map(({ id }) => id)).toContain(courseId);
     const grade = await client.submitAttempt(
-      { courseId, id: crypto.randomUUID(), taskId, response: { choice: 0 } },
+      { historyEpoch: 0, courseId, id: crypto.randomUUID(), taskId, response: { choice: 0 } },
       options,
     );
     expect(grade).toMatchObject({ outcome: "success" });

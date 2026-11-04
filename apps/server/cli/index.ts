@@ -3,13 +3,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { open, unlink } from "node:fs/promises";
+import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 
 import { createDatabase, runMigrations } from "@braivo/db";
 
 import {
   type AiReportRow,
+  type ErasureCounts,
+  type ErasureLog,
+  eraseLearnerHistory,
   exportLearner,
+  previewHistoryErasure,
   readAiReport,
   registerLearnDomain,
 } from "../application/index.ts";
@@ -23,10 +28,15 @@ import {
   removeReviewerPassword,
   setReviewerPassword,
 } from "../auth/index.ts";
-import { readAuthConfig, readDatabaseUrl, readServeConfig } from "../config.ts";
+import {
+  readAuthConfig,
+  readDatabaseUrl,
+  readErasureLogConfig,
+  readServeConfig,
+} from "../config.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
 import { createServer } from "../server.ts";
-import { bucketStore, directoryStore } from "../storage/index.ts";
+import { bucketStore, directoryStore, durableDirectoryStore } from "../storage/index.ts";
 
 /** For the operator's commands, which make no one sign in. */
 const sendsNoMail: SendMail = () => Promise.reject(new Error("This command sends no email."));
@@ -68,6 +78,13 @@ Running an installation (a content owner's commands are braivo's):
                 read: what one organization holds (for that school), or the
                 whole account's (for the account holder). JSON, in the
                 format docs/guides/deployment.md describes; reads only.
+  learner erase-history --email <email> --organization <slug> [--end-membership] [--yes]
+                Erase what one organization holds of the learner, for that
+                school: shows the database, the account, and the counts, and
+                asks for the slug typed back unless --yes. Old answers stay
+                refused, and the erasure is logged to BRAIVO_ERASURE_LOG.
+                --end-membership also ends their membership; otherwise their
+                next answers start a fresh history.
   reviewer set-password --email <email> [--password-stdin]
                 Let an existing account sign in with a password at
                 /login?method=password, for an app directory's reviewer, while
@@ -312,6 +329,63 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
+  if (argv[0] === "learner" && argv[1] === "erase-history") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: {
+        email: { type: "string" },
+        organization: { type: "string" },
+        "end-membership": { type: "boolean" },
+        yes: { type: "boolean" },
+      },
+    });
+    const { email, organization, "end-membership": endMembership = false, yes } = values;
+    if (!email || !organization) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    // Before anything is read: without its log, no erasure may even start.
+    const log = openErasureLog();
+    const databaseUrl = readDatabaseUrl(process.env);
+    const database = createDatabase(databaseUrl);
+    try {
+      const {
+        target,
+        counts,
+        epoch: current,
+      } = await previewHistoryErasure({
+        database,
+        email,
+        organizationSlug: organization,
+      });
+      const { host, pathname } = new URL(databaseUrl);
+      console.log(`Database:     ${host}${pathname}`);
+      console.log(`Account:      ${target.email} (${target.learnerId})`);
+      console.log(`Organization: ${organization} (${target.organizationId})`);
+      console.log(`History:      epoch ${current}`);
+      console.log(`To erase:     ${formatCounts(counts)}`);
+      console.log(`Membership:   ${endMembership ? "ended, with its groups" : "kept"}`);
+      if (!yes && (await typedBack(`Type ${organization} to erase: `)) !== organization) {
+        console.error("Not confirmed. Nothing was erased.");
+        return 1;
+      }
+
+      const { recordId, epoch, removed } = await eraseLearnerHistory({
+        database,
+        target,
+        endMembership,
+        log,
+      });
+      console.log(`Erased:       ${formatCounts(removed)}`);
+      console.log(`Membership:   ${removed.membership ? "ended" : "not changed"}`);
+      console.log(`History epoch ${epoch}. Log record ${recordId}, done.`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
   if (argv[0] === "reviewer" && (argv[1] === "set-password" || argv[1] === "remove-password")) {
     const { values } = parseArgs({
       args: argv.slice(2),
@@ -391,6 +465,35 @@ async function main(argv: readonly string[]): Promise<number> {
 
   console.error(USAGE);
   return 1;
+}
+
+function formatCounts(counts: ErasureCounts): string {
+  const { attempts, evidence, reports, sessions, handoffs, signInCodes, invitations } = counts;
+  return `attempts ${attempts}, evidence ${evidence}, reports ${reports}, learner sessions ${sessions}, handoffs ${handoffs}, sign-in codes ${signInCodes}, invitations ${invitations}`;
+}
+
+/** The erasure log the environment names; throws if it names none. */
+function openErasureLog(): ErasureLog {
+  const { files, hmacKey } = readErasureLogConfig(process.env);
+  return {
+    hmacKey,
+    store:
+      "bucket" in files
+        ? bucketStore(new Bun.S3Client({ bucket: files.bucket }))
+        : durableDirectoryStore(files.directory),
+  };
+}
+
+/** The line typed in answer to `question`; empty if the input ends first. */
+async function typedBack(question: string): Promise<string> {
+  const lines = createInterface({ input: process.stdin, output: process.stdout });
+  // `question` never settles once input has ended, as a closed pipe's has.
+  const ended = new Promise<string>((resolve) => lines.once("close", () => resolve("")));
+  try {
+    return (await Promise.race([lines.question(question), ended])).trim();
+  } finally {
+    lines.close();
+  }
 }
 
 /** The report as a table, its columns as wide as their widest cell. */

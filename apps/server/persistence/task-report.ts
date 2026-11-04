@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { attempt, courseObjective, learnerEvidence, task, taskReport } from "@braivo/db/schema";
 import { and, asc, count, desc, eq, inArray, isNull, lte, max, sql } from "drizzle-orm";
 
 import type { TaskResponse } from "../content/index.ts";
-import type { Transaction } from "./task.ts";
 
 /** One learner's attempt at one organization, as `taskReport` keys it. */
 export type AttemptKey = { learnerId: string; organizationId: string; attemptId: string };

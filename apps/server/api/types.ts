@@ -68,6 +68,8 @@ export type Activity =
   | {
       decision: LearningDecision;
       objective: Objective;
+      /** The history epoch to send with an answer to `task`. */
+      historyEpoch: number;
       task: { id: string } & content.PresentedTask;
     }
   | { decision: LearningDecision; objective: Objective }

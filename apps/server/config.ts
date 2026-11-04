@@ -94,6 +94,8 @@ type VariableName =
   | "BRAIVO_SMTP_URL"
   | "BRAIVO_MAIL_FROM"
   | "BRAIVO_FILES"
+  | "BRAIVO_ERASURE_LOG"
+  | "BRAIVO_ERASURE_LOG_HMAC_KEY"
   | "ANTHROPIC_API_KEY"
   | "BRAIVO_AI_MODEL"
   | "BRAIVO_AI_ORGANIZATIONS"
@@ -393,6 +395,25 @@ function readRegions(
     return { region, setupUrl: new URL("/join", origin).href };
   });
   return { dataRegion, otherRegions };
+}
+
+/**
+ * For a command that erases: where the replay log goes, and its HMAC's key, both
+ * kept outside the database and its backups (docs/adr/0053-learners-data.md).
+ * Required rather than defaulted: an erasure no log records would come back with
+ * the next restore.
+ */
+export function readErasureLogConfig(environment: Environment): {
+  files: FilesConfig;
+  hmacKey: string;
+} {
+  const { files } = readFiles(environment, "BRAIVO_ERASURE_LOG");
+  if (files === undefined) {
+    throw new Error(
+      "BRAIVO_ERASURE_LOG must be set: an erasure no log records returns on restore.",
+    );
+  }
+  return { files, hmacKey: readSecret(environment, "BRAIVO_ERASURE_LOG_HMAC_KEY") };
 }
 
 /**

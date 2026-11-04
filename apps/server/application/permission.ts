@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 
 import { readOrganizationRoles } from "../persistence/index.ts";
 
@@ -78,7 +78,7 @@ export function authors(roles: readonly string[]): boolean {
  * that is enrollment in every course the organization has (ADR 0018).
  */
 export async function isMember(
-  database: Database,
+  database: Database | Transaction,
   input: { organizationId: string; userId: string },
 ): Promise<boolean> {
   return (await readOrganizationRoles(database, input)).length > 0;

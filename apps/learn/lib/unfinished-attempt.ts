@@ -64,6 +64,7 @@ function isUnfinishedAttempt(value: unknown): value is UnfinishedAttempt {
   return (
     typeof attempt?.id === "string" &&
     isResponse(attempt.response) &&
+    typeof attempt.activity?.historyEpoch === "number" &&
     Object.hasOwn(INTENTS, decision?.intent ?? "") &&
     (decision?.intent !== "review" || typeof decision.retrievability === "number") &&
     typeof objective?.title === "string" &&
@@ -99,32 +100,38 @@ export function clearUnfinishedAttempt(learnerId: string, courseId: string) {
 }
 
 /**
- * A notice owed after a resend on load was refused for good (400, 403, 413).
- * Kept apart from the attempt, already deleted, so it outlives a next-activity
- * read that fails and is tried again; cleared once shown (learner-loop-20).
+ * A notice owed after an answer was refused for good: `refused`, a resend on
+ * load's (400, 403, 413), which a reload cannot explain; `history-erased`, any
+ * answer's, its history gone (learner-loop-25). Kept apart from the attempt,
+ * already deleted, so it outlives a next-activity read that fails and is tried
+ * again; cleared once shown (learner-loop-20).
  */
-const refusedKey = (learnerId: string, courseId: string) =>
-  `braivo.refusedAttempt:${learnerId}:${courseId}`;
+export type RefusalNotice = "refused" | "history-erased";
 
-export function markRefusalNotice(learnerId: string, courseId: string) {
+const refusalNoticeKey = (learnerId: string, courseId: string) =>
+  `braivo.refusalNotice:${learnerId}:${courseId}`;
+
+export function markRefusalNotice(learnerId: string, courseId: string, notice: RefusalNotice) {
   try {
-    sessionStorage.setItem(refusedKey(learnerId, courseId), "1");
+    sessionStorage.setItem(refusalNoticeKey(learnerId, courseId), notice);
   } catch {
     // See above: unsaid, rather than failing the page.
   }
 }
 
-export function refusalNoticePending(learnerId: string, courseId: string): boolean {
+export function readRefusalNotice(learnerId: string, courseId: string): RefusalNotice | undefined {
   try {
-    return sessionStorage.getItem(refusedKey(learnerId, courseId)) !== null;
+    const notice = sessionStorage.getItem(refusalNoticeKey(learnerId, courseId));
+    if (notice === null) return undefined;
+    return notice === "history-erased" ? notice : "refused";
   } catch {
-    return false;
+    return undefined;
   }
 }
 
 export function clearRefusalNotice(learnerId: string, courseId: string) {
   try {
-    sessionStorage.removeItem(refusedKey(learnerId, courseId));
+    sessionStorage.removeItem(refusalNoticeKey(learnerId, courseId));
   } catch {
     // See above.
   }

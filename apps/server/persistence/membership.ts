@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { groupMember, member, organization, organizationDomain, user } from "@braivo/db/schema";
 import { and, asc, count, eq, sql } from "drizzle-orm";
+
+import type { LearnerScope } from "./learner-history.ts";
 
 /** An organization as the people who manage it find it: by name and slug. */
 export type Organization = { id: string; name: string; slug: string };
@@ -29,7 +31,7 @@ export type ListedOrganization = Organization & { learnDomain: string | null };
  * into the other, so that a workflow can ask before it reads or writes.
  */
 export async function readOrganizationRoles(
-  database: Database,
+  database: Database | Transaction,
   input: { organizationId: string; userId: string },
 ): Promise<string[]> {
   const [row] = await database
@@ -53,6 +55,15 @@ export async function readMemberRolesByEmail(
     .where(and(eq(member.organizationId, input.organizationId), eq(user.email, input.email)));
 
   return row ? splitRoles(row.role) : [];
+}
+
+/** The account `email` names, as sign-in stores it: trimmed and lowercased. */
+export async function readUserIdByEmail(
+  database: Database,
+  email: string,
+): Promise<string | undefined> {
+  const [row] = await database.select({ id: user.id }).from(user).where(eq(user.email, email));
+  return row?.id;
 }
 
 /** An account's email and name, or `undefined` when there is no such account. */
@@ -124,6 +135,25 @@ export async function readMembers(database: Database, organizationId: string): P
 
 /** Whether a stored role string, comma-separated, includes `owner`. */
 const holdsOwner = sql`'owner' = any(string_to_array(replace(${member.role}, ' ', ''), ','))`;
+
+/**
+ * Whether ending this membership would leave the organization with no owner:
+ * nobody could then administer it, and only the database could give it another.
+ * Its owners' rows stay locked until commit: two owners ending theirs at once
+ * hold different learners' locks, so the second must wait here and read again.
+ */
+export async function isOnlyOwner(
+  transaction: Transaction,
+  { learnerId, organizationId }: LearnerScope,
+): Promise<boolean> {
+  const owners = await transaction
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), holdsOwner))
+    .orderBy(asc(member.id))
+    .for("update");
+  return owners.length === 1 && owners[0]?.userId === learnerId;
+}
 
 /**
  * Removes a member who holds no `owner`, atomically on that: their groups go

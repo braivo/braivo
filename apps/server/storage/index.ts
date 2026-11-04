@@ -7,5 +7,5 @@
 // `persistence`, and `application` joins the two.
 
 export { bucketStore } from "./bucket.ts";
-export { directoryStore } from "./directory.ts";
+export { directoryStore, durableDirectoryStore } from "./directory.ts";
 export type { FileStore } from "./store.ts";

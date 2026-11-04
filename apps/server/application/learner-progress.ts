@@ -84,6 +84,7 @@ export async function readLearnerProgress(input: {
     report: {
       ...report,
       asOf: now,
+      historyEpoch: learner.epoch,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       lastPractisedAt: lastPractised(learner.evidence, new Set(learner.objectiveIds), now) ?? null,
       objectives: report.objectives.map((standing) => {
@@ -119,10 +120,12 @@ export async function readLearnerProgress(input: {
  * reader applies the same threshold as the console.
  *
  * `lastPractisedAt` is the latest attempt answered in Braivo on the course's
- * objectives, `null` if none (progress-17).
+ * objectives, `null` if none (progress-17). `historyEpoch` is for a sender of
+ * evidence to name when it records more (learner-loop-25).
  */
 export type LearnerProgressReport = Omit<KnowledgeReport, "objectives"> & {
   asOf: Date;
+  historyEpoch: number;
   repeatedMissesThreshold: number;
   lastPractisedAt: Date | null;
   objectives: (ReportedStanding & { evidence: Pick<Evidence, "outcome" | "at">[] })[];

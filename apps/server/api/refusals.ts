@@ -17,6 +17,7 @@ import {
   DeletedCourseKey,
   DuplicateCorrection,
   FilesUnavailable,
+  HistoryErased,
   InvalidAiRequest,
   InvalidCitation,
   InvalidDefinition,
@@ -50,6 +51,8 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   // a grader would look at its format rather than at how it builds IDs.
   if (error instanceof InvalidEvidence) return context.body(null, 400);
   if (error instanceof ConflictingEvidence) return context.body(null, 409);
+  // Coded, as nothing about it is the grader's to fix.
+  if (error instanceof HistoryErased) return historyErasedRefusal(context);
 
   if (
     error instanceof InvalidDefinition ||
@@ -98,6 +101,11 @@ export function organizationRefusal(context: Context, error: unknown): Response 
   if (error instanceof SignedOut) return context.body(null, 401);
   if (error instanceof NotPermitted) return context.body(null, 403);
   throw error;
+}
+
+/** Final, and coded apart from a bare 409 so a client forgets what it was sending. */
+export function historyErasedRefusal(context: Context): Response {
+  return context.json({ error: new HistoryErased().message, code: "HISTORY_ERASED" }, 409);
 }
 
 /**

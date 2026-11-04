@@ -42,7 +42,13 @@ describe("the learn app", () => {
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: /hablé.*Correct/ })).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledWith(
-      { courseId: "c1", id: expect.any(String), taskId: "t1", response: { choice: 1 } },
+      {
+        courseId: "c1",
+        id: expect.any(String),
+        taskId: "t1",
+        response: { choice: 1 },
+        historyEpoch: 0,
+      },
       { signal: expect.any(AbortSignal) },
     );
 
@@ -81,7 +87,13 @@ describe("the learn app", () => {
     // Said once, by the alert: the one field needs no mark of its own.
     expect(screen.getAllByText("Correct")).toHaveLength(1);
     expect(submitAttempt).toHaveBeenCalledWith(
-      { courseId: "c1", id: expect.any(String), taskId: "t2", response: { text: " Bin " } },
+      {
+        courseId: "c1",
+        id: expect.any(String),
+        taskId: "t2",
+        response: { text: " Bin " },
+        historyEpoch: 0,
+      },
       { signal: expect.any(AbortSignal) },
     );
     // What was sent stays on screen, locked; no correction on a success.
@@ -218,7 +230,13 @@ describe("the learn app", () => {
     expect(await screen.findByText("Here it is")).toBeTruthy();
     expect(within(screen.getByRole("alert")).getByText("The answer: hablé")).toBeTruthy();
     expect(submitAttempt).toHaveBeenCalledWith(
-      { courseId: "c1", id: expect.any(String), taskId: "t1", response: { reveal: true } },
+      {
+        courseId: "c1",
+        id: expect.any(String),
+        taskId: "t1",
+        response: { reveal: true },
+        historyEpoch: 0,
+      },
       { signal: expect.any(AbortSignal) },
     );
     // Asked once: no answer after it, nor asking again.

@@ -23,6 +23,7 @@ describe("the learn app in Polish", () => {
   const notStarted = (count: number): LearnerProgressSummary => ({
     modelVersion: "v1",
     asOf: "2026-06-01T00:00:00.000Z",
+    historyEpoch: 0,
     repeatedMissesThreshold: 3,
     lastPractisedAt: null,
     objectives: Array.from({ length: count }, (_, index) => ({
@@ -42,6 +43,7 @@ describe("the learn app in Polish", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -72,6 +74,7 @@ describe("the learn app in Polish", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -246,6 +249,27 @@ describe("the learn app in Polish", () => {
     ).toBeTruthy();
   });
 
+  test("says an answer refused because the history was erased, and goes on", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValue({ ...anotherActivity, historyEpoch: 1 });
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(409, "erased", undefined, "HISTORY_ERASED");
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    expect(
+      await screen.findByText(
+        "Twoja historia nauki została tu wyczyszczona, więc ostatnia odpowiedź nie została zapisana. Zaczynasz od nowa.",
+      ),
+    ).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
+  });
+
   test("tells a caught-up learner when their next review falls due, on a Polish date", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-06-01T10:00:00.000Z"));
@@ -254,6 +278,7 @@ describe("the learn app in Polish", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [

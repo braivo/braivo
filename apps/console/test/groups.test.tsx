@@ -44,6 +44,7 @@ describe("groups", () => {
   const report: LearnerProgressReport = {
     modelVersion: "v1",
     asOf: "2026-06-01T00:00:00.000Z",
+    historyEpoch: 0,
     repeatedMissesThreshold: 3,
     lastPractisedAt: null,
     objectives: [{ objectiveId: "o1", title: "Greetings", phase: "unseen", evidence: [] }],
@@ -83,6 +84,7 @@ describe("groups", () => {
         open: true,
         modelVersion: "v1",
         asOf: "2026-06-01T12:05:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         learners: [
           {
@@ -176,6 +178,7 @@ describe("groups", () => {
             open: true,
             modelVersion: "v1",
             asOf: "2026-06-01T12:05:00.000Z",
+            historyEpoch: 0,
             repeatedMissesThreshold: 3,
             learners: [
               {
@@ -239,6 +242,7 @@ describe("groups", () => {
             open: true,
             modelVersion: "v1",
             asOf: "2026-06-01T12:05:00.000Z",
+            historyEpoch: 0,
             repeatedMissesThreshold: 3,
             learners: [
               {
@@ -280,6 +284,7 @@ describe("groups", () => {
         open: true,
         modelVersion: "v1",
         asOf: "2026-06-01T12:05:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         learners: [
           {
@@ -476,6 +481,7 @@ describe("groups", () => {
             open: true,
             modelVersion: "v1",
             asOf: "2026-06-01T12:05:00.000Z",
+            historyEpoch: 0,
             repeatedMissesThreshold: 3,
             learners: [
               {
@@ -522,6 +528,7 @@ describe("groups", () => {
         open: true,
         modelVersion: "v1",
         asOf: "2026-06-01T12:05:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         learners: [],
         objectives: [],

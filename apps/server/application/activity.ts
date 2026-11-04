@@ -19,6 +19,8 @@ import {
   readNextTask,
   readObjective,
   type Objective,
+  HistoryErased,
+  withLearnerHistoryLock,
   readObjectivesWithTasks,
   readTaskCitations,
   recordAttempt,
@@ -127,6 +129,7 @@ export async function chooseNextActivity(input: {
         kind: "decided",
         decision,
         objective,
+        historyEpoch: learner.epoch,
         task: { id: task.id, ...presentTask(task.body, seed) },
       };
     }
@@ -198,6 +201,8 @@ export type NextActivity =
       kind: "decided";
       decision: LearningDecision;
       objective: Objective;
+      /** What an answer to `task` sends back (`submitAttempt`). */
+      historyEpoch: number;
       task: { id: string } & PresentedTask;
     };
 
@@ -207,6 +212,11 @@ export type NextActivity =
  * does not allow, because Braivo grades: they choose the answer, never the
  * outcome. A retry under the same `attemptId` stores nothing twice and answers
  * the outcome recorded (`recordAttempt`), with feedback rebuilt from the task.
+ *
+ * Everything an erasure could change is read under the lock it takes
+ * (`withLearnerHistoryLock`): membership, the course still open, and the epoch, so
+ * an attempt either lands before an erasure, and is erased, or is refused after
+ * it (docs/adr/0053-learners-data.md).
  */
 export async function submitAttempt(input: {
   database: Database;
@@ -217,55 +227,68 @@ export async function submitAttempt(input: {
   attemptId: string;
   taskId: string;
   response: unknown;
+  /** The history epoch the activity it answers was read under. */
+  historyEpoch: number;
   now: Date;
 }): Promise<SubmittedAttempt> {
-  const { database, learnerId, courseId, host, attemptId, taskId, now } = input;
+  const { database, learnerId, courseId, host, attemptId, taskId, historyEpoch, now } = input;
   if (attemptId === "" || attemptId.length > MAX_ATTEMPT_ID_LENGTH) return { kind: "invalid" };
 
-  const course = await readCourseOrganization(database, courseId);
-  // Unpublished or hidden, as missing: learners reach only an open course (ADR
-  // 0039). An attempt checked before a Hide commits is still recorded.
-  if (course === undefined || !course.open) return { kind: "unavailable" };
-  const { organizationId } = course;
+  const organizationId = (await readCourseOrganization(database, courseId))?.organizationId;
+  if (organizationId === undefined) return { kind: "unavailable" };
+  // Outside the transaction: an erasure cannot change it, and it needs no second
+  // connection while the lock holds one.
   if (!(await hostAdmits(database, host, organizationId))) return { kind: "unavailable" };
-  if (!(await isMember(database, { organizationId, userId: learnerId }))) {
-    return { kind: "unavailable" };
-  }
 
-  const task = await readCourseTask(database, { courseId, taskId });
-  if (task === undefined) return { kind: "unavailable" };
+  const answered = await withLearnerHistoryLock(
+    database,
+    { learnerId, organizationId },
+    async (transaction, history) => {
+      // Unpublished or hidden, as missing: learners reach only an open course
+      // (ADR 0039). An attempt checked before a Hide commits is still recorded.
+      const course = await readCourseOrganization(transaction, courseId);
+      if (course === undefined || !course.open) return { kind: "unavailable" } as const;
+      if (!(await isMember(transaction, { organizationId, userId: learnerId }))) {
+        return { kind: "unavailable" } as const;
+      }
 
-  const response = parseTaskResponse(task.body, input.response);
-  if (response === undefined) return { kind: "invalid" };
+      const task = await readCourseTask(transaction, { courseId, taskId });
+      if (task === undefined) return { kind: "unavailable" } as const;
 
-  const grade = gradeResponse(task.body, response);
-  let outcome: Grade["outcome"];
-  try {
-    outcome = await recordAttempt(database, {
-      learnerId,
-      organizationId,
-      attemptId,
-      taskId,
-      response,
-      at: now,
-      // Enforced here too, not only by never offering a resting task: otherwise
-      // a client could answer again straight after seeing the answer.
-      restWindowStart: new Date(now.getTime() - TASK_REST_MS),
-      restAttempts: TASK_REST_ATTEMPTS,
-      // Built from the attempt so that every attempt is its own evidence
-      // (glossary: Evidence ID).
-      evidence: {
-        id: `${ATTEMPT_EVIDENCE_PREFIX}${attemptId}:${task.objectiveId}`,
-        objectiveId: task.objectiveId,
-        outcome: grade.outcome,
-      },
-    });
-  } catch (error) {
+      const response = parseTaskResponse(task.body, input.response);
+      if (response === undefined) return { kind: "invalid" } as const;
+
+      const grade = gradeResponse(task.body, response);
+      const outcome = await recordAttempt(transaction, {
+        learnerId,
+        organizationId,
+        attemptId,
+        taskId,
+        response,
+        at: now,
+        // Enforced here too, not only by never offering a resting task: otherwise
+        // a client could answer again straight after seeing the answer.
+        restWindowStart: new Date(now.getTime() - TASK_REST_MS),
+        restAttempts: TASK_REST_ATTEMPTS,
+        staleEpoch: historyEpoch !== history.epoch,
+        // Built from the attempt so that every attempt is its own evidence
+        // (glossary: Evidence ID).
+        evidence: {
+          id: `${ATTEMPT_EVIDENCE_PREFIX}${attemptId}:${task.objectiveId}`,
+          objectiveId: task.objectiveId,
+          outcome: grade.outcome,
+        },
+      });
+      return { kind: "recorded", grade: { ...grade, outcome } } as const;
+    },
+  ).catch((error: unknown): SubmittedAttempt => {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
     if (error instanceof RestingTask) return { kind: "resting" };
     if (error instanceof RetiredTask) return { kind: "unavailable" };
+    if (error instanceof HistoryErased) return { kind: "history-erased" };
     throw error;
-  }
+  });
+  if (answered.kind !== "recorded") return answered;
 
   // Read only now, once graded: shown before answering, a passage could give
   // the answer away. Nothing distinguishes source from learner here, so the
@@ -278,7 +301,7 @@ export async function submitAttempt(input: {
     source,
   }));
 
-  return { kind: "graded", grade: { ...grade, outcome }, passages };
+  return { kind: "graded", grade: answered.grade, passages };
 }
 
 /**
@@ -302,11 +325,13 @@ export type Passage = {
  * it, and a new attempt on a retired task, alike, as for `NextObjective`.
  * `invalid` is an attempt ID out of bounds or a response that cannot answer
  * this task; `conflict`, an attempt ID already used otherwise; `resting`, a
- * task this learner answered too recently to answer again yet.
+ * task this learner answered too recently to answer again yet; `history-erased`,
+ * a new attempt under an epoch that is not the learner's current one here.
  */
 export type SubmittedAttempt =
   | { kind: "unavailable" }
   | { kind: "invalid" }
   | { kind: "conflict" }
   | { kind: "resting" }
+  | { kind: "history-erased" }
   | { kind: "graded"; grade: Grade; passages: Passage[] };

@@ -42,7 +42,7 @@ function postAttempt(courseId: string, body: unknown, cookie: string) {
   return api.request(`/api/courses/${courseId}/attempts`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ historyEpoch: 0, ...(body as object) }),
   });
 }
 

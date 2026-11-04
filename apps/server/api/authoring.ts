@@ -44,7 +44,7 @@ import {
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import { parseTaskBody, type TaskBody, taskFindings } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
-import { type Guards, jsonBody, presentsToolCredential } from "./guards.ts";
+import { type Guards, isHistoryEpoch, jsonBody, presentsToolCredential } from "./guards.ts";
 import { organizationRefusal } from "./refusals.ts";
 import type { CourseWriteResult, OrganizationSetup, TaskWriteResult } from "./types.ts";
 
@@ -61,11 +61,15 @@ import type { CourseWriteResult, OrganizationSetup, TaskWriteResult } from "./ty
  * back to the string it came from rejects both, and pins the value to UTC
  * rather than to whichever zone the server happens to sit in.
  */
-function parseEvidence(body: unknown): Evidence[] | undefined {
+function parseEvidence(body: unknown): { evidence: Evidence[]; historyEpoch?: number } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const records = (body as { evidence?: unknown }).evidence;
+  const { evidence: records, historyEpoch } = body as {
+    evidence?: unknown;
+    historyEpoch?: unknown;
+  };
   if (!Array.isArray(records)) return undefined;
+  if (historyEpoch !== undefined && !isHistoryEpoch(historyEpoch)) return undefined;
   if (records.length > MAX_ITEMS_PER_REQUEST) return undefined;
 
   const parsed: Evidence[] = [];
@@ -83,7 +87,7 @@ function parseEvidence(body: unknown): Evidence[] | undefined {
 
     parsed.push({ id, objectiveId, outcome, at: when });
   }
-  return parsed;
+  return { evidence: parsed, historyEpoch };
 }
 
 /**
@@ -333,8 +337,8 @@ export function authoringRoutes(
     ...trustedJsonWrite(),
     requireAccount,
     async (context) => {
-      const evidence = parseEvidence(await jsonBody(context));
-      if (evidence === undefined) return context.body(null, 400);
+      const batch = parseEvidence(await jsonBody(context));
+      if (batch === undefined) return context.body(null, 400);
 
       try {
         await recordGradedEvidence({
@@ -342,7 +346,7 @@ export function authoringRoutes(
           organizationId: context.req.param("organizationId"),
           gradedBy: context.var.userId,
           learnerId: context.req.param("learnerId"),
-          evidence,
+          ...batch,
           now: new Date(),
         });
       } catch (error) {

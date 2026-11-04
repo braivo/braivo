@@ -90,7 +90,12 @@ describe.skipIf(!connectionString)("the first answers route", () => {
       const answered = await api.request(`/api/courses/${courseId}/attempts`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: learner.cookie },
-        body: JSON.stringify({ id: "a1", taskId, response: { choice: index === 0 ? 1 : 0 } }),
+        body: JSON.stringify({
+          id: "a1",
+          taskId,
+          historyEpoch: 0,
+          response: { choice: index === 0 ? 1 : 0 },
+        }),
       });
       expect(answered.status).toBe(200);
     }

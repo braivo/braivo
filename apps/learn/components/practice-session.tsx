@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Notice } from "#components/notice";
 import { StandingMeter } from "#components/standing";
@@ -53,10 +53,10 @@ export function usePracticeSession(
     }));
   }
 
-  function restart() {
+  const restart = useCallback(() => {
     handled.current = new Set();
     setSession({ answers: 0, right: 0 });
-  }
+  }, []);
 
   return { session, count, restart };
 }

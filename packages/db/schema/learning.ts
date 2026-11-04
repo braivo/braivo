@@ -358,6 +358,32 @@ export const attempt = pgTable(
 );
 
 /**
+ * What fences one learner's history at one organization against its own past
+ * (ADR 0053): absent means epoch 0, never erased. Apart from `member`, so ending
+ * membership and rejoining leaves it, and an old resend stays refused.
+ */
+export const learnerHistoryState = pgTable(
+  "learner_history_state",
+  {
+    /** Cascading: erasing the account leaves nothing to fence. */
+    learnerId: text("learner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** How many times it was erased; an answer begun under another is refused. */
+    epoch: integer("epoch").notNull(),
+    erasedAt: timestamp("erased_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.learnerId, table.organizationId] }),
+    // For the cascade from a deleted organization, which PostgreSQL does not index.
+    index("learner_history_state_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+/**
  * Why a learner reports a task: `answer-correct` (my answer seems correct),
  * `key-wrong`, `confusing`, `unsupported` (the passage does not support it),
  * or `other`, which needs a note (docs/adr/0052-task-reports.md).

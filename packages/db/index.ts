@@ -8,6 +8,6 @@
 // change without dragging the domain along.
 // See docs/adr/0005-postgresql-drizzle.md and docs/adr/0003-workspace-layout.md.
 
-export type { Database } from "./database.ts";
+export type { Database, Transaction } from "./database.ts";
 export { createDatabase } from "./database.ts";
 export { runMigrations } from "./migrate.ts";

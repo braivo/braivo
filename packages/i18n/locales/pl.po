@@ -2645,6 +2645,10 @@ msgstr "Twoi uczniowie widzą ją na swojej stronie, a Twój zespół tutaj."
 msgid "Your learners see this name. If it's just you, use your own."
 msgstr "Tę nazwę zobaczą Twoi uczniowie. Jeśli działasz samodzielnie, wpisz swoje imię i nazwisko."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
+msgstr "Twoja historia nauki została tu wyczyszczona, więc ostatnia odpowiedź nie została zapisana. Zaczynasz od nowa."
+
 #: apps/console/components/sign-in-page.tsx
 msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
 msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."

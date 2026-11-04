@@ -49,7 +49,7 @@ function postAttempt(courseId: string, body: unknown, cookie: string) {
   return api.request(`/api/courses/${courseId}/attempts`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ historyEpoch: 0, ...(body as object) }),
   });
 }
 
@@ -179,6 +179,22 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await (await next(courseId, learner.cookie)).json()).toMatchObject({
       intent: "introduce",
     });
+  });
+
+  test("answers evidence under another epoch, or with one it cannot read, as it says", async () => {
+    const stale = await postEvidence(
+      { ...graded({ id: "api-stale" }), historyEpoch: 4 },
+      teacher.cookie,
+    );
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ code: "HISTORY_ERASED" });
+    for (const epoch of [null, "0", -1, 1.5]) {
+      const refused = await postEvidence(
+        { ...graded({ id: "api-unread-epoch" }), historyEpoch: epoch },
+        teacher.cookie,
+      );
+      expect([epoch, refused.status]).toEqual([epoch, 400]);
+    }
   });
 
   test("refuses evidence from a request carrying no session", async () => {

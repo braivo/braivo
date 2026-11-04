@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { courseObjective, objective, task } from "@braivo/db/schema";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
@@ -97,7 +97,7 @@ function keyOrder(a: string | null, b: string | null): number {
  * departure or erase the history with it.
  */
 export async function findObjectivesOutsideOrganization(
-  database: Database,
+  database: Database | Transaction,
   organizationId: string,
   objectiveIds: readonly string[],
 ): Promise<string[]> {

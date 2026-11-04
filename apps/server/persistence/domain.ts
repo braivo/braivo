@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import {
   learnerSession,
   organization,
@@ -58,8 +58,6 @@ export async function readLearnDomain(
 
   return row?.hostname;
 }
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
  * A claim not yet expired: one not activated seven days on holds nothing

@@ -8,6 +8,7 @@ import {
   readCourseObjectives,
   readCourseOrganization,
   readLearnerEvidence,
+  readLearnerHistoryState,
 } from "../persistence/index.ts";
 import { hostAdmits, type RequestHost } from "./host.ts";
 import { isMember } from "./permission.ts";
@@ -27,6 +28,8 @@ type LearnerInCourse = {
   objectiveIds: readonly string[];
   estimates: ReadonlyMap<string, KnowledgeEstimate>;
   evidence: readonly Evidence[];
+  /** The history epoch the evidence was read under: see `loadLearnerInCourse`. */
+  epoch: number;
 };
 
 /**
@@ -65,10 +68,21 @@ export async function loadLearnerInCourse(
 
   if (!(await isMember(database, { organizationId, userId: learnerId }))) return undefined;
 
+  // Before the evidence, never beside it: read after, an erasure between the two
+  // would pair erased evidence with the epoch that lets it be sent back. Read
+  // before, the reader's next write is refused, at worst needlessly.
+  const scope = { learnerId, organizationId };
+  const { epoch } = await readLearnerHistoryState(database, scope);
   const [objectiveIds, evidence] = await Promise.all([
     readCourseObjectives(database, courseId),
-    readLearnerEvidence(database, { learnerId, organizationId }, now),
+    readLearnerEvidence(database, scope, now),
   ]);
 
-  return { organizationId, objectiveIds, estimates: replay(evidence, activeModel), evidence };
+  return {
+    organizationId,
+    objectiveIds,
+    estimates: replay(evidence, activeModel),
+    evidence,
+    epoch,
+  };
 }
