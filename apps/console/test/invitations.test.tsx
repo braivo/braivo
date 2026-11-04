@@ -229,7 +229,7 @@ describe("invitations", () => {
       "nobody: Not a valid email address.",
       "dan@school.example: Sent three invitations in the last 24 hours. Try again later.",
       "eve@school.example: Sent an invitation a moment ago. Try again in a minute.",
-      "fay@school.example: 300 invitations were sent from here this hour. Try again later.",
+      "fay@school.example: 300 invitations were sent from here in the last hour. Try again later.",
       "gil@school.example: Too many invitations are waiting. Wait for some to be accepted or expire.",
       "hal@school.example: Could not be invited. Try again.",
     ]);

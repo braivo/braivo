@@ -368,7 +368,8 @@ function boundRefusal(bound: MailBoundCode): InvitationRefused {
     RECIPIENT_DAILY_LIMIT:
       "This address was sent three invitations in the last 24 hours; try later.",
     RECIPIENT_COOLDOWN: "This address was sent an invitation a moment ago; wait a minute.",
-    ORGANIZATION_HOURLY_LIMIT: "This organization sent 300 invitations this hour; wait a while.",
+    ORGANIZATION_HOURLY_LIMIT:
+      "This organization sent 300 invitations in the last hour; wait a while.",
   }[bound];
   return new InvitationRefused(bound, message);
 }

@@ -479,7 +479,7 @@ const REFUSED: Record<string, MessageDescriptor> = {
   EMAIL_INVALID: msg`Not a valid email address.`,
   RECIPIENT_DAILY_LIMIT: msg`Sent three invitations in the last 24 hours. Try again later.`,
   RECIPIENT_COOLDOWN: msg`Sent an invitation a moment ago. Try again in a minute.`,
-  ORGANIZATION_HOURLY_LIMIT: msg`300 invitations were sent from here this hour. Try again later.`,
+  ORGANIZATION_HOURLY_LIMIT: msg`300 invitations were sent from here in the last hour. Try again later.`,
   PENDING_LIMIT: msg`Too many invitations are waiting. Wait for some to be accepted or expire.`,
   NO_LEARN_DOMAIN: msg`Learners have no site to practise on yet.`,
 };

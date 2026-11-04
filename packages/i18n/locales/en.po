@@ -312,8 +312,8 @@ msgid "<0>Here to learn?</0> Sign in through your course's website."
 msgstr "<0>Here to learn?</0> Sign in through your course's website."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "300 invitations were sent from here this hour. Try again later."
-msgstr "300 invitations were sent from here this hour. Try again later."
+msgid "300 invitations were sent from here in the last hour. Try again later."
+msgstr "300 invitations were sent from here in the last hour. Try again later."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A code can be sent again a minute after the last."
