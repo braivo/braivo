@@ -385,6 +385,34 @@
 //   413  the body is larger than 1 MB
 //   204  dismissed
 //
+// `GET /api/organizations/:organizationId/first-answers?courseId=…` (or
+// `?objectiveId=…`, exactly one) — how learners first answered each published
+// task of the course or objective (progress-18), for whoever reads reports:
+// each current member's first attempt per task, at this organization through
+// any course, classified by its recorded outcome, never regraded.
+//
+//   400  neither scope, both, or an empty one
+//   401  no session
+//   403  not an `owner` or `admin` there, or a tool, whatever the organization
+//        lets tools read (ADR 0050), explained
+//   404  the organization has no such course or objective
+//   200  { "minLearners": 5, "tasks": [{ "id": "…", "objectiveId": "…",
+//          "first": { "learners": 11, "correct": 2, "incorrect": 8,
+//          "revealed": 1, "options": [2, 6, 2] }, "otherTasks": {
+//          "responses": 13, "learners": 7, "correct": 9, "incorrect": 3,
+//          "revealed": 1 } }],
+//          "retired": [{ "id": "…", "objectiveId": "…", "kind": "choice", …,
+//          "retiredAt": "…", "first": null }] }
+//
+//        `tasks`: each published, unretired task, oldest first; `first`
+//        `null` under `minLearners` distinct learners, `options` a choice
+//        task's first choices by authored index, reveals excluded; `otherTasks`
+//        the objective's other such tasks pooled, a learner's first answer to
+//        each, `null` with none or under `minLearners` learners across them.
+//        `retired`, an objective's alone: its tasks retired after publishing,
+//        as authored, newest retirement first, each keeping its own counts.
+//        No learner is named, nor any typed answer.
+//
 // `GET /api/organizations` — the organizations the signed-in user
 // administers (`owner` or `admin`), authors in (those or `author`, ADR 0048),
 // or teaches a group in, by name: `{ "organizations": [{ "id": "…", "name":

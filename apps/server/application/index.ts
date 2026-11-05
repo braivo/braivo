@@ -20,7 +20,7 @@ export {
   parseTaskReport,
   reportAttempt,
 } from "./task-report.ts";
-export type { ReportScope } from "../persistence/index.ts";
+export type { FirstAnswersScope, ReportScope } from "../persistence/index.ts";
 export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
 export type { AuthoredCourse, CourseSummary } from "./courses.ts";
@@ -158,3 +158,5 @@ export {
   PublishedTask,
   StaleCorrection,
 } from "../persistence/index.ts";
+export type { FirstAnswersSummary } from "./first-answers.ts";
+export { readFirstAnswers } from "./first-answers.ts";

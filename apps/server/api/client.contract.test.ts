@@ -318,6 +318,23 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     });
   });
 
+  test("reads first answers by course and by objective, in the shape it declares", async () => {
+    const admin = { headers: { cookie: teacherCookie } };
+    const byCourse = await client.readFirstAnswers({ organizationId, courseId }, admin);
+    expect(byCourse).toMatchObject({ minLearners: 5, retired: [] });
+    // One learner here, under the floor.
+    expect(byCourse.tasks).toContainEqual({
+      id: pastTenseTask,
+      objectiveId: expect.any(String),
+      first: null,
+      otherTasks: null,
+    });
+    const { objectiveId } = byCourse.tasks.find(({ id }) => id === pastTenseTask)!;
+    expect((await client.readFirstAnswers({ organizationId, objectiveId }, admin)).tasks).toEqual(
+      byCourse.tasks.filter((task) => task.objectiveId === objectiveId),
+    );
+  });
+
   test("lists a learner's courses in the shape it declares", async () => {
     const courses = await client.learnerCourses({ headers: { cookie: learnerCookie } });
 

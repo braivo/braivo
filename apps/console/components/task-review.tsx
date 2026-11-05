@@ -40,6 +40,7 @@ import { Fragment, type ReactNode, useLayoutEffect, useRef, useState } from "rea
 
 import { NoExplanation } from "#components/explanations";
 import { FindingLines } from "#components/findings";
+import { FirstAnswers, useFirstAnswers } from "#components/first-answers";
 import { TaskReports } from "#components/task-reports";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
@@ -528,7 +529,8 @@ export function TaskList(props: {
               {(retiring) => (
                 <>
                   <Passages citations={task.citations} sources={sources} />
-                  {/* Learners' reports, where the page reads them for an administrator. */}
+                  {/* Learners' first answers and reports, where the page reads them for an administrator. */}
+                  {task.published && <FirstAnswers taskId={task.id} />}
                   {task.published && (
                     <TaskReports
                       taskId={task.id}
@@ -552,10 +554,13 @@ export function TaskList(props: {
               {/* Its reports, which publishing the correction closes, here when
                   the page shows it nowhere else (narrowed); no editor, as no Edit. */}
               {shownIds !== undefined && !shownIds.has(replaced.id) && (
-                <TaskReports
-                  taskId={replaced.id}
-                  editingLocked={pending || editing !== undefined}
-                />
+                <>
+                  <FirstAnswers taskId={replaced.id} />
+                  <TaskReports
+                    taskId={replaced.id}
+                    editingLocked={pending || editing !== undefined}
+                  />
+                </>
               )}
             </AuthoredTask>
           </div>
@@ -597,6 +602,8 @@ function CorrectTask(props: {
   const { braivo, organization } = useOrganizationContext();
   const router = useRouter();
   const { t } = useLingui();
+  // An administrator's page reads its first answers, which a correction leaves behind.
+  const showsFirstAnswers = useFirstAnswers()?.tasks.some(({ id }) => id === task.id) ?? false;
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   // Braivo has the edit: the page is only reading it back.
@@ -684,6 +691,9 @@ function CorrectTask(props: {
           : "Saving replaces the task: the corrected one waits for review, as this one does."}
         {hasPendingCorrection && " The correction that needs review is retired with it."}
       </MutedText>
+      {showsFirstAnswers && (
+        <MutedText>{t`Its first answers stay with this version; the corrected one starts with none.`}</MutedText>
+      )}
       {error && (
         <Alert variant="destructive" ref={alert} tabIndex={-1}>
           <AlertDescription>{error.text}</AlertDescription>

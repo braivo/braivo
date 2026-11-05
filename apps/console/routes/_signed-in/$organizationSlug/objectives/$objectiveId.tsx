@@ -2,13 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { countExplanations } from "@braivo/server/client";
-import { Heading, MutedText } from "@braivo/ui";
+import { AuthoredTask, Heading, MutedText } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
+import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Fragment, useRef, useState } from "react";
 
 import { ExplanationCount, useExplanationNote } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
+import {
+  FirstAnswerLines,
+  FirstAnswersProvider,
+  readFirstAnswers,
+  useFirstAnswers,
+} from "#components/first-answers";
 import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
   type Editing,
@@ -57,6 +64,12 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/objectives/$
         { objectiveId },
         abortController.signal,
       ),
+      firstAnswers: readFirstAnswers(
+        context.braivo,
+        context.organization,
+        { objectiveId },
+        abortController.signal,
+      ),
       // The courses its tasks serve, by title, as listed.
       courses: courses.filter(({ id }) => objective.courseIds.includes(id)),
       sources: new Map(sources.map((source) => [source.id, source])),
@@ -73,7 +86,7 @@ function ObjectivePage() {
 }
 
 function Objective() {
-  const { objective, tasks, courses, sources, reports } = Route.useLoaderData();
+  const { objective, tasks, courses, sources, reports, firstAnswers } = Route.useLoaderData();
   const { organization } = Route.useRouteContext();
   // Focusable, to receive focus once Publish is done, or a task's change.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -229,31 +242,60 @@ function Objective() {
           />
         </section>
       )}
-      <section aria-labelledby="published" className="flex flex-col gap-3 **:scroll-mt-40">
-        <Heading level={2} id="published">
-          Published tasks
-        </Heading>
-        {tasks.length === pending.length && (
-          // In a published course, not "not asked about it": once nothing else needs
-          // practice, learners wait on it (learner-loop-5), as its course page says.
-          <MutedText>
-            {publishedCourses.length > 0
-              ? "None yet: learners skip this objective, and may run out of practice until it has some."
-              : "None yet: learners are not asked about it."}
-          </MutedText>
-        )}
-        <TaskReportsProvider reports={reports}>
-          <TaskList
-            objectiveId={objective.id}
-            tasks={tasks}
-            sources={sources}
-            editing={editing}
-            onEdit={setEditingTask}
-            pending={publication.publishing !== undefined}
-            onChanged={focusHeading}
-          />
-        </TaskReportsProvider>
-      </section>
+      <FirstAnswersProvider firstAnswers={firstAnswers}>
+        <section aria-labelledby="published" className="flex flex-col gap-3 **:scroll-mt-40">
+          <Heading level={2} id="published">
+            Published tasks
+          </Heading>
+          {tasks.length === pending.length && (
+            // In a published course, not "not asked about it": once nothing else needs
+            // practice, learners wait on it (learner-loop-5), as its course page says.
+            <MutedText>
+              {publishedCourses.length > 0
+                ? "None yet: learners skip this objective, and may run out of practice until it has some."
+                : "None yet: learners are not asked about it."}
+            </MutedText>
+          )}
+          <TaskReportsProvider reports={reports}>
+            <TaskList
+              objectiveId={objective.id}
+              tasks={tasks}
+              sources={sources}
+              editing={editing}
+              onEdit={setEditingTask}
+              pending={publication.publishing !== undefined}
+              onChanged={focusHeading}
+            />
+          </TaskReportsProvider>
+        </section>
+        <RetiredTasks />
+      </FirstAnswersProvider>
     </>
+  );
+}
+
+/**
+ * The objective's tasks retired after publishing, newest retirement first,
+ * each with the first answers it kept: a correction starts with none, so its
+ * history stays readable here, never compared or listed for review.
+ */
+function RetiredTasks() {
+  const summary = useFirstAnswers();
+  const { t, i18n } = useLingui();
+  if (summary === undefined || summary.retired.length === 0) return null;
+  return (
+    <section aria-labelledby="retired" className="mt-6 flex flex-col gap-3">
+      <Heading level={2} id="retired">
+        {t`Retired questions`}
+      </Heading>
+      {summary.retired.map(({ id, retiredAt, first, ...task }) => {
+        const date = i18n.date(new Date(retiredAt), { dateStyle: "medium" });
+        return (
+          <AuthoredTask key={id} task={task} status={<MutedText>{t`Retired ${date}`}</MutedText>}>
+            <FirstAnswerLines first={first} minLearners={summary.minLearners} />
+          </AuthoredTask>
+        );
+      })}
+    </section>
   );
 }

@@ -68,9 +68,18 @@ msgstr "{answers} z {total}"
 msgid "{answers} of {total} answered"
 msgstr "Odpowiedzi: {answers} z {total}"
 
+#: apps/console/components/first-answers.tsx
+msgid "{checks, plural, one {# check} other {# checks}}"
+msgstr "{checks, plural, one {# uwaga} few {# uwagi} many {# uwag} other {# uwagi}}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 msgstr "{clientName} działa w organizacji, której treściami zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o nadanie Ci tam roli autora, a potem połącz ponownie."
+
+#. Counts of first answers: correct, then incorrect, then Show answer
+#: apps/console/components/first-answers.tsx
+msgid "{correct, plural, one {# correct} other {# correct}}, {incorrect, plural, one {# incorrect} other {# incorrect}}, {revealed, plural, one {# asked to see the answer} other {# asked to see the answer}}"
+msgstr "{correct, plural, one {# poprawna} few {# poprawne} many {# poprawnych} other {# poprawnej}}, {incorrect, plural, one {# błędna} few {# błędne} many {# błędnych} other {# błędnej}}, {revealed, plural, one {# prośba o pokazanie odpowiedzi} few {# prośby o pokazanie odpowiedzi} many {# próśb o pokazanie odpowiedzi} other {# prośby o pokazanie odpowiedzi}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
 #: apps/learn/components/standing.tsx
@@ -164,9 +173,22 @@ msgstr "Adres {hostname} jest zarezerwowany. Wybierz inny."
 msgid "{hostname} is taken. Choose another address."
 msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
 
+#: apps/console/components/first-answers.tsx
+msgid "{incorrect} of {learners} first answers incorrect"
+msgstr "Błędne pierwsze odpowiedzi: {incorrect} z {learners}"
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "{inviter} invited you."
 msgstr "{inviter} zaprasza Cię."
+
+#. {counted}: counts of first answers, as “2 correct, 8 incorrect, 1 asked to see the answer”
+#: apps/console/components/first-answers.tsx
+msgid "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
+msgstr "{learners, plural, one {Pierwsze odpowiedzi # ucznia} few {Pierwsze odpowiedzi # uczniów} many {Pierwsze odpowiedzi # uczniów} other {Pierwsze odpowiedzi # ucznia}}: {counted}."
+
+#: apps/console/components/first-answers.tsx
+msgid "{minLearners, plural, one {Not enough answers yet (fewer than # learner).} other {Not enough answers yet (fewer than # learners).}}"
+msgstr "{minLearners, plural, one {Jeszcze za mało odpowiedzi (mniej niż # uczeń).} few {Jeszcze za mało odpowiedzi (mniej niż # uczniów).} many {Jeszcze za mało odpowiedzi (mniej niż # uczniów).} other {Jeszcze za mało odpowiedzi (mniej niż # ucznia).}}"
 
 #: apps/learn/components/report-problem.tsx
 msgid "{noteLength} of {MAX_NOTE} characters"
@@ -206,6 +228,10 @@ msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (wkrótce)"
+
+#: apps/console/components/first-answers.tsx
+msgid "{reports, plural, one {Reported by # learner} other {Reported by # learners}}"
+msgstr "{reports, plural, one {Zgłoszone przez # ucznia} few {Zgłoszone przez # uczniów} many {Zgłoszone przez # uczniów} other {Zgłoszone przez # ucznia}}"
 
 #: apps/learn/components/practice-session.tsx
 msgid "{right} of {answers} right."
@@ -451,6 +477,10 @@ msgstr "Wybierz jedno z listy."
 #: apps/learn/components/report-problem.tsx
 msgid "Choose what's wrong."
 msgstr "Wybierz, co jest nie tak."
+
+#: apps/console/components/first-answers.tsx
+msgid "Chosen first:"
+msgstr "Pierwsze wybory:"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Client ID: {clientId}"
@@ -773,6 +803,10 @@ msgstr "Czas na powtórkę: masz około {percent}% szans, że teraz sobie przypo
 msgid "e.g. Fernwood Academy"
 msgstr "np. Fernwood Academy"
 
+#: apps/console/components/first-answers.tsx
+msgid "Each current member's first answer to each question counts, given in any course of this organization. Learners don't meet every question at the same point, so the numbers aren't directly comparable. Use them to choose what to review."
+msgstr "Liczy się pierwsza odpowiedź każdego obecnego członka organizacji na każde pytanie, udzielona w dowolnym z jej kursów. Uczniowie trafiają na pytania na różnych etapach nauki, więc liczb nie można porównywać wprost. Traktuj je jako wskazówkę, co warto przejrzeć."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Each learner's objectives, counted by standing."
 msgstr "Cele każdego ucznia, policzone według stanu."
@@ -958,6 +992,10 @@ msgstr "Oto odpowiedź"
 msgid "Here to learn? Open the site your school or training provider gave you."
 msgstr "Jesteś uczniem? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
 
+#: apps/console/components/first-answers.tsx
+msgid "How first answers are counted"
+msgstr "Jak liczone są pierwsze odpowiedzi"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "How others in your organizations see you."
 msgstr "Tak widzą Cię inni w Twoich organizacjach."
@@ -1034,6 +1072,10 @@ msgstr "To jedyna domena Twoich uczniów. Najpierw dodaj inną."
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "It works in one. To use it in another too, connect it again."
 msgstr "Działa w jednej. Aby używać jej także w innej, połącz ją ponownie."
+
+#: apps/console/components/task-review.tsx
+msgid "Its first answers stay with this version; the corrected one starts with none."
+msgstr "Pierwsze odpowiedzi zostają przy tej wersji; poprawiona zaczyna bez żadnych."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Its records are not available yet."
@@ -1142,6 +1184,10 @@ msgstr "Uczniowie ćwiczą na stronie"
 msgid "Learners practise it at"
 msgstr "Uczniowie uczą się w tym kursie pod adresem"
 
+#: apps/console/components/first-answers.tsx
+msgid "Learners' first answers could not be loaded."
+msgstr "Nie udało się wczytać pierwszych odpowiedzi uczniów."
+
 #: apps/console/components/organization-setup-form.tsx
 msgid "Learners' site"
 msgstr "Strona dla uczniów"
@@ -1237,6 +1283,10 @@ msgstr "Najwięcej celów do powtórki"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most objectives learning"
 msgstr "Najwięcej celów w trakcie nauki"
+
+#: apps/console/components/first-answers.tsx
+msgid "Most often answered incorrectly first, of those with enough answers. Learners meet questions at different points: use this to choose what to look at."
+msgstr "Pytania, na które najczęściej pada błędna pierwsza odpowiedź, spośród tych z wystarczającą liczbą odpowiedzi. Uczniowie trafiają na pytania na różnych etapach: ta lista pomaga wybrać, co sprawdzić."
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most repeated misses"
@@ -1546,6 +1596,10 @@ msgstr "Publikowanie obejmuje tylko widoczne zadania."
 msgid "Publish anyway"
 msgstr "Opublikuj mimo to"
 
+#: apps/console/components/first-answers.tsx
+msgid "Questions to review"
+msgstr "Pytania do przejrzenia"
+
 #. Completes “differs from … only in …”
 #: apps/console/components/findings.tsx
 msgid "quote marks or apostrophes"
@@ -1634,6 +1688,14 @@ msgstr "utrwalono"
 msgctxt "A learner's standing on an objective"
 msgid "Retained"
 msgstr "Utrwalone"
+
+#: apps/console/routes/_signed-in/$organizationSlug/objectives/$objectiveId.tsx
+msgid "Retired {date}"
+msgstr "Wycofane {date}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/objectives/$objectiveId.tsx
+msgid "Retired questions"
+msgstr "Wycofane pytania"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
@@ -1960,6 +2022,11 @@ msgstr "Silnik nauki stojący za Twoimi kursami"
 msgid "The lesson passage doesn't support this"
 msgstr "Fragment z lekcji tego nie potwierdza"
 
+#. {otherCounted}: counts of first answers to the objective's other questions, as above; then how many first answers in all, from how many learners
+#: apps/console/components/first-answers.tsx
+msgid "The objective's other questions: {otherCounted}, {otherResponses, plural, one {of # first answer} other {of # first answers}} {otherLearners, plural, one {from # learner} other {from # learners}}."
+msgstr "Pozostałe pytania tego celu nauczania: {otherCounted}, {otherResponses, plural, one {spośród # pierwszej odpowiedzi} few {spośród # pierwszych odpowiedzi} many {spośród # pierwszych odpowiedzi} other {spośród # pierwszej odpowiedzi}} {otherLearners, plural, one {# ucznia} few {# uczniów} many {# uczniów} other {# ucznia}}."
+
 #: apps/console/components/organization-sidebar.tsx
 msgid "The organization's pages and your account."
 msgstr "Strony organizacji i Twoje konto."
@@ -2119,6 +2186,7 @@ msgstr "Narzędzia podłączone przez członków Twojej organizacji, np. braivo 
 msgid "Tools your organization's members connect, such as the braivo CLI, will be able to read learners' names, progress, and learning history. An AI app that receives this data may send it to its provider. Turning this off later stops further reads, but cannot recall what a tool already received."
 msgstr "Narzędzia podłączone przez członków Twojej organizacji, np. braivo CLI, będą mogły odczytywać imiona i nazwiska uczniów, ich postępy i historię nauki. Aplikacja AI, która otrzyma te dane, może przesłać je swojemu dostawcy. Późniejsze wyłączenie tej opcji zatrzyma dalsze odczyty, ale nie cofnie tego, co narzędzie już otrzymało."
 
+#: apps/console/components/first-answers.tsx
 #: apps/console/router.tsx
 #: apps/console/routes/login.tsx
 #: apps/learn/router.tsx

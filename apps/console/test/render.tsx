@@ -114,6 +114,8 @@ export function renderAt(
         listObjectives: async () => [],
         // No learner reported anything, unless a test says otherwise.
         listReportedTasks: async () => ({ tasks: [], more: false }),
+        // No learner answered anything, unless a test says otherwise.
+        readFirstAnswers: async () => ({ minLearners: 5, tasks: [], retired: [] }),
         listDomains: async () => ({
           domains: [{ hostname: "example.braivo.app" }],
           claims: [],
