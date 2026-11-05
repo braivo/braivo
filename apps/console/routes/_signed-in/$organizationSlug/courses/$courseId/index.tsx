@@ -37,7 +37,11 @@ import {
   useExplanationNote,
 } from "#components/explanations";
 import { findingsId, hasFindings } from "#components/findings";
-import { FirstAnswersProvider, readFirstAnswers } from "#components/first-answers";
+import {
+  FirstAnswersProvider,
+  QuestionsToReview,
+  readFirstAnswers,
+} from "#components/first-answers";
 import { LearnersSite } from "#components/learners-site";
 import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
@@ -392,6 +396,8 @@ function Course() {
               <Heading level={2} id="teaches">
                 What it teaches
               </Heading>
+              {/* Narrowed, its links could lead to tasks not shown. */}
+              {!narrowed && <QuestionsToReview objectives={course.objectives} />}
               {course.objectives.length === 0 && <MutedText>No objectives yet.</MutedText>}
               {objectivesTaught.map(({ objective, place }) => (
                 <Objective

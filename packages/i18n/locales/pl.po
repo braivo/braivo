@@ -68,6 +68,10 @@ msgstr "{answers} z {total}"
 msgid "{answers} of {total} answered"
 msgstr "Odpowiedzi: {answers} z {total}"
 
+#: apps/console/components/first-answers.tsx
+msgid "{checks, plural, one {# check} other {# checks}}"
+msgstr "{checks, plural, one {# uwaga} few {# uwagi} many {# uwag} other {# uwagi}}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 msgstr "{clientName} działa w organizacji, której treściami zarządzasz. Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o nadanie Ci tam roli autora, a potem połącz ponownie."
@@ -169,6 +173,10 @@ msgstr "Adres {hostname} jest zarezerwowany. Wybierz inny."
 msgid "{hostname} is taken. Choose another address."
 msgstr "Adres {hostname} jest już zajęty. Wybierz inny."
 
+#: apps/console/components/first-answers.tsx
+msgid "{incorrect} of {learners} first answers incorrect"
+msgstr "Błędne pierwsze odpowiedzi: {incorrect} z {learners}"
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "{inviter} invited you."
 msgstr "{inviter} zaprasza Cię."
@@ -220,6 +228,10 @@ msgstr "Konto {refusedEmail} nie należy do organizacji „{organizationName}”
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (wkrótce)"
+
+#: apps/console/components/first-answers.tsx
+msgid "{reports, plural, one {Reported by # learner} other {Reported by # learners}}"
+msgstr "{reports, plural, one {Zgłoszone przez # ucznia} few {Zgłoszone przez # uczniów} many {Zgłoszone przez # uczniów} other {Zgłoszone przez # ucznia}}"
 
 #: apps/learn/components/practice-session.tsx
 msgid "{right} of {answers} right."
@@ -1272,6 +1284,10 @@ msgstr "Najwięcej celów do powtórki"
 msgid "Most objectives learning"
 msgstr "Najwięcej celów w trakcie nauki"
 
+#: apps/console/components/first-answers.tsx
+msgid "Most often answered incorrectly first, of those with enough answers. Learners meet questions at different points: use this to choose what to look at."
+msgstr "Pytania, na które najczęściej pada błędna pierwsza odpowiedź, spośród tych z wystarczającą liczbą odpowiedzi. Uczniowie trafiają na pytania na różnych etapach: ta lista pomaga wybrać, co sprawdzić."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most repeated misses"
 msgstr "Najwięcej powtarzających się błędów"
@@ -1579,6 +1595,10 @@ msgstr "Publikowanie obejmuje tylko widoczne zadania."
 #: apps/console/components/task-review.tsx
 msgid "Publish anyway"
 msgstr "Opublikuj mimo to"
+
+#: apps/console/components/first-answers.tsx
+msgid "Questions to review"
+msgstr "Pytania do przejrzenia"
 
 #. Completes “differs from … only in …”
 #: apps/console/components/findings.tsx

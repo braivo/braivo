@@ -10,15 +10,18 @@
  */
 
 import type { BraivoClient, FirstAnswersSummary, Organization } from "@braivo/server/client";
-import { MutedText } from "@braivo/ui";
+import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useRouter } from "@tanstack/react-router";
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, type ReactNode, useContext, useId } from "react";
 
 import { Disclosure } from "#components/disclosure";
+import { LinkList, linkRow } from "#components/link-list";
+import { useReportedTasks } from "#components/task-reports";
+import type { ReviewTask } from "#components/task-review";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { useSettled } from "#lib/settled";
 
@@ -209,5 +212,105 @@ export function FirstAnswerLines(props: {
         </MutedText>
       )}
     </div>
+  );
+}
+
+/** Questions to review lists at most this many. */
+const REVIEW_LIMIT = 10;
+
+/**
+ * A course's tasks most often answered incorrectly first, for an
+ * administrator to choose what to look at: those with enough answers and any
+ * incorrect, by incorrect share of all first answers (Show answer counted in
+ * the whole, never as incorrect), ties by more learners, then page order. A
+ * review aid, ranked by the raw share: the objective's other tasks are no
+ * baseline, since learners meet them at different points. Each leads to its
+ * task on the page, with its learners' reports and its checks beside.
+ */
+export function QuestionsToReview(props: {
+  objectives: readonly { title: string; tasks: readonly ReviewTask[] }[];
+}) {
+  const summary = useFirstAnswers();
+  const reported = useReportedTasks();
+  const { t } = useLingui();
+  const id = useId();
+  if (summary === undefined) return null;
+
+  const firstOf = new Map(summary.tasks.map(({ id, first }) => [id, first]));
+  const listed = props.objectives
+    .flatMap(({ title, tasks }) =>
+      tasks.flatMap((task) => {
+        const first = task.published ? firstOf.get(task.id) : undefined;
+        return first && first.incorrect > 0 ? [{ task, title, first }] : [];
+      }),
+    )
+    .map((entry, order) => ({
+      ...entry,
+      order,
+      share: entry.first.incorrect / entry.first.learners,
+    }))
+    .sort((a, b) => b.share - a.share || b.first.learners - a.first.learners || a.order - b.order)
+    .slice(0, REVIEW_LIMIT);
+  if (listed.length === 0) return null;
+
+  return (
+    <section aria-labelledby={`${id}-heading`} className="flex flex-col gap-2">
+      <Heading level={3} id={`${id}-heading`} className="mb-0">
+        {t`Questions to review`}
+      </Heading>
+      <MutedText>
+        {t`Most often answered incorrectly first, of those with enough answers. Learners meet questions at different points: use this to choose what to look at.`}
+      </MutedText>
+      <LinkList>
+        {listed.map(({ task, title, first: { incorrect, learners } }) => {
+          const reports = reported.get(task.id)?.reportCount ?? 0;
+          const checks = task.findings?.length ?? 0;
+          const note = [
+            t`${incorrect} of ${learners} first answers incorrect`,
+            title,
+            ...(reports > 0
+              ? [
+                  t({
+                    message: plural(reports, {
+                      one: "Reported by # learner",
+                      other: "Reported by # learners",
+                    }),
+                  }),
+                ]
+              : []),
+            ...(checks > 0
+              ? [t({ message: plural(checks, { one: "# check", other: "# checks" }) })]
+              : []),
+          ].join(" · ");
+          const noteId = `${id}-${task.id}`;
+          const anchor = `task-${task.id}`;
+          return (
+            <li key={task.id}>
+              <a
+                href={`#${anchor}`}
+                className={linkRow}
+                aria-describedby={noteId}
+                // On this page: the task takes the focus, as its wrapper is focusable.
+                onClick={(event) => {
+                  const target = document.getElementById(anchor);
+                  if (!target) return;
+                  event.preventDefault();
+                  target.focus();
+                  target.scrollIntoView?.({ block: "start" });
+                }}
+              >
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="line-clamp-2 wrap-break-word">{task.prompt}</span>
+                  {/* The link's description, so its name stays the question. */}
+                  <MutedText id={noteId} aria-hidden="true" className="font-normal">
+                    {note}
+                  </MutedText>
+                </span>
+              </a>
+            </li>
+          );
+        })}
+      </LinkList>
+    </section>
   );
 }

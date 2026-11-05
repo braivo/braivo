@@ -165,6 +165,11 @@ type TaskReportsState = {
 
 const TaskReportsContext = createContext<TaskReportsState | undefined>(undefined);
 
+/** The page's reported tasks by ID, once read; empty where none are read. */
+export function useReportedTasks(): ReadonlyMap<string, ReportedTask> {
+  return useContext(TaskReportsContext)?.reports ?? new Map();
+}
+
 /**
  * A course's or an objective's reports, for each `TaskReports` beneath: the
  * page renders whole meanwhile, and a failed read says so once, above.

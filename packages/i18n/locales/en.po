@@ -68,6 +68,10 @@ msgstr "{answers} of {total}"
 msgid "{answers} of {total} answered"
 msgstr "{answers} of {total} answered"
 
+#: apps/console/components/first-answers.tsx
+msgid "{checks, plural, one {# check} other {# checks}}"
+msgstr "{checks, plural, one {# check} other {# checks}}"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
 msgstr "{clientName} works in an organization whose content you manage. Ask its owner, or whoever set Braivo up for you, to make you an author there, then connect again."
@@ -169,6 +173,10 @@ msgstr "{hostname} is reserved. Choose another address."
 msgid "{hostname} is taken. Choose another address."
 msgstr "{hostname} is taken. Choose another address."
 
+#: apps/console/components/first-answers.tsx
+msgid "{incorrect} of {learners} first answers incorrect"
+msgstr "{incorrect} of {learners} first answers incorrect"
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "{inviter} invited you."
 msgstr "{inviter} invited you."
@@ -220,6 +228,10 @@ msgstr "{refusedEmail} is not a member of {organizationName}. Ask to be added wi
 #: apps/console/components/organization-setup-form.tsx
 msgid "{regionName} (coming soon)"
 msgstr "{regionName} (coming soon)"
+
+#: apps/console/components/first-answers.tsx
+msgid "{reports, plural, one {Reported by # learner} other {Reported by # learners}}"
+msgstr "{reports, plural, one {Reported by # learner} other {Reported by # learners}}"
 
 #: apps/learn/components/practice-session.tsx
 msgid "{right} of {answers} right."
@@ -1272,6 +1284,10 @@ msgstr "Most objectives due"
 msgid "Most objectives learning"
 msgstr "Most objectives learning"
 
+#: apps/console/components/first-answers.tsx
+msgid "Most often answered incorrectly first, of those with enough answers. Learners meet questions at different points: use this to choose what to look at."
+msgstr "Most often answered incorrectly first, of those with enough answers. Learners meet questions at different points: use this to choose what to look at."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Most repeated misses"
 msgstr "Most repeated misses"
@@ -1579,6 +1595,10 @@ msgstr "Publish acts only on the tasks shown."
 #: apps/console/components/task-review.tsx
 msgid "Publish anyway"
 msgstr "Publish anyway"
+
+#: apps/console/components/first-answers.tsx
+msgid "Questions to review"
+msgstr "Questions to review"
 
 #. Completes “differs from … only in …”
 #: apps/console/components/findings.tsx

@@ -5,7 +5,7 @@
 // administers the organization: under each published task of a course's and
 // an objective's page, an objective's retired tasks beside.
 
-import type { BraivoClient, FirstAnswersSummary } from "@braivo/server/client";
+import { type BraivoClient, type FirstAnswersSummary, taskFindings } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
@@ -45,7 +45,12 @@ const summary: FirstAnswersSummary = {
 
 /** The lines under a task, by its card. */
 const linesOf = (prompt: string) =>
-  within(screen.getByText(prompt).closest<HTMLElement>("[data-slot=card]")!)
+  within(
+    screen
+      .getAllByText(prompt)
+      .find((title) => title.dataset.slot === "card-title")!
+      .closest<HTMLElement>("[data-slot=card]")!,
+  )
     .getAllByText(/first answers|Chosen first|Not enough answers/i)
     .map((line) => line.textContent);
 
@@ -231,5 +236,149 @@ describe("learners' first answers", () => {
 
     expect(await screen.findByText(/First answers from 5 learners/)).toBeTruthy();
     expect(screen.getAllByText("How first answers are counted")).toHaveLength(1);
+  });
+
+  describe("Questions to review (progress-19)", () => {
+    /** A published typed task, with the findings Braivo reads back for it. */
+    const typed = (id: string, prompt: string, accepted = ["x"]) => {
+      const body = { kind: "typed" as const, prompt, accepted };
+      const findings = taskFindings(body);
+      return {
+        id,
+        ...body,
+        citations: [],
+        published: true,
+        ...(findings.length > 0 && { findings }),
+      };
+    };
+    // Twelve tasks over the floor, one under it, across two objectives.
+    const greetingTasks = Array.from({ length: 7 }, (_, index) =>
+      typed(`g${index}`, `Greeting ${index}?`),
+    );
+    const numberTasks = [
+      ...Array.from({ length: 5 }, (_, index) => typed(`n${index}`, `Number ${index}?`)),
+      typed("n-few", "Few answers?"),
+      // A check BRV-13's findings raise: the slash is matched as written.
+      typed("n-slash", "Colour?", ["colour / color"]),
+    ];
+    const reviewedCourse = {
+      ...beginners,
+      objectives: [
+        { ...beginners.objectives[0]!, tasks: greetingTasks },
+        { ...beginners.objectives[1]!, tasks: numberTasks },
+      ],
+    };
+    const counts = (learners: number, incorrect: number) => ({
+      learners,
+      correct: learners - incorrect,
+      incorrect,
+      revealed: 0,
+    });
+    const reviewSummary: FirstAnswersSummary = {
+      minLearners: 5,
+      tasks: [
+        // Shares of incorrect first answers: g0 9/10, g1..g6 descending, ties by more learners.
+        { id: "g0", objectiveId: "greetings", first: counts(10, 9), otherTasks: null },
+        { id: "g1", objectiveId: "greetings", first: counts(5, 4), otherTasks: null },
+        { id: "g2", objectiveId: "greetings", first: counts(10, 8), otherTasks: null },
+        { id: "g3", objectiveId: "greetings", first: counts(10, 7), otherTasks: null },
+        { id: "g4", objectiveId: "greetings", first: counts(10, 6), otherTasks: null },
+        { id: "g5", objectiveId: "greetings", first: counts(10, 5), otherTasks: null },
+        { id: "g6", objectiveId: "greetings", first: counts(10, 4), otherTasks: null },
+        { id: "n0", objectiveId: "numbers", first: counts(10, 3), otherTasks: null },
+        { id: "n1", objectiveId: "numbers", first: counts(10, 2), otherTasks: null },
+        { id: "n2", objectiveId: "numbers", first: counts(10, 1), otherTasks: null },
+        // Past the cap of 10.
+        { id: "n3", objectiveId: "numbers", first: counts(20, 1), otherTasks: null },
+        // None incorrect: nothing to review.
+        { id: "n4", objectiveId: "numbers", first: counts(10, 0), otherTasks: null },
+        // Under the floor, however wrong.
+        { id: "n-few", objectiveId: "numbers", first: null, otherTasks: null },
+        { id: "n-slash", objectiveId: "numbers", first: counts(10, 9), otherTasks: null },
+      ],
+      retired: [],
+    };
+
+    function renderReview(braivo: object = {}) {
+      return renderAt("/example/courses/course-1", {
+        braivo: {
+          readCourse: async () => reviewedCourse,
+          readFirstAnswers: async () => reviewSummary,
+          listReportedTasks: async () => ({
+            tasks: [
+              {
+                id: "g2",
+                objectiveId: "greetings",
+                kind: "typed" as const,
+                prompt: "Greeting 2?",
+                accepted: ["x"],
+                reportCount: 3,
+                reasonCount: 1,
+                reports: [],
+              },
+            ],
+            more: false,
+          }),
+          ...braivo,
+        },
+      });
+    }
+
+    test("lists the 10 most often answered incorrectly first, ties by more learners, with reports and checks", async () => {
+      renderReview();
+
+      const list = await screen.findByRole("region", { name: "Questions to review" });
+      // What the list is for, beside it rather than only in the collapsed note.
+      expect(within(list).getByText(/Learners meet questions at different points/)).toBeTruthy();
+      const links = within(list).getAllByRole("link");
+      expect(
+        links.map((link) => [link.textContent?.split(/(?<=\?)/)[0], link.getAttribute("href")]),
+      ).toEqual([
+        ["Greeting 0?", "#task-g0"],
+        ["Colour?", "#task-n-slash"],
+        ["Greeting 2?", "#task-g2"],
+        // 4 of 5 ties 8 of 10: the one more learners answered first.
+        ["Greeting 1?", "#task-g1"],
+        ["Greeting 3?", "#task-g3"],
+        ["Greeting 4?", "#task-g4"],
+        ["Greeting 5?", "#task-g5"],
+        ["Greeting 6?", "#task-g6"],
+        ["Number 0?", "#task-n0"],
+        ["Number 1?", "#task-n1"],
+      ]);
+      expect(
+        within(list).getByRole("link", {
+          name: "Greeting 2?",
+          description: "8 of 10 first answers incorrect · Greetings · Reported by 3 learners",
+        }),
+      ).toBeTruthy();
+      expect(
+        within(list).getByRole("link", {
+          name: "Colour?",
+          description: "9 of 10 first answers incorrect · Numbers · 1 check",
+        }),
+      ).toBeTruthy();
+      // Counts and facts, never a verdict.
+      expect(list.textContent).not.toMatch(/wrong|mislead|broken|bad|poor/i);
+    });
+
+    test("focuses the task a link leads to", async () => {
+      renderReview();
+
+      const list = await screen.findByRole("region", { name: "Questions to review" });
+      fireEvent.click(within(list).getByRole("link", { name: "Number 1?" }));
+      expect(document.activeElement?.id).toBe("task-n1");
+    });
+
+    test("is absent while no task has enough answers", async () => {
+      renderReview({
+        readFirstAnswers: async () => ({
+          ...reviewSummary,
+          tasks: reviewSummary.tasks.map((task) => ({ ...task, first: null })),
+        }),
+      });
+      expect(await screen.findAllByText(/Not enough answers yet/)).not.toHaveLength(0);
+      expect(screen.queryByRole("region", { name: "Questions to review" })).toBeNull();
+    });
   });
 });
