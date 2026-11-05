@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/gro
     ]);
     const group = groups.find(({ id }) => id === params.groupId);
     if (!group) throw notFound();
-    return { group, members, courses };
+    return { group, groups, members, courses };
   },
   head: (head) => pageHead(head, head.loaderData?.group.name),
   // A form per group: nothing changed in one carries over to another.
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/gro
 });
 
 function EditGroup() {
-  const { group, members, courses } = Route.useLoaderData();
+  const { group, groups, members, courses } = Route.useLoaderData();
   const { braivo, organization } = Route.useRouteContext();
 
   return (
@@ -50,6 +50,7 @@ function EditGroup() {
       organization={organization}
       members={members}
       courses={courses}
+      groups={groups}
       group={group}
     />
   );

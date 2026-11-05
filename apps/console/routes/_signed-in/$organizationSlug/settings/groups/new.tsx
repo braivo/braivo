@@ -16,11 +16,12 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/gro
   loader: async ({ context, abortController }) => {
     // Bounded: a save waits for this read, and would otherwise wait forever.
     const options = { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) };
-    const [members, courses] = await Promise.all([
+    const [members, courses, groups] = await Promise.all([
       orNotFound(context.braivo.listMembers(context.organization.id, options)),
       orNotFound(context.braivo.listCourses(context.organization.id, options)),
+      orNotFound(context.braivo.listGroups(context.organization.id, options)),
     ]);
-    return { members, courses };
+    return { members, courses, groups };
   },
   head: (head) => pageHead(head, t`New group`),
   // A form per organization: switching carries nothing typed over.
@@ -30,10 +31,16 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/gro
 });
 
 function NewGroup() {
-  const { members, courses } = Route.useLoaderData();
+  const { members, courses, groups } = Route.useLoaderData();
   const { braivo, organization } = Route.useRouteContext();
 
   return (
-    <GroupForm braivo={braivo} organization={organization} members={members} courses={courses} />
+    <GroupForm
+      braivo={braivo}
+      organization={organization}
+      members={members}
+      courses={courses}
+      groups={groups}
+    />
   );
 }

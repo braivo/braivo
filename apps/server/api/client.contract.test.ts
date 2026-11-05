@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { invitation, invitationMailClaim, organizationDomain } from "@braivo/db/schema";
+import { invitation, invitationMailClaim, member, organizationDomain } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -585,6 +585,47 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       status: "pending",
     });
     expect(await client.invitation("contract-no-such-invitation")).toBeUndefined();
+
+    await database
+      .update(invitation)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(invitation.id, made.invitation.id));
+    expect((await client.listInvitations(organizationId, asAdmin)).expired).toEqual([
+      expect.objectContaining({ id: made.invitation.id, email, role: "author" }),
+    ]);
+    expect(await client.cancelInvitation(organizationId, made.invitation.id, asAdmin)).toEqual({
+      invitation: { id: made.invitation.id, status: "canceled" },
+    });
+    await expect(
+      client.cancelInvitation(organizationId, made.invitation.id, asAdmin),
+    ).rejects.toMatchObject({ status: 409, code: "INVITATION_CANCELED" });
+  });
+
+  test("changes a member's role and removes them in the shapes it declares", async () => {
+    const asAdmin = { headers: { cookie: teacherCookie } };
+    const leaving = await signUp();
+    await database.insert(member).values({
+      id: crypto.randomUUID(),
+      organizationId,
+      userId: leaving.id,
+      role: "member",
+      createdAt: new Date(),
+    });
+
+    expect(await client.setMemberRole(organizationId, leaving.id, "author", asAdmin)).toEqual({
+      userId: leaving.id,
+      name: leaving.name,
+      roles: ["author"],
+    });
+    await client.removeMember(organizationId, leaving.id, asAdmin);
+    await expect(client.removeMember(organizationId, leaving.id, asAdmin)).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(
+      client.setMemberRole(organizationId, learnerId, "admin", {
+        headers: { cookie: learnerCookie },
+      }),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   test("defines, changes, and lists groups in the shapes it declares", async () => {

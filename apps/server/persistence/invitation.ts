@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database } from "@braivo/db";
-import { invitation, invitationMailClaim, organization, user } from "@braivo/db/schema";
-import { and, count, desc, eq, gt, inArray, lte, max, sql } from "drizzle-orm";
+import { invitation, invitationMailClaim, member, organization, user } from "@braivo/db/schema";
+import { and, count, desc, eq, gt, inArray, lte, max, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 /**
  * An invitation as its page needs it (ADR 0018): whom it is for, as what, its
@@ -90,6 +91,92 @@ export async function readPendingInvitations(
     role: role ?? "member",
     inviter: { name: inviterName },
   }));
+}
+
+/**
+ * An organization's expired invitations worth inviting again, newest first, at
+ * most `limit`: each address's latest invitation, when that is still pending
+ * but expired at `now` and the address is not a member. So one invited anew,
+ * cancelled, or accepted since drops out, and each address shows once.
+ */
+export async function readExpiredInvitations(
+  database: Database,
+  input: { organizationId: string; now: Date; limit: number },
+): Promise<PendingInvitation[]> {
+  const newer = alias(invitation, "newer");
+  const joined = alias(user, "joined");
+  const rows = await database
+    .select({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      inviterName: user.name,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .innerJoin(user, eq(user.id, invitation.inviterId))
+    .where(
+      and(
+        eq(invitation.organizationId, input.organizationId),
+        eq(invitation.status, "pending"),
+        lte(invitation.expiresAt, input.now),
+        sql`not exists (${database
+          .select({ one: sql`1` })
+          .from(newer)
+          .where(
+            and(
+              eq(newer.organizationId, invitation.organizationId),
+              eq(newer.email, invitation.email),
+              or(
+                gt(newer.createdAt, invitation.createdAt),
+                and(eq(newer.createdAt, invitation.createdAt), gt(newer.id, invitation.id)),
+              ),
+            ),
+          )})`,
+        sql`not exists (${database
+          .select({ one: sql`1` })
+          .from(member)
+          .innerJoin(joined, eq(joined.id, member.userId))
+          .where(
+            and(
+              eq(member.organizationId, invitation.organizationId),
+              eq(joined.email, invitation.email),
+            ),
+          )})`,
+      ),
+    )
+    .orderBy(desc(invitation.createdAt), desc(invitation.id))
+    .limit(input.limit);
+
+  return rows.map(({ inviterName, role, ...rest }) => ({
+    ...rest,
+    role: role ?? "member",
+    inviter: { name: inviterName },
+  }));
+}
+
+/**
+ * Cancels an invitation of this organization only while it is pending,
+ * atomically on its status, expired or not: answers whether it did. Better
+ * Auth's acceptance claims a pending invitation the same way, so at most one
+ * of the two takes it.
+ */
+export async function cancelPendingInvitation(
+  database: Database,
+  input: { organizationId: string; invitationId: string },
+): Promise<boolean> {
+  const rows = await database
+    .update(invitation)
+    .set({ status: "canceled" })
+    .where(
+      and(
+        eq(invitation.id, input.invitationId),
+        eq(invitation.organizationId, input.organizationId),
+        eq(invitation.status, "pending"),
+      ),
+    )
+    .returning({ id: invitation.id });
+  return rows.length > 0;
 }
 
 /** How many of an organization's invitations are pending and unexpired at `now`. */

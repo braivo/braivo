@@ -103,6 +103,29 @@ async function invited(email: string, role = "author"): Promise<string> {
   return result.invitation!.id;
 }
 
+/**
+ * Stores a pending invitation of `email` as `role` from the admin, answering
+ * its ID: for a test not about inviting, so it spends none of the invite
+ * route's 60 a minute. Each made strictly after the last, so newest first is
+ * the order stored.
+ */
+let lastSeeded = 0;
+async function seedInvitation(email: string, role = "author"): Promise<string> {
+  const id = crypto.randomUUID();
+  lastSeeded = Math.max(Date.now(), lastSeeded + 1);
+  await database.insert(invitation).values({
+    id,
+    organizationId,
+    email,
+    role,
+    status: "pending",
+    expiresAt: new Date(Date.now() + 7 * DAY),
+    createdAt: new Date(lastSeeded),
+    inviterId: admin.id,
+  });
+  return id;
+}
+
 /** The invitation mails counted against an address's daily bound. */
 const mailsTo = async (email: string) =>
   (
@@ -124,6 +147,9 @@ const mailedBefore = (rows: { email: string; minutesAgo: number }[]) =>
 
 const resend = (by: Signed, invitationId: string, headers: Record<string, string> = {}) =>
   request("POST", `${invitationsPath}/${invitationId}/resend`, { ...cookieOf(by), ...headers });
+
+const cancel = (by: Signed, invitationId: string) =>
+  request("POST", `${invitationsPath}/${invitationId}/cancel`, cookieOf(by));
 
 const storedInvitation = async (id: string) =>
   (await database.select().from(invitation).where(eq(invitation.id, id)))[0];
@@ -377,7 +403,8 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
   test("lists pending invitations to an owner or admin alone, Better Auth's listing closed", async () => {
     const email = newEmail();
     await invited(email, "admin");
-    const expiredId = await invited(newEmail());
+    const expiredEmail = newEmail();
+    const expiredId = await invited(expiredEmail);
     await database
       .update(invitation)
       .set({ expiresAt: new Date(Date.now() - 1000) })
@@ -402,6 +429,15 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
           expiresAt: expect.any(String),
         },
       ],
+      expired: [
+        {
+          id: expiredId,
+          email: expiredEmail,
+          role: "author",
+          inviter: { name: admin.name },
+          expiresAt: expect.any(String),
+        },
+      ],
     });
     for (const signed of [author, learner]) {
       expect((await request("GET", invitationsPath, cookieOf(signed))).status).toBe(403);
@@ -414,6 +450,137 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
       cookieOf(learner),
     );
     expect(betterAuths.status).toBe(404);
+  });
+
+  test("lists an address's latest invitation as expired, only while it is not a member and nothing newer waits", async () => {
+    const expire = (id: string) =>
+      database
+        .update(invitation)
+        .set({ expiresAt: new Date(Date.now() - 1000) })
+        .where(eq(invitation.id, id));
+    const expiredOf = async () =>
+      (
+        (await (await request("GET", invitationsPath, cookieOf(admin))).json()) as {
+          expired: { id: string; email: string }[];
+        }
+      ).expired.map(({ id }) => id);
+    const again = newEmail();
+    const first = await seedInvitation(again);
+    await expire(first);
+    const joined = newEmail();
+    const joinedId = await seedInvitation(joined);
+    await expire(joinedId);
+    const cancelled = await seedInvitation(newEmail());
+    await expire(cancelled);
+    await cancel(admin, cancelled);
+    const alone = newEmail();
+    const aloneId = await seedInvitation(alone);
+    await expire(aloneId);
+    expect(await expiredOf()).toEqual([aloneId, joinedId, first]);
+
+    // Invited anew: the newer one waits, the old one is not listed.
+    await database.delete(invitationMailClaim).where(eq(invitationMailClaim.email, again));
+    const renewed = await resend(admin, first);
+    expect(renewed.status).toBe(200);
+    expect(((await renewed.json()) as Result).invitation!.id).not.toBe(first);
+    // A member now, by whatever way.
+    const member_ = await signUpAs(joined, "Ada Joined");
+    await database.insert(member).values({
+      id: crypto.randomUUID(),
+      organizationId,
+      userId: member_.id,
+      role: "member",
+      createdAt: new Date(),
+    });
+
+    expect(await expiredOf()).toEqual([aloneId]);
+    await database.delete(member).where(eq(member.userId, member_.id));
+  });
+
+  test("cancels a pending invitation, whose link then reads cancelled and cannot be accepted", async () => {
+    const email = newEmail();
+    const id = await seedInvitation(email);
+
+    const cancelled = await cancel(admin, id);
+
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toEqual({ invitation: { id, status: "canceled" } });
+    expect((await storedInvitation(id))?.status).toBe("canceled");
+    const listed = (await (await request("GET", invitationsPath, cookieOf(owner))).json()) as {
+      invitations: { id: string }[];
+    };
+    expect(listed.invitations.map((each) => each.id)).not.toContain(id);
+    expect(await (await preview(id)).json()).toEqual({
+      organization: { name: organizationId },
+      status: "canceled",
+    });
+    const recipient = await signUpAs(email, "Ada Cancelled");
+    expect((await accept(recipient, id)).status).toBe(400);
+    expect(await rolesOf(recipient.id)).toEqual([]);
+    const twice = await cancel(owner, id);
+    expect(twice.status).toBe(409);
+    expect(await twice.json()).toMatchObject({ code: "INVITATION_CANCELED" });
+    // Resend stays refused (access-55).
+    expect((await resend(admin, id)).status).toBe(409);
+  });
+
+  test("cancelling after acceptance leaves the membership, and says acceptance came first", async () => {
+    const email = newEmail();
+    const id = await seedInvitation(email, "admin");
+    const recipient = await signUpAs(email, "Ada Accepted");
+    expect((await accept(recipient, id)).status).toBe(200);
+
+    const late = await cancel(admin, id);
+
+    expect(late.status).toBe(409);
+    expect(await late.json()).toMatchObject({ code: "INVITATION_ACCEPTED" });
+    expect((await storedInvitation(id))?.status).toBe("accepted");
+    expect(await rolesOf(recipient.id)).toEqual(["admin"]);
+  });
+
+  test("an acceptance claimed but undone meanwhile leaves the invitation cancellable", async () => {
+    const id = await seedInvitation(newEmail());
+    // Better Auth claims the invitation before making the member, and gives
+    // it back to pending if that fails: a cancel meanwhile sees it accepted,
+    // with no member, which is not yet acceptance having come first.
+    await database.update(invitation).set({ status: "accepted" }).where(eq(invitation.id, id));
+    const claimed = await cancel(admin, id);
+    expect(claimed.status).toBe(409);
+    expect(await claimed.json()).toMatchObject({ code: "INVITATION_ACCEPTING" });
+    await database.update(invitation).set({ status: "pending" }).where(eq(invitation.id, id));
+
+    expect((await cancel(admin, id)).status).toBe(200);
+    expect((await storedInvitation(id))?.status).toBe("canceled");
+  });
+
+  test("cancels only an invitation of this organization, for its owner or admin, in a browser", async () => {
+    const id = await seedInvitation(newEmail());
+    for (const signed of [author, learner]) {
+      expect((await cancel(signed, id)).status).toBe(403);
+    }
+    const token = await request("POST", `${invitationsPath}/${id}/cancel`, {
+      authorization: `Bearer ${owner.token}`,
+    });
+    expect(token.status).toBe(403);
+    const elsewhere = await request(
+      "POST",
+      `/api/organizations/another-org/invitations/${id}/cancel`,
+      cookieOf(owner),
+    );
+    expect(elsewhere.status).toBe(403);
+    const unknown = await cancel(owner, "no-such-invitation");
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toMatchObject({ code: "INVITATION_NOT_FOUND" });
+    expect((await storedInvitation(id))?.status).toBe("pending");
+    // Better Auth's own stays closed (access-27).
+    const betterAuths = await request(
+      "POST",
+      "/api/auth/organization/cancel-invitation",
+      cookieOf(owner),
+      { invitationId: id },
+    );
+    expect(betterAuths.status).toBe(404);
+    expect((await storedInvitation(id))?.status).toBe("pending");
   });
 
   test("shows someone signed out the school's name and the invitation's state, nothing else", async () => {
@@ -544,7 +711,7 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
     expect(await rolesOf(recipient.id)).toEqual(["admin"]);
   });
 
-  test("tells a member already there, by another way, that they belong, keeping their role", async () => {
+  test("tells a member already there, by another way, that they belong, going on as they are", async () => {
     const email = newEmail();
     const id = await invited(email, "admin");
     const recipient = await signUpAs(email, "Ada Recipient");
@@ -553,14 +720,17 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
       id: crypto.randomUUID(),
       organizationId,
       userId: recipient.id,
-      role: "author",
+      role: "member",
       createdAt: new Date(),
     });
 
+    // A learner, though invited to administer: the learn domain, not the console.
     expect(await (await preview(id, cookieOf(recipient))).json()).toMatchObject({
       status: "pending",
       recipient: true,
       member: true,
+      role: "admin",
+      continueTo: "learn",
     });
     const accepted = await accept(recipient, id);
 
@@ -568,7 +738,7 @@ describe.skipIf(!connectionString)("invitations, over HTTP", () => {
     expect(await accepted.json()).toMatchObject({
       code: "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION",
     });
-    expect(await rolesOf(recipient.id)).toEqual(["author"]);
+    expect(await rolesOf(recipient.id)).toEqual(["member"]);
   });
 
   test("invites a learner only while the organization has a learn domain", async () => {

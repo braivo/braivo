@@ -107,7 +107,9 @@ export {
   mayRefresh,
   listConnections,
 } from "./connections.ts";
+export { MemberRefused, removeMember, setMemberRole } from "./members.ts";
 export {
+  cancelInvitation,
   type CreateInvitationResult,
   type InvitableRole,
   type InvitationBatchResult,

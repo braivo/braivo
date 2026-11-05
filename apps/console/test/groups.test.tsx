@@ -879,6 +879,36 @@ describe("groups", () => {
       await vi.waitFor(() => expect(document.activeElement).toBe(button));
     }
 
+    test("marks the members who learn in no group, findable by it, among learners to add", async () => {
+      renderAt("/example/settings/groups/new", {
+        braivo: {
+          listMembers: async () => [
+            { userId: "u2", name: "Lee Learner", roles: ["member"] },
+            { userId: "u3", name: "Lou Learner", roles: ["member"] },
+          ],
+          listCourses: async () => [beginners],
+          listGroups: async () => [sevenA],
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Add learners" }));
+      await vi.waitFor(() =>
+        expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+          "Lee Learner",
+          "Lou LearnerNot in a group",
+        ]),
+      );
+      const search = document.querySelector<HTMLInputElement>("[cmdk-input]")!;
+      fireEvent.change(search, { target: { value: "not in a group" } });
+      await vi.waitFor(() =>
+        expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+          "Lou LearnerNot in a group",
+        ]),
+      );
+      // Not taken, so it can be chosen.
+      expect(screen.getByRole("option").getAttribute("aria-disabled")).not.toBe("true");
+    });
+
     test("creates a group whole, retrying an unconfirmed creation under the same key", async () => {
       let attempts = 0;
       const defineGroup = vi.fn(async () => {
