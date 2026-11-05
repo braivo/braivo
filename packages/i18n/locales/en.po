@@ -143,20 +143,6 @@ msgstr "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} o
 msgid "{domain} now serves your learners."
 msgstr "{domain} now serves your learners."
 
-#. placeholder {0}: said(result.roles)
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "{email} is already a member, as {0}."
-msgstr "{email} is already a member, as {0}."
-
-#. placeholder {0}: said(result.role ? [result.role] : [])
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "{email} is already invited, as {0}. Their invitation stays as it is."
-msgstr "{email} is already invited, as {0}. Their invitation stays as it is."
-
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "{email} is invited, but the email could not be sent. Copy the link below and send it to them."
-msgstr "{email} is invited, but the email could not be sent. Copy the link below and send it to them."
-
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# failure} other {# failures}}"
@@ -177,14 +163,26 @@ msgstr "{hostname} is taken. Choose another address."
 msgid "{incorrect} of {learners} first answers incorrect"
 msgstr "{incorrect} of {learners} first answers incorrect"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{invited} of {total} invited."
+msgstr "{invited} of {total} invited."
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "{inviter} invited you."
 msgstr "{inviter} invited you."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{kept, plural, one {# address kept above to try again.} other {# addresses kept above to try again.}}"
+msgstr "{kept, plural, one {# address kept above to try again.} other {# addresses kept above to try again.}}"
 
 #. {counted}: counts of first answers, as “2 correct, 8 incorrect, 1 asked to see the answer”
 #: apps/console/components/first-answers.tsx
 msgid "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
 msgstr "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{membersLeft, plural, one {Room for # more member. An invitation reserves no place.} other {Room for # more members. An invitation reserves no place.}}"
+msgstr "{membersLeft, plural, one {Room for # more member. An invitation reserves no place.} other {Room for # more members. An invitation reserves no place.}}"
 
 #: apps/console/components/first-answers.tsx
 msgid "{minLearners, plural, one {Not enough answers yet (fewer than # learner).} other {Not enough answers yet (fewer than # learners).}}"
@@ -241,6 +239,14 @@ msgstr "{right} of {answers} right."
 msgid "{school} has no room for new members. Contact them."
 msgstr "{school} has no room for new members. Contact them."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "{school}'s site for learners is not ready yet. Contact them."
+msgstr "{school}'s site for learners is not ready yet. Contact them."
+
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "{school}'s site for learners is not ready yet. Your invitation stays; try again later, or contact them."
+msgstr "{school}'s site for learners is not ready yet. Your invitation stays; try again later, or contact them."
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{successes, plural, one {# success} other {# successes}}"
 msgstr "{successes, plural, one {# success} other {# successes}}"
@@ -252,6 +258,10 @@ msgstr "{taskCount, plural, one {# of these tasks has checks to review} other {#
 #: apps/console/components/explanations.tsx
 msgid "{total, plural, one {The selected task has no explanation.} other {None of the # selected tasks has an explanation.}}"
 msgstr "{total, plural, one {The selected task has no explanation.} other {None of the # selected tasks has an explanation.}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "{unsent, plural, one {# email may not have gone: copy its link below.} other {# emails may not have gone: copy their links below.}}"
+msgstr "{unsent, plural, one {# email may not have gone: copy its link below.} other {# emails may not have gone: copy their links below.}}"
 
 #: apps/console/components/last-practised.tsx
 msgid "{when} ({exact})"
@@ -268,6 +278,10 @@ msgstr "{withoutExplanation, plural, one {# of {total} published tasks has no ex
 #: apps/console/components/sign-in-page.tsx
 msgid "<0>Here to learn?</0> Sign in through your course's website."
 msgstr "<0>Here to learn?</0> Sign in through your course's website."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "300 invitations were sent from here this hour. Try again later."
+msgstr "300 invitations were sent from here this hour. Try again later."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "A code can be sent again a minute after the last."
@@ -289,6 +303,10 @@ msgstr "A group was already created from this form. Find it among the groups."
 #: apps/console/components/organization-setup-form.tsx
 msgid "A home for your materials, courses, and learners."
 msgstr "A home for your materials, courses, and learners."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "A link works only for the address it was sent to: whoever opens it still signs in with a code sent to that email, or with Google."
+msgstr "A link works only for the address it was sent to: whoever opens it still signs in with a code sent to that email, or with Google."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Account"
@@ -347,6 +365,14 @@ msgstr "Admin"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "AI apps you let work in Braivo for you, each in one organization. Disconnecting one stops it at once; to use it there again, connect it again."
 msgstr "AI apps you let work in Braivo for you, each in one organization. Disconnecting one stops it at once; to use it there again, connect it again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Already a member, as {roles}."
+msgstr "Already a member, as {roles}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Already invited, as {role}. The invitation stays as it is."
+msgstr "Already invited, as {role}. The invitation stays as it is."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Another organization already uses that domain."
@@ -531,6 +557,10 @@ msgstr "Continue as {account}"
 msgid "Continue practising."
 msgstr "Continue practising."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "Continue to {hostname}"
+msgstr "Continue to {hostname}"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
 msgstr "Continue with Google"
@@ -572,6 +602,10 @@ msgstr "Correct"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Could not add the domain. Try again."
 msgstr "Could not add the domain. Try again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not be invited. Try again."
+msgstr "Could not be invited. Try again."
 
 #: apps/console/components/language-menu.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
@@ -634,6 +668,10 @@ msgstr "Could not disconnect the app. Try again."
 msgid "Could not disconnect. Check your connection and try again."
 msgstr "Could not disconnect. Check your connection and try again."
 
+#: apps/learn/routes/login.tsx
+msgid "Could not finish signing in. Try again from where you started, or sign in with a code."
+msgstr "Could not finish signing in. Try again from where you started, or sign in with a code."
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Could not join. Try again."
 msgstr "Could not join. Try again."
@@ -663,6 +701,10 @@ msgstr "Could not reload the group. Try again."
 msgid "Could not remove the domain. Try again."
 msgstr "Could not remove the domain. Try again."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Could not resend. Try again."
+msgstr "Could not resend. Try again."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Could not save the name. Try again."
 msgstr "Could not save the name. Try again."
@@ -676,8 +718,8 @@ msgid "Could not save your name. Try again."
 msgstr "Could not save your name. Try again."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Could not send the invitation. Try again."
-msgstr "Could not send the invitation. Try again."
+msgid "Could not send the invitations. Some may have gone: reload the page to see which, then try again."
+msgstr "Could not send the invitations. Some may have gone: reload the page to see which, then try again."
 
 #: apps/learn/components/report-problem.tsx
 msgid "Could not send this report. Reload the page and try again."
@@ -688,7 +730,6 @@ msgid "Could not send. Try again."
 msgstr "Could not send. Try again."
 
 #: apps/console/routes/login.tsx
-#: apps/learn/routes/login.tsx
 #: packages/auth-client/sign-in.tsx
 msgid "Could not sign in with Google. Try again, or sign in with a code."
 msgstr "Could not sign in with Google. Try again, or sign in with a code."
@@ -849,11 +890,14 @@ msgid "Edit unpublished task “{0}” and add “{answer}”"
 msgstr "Edit unpublished task “{0}” and add “{answer}”"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 #: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Email address"
 msgstr "Email address"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Email addresses"
+msgstr "Email addresses"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Enter a domain such as learn.example.com, without https:// or a path."
@@ -868,17 +912,13 @@ msgstr "Enter a domain, such as learn.example.com."
 msgid "Enter a name of at most {MAX_NAME_LENGTH} characters."
 msgstr "Enter a name of at most {MAX_NAME_LENGTH} characters."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Enter a valid email address."
-msgstr "Enter a valid email address."
-
 #: apps/console/components/organization-setup-form.tsx
 msgid "Enter an address of lowercase letters, digits, and single hyphens."
 msgstr "Enter an address of lowercase letters, digits, and single hyphens."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Enter an email address."
-msgstr "Enter an email address."
+msgid "Enter one or more email addresses."
+msgstr "Enter one or more email addresses."
 
 #: apps/console/components/group-form.tsx
 msgid "Enter the group's name."
@@ -1004,6 +1044,10 @@ msgstr "How others in your organizations see you."
 msgid "If a code arrives at {address}, enter it here. It expires in 10 minutes and works once."
 msgstr "If a code arrives at {address}, enter it here. It expires in 10 minutes and works once."
 
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "If signing in there did not finish, continue again: you stay a member."
+msgstr "If signing in there did not finish, continue again: you stay a member."
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
 msgstr "If someone sent you a link to it, check that you are signed in with the right account, or ask them for access."
@@ -1026,8 +1070,8 @@ msgid "Invitation"
 msgstr "Invitation"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Invitation sent to {email}."
-msgstr "Invitation sent to {email}."
+msgid "Invitation sent."
+msgstr "Invitation sent."
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Invitation to {name}"
@@ -1042,12 +1086,20 @@ msgid "Invite"
 msgstr "Invite"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Invite authors and admins here. Learners are added, and anyone removed, by whoever runs Braivo for you."
-msgstr "Invite authors and admins here. Learners are added, and anyone removed, by whoever runs Braivo for you."
+msgid "Invite at most 100 addresses at once."
+msgstr "Invite at most 100 addresses at once."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for you."
+msgstr "Invite learners, authors, and admins here. Anyone is removed by whoever runs Braivo for you."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Invited by {inviter}. Expires on {expires}."
 msgstr "Invited by {inviter}. Expires on {expires}."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Invited, but the email may not have gone."
+msgstr "Invited, but the email may not have gone."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "It can no longer work in Braivo for you there, from its next request. To use it again, connect it again."
@@ -1088,6 +1140,10 @@ msgstr "Its teachers will see no progress until it has learners and a course."
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school}"
 msgstr "Join {school}"
+
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "Join {school} as a learner"
+msgstr "Join {school} as a learner"
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school} as an admin"
@@ -1147,6 +1203,7 @@ msgstr "Last practised counts questions answered here, Show answer included. Res
 #: apps/console/components/group-form.tsx
 #: apps/console/lib/roles.ts
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Learner"
 msgstr "Learner"
 
@@ -1167,6 +1224,14 @@ msgstr "Learners can practise at any of these addresses. Links to share with the
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Learners can't open this course for now."
 msgstr "Learners can't open this course for now."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Learners have no site to practise on yet, so none can be invited. Authors and admins can."
+msgstr "Learners have no site to practise on yet, so none can be invited. Authors and admins can."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Learners have no site to practise on yet."
+msgstr "Learners have no site to practise on yet."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Add a domain below."
@@ -1424,6 +1489,10 @@ msgstr "No teacher can read this group's progress yet."
 msgid "No teachers."
 msgstr "No teachers."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Not a valid email address."
+msgstr "Not a valid email address."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Not active yet"
 msgstr "Not active yet"
@@ -1557,6 +1626,10 @@ msgstr "Practice for {objectiveTitle} isn't available right now."
 msgid "Practice in the last 7 days"
 msgstr "Practice in the last 7 days"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Practise its courses"
+msgstr "Practise its courses"
+
 #. Objectives practised today, by current standing: 2 retained · 1 learning
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practised today: {todaySummary}."
@@ -1677,6 +1750,18 @@ msgstr "Repeated misses: objectives still being learned with {threshold} or more
 msgid "Report a problem"
 msgstr "Report a problem"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Resend"
+msgstr "Resend"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Resend to {email}"
+msgstr "Resend to {email}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Results"
+msgstr "Results"
+
 #. After an objective's title: a form fitting any
 #: apps/learn/components/standing.tsx
 msgid "retained"
@@ -1772,8 +1857,8 @@ msgid "Send again"
 msgstr "Send again"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "Send invitation"
-msgstr "Send invitation"
+msgid "Send invitations"
+msgstr "Send invitations"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Send me a code"
@@ -1792,6 +1877,18 @@ msgstr "Sending…"
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
 msgstr "Sent again to {address}. Use the code in the latest email; it expires in 10 minutes."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Sent again."
+msgstr "Sent again."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Sent an invitation a moment ago. Try again in a minute."
+msgstr "Sent an invitation a moment ago. Try again in a minute."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Sent three invitations in the last 24 hours. Try again later."
+msgstr "Sent three invitations in the last 24 hours. Try again later."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Session"
@@ -1857,6 +1954,10 @@ msgstr "Sign in to continue"
 #: packages/auth-client/password-sign-in.tsx
 msgid "Sign in with a password"
 msgstr "Sign in with a password"
+
+#: apps/console/components/sign-in-page.tsx
+msgid "Sign in with the email address the invitation was sent to, then accept it."
+msgstr "Sign in with the email address the invitation was sent to, then accept it."
 
 #: apps/console/components/account-menu.tsx
 #: apps/learn/components/account-header.tsx
@@ -2010,6 +2111,10 @@ msgstr "The correct option “{correct}” differs from “{other}” only in {d
 msgid "The domain was saved, but setting it up failed. Add it again to retry."
 msgstr "The domain was saved, but setting it up failed. Add it again to retry."
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "The email may not have gone. Copy the link instead."
+msgstr "The email may not have gone. Copy the link instead."
+
 #: apps/learn/components/report-problem.tsx
 msgid "The expected answer seems wrong"
 msgstr "The expected answer seems wrong"
@@ -2057,9 +2162,9 @@ msgstr "There, you will manage and publish learning content."
 msgid "There, you will manage people, settings, and learning content."
 msgstr "There, you will manage people, settings, and learning content."
 
-#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
-msgid "They accept by signing in with this address."
-msgstr "They accept by signing in with this address."
+#: apps/console/routes/invitations/$invitationId.tsx
+msgid "There, you will practise courses."
+msgstr "There, you will practise courses."
 
 #: apps/console/components/group-form.tsx
 msgid "They can read the progress of this group's learners in its courses."
@@ -2174,6 +2279,10 @@ msgstr "today at {time}"
 msgid "tomorrow at {time}"
 msgstr "tomorrow at {time}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Too many invitations are waiting. Wait for some to be accepted or expire."
+msgstr "Too many invitations are waiting. Wait for some to be accepted or expire."
+
 #: packages/auth-client/sign-in.tsx
 msgid "Too many tries. Wait a minute, then try again."
 msgstr "Too many tries. Wait a minute, then try again."
@@ -2227,6 +2336,10 @@ msgstr "Type"
 #: packages/ui/compositions/typed-question.tsx
 msgid "Type the answer"
 msgstr "Type the answer"
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "Up to 100, separated by spaces, commas, or lines. Each accepts by signing in with their address."
+msgstr "Up to 100, separated by spaces, commas, or lines. Each accepts by signing in with their address."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Use a subdomain, such as learn.example.com. A domain without one, such as example.com, works only if its DNS provider supports ALIAS records or CNAME flattening."
@@ -2334,6 +2447,14 @@ msgstr "You sign in with it. It cannot be changed yet."
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "You teach no groups here."
 msgstr "You teach no groups here."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "You were signed out. <0>Sign in again in a new tab</0>, then resend."
+msgstr "You were signed out. <0>Sign in again in a new tab</0>, then resend."
+
+#: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
+msgid "You were signed out. <0>Sign in again in a new tab</0>, then send again: the addresses stay here."
+msgstr "You were signed out. <0>Sign in again in a new tab</0>, then send again: the addresses stay here."
 
 #: apps/learn/components/report-problem.tsx
 msgid "You were signed out. <0>Sign in in a new tab</0>, then send again."

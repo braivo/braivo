@@ -481,3 +481,35 @@ test("smtpMail sends a message through SMTP, as the configured sender", async ()
     ]),
   );
 });
+
+test("smtpMail gives up on a server that stops answering, and ends its connection", async () => {
+  // Answers until the message is sent, then never says whether it took it.
+  let closed!: () => void;
+  const ended = new Promise<void>((resolve) => (closed = resolve));
+  const server = createTcpServer((socket) => {
+    socket.on("close", closed);
+    socket.write("220 test\r\n");
+    createInterface({ input: socket, crlfDelay: Infinity }).on("line", (line) => {
+      if (line === "DATA") socket.write("354 go\r\n");
+      else if (/^(EHLO |MAIL FROM:|RCPT TO:)/.test(line)) socket.write("250 ok\r\n");
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    const sendMail = smtpMail({
+      url: `smtp://127.0.0.1:${port}`,
+      from: "Braivo <codes@example.com>",
+      deadlineMs: 300,
+    });
+    const started = Date.now();
+    await expect(
+      sendMail({ to: "ada@example.com", subject: "Your code", text: "t", html: "<p>h</p>" }),
+    ).rejects.toThrow(/did not answer/);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    // Ended by the transport, not left open for minutes.
+    await ended;
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

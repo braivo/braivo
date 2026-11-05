@@ -79,6 +79,7 @@ const routes = [
   "POST /api/organizations/:organizationId/reports/dismiss",
   "GET  /api/organizations/:organizationId/invitations",
   "POST /api/organizations/:organizationId/invitations",
+  "POST /api/organizations/:organizationId/invitations/:invitationId/resend",
   "GET  /api/invitations/:invitationId",
   "GET  /api/organizations/:organizationId/first-answers",
   "GET  /api/organizations/:organizationId/groups",
@@ -328,7 +329,8 @@ GET  /api/organizations/:organizationId/members                                 
 GET  /api/organizations/:organizationId/reports                                 401     403     403     401       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/reports/dismiss                         401     400     403     401     403     403     403     403     1MB
 GET  /api/organizations/:organizationId/invitations                             401     403     403     401       ·       ·       ·       ·       ·
-POST /api/organizations/:organizationId/invitations                             401     400     403     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/invitations                             401     403     403     401     403     403     403     403     1MB
+POST /api/organizations/:organizationId/invitations/:invitationId/resend        401     403     403     401     403     403     403     403     1MB
 GET  /api/invitations/:invitationId                                             404     404     403     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/first-answers                           401     400     403     401       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  401     403     403     401       ·       ·       ·       ·       ·
@@ -409,6 +411,7 @@ GET  /api/organizations/:organizationId/reports                                 
 POST /api/organizations/:organizationId/reports/dismiss                         404     404     401     404     404     404     404     404     404
 GET  /api/organizations/:organizationId/invitations                             404     404     401     404       ·       ·       ·       ·       ·
 POST /api/organizations/:organizationId/invitations                             404     404     401     404     404     404     404     404     404
+POST /api/organizations/:organizationId/invitations/:invitationId/resend        404     404     401     404     404     404     404     404     404
 GET  /api/invitations/:invitationId                                             404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/first-answers                           404     404     401     404       ·       ·       ·       ·       ·
 GET  /api/organizations/:organizationId/groups                                  404     404     401     404       ·       ·       ·       ·       ·

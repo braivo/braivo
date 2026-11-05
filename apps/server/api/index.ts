@@ -610,29 +610,52 @@
 // names and roles. 403 to a tool, too, while the organization does not let
 // tools read its learners' data (ADR 0050).
 //
-// `POST /api/organizations/:organizationId/invitations` `{ "email", "role" }`
-// — invites an address, trimmed and lowercased, as `author` or `admin`, for 7
-// days, mailing it the link `<origin>/invitations/<id>` in the language
-// `Accept-Language` weighs highest (ADR 0018): 201 `{ "invitation": { "id",
-// "email", "role", "expiresAt" }, "emailSent" }`, `emailSent` false when the
-// invitation was stored but its mail could not be sent. 400 `{ "error",
-// "code" }`, `EMAIL_INVALID` or `ROLE_NOT_INVITABLE` (`owner` and `member`
-// included); 409 `ALREADY_MEMBER` with the member's `roles`, `ALREADY_INVITED`
-// with the pending invitation's `role`, which stays, or `PENDING_LIMIT`, past
-// 1,000 waiting. 403 to anyone but an `owner` or `admin`, and to a tool.
+// `POST /api/organizations/:organizationId/invitations` `{ "emails": ["…"],
+// "role" }` — invites up to 100 addresses, each trimmed and lowercased,
+// repeats dropped, as `member` (a learner), `author`, or `admin`, for 7 days,
+// mailing each the link `<origin>/invitations/<id>` in the language
+// `Accept-Language` weighs highest (ADR 0018): 200 `{ "results": [...],
+// "membersLeft" }`, a result per address in order: `{ "email", "outcome":
+// "invited", "invitation": { "id", "email", "role", "expiresAt" }, "emailSent"
+// }`, `emailSent` false when it was stored but its mail could not be sent in
+// time; `"already a member"` with the member's `roles`; `"already invited"`
+// with the pending invitation's `role`, which stays; `"refused"` with a
+// `code`, `EMAIL_INVALID`, `PENDING_LIMIT` (past 1,000 waiting), or a mail
+// bound (`RECIPIENT_DAILY_LIMIT`, `RECIPIENT_COOLDOWN`,
+// `ORGANIZATION_HOURLY_LIMIT`); or `"failed"`, to try again. `membersLeft`:
+// how many more members fit, invitations holding no places. Refused whole,
+// inviting no one: 400 `{ "error", "code" }`, `EMAILS_INVALID`,
+// `TOO_MANY_ADDRESSES`, or `ROLE_NOT_INVITABLE` (`owner` included); 409
+// `NO_LEARN_DOMAIN`, learners while the organization has no learn domain. 403
+// to anyone but an `owner` or `admin`, and to a tool, also once the actor is
+// no longer one partway through, no further address then tried (401 when
+// the session ended partway); 429 past 60 requests a minute from one client.
+//
+// `POST /api/organizations/:organizationId/invitations/:invitationId/resend`
+// — mails a pending invitation again, within the mail bounds: the same link
+// and role, its expiry renewed, the resender named; one expired meanwhile is
+// invited anew. 200 as one `"invited"` result above. 404
+// `INVITATION_NOT_FOUND`; 409 `NOT_PENDING` (accepted or cancelled),
+// `NO_LEARN_DOMAIN`, or, for one expired, `ALREADY_MEMBER` with `roles`,
+// `ALREADY_INVITED` with `role`, or `PENDING_LIMIT`; 429 a mail bound, by its
+// code, or the client limit; 403 as for inviting.
 //
 // `GET /api/organizations/:organizationId/invitations` — the invitations
-// waiting to be accepted, newest first: `{ "invitations": [{ "id", "email",
-// "role", "inviter": { "name" }, "expiresAt" }] }`. 403 as for inviting.
+// waiting to be accepted, newest first, and `membersLeft` as above: `{
+// "invitations": [{ "id", "email", "role", "inviter": { "name" }, "expiresAt"
+// }], "membersLeft" }`. 403 as for inviting.
 //
 // `GET /api/invitations/:invitationId` — an invitation as its page shows it,
 // with or without a session: `{ "organization": { "name" }, "status" }`,
 // `status` `pending`, `expired`, `canceled`, or `accepted`; with a session,
 // `recipient`, whether the account's email is the invitation's, and to the
 // recipient alone the organization's `slug`, the `role`, and the `inviter`'s
-// `{ "name" }`. Never the email. 404 for one that does not exist; 403 to a
-// tool. Accepting is Better Auth's `POST /api/auth/organization/accept-invitation`
-// `{ "invitationId" }`, for a verified account with the invited email alone.
+// `{ "name" }`, and for a learner's invitation `learnDomain`, the hostname to
+// continue on, `null` while there is none. Never the email. 404 for one that
+// does not exist; 403 to a tool. Accepting is Better Auth's `POST
+// /api/auth/organization/accept-invitation` `{ "invitationId" }`, for a
+// verified account with the invited email alone, a learner's only while the
+// organization has a learn domain (403 `NO_LEARN_DOMAIN`, still pending).
 //
 // `GET /api/organizations/:organizationId/groups` — the organization's groups,
 // by name: `{ "groups": [{ "id", "organizationId", "name", "learners": [{

@@ -78,22 +78,27 @@ export {
   teaches,
   updateGroup,
 } from "./group.ts";
-export type { PendingInvitation } from "./invitation.ts";
+export type { MailBoundCode, MailBounds, PendingInvitation } from "./invitation.ts";
 export {
+  claimInvitationMail,
   countPendingInvitations,
   readInvitation,
+  readOrganizationInvitation,
   readPendingInvitationRole,
   readPendingInvitations,
+  releaseInvitationMail,
+  renewInvitation,
 } from "./invitation.ts";
 export { ConflictingKey } from "./key.ts";
 export type { ListedOrganization, Member, Organization } from "./membership.ts";
 export {
+  countMembers,
   deleteNewOrganization,
   readMemberRolesByEmail,
   readMembers,
   readMemberships,
   readOrganizationRoles,
-  readUserEmail,
+  readUser,
 } from "./membership.ts";
 export type { ObjectiveSummary, Objective } from "./objective.ts";
 export {

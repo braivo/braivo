@@ -3,7 +3,7 @@
 
 import type { Database } from "@braivo/db";
 import { groupMember, member, organization, organizationDomain, user } from "@braivo/db/schema";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 
 /** An organization as the people who manage it find it: by name and slug. */
 export type Organization = { id: string; name: string; slug: string };
@@ -55,13 +55,16 @@ export async function readMemberRolesByEmail(
   return row ? splitRoles(row.role) : [];
 }
 
-/** An account's email, or `undefined` when there is no such account. */
-export async function readUserEmail(
+/** An account's email and name, or `undefined` when there is no such account. */
+export async function readUser(
   database: Database,
   userId: string,
-): Promise<string | undefined> {
-  const [row] = await database.select({ email: user.email }).from(user).where(eq(user.id, userId));
-  return row?.email;
+): Promise<{ email: string; name: string } | undefined> {
+  const [row] = await database
+    .select({ email: user.email, name: user.name })
+    .from(user)
+    .where(eq(user.id, userId));
+  return row;
 }
 
 /**
@@ -129,4 +132,13 @@ function splitRoles(role: string): string[] {
  */
 export async function deleteNewOrganization(database: Database, id: string): Promise<void> {
   await database.delete(organization).where(eq(organization.id, id));
+}
+
+/** How many members an organization has, staff included. */
+export async function countMembers(database: Database, organizationId: string): Promise<number> {
+  const [row] = await database
+    .select({ count: count() })
+    .from(member)
+    .where(eq(member.organizationId, organizationId));
+  return row?.count ?? 0;
 }

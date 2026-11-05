@@ -7,6 +7,7 @@
 // admitted.
 // Shared by every group of routes; a helper one group uses stays in that group.
 
+import { getIP } from "@better-auth/core/utils/ip";
 import type { Database } from "@braivo/db";
 import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -135,6 +136,47 @@ export function refuseUnstorable(context: Context, body: unknown): Response | un
     },
     400,
   );
+}
+
+/**
+ * Lifts Bun's idle timeout from this request, for one that waits on something
+ * slow: the installation's model reading a chapter, or a submission's mail.
+ * Bun, Hono's `env` here, closes a connection idle for ten seconds; the
+ * request waits instead for as long as what it awaits may take. Elsewhere
+ * `env` is something else, such as a Worker's bindings, so `timeout` is called
+ * only if callable: a binding is a value or a resource object, never a bare
+ * function. Not `typeof Bun`, which `bunFree` refuses here.
+ */
+export function disableBunIdleTimeout(context: Context): void {
+  const server = context.env as { timeout?: unknown } | undefined;
+  if (typeof server?.timeout === "function") server.timeout(context.req.raw, 0);
+}
+
+/**
+ * At most `max` requests a minute to a route from one client, told apart as
+ * Better Auth's limiter tells them (`getIP`: `X-Forwarded-For`, true only
+ * behind a proxy that sets it, IPv6 by its /64); unlimited for one it cannot
+ * tell. Counts are dropped whole each minute: one lookup a request, one
+ * minute's clients in memory. Per process and best effort, as Better Auth's
+ * are; bounds that must hold, such as a code's minute per address or the
+ * invitation mail bounds, are kept in the database.
+ */
+export function perClientLimit(auth: Auth, max: number) {
+  let counts = new Map<string, number>();
+  let minuteEndsAt = 0;
+  return createMiddleware(async (context, next) => {
+    const client = getIP(context.req.raw, auth.options);
+    if (!client) return next();
+    const now = Date.now();
+    if (now >= minuteEndsAt) {
+      counts = new Map();
+      minuteEndsAt = now + 60_000;
+    }
+    const count = (counts.get(client) ?? 0) + 1;
+    if (count > max) return context.body(null, 429);
+    counts.set(client, count);
+    return next();
+  });
 }
 
 /** `refuseUnstorable`, for a route reading its body with `jsonBody`. */

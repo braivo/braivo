@@ -31,6 +31,9 @@ describe("an invitation's mail", () => {
     expect(invitationMail({ ...input, role: "admin", locale: "en" }).text).toMatch(
       /As an administrator, you will manage its people, settings, and learning content\./,
     );
+    expect(invitationMail({ ...input, role: "member", locale: "en" }).text).toMatch(
+      /As a learner, you will practise its courses\./,
+    );
   });
 
   test("speaks Polish, the date as Polish writes it", () => {
@@ -38,6 +41,9 @@ describe("an invitation's mail", () => {
 
     expect(mail.subject).toBe("Ana Kowalska zaprasza Cię do organizacji „Fernwood”");
     expect(mail.text).toContain("Zaproszenie wygasa 8 listopada 2026.");
+    expect(invitationMail({ ...input, role: "member", locale: "pl" }).text).toContain(
+      "Jako osoba ucząca się ćwiczysz na jej kursach.",
+    );
     expect(mail.html).toContain('<html lang="pl">');
   });
 

@@ -382,7 +382,7 @@ export function createApi(options: ApiOptions) {
   api.route("/", materialsRoutes(guards, { database, cachedDatabase, files, ai }));
   api.route("/", groupRoutes(guards, { database }));
   api.route("/", reportRoutes(guards, { database }));
-  api.route("/", invitationRoutes(guards, { auth, database }));
+  api.route("/", invitationRoutes(guards, { auth, database, baseUrl, sendMail }));
   api.route("/", connectionRoutes(guards, { database }));
 
   return api;

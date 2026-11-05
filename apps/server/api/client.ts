@@ -23,8 +23,10 @@ import type {
   GroupDefinition,
   Handoff,
   HostOrganization,
+  InvitableRole,
   InvitationPage,
   InvitationResult,
+  InvitationBatchResult,
   LearnerProgressReport,
   LearnerProgressSummary,
   LocatedCitation,
@@ -84,8 +86,10 @@ export type {
   GroupDefinition,
   Handoff,
   HostOrganization,
+  InvitableRole,
   InvitationPage,
   InvitationResult,
+  InvitationBatchResult,
   LearnerProgressReport,
   LearnerProgressStanding,
   LearnerProgressSummary,
@@ -392,24 +396,42 @@ export type BraivoClient = {
   listMembers(organizationId: string, options?: RequestOptions): Promise<Member[]>;
 
   /**
-   * Invites `email` to an organization as `author` or `admin`, mailing them
-   * the invitation's link (ADR 0018), in the language `Accept-Language`
-   * prefers. Resolves to the invitation and whether its mail went, or to what
-   * the address already holds there. A browser's session alone, for an
-   * `owner` or `admin`; otherwise a {@link BraivoError}: 403, or 400 with
-   * `code` `EMAIL_INVALID` or `ROLE_NOT_INVITABLE`, 409 `PENDING_LIMIT`.
+   * Invites up to 100 addresses to an organization as one role, `member` (a
+   * learner), `author`, or `admin`, mailing each the invitation's link (ADR
+   * 0018) in the language `Accept-Language` prefers. Resolves to each
+   * distinct address's result, in order, and how many more members fit. A
+   * browser's session alone, for an `owner` or `admin`; otherwise a
+   * {@link BraivoError}: 403, 400 with `code` `EMAILS_INVALID`,
+   * `TOO_MANY_ADDRESSES`, or `ROLE_NOT_INVITABLE`, or 409 `NO_LEARN_DOMAIN`.
    */
   invite(
     organizationId: string,
-    invitation: { email: string; role: "author" | "admin" },
+    submission: { emails: string[]; role: InvitableRole },
     options?: RequestOptions,
-  ): Promise<InvitationResult>;
+  ): Promise<InvitationBatchResult>;
 
   /**
-   * An organization's invitations waiting to be accepted, newest first.
-   * Refused as `invite`, with status 403.
+   * Mails a pending invitation again: the same link and role, its expiry
+   * renewed; an expired one is invited again, a new link. Refused as
+   * `invite`, or a {@link BraivoError} with `code`: 404
+   * `INVITATION_NOT_FOUND`, 409 `NOT_PENDING`, `NO_LEARN_DOMAIN`,
+   * `ALREADY_MEMBER`, `ALREADY_INVITED`, or `PENDING_LIMIT`, 429 a mail bound
+   * (`RECIPIENT_DAILY_LIMIT`, `RECIPIENT_COOLDOWN`, `ORGANIZATION_HOURLY_LIMIT`).
    */
-  listInvitations(organizationId: string, options?: RequestOptions): Promise<PendingInvitation[]>;
+  resendInvitation(
+    organizationId: string,
+    invitationId: string,
+    options?: RequestOptions,
+  ): Promise<InvitationResult & { outcome: "invited" }>;
+
+  /**
+   * An organization's invitations waiting to be accepted, newest first, and
+   * how many more members fit. Refused as `invite`, with status 403.
+   */
+  listInvitations(
+    organizationId: string,
+    options?: RequestOptions,
+  ): Promise<{ invitations: PendingInvitation[]; membersLeft: number }>;
 
   /**
    * An invitation as its page shows it, signed in or not, or `undefined` for
@@ -1218,42 +1240,28 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return members;
     },
 
-    async invite(organizationId, invitation, requestOptions) {
+    async invite(organizationId, submission, requestOptions) {
       const response = await post(
         `${organizationPath(organizationId)}/invitations`,
-        invitation,
+        submission,
         requestOptions,
       );
 
       const doing = `inviting to organization "${organizationId}"`;
-      if (response.status === 201) {
-        return {
-          outcome: "invited",
-          ...(await parsed<Omit<InvitationResult & { outcome: "invited" }, "outcome">>(
-            response,
-            doing,
-          )),
-        };
-      }
-      if (response.status === 409) {
-        const held = await parsed<{
-          error?: string;
-          code?: string;
-          roles?: string[];
-          role?: string;
-        }>(response, doing);
-        if (held.code === "ALREADY_MEMBER") {
-          return { outcome: "already a member", roles: held.roles ?? [] };
-        }
-        if (held.code === "ALREADY_INVITED") return { outcome: "already invited", role: held.role };
-        throw new BraivoError(
-          409,
-          `Braivo answered 409 ${doing}: ${held.error}`,
-          held.error,
-          held.code,
-        );
-      }
-      throw await unexpected(response, doing);
+      if (response.status !== 200) throw await unexpected(response, doing);
+      return parsed<InvitationBatchResult>(response, doing);
+    },
+
+    async resendInvitation(organizationId, invitationId, requestOptions) {
+      const response = await post(
+        `${organizationPath(organizationId)}/invitations/${encodeURIComponent(invitationId)}/resend`,
+        undefined,
+        requestOptions,
+      );
+
+      const doing = `resending invitation "${invitationId}"`;
+      if (response.status !== 200) throw await unexpected(response, doing);
+      return parsed<InvitationResult & { outcome: "invited" }>(response, doing);
     },
 
     async listInvitations(organizationId, requestOptions) {
@@ -1262,7 +1270,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const doing = `listing the invitations of organization "${organizationId}"`;
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      return (await parsed<{ invitations: PendingInvitation[] }>(response, doing)).invitations;
+      return parsed<{ invitations: PendingInvitation[]; membersLeft: number }>(response, doing);
     },
 
     async invitation(invitationId, requestOptions) {

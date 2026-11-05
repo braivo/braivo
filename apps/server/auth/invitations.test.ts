@@ -5,7 +5,7 @@ import { APIError } from "better-auth/api";
 import { ORGANIZATION_ERROR_CODES } from "better-auth/client/plugins";
 import { describe, expect, test } from "vite-plus/test";
 
-import { NotPermitted } from "../application/permission.ts";
+import { NotPermitted, SignedOut } from "../application/permission.ts";
 import type { Auth } from "./auth.ts";
 import { createInvitation } from "./invitations.ts";
 
@@ -28,12 +28,15 @@ const input = {
 };
 
 describe("createInvitation", () => {
-  test("refuses as Braivo's check does when the session ended or stopped administering since", async () => {
-    for (const status of ["UNAUTHORIZED", "FORBIDDEN"] as const) {
-      await expect(
-        createInvitation(refusing(new APIError(status, { code: "ANY" })), input),
-      ).rejects.toBeInstanceOf(NotPermitted);
-    }
+  test("refuses as Braivo's check does when the actor stopped administering since", async () => {
+    const refused = createInvitation(refusing(new APIError("FORBIDDEN", { code: "ANY" })), input);
+    await expect(refused).rejects.toBeInstanceOf(NotPermitted);
+    await expect(refused).rejects.not.toBeInstanceOf(SignedOut);
+  });
+
+  test("refuses as signed out when the session ended since, not as not permitted", async () => {
+    const ended = new APIError("UNAUTHORIZED", { code: "ANY" });
+    await expect(createInvitation(refusing(ended), input)).rejects.toBeInstanceOf(SignedOut);
   });
 
   test("refuses so when the actor was removed since, as Better Auth reports it", async () => {

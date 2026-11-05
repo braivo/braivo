@@ -136,6 +136,10 @@ const otherTables: Record<string, { naming: string[]; why: string }> = {
     naming: ["email", "inviter_id"],
     why: "not in v1: an invitation to an email, the school's",
   },
+  invitation_mail_claim: {
+    naming: ["email"],
+    why: "not in v1: a mail bound's count of sends to an email, over 24 hours; older rows pruned by later claims",
+  },
   jwks: { naming: [], why: "the server's signing keys" },
   learner_handoff: { naming: ["user_id"], why: "a sign-in handoff's secret, minutes-lived" },
   learner_sign_in_code: { naming: ["email"], why: "a sign-in code's secret, minutes-lived" },

@@ -6,5 +6,6 @@
 export * from "./auth.ts";
 export * from "./domain.ts";
 export * from "./group.ts";
+export * from "./invitation-mail-claim.ts";
 export * from "./learner-session.ts";
 export * from "./learning.ts";

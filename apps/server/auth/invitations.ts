@@ -5,8 +5,8 @@ import { defineRequestState, runWithRequestState } from "@better-auth/core/conte
 import type { Locale } from "@braivo/i18n/locales";
 import { APIError } from "better-auth/api";
 
-import type { InvitableRole, Invited } from "../application/index.ts";
-import { NotPermitted } from "../application/permission.ts";
+import type { CreateInvitationResult, InvitableRole } from "../application/index.ts";
+import { NotPermitted, SignedOut } from "../application/permission.ts";
 import type { Auth } from "./auth.ts";
 
 /**
@@ -19,6 +19,9 @@ export const invitationDelivery = defineRequestState(() => ({
   locale: "en" as Locale,
   sent: true,
 }));
+
+/** Better Auth's refusal of a learner's invitation while the organization has no learn domain. */
+export const NO_LEARN_DOMAIN = "NO_LEARN_DOMAIN";
 
 /**
  * Makes an invitation through Better Auth as the session in `headers`, which
@@ -34,7 +37,7 @@ export async function createInvitation(
     role: InvitableRole;
     locale: Locale;
   },
-): Promise<Invited | "already a member" | "already invited" | "pending limit"> {
+): Promise<CreateInvitationResult> {
   const { headers, organizationId, email, role, locale } = input;
   // A store of this call's own, which the endpoint then reuses rather than
   // starting one the route could not read.
@@ -56,9 +59,11 @@ export async function createInvitation(
       if (code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION") return "already a member";
       if (code === "USER_IS_ALREADY_INVITED_TO_THIS_ORGANIZATION") return "already invited";
       if (code === "INVITATION_LIMIT_REACHED") return "pending limit";
+      if (code === NO_LEARN_DOMAIN) return "no learn domain";
       // The session ended, or the actor stopped administering or was
       // removed, since Braivo's route checked: refused as that check refuses.
-      if (error.statusCode === 401 || error.statusCode === 403 || code === "MEMBER_NOT_FOUND") {
+      if (error.statusCode === 401) throw new SignedOut("The session ended.");
+      if (error.statusCode === 403 || code === "MEMBER_NOT_FOUND") {
         throw new NotPermitted("May not invite to this organization.");
       }
       throw error;

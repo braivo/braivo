@@ -19,14 +19,21 @@ import { bearer, deviceAuthorization, emailOTP, jwt, organization } from "better
 import { adminAc, memberAc, ownerAc } from "better-auth/plugins/organization/access";
 import * as z from "zod";
 
-import { INVITABLE_ROLES, type InvitableRole } from "../application/invitations.ts";
+import { type InvitableRole, isInvitableRole } from "../application/invitations.ts";
 import { mayAuthor } from "../application/permission.ts";
 import { describeLogCall } from "../logging.ts";
-import { invitationMail, mailLocale, type SendMail, signInCodeMail } from "../mail/index.ts";
+import {
+  invitationLink,
+  invitationMail,
+  mailLocale,
+  type SendMail,
+  signInCodeMail,
+} from "../mail/index.ts";
 import {
   claimSignInCode,
   countPendingInvitations,
   organizationOwnsLearningContent,
+  readLearnDomain,
   readOrganizationRoles,
   readPendingInvitationRole,
 } from "../persistence/index.ts";
@@ -37,7 +44,7 @@ import {
   fetchStrictlyPublic,
 } from "./client-metadata.ts";
 import { constraints } from "./constraints.ts";
-import { invitationDelivery } from "./invitations.ts";
+import { invitationDelivery, NO_LEARN_DOMAIN } from "./invitations.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -157,7 +164,7 @@ export const MEMBERSHIP_LIMIT = 1_000;
  * school's staff and families read mail over a weekend; Better Auth's 48 hours
  * would not.
  */
-const INVITATION_DAYS = 7;
+export const INVITATION_DAYS = 7;
 
 /**
  * The most invitations an organization has waiting at once (ADR 0018), apart
@@ -285,6 +292,17 @@ export function createAuth(options: AuthOptions) {
   const metadataFetch =
     options.clientIdMetadataDocuments === "strictly-public" ? fetchStrictlyPublic : fetchPinned;
   const reviewerEmails = options.reviewerEmails ?? new Set<string>();
+  /**
+   * Refuses a learner's invitation, made or accepted, while the organization
+   * has no learn domain (ADR 0018): a learner would join with nowhere to learn.
+   */
+  async function assertLearnersHaveASite(role: string, organizationId: string) {
+    if (role !== "member" || (await readLearnDomain(options.database, organizationId))) return;
+    throw new APIError("FORBIDDEN", {
+      code: NO_LEARN_DOMAIN,
+      message: "Learners have no site here yet.",
+    });
+  }
   const auth = betterAuth({
     // `transaction` is off by default. Better Auth's organization delete
     // removes members before the organization, so without it a Braivo foreign
@@ -529,7 +547,7 @@ export function createAuth(options: AuthOptions) {
             await options.sendMail(
               invitationMail({
                 to: email,
-                link: new URL(`/invitations/${encodeURIComponent(id)}`, options.baseURL).href,
+                link: invitationLink(options.baseURL, id),
                 organization: organization.name,
                 inviter: inviter.user.name || inviter.user.email,
                 // `beforeCreateInvitation` admits no other.
@@ -592,12 +610,13 @@ export function createAuth(options: AuthOptions) {
            * first, to answer in its words; this holds whoever calls.
            */
           beforeCreateInvitation: async ({ invitation, organization: invitedTo }) => {
-            if (!INVITABLE_ROLES.has(invitation.role)) {
+            if (!isInvitableRole(invitation.role)) {
               throw new APIError("BAD_REQUEST", {
                 code: "ROLE_NOT_INVITABLE",
-                message: "Invite as an author or an admin.",
+                message: "Invite as a learner, an author, or an admin.",
               });
             }
+            await assertLearnersHaveASite(invitation.role, invitedTo.id);
             const now = new Date();
             const pending = { organizationId: invitedTo.id, now };
             // Checked, then created, not atomically: two invitations to one
@@ -628,6 +647,9 @@ export function createAuth(options: AuthOptions) {
            * insert again, failing on the unique membership (a 500 each time):
            * added another way since it was invited, it keeps its roles, never
            * taking the invitation's, which stays pending until it expires.
+           * Also refuses a learner's, while the organization has no learn
+           * domain to continue on. Thrown before Better Auth claims the
+           * invitation, so it stays pending.
            */
           beforeAcceptInvitation: async ({ invitation: accepted, user: accepting }) => {
             const roles = await readOrganizationRoles(options.database, {
@@ -640,6 +662,7 @@ export function createAuth(options: AuthOptions) {
                 message: "You are already a member of this organization.",
               });
             }
+            await assertLearnersHaveASite(accepted.role, accepted.organizationId);
           },
           /**
            * Refuses deleting an organization that still owns learning content,

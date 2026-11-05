@@ -13,8 +13,8 @@ import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/
 import { pageHead } from "#lib/title";
 
 export const Route = createFileRoute("/login")({
-  // `failed`: Google's round trip, by handoff, came back unredeemable
-  // (`/api/session/handoff`).
+  // `failed`: a handoff came back unredeemable (`/api/session/handoff`),
+  // Google's round trip's or an invitation's (ADR 0018).
   validateSearch: (search): { redirect?: string; failed?: true } => ({
     redirect: safeRedirect(search.redirect),
     failed: search.failed ? true : undefined,
@@ -80,7 +80,7 @@ function Login() {
       {failed && (
         <Alert variant="destructive" className="mb-6">
           <AlertDescription>
-            {t`Could not sign in with Google. Try again, or sign in with a code.`}
+            {t`Could not finish signing in. Try again from where you started, or sign in with a code.`}
           </AlertDescription>
         </Alert>
       )}

@@ -6,7 +6,7 @@ import type { Locale } from "@braivo/i18n/locales";
 import type { Mail } from "./transport.ts";
 
 /** The roles an invitation carries, as the mail says what each lets them do. */
-type InvitedRole = "author" | "admin";
+type InvitedRole = "member" | "author" | "admin";
 
 /** The words of the invitation mail, one entry per language the apps speak (ADR 0035). */
 const COPY: Record<
@@ -25,6 +25,7 @@ const COPY: Record<
     subject: (inviter, school) => `${inviter} invites you to ${school}`,
     intro: (inviter, school) => `${inviter} invites you to join ${school}.`,
     role: {
+      member: "As a learner, you will practise its courses.",
       author: "As an author, you will manage and publish its learning content.",
       admin: "As an administrator, you will manage its people, settings, and learning content.",
     },
@@ -38,6 +39,7 @@ const COPY: Record<
     subject: (inviter, school) => `${inviter} zaprasza Cię do organizacji „${school}”`,
     intro: (inviter, school) => `${inviter} zaprasza Cię do organizacji „${school}”.`,
     role: {
+      member: "Jako osoba ucząca się ćwiczysz na jej kursach.",
       author: "Jako autor zarządzasz materiałami do nauki i je publikujesz.",
       admin: "Jako administrator zarządzasz osobami, ustawieniami i materiałami do nauki.",
     },
@@ -55,6 +57,11 @@ const escapeHtml = (text: string) =>
     (character) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!,
   );
+
+/** An invitation's page, the link its mail carries and Members copies (ADR 0018). */
+export function invitationLink(baseUrl: string, invitationId: string): string {
+  return new URL(`/invitations/${encodeURIComponent(invitationId)}`, baseUrl).href;
+}
 
 /**
  * The email inviting `to` to an organization (ADR 0018): the school, the
