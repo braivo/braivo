@@ -17,7 +17,7 @@ The model is independent of the interface learning happens in: the learn app or 
 
 ## Users
 
-- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves.
+- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves, in an organization they never have to think of as one ([ADR 0046](adr/0046-material-in-steps.md)).
 - **Learner:** a person using a learning experience powered by Braivo.
 - **Developer:** someone embedding Braivo into an app, LMS, or internal tool through its API.
 
