@@ -4,3 +4,15 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
+
+/*
+ * An inline command moves whole to the next line where it fits there, as a
+ * browser otherwise breaks it at a hyphen (`--no-` / `env-file`). One wider than
+ * the column wraps inside it, anywhere, rather than overflowing a phone's.
+ */
+.prose :not(pre) > code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}

@@ -1,1 +1,1 @@
-{ "title": "Guides", "root": true, "pages": ["authoring", "assistants", "api", "deployment"] }
+{ "title": "Guides", "pages": ["authoring", "assistants", "api", "deployment"] }

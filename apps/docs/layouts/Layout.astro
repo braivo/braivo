@@ -19,6 +19,8 @@ const { title, description } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · Braivo</title>
+    <!-- Under docs/, as a shared host's root is another site's. -->
+    <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/favicon.svg`} type="image/svg+xml" />
     {description && <meta name="description" content={description} />}
     <ClientRouter />
   </head>

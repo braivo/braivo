@@ -31,7 +31,11 @@ export function Docs({ pathname, params, tree, title, description, toc, children
       navigate={navigate}
       search={{ SearchDialog: DocsSearch }}
     >
-      <DocsLayout nav={{ title: "Braivo" }} tree={data.tree}>
+      <DocsLayout
+        nav={{ title: "Braivo" }}
+        githubUrl="https://github.com/braivo/braivo"
+        tree={data.tree}
+      >
         <DocsPage toc={toc}>
           <DocsTitle>{title}</DocsTitle>
           <DocsDescription>{description}</DocsDescription>
