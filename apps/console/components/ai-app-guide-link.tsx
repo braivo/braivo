@@ -10,7 +10,7 @@
 export function AiAppGuideLink() {
   return (
     <a
-      href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md"
+      href="https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx"
       target="_blank"
       rel="noreferrer"
       className="underline underline-offset-4"

@@ -231,6 +231,7 @@ export default defineConfig({
       },
       { test: { name: "db", root: "packages/db" } },
       { test: { name: "tooling", root: "tooling" } },
+      { test: { name: "docs", root: "apps/docs" } },
       localized("i18n", "packages/i18n"),
       localized("ui", "packages/ui"),
       inChromium("ui-browser", "packages/ui"),

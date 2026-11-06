@@ -17,7 +17,8 @@ A separate tool per job — Bun's test runner, oxlint and oxfmt with their own c
 │   ├── server/             # API, learning model, CLI, and the apps' HTTP client
 │   ├── learn/              # learners, on an organization's domain (ADR 0004)
 │   ├── console/            # content owners, on Braivo's origin (ADR 0004)
-│   └── storybook/          # the components' catalog (ADR 0011)
+│   ├── storybook/          # the components' catalog (ADR 0011)
+│   └── docs/               # public documentation, static, on Astro (ADR 0057)
 ├── packages/
 │   ├── db/                 # schema, migrations, client, test seeding
 │   ├── ui/                 # presentation (ADR 0011)

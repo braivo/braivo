@@ -51,7 +51,7 @@ BETTER_AUTH_SECRET=$(openssl rand -base64 32)
 TEST_DATABASE_URL=postgres://localhost/braivo_test
 ENV
 bun run db:migrate
-bun run dev        # API on :3000, learn app on :5173, console on :5174
+bun run dev        # API on :3000, learn app on :5173, console on :5174, docs on :5175
 ```
 
 The committed `.env.development` holds development defaults, such as `DATABASE_URL`, and lists the optional settings. Your secrets and your own values go in the gitignored `.env.local`, which every linked worktree copies: `ANTHROPIC_API_KEY` there turns on Braivo's AI, and a development key with a spend limit keeps a leak cheap. Override `BRAIVO_URL` or ports in `.env.development.local` instead, which Vite ranks above `.env.development` ([ADR 0051](docs/adr/0051-environment-files.md)).
@@ -65,7 +65,7 @@ bun apps/server/cli/index.ts organization create \
   --name "My School" --slug my-school --owner owner@example.com
 ```
 
-Or see it populated: `bun run dev:demo` serves a demo school of this worktree's own, with an administrator, an author, a teacher, and a learner to sign in as, never touching `DATABASE_URL`'s database ([the demo guide](docs/guides/demo.md)).
+Or see it populated: `bun run dev:demo` serves a demo school of this worktree's own, with an administrator, an author, a teacher, and a learner to sign in as, never touching `DATABASE_URL`'s database ([the demo guide](docs/demo.md)).
 
 Tests that need a database skip themselves without `TEST_DATABASE_URL`; give them a database of their own, since they create and delete fixture data. A linked worktree's tests use one of their own ([ADR 0014](docs/adr/0014-worktree-setup.md)).
 
@@ -79,14 +79,14 @@ bun run storybook  # the component catalog
 ## Create a course
 
 - **In the console, with Braivo's AI.** Add a PDF or a photo as a source, have Braivo draft objectives and tasks from it, and review them before creating the course. Needs `ANTHROPIC_API_KEY`.
-- **With your own AI app.** Connect Claude, ChatGPT, or a desktop agent such as Claude Code to your installation's `/mcp` (`https://braivo.app/mcp` on Braivo Cloud), and it drafts with your AI account, what it writes waiting for your review in the console. On your desktop, the agent adds local files with `braivo sources add`. See [Use Braivo from your AI app](docs/guides/assistants.md).
+- **With your own AI app.** Connect Claude, ChatGPT, or a desktop agent such as Claude Code to your installation's `/mcp` (`https://braivo.app/mcp` on Braivo Cloud), and it drafts with your AI account, what it writes waiting for your review in the console. On your desktop, the agent adds local files with `braivo sources add`. See [Use Braivo from your AI app](apps/docs/content/guides/assistants.mdx).
 - **From the command line or the API.** `braivo sources add` adds text, a PDF's pages, or a video's captions; objectives, tasks, and courses come from either way above, or from your own scripts.
 
-All three go through the same checks: every quote must be found in its source, and every task must pass the same validation. See the [authoring guide](docs/guides/authoring.md).
+All three go through the same checks: every quote must be found in its source, and every task must pass the same validation. See the [authoring guide](apps/docs/content/guides/authoring.mdx).
 
 ## The API
 
-Braivo's apps use the same HTTP API as any integration: authoring content, asking for the next learning decision and activity, recording attempts or outside evidence, and reading progress. [The API, end to end](docs/guides/api.md) walks the whole loop with `curl`, and a test runs it as written.
+Braivo's apps use the same HTTP API as any integration: authoring content, asking for the next learning decision and activity, recording attempts or outside evidence, and reading progress. [The API, end to end](apps/docs/content/guides/api.mdx) walks the whole loop with `curl`, and a test runs it as written.
 
 ## Development
 
@@ -114,14 +114,14 @@ Schema changes go through generated, committed migrations: `bun run db:generate`
 
 ## Deployment
 
-`bun run serve` serves the API alone; building the apps and putting them in front of it is yours to arrange until deployment is packaged. The [deployment guide](docs/guides/deployment.md) covers what to set before exposing it, the apps' layout, organizations and their domains, and configuration.
+`bun run serve` serves the API alone; building the apps and putting them in front of it is yours to arrange until deployment is packaged. The [deployment guide](apps/docs/content/guides/deployment.mdx) covers what to set before exposing it, the apps' layout, organizations and their domains, and configuration.
 
 ## Docs
 
 - [Product](docs/product.md) — users, core jobs, principles, and non-goals
 - [Architecture](docs/architecture.md) — the modules, their boundaries, and the dependency rules between them
 - [Glossary](docs/glossary.md) — the terms the code and the docs both use
-- [Guides](docs/guides/) — [authoring](docs/guides/authoring.md), [the API](docs/guides/api.md), [deployment](docs/guides/deployment.md)
+- [Guides](apps/docs/content/guides/) — [authoring](apps/docs/content/guides/authoring.mdx), [the API](apps/docs/content/guides/api.mdx), [deployment](apps/docs/content/guides/deployment.mdx)
 - [Decisions](docs/adr/README.md) — what was decided, and why
 - [Specifications](docs/specs/README.md) — behavior stated precisely and pinned by tests
 

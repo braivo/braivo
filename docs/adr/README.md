@@ -16,6 +16,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0043: A demo per worktree, in a database it created and marked, prepared once](0043-development-demo.md) — proposed
 - [0036: Contributions come under a license CLA, signed by a file in the contributor's pull request](0036-contributor-license-agreement.md)
 - [0037: The console wears neutral grounds and lime, in a light and a dark theme](0037-console-theme-light-and-dark.md)
+- [0057: Public documentation is a static Fumadocs site on Astro, `apps/docs`, in this repository](0057-public-docs-site.md)
 
 ## Server
 

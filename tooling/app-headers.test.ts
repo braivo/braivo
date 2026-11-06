@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Both apps' security headers, in one guard as they are one policy: each
+// The apps' security headers, in one guard as they are one policy: each
 // `public/_headers` is copied into the build, where Workers' static assets, or
-// a self-hoster's proxy, apply it (docs/guides/deployment.md).
+// a self-hoster's proxy, apply it (apps/docs/content/guides/deployment.mdx).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -70,6 +70,27 @@ test.each(["console", "learn"])(
     expect(sent.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
   },
 );
+
+// The docs site holds no session, calls no API, and takes no input, and its pages
+// run inline scripts Astro and Fumadocs write (ADR 0057). Everything else stays.
+test("the docs site differs from the apps' policy in inline scripts alone", () => {
+  const { "script-src": scripts, ...others } = Object.fromEntries(
+    directives(headers("docs").get("content-security-policy") ?? ""),
+  );
+  const { "script-src": appScripts, ...appOthers } = Object.fromEntries(
+    directives(headers("console").get("content-security-policy") ?? ""),
+  );
+  expect(appScripts).toBe("'self'");
+  expect(scripts).toBe("'self' 'unsafe-inline'");
+  expect(others).toEqual(appOthers);
+
+  const withoutPolicy = (app: string) => {
+    const sent = headers(app);
+    sent.delete("content-security-policy");
+    return Object.fromEntries(sent);
+  };
+  expect(withoutPolicy("docs")).toEqual(withoutPolicy("console"));
+});
 
 test.each(["console", "learn"])(
   "%s's index.html has no inline script the policy would block",

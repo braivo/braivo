@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { DEFAULT_PORTS, demoPorts, readDevPorts, worktreePorts } from "./dev-ports.ts";
+import { DEFAULT_PORTS, demoPorts, docsPort, readDevPorts, worktreePorts } from "./dev-ports.ts";
 
 describe("dev ports", () => {
   test("are the main checkout's when nothing is set, or set blank", () => {
@@ -40,6 +40,14 @@ describe("dev ports", () => {
   test("are 20 apart per worktree, the main checkout's first", () => {
     expect(worktreePorts(0)).toEqual(DEFAULT_PORTS);
     expect(worktreePorts(2)).toEqual({ server: 3040, learn: 5213, console: 5214 });
+  });
+
+  test("put the docs beside the learn app and the console, in every worktree", () => {
+    expect(docsPort(DEFAULT_PORTS)).toBe(5175);
+    const ports = worktreePorts(2);
+    expect(docsPort(ports)).toBe(5215);
+    expect(Object.values(ports)).not.toContain(docsPort(ports));
+    expect(Object.values(demoPorts(ports))).not.toContain(docsPort(ports));
   });
 
   test("put a demo 10 above, between one worktree's and the next's", () => {
