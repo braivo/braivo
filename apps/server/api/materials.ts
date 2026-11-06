@@ -207,7 +207,7 @@ export function materialsRoutes(
     async (context) => {
       const body = parseObject(await jsonBody(context));
       if (body === undefined) return context.body(null, 400);
-      const { audience } = body;
+      const { audience, goal } = body;
       if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
 
       disableBunIdleTimeout(context);
@@ -220,6 +220,7 @@ export function materialsRoutes(
           actingAs: context.var.userId,
           sourceId: context.req.param("sourceId"),
           audience,
+          goal,
           now: new Date(),
           signal: context.req.raw.signal,
         });

@@ -896,7 +896,7 @@ export type BraivoClient = {
    * `reason`.
    */
   draftCourse(
-    input: { organizationId: string; sourceId: string; audience?: string },
+    input: { organizationId: string; sourceId: string; goal?: string; audience?: string },
     options?: RequestOptions,
   ): Promise<Draft>;
 
@@ -1821,10 +1821,10 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       }
     },
 
-    async draftCourse({ organizationId, sourceId, audience }, requestOptions) {
+    async draftCourse({ organizationId, sourceId, goal, audience }, requestOptions) {
       const response = await post(
         `${organizationPath(organizationId)}/sources/${encodeURIComponent(sourceId)}/draft`,
-        { audience },
+        { goal, audience },
         requestOptions,
       );
 

@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { session } from "@braivo/db/schema";
+import { aiRequest, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
@@ -642,7 +642,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         "Objective “Say hello”, task “Hola?”: none of its quotes was found in the source.",
       ],
     });
-    expect(asked[0]).toContain("Learners: grade 2.");
+    expect(asked[0]).toContain("<learners>\ngrade 2\n</learners>");
 
     // Served by Bun, the request is let wait for the model past Bun's idle timeout.
     const timeout = vi.fn();
@@ -680,6 +680,62 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       code: "AI_NOT_ENTITLED",
     });
     expect(asked).toHaveLength(2);
+  });
+
+  test("refuses a goal it cannot use, by name, before anything is asked or charged", async () => {
+    const added = await postSource(
+      { title: "Goal", text: "Hola significa hello." },
+      teacher.cookie,
+    );
+    const { sourceId } = (await added.json()) as { sourceId: string };
+    const prompts: string[] = [];
+    const model: Model = {
+      id: "test-model",
+      answer: async ({ prompt }) => {
+        prompts.push(prompt);
+        return { objectives: [], unsupported: "The material does not cover the bill." };
+      },
+    };
+    const drafting = createApi({
+      auth,
+      database,
+      cachedDatabase,
+      baseUrl,
+      ai: { model, organizations: new Set([organizationId]) },
+    });
+    const draft = (body: object, cookie = teacher.cookie) =>
+      drafting.request(`/api/organizations/${organizationId}/sources/${sourceId}/draft`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify(body),
+      });
+    const ledger = () => database.$count(aiRequest, eq(aiRequest.organizationId, organizationId));
+    const charged = await ledger();
+
+    for (const goal of ["", "   ", "a".repeat(301), 7, null, ["ask"], "a\u0000b", "\ud800"]) {
+      const refused = await draft({ goal });
+      expect(refused.status, JSON.stringify(goal)).toBe(400);
+      expect(await refused.json()).toEqual({ error: expect.stringMatching(/\bgoal\b/) });
+    }
+    // Refused before the role, as any invalid body: it reveals nothing.
+    expect((await draft({ goal: " " }, learner.cookie)).status).toBe(400);
+    expect(prompts).toEqual([]);
+    expect(await ledger()).toBe(charged);
+
+    // Counted trimmed, and asked trimmed. A draft of nothing still says why.
+    const longest = "a".repeat(300);
+    const asked = await draft({ goal: `  ${longest}  ` });
+    expect(asked.status).toBe(200);
+    expect(await asked.json()).toEqual({
+      objectives: [],
+      refused: [],
+      unsupported: "The material does not cover the bill.",
+    });
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain(`<goal>\n${longest}\n</goal>`);
+    expect(prompts[0]).not.toContain("<learners>");
+    // Recorded as any draft that reached the model.
+    expect(await ledger()).toBe(charged + 1);
   });
 
   test("reads a PDF's text, page by page, for an organization the operator lets", async () => {

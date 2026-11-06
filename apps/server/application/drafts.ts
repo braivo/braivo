@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { type Draft, draftCourse } from "../ai/index.ts";
+import { isStorableText } from "../content/index.ts";
 import { readSource } from "../persistence/index.ts";
 import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 
@@ -15,6 +16,9 @@ const MAX_CHARACTERS = 200_000;
 
 /** Long enough to describe a class — "grade 2, English speakers learning Spanish". */
 const MAX_AUDIENCE = 200;
+
+/** A sentence or two of what learners should be able to do. */
+const MAX_GOAL = 300;
 
 /**
  * Drafts a course from one of an organization's sources with the
@@ -33,6 +37,8 @@ export async function draftFromSource(input: {
   sourceId: string;
   /** Who the course is for, in the content owner's words. */
   audience?: string;
+  /** What learners should be able to do, as the request sent it. Absent, nothing guides the draft. */
+  goal?: unknown;
   now: Date;
   /** The request's: the model is not kept answering someone who left. */
   signal?: AbortSignal;
@@ -45,6 +51,13 @@ export async function draftFromSource(input: {
       `Describe the learners in at most ${MAX_AUDIENCE} characters, such as "grade 2, English speakers".`,
     );
   }
+
+  if (input.goal !== undefined && !isStorableText(input.goal, MAX_GOAL)) {
+    throw new InvalidAiRequest(
+      `Say in the goal what learners should be able to do, in 1 to ${MAX_GOAL} characters of text.`,
+    );
+  }
+  const goal = input.goal?.trim();
 
   const { ask } = await aiFor(database, ai, { organizationId, actingAs });
 
@@ -62,6 +75,7 @@ export async function draftFromSource(input: {
     signal: input.signal,
     work: async (model) => {
       const { draft, counts } = await draftCourse(model, source, {
+        goal,
         audience,
         signal: input.signal,
       });

@@ -56,7 +56,7 @@ describe("the draft evaluation", () => {
 
     expect(code).toBe(0);
     expect(stdout).toContain(
-      `12 calls of claude-sonnet-5 (6 fixtures × 2 runs) with ${root}'s code`,
+      `20 calls of claude-sonnet-5 (10 fixtures × 2 runs) with ${root}'s code`,
     );
     expect(stdout).toContain("Nothing was asked. Add --yes to spend them.");
     expect(readdirSync(cwd)).toEqual([]);
@@ -335,6 +335,16 @@ describe("the draft evaluation", () => {
     expect(
       checkDraft({ material: "", raw: {}, draft: { objectives: [], refused: [] } }).failed,
     ).toEqual(["nothing kept"]);
+    // Unless it says why, which a goal the material lacks must.
+    const empty = { objectives: [], refused: [] };
+    const said = { ...empty, unsupported: "It does not cover the bill." };
+    expect(checkDraft({ material: "", raw: {}, draft: said }).failed).toEqual([]);
+    expect(
+      checkDraft({ material: "", raw: {}, draft: said, expectUnsupported: true }).failed,
+    ).toEqual([]);
+    expect(
+      checkDraft({ material: "", raw: {}, draft: empty, expectUnsupported: true }).failed,
+    ).toEqual(["nothing kept", "did not say the goal is unsupported"]);
   });
 
   test("finds a reading's lines whatever its quote marks and line breaks, in order", () => {
@@ -376,7 +386,7 @@ describe("the draft evaluation", () => {
     const { draft, counts } = await draftCourse(
       model,
       { id: replay.fixture, title: fixture.title!, text: material, language: fixture.language },
-      { audience: fixture.audience },
+      { goal: fixture.goal, audience: fixture.audience },
     );
 
     expect(counts).toEqual(replay.counts);

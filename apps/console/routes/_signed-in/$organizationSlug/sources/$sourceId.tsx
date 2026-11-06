@@ -23,6 +23,7 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
+import { Textarea } from "@braivo/ui/components/textarea";
 import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import {
@@ -54,7 +55,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
       ),
     ),
   }),
-  // Marked, as a course drafted from it takes its title by default.
+  // Marked, as a course drafted from it may share its title.
   head: (head) => pageHead(head, head.loaderData && `${head.loaderData.source.title} · Source`),
   // Remounted for another source, so no draft carries over to it.
   remountDeps: ({ params }) => params,
@@ -64,6 +65,24 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
 
 /** Enough to recognise the material by; a source may run to megabytes. */
 const SHOWN_CHARACTERS = 20_000;
+
+/** Long enough for a course's name; a longer goal is cut for its title, not for the draft. */
+const SUGGESTED_TITLE_CHARACTERS = 80;
+
+/**
+ * A course's title from its goal: the goal's first characters, ending at a word
+ * unless one word is all there is. The owner edits it in review.
+ */
+function suggestTitle(goal: string): string {
+  const characters = Array.from(goal.replace(/\s+/g, " "));
+  if (characters.length <= SUGGESTED_TITLE_CHARACTERS) return characters.join("");
+  // One past the limit, so a word ending exactly at it counts as ended.
+  const head = characters.slice(0, SUGGESTED_TITLE_CHARACTERS + 1).join("");
+  const lastSpace = head.lastIndexOf(" ");
+  return lastSpace > 0
+    ? head.slice(0, lastSpace)
+    : characters.slice(0, SUGGESTED_TITLE_CHARACTERS).join("");
+}
 
 /** Braivo's words when it gave any, or `fallback`. */
 function reasonOf(thrown: unknown, fallback: string): string {
@@ -186,6 +205,9 @@ function SourceText({ text }: { text: string }) {
   );
 }
 
+/** What a draft was asked with, as sent. */
+type DraftContext = { goal: string; audience?: string };
+
 /**
  * Asks Braivo's AI for a course drafted from this source, then lets the
  * content owner keep what is right and author it (docs/adr/0029-server-drafting.md).
@@ -200,6 +222,9 @@ function DraftCourse(props: { source: Source }) {
   const router = useRouter();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<Draft>();
+  // What the review's draft was asked with, frozen at sending. It outlives a
+  // discarded review, so drafting again need not retype a required goal.
+  const [asked, setAsked] = useState<DraftContext>();
   // The review replaces this form, so it takes the focus if the form held it.
   const [focusReview, setFocusReview] = useState(false);
   const [error, setError] = useState<string>();
@@ -221,7 +246,15 @@ function DraftCourse(props: { source: Source }) {
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
     const form = event.currentTarget;
-    const audience = (new FormData(form).get("audience") as string).trim();
+    const goalField = form.elements.namedItem("goal") as HTMLTextAreaElement;
+    const goal = goalField.value.trim();
+    // `required` passes spaces (docs/apps.md, Text).
+    if (!goal) {
+      goalField.setCustomValidity("Say what learners should be able to do.");
+      goalField.reportValidity();
+      return;
+    }
+    const audience = (new FormData(form).get("audience") as string).trim() || undefined;
     const signal = abortOnUnmount();
 
     setDrafting(true);
@@ -229,12 +262,10 @@ function DraftCourse(props: { source: Source }) {
     try {
       // Unbounded: drafting takes minutes, and a retry spends another AI request.
       const drafted = await explainAiFailure(
-        braivo.draftCourse(
-          { organizationId, sourceId: source.id, audience: audience || undefined },
-          { signal },
-        ),
+        braivo.draftCourse({ organizationId, sourceId: source.id, goal, audience }, { signal }),
       );
       setFocusReview(form.contains(document.activeElement));
+      setAsked({ goal, audience });
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
@@ -247,11 +278,12 @@ function DraftCourse(props: { source: Source }) {
     }
   }
 
-  if (draft) {
+  if (draft && asked) {
     return (
       <ReviewDraft
         source={source}
         draft={draft}
+        asked={asked}
         takeFocus={focusReview}
         onDiscard={() => {
           setDraft(undefined);
@@ -289,17 +321,36 @@ function DraftCourse(props: { source: Source }) {
       </Heading>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor={`${id}-audience`}>Learners</FieldLabel>
+          <FieldLabel htmlFor={`${id}-goal`}>What should learners be able to do?</FieldLabel>
+          <Textarea
+            id={`${id}-goal`}
+            name="goal"
+            required
+            maxLength={300}
+            rows={2}
+            readOnly={drafting}
+            defaultValue={asked?.goal}
+            onChange={(event) => event.target.setCustomValidity("")}
+            aria-describedby={`${id}-goal-hint`}
+          />
+          <FieldDescription id={`${id}-goal-hint`}>
+            For example: order food and ask for the bill politely. The draft stays within the pages
+            you choose.
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-audience`}>Who are the learners?</FieldLabel>
           <Input
             id={`${id}-audience`}
             name="audience"
             maxLength={200}
             readOnly={drafting}
+            defaultValue={asked?.audience}
             placeholder="Grade 2, English speakers learning Spanish"
             aria-describedby={`${id}-audience-hint`}
           />
           <FieldDescription id={`${id}-audience-hint`}>
-            Who the course is for. Braivo's AI reads the whole source, which can take a few minutes.
+            Optional. Braivo's AI reads the whole source, which can take a few minutes.
           </FieldDescription>
         </Field>
         {error && (
@@ -333,11 +384,12 @@ function DraftCourse(props: { source: Source }) {
 function ReviewDraft(props: {
   source: Source;
   draft: Draft;
+  asked: DraftContext;
   /** Whether the heading takes the focus once shown. */
   takeFocus: boolean;
   onDiscard: () => void;
 }) {
-  const { source, draft, takeFocus, onDiscard } = props;
+  const { source, draft, asked, takeFocus, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
   const { t } = useLingui();
   const organizationId = organization.id;
@@ -568,11 +620,21 @@ function ReviewDraft(props: {
       <Heading level={2} id={`${id}-heading`} ref={heading} tabIndex={-1}>
         Review the draft
       </Heading>
+      {/* What it was asked for, so the owner judges the draft against it. */}
+      <p className="text-sm wrap-break-word">
+        Drafted from the whole source for: {asked.goal}
+        {asked.audience && ` · Learners: ${asked.audience}`}
+      </p>
       <MutedText>
         {submitted
           ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
           : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
       </MutedText>
+      {draft.unsupported && (
+        <Alert className="wrap-anywhere">
+          <AlertDescription>The draft says: {draft.unsupported}</AlertDescription>
+        </Alert>
+      )}
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
         // longest word a reason quotes, such as a link.
@@ -709,7 +771,7 @@ function ReviewDraft(props: {
             name="title"
             required
             maxLength={MAX_TITLE}
-            defaultValue={source.title}
+            defaultValue={suggestTitle(asked.goal)}
             onChange={() => clearFieldError(`${id}-title`)}
             {...ariaFor(`${id}-title`)}
           />
