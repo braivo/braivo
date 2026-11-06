@@ -356,10 +356,6 @@ msgstr "Działania"
 msgid "Activate"
 msgstr "Aktywuj"
 
-#: apps/console/components/connect-ai-app.tsx
-msgid "Add a connector or app by its URL."
-msgstr "Dodaj konektor lub aplikację, podając adres URL."
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add a domain"
 msgstr "Dodaj domenę"
@@ -879,8 +875,8 @@ msgid "Creating…"
 msgstr "Tworzenie…"
 
 #: apps/console/components/connect-ai-app.tsx
-msgid "Customize, Connectors, Add custom connector."
-msgstr "Customize, Connectors, Add custom connector."
+msgid "Customize, Connectors, “+ Add”, “Add custom connector”. Enter a name and this address, select “Continue”, then “Add”. In a chat, turn it on under “+”, “Connectors”. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors; you then select “Connect” under Customize, Connectors."
+msgstr "Customize, Connectors, „+ Add”, „Add custom connector”. Wpisz nazwę i ten adres, wybierz „Continue”, a potem „Add”. Na czacie włącz go w „+”, „Connectors”. W planie Team lub Enterprise dodaje go właściciel w Organization settings, Connectors, a Ty wybierasz „Connect” w Customize, Connectors."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
@@ -1692,6 +1688,10 @@ msgstr "Cele nauczania bez ćwiczeń"
 msgid "on {date} at {time}"
 msgstr "{date} o {time}"
 
+#: apps/console/components/connect-ai-app.tsx
+msgid "On the web, on a Business, Enterprise, or Edu plan that allows it. At chatgpt.com/plugins, select the plus button, then “Add custom MCP server”. Enter a name and this address as the Server URL, and choose OAuth. Select “I understand and want to continue”, then “Create as a plugin”, and install it. In a new chat, type @ and select it."
+msgstr "W przeglądarce, w planie Business, Enterprise lub Edu, który na to pozwala. Na stronie chatgpt.com/plugins wybierz przycisk plusa, a potem „Add custom MCP server”. Wpisz nazwę, ten adres jako Server URL i wybierz OAuth. Wybierz „I understand and want to continue”, potem „Create as a plugin”, i zainstaluj. W nowym czacie wpisz @ i wybierz go."
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
 msgstr "Jedno pytanie naraz. To, na co odpowiesz źle, wróci wkrótce, a to, na co odpowiesz dobrze, wróci do powtórki, zanim zdążysz to zapomnieć."
@@ -2330,10 +2330,6 @@ msgstr "Motyw"
 msgid "Then ask it, attaching your material:"
 msgstr "Następnie załącz swój materiał i poproś:"
 
-#: apps/console/components/connect-ai-app.tsx
-msgid "Then sign in to Braivo in the page that opens, choose the organization, and approve it. <0>Step by step</0>"
-msgstr "Potem zaloguj się do Braivo na stronie, która się otworzy, wybierz organizację i zezwól na dostęp. <0>Krok po kroku</0>"
-
 #: apps/console/components/no-such-setting.tsx
 msgid "There is no such setting"
 msgstr "Nie ma takiego ustawienia"
@@ -2586,6 +2582,10 @@ msgstr "Co jest nie tak z tym pytaniem?"
 #: apps/learn/components/report-problem.tsx
 msgid "What's wrong?"
 msgstr "Co jest nie tak?"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. <0>Step by step</0>"
+msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. <0>Krok po kroku</0>"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"

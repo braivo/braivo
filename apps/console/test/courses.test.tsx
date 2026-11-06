@@ -40,12 +40,15 @@ describe("the console", () => {
     const inOption = within(option);
     expect(inOption.getByText(address)).toBeTruthy();
     // Each app the guide supports, its steps beside its name, and only those.
-    expect(inOption.getByText("Claude").nextElementSibling?.textContent).toMatch(
-      /Add custom connector/,
-    );
-    expect(inOption.getByText("ChatGPT").nextElementSibling?.textContent).toMatch(
-      /connector or app/,
-    );
+    const claude = inOption.getByText("Claude").nextElementSibling?.textContent;
+    expect(claude).toContain("Customize, Connectors, “+ Add”, “Add custom connector”");
+    expect(claude).toContain("turn it on under “+”, “Connectors”");
+    const chatGpt = inOption.getByText("ChatGPT").nextElementSibling?.textContent;
+    expect(chatGpt).toContain("Business, Enterprise, or Edu plan");
+    expect(chatGpt).toContain("chatgpt.com/plugins");
+    expect(chatGpt).toContain("“Add custom MCP server”");
+    expect(chatGpt).toContain("OAuth");
+    expect(chatGpt).toContain("type @ and select it");
     expect(inOption.getByText("Claude Code").nextElementSibling?.textContent).toContain(
       `claude mcp add --transport http braivo ${address}`,
     );
