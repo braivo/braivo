@@ -18,6 +18,8 @@ import {
   exportLearner,
   previewAccountErasure,
   previewHistoryErasure,
+  previewOwnerPromotion,
+  promoteToOwner,
   readAiReport,
   registerLearnDomain,
 } from "../application/index.ts";
@@ -60,6 +62,11 @@ Running an installation (a content owner's commands are braivo's):
   organization add-member --slug <slug> --email <email> [--role member|author|admin]
                 Add an existing account as a learner (member, the default),
                 an author of its content (author), or an administrator (admin).
+  organization make-owner --slug <slug> --email <email> [--yes]
+                Make an existing member an owner too, on the organization's
+                instruction: shows the database, the organization, the account,
+                and its role, and asks for the slug typed back unless --yes.
+                Never adds a member or removes an owner. No command demotes an owner.
   organization add-domain --slug <slug> --hostname <hostname>
                 Register <hostname> for the organization's learn app, the
                 one it is named by from now on, its earlier ones still
@@ -217,6 +224,54 @@ async function main(argv: readonly string[]): Promise<number> {
         added.role
       ];
       console.log(`Added ${email} to ${added.organization.name} as ${as}.`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
+  if (argv[0] === "organization" && argv[1] === "make-owner") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: {
+        slug: { type: "string" },
+        email: { type: "string" },
+        yes: { type: "boolean" },
+      },
+    });
+    const { slug, email, yes } = values;
+    if (!slug || !email) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    const databaseUrl = readDatabaseUrl(process.env);
+    const database = createDatabase(databaseUrl);
+    try {
+      const target = await previewOwnerPromotion({ database, slug, email });
+      const { name } = target.organization;
+      if (target.roles.includes("owner")) {
+        console.log(`${target.email} is already an owner of ${name}. Nothing was changed.`);
+        return 0;
+      }
+      const { host, pathname } = new URL(databaseUrl);
+      console.log(`Database:     ${host}${pathname}`);
+      console.log(`Organization: ${name} (${slug})`);
+      console.log(`Account:      ${target.email} (${target.userId})`);
+      console.log(`Role now:     ${target.roles.join(", ")}`);
+      console.log(
+        "An owner may delete the organization. This promotion cannot be undone without the database.",
+      );
+      if (!yes && (await typedBack(`Type ${slug} to make them an owner: `)) !== slug) {
+        console.error("Not confirmed. Nothing was changed.");
+        return 1;
+      }
+      const outcome = await promoteToOwner({ database, target });
+      console.log(
+        outcome === "made"
+          ? `${target.email} is now an owner of ${name}.`
+          : `${target.email} is already an owner of ${name}. Nothing was changed.`,
+      );
     } finally {
       await database.$client.end();
     }

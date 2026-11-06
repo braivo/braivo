@@ -3,7 +3,16 @@
 
 import type { Database } from "@braivo/db";
 
-import { deleteMember, type Member, updateMemberRole } from "../persistence/index.ts";
+import {
+  deleteMember,
+  makeMemberOwner,
+  type Member,
+  type Organization,
+  readOrganizationBySlug,
+  readOrganizationRoles,
+  readUserIdByEmail,
+  updateMemberRole,
+} from "../persistence/index.ts";
 import { assertMayAdminister } from "./permission.ts";
 
 /**
@@ -93,4 +102,52 @@ export async function setMemberRole(input: {
   });
   if (typeof set === "string") throw refusal(set);
   return set;
+}
+
+export type OwnerPromotionTarget = {
+  organization: Organization;
+  userId: string;
+  email: string;
+  roles: string[];
+};
+
+/**
+ * Who the operator's `make-owner` would promote, for them to confirm (access-58),
+ * refusing whatever could not be: promoting comes after, by these IDs, so a
+ * confirmation never lands on an account made since under the address.
+ */
+export async function previewOwnerPromotion(input: {
+  database: Database;
+  slug: string;
+  email: string;
+}): Promise<OwnerPromotionTarget> {
+  const { database, slug } = input;
+  // As sign-in stores it (access-1).
+  const email = input.email.trim().toLowerCase();
+  if (email === "") throw new Error("An email address is required.");
+  const organization = await readOrganizationBySlug(database, slug);
+  if (!organization) throw new Error(`No organization has the slug ${slug}.`);
+  const userId = await readUserIdByEmail(database, email);
+  if (userId === undefined) throw new Error(`No account has the email ${email}.`);
+  const roles = await readOrganizationRoles(database, { organizationId: organization.id, userId });
+  if (roles.length === 0) {
+    throw new Error(`${email} is not a member of ${organization.name}; add them first.`);
+  }
+  return { organization, userId, email, roles };
+}
+
+/** Promotes who `previewOwnerPromotion` found; refused if they left since. */
+export async function promoteToOwner(input: {
+  database: Database;
+  target: OwnerPromotionTarget;
+}): Promise<"made" | "already owner"> {
+  const { database, target } = input;
+  const { organization, userId, email } = target;
+  const outcome = await makeMemberOwner(database, { organizationId: organization.id, userId });
+  if (outcome === "not a member") {
+    throw new Error(
+      `${email} is not a member of ${organization.name} any more. Nothing was changed.`,
+    );
+  }
+  return outcome;
 }

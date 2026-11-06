@@ -21,9 +21,7 @@ export type ListedOrganization = Organization & { learnDomain: string | null };
  *
  * Roles rather than a yes or no, because membership answers two different
  * questions and they have different answers: whether a learner may be shown an
- * organization's material, and whether someone may act on it. Better Auth's
- * organization plugin writes `owner` for whoever created the organization, and
- * `admin` or `member` for everyone since.
+ * organization's material, and whether someone may act on it.
  *
  * Organization membership is the only entitlement Braivo has, and
  * docs/adr/0006-better-auth.md is explicit that carrying an organization ID
@@ -203,6 +201,30 @@ export async function updateMemberRole(
     .from(user)
     .where(eq(user.id, row.userId));
   return { userId: row.userId, name: named?.name ?? "", roles: splitRoles(row.role) };
+}
+
+/**
+ * Makes a member an owner, and nothing else: exactly `owner`, which holds what
+ * every other role does, never adding a member or touching another owner. Needs
+ * no lock of `isOnlyOwner`'s: it only adds an owner, and whatever waits on this
+ * row, a removal or a role change, then finds an owner and refuses.
+ */
+export async function makeMemberOwner(
+  database: Database | Transaction,
+  input: { organizationId: string; userId: string },
+): Promise<"made" | "already owner" | "not a member"> {
+  const where = and(
+    eq(member.organizationId, input.organizationId),
+    eq(member.userId, input.userId),
+  );
+  const rows = await database
+    .update(member)
+    .set({ role: "owner" })
+    .where(and(where, sql`not ${holdsOwner}`))
+    .returning({ id: member.id });
+  if (rows.length > 0) return "made";
+  const [held] = await database.select({ id: member.id }).from(member).where(where);
+  return held ? "already owner" : "not a member";
 }
 
 function splitRoles(role: string): string[] {

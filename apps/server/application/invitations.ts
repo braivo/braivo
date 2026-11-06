@@ -32,8 +32,7 @@ export type { PendingInvitation } from "../persistence/index.ts";
 
 /**
  * The roles an invitation may carry (ADR 0018): a learner (`member`), an
- * author, or an administrator. Never `owner`, which only creating an
- * organization gives.
+ * author, or an administrator, never `owner`.
  */
 export type InvitableRole = "member" | "author" | "admin";
 const INVITABLE_ROLES: ReadonlySet<unknown> = new Set<InvitableRole>(["member", "author", "admin"]);
