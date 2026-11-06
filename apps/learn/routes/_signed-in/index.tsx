@@ -135,9 +135,10 @@ function hasWaiting({ learning, dueForReview, new: fresh }: CourseWaiting) {
 /**
  * A course, the whole card its link, a tap away from practice: its title, the
  * course page's meter, and one line: what waits there now, the next step, or
- * with nothing waiting, where the learner stands (progress-8). Without those
- * read, or for a course with no objectives, the title alone. Named by its title,
- * the line its description.
+ * with nothing waiting, where the learner stands (progress-8). The meter is
+ * hidden from assistive technology, so the standing's counts are always said to
+ * it. Without those read, or for a course with no objectives, the title alone.
+ * Named by its title, the rest its description.
  */
 function CourseCard({
   course,
@@ -151,15 +152,15 @@ function CourseCard({
   const { t } = useLingui();
   const titleId = useId();
   const lineId = useId();
+  const countsId = useId();
   const waits = read !== undefined && hasWaiting(read.waiting);
   const started = read && read.standing.notStarted < totalOf(read.standing);
-  const line = !read
-    ? undefined
-    : !waits
-      ? countsLine(read.standing, t)
-      : started
-        ? waitingLine(read.waiting, t)
-        : t`We start with a question and use your answers to choose what comes next.`;
+  const counts = read && countsLine(read.standing, t);
+  const line = !waits
+    ? counts
+    : started
+      ? waitingLine(read.waiting, t)
+      : t`We start with a question and use your answers to choose what comes next.`;
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -169,7 +170,7 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={line ? lineId : undefined}
+          aria-describedby={waits ? `${lineId} ${countsId}` : line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
@@ -184,6 +185,11 @@ function CourseCard({
                 >
                   {line}
                 </ItemDescription>
+                {waits && (
+                  <span id={countsId} className="sr-only">
+                    {counts}
+                  </span>
+                )}
               </>
             )}
           </ItemContent>

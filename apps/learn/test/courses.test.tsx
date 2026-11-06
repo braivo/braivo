@@ -86,10 +86,12 @@ describe("the learn app", () => {
 
     const lead = await screen.findByRole("link", {
       name: "Spanish",
-      description: spaced("2 to review"),
+      description: spaced("2 to review 1 retained · 2 due for review"),
     });
-    // One count line, and the meter still: the standing's counts wait for the course.
-    expect(within(lead).queryByText(/due for review/)).toBeNull();
+    // One line to see, and the meter, whose counts are said to assistive technology.
+    expect(within(lead).getByText(spaced("1 retained · 2 due for review")).className).toContain(
+      "sr-only",
+    );
     expect(lead.querySelector('[aria-hidden="true"].rounded-full')).toBeTruthy();
     const cards = screen.getAllByRole("link", { name: /Arabic|Spanish/ });
     expect(cards).toHaveLength(2);
@@ -146,12 +148,14 @@ describe("the learn app", () => {
 
     await screen.findByRole("link", {
       name: "French",
-      description: spaced("1 to practise · 2 to review · 3 new"),
+      description: spaced(
+        "1 to practise · 2 to review · 3 new 2 due for review · 1 learning · 3 not started",
+      ),
     });
     expect(
       screen.getByRole("link", {
         name: "Spanish",
-        description: spaced("2 new"),
+        description: spaced("2 new 1 retained · 2 not started"),
       }),
     ).toBeTruthy();
     expect(
@@ -188,7 +192,7 @@ describe("the learn app", () => {
       await screen.findByRole("link", {
         name: "Arabic",
         description: spaced(
-          "We start with a question and use your answers to choose what comes next.",
+          "We start with a question and use your answers to choose what comes next. 4 not started",
         ),
       }),
     ).toBeTruthy();
