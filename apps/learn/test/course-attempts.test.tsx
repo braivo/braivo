@@ -660,9 +660,7 @@ describe("the learn app", () => {
     expect(sent.response).not.toEqual(old.response);
   });
 
-  // Known wrong (access's gaps): `submit` rechecks no session, so this fails. A
-  // fix makes it pass, and `test.fails` then fails, to be removed with the fix.
-  test.fails("Send again in an open tab never sends an old answer as the account made since", async () => {
+  test("Send again sends nothing as an account made since, which gets the question fresh", async () => {
     let signedIn = { id: "ada", name: "Ada Fernley" };
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
@@ -680,9 +678,38 @@ describe("the learn app", () => {
     // Erased, and signed in again elsewhere: the cookie is the new account's.
     signedIn = recreated;
     fireEvent.click(again);
-    await act(async () => {});
 
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Send again" })).toBeNull());
+    expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
+    expect(screen.queryByText("Your answer could not be confirmed.")).toBeNull();
     expect(submitAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  test("Send again sends nothing while it cannot tell who is signed in, and can be pressed again", async () => {
+    const session = vi
+      .fn<BraivoClient["session"]>()
+      .mockResolvedValue({ id: "ada", name: "Ada Fernley" });
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 0 });
+    renderAt("/c/4732", {
+      signedIn: true,
+      session,
+      nextActivity: async () => activity,
+      submitAttempt,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const again = await screen.findByRole("button", { name: "Send again" });
+
+    session.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.click(again);
+    await vi.waitFor(() => expect(again.getAttribute("aria-disabled")).toBe("false"));
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(again);
+    expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledTimes(2);
   });
 
   test("holds Continue while the next activity loads, so a second press does not restart it", async () => {

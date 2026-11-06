@@ -1135,6 +1135,32 @@ function Practice({
     }
   }
 
+  /**
+   * The answer sent before, under the account this tab loaded for, or nothing:
+   * the session's cookie may be another's by now, and Braivo would take this as
+   * its first answer (access-49). Reloaded, the guard decides, and the answer
+   * stays for its own learner. The check failing is said as the send's failure.
+   */
+  async function sendAgain(response: TaskResponse) {
+    const left = lifetime.current?.signal;
+    setSending(true);
+    try {
+      const account = await braivo.session({ signal: withDeadline(left, READ_DEADLINE_MS) });
+      if (left?.aborted) return;
+      if (account?.id === user.id) {
+        await submit(response);
+        return;
+      }
+      await router.invalidate({ sync: true });
+    } catch (error) {
+      if (left?.aborted) return;
+      if (error instanceof BraivoError && error.status === 401) await reloadCourse(router);
+      else setUnconfirmedCount((count) => count + 1);
+    } finally {
+      if (!left?.aborted) setSending(false);
+    }
+  }
+
   async function next() {
     // Held until the next activity replaces this one, or fails to: a second
     // press would read it twice.
@@ -1250,7 +1276,7 @@ function Practice({
             size="lg"
             autoFocus
             aria-disabled={sending}
-            onClick={() => !sending && submit(sent)}
+            onClick={() => !sending && sendAgain(sent)}
           >
             {sending ? t`Sending…` : t`Send again`}
           </Button>
