@@ -4,7 +4,7 @@ An AI app that connects to remote MCP servers by OAuth, such as Claude, ChatGPT,
 
 ## Connect
 
-1. In the app, add a connector (Claude: Customize, Connectors, Add custom connector; ChatGPT: a connector or app added by URL) with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. In Claude Code, run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in. Braivo's console shows it, ready to copy, in your account's settings, Connected apps. Once Braivo is listed in the app's directory, adding it from there does the same.
+1. In the app, add a connector (Claude: Customize, Connectors, Add custom connector; ChatGPT: a connector or app added by URL) with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. In Claude Code, run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in. Braivo's console shows it, ready to copy, in your account's settings, Connected apps, and on an organization's Courses while it has none, with these steps and a first prompt to paste. Once Braivo is listed in the app's directory, adding it from there does the same.
 2. Sign in to Braivo in the page that opens.
 3. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
 4. Approve it. The page names the app and the organization.

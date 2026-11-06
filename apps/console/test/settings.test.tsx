@@ -1270,9 +1270,13 @@ describe("the console", () => {
       );
       expect(guide.getAttribute("target")).toBe("_blank");
       expect(guide.getAttribute("rel")).toBe("noreferrer");
-      fireEvent.click(screen.getByRole("button", { name: "Copy address" }));
+      fireEvent.click(screen.getByRole("button", { name: "Copy connector address" }));
       expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
       expect(writeText).toHaveBeenCalledExactlyOnceWith(address);
+      // Each app's steps, as on an empty course list; no first prompt, since
+      // settings are the account's, not the organization's they were opened from.
+      expect(within(section).getByText("Claude Code")).toBeTruthy();
+      expect(within(section).queryByRole("button", { name: "Copy first prompt" })).toBeNull();
     });
 
     test("hide how to connect an app from someone administering no organization", async () => {

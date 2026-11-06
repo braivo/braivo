@@ -3,12 +3,12 @@
 
 import { type BraivoClient, BraivoError } from "@braivo/server/client";
 import { createBrowserHistory } from "@tanstack/react-router";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { members, courseProgress, school, annex, beginners, readCourse } from "./fixtures.ts";
-import { stall, waitOut, renderAt, expectAiAppGuide, answerLeaving } from "./render.tsx";
+import { stall, waitOut, renderAt, answerLeaving } from "./render.tsx";
 
 describe("the console", () => {
   test("leads from an organization to its sources", async () => {
@@ -23,7 +23,56 @@ describe("the console", () => {
     );
     expect(screen.queryByRole("link", { name: "Add material" })).toBeNull();
     expect(screen.getByText(/draft a course from it there/)).toBeTruthy();
-    expectAiAppGuide();
+  });
+
+  test("offers an author with no courses building one with their own AI app", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    });
+    renderAt("/example", { braivo: { listCourses: async () => [] } });
+
+    const option = await screen.findByRole("region", { name: "Build with your AI app" });
+    const address = `${window.location.origin}/mcp`;
+    const inOption = within(option);
+    expect(inOption.getByText(address)).toBeTruthy();
+    // Each app the guide supports, its steps beside its name, and only those.
+    expect(inOption.getByText("Claude").nextElementSibling?.textContent).toMatch(
+      /Add custom connector/,
+    );
+    expect(inOption.getByText("ChatGPT").nextElementSibling?.textContent).toMatch(
+      /connector or app/,
+    );
+    expect(inOption.getByText("Claude Code").nextElementSibling?.textContent).toContain(
+      `claude mcp add --transport http braivo ${address}`,
+    );
+    expect(option.querySelectorAll("dt")).toHaveLength(3);
+
+    const prompt = inOption.getByText(
+      /turn the material I attach into a course for Example School/,
+    );
+    expect(prompt.textContent).toMatch(/waits for my review in Braivo/);
+    fireEvent.click(inOption.getByRole("button", { name: "Copy first prompt" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledExactlyOnceWith(prompt.textContent));
+
+    const guide = inOption.getByRole("link", { name: "Step by step" });
+    expect(guide.getAttribute("href")).toBe(
+      "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect",
+    );
+    // Beside adding material, an equal way to start.
+    expect(screen.getByRole("region", { name: "Add material" })).toBeTruthy();
+  });
+
+  test("offers no AI app's steps once there are courses", async () => {
+    renderAt("/example", {
+      braivo: { listCourses: async () => [{ id: "c1", title: "Spanish", published: true }] },
+    });
+
+    expect(await screen.findByRole("link", { name: "Spanish" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Build with your AI app" })).toBeNull();
   });
 
   test("promises no drafting in the console, with no course yet, where Braivo's AI is off", async () => {
@@ -33,11 +82,12 @@ describe("the console", () => {
     });
 
     const said = await screen.findByText(/off for this organization/);
-    expect(said.textContent).toMatch(
-      /ask whoever runs Braivo.*your own AI app, such as Claude or ChatGPT/,
-    );
-    expectAiAppGuide(said);
+    expect(said.textContent).toMatch(/ask whoever runs Braivo.*your own AI app/);
     expect(screen.queryByText(/draft a course from it there/)).toBeNull();
+    // Their AI app needs none of Braivo's, so it is offered all the same.
+    const option = screen.getByRole("region", { name: "Build with your AI app" });
+    expect(within(option).getByText(/not Braivo's AI/)).toBeTruthy();
+    expect(within(option).getByText(/course for Example School/)).toBeTruthy();
   });
 
   test("still leads an owner with courses to where a new one starts, its material", async () => {
@@ -231,7 +281,10 @@ describe("the console", () => {
       if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
       else Reflect.deleteProperty(navigator, "clipboard");
     });
-    renderAt("/example", { braivo: { listCourses: async () => [] } });
+    // With a course, so that the only copy button and status are the address's.
+    renderAt("/example", {
+      braivo: { listCourses: async () => [{ id: "c1", title: "Spanish", published: true }] },
+    });
 
     fireEvent.click(await screen.findByRole("button", { name: "Copy address" }));
 

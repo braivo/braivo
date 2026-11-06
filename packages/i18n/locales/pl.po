@@ -356,6 +356,10 @@ msgstr "Działania"
 msgid "Activate"
 msgstr "Aktywuj"
 
+#: apps/console/components/connect-ai-app.tsx
+msgid "Add a connector or app by its URL."
+msgstr "Dodaj konektor lub aplikację, podając adres URL."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add a domain"
 msgstr "Dodaj domenę"
@@ -363,6 +367,10 @@ msgstr "Dodaj domenę"
 #: apps/console/components/group-form.tsx
 msgid "Add a teacher to make this group visible to them."
 msgstr "Dodaj nauczyciela, aby zobaczył tę grupę."
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Add Braivo to your AI app with this address:"
+msgstr "Dodaj Braivo do swojej aplikacji AI, używając tego adresu:"
 
 #: apps/console/components/group-form.tsx
 msgid "Add courses"
@@ -375,6 +383,14 @@ msgstr "Dodaj domenę"
 #: apps/console/components/group-form.tsx
 msgid "Add learners"
 msgstr "Dodaj uczniów"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Add material"
+msgstr "Dodaj materiał"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Add material under Sources and draft a course from it there."
+msgstr "Dodaj materiał w sekcji Materiały źródłowe i przygotuj tam z niego szkic kursu."
 
 #: apps/console/components/group-form.tsx
 msgid "Add teachers"
@@ -474,6 +490,14 @@ msgstr "Oba ustawienia są zapamiętywane w tej przeglądarce."
 #: apps/console/components/group-form.tsx
 msgid "Braivo refused this group: someone or a course in it is no longer the organization's. Remove them and save again, or reload the page to see who and what can be added, losing these changes."
 msgstr "Braivo odrzuciło tę grupę: ktoś lub któryś kurs nie należy już do organizacji. Usuń te osoby lub kursy i zapisz ponownie albo wczytaj stronę jeszcze raz, tracąc te zmiany, aby zobaczyć, kogo i co można dodać."
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Braivo's AI is off for this organization. You can still add material under Sources. To draft a course from it, ask whoever runs Braivo for you to turn the AI on, or build it with your own AI app."
+msgstr "AI Braivo jest wyłączona w tej organizacji. Nadal możesz dodawać materiały w sekcji Materiały źródłowe. Aby przygotować z nich szkic kursu, poproś osobę, która prowadzi dla Ciebie Braivo, o włączenie AI albo zbuduj kurs za pomocą własnej aplikacji AI."
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Build with your AI app"
+msgstr "Zbuduj za pomocą swojej aplikacji AI"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "By continuing, you agree to the <0>Terms</0> and <1>Privacy Policy</1>."
@@ -635,9 +659,20 @@ msgid "Copy {type} value"
 msgstr "Kopiuj wartość rekordu {type}"
 
 #: apps/console/components/learners-site.tsx
-#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
 msgid "Copy address"
 msgstr "Kopiuj adres"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Copy command"
+msgstr "Kopiuj polecenie"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Copy connector address"
+msgstr "Kopiuj adres konektora"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Copy first prompt"
+msgstr "Kopiuj pierwsze polecenie"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Copy link"
@@ -842,6 +877,10 @@ msgstr "Utwórz te rekordy tam, gdzie zarządzasz DNS domeny. Uczniowie mogą z 
 #: apps/console/components/organization-setup-form.tsx
 msgid "Creating…"
 msgstr "Tworzenie…"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Customize, Connectors, Add custom connector."
+msgstr "Customize, Connectors, Add custom connector."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
@@ -1142,10 +1181,6 @@ msgstr "Jeśli nadal chcesz dołączyć, skontaktuj się z organizacją „{scho
 msgctxt "The wait before a sign-in code can be sent, as in: Send the code again in 0:42"
 msgid "in {time}"
 msgstr "za {time}"
-
-#: apps/console/routes/_signed-in/$organizationSlug/settings/connections.tsx
-msgid "In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign in and approve it. <0>Step by step</0>"
-msgstr "W Claude, ChatGPT lub innej aplikacji AI dodaj niestandardowy konektor o tym adresie, a potem zaloguj się i zezwól na dostęp. <0>Krok po kroku</0>"
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Invitation"
@@ -1517,6 +1552,7 @@ msgstr "Brak przypisanych kursów: edytuj grupę, aby dodać kurs."
 msgid "No courses assigned. Ask your administrator to add one."
 msgstr "Brak przypisanych kursów. Poproś administratora o dodanie kursu."
 
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 #: apps/learn/routes/_signed-in/index.tsx
 msgid "No courses yet"
 msgstr "Nie masz jeszcze kursów"
@@ -1667,6 +1703,10 @@ msgstr "Można dodać tylko członków organizacji. Brakujące osoby najpierw za
 #: apps/console/routes/_signed-in/route.tsx
 msgid "Open navigation"
 msgstr "Otwórz nawigację"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Open Sources"
+msgstr "Otwórz materiały źródłowe"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgctxt "Between two ways to sign in"
@@ -1930,6 +1970,10 @@ msgstr "Temat: {title}"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Role"
 msgstr "Rola"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Run this command, then its <0>/mcp</0> command to sign in:"
+msgstr "Uruchom to polecenie, a potem jego komendę <0>/mcp</0>, aby się zalogować:"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
@@ -2282,6 +2326,14 @@ msgstr "Pytanie lub wyjaśnienie jest niejasne"
 msgid "Theme"
 msgstr "Motyw"
 
+#: apps/console/components/connect-ai-app.tsx
+msgid "Then ask it, attaching your material:"
+msgstr "Następnie załącz swój materiał i poproś:"
+
+#: apps/console/components/connect-ai-app.tsx
+msgid "Then sign in to Braivo in the page that opens, choose the organization, and approve it. <0>Step by step</0>"
+msgstr "Potem zaloguj się do Braivo na stronie, która się otworzy, wybierz organizację i zezwól na dostęp. <0>Krok po kroku</0>"
+
 #: apps/console/components/no-such-setting.tsx
 msgid "There is no such setting"
 msgstr "Nie ma takiego ustawienia"
@@ -2506,6 +2558,10 @@ msgstr "Używaj małych liter, cyfr i pojedynczych łączników między nimi."
 msgid "Use the email address {organizationName} knows you by."
 msgstr "Podaj adres e-mail, którego używasz w organizacji {organizationName}."
 
+#: apps/console/components/connect-ai-app.tsx
+msgid "Using Braivo, turn the material I attach into a course for {organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
+msgstr "Korzystając z Braivo, zamień załączony materiał w kurs dla organizacji {organization}: najpierw cele, potem zadania cytujące ten materiał. Kurs będzie potem czekać na mój przegląd w Braivo."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Value"
 msgstr "Wartość"
@@ -2640,6 +2696,10 @@ msgstr "Twoja odpowiedź"
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your answer could not be confirmed."
 msgstr "Nie udało się potwierdzić Twojej odpowiedzi."
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Your app builds the course with its own model and your account with it, not Braivo's AI."
+msgstr "Twoja aplikacja buduje kurs własnym modelem i na Twoim koncie w niej, bez AI Braivo."
 
 #: apps/learn/routes/__root.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx

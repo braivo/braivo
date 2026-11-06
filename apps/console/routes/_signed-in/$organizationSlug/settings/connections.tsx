@@ -29,7 +29,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 
-import { CopyButton } from "#components/copy-button";
+import { ConnectAiApp } from "#components/connect-ai-app";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { pageHead } from "#lib/title";
 
@@ -130,36 +130,14 @@ function Connections() {
   );
 }
 
-/** How to connect an AI app: the address to paste into it, and the guide. */
 function HowToConnect() {
-  const { t } = useLingui();
   const id = useId();
-  // The console is served on BRAIVO_URL's origin, and AI apps connect at its
-  // `/mcp` (ADR 0004, ADR 0045).
-  const address = new URL("/mcp", window.location.origin).href;
   return (
     <section aria-labelledby={id} className="mt-8">
       <Heading id={id} level={2}>
         <Trans>Connect an app</Trans>
       </Heading>
-      <MutedText className="block wrap-break-word">
-        <Trans>
-          In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign
-          in and approve it.{" "}
-          <a
-            href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-4"
-          >
-            Step by step
-          </a>
-        </Trans>
-      </MutedText>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <code className="text-sm wrap-anywhere">{address}</code>
-        <CopyButton value={address} label={t`Copy address`} />
-      </div>
+      <ConnectAiApp />
     </section>
   );
 }
