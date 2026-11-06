@@ -31,24 +31,13 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
         <div>
           <dt className="font-medium">Claude</dt>
           <dd className="wrap-break-word text-muted-foreground">
-            <Trans>
-              Customize, Connectors, “+ Add”, “Add custom connector”. Enter a name and this address,
-              select “Continue”, then “Add”. In a chat, turn it on under “+”, “Connectors”. On a
-              Team or Enterprise plan, an Owner adds it in Organization settings, Connectors; you
-              then select “Connect” under Customize, Connectors.
-            </Trans>
+            <Trans>Customize, Connectors, Add custom connector.</Trans>
           </dd>
         </div>
         <div>
           <dt className="font-medium">ChatGPT</dt>
           <dd className="wrap-break-word text-muted-foreground">
-            <Trans>
-              On the web, on a Business, Enterprise, or Edu plan that allows it. At
-              chatgpt.com/plugins, select the plus button, then “Add custom MCP server”. Enter a
-              name and this address as the Server URL, and choose OAuth. Select “I understand and
-              want to continue”, then “Create as a plugin”, and install it. In a new chat, type @
-              and select it.
-            </Trans>
+            <Trans>On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth.</Trans>
           </dd>
         </div>
         <div>
@@ -63,7 +52,8 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
       </dl>
       <MutedText className="block wrap-break-word">
         <Trans>
-          When the app opens Braivo's page, sign in, choose the organization, and approve it.{" "}
+          When the app opens Braivo's page, sign in, choose the organization, and approve it. Then,
+          in Claude or ChatGPT, turn it on in a chat.{" "}
           <a
             href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect"
             target="_blank"

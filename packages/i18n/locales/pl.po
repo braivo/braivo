@@ -875,8 +875,8 @@ msgid "Creating…"
 msgstr "Tworzenie…"
 
 #: apps/console/components/connect-ai-app.tsx
-msgid "Customize, Connectors, “+ Add”, “Add custom connector”. Enter a name and this address, select “Continue”, then “Add”. In a chat, turn it on under “+”, “Connectors”. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors; you then select “Connect” under Customize, Connectors."
-msgstr "Customize, Connectors, „+ Add”, „Add custom connector”. Wpisz nazwę i ten adres, wybierz „Continue”, a potem „Add”. Na czacie włącz go w „+”, „Connectors”. W planie Team lub Enterprise dodaje go właściciel w Organization settings, Connectors, a Ty wybierasz „Connect” w Customize, Connectors."
+msgid "Customize, Connectors, Add custom connector."
+msgstr "Customize, Connectors, Add custom connector."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: packages/ui/compositions/theme.tsx
@@ -1689,8 +1689,8 @@ msgid "on {date} at {time}"
 msgstr "{date} o {time}"
 
 #: apps/console/components/connect-ai-app.tsx
-msgid "On the web, on a Business, Enterprise, or Edu plan that allows it. At chatgpt.com/plugins, select the plus button, then “Add custom MCP server”. Enter a name and this address as the Server URL, and choose OAuth. Select “I understand and want to continue”, then “Create as a plugin”, and install it. In a new chat, type @ and select it."
-msgstr "W przeglądarce, w planie Business, Enterprise lub Edu, który na to pozwala. Na stronie chatgpt.com/plugins wybierz przycisk plusa, a potem „Add custom MCP server”. Wpisz nazwę, ten adres jako Server URL i wybierz OAuth. Wybierz „I understand and want to continue”, potem „Create as a plugin”, i zainstaluj. W nowym czacie wpisz @ i wybierz go."
+msgid "On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth."
+msgstr "W przeglądarce: chatgpt.com/plugins, Add custom MCP server, z OAuth."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
@@ -2584,8 +2584,8 @@ msgid "What's wrong?"
 msgstr "Co jest nie tak?"
 
 #: apps/console/components/connect-ai-app.tsx
-msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. <0>Step by step</0>"
-msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. <0>Krok po kroku</0>"
+msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. Then, in Claude or ChatGPT, turn it on in a chat. <0>Step by step</0>"
+msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. Potem w Claude lub ChatGPT włącz ją na czacie. <0>Krok po kroku</0>"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"
