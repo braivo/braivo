@@ -38,8 +38,8 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
           <dt className="font-medium">ChatGPT</dt>
           <dd className="wrap-break-word text-muted-foreground">
             <Trans>
-              On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth. Building needs a
-              Business, Enterprise, or Edu plan.
+              On the web: chatgpt.com/plugins, Add custom MCP server, choosing OAuth for
+              authentication. Building needs a Business, Enterprise, or Edu plan.
             </Trans>
           </dd>
         </div>
@@ -61,7 +61,7 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
             href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect"
             target="_blank"
             rel="noreferrer"
-            className="underline underline-offset-4"
+            className="whitespace-nowrap underline underline-offset-4"
           >
             Step by step
           </a>
@@ -78,15 +78,19 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
  */
 function FirstPrompt({ organization }: { organization: string }) {
   const { t } = useLingui();
+  const prompt = t`Using Braivo, turn the material I attach into a course for ${organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo.`;
   return (
     <div>
       <MutedText className="block wrap-break-word">
         <Trans>Then ask it, attaching your material:</Trans>
       </MutedText>
-      <CopyableText
-        text={t`Using Braivo, turn the material I attach into a course for ${organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo.`}
-        label={t`Copy first prompt`}
-      />
+      {/* Prose to paste, not a command: quoted, in the text's own font. */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <blockquote className="basis-full border-l-2 pl-3 wrap-anywhere text-foreground">
+          {prompt}
+        </blockquote>
+        <CopyButton value={prompt} label={t`Copy first prompt`} />
+      </div>
     </div>
   );
 }

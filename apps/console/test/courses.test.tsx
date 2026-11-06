@@ -44,7 +44,7 @@ describe("the console", () => {
       "Customize, Connectors, Add custom connector.",
     );
     expect(inOption.getByText("ChatGPT").nextElementSibling?.textContent).toBe(
-      "On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth. Building needs a Business, Enterprise, or Edu plan.",
+      "On the web: chatgpt.com/plugins, Add custom MCP server, choosing OAuth for authentication. Building needs a Business, Enterprise, or Edu plan.",
     );
     expect(inOption.getByText(/turn it on in a chat/)).toBeTruthy();
     expect(inOption.getByText("Claude Code").nextElementSibling?.textContent).toContain(
