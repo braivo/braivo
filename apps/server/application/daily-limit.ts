@@ -13,11 +13,9 @@ import { learnerDayIn } from "./learner-day.ts";
 export const NEW_OBJECTIVES_PER_DAY = 20;
 
 /**
- * The objectives a learner may be decided among now: all of `objectiveIds`,
- * less those not started yet once `NEW_OBJECTIVES_PER_DAY` were started today.
- * `heldBack` says whether any were left out, so a learner with nothing else to
- * do is told to come back tomorrow rather than that they are caught up.
- * `newLeft`: how many more may start today, for saying what waits.
+ * What the day leaves a learner at an organization: the objectives they ever
+ * started, and how many more may start today. It scans their whole history, so
+ * a reader of several courses makes it once per organization and shares it.
  *
  * Counted from evidence, never a counter: an objective is started on the day
  * of its first evidence at the organization, a learner's day in `timeZone`
@@ -25,15 +23,10 @@ export const NEW_OBJECTIVES_PER_DAY = 20;
  * share counts once, and every course at the organization draws on one limit.
  * Evidence from elsewhere counts too: it brings the same reviews.
  */
-export function limitNewObjectives(
-  learner: {
-    objectiveIds: readonly string[];
-    evidence: readonly Evidence[];
-  },
+export function dailyAllowance(
+  evidence: readonly Evidence[],
   input: { now: Date; timeZone: string },
-): { candidates: readonly string[]; heldBack: boolean; newLeft: number } {
-  const { objectiveIds, evidence } = learner;
-
+): { started: ReadonlySet<string>; newLeft: number } {
   const firstEvidenceAt = new Map<string, Date>();
   for (const { objectiveId, at } of evidence) {
     const first = firstEvidenceAt.get(objectiveId);
@@ -42,18 +35,33 @@ export function limitNewObjectives(
 
   const dayOf = learnerDayIn(input.timeZone);
   const today = dayOf(input.now);
-  let started = 0;
-  for (const at of firstEvidenceAt.values()) if (dayOf(at) === today) started++;
-  if (started < NEW_OBJECTIVES_PER_DAY) {
-    return {
-      candidates: objectiveIds,
-      heldBack: false,
-      newLeft: NEW_OBJECTIVES_PER_DAY - started,
-    };
-  }
+  let startedToday = 0;
+  for (const at of firstEvidenceAt.values()) if (dayOf(at) === today) startedToday++;
+  return {
+    started: new Set(firstEvidenceAt.keys()),
+    newLeft: Math.max(0, NEW_OBJECTIVES_PER_DAY - startedToday),
+  };
+}
 
-  const candidates = objectiveIds.filter((id) => firstEvidenceAt.has(id));
-  return { candidates, heldBack: candidates.length < objectiveIds.length, newLeft: 0 };
+/**
+ * The objectives a learner may be decided among now: all of `objectiveIds`,
+ * less those not started yet once `NEW_OBJECTIVES_PER_DAY` were started today.
+ * `heldBack` says whether any were left out, so a learner with nothing else to
+ * do is told to come back tomorrow rather than that they are caught up.
+ */
+export function limitNewObjectives(
+  learner: {
+    objectiveIds: readonly string[];
+    evidence: readonly Evidence[];
+  },
+  input: { now: Date; timeZone: string },
+): { candidates: readonly string[]; heldBack: boolean } {
+  const { objectiveIds, evidence } = learner;
+  const { started, newLeft } = dailyAllowance(evidence, input);
+  if (newLeft > 0) return { candidates: objectiveIds, heldBack: false };
+
+  const candidates = objectiveIds.filter((id) => started.has(id));
+  return { candidates, heldBack: candidates.length < objectiveIds.length };
 }
 
 /**

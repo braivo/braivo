@@ -3,10 +3,10 @@
 
 import {
   activeModel,
-  assessKnowledge,
   type Evidence,
   type KnowledgeEstimate,
   type LearningDecision,
+  type ObjectiveStanding,
   selectNext,
 } from "../learning/index.ts";
 import { limitNewObjectives, NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
@@ -50,28 +50,24 @@ export function decidePractice(
 
 /**
  * What `decidePractice`'s selection would work through in a course if the
- * learner answered everything right, rests aside as there: its candidates with
- * a task, by the rule that chooses among them (`assessKnowledge` shares
- * selection's), with no more new ones than the day's limit still lets start.
- * Over this course alone: the limit is shared across the organization, so two
- * courses may each count the same places left today.
+ * learner answered everything right, rests aside as there: `assessed`, its
+ * objectives' standings (assessment shares selection's rule), those with a task,
+ * with no more new ones than `newLeft` (`dailyAllowance`). Over this course
+ * alone: the limit is shared across the organization, so two courses may count
+ * the same places left today.
  *
  * Counted by standing, not by walking `selectNext`, which is quadratic in what
- * waits; `practice.test.ts` walks it to prove the two agree.
+ * waits; `practice.test.ts` walks it to prove the two agree. Takes what its
+ * caller already has, so a list of courses scans no history per course.
  */
 export function countWaiting(
-  learner: Parameters<typeof decidePractice>[0],
+  assessed: readonly ObjectiveStanding[],
   withTasks: ReadonlySet<string>,
-  input: { now: Date; timeZone: string },
+  newLeft: number,
 ): CourseWaiting {
-  const { candidates, newLeft } = limitNewObjectives(learner, input);
-  const { objectives } = assessKnowledge({
-    now: input.now,
-    objectiveIds: candidates.filter((id) => withTasks.has(id)),
-    estimates: learner.estimates,
-    model: activeModel,
-  });
-  const { learning, dueForReview, notStarted } = countStandings(objectives);
+  const { learning, dueForReview, notStarted } = countStandings(
+    assessed.filter(({ objectiveId }) => withTasks.has(objectiveId)),
+  );
   return { learning, dueForReview, new: Math.min(notStarted, newLeft) };
 }
 

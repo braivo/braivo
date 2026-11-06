@@ -34,6 +34,7 @@ import {
   updateCourseHidden,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
+import { dailyAllowance } from "./daily-limit.ts";
 import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
 import { assertMayAuthor, NotPermitted } from "./permission.ts";
@@ -306,7 +307,13 @@ export async function listLearnerCoursesWithStanding(input: {
     Promise.all(
       [...organizations].map(async (organizationId) => {
         const evidence = await readLearnerEvidence(database, { learnerId, organizationId }, now);
-        return [organizationId, { evidence, estimates: replay(evidence, activeModel) }] as const;
+        return [
+          organizationId,
+          {
+            estimates: replay(evidence, activeModel),
+            newLeft: dailyAllowance(evidence, { now, timeZone }).newLeft,
+          },
+        ] as const;
       }),
     ).then((entries) => new Map(entries)),
     readObjectivesWithTasks(
@@ -316,20 +323,20 @@ export async function listLearnerCoursesWithStanding(input: {
   ]);
   return courses.map((course) => {
     const scope = scopes.get(course.id);
-    const objectiveIds = scope?.objectiveIds ?? [];
-    const history = scope
-      ? histories.get(scope.organizationId)!
-      : { evidence: [], estimates: new Map() };
-    const { objectives } = assessKnowledge({
-      now,
-      objectiveIds,
-      estimates: history.estimates,
-      model: activeModel,
-    });
+    const history = scope && histories.get(scope.organizationId)!;
+    const { objectives } =
+      scope && history
+        ? assessKnowledge({
+            now,
+            objectiveIds: scope.objectiveIds,
+            estimates: history.estimates,
+            model: activeModel,
+          })
+        : { objectives: [] };
     return {
       ...course,
       standing: countStandings(objectives),
-      waiting: countWaiting({ objectiveIds, ...history }, withTasks, { now, timeZone }),
+      waiting: countWaiting(objectives, withTasks, history?.newLeft ?? 0),
     };
   });
 }

@@ -18,6 +18,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@braivo/ui/components/item";
+import { cn } from "@braivo/ui/lib/utils";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
@@ -121,16 +122,22 @@ function Courses() {
   );
 }
 
+/** How many objectives a course's standing counts. */
+function totalOf(standing: CourseStanding) {
+  return Object.values(standing).reduce((sum, count) => sum + count, 0);
+}
+
 /** Whether practice would offer anything in a course now. */
 function hasWaiting({ learning, dueForReview, new: fresh }: CourseWaiting) {
   return learning + dueForReview + fresh > 0;
 }
 
 /**
- * A course, the whole card its link, a tap away from practice: its title, what
- * waits there now, and where the learner stands in it, as the course page's
- * meter and counts say it (progress-8). Without those read, or for a course with
- * no objectives, the title alone. Named by its title, the rest its description.
+ * A course, the whole card its link, a tap away from practice: its title, the
+ * course page's meter, and one line: what waits there now, the next step, or
+ * with nothing waiting, where the learner stands (progress-8). Without those
+ * read, or for a course with no objectives, the title alone. Named by its title,
+ * the line its description.
  */
 function CourseCard({
   course,
@@ -143,17 +150,16 @@ function CourseCard({
 }) {
   const { t } = useLingui();
   const titleId = useId();
-  const waitingId = useId();
-  const countsId = useId();
-  const line = read && countsLine(read.standing, t);
-  const { retained, dueForReview, learning } = read?.standing ?? {};
-  const nothingStarted = !retained && !dueForReview && !learning;
-  const next =
-    read && hasWaiting(read.waiting)
-      ? nothingStarted
-        ? t`We start with a question and use your answers to choose what comes next.`
-        : waitingLine(read.waiting, t)
-      : undefined;
+  const lineId = useId();
+  const waits = read !== undefined && hasWaiting(read.waiting);
+  const started = read && read.standing.notStarted < totalOf(read.standing);
+  const line = !read
+    ? undefined
+    : !waits
+      ? countsLine(read.standing, t)
+      : started
+        ? waitingLine(read.waiting, t)
+        : t`We start with a question and use your answers to choose what comes next.`;
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -163,23 +169,19 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={
-            [next && waitingId, line && countsId].filter(Boolean).join(" ") || undefined
-          }
+          aria-describedby={line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
               {course.title}
             </ItemTitle>
-            {next && (
-              <p id={waitingId} className="text-sm text-foreground">
-                {next}
-              </p>
-            )}
             {read && line && (
               <>
                 <StandingBar counts={read.standing} />
-                <ItemDescription id={countsId} className="line-clamp-none">
+                <ItemDescription
+                  id={lineId}
+                  className={cn("line-clamp-none", waits && "text-foreground")}
+                >
                   {line}
                 </ItemDescription>
               </>

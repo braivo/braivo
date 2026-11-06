@@ -3,8 +3,14 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { activeModel, type Evidence, replay, selectNext } from "../learning/index.ts";
-import { NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
+import {
+  activeModel,
+  assessKnowledge,
+  type Evidence,
+  replay,
+  selectNext,
+} from "../learning/index.ts";
+import { dailyAllowance, NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
 import { countWaiting, type CourseWaiting, decidePractice } from "./practice.ts";
 
 const now = new Date("2026-06-01T12:00:00Z");
@@ -96,6 +102,22 @@ describe("decidePractice", () => {
 });
 
 describe("countWaiting", () => {
+  /** As a list of courses reads it: assessed, with the day's allowance. */
+  function waitingIn(
+    objectiveIds: string[],
+    evidence: Evidence[],
+    withTasks: Set<string>,
+    input = inUtc,
+  ) {
+    const { objectives } = assessKnowledge({
+      now: input.now,
+      objectiveIds,
+      estimates: replay(evidence, activeModel),
+      model: activeModel,
+    });
+    return countWaiting(objectives, withTasks, dailyAllowance(evidence, input).newLeft);
+  }
+
   /**
    * What practice offers in turn, each answered right at once and rests aside:
    * the selection itself, which `countWaiting` must agree with.
@@ -208,15 +230,17 @@ describe("countWaiting", () => {
     },
   ])("counts what practice would select: $name", ({ objectives, evidence, withTasks, waiting }) => {
     const tasks = new Set(withTasks);
-    expect(countWaiting(learner(objectives, evidence), tasks, inUtc)).toEqual(waiting);
+    expect(waitingIn(objectives, evidence, tasks)).toEqual(waiting);
     expect(walkPractice(objectives, evidence, tasks)).toEqual(waiting);
   });
 
   test("counts the day's limit in the zone it is given", () => {
     const at = new Date("2026-06-01T02:30:00Z");
-    const course = learner(["a"], dayStartedAt(new Date("2026-06-01T01:30:00Z")));
+    const evidence = dayStartedAt(new Date("2026-06-01T01:30:00Z"));
     const withTasks = new Set(["a"]);
-    expect(countWaiting(course, withTasks, { now: at, timeZone: "UTC" }).new).toBe(0);
-    expect(countWaiting(course, withTasks, { now: at, timeZone: "Europe/Warsaw" }).new).toBe(1);
+    expect(waitingIn(["a"], evidence, withTasks, { now: at, timeZone: "UTC" }).new).toBe(0);
+    expect(waitingIn(["a"], evidence, withTasks, { now: at, timeZone: "Europe/Warsaw" }).new).toBe(
+      1,
+    );
   });
 });

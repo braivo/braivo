@@ -3,7 +3,7 @@
 
 import { runMigrations } from "@braivo/db";
 import * as testing from "@braivo/db/testing";
-import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import {
   createCourse,
@@ -12,6 +12,7 @@ import {
   recordEvidence,
 } from "../persistence/index.ts";
 import { chooseNextActivity } from "./activity.ts";
+import { listLearnerCoursesWithStanding } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
 
@@ -141,6 +142,63 @@ describe.skipIf(!connectionString)("a vocabulary-sized course", () => {
 
   test("reports progress in as many statements as a course of five", async () => {
     await expectSameCount(progress);
+  });
+
+  // A learner's day is worked out per evidence record: per course, that would
+  // block the process for as many times the history.
+  test("lists courses doing its history work once, however many share it", async () => {
+    const listOrganizationId = "vocabulary-scale-test-list-org";
+    const listLearnerId = "vocabulary-scale-test-list-learner";
+    await testing.seedOrganization(database, {
+      organizationId: listOrganizationId,
+      learnerIds: [listLearnerId],
+      at: start,
+    });
+    const objectiveIds = await createObjectives(database, listOrganizationId, ["a", "b", "c"]);
+    await recordEvidence(
+      database,
+      { learnerId: listLearnerId, organizationId: listOrganizationId },
+      objectiveIds.map((objectiveId, index) => ({
+        id: `list-${index}`,
+        objectiveId,
+        outcome: "success" as const,
+        at: start,
+      })),
+    );
+    const addCourse = (title: string) =>
+      createCourse(database, {
+        published: true,
+        organizationId: listOrganizationId,
+        title,
+        objectiveIds,
+      });
+
+    const dated = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    const measure = async () => {
+      dated.mockClear();
+      statements.length = 0;
+      const courses = await listLearnerCoursesWithStanding({
+        database: recording,
+        learnerId: listLearnerId,
+        host,
+        now,
+        timeZone: "UTC",
+      });
+      return { courses: courses.length, dates: dated.mock.calls.length, sql: statements.length };
+    };
+
+    await addCourse("One");
+    const one = await measure();
+    await addCourse("Two");
+    await addCourse("Three");
+    const three = await measure();
+
+    expect(one.courses).toBe(1);
+    expect(three.courses).toBe(3);
+    expect(one.dates).toBeGreaterThan(0);
+    expect(three.dates).toBe(one.dates);
+    expect(three.sql).toBe(one.sql);
+    dated.mockRestore();
   });
 });
 
