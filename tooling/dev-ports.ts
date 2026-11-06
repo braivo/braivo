@@ -32,6 +32,12 @@ export function readDevPorts(env: Readonly<Record<string, string | undefined>>):
   };
 }
 
+/**
+ * Where the docs' dev server listens: beside the learn app's and the console's,
+ * by default theirs plus one and two, derived so no worktree needs a new variable.
+ */
+export const docsPort = (ports: DevPorts) => ports.learn + 2;
+
 /** A worktree's demo's, from its dev servers' (docs/adr/0043-development-demo.md). */
 export function demoPorts(ports: DevPorts): DevPorts {
   return {

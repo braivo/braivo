@@ -1,6 +1,6 @@
 # 0057: Public documentation is a static Fumadocs site on Astro, `apps/docs`, in this repository
 
-Status: proposed (2026-11-06)
+Status: accepted (2026-11-06)
 
 ## Context
 
@@ -43,4 +43,3 @@ Documentation differs: it describes that product, self-hosters need it, and it c
 - `apps/docs` is the one app not on TanStack Router, so [ADR 0016](0016-route-files.md) and `docs/apps.md` do not apply to it. Its `.astro` files stay few and thin, as `vp check` does not type-check their templates.
 - On GitHub, a page shows its frontmatter as a table, and components as whatever GitHub makes of them. A self-hoster reading there gets less than the site, in proportion to how interactive a page is.
 - Pages' paths change, for every link into them. Anyone holding a GitHub link to an old guide gets a 404.
-- If accepted, two decisions are amended with the change that builds this: ADR 0003's tree gains `apps/docs`, and ADR 0049 names this exception.

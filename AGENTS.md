@@ -35,13 +35,14 @@ apps/server            API, use cases, learning model, auth, queries, operator's
 apps/learn             learner app (white-label, per organization; demo.braivo.app)
 apps/console           content owners' app
 apps/storybook         catalog of @braivo/ui
+apps/docs              public documentation for people using Braivo: MDX pages, static, on Astro
 packages/db            schema, migrations, database client, test seeding
 packages/ui            components/ from shadcn, compositions/ by Braivo
 packages/auth-client   browser sign-in: auth client, form, session guard
 packages/cli           `braivo`, content owners' CLI over HTTP, compiled per platform; its installers
 packages/i18n          the language an app speaks: catalogs, choosing one at startup
 tooling/               shared dev tooling: dev proxy, Bun test guard, worktree setup, demo, draft evaluation
-docs/                  product, architecture, apps, glossary, adr/, specs/
+docs/                  for engineers working on Braivo: product, architecture, apps, glossary, adr/, specs/
 ```
 
 ## Workspace
