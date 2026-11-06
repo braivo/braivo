@@ -623,6 +623,95 @@ describe("the learn app", () => {
     expect(submitAttempt).not.toHaveBeenCalled();
   });
 
+  // An account erased and made again, with the same name and address, has a new ID.
+  const recreated = { id: "ada-again", name: "Ada Fernley" };
+
+  test("never resends by itself an answer from before the account was erased", async () => {
+    const before = renderAt("/c/4732", {
+      signedIn: true,
+      user: { id: "ada", name: "Ada Fernley" },
+      nextActivity: async () => activity,
+      submitAttempt: () => new Promise(() => {}),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    await vi.waitFor(() => expect(before.submitAttempt).toHaveBeenCalledTimes(1));
+    cleanup();
+
+    // Erased: the reload finds no session, and keeps the answer for its learner.
+    renderAt("/c/4732", { signedIn: false });
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+    cleanup();
+
+    const { submitAttempt } = renderAt("/c/4732", {
+      signedIn: true,
+      user: recreated,
+      nextActivity: async () => activity,
+    });
+    expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
+    expect(submitAttempt).not.toHaveBeenCalled();
+    expect(unfinishedAttempt(recreated.id, SPANISH_ID)).toBeUndefined();
+
+    // A fresh answer is theirs: a new attempt, carrying nothing of the old one.
+    fireEvent.click(screen.getByRole("button", { name: "hablo" }));
+    await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
+    const sent = submitAttempt.mock.calls[0]![0]!;
+    const old = before.submitAttempt.mock.calls[0]![0]!;
+    expect(sent.id).not.toBe(old.id);
+    expect(sent.response).not.toEqual(old.response);
+  });
+
+  test("Send again sends nothing as an account made since, which gets the question fresh", async () => {
+    let signedIn = { id: "ada", name: "Ada Fernley" };
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    renderAt("/c/4732", {
+      signedIn: true,
+      session: async () => signedIn,
+      nextActivity: async () => activity,
+      submitAttempt,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const again = await screen.findByRole("button", { name: "Send again" });
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+
+    // Erased, and signed in again elsewhere: the cookie is the new account's.
+    signedIn = recreated;
+    fireEvent.click(again);
+
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Send again" })).toBeNull());
+    expect(await screen.findByRole("button", { name: "hablé" })).toBeTruthy();
+    expect(screen.queryByText("Your answer could not be confirmed.")).toBeNull();
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  test("Send again sends nothing while it cannot tell who is signed in, and can be pressed again", async () => {
+    const session = vi
+      .fn<BraivoClient["session"]>()
+      .mockResolvedValue({ id: "ada", name: "Ada Fernley" });
+    const submitAttempt = vi
+      .fn<BraivoClient["submitAttempt"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 0 });
+    renderAt("/c/4732", {
+      signedIn: true,
+      session,
+      nextActivity: async () => activity,
+      submitAttempt,
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+    const again = await screen.findByRole("button", { name: "Send again" });
+
+    session.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.click(again);
+    await vi.waitFor(() => expect(again.getAttribute("aria-disabled")).toBe("false"));
+    expect(submitAttempt).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(again);
+    expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(submitAttempt).toHaveBeenCalledTimes(2);
+  });
+
   test("holds Continue while the next activity loads, so a second press does not restart it", async () => {
     let loaded!: (next: Activity | undefined) => void;
     const nextActivity = vi

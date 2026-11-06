@@ -359,7 +359,7 @@ describe("the learn app", () => {
     expect(retry.getAttribute("aria-disabled")).toBe("true");
     expect(retry.matches(":disabled")).toBe(false);
     expect(screen.getByRole("status", { name: "Loading" })).toBeTruthy();
-    expect(submitAttempt).toHaveBeenCalledTimes(4);
+    await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(4));
 
     graded({ kind: "choice", outcome: "success", correctChoice: 0 });
     expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
