@@ -831,6 +831,10 @@ export function createAuth(options: AuthOptions) {
       "/organization/get-active-member-role",
       "/organization/remove-member",
       "/organization/update-member-role",
+      // Outside the locks that keep an owner: two owners leaving at once could
+      // leave none. Off for now, not a verdict on leaving by oneself: an
+      // administrator (access-56) or the operator (access-48) ends a membership.
+      "/organization/leave",
       // Invitations are made, listed, and read through Braivo's routes (ADR
       // 0018): `invite-member`'s `resend` skips `beforeCreateInvitation`,
       // `list-invitations` returns the first 100 rows of every state, and

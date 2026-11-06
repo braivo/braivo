@@ -248,6 +248,12 @@ describe.skipIf(!connectionString)("members, over HTTP", () => {
     }
   });
 
+  test("a member cannot leave by themselves: an administrator or the operator ends it", async () => {
+    const left = await post("/api/auth/organization/leave", cookieOf(learner), { organizationId });
+    expect(left.status).toBe(404);
+    expect(await rolesOf(learner.id)).toEqual(["member"]);
+  });
+
   test("an invitation outlives its inviter's removal: listed, cancelled, or accepted", async () => {
     const invite = async (email: string) => {
       const answered = await post(invitationsPath, cookieOf(secondAdmin), {

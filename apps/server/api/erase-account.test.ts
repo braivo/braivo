@@ -213,6 +213,32 @@ describe.skipIf(!connectionString)("an account erased while signed in", () => {
     );
   });
 
+  test("an old answer posted under the new account is that account's: only the client can tell", async () => {
+    const person = await signedIn();
+    const body = JSON.stringify({ id: "old", taskId, response: { choice: 0 }, historyEpoch: 0 });
+    const post = (cookie: string) =>
+      api.request(`${origin}/api/courses/${courseId}/attempts`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin, cookie },
+        body,
+      });
+    expect((await post(person.learner)).status).toBe(200);
+    await erase(person.email);
+
+    const again = await signUpAs(person.email, "Ada Fernley");
+    await database.insert(member).values({
+      id: `${organizationId}:${again.id}`,
+      organizationId,
+      userId: again.id,
+      role: "member",
+      createdAt: new Date(),
+    });
+    const learner = await learnerSessionOn(api, origin, again.cookie);
+
+    expect((await post(learner)).status).toBe(200);
+    expect(await database.$count(attempt, eq(attempt.learnerId, again.id))).toBe(1);
+  });
+
   test("signing in again makes a fresh account, with nothing of the old", async () => {
     const person = await signedIn();
     await api.request(`${origin}/api/courses/${courseId}/attempts`, {
