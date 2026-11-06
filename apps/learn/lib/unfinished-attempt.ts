@@ -12,6 +12,8 @@ export type UnfinishedAttempt = {
   id: string;
   activity: Extract<Activity, { task: unknown }>;
   response: TaskResponse;
+  /** Taken when it was first sent, so every resend says the same (ADR 0054). */
+  reviewedTeaching?: true;
 };
 
 /** Whether `value` is a response this app sends: exactly one of the three. */
@@ -65,6 +67,7 @@ function isUnfinishedAttempt(value: unknown): value is UnfinishedAttempt {
     typeof attempt?.id === "string" &&
     isResponse(attempt.response) &&
     typeof attempt.activity?.historyEpoch === "number" &&
+    (attempt.reviewedTeaching === undefined || attempt.reviewedTeaching === true) &&
     Object.hasOwn(INTENTS, decision?.intent ?? "") &&
     (decision?.intent !== "review" || typeof decision.retrievability === "number") &&
     typeof objective?.title === "string" &&

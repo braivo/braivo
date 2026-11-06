@@ -12,6 +12,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 import { type PresentedTask, presentTask, type TaskBody } from "../content/index.ts";
 import { activeModel } from "../learning/index.ts";
 import {
+  createCitations,
   createCourse,
   createObjectives,
   createSource,
@@ -99,10 +100,16 @@ function answer(
   taskId: string,
   choice: unknown,
   now: Date,
-  options: { learnerId?: string; course?: string; host?: RequestHost } = {},
+  options: {
+    learnerId?: string;
+    course?: string;
+    host?: RequestHost;
+    reviewedTeaching?: boolean;
+  } = {},
 ) {
   return submitAttempt({
     historyEpoch: 0,
+    reviewedTeaching: options.reviewedTeaching ?? false,
     database,
     learnerId: options.learnerId ?? learner,
     courseId: options.course ?? courseId,
@@ -284,6 +291,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       grade: { kind: "choice", outcome: "failure", correctChoice: 0 },
       // Written by hand, from no source.
       passages: [],
+      reviewable: false,
     });
     // Its one task rests, since the learner has just been shown the answer, so
     // the next objective is introduced meanwhile, skipping the one without a task.
@@ -432,7 +440,91 @@ describe.skipIf(!connectionString)("the learner loop", () => {
           source: { title: "Los saludos", url: "https://www.youtube.com/watch?v=abc123" },
         },
       ],
+      // The task cites passages; its objective cites none.
+      reviewable: false,
     });
+  });
+
+  test("says whether its objective can be reviewed, on the grade and while it rests", async () => {
+    const [taught] = await createObjectives(database, organizationId, ["Taught"]);
+    const lesson = await createSource(database, {
+      organizationId,
+      title: "Lesson",
+      text: "The rule, explained.",
+      createdAt: start,
+    });
+    // Published, as a person cites it.
+    await createCitations(
+      database,
+      organizationId,
+      [{ objectiveId: taught!, sourceId: lesson, start: 0, end: 8 }],
+      start,
+    );
+    const { id: taughtCourse } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Taught",
+      objectiveIds: [taught!],
+    });
+    const taskId = await testing.createTask(database, {
+      organizationId,
+      objectiveId: taught!,
+      body: question("Rule?"),
+      createdAt: start,
+    });
+
+    expect(await answer("taught", taskId, 1, later(1), { course: taughtCourse })).toMatchObject({
+      kind: "graded",
+      grade: { outcome: "failure" },
+      reviewable: true,
+    });
+    // Its only task rests; the review never releases it.
+    expect(await activity(later(2), learner, taughtCourse)).toMatchObject({
+      kind: "resting",
+      objective: { id: taught },
+      reviewable: true,
+    });
+    // And an objective citing nothing says so.
+    expect(await answer("untaught", pastTenseTask, 1, later(3))).toMatchObject({
+      reviewable: false,
+    });
+  });
+
+  test("records reviewedTeaching as sent, grading as ever, and holds a resend to it", async () => {
+    const reviewed = await answer("after-review", pastTenseTask, 0, later(1), {
+      reviewedTeaching: true,
+    });
+    expect(reviewed).toEqual({
+      kind: "graded",
+      grade: { kind: "choice", outcome: "success", correctChoice: 0 },
+      passages: [],
+      reviewable: false,
+    });
+    const [row] = await database
+      .select({ reviewedTeaching: attempt.reviewedTeaching })
+      .from(attempt)
+      .where(eq(attempt.id, "after-review"));
+    expect(row).toEqual({ reviewedTeaching: true });
+    expect((await stored()).map(({ outcome }) => outcome)).toEqual(["success"]);
+
+    expect(
+      await answer("after-review", pastTenseTask, 0, later(2), { reviewedTeaching: true }),
+    ).toEqual(reviewed);
+    expect(await answer("after-review", pastTenseTask, 0, later(2))).toEqual({ kind: "conflict" });
+
+    const [plain] = await database
+      .select({ reviewedTeaching: attempt.reviewedTeaching })
+      .from(attempt)
+      .where(eq(attempt.id, "after-review"));
+    expect(plain).toEqual({ reviewedTeaching: true });
+    // Without it, false; a resend sending false says the same.
+    await answer("unreviewed", fractionsTasks[0], 0, later(3));
+    expect(
+      await answer("unreviewed", fractionsTasks[0], 0, later(4), { reviewedTeaching: false }),
+    ).toMatchObject({ kind: "graded" });
+    expect(
+      await answer("unreviewed", fractionsTasks[0], 0, later(4), { reviewedTeaching: true }),
+    ).toEqual({ kind: "conflict" });
   });
 
   test("has no activity when the decision falls on an objective without a task, naming it", async () => {
@@ -575,6 +667,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         kind: "resting",
         objective: { id: words[0], title: "eins" },
         retryAt: later(10),
+        reviewable: false,
       });
       expect(await activity(later(10), learner, twoWordsCourseId)).toMatchObject({
         kind: "decided",
@@ -681,6 +774,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "resting",
       objective: { id: pastTense, title: "Past tense" },
       retryAt: later(11),
+      reviewable: false,
     });
 
     await answer("recalled", pastTenseTask, 0, later(11));
@@ -721,6 +815,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     const send = (text: string) =>
       submitAttempt({
         historyEpoch: 0,
+        reviewedTeaching: false,
         database,
         learnerId: learner,
         courseId: wordCourse,
@@ -734,6 +829,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       kind: "graded",
       grade: { kind: "typed", outcome: "success", correctAnswer: "bin" },
       passages: [],
+      reviewable: false,
     };
     expect(await send(" Bin ")).toEqual(graded);
     expect(await responseOf("typed")).toEqual({ text: " Bin " });
@@ -747,6 +843,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect(
       await submitAttempt({
         historyEpoch: 0,
+        reviewedTeaching: false,
         database,
         learnerId: learner,
         courseId,
@@ -776,6 +873,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         attemptId: "regraded",
         taskId: pastTenseTask,
         response: { choice: 0 },
+        reviewedTeaching: false,
         at: later(1),
         restWindowStart: start,
         restAttempts: 3,

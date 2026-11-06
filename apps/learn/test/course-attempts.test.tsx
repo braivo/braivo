@@ -39,6 +39,7 @@ describe("the learn app", () => {
         kind: "choice",
         outcome: "failure",
         correctChoice: 0,
+        reviewable: false,
         explanation: "Preterite.",
       }),
     });
@@ -84,7 +85,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce(lost)
-      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     renderAt("/c/4732", { signedIn: true, submitAttempt });
 
     expect(await screen.findByText("Your answer could not be confirmed.")).toBeTruthy();
@@ -126,6 +132,7 @@ describe("the learn app", () => {
         kind: "typed",
         outcome: "failure",
         correctAnswer: "bin",
+        reviewable: false,
       }));
       renderAt("/c/4732", { signedIn: true, submitAttempt });
 
@@ -144,7 +151,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockImplementationOnce((_input, options) => stall(options))
-      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
     const option = await screen.findByRole("button", { name: "hablé" });
 
@@ -298,7 +310,12 @@ describe("the learn app", () => {
       const submitAttempt = vi
         .fn<BraivoClient["submitAttempt"]>()
         .mockRejectedValueOnce(new BraivoError(status, "refused"))
-        .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 1 });
+        .mockResolvedValue({
+          kind: "choice",
+          outcome: "success",
+          correctChoice: 1,
+          reviewable: false,
+        });
       renderAt("/c/4732", {
         signedIn: true,
         nextActivity: async () => anotherActivity,
@@ -335,7 +352,11 @@ describe("the learn app", () => {
   );
 
   test.each([
-    ["a rest", { objective: activity.objective, retryAfter: 600 }, "Take a short break"],
+    [
+      "a rest",
+      { objective: activity.objective, retryAfter: 600, reviewable: false },
+      "Take a short break",
+    ],
     ["caught up", undefined, "You're caught up"],
   ] as const)(
     "after a reload, says an answer was refused above %s too",
@@ -499,6 +520,7 @@ describe("the learn app", () => {
       kind: "choice" as const,
       outcome: "failure" as const,
       correctChoice: 0,
+      reviewable: false,
       explanation: "Preterite.",
     };
     renderAt("/c/4732", {
@@ -550,7 +572,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new BraivoError(401, "no session"))
-      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
@@ -593,7 +620,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockReturnValueOnce(new Promise((_, reject) => (refuse = reject)))
-      .mockResolvedValueOnce({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValueOnce({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     const { router } = renderAt("/c/4732", { signedIn: true, submitAttempt });
     await vi.waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
     await router.navigate({ to: "/" });
@@ -692,7 +724,12 @@ describe("the learn app", () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValue({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     renderAt("/c/4732", {
       signedIn: true,
       session,
@@ -1093,7 +1130,7 @@ describe("the learn app", () => {
   test("says when a just-answered task comes back, and asks again then", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
-      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05, reviewable: false })
       .mockResolvedValueOnce(activity);
     renderAt("/c/4732", { signedIn: true, nextActivity });
 
@@ -1114,7 +1151,7 @@ describe("the learn app", () => {
     onTestFinished(() => now.mockRestore());
     renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => ({ objective: activity.objective, retryAfter }),
+      nextActivity: async () => ({ objective: activity.objective, retryAfter, reviewable: false }),
     });
 
     const notice = await screen.findByRole("region", { name: "Take a short break" });
@@ -1135,7 +1172,11 @@ describe("the learn app", () => {
       nextActivity: vi
         .fn<BraivoClient["nextActivity"]>()
         .mockResolvedValueOnce(activity)
-        .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 0.05 })
+        .mockResolvedValueOnce({
+          objective: activity.objective,
+          retryAfter: 0.05,
+          reviewable: false,
+        })
         .mockResolvedValueOnce(reshuffled),
     });
 
@@ -1158,7 +1199,7 @@ describe("the learn app", () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600 });
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600, reviewable: false });
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity,

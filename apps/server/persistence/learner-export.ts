@@ -41,6 +41,7 @@ export type LearnerExportRows = {
     body: unknown;
     response: unknown;
     outcome: "success" | "failure" | null;
+    reviewedTeaching: boolean;
     taskRetiredAt: Date | null;
     /** The learner's report of it, if any (ADR 0052), whatever became of it. */
     report: (StoredTaskReport & { dismissedAt: Date | null }) | null;
@@ -132,6 +133,7 @@ export async function readLearnerExport(
           body: task.body,
           response: attempt.response,
           outcome: learnerEvidence.outcome,
+          reviewedTeaching: attempt.reviewedTeaching,
           taskRetiredAt: task.retiredAt,
           // All the report's own columns, so Drizzle reads no report as `null`.
           report: {

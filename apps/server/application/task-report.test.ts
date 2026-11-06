@@ -68,6 +68,7 @@ async function answer(
 ) {
   const submitted = await submitAttempt({
     historyEpoch: 0,
+    reviewedTeaching: false,
     database,
     learnerId: options.learnerId ?? learner,
     courseId: options.course ?? courseId,
@@ -393,6 +394,7 @@ describe.skipIf(!connectionString)("a learner reporting a task (learner-loop-22)
     await expect(
       submitAttempt({
         historyEpoch: 0,
+        reviewedTeaching: false,
         database,
         learnerId: learner,
         courseId,

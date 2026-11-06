@@ -377,7 +377,7 @@ export function createMcpServer(
     {
       title: "List objectives",
       description:
-        "An organization's objectives, by title, each with the courses it is in and how many of its tasks wait for review. Reuse one only for the same learning target, since its tasks serve every course it is in.",
+        "An organization's objectives, by title, each with the courses it is in and how many of its tasks and cited passages wait for review. Reuse one only for the same learning target, since its tasks serve every course it is in.",
       inputSchema: z.object({ organizationId }),
       annotations: READ_ONLY,
     },
@@ -409,7 +409,7 @@ export function createMcpServer(
     {
       title: "Cite sources",
       description:
-        "Links objectives to the passages of sources that teach them. Braivo locates each quote and refuses the whole batch over one it cannot find once.",
+        "Links objectives to the passages of sources that teach them. Braivo locates each quote and refuses the whole batch over one it cannot find once. Learners reviewing an objective see its passages only once the content owner publishes them from a course's page in Braivo's console, which you cannot do.",
       inputSchema: z.object({
         organizationId,
         citations: z

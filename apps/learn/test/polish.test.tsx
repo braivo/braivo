@@ -189,6 +189,7 @@ describe("the learn app in Polish", () => {
         kind: "choice",
         outcome: "failure",
         correctChoice: 0,
+        reviewable: false,
         passages: [{ quote: "Hablé con mi madre.", source: { title: "Libro" }, page: "12" }],
       }),
     });
@@ -237,7 +238,11 @@ describe("the learn app in Polish", () => {
     onTestFinished(() => now.mockRestore());
     renderAt("/c/4732", {
       signedIn: true,
-      nextActivity: async () => ({ objective: activity.objective, retryAfter: 340 }),
+      nextActivity: async () => ({
+        objective: activity.objective,
+        retryAfter: 340,
+        reviewable: false,
+      }),
     });
 
     expect(
@@ -370,7 +375,12 @@ describe("the learn app in Polish", () => {
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => activity,
-      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: false,
+      }),
       hostOrganization: async () => ({ name: "Fernwood" }),
     });
     fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
@@ -388,6 +398,30 @@ describe("the learn app in Polish", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Wyślij" }));
 
     expect(await screen.findByText("Dziękujemy. Zgłoszenie zostało wysłane.")).toBeTruthy();
+  });
+
+  test("reviews a missed topic in Polish", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: true,
+      }),
+      objectiveReview: async () => ({
+        title: "Past tense",
+        passages: [{ quote: "Ayer hablé con ella.", page: "12", source: { title: "Unidad 4" } }],
+      }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Przejrzyj ten temat" }));
+
+    const region = await screen.findByRole("region", { name: "Temat: Past tense" });
+    expect(within(region).getByRole("heading", { name: "Z Twoich lekcji" })).toBeTruthy();
+    fireEvent.click(within(region).getByRole("button", { name: "Wróć do ćwiczeń" }));
+    expect(screen.getByRole("button", { name: "Przejrzyj ten temat" })).toBeTruthy();
   });
 
   test("says, after a reload, that the answer it resent couldn't be recorded", async () => {

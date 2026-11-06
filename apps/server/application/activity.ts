@@ -14,6 +14,8 @@ import { activeModel, type LearningDecision, selectNext } from "../learning/inde
 import {
   ConflictingAttempt,
   countOtherAttempts,
+  hasReviewPassage,
+  type LearnerPassage,
   readCourseOrganization,
   readCourseTask,
   readNextTask,
@@ -137,7 +139,11 @@ export async function chooseNextActivity(input: {
     if (resting === undefined || retryAt < resting.retryAt) resting = { objective, retryAt };
     candidates = candidates.filter((id) => id !== objectiveId);
   }
-  if (resting !== undefined) return { kind: "resting", ...resting };
+  if (resting !== undefined) {
+    // The resting screen offers a review of it (ADR 0054); its tasks still rest.
+    const reviewable = await hasReviewPassage(database, resting.objective.id);
+    return { kind: "resting", ...resting, reviewable };
+  }
 
   // Every objective selected lost its last task meanwhile: decided again as if
   // they never had one, the same order without them (a resting one keeps its
@@ -185,8 +191,9 @@ async function restingUntil(
  * objective has no task (glossary: No activity). `resting`: every objective
  * with a task that needs attention has only resting tasks, ahead of any without
  * one, and `objective`'s rest is the first to end, at `retryAt`; the decision is left out, as it may no longer hold by
- * then. These three name the objective, so a learner sees what they practise,
- * or what holds them up, not only why. `daily-limit`: nothing else needs
+ * then; `reviewable`, whether reviewing it would show a passage. These three
+ * name the objective, so a learner sees what they practise, or what holds them
+ * up, not only why. `daily-limit`: nothing else needs
  * attention, and objectives not started yet wait for tomorrow
  * (`limitNewObjectives`).
  */
@@ -196,7 +203,7 @@ export type NextActivity =
   | { kind: "caught-up" }
   | { kind: "daily-limit"; limit: number }
   | { kind: "no-activity"; decision: LearningDecision; objective: Objective }
-  | { kind: "resting"; objective: Objective; retryAt: Date }
+  | { kind: "resting"; objective: Objective; retryAt: Date; reviewable: boolean }
   | {
       kind: "decided";
       decision: LearningDecision;
@@ -229,6 +236,8 @@ export async function submitAttempt(input: {
   response: unknown;
   /** The history epoch the activity it answers was read under. */
   historyEpoch: number;
+  /** The learner reviewed the objective since their previous attempt on it (ADR 0054). */
+  reviewedTeaching: boolean;
   now: Date;
 }): Promise<SubmittedAttempt> {
   const { database, learnerId, courseId, host, attemptId, taskId, historyEpoch, now } = input;
@@ -265,6 +274,7 @@ export async function submitAttempt(input: {
         attemptId,
         taskId,
         response,
+        reviewedTeaching: input.reviewedTeaching,
         at: now,
         // Enforced here too, not only by never offering a resting task: otherwise
         // a client could answer again straight after seeing the answer.
@@ -279,7 +289,11 @@ export async function submitAttempt(input: {
           outcome: grade.outcome,
         },
       });
-      return { kind: "recorded", grade: { ...grade, outcome } } as const;
+      return {
+        kind: "recorded",
+        grade: { ...grade, outcome },
+        objectiveId: task.objectiveId,
+      } as const;
     },
   ).catch((error: unknown): SubmittedAttempt => {
     if (error instanceof ConflictingAttempt) return { kind: "conflict" };
@@ -293,7 +307,10 @@ export async function submitAttempt(input: {
   // Read only now, once graded: shown before answering, a passage could give
   // the answer away. Nothing distinguishes source from learner here, so the
   // learner sees the quote and where it is from, never the source's whole text.
-  const citations = await readTaskCitations(database, taskId);
+  const [citations, reviewable] = await Promise.all([
+    readTaskCitations(database, taskId),
+    hasReviewPassage(database, answered.objectiveId),
+  ]);
   const passages = citations.map(({ quote, at, page, source }) => ({
     quote,
     ...(at === undefined ? {} : { at }),
@@ -301,24 +318,15 @@ export async function submitAttempt(input: {
     source,
   }));
 
-  return { kind: "graded", grade: answered.grade, passages };
+  return { kind: "graded", grade: answered.grade, passages, reviewable };
 }
 
 /**
- * A passage the graded task was written from, as a learner sees it: the words,
- * and the title and link of where they are from (docs/adr/0021-citations.md).
+ * A passage the graded task, or a reviewed objective, was written from, as a
+ * learner sees it: the words, and the title and link of where they are from
+ * (docs/adr/0021-citations.md).
  */
-export type Passage = {
-  quote: string;
-  /**
-   * The second of the recording the words are said at, when the source is a
-   * timed transcript — a video's — so the learner can be taken to that moment.
-   */
-  at?: number;
-  /** The label of the page the words are on, when the source is a paged document — a book's. */
-  page?: string;
-  source: { title: string; url?: string };
-};
+export type Passage = LearnerPassage;
 
 /**
  * `unavailable` is a missing course, one the learner is not in, a task outside
@@ -334,4 +342,5 @@ export type SubmittedAttempt =
   | { kind: "conflict" }
   | { kind: "resting" }
   | { kind: "history-erased" }
-  | { kind: "graded"; grade: Grade; passages: Passage[] };
+  /** `reviewable`: whether reviewing the task's objective would show a passage (ADR 0054). */
+  | { kind: "graded"; grade: Grade; passages: Passage[]; reviewable: boolean };

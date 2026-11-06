@@ -108,6 +108,7 @@ const answer = (id: string) =>
     attemptId: id,
     taskId,
     response: { choice: 0 },
+    reviewedTeaching: false,
     historyEpoch: 0,
     now: new Date(),
   });

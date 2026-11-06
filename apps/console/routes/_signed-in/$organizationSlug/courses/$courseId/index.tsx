@@ -24,6 +24,8 @@ import {
 } from "@braivo/ui/components/alert-dialog";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
+import { Checkbox } from "@braivo/ui/components/checkbox";
+import { Label } from "@braivo/ui/components/label";
 import { Spinner } from "@braivo/ui/components/spinner";
 import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
@@ -45,7 +47,9 @@ import {
 import { LearnersSite } from "#components/learners-site";
 import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
+  type CitationKey,
   type Editing,
+  formatPassageCount,
   formatTaskCount,
   Passages,
   type PublishAction,
@@ -227,6 +231,14 @@ function Course() {
         !narrowed ||
         objective.tasks.some(({ id, published }) => published && isShown(objective.id, id)),
     );
+  // The objectives' passages the page shows waiting, which Publish here sends
+  // unless the owner holds them back: the page is their review, as it is the
+  // course's (ADR 0054).
+  const shownPendingPassages = objectivesTaught.flatMap(({ objective }) =>
+    objective.citations
+      .filter(({ published }) => !published)
+      .map(({ sourceId, start, end }) => ({ objectiveId: objective.id, sourceId, start, end })),
+  );
 
   return (
     <>
@@ -281,10 +293,11 @@ function Course() {
           </Button>
         </ExplanationCount>
       )}
-      {(!course.published || shownPending.length > 0) && (
+      {(!course.published || shownPending.length > 0 || shownPendingPassages.length > 0) && (
         <PublishPending
           course={course}
           shownPending={shownPending}
+          shownPendingPassages={shownPendingPassages}
           narrowed={narrowed}
           fallbackFocus={heading}
           selected={selectedTasks}
@@ -424,16 +437,18 @@ function Course() {
 
 /**
  * Publishing what waits for review on this page, so learners reach it (ADR
- * 0039): the course, if it waits, with the tasks selected, or with every
- * pending task shown, in one request, all or nothing, so work written since
- * the page loaded, or not selected, waits for the next look. Asked first when
- * the tasks reach other courses too, since a task serves every course its
- * objective is in.
+ * 0039): the course, if it waits, and the objectives' pending passages shown,
+ * unless held back, with the tasks selected, or with every pending task shown,
+ * in one request, all or nothing, so work written since the page loaded, or
+ * not selected, waits for the next look. Asked first when the tasks or passages reach other
+ * courses too, since both serve every course their objective is in.
  */
 function PublishPending(props: {
   course: AuthoredCourse;
   /** The pending tasks the page shows, in page order: every one unless narrowed. */
   shownPending: readonly ReviewTask[];
+  /** The objectives' pending passages the page shows, sent with each action unless held back. */
+  shownPendingPassages: readonly CitationKey[];
   /** Narrowed to tasks without an explanation: said beside the buttons. */
   narrowed: boolean;
   /** Focused by Review them when what it leads to is not shown. */
@@ -449,6 +464,7 @@ function PublishPending(props: {
   const {
     course,
     shownPending: pending,
+    shownPendingPassages: passages,
     narrowed,
     fallbackFocus,
     selected,
@@ -458,6 +474,11 @@ function PublishPending(props: {
   } = props;
   const { t } = useLingui();
   const explanationNote = useExplanationNote(selected);
+  // Beside something else to publish, the passages may wait, so a passage the
+  // owner rejects never holds back a good task. Alone, they are what Publish is for.
+  const optional = passages.length > 0 && (pending.length > 0 || !course.published);
+  const [withPassages, setWithPassages] = useState(true);
+  const sent = optional && !withPassages ? [] : passages;
 
   const action = (
     action: "selected" | "all",
@@ -466,9 +487,13 @@ function PublishPending(props: {
   ): PublishAction => ({
     action,
     label,
-    // Selecting nothing publishes nothing in a published course.
-    disabled: editing || busy || (course.published && tasks.length === 0),
-    confirm: confirmation(course, tasks, fallbackFocus),
+    // Selecting nothing publishes nothing in a published course; Publish
+    // there, beside no pending task, publishes the passages.
+    disabled:
+      editing ||
+      busy ||
+      (course.published && tasks.length === 0 && (action === "selected" || sent.length === 0)),
+    confirm: confirmation(course, tasks, sent, fallbackFocus),
     onPublish: () => {
       if (editing || busy) return;
       void publication.publish(
@@ -476,9 +501,10 @@ function PublishPending(props: {
         {
           courseIds: course.published ? [] : [course.id],
           taskIds: tasks.map(({ id }) => id),
+          ...(sent.length > 0 && { citations: [...sent] }),
         },
         course.published
-          ? `Published ${formatTaskCount(tasks.length)}.`
+          ? `Published ${publishedWork(tasks.length, sent.length)}.`
           : tasks.length === 0
             ? "Course published."
             : `Published the course and ${formatTaskCount(tasks.length)}.`,
@@ -512,18 +538,38 @@ function PublishPending(props: {
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <Badge variant="outline">Needs review</Badge>
         <MutedText className="wrap-break-word">
-          {course.published
-            ? `${formatTaskCount(pending.length)} below ${pending.length === 1 ? "waits" : "wait"} for review: learners aren't asked ${pending.length === 1 ? "it" : "them"} until you publish.`
-            : "Review it below, the tasks needing review first: learners can't see this course until you publish it."}
+          {!course.published
+            ? "Review it below, the tasks needing review first: learners can't see this course until you publish it."
+            : passages.length === 0
+              ? `${formatTaskCount(pending.length)} below ${pending.length === 1 ? "waits" : "wait"} for review: learners aren't asked ${pending.length === 1 ? "it" : "them"} until you publish.`
+              : pending.length === 0
+                ? `${formatPassageCount(passages.length)} below ${passages.length === 1 ? "waits" : "wait"} for review: learners' reviews of a topic don't show ${passages.length === 1 ? "it" : "them"} until you publish.`
+                : `${publishedWork(pending.length, passages.length)} below wait for review: learners don't meet them until you publish.`}
         </MutedText>
       </div>
+      {/* The count on a button is tasks alone: what else it sends. */}
+      {optional && (
+        <Label className="mb-2 font-normal">
+          <Checkbox
+            checked={withPassages}
+            onCheckedChange={(checked) => setWithPassages(checked === true)}
+          />
+          {t`Publish the passages waiting too`}
+        </Label>
+      )}
       <PublishBar
         actions={actions}
         publishing={publication.publishing}
         note={
           editing
             ? `Save or cancel the open edit to ${course.published ? "publish" : "publish or delete"}.`
-            : [narrowed && t`Publish acts only on the tasks shown.`, explanationNote]
+            : [
+                narrowed &&
+                  (sent.length === 0
+                    ? t`Publish acts only on the tasks shown.`
+                    : t`Publish acts only on the tasks and passages shown.`),
+                explanationNote,
+              ]
                 .filter(Boolean)
                 .join(" ") || undefined
         }
@@ -549,13 +595,17 @@ function PublishPending(props: {
 function confirmation(
   course: AuthoredCourse,
   tasks: readonly ReviewTask[],
+  passages: readonly CitationKey[],
   fallbackFocus: RefObject<HTMLHeadingElement | null>,
 ): PublishAction["confirm"] {
   const sent = new Set(tasks.map(({ id }) => id));
+  const cited = new Set(passages.map(({ objectiveId }) => objectiveId));
   const courses = [
     ...new Map(
       course.objectives
-        .filter((objective) => objective.tasks.some(({ id }) => sent.has(id)))
+        .filter(
+          (objective) => objective.tasks.some(({ id }) => sent.has(id)) || cited.has(objective.id),
+        )
         .flatMap(({ otherPublishedCourses }) => otherPublishedCourses)
         .map((other) => [other.id, other]),
     ).values(),
@@ -568,7 +618,7 @@ function confirmation(
 
   return {
     title: course.published
-      ? `Publish ${formatTaskCount(tasks.length)}?`
+      ? `Publish ${publishedWork(tasks.length, passages.length)}?`
       : tasks.length === 0
         ? "Publish the course?"
         : `Publish the course and ${formatTaskCount(tasks.length)}?`,
@@ -592,11 +642,25 @@ function confirmation(
     }),
     ...(courses.length > 0 && {
       reach: {
-        description: `Learners of ${courses.length === 1 ? "another course" : "other courses"} will be asked ${tasks.length === 1 ? "it" : "some of them"} too:`,
+        // Tasks and passages together may each reach other courses: said of both.
+        description: `Learners of ${courses.length === 1 ? "another course" : "other courses"} ${
+          passages.length === 0
+            ? `will be asked ${tasks.length === 1 ? "it" : "some of them"} too:`
+            : tasks.length === 0
+              ? `will see ${passages.length === 1 ? "it" : "them"} when reviewing a topic too:`
+              : "will meet some of this too:"
+        }`,
         courses,
       },
     }),
   };
+}
+
+/** "2 tasks", "3 passages", "2 tasks and 3 passages": what a published course's Publish sends. */
+function publishedWork(tasks: number, passages: number): string {
+  return [tasks > 0 && formatTaskCount(tasks), passages > 0 && formatPassageCount(passages)]
+    .filter(Boolean)
+    .join(" and ");
 }
 
 /**

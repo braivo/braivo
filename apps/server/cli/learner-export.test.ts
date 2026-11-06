@@ -117,6 +117,7 @@ const organizationPaths = [
   "organizations[].attempts[].response",
   "organizations[].attempts[].response.choice",
   "organizations[].attempts[].response.text",
+  "organizations[].attempts[].reviewedTeaching",
   "organizations[].attempts[].response.reveal",
   "organizations[].attempts[].outcome",
   "organizations[].attempts[].report",
@@ -282,6 +283,7 @@ async function seed() {
       id: "a3",
       taskId: fernTyped,
       response: { reveal: true },
+      reviewedTeaching: true,
       at: later(12),
       outcome: "failure" as const,
     },
@@ -510,6 +512,7 @@ describe.skipIf(!connectionString)("learner export", () => {
               },
               response: { choice: 1 },
               outcome: "success",
+              reviewedTeaching: false,
               report: null,
             },
             {
@@ -521,6 +524,7 @@ describe.skipIf(!connectionString)("learner export", () => {
               },
               response: { text: "bonjour" },
               outcome: "success",
+              reviewedTeaching: false,
               report: {
                 reason: "key-wrong",
                 note: "Bonjour! is right too",
@@ -537,6 +541,7 @@ describe.skipIf(!connectionString)("learner export", () => {
               },
               response: { reveal: true },
               outcome: "failure",
+              reviewedTeaching: true,
               report: {
                 reason: "confusing",
                 note: null,

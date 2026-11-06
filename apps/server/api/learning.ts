@@ -14,6 +14,7 @@ import {
   readCourseProgress,
   readLearnerProgress,
   reportAttempt,
+  reviewObjective,
   submitAttempt,
   withoutHistory,
 } from "../application/index.ts";
@@ -26,17 +27,31 @@ import { historyErasedRefusal, secondsUntil } from "./refusals.ts";
  * the task's to judge, so it passes through unread: only the use case knows
  * which task it answers.
  */
-function parseAttempt(
-  body: unknown,
-): { id: string; taskId: string; response: unknown; historyEpoch: number } | undefined {
+function parseAttempt(body: unknown):
+  | {
+      id: string;
+      taskId: string;
+      response: unknown;
+      historyEpoch: number;
+      reviewedTeaching: boolean;
+    }
+  | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const { id, taskId, response, historyEpoch } = body as Record<string, unknown>;
+  const {
+    id,
+    taskId,
+    response,
+    historyEpoch,
+    reviewedTeaching = false,
+  } = body as Record<string, unknown>;
   if (typeof id !== "string") return undefined;
   if (typeof taskId !== "string" || taskId === "") return undefined;
   if (!isHistoryEpoch(historyEpoch)) return undefined;
+  // Absent is `false`, so a client that never reviews need not send it.
+  if (typeof reviewedTeaching !== "boolean") return undefined;
 
-  return { id, taskId, response, historyEpoch };
+  return { id, taskId, response, historyEpoch, reviewedTeaching };
 }
 
 /**
@@ -164,6 +179,7 @@ export function learningRoutes(
         return context.json({
           objective: next.objective,
           retryAfter: secondsUntil(next.retryAt, now),
+          reviewable: next.reviewable,
         });
       case "decided":
         return context.json({
@@ -198,6 +214,7 @@ export function learningRoutes(
         taskId: attempt.taskId,
         response: attempt.response,
         historyEpoch: attempt.historyEpoch,
+        reviewedTeaching: attempt.reviewedTeaching,
         now: new Date(),
       });
 
@@ -213,16 +230,47 @@ export function learningRoutes(
           return context.body(null, 409);
         case "history-erased":
           return historyErasedRefusal(context);
-        case "graded":
+        case "graded": {
+          const { grade, passages, reviewable } = submitted;
           // `passages` only when there are some, as `explanation` only when
           // the task has one: a hand-written task cites nothing.
           return context.json(
-            submitted.passages.length > 0
-              ? { ...submitted.grade, passages: submitted.passages }
-              : submitted.grade,
+            passages.length > 0 ? { ...grade, passages, reviewable } : { ...grade, reviewable },
           );
+        }
         default:
           throw new Error(`Unhandled answer: ${JSON.stringify(submitted satisfies never)}`);
+      }
+    },
+  );
+
+  /**
+   * The passages the signed-in learner reviews an objective they answered on
+   * by (ADR 0054). Answered as the activity is, 404 also for an objective
+   * outside the course or not answered on yet; 204 when there is nothing to show.
+   */
+  routes.get(
+    "/api/courses/:courseId/objectives/:objectiveId/review",
+    requireLearner,
+    async (context) => {
+      const review = await reviewObjective({
+        database,
+        learnerId: context.var.learner.id,
+        courseId: context.req.param("courseId"),
+        objectiveId: context.req.param("objectiveId"),
+        host: requestHost(context),
+        now: new Date(),
+      });
+
+      switch (review.kind) {
+        case "unavailable":
+          return context.body(null, 404);
+        case "empty":
+          return context.body(null, 204);
+        case "review":
+          return context.json({ title: review.title, passages: review.passages });
+        default:
+          throw new Error(`Unhandled answer: ${JSON.stringify(review satisfies never)}`);
       }
     },
   );

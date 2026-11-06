@@ -63,6 +63,7 @@ const routes = [
   "GET  /api/courses",
   "GET  /api/courses/:courseId/next",
   "GET  /api/courses/:courseId/activity",
+  "GET  /api/courses/:courseId/objectives/:objectiveId/review",
   "POST /api/courses/:courseId/attempts",
   "POST /api/courses/:courseId/attempts/:attemptId/report",
   "GET  /api/courses/:courseId/learners/:learnerId/progress",
@@ -317,6 +318,7 @@ GET  /api/oauth/consent                                                         
 GET  /api/courses                                                               401     200     200     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     404     404     401       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     404     404     401       ·       ·       ·       ·       ·
+GET  /api/courses/:courseId/objectives/:objectiveId/review                      401     404     404     401       ·       ·       ·       ·       ·
 POST /api/courses/:courseId/attempts                                            401     400     400     401     403     403     403     403     1MB
 POST /api/courses/:courseId/attempts/:attemptId/report                          401     400     400     401     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     404     404     401       ·       ·       ·       ·       ·
@@ -401,6 +403,7 @@ GET  /api/oauth/consent                                                         
 GET  /api/courses                                                               401     401     401     200       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/next                                                401     401     401     404       ·       ·       ·       ·       ·
 GET  /api/courses/:courseId/activity                                            401     401     401     404       ·       ·       ·       ·       ·
+GET  /api/courses/:courseId/objectives/:objectiveId/review                      401     401     401     404       ·       ·       ·       ·       ·
 POST /api/courses/:courseId/attempts                                            401     401     401     400     403     403     403     403     1MB
 POST /api/courses/:courseId/attempts/:attemptId/report                          401     401     401     400     403     403     403     403     1MB
 GET  /api/courses/:courseId/learners/:learnerId/progress                        401     401     401     404       ·       ·       ·       ·       ·

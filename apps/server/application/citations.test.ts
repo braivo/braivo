@@ -32,8 +32,8 @@ let unit!: string;
 let theirSource!: string;
 let theirObjective!: string;
 
-function cite(citations: QuotedCitation[], actingAs = author) {
-  return citeSources({ database, organizationId, actingAs, citations });
+function cite(citations: QuotedCitation[], actingAs = author, byTool = false) {
+  return citeSources({ database, organizationId, actingAs, citations, now: new Date(), byTool });
 }
 
 function list(objectiveId: string, actingAs = author) {
@@ -94,7 +94,7 @@ describe.skipIf(!connectionString)("citing sources", () => {
     ]);
     // Cut out by PostgreSQL, whose count must agree with the one that located it.
     expect(await list(greetings)).toEqual([
-      { sourceId: unit, start: 11, end: 32, quote: "Hola significa hello." },
+      { sourceId: unit, start: 11, end: 32, quote: "Hola significa hello.", published: true },
     ]);
     expect(await list(farewells)).toMatchObject([{ quote: "Adiós significa goodbye." }]);
   });
@@ -106,6 +106,21 @@ describe.skipIf(!connectionString)("citing sources", () => {
     await cite([citation, citation]);
 
     expect(await list(greetings)).toHaveLength(1);
+  });
+
+  test("keeps a tool's citation pending, until a person cites it too (ADR 0039)", async () => {
+    const citation = { objectiveId: greetings, sourceId: unit, quote: "Hola significa hello." };
+
+    await cite([citation], author, true);
+    expect(await list(greetings)).toMatchObject([{ published: false }]);
+
+    // A tool citing it again changes nothing; a person's citing publishes it.
+    await cite([citation], author, true);
+    expect(await list(greetings)).toMatchObject([{ published: false }]);
+    await cite([citation]);
+    expect(await list(greetings)).toMatchObject([{ published: true }]);
+    await cite([citation], author, true);
+    expect(await list(greetings)).toMatchObject([{ published: true }]);
   });
 
   test("stores overlapping batches that arrive at once in opposite orders", async () => {
@@ -125,8 +140,8 @@ describe.skipIf(!connectionString)("citing sources", () => {
       );
 
       await Promise.all([
-        createCitations(database, organizationId, batch),
-        createCitations(database, organizationId, batch.toReversed()),
+        createCitations(database, organizationId, batch, new Date()),
+        createCitations(database, organizationId, batch.toReversed(), new Date()),
       ]);
     }
 

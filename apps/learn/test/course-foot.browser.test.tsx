@@ -32,6 +32,7 @@ test("keeps the focused Continue on screen when a failure grows the foot past ha
       outcome: "failure",
       correctAnswer: "bin",
       explanation: "Sein: ich bin, du bist, er ist. ".repeat(12),
+      reviewable: false,
     }),
   });
 
@@ -67,6 +68,7 @@ test("keeps the focused Continue on screen when a failure grows a foot already l
       outcome: "failure",
       correctAnswer: "bin",
       explanation: "Sein: ich bin, du bist, er ist. ".repeat(12),
+      reviewable: false,
     }),
   });
 
@@ -95,6 +97,7 @@ test("leaves the page where it is when the foot unpins while the focus is elsewh
       outcome: "failure",
       correctAnswer: "bin",
       explanation: "Sein: ich bin, du bist, er ist. ".repeat(12),
+      reviewable: false,
     }),
   });
 

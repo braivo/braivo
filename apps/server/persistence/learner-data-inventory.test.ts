@@ -61,6 +61,7 @@ const recordTables: Record<string, Record<string, Classification>> = {
     task_id: "key",
     response: "exported",
     at: "exported",
+    reviewed_teaching: "exported",
   },
   group_member: { organization_id: "key", group_id: "key", user_id: "key", role: "exported" },
   learner_evidence: {

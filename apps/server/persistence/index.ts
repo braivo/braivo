@@ -5,7 +5,7 @@
 // are `@braivo/db`'s; what is asked of them, and in what shape the answers come
 // back, is decided here beside the code that needs it.
 
-export type { Citation, CitedPassage } from "./citation.ts";
+export type { Citation, CitedPassage, LearnerPassage } from "./citation.ts";
 export {
   deleteLearnerHistory,
   type ErasureCounts,
@@ -23,7 +23,13 @@ export {
   readAccountErasurePreview,
   withAccountLock,
 } from "./account-erasure.ts";
-export { createCitations, readObjectiveCitations, readSourceTexts } from "./citation.ts";
+export {
+  createCitations,
+  hasReviewPassage,
+  readObjectiveCitations,
+  readReviewPassages,
+  readSourceTexts,
+} from "./citation.ts";
 export type { Course, CourseWriteResult, ManagedCourse } from "./course.ts";
 export {
   createCourse,

@@ -66,6 +66,7 @@ const activity = (courseId: string, timeZone = "UTC") =>
 function answer(courseId: string, taskId: string, choice: number, at: Date) {
   return submitAttempt({
     historyEpoch: 0,
+    reviewedTeaching: false,
     database,
     learnerId,
     courseId,
@@ -112,6 +113,7 @@ describe.skipIf(!connectionString)("the activity when a task is retired meanwhil
       kind: "resting",
       objective: { id: objectiveIds[0], title: "Resting" },
       retryAt: minutesAgo(-8),
+      reviewable: false,
     });
   });
 });

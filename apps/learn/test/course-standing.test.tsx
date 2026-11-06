@@ -130,7 +130,12 @@ describe("the learn app", () => {
         lastPractisedAt: null,
         objectives: reported,
       }),
-      submitAttempt: async () => ({ kind: "choice", outcome: "failure", correctChoice: 0 }),
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: false,
+      }),
     });
 
     // Read with the question, which takes the focus.

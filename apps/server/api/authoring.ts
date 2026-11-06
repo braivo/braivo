@@ -8,6 +8,7 @@ import {
   activateDomain,
   type Ai,
   type AuthoredTask,
+  type Citation,
   citeSources,
   claimDomain,
   defineCourse,
@@ -138,20 +139,45 @@ function parseSetup(body: unknown): { name: string; slug: string } | undefined {
 }
 
 /** Reads `courseIds` and `taskIds` out of a request body: one ID at least, each nonempty. */
-function parsePublication(body: unknown): { courseIds: string[]; taskIds: string[] } | undefined {
+function parsePublication(
+  body: unknown,
+): { courseIds: string[]; taskIds: string[]; citations: Citation[] } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
-  const { courseIds = [], taskIds = [] } = body as { courseIds?: unknown; taskIds?: unknown };
-  const valid = (ids: unknown): ids is string[] =>
-    Array.isArray(ids) && ids.every((id) => typeof id === "string" && id !== "");
-  if (!valid(courseIds) || !valid(taskIds)) return undefined;
-  const count = courseIds.length + taskIds.length;
+  const {
+    courseIds = [],
+    taskIds = [],
+    citations = [],
+  } = body as { courseIds?: unknown; taskIds?: unknown; citations?: unknown };
+  const id = (value: unknown): value is string => typeof value === "string" && value !== "";
+  const valid = (ids: unknown): ids is string[] => Array.isArray(ids) && ids.every(id);
+  // PostgreSQL's integer, which the keys are compared as: past it, a refusal, not an error.
+  const position = (value: unknown): value is number =>
+    Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 2_147_483_647;
+  const validCitations = (values: unknown): values is Citation[] =>
+    Array.isArray(values) &&
+    values.every((value: unknown) => {
+      if (typeof value !== "object" || value === null) return false;
+      const { objectiveId, sourceId, start, end } = value as Record<string, unknown>;
+      return id(objectiveId) && id(sourceId) && position(start) && position(end);
+    });
+  if (!valid(courseIds) || !valid(taskIds) || !validCitations(citations)) return undefined;
+  const count = courseIds.length + taskIds.length + citations.length;
   return count === 0 || count > MAX_PUBLICATION_IDS_PER_REQUEST
     ? undefined
-    : { courseIds, taskIds };
+    : {
+        courseIds,
+        taskIds,
+        citations: citations.map(({ objectiveId, sourceId, start, end }) => ({
+          objectiveId,
+          sourceId,
+          start,
+          end,
+        })),
+      };
 }
 
 /**
- * Every pending course and task a course's page shows, in one request, since
+ * Every pending course, task, and citation a course's page shows, in one request, since
  * Publish is all or none: a bank's thousands of statements, as IDs well under
  * `MAX_BODY_BYTES`.
  */
@@ -1008,6 +1034,9 @@ export function authoringRoutes(
           organizationId: context.req.param("organizationId"),
           actingAs: context.var.userId,
           citations,
+          now: new Date(),
+          // A tool proposes; a person in the console publishes (ADR 0039).
+          byTool: presentsToolCredential(context),
         });
 
         return context.json({ citations: located });

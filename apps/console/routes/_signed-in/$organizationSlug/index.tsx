@@ -71,6 +71,13 @@ function Courses() {
     const courseId = courseIds[0]!;
     pendingTaskCounts.set(courseId, (pendingTaskCounts.get(courseId) ?? 0) + pendingTaskCount);
   }
+  // A tool's citations, under every course their objective is in: any of
+  // their pages publishes them, and no objective's page does.
+  const pendingPassages = new Set(
+    objectives.flatMap(({ courseIds, pendingPassageCount }) =>
+      pendingPassageCount > 0 ? courseIds : [],
+    ),
+  );
   // One in no course is listed even with nothing pending: no course page
   // leads to it, and its published tasks are edited and retired there.
   const otherObjectives = objectives.filter(
@@ -130,14 +137,15 @@ function Courses() {
       ) : (
         <LinkList>
           {courses.map((course) => {
-            // A tool's course, or a published one's new tasks, reached by no
-            // learner until published on its page.
+            // A tool's course, or a published one's new tasks or passages,
+            // reached by no learner until published on its page.
             const pending = pendingTaskCounts.get(course.id) ?? 0;
-            const review = !course.published
-              ? "Needs review"
-              : pending > 0
-                ? formatReviewCount(pending)
-                : undefined;
+            const review =
+              !course.published || (pending === 0 && pendingPassages.has(course.id))
+                ? "Needs review"
+                : pending > 0
+                  ? formatReviewCount(pending)
+                  : undefined;
             // Hidden from learners since it was published, first: what they meet now.
             const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
             return (

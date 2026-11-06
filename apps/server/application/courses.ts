@@ -7,6 +7,7 @@ import { isUrlLabel } from "../content/index.ts";
 import { activeModel, assessKnowledge, replay } from "../learning/index.ts";
 import {
   type AuthoredTask,
+  type Citation,
   type CitedPassage,
   type Course,
   type CourseWriteResult,
@@ -121,9 +122,11 @@ export async function publish(input: {
   actingAs: string;
   courseIds: readonly string[];
   taskIds: readonly string[];
+  /** Objectives' citations, by key, as the page showed them (ADR 0054). */
+  citations?: readonly Citation[];
   now: Date;
 }): Promise<void> {
-  const { database, organizationId, actingAs, courseIds, taskIds, now } = input;
+  const { database, organizationId, actingAs, courseIds, taskIds, citations = [], now } = input;
   await assertMayAuthor(database, { organizationId, userId: actingAs });
 
   // Checked apart from the write: a task never changes organization.
@@ -133,7 +136,7 @@ export async function publish(input: {
       `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
     );
   }
-  if (!(await markPublished(database, { organizationId, courseIds, taskIds, now }))) {
+  if (!(await markPublished(database, { organizationId, courseIds, taskIds, citations, now }))) {
     throw new StalePublication();
   }
 }

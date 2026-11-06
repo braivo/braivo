@@ -237,6 +237,11 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
   });
 
   test("submits an attempt the server grades, and sees its only task rest", async () => {
+    const signedIn = { headers: { cookie: learnerCookie } };
+    const review = { courseId, objectiveId: pastTense };
+    // Before any answer on it, as a course not theirs.
+    await expect(client.objectiveReview(review, signedIn)).rejects.toMatchObject({ status: 404 });
+
     const grade = await client.submitAttempt(
       {
         historyEpoch: 0,
@@ -244,15 +249,24 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         id: crypto.randomUUID(),
         taskId: pastTenseTask,
         response: { choice: 1 },
+        reviewedTeaching: true,
       },
-      { headers: { cookie: learnerCookie } },
+      signedIn,
     );
-    expect(grade).toEqual({ kind: "choice", outcome: "failure", correctChoice: 0 });
+    expect(grade).toEqual({
+      kind: "choice",
+      outcome: "failure",
+      correctChoice: 0,
+      reviewable: false,
+    });
+    // Answered on, and citing nothing.
+    expect(await client.objectiveReview(review, signedIn)).toBeUndefined();
 
-    const next = await client.nextActivity(courseId, { headers: { cookie: learnerCookie } });
+    const next = await client.nextActivity(courseId, signedIn);
     expect(next).toEqual({
       objective: { id: pastTense, title: "Past tense" },
       retryAfter: expect.any(Number),
+      reviewable: false,
     });
 
     const early = client.submitAttempt(
@@ -1284,6 +1298,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       title: "Greetings",
       courseIds: [],
       pendingTaskCount: 0,
+      pendingPassageCount: 0,
     });
     expect(
       await client.citeSources(

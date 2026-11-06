@@ -47,7 +47,10 @@ import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 /** A task as authored, published or pending, with the passages it cites. */
 export type ReviewTask = AuthoredCourse["objectives"][number]["tasks"][number];
 
-type Citation = AuthoredCourse["objectives"][number]["citations"][number];
+/** A task's passage, or an objective's, which says whether it is published. */
+type Citation = Omit<AuthoredCourse["objectives"][number]["citations"][number], "published"> & {
+  published?: boolean;
+};
 
 /**
  * The task whose editor is open on a page, and an answer to add to it, from
@@ -58,23 +61,39 @@ export type Editing = { taskId: string; answerToAdd?: string };
 /** "1 task", "3 tasks". */
 export const formatTaskCount = (count: number) => (count === 1 ? "1 task" : `${count} tasks`);
 
+/** "1 passage", "3 passages". */
+export const formatPassageCount = (count: number) =>
+  count === 1 ? "1 passage" : `${count} passages`;
+
+/** Which objective's passage, as Publish names it. */
+export type CitationKey = { objectiveId: string; sourceId: string; start: number; end: number };
+
 /** The organization's pages' context: its client and the organization itself. */
 const useOrganizationContext = () => useRouteContext({ from: "/_signed-in/$organizationSlug" });
 
-/** Passages, each under its source's title. */
+/**
+ * Passages, each under its source's title; an objective's not yet published
+ * marked so, as learners' reviews do not show it until it is (ADR 0054).
+ */
 export function Passages(props: {
   citations: readonly Citation[];
   sources: ReadonlyMap<string, SourceSummary>;
 }) {
   return props.citations.map((citation) => {
     const source = props.sources.get(citation.sourceId);
-    return (
-      <SourcePassage
-        key={`${citation.sourceId}:${citation.start}:${citation.end}`}
-        quote={citation.quote}
-        title={source?.title ?? "A source"}
-        url={source?.url}
-      />
+    const passage = (
+      <SourcePassage quote={citation.quote} title={source?.title ?? "A source"} url={source?.url} />
+    );
+    const key = `${citation.sourceId}:${citation.start}:${citation.end}`;
+    return citation.published === false ? (
+      <div key={key} className="flex flex-col gap-1">
+        <Badge variant="outline" className="self-start">
+          Needs review
+        </Badge>
+        {passage}
+      </div>
+    ) : (
+      <Fragment key={key}>{passage}</Fragment>
     );
   });
 }
@@ -146,7 +165,7 @@ export function usePublish(callbacks: {
 
   async function publish(
     action: "selected" | "all",
-    ids: { courseIds?: string[]; taskIds: string[] },
+    ids: { courseIds?: string[]; taskIds: string[]; citations?: CitationKey[] },
     successMessage: string,
   ) {
     if (publishing) return;

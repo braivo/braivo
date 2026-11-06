@@ -157,6 +157,173 @@ describe("the console", () => {
     expect(screen.queryByRole("button", { name: /^Publish/ })).toBeNull();
   });
 
+  test("holds a tool's passages until published, alone in a published course, naming the other courses first", async () => {
+    let published = false;
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {
+      published = true;
+    });
+    const [greetings, numbers] = beginners.objectives;
+    const proposed = { sourceId: "s1", start: 6, end: 11, quote: "Adiós." };
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [
+            {
+              ...greetings!,
+              citations: [...greetings!.citations, { ...proposed, published }],
+              otherPublishedCourses: [{ id: "course-9", title: "Holiday Spanish" }],
+            },
+            numbers!,
+          ],
+        }),
+        publish,
+      },
+    });
+
+    expect(
+      await screen.findByText(
+        "1 passage below waits for review: learners' reviews of a topic don't show it until you publish.",
+      ),
+    ).toBeTruthy();
+    // Marked where it is shown, the published passage beside it not.
+    const passage = screen.getByText("Adiós.").closest("figure")!.parentElement!;
+    expect(within(passage).getByText("Needs review")).toBeTruthy();
+    expect(screen.getAllByText("Needs review")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Publish 1 passage?");
+    expect(dialog.textContent).toContain(
+      "Learners of another course will see it when reviewing a topic too:",
+    );
+    expect(within(dialog).getByRole("listitem").textContent).toBe("Holiday Spanish");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
+
+    expect((await screen.findByText("Published 1 passage.")).getAttribute("role")).toBe("status");
+    expect(publish).toHaveBeenCalledWith(
+      {
+        organizationId: "org-1",
+        courseIds: [],
+        taskIds: [],
+        citations: [
+          {
+            objectiveId: "greetings",
+            sourceId: "s1",
+            start: 6,
+            end: 11,
+          },
+        ],
+      },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(screen.queryByText("Needs review")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Publish/ })).toBeNull();
+  });
+
+  test("says what reaches another course when a task and a passage publish together, or publishes the task alone", async () => {
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {});
+    const [greetings, numbers] = beginners.objectives;
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          objectives: [
+            // Its passage reaches Holiday Spanish; the task, in this course alone, does not.
+            {
+              ...greetings!,
+              citations: [
+                ...greetings!.citations,
+                { sourceId: "s1", start: 6, end: 11, quote: "Adiós.", published: false },
+              ],
+              otherPublishedCourses: [{ id: "course-9", title: "Holiday Spanish" }],
+            },
+            {
+              ...numbers!,
+              tasks: [
+                {
+                  id: "t2",
+                  kind: "choice" as const,
+                  prompt: "One, in Spanish?",
+                  options: ["Uno", "Dos"],
+                  answer: 0,
+                  citations: [],
+                  published: false,
+                },
+              ],
+            },
+          ],
+        }),
+        publish,
+      },
+    });
+
+    // The buttons count tasks: the passages they send too, said beside them.
+    const withPassages = await screen.findByRole("checkbox", {
+      name: "Publish the passages waiting too",
+    });
+    expect(withPassages.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Publish all (1)" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("Publish 1 task and 1 passage?");
+    // Not that the task is asked there: some of what is sent reaches it.
+    expect(dialog.textContent).toContain("Learners of another course will meet some of this too:");
+    expect(within(dialog).getByRole("listitem").textContent).toBe("Holiday Spanish");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Not yet" }));
+
+    // Held back, the passage waits, and the task alone reaches no other course.
+    fireEvent.click(withPassages);
+    fireEvent.click(screen.getByRole("button", { name: "Publish all (1)" }));
+    await vi.waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(
+        { organizationId: "org-1", courseIds: [], taskIds: ["t2"] },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  test("publishes a tool's course with the passages it shows, and only those", async () => {
+    const publish = vi.fn<BraivoClient["publish"]>(async () => {});
+    const [greetings, numbers] = beginners.objectives;
+    const pending = (start: number) => ({
+      sourceId: "s1",
+      start,
+      end: start + 1,
+      quote: `Passage ${start}.`,
+      published: false,
+    });
+    renderAt("/example/courses/course-1", {
+      braivo: {
+        readCourse: async () => ({
+          ...beginners,
+          published: false,
+          objectives: [
+            { ...greetings!, citations: [...greetings!.citations, pending(6)] },
+            { ...numbers!, citations: [pending(8)] },
+          ],
+        }),
+        publish,
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Publish" }));
+    await vi.waitFor(() =>
+      expect(publish).toHaveBeenCalledWith(
+        {
+          organizationId: "org-1",
+          courseIds: ["course-1"],
+          taskIds: [],
+          citations: [
+            { objectiveId: "greetings", sourceId: "s1", start: 6, end: 7 },
+            { objectiveId: "numbers", sourceId: "s1", start: 8, end: 9 },
+          ],
+        },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+  });
+
   test("marks a tool's pending correction, saying first that changing its task retires it", async () => {
     const [greetings, numbers] = beginners.objectives;
     const [original] = greetings!.tasks;

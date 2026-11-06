@@ -6,6 +6,8 @@
 
 export type { NextActivity, Passage, SubmittedAttempt } from "./activity.ts";
 export { chooseNextActivity, submitAttempt } from "./activity.ts";
+export type { ObjectiveReview } from "./review.ts";
+export { reviewObjective } from "./review.ts";
 export type {
   ReportedAttempt,
   ReportedTask,

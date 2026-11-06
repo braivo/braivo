@@ -266,6 +266,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     expect(
       await submitAttempt({
         historyEpoch: 0,
+        reviewedTeaching: false,
         database,
         learnerId: learner,
         courseId: reviewCourse,
@@ -320,6 +321,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     expect(await progress()).toMatchObject({ report: { lastPractisedAt: null } });
     await submitAttempt({
       historyEpoch: 0,
+      reviewedTeaching: false,
       database,
       learnerId: learner,
       courseId: reviewCourse,

@@ -455,6 +455,10 @@ msgstr "Autor"
 msgid "Back to {organizationName}"
 msgstr "Wróć do organizacji „{organizationName}”"
 
+#: apps/learn/components/review-topic.tsx
+msgid "Back to practice"
+msgstr "Wróć do ćwiczeń"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Back to sign-in options"
 msgstr "Wróć do opcji logowania"
@@ -1067,6 +1071,7 @@ msgstr "Jesteś tu pierwszy raz? Logowanie utworzy Twoje konto."
 msgid "For example, 7A · English."
 msgstr "Na przykład 7A · Angielski."
 
+#: apps/learn/components/review-topic.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "From your lessons"
 msgstr "Z Twoich lekcji"
@@ -1413,6 +1418,7 @@ msgid "Loading"
 msgstr "Ładowanie"
 
 #: apps/learn/components/practice-session.tsx
+#: apps/learn/components/review-topic.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Loading…"
 msgstr "Ładowanie…"
@@ -1763,12 +1769,20 @@ msgid "Progress by objective"
 msgstr "Postępy według celów"
 
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Publish acts only on the tasks and passages shown."
+msgstr "Publikowanie obejmuje tylko widoczne zadania i fragmenty."
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
 msgid "Publish acts only on the tasks shown."
 msgstr "Publikowanie obejmuje tylko widoczne zadania."
 
 #: apps/console/components/task-review.tsx
 msgid "Publish anyway"
 msgstr "Opublikuj mimo to"
+
+#: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/index.tsx
+msgid "Publish the passages waiting too"
+msgstr "Opublikuj też oczekujące fragmenty"
 
 #: apps/console/components/first-answers.tsx
 msgid "Questions to review"
@@ -1904,6 +1918,14 @@ msgstr "Termin powtórki"
 #: apps/console/components/task-review.tsx
 msgid "Review them"
 msgstr "Sprawdź je"
+
+#: apps/learn/components/review-topic.tsx
+msgid "Review this topic"
+msgstr "Przejrzyj ten temat"
+
+#: apps/learn/components/review-topic.tsx
+msgid "Review: {title}"
+msgstr "Temat: {title}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Role"
@@ -2303,6 +2325,10 @@ msgstr "Nie udało się zapisać tej odpowiedzi."
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "This cancels its setup. You can add it again later."
 msgstr "To anuluje jej konfigurację. Możesz dodać ją ponownie później."
+
+#: apps/learn/components/review-topic.tsx
+msgid "This couldn't be loaded."
+msgstr "Nie udało się tego wczytać."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "This course does not exist, or is not one of yours."

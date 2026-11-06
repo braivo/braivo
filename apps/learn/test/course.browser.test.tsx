@@ -3,11 +3,12 @@
 
 import "../styles.css";
 import { activateLocale } from "@braivo/i18n";
-import { screen, within } from "@testing-library/react";
+import type { ObjectiveReview } from "@braivo/server/client";
+import { cleanup, screen, within } from "@testing-library/react";
 import { expect, onTestFinished, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser/context";
 
-import { typedActivity } from "./fixtures.ts";
+import { activity, typedActivity } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 /** Where `element`'s text starts and ends, its padding aside. */
@@ -40,6 +41,7 @@ test("on a phone, keeps the verdict and Continue in view below feedback longer t
       outcome: "failure",
       correctAnswer: "bin",
       explanation: "Sein: ich bin, du bist, er ist. ".repeat(20),
+      reviewable: false,
     }),
   });
 
@@ -69,6 +71,7 @@ test("on a phone, scrolls a passage's link focused above the pinned Continue, ne
       kind: "typed",
       outcome: "failure",
       correctAnswer: "bin",
+      reviewable: false,
       passages: Array.from({ length: 6 }, (_, index) => ({
         quote: "Ich bin müde, und du bist es auch. ".repeat(3),
         source: { title: `Lesson ${index + 1}`, url: `https://example.com/${index + 1}` },
@@ -117,7 +120,12 @@ test("on a phone, keeps a long correct answer in the page, the pinned foot short
   renderAt("/c/4732", {
     signedIn: true,
     nextActivity: async () => typedActivity,
-    submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+    submitAttempt: async () => ({
+      kind: "typed",
+      outcome: "failure",
+      correctAnswer: answer,
+      reviewable: false,
+    }),
   });
 
   // A near miss, so its missed letters are marked: still read whole.
@@ -154,7 +162,12 @@ test.each([
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
-      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+      submitAttempt: async () => ({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: "bin",
+        reviewable: false,
+      }),
     });
 
     await userEvent.type(await screen.findByRole("textbox"), "ben{Enter}");
@@ -206,7 +219,12 @@ test("on a phone, ends a session with Keep going and Done on the first screen, h
     signedIn: true,
     nextActivity: async () => typedActivity,
     learnerProgress: async () => standing(read++ === 0 ? "unseen" : "retaining"),
-    submitAttempt: async () => ({ kind: "typed", outcome: "success", correctAnswer: "bin" }),
+    submitAttempt: async () => ({
+      kind: "typed",
+      outcome: "success",
+      correctAnswer: "bin",
+      reviewable: false,
+    }),
   });
 
   for (let each = 0; each < 10; each++) {
@@ -254,7 +272,12 @@ test.each(["en", "pl"] as const)(
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
-      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: answer }),
+      submitAttempt: async () => ({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: answer,
+        reviewable: false,
+      }),
     });
 
     await userEvent.type(await screen.findByRole("textbox"), "ist{Enter}");
@@ -286,3 +309,92 @@ test.each(["en", "pl"] as const)(
     expect(["sticky", "static"]).toContain(position);
   },
 );
+
+test.each(["en", "pl"] as const)(
+  "on a phone with text twice as large, in %s, wraps Review this topic and Back to practice inside their buttons",
+  async (locale) => {
+    await activateLocale(locale);
+    document.documentElement.style.fontSize = "225%";
+    onTestFinished(async () => {
+      document.documentElement.style.fontSize = "";
+      await activateLocale("en");
+    });
+    await page.viewport(320, 568);
+    const reviewName = locale === "pl" ? "Przejrzyj ten temat" : "Review this topic";
+    /** Its label inside it, and it inside the screen: a page's width alone misses a label overflowing its button. */
+    const fits = (button: HTMLElement) => {
+      expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth);
+      expect(button.getBoundingClientRect().right).toBeLessThanOrEqual(320);
+    };
+    const objectiveReview = async () => ({
+      title: "Past tense",
+      passages: [{ quote: "Ayer hablé con ella.", source: { title: "Unidad 4" } }],
+    });
+
+    // In the resting notice, beside its other actions (first: an answer is kept on the tab).
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => ({
+        objective: activity.objective,
+        retryAfter: 600,
+        reviewable: true,
+      }),
+      objectiveReview,
+    });
+    fits(await screen.findByRole("button", { name: reviewName }));
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+    cleanup();
+
+    // Under a miss's feedback, then the review it opens.
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity: async () => activity,
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: true,
+      }),
+      objectiveReview,
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "hablo" }));
+    const review = await screen.findByRole("button", { name: reviewName });
+    fits(review);
+    await userEvent.click(review);
+    await screen.findByText("Ayer hablé con ella.");
+    fits(
+      screen.getByRole("button", {
+        name: locale === "pl" ? "Wróć do ćwiczeń" : "Back to practice",
+      }),
+    );
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+  },
+);
+
+test("on a phone, keeps Back to practice in view when it has the focus as the passages arrive", async () => {
+  await page.viewport(320, 568);
+  let found!: (review: ObjectiveReview) => void;
+  const read = new Promise<ObjectiveReview>((resolve) => (found = resolve));
+  const quote = "A rule says why this answer changes in another context. ".repeat(12).trim();
+  renderAt("/c/4732", {
+    signedIn: true,
+    nextActivity: async () => activity,
+    submitAttempt: async () => ({
+      kind: "choice",
+      outcome: "failure",
+      correctChoice: 0,
+      reviewable: true,
+    }),
+    objectiveReview: () => read,
+  });
+  await userEvent.click(await screen.findByRole("button", { name: "hablo" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Review this topic" }));
+  await userEvent.keyboard("{Tab}");
+  const back = screen.getByRole("button", { name: "Back to practice" });
+  expect(document.activeElement).toBe(back);
+
+  found({ title: "Past tense", passages: [{ quote, source: { title: "Unidad 4" } }] });
+  await screen.findByText(quote);
+  expect(document.activeElement).toBe(back);
+  expect(back.getBoundingClientRect().bottom).toBeLessThanOrEqual(568);
+});

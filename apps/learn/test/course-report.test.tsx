@@ -10,7 +10,7 @@ import { describe, expect, test, vi } from "vite-plus/test";
 import { activity, anotherActivity, typedActivity } from "./fixtures.ts";
 import { renderAt, stall } from "./render.tsx";
 
-const miss: Grade = { kind: "choice", outcome: "failure", correctChoice: 0 };
+const miss: Grade = { kind: "choice", outcome: "failure", correctChoice: 0, reviewable: false };
 const withPassages: Grade = {
   ...miss,
   passages: [{ quote: "Ayer hablé con ella.", source: { title: "Unidad 4" } }],
@@ -104,7 +104,12 @@ describe("reporting a problem with a question", () => {
     renderAt("/c/4732", {
       signedIn: true,
       nextActivity: async () => typedActivity,
-      submitAttempt: async () => ({ kind: "typed", outcome: "failure", correctAnswer: "bin" }),
+      submitAttempt: async () => ({
+        kind: "typed",
+        outcome: "failure",
+        correctAnswer: "bin",
+        reviewable: false,
+      }),
     });
     fireEvent.change(await screen.findByRole("textbox"), { target: { value: "ben" } });
     fireEvent.click(screen.getByRole("button", { name: "Check" }));

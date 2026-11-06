@@ -62,6 +62,7 @@ const submitAttempt: BraivoClient["submitAttempt"] = async ({ response }) => ({
   kind: "choice",
   outcome: "choice" in response && response.choice === 0 ? "success" : "failure",
   correctChoice: 0,
+  reviewable: false,
 });
 
 // Most tests here answer ten questions first: under a loaded suite, more than a test's default five seconds.
@@ -189,7 +190,7 @@ describe("the learn app", { timeout: 20_000 }, () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
-      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600 })
+      .mockResolvedValueOnce({ objective: activity.objective, retryAfter: 600, reviewable: false })
       .mockResolvedValue(undefined);
     const { router } = renderAt("/c/4732", {
       signedIn: true,
@@ -301,7 +302,12 @@ describe("the learn app", { timeout: 20_000 }, () => {
   });
 
   test("counts an answer once when a reload's resend, then Send again, finds its grade again", async () => {
-    const success = { kind: "choice", outcome: "success", correctChoice: 0 } as const;
+    const success = {
+      kind: "choice",
+      outcome: "success",
+      correctChoice: 0,
+      reviewable: false,
+    } as const;
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockResolvedValueOnce(success)
@@ -329,7 +335,12 @@ describe("the learn app", { timeout: 20_000 }, () => {
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValue({ kind: "choice", outcome: "success", correctChoice: 0 });
+      .mockResolvedValue({
+        kind: "choice",
+        outcome: "success",
+        correctChoice: 0,
+        reviewable: false,
+      });
     renderAt("/c/4732", { signedIn: true, nextActivity: async () => activity, submitAttempt });
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
     fireEvent.click(await screen.findByRole("button", { name: "Send again" }));
@@ -340,7 +351,12 @@ describe("the learn app", { timeout: 20_000 }, () => {
 
   test("never counts an answer from a visit before, even once a recovery finds its grade again", async () => {
     saveUnfinishedAttempt("ada", "c1", { id: "before", activity, response: { choice: 0 } });
-    const success = { kind: "choice", outcome: "success", correctChoice: 0 } as const;
+    const success = {
+      kind: "choice",
+      outcome: "success",
+      correctChoice: 0,
+      reviewable: false,
+    } as const;
     const submitAttempt = vi
       .fn<BraivoClient["submitAttempt"]>()
       // The visit's resend finds its grade: not this session's answer.

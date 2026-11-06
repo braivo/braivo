@@ -78,8 +78,11 @@ export async function citeSources(input: {
   /** The signed-in actor, who must be allowed to author in the organization. */
   actingAs: string;
   citations: readonly QuotedCitation[];
+  now: Date;
+  /** A tool's citations wait for a person to publish them; a person's are published (ADR 0039). */
+  byTool: boolean;
 }): Promise<Citation[]> {
-  const { database, organizationId, actingAs, citations } = input;
+  const { database, organizationId, actingAs, citations, now, byTool } = input;
 
   await assertMayAuthor(database, { organizationId, userId: actingAs });
 
@@ -108,7 +111,7 @@ export async function citeSources(input: {
     ...passage,
   }));
 
-  await createCitations(database, organizationId, located);
+  await createCitations(database, organizationId, located, byTool ? undefined : now);
   return located;
 }
 
