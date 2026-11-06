@@ -14,6 +14,8 @@ Neither app sent a Content-Security-Policy, so any site could frame the console'
 
 **Two exceptions, low risk.** `style-src 'unsafe-inline'`, as Radix positions popovers through `style` attributes, and `bootLanguage()`'s `<style>` shows the loading message's copy in the page's language; `img-src` and `font-src` allow `data:`, as Vite inlines an asset under 4 KB, Manrope's Cyrillic-ext subset among them. Neither runs script, and `img-src` and `connect-src` keep the requests an injected style could make on the app's origin, so it cannot send what its selectors read to another site.
 
+**The docs site is the exception to no inline script** ([ADR 0057](0057-public-docs-site.md)): its pages hold no session, call no API, and take no input, and Astro's islands and Fumadocs' theme write inline scripts into each. Its `_headers` differs from this policy in `script-src 'self' 'unsafe-inline'` alone, which `tooling/app-headers.test.ts` holds it to, and it never shares an origin with the console or a learn app.
+
 ## Alternatives rejected
 
 - **Hashes of the inline scripts.** Each edit, and every change to the boot copy, changes a hash the policy must restate.
