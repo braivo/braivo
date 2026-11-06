@@ -61,7 +61,7 @@ describe("the console", () => {
 
     const guide = inOption.getByRole("link", { name: "Step by step" });
     expect(guide.getAttribute("href")).toBe(
-      "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect",
+      "https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx#connect",
     );
     // Beside adding material, an equal way to start.
     expect(screen.getByRole("region", { name: "Add material" })).toBeTruthy();

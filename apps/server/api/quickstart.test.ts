@@ -15,7 +15,7 @@ import { codeSentTo, createOutbox } from "../auth/testing.ts";
 import { type Api, createApi } from "./index.ts";
 
 /**
- * Runs the walkthrough in docs/guides/api.md against a real server, exactly
+ * Runs the walkthrough in apps/docs/content/guides/api.mdx against a real server, exactly
  * as written there — the one document here that can be made to fail rather than
  * drifting silently, and the only test that exercises a socket, a cookie jar,
  * and the commands a person would actually type.
@@ -27,7 +27,7 @@ const connectionString = process.env.TEST_DATABASE_URL;
 
 // `fileURLToPath` rather than `.pathname`, which leaves `%20` in place and would
 // look for a file that does not exist on a checkout path containing spaces.
-const guidePath = fileURLToPath(new URL("../../../docs/guides/api.md", import.meta.url));
+const guidePath = fileURLToPath(new URL("../../docs/content/guides/api.mdx", import.meta.url));
 const cliPath = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
 const secret = "quickstart-secret-long-enough-32ch";
 

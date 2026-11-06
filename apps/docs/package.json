@@ -15,11 +15,12 @@
   "dependencies": {
     "@astrojs/react": "7.1.4",
     "@fumadocs/astro": "0.2.1",
-    "astro": "7.4.7",
+    "astro": "7.4.2",
     "fumadocs-core": "16.18.1",
     "fumadocs-ui": "16.18.1",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "satteri": "0.10.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

@@ -27,7 +27,7 @@ import { addMember, type Auth, createAuth, createOwnedOrganization } from "../au
  * A classroom to develop against: a small Fernwood school whose administrator,
  * author, teacher, and two learners sign in as anyone does, by a code, to a course made
  * through the same use cases the console calls. The development demo serves it
- * (docs/guides/demo.md); a test may seed it too. Synthetic people on a reserved
+ * (docs/demo.md); a test may seed it too. Synthetic people on a reserved
  * domain. The learners practised before the anchor, through the learn app's use
  * cases, so the two take different paths from there: one answered every
  * objective right the first time, the other is offered again what they missed.

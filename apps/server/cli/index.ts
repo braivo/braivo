@@ -78,7 +78,7 @@ Running an installation (a content owner's commands are braivo's):
                 are not fetched. One --redirect-uri per callback: HTTPS,
                 or HTTP on the loopback, whose port may vary. --client-id
                 sets the ID, such as a client's metadata document URL
-                (ChatGPT, Claude: docs/guides/deployment.md); random
+                (ChatGPT, Claude: apps/docs/content/guides/deployment.mdx); random
                 otherwise.
   oauth-client remove --client-id <id>
                 Remove a client and its connections: at once, /mcp refuses
@@ -87,7 +87,7 @@ Running an installation (a content owner's commands are braivo's):
                 Write the learner's data to <file>, a new file only you may
                 read: what one organization holds (for that school), or the
                 whole account's (for the account holder). JSON, in the
-                format docs/guides/deployment.md describes; reads only.
+                format apps/docs/content/guides/deployment.mdx describes; reads only.
   learner erase-history --email <email> --organization <slug> [--end-membership] [--yes]
                 Erase what one organization holds of the learner, for that
                 school: shows the database, the account, and the counts, and

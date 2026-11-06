@@ -8,7 +8,7 @@ import { CopyButton } from "#components/copy-button";
 
 /**
  * How to connect an AI app at `/mcp`: the address, where to start in each
- * supported app (the full steps are docs/guides/assistants.md, Connect), and,
+ * supported app (the full steps are apps/docs/content/guides/assistants.mdx, Connect), and,
  * given the `organization` to build for, a first prompt. No prompt without one:
  * settings are the account's, so the organization they were opened from may
  * not be one the person authors in.
@@ -59,7 +59,7 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
           When the app opens Braivo's page, sign in, choose the organization, and approve it. Then,
           in Claude or ChatGPT, turn it on in a chat.{" "}
           <a
-            href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect"
+            href="https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx#connect"
             target="_blank"
             rel="noreferrer"
             className="whitespace-nowrap underline underline-offset-4"
