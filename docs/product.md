@@ -17,7 +17,8 @@ The model is independent of the interface learning happens in: the learn app or 
 
 ## Users
 
-- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves, in an organization they never have to think of as one ([ADR 0046](adr/0046-material-in-steps.md)).
+- **Content owner:** an educator, school, training provider, or learning product that owns content and wants it to be adaptive, or a learner turning material of their own into practice for themselves ([ADR 0046](adr/0046-material-in-steps.md)).
+- **Teacher:** someone teaching a group of learners, who follows their progress without necessarily managing content or the organization.
 - **Learner:** a person using a learning experience powered by Braivo.
 - **Developer:** someone embedding Braivo into an app, LMS, or internal tool through its API.
 
@@ -27,17 +28,18 @@ The model is independent of the interface learning happens in: the learn app or 
 2. Estimate what each learner knows, struggles with, and may be forgetting.
 3. Choose the next learning or review activity from that estimate, within applicable learning constraints.
 4. Generate practice and feedback grounded in the source content and the learner's work.
-5. Show content owners learner progress and knowledge gaps.
+5. Show those responsible for learners, and those who teach them, their progress and knowledge gaps.
 6. Let others embed Braivo or run it under their own brand and domain, with no required Braivo branding.
 
 ## Principles
 
 - **Content first.** Source content is authoritative for what is taught. AI may structure, enrich, and adapt it, but must not silently replace it with unrelated generated material.
 - **Adaptive by default.** Learner state shapes what happens next, within applicable learning constraints. Fixed sequences may exist, but they are not the core model.
-- **Learning over engagement.** Optimize for understanding, retention, and learner time. Do not add mechanics whose main purpose is engagement, or repeat known material without a learning reason.
+- **Learning over engagement.** Optimize for understanding, retention, and learner time. Do not add mechanics whose main purpose is engagement, or repeat known material without a learning reason. Progress, reminders, and habit features earn their place by helping learners complete practice they need. They must not reward visits alone or encourage unnecessary practice to preserve a score or streak.
 - **Explainable decisions.** Mastery changes, scheduled reviews, and activity choices can be explained from recorded inputs and testable decision rules.
 - **Grounded AI.** Generated content stays tied to the source material it adapts. Feedback is grounded in the source, the task, and the learner's response.
 - **The AI people already use.** A content owner may author through their own AI assistant, acting as themselves and never with more authority. Braivo holds the content and learner evidence, enforces permissions, and is where the owner reviews and publishes; Braivo's own AI drafts for those without an assistant, and authoring never requires it.
+- **Each organization's records stay its own.** Its decisions and reports use what it recorded, never another's, and its authority reaches neither a learner's other schools nor material they keep for themselves. Its owners and administrators read progress across it, teachers within the groups they teach, and tools read other learners' data only where it allows.
 - **Composable core.** Core learning capabilities do not depend on Braivo Cloud, a specific customer or brand, or a specific UI.
 - **Simplest model that works.** Start with the simplest learning model that produces useful, testable behavior. Add sophistication only when evidence or a clear requirement justifies it.
 
@@ -60,4 +62,5 @@ This repository is the public Braivo platform: domain model, learning behavior, 
 - Building a useful learning experience from existing content takes little effort.
 - Learners with different knowledge get meaningfully different experiences.
 - Weak and at-risk knowledge gets more attention than mastered material.
+- Those teaching can see who is struggling, and with what.
 - Learning and retention are the primary outcomes; engagement is a supporting signal, not a goal.
