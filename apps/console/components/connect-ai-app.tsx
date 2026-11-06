@@ -37,7 +37,10 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
         <div>
           <dt className="font-medium">ChatGPT</dt>
           <dd className="wrap-break-word text-muted-foreground">
-            <Trans>On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth.</Trans>
+            <Trans>
+              On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth. Building needs a
+              Business, Enterprise, or Edu plan.
+            </Trans>
           </dd>
         </div>
         <div>

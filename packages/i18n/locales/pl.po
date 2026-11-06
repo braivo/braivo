@@ -1689,8 +1689,8 @@ msgid "on {date} at {time}"
 msgstr "{date} o {time}"
 
 #: apps/console/components/connect-ai-app.tsx
-msgid "On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth."
-msgstr "W przeglądarce: chatgpt.com/plugins, Add custom MCP server, z OAuth."
+msgid "On the web: chatgpt.com/plugins, Add custom MCP server, with OAuth. Building needs a Business, Enterprise, or Edu plan."
+msgstr "W przeglądarce: chatgpt.com/plugins, Add custom MCP server, z OAuth. Budowanie wymaga planu Business, Enterprise lub Edu."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
