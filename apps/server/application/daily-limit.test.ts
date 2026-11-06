@@ -28,14 +28,14 @@ describe("limitNewObjectives", () => {
     const learner = learnerWith(startedAt("2026-06-01T08:00:00Z", started.slice(1)));
     expect(
       limitNewObjectives(learner, { now: new Date("2026-06-01T09:00:00Z"), timeZone: "UTC" }),
-    ).toEqual({ candidates: learner.objectiveIds, heldBack: false });
+    ).toEqual({ candidates: learner.objectiveIds, heldBack: false, newLeft: 1 });
   });
 
   test("then holds back the objectives not started yet, and only those", () => {
     const learner = learnerWith(startedAt("2026-06-01T08:00:00Z"));
     expect(
       limitNewObjectives(learner, { now: new Date("2026-06-01T09:00:00Z"), timeZone: "UTC" }),
-    ).toEqual({ candidates: started, heldBack: true });
+    ).toEqual({ candidates: started, heldBack: true, newLeft: 0 });
   });
 
   test("counts an objective once, on the day of its first evidence", () => {
@@ -91,7 +91,7 @@ describe("limitNewObjectives", () => {
     const now = new Date("2026-06-01T09:00:00Z");
     expect(
       limitNewObjectives({ ...learner, objectiveIds: started }, { now, timeZone: "UTC" }),
-    ).toEqual({ candidates: started, heldBack: false });
+    ).toEqual({ candidates: started, heldBack: false, newLeft: 0 });
   });
 });
 

@@ -118,8 +118,9 @@ export function learningRoutes(
   /**
    * The courses the signed-in learner may study, from the session alone; with
    * `?number=`, the one so numbered, as a learn domain's `/c/4732` names it;
-   * with `?standing=true`, each with where the learner stands in it, which a
-   * number's lookup, read on every course page, never pays for.
+   * with `?standing=true`, each with where the learner stands in it and what
+   * waits there, which a number's lookup, read on every course page, never pays
+   * for, the day's limit counted in `timeZone`.
    */
   routes.get("/api/courses", requireLearner, async (context) => {
     const numbered = context.req.query("number");
@@ -128,11 +129,14 @@ export function learningRoutes(
     const standing = context.req.query("standing");
     if (standing !== undefined) {
       if (standing !== "true" || numbered !== undefined) return context.body(null, 400);
+      const timeZone = parseTimeZone(context.req.query("timeZone"));
+      if (timeZone === undefined) return context.body(null, 400);
       const courses = await listLearnerCoursesWithStanding({
         database,
         learnerId: context.var.learner.id,
         host: requestHost(context),
         now: new Date(),
+        timeZone,
       });
       return context.json({ courses });
     }

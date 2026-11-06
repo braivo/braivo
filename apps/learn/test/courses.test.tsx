@@ -14,6 +14,9 @@ function spaced(text: string) {
   return (description: string) => description.replace(/\s/gu, " ") === text;
 }
 
+/** Nothing practice would offer now. */
+const nothingWaits = { learning: 0, dueForReview: 0, new: 0 };
+
 describe("the learn app", () => {
   test("shows on each course where the learner stands in it, from one read", async () => {
     const spanish = { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" };
@@ -23,9 +26,21 @@ describe("the learn app", () => {
       signedIn: true,
       learnerCourses: async () => [french, empty, spanish],
       learnerCoursesWithStanding: async () => [
-        { ...french, standing: { retained: 0, dueForReview: 2, learning: 0, notStarted: 1 } },
-        { ...empty, standing: { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 } },
-        { ...spanish, standing: { retained: 3, dueForReview: 0, learning: 1, notStarted: 0 } },
+        {
+          ...french,
+          standing: { retained: 0, dueForReview: 2, learning: 0, notStarted: 1 },
+          waiting: nothingWaits,
+        },
+        {
+          ...empty,
+          standing: { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 },
+          waiting: nothingWaits,
+        },
+        {
+          ...spanish,
+          standing: { retained: 3, dueForReview: 0, learning: 1, notStarted: 0 },
+          waiting: nothingWaits,
+        },
       ],
     });
 
@@ -47,19 +62,157 @@ describe("the learn app", () => {
     expect(learnerCoursesWithStanding).toHaveBeenCalledOnce();
   });
 
-  test("lists the courses without standings when those are not read within their deadline", async () => {
+  test("leads with the course where something waits, saying what, one tap from practice", async () => {
+    const caughtUp = { id: "c1", number: 4731, title: "Arabic", urlLabel: "arabic" };
+    const due = { id: "c2", number: 4732, title: "Spanish", urlLabel: "spanish" };
+    const { router } = renderAt("/", {
+      signedIn: true,
+      hostOrganization: async () => ({ name: "Fernwood" }),
+      learnerCourses: async () => [caughtUp, due],
+      learnerCoursesWithStanding: async () => [
+        {
+          ...caughtUp,
+          standing: { retained: 3, dueForReview: 0, learning: 0, notStarted: 0 },
+          waiting: nothingWaits,
+        },
+        {
+          ...due,
+          standing: { retained: 1, dueForReview: 2, learning: 0, notStarted: 0 },
+          waiting: { learning: 0, dueForReview: 2, new: 0 },
+        },
+      ],
+      nextActivity: async () => activity,
+    });
+
+    const lead = await screen.findByRole("link", {
+      name: "Spanish",
+      description: spaced("2 to review 1 retained · 2 due for review"),
+    });
+    const cards = screen.getAllByRole("link", { name: /Arabic|Spanish/ });
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toBe(lead);
+    // The learner stays free to open the other, which claims nothing.
+    expect(
+      screen.getByRole("link", { name: "Arabic", description: spaced("3 retained") }),
+    ).toBeTruthy();
+
+    fireEvent.click(lead);
+    expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/c/4732-spanish");
+  });
+
+  test("says everything practice would offer, in its order, and keeps the list's order among those that wait", async () => {
+    const list = ["Arabic", "French", "German", "Spanish"].map((title, index) => ({
+      id: `c${index}`,
+      number: 4730 + index,
+      title,
+      urlLabel: title.toLowerCase(),
+    }));
+    const [arabic, french, german, spanish] = list as [
+      (typeof list)[number],
+      (typeof list)[number],
+      (typeof list)[number],
+      (typeof list)[number],
+    ];
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => list,
+      learnerCoursesWithStanding: async () => [
+        {
+          ...arabic,
+          standing: { retained: 2, dueForReview: 0, learning: 0, notStarted: 0 },
+          waiting: nothingWaits,
+        },
+        {
+          ...french,
+          standing: { retained: 0, dueForReview: 2, learning: 1, notStarted: 3 },
+          waiting: { learning: 1, dueForReview: 2, new: 3 },
+        },
+        {
+          ...german,
+          standing: { retained: 2, dueForReview: 0, learning: 0, notStarted: 0 },
+          waiting: nothingWaits,
+        },
+        {
+          ...spanish,
+          standing: { retained: 1, dueForReview: 0, learning: 0, notStarted: 2 },
+          waiting: { learning: 0, dueForReview: 0, new: 2 },
+        },
+      ],
+    });
+
+    await screen.findByRole("link", {
+      name: "French",
+      description: spaced(
+        "1 to practise · 2 to review · 3 new 2 due for review · 1 learning · 3 not started",
+      ),
+    });
+    expect(
+      screen.getByRole("link", {
+        name: "Spanish",
+        description: spaced("2 new 1 retained · 2 not started"),
+      }),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole("main"))
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/c/c1", "/c/c3", "/c/c0", "/c/c2"]);
+  });
+
+  test("says how a course begins while nothing is started, and only if a question can follow", async () => {
+    const list = ["Arabic", "French", "German"].map((title, index) => ({
+      id: `c${index}`,
+      number: 4730 + index,
+      title,
+      urlLabel: title.toLowerCase(),
+    }));
+    const [fresh, atLimit, noTasks] = list as [
+      (typeof list)[number],
+      (typeof list)[number],
+      (typeof list)[number],
+    ];
+    const notStarted = { retained: 0, dueForReview: 0, learning: 0, notStarted: 4 };
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => list,
+      learnerCoursesWithStanding: async () => [
+        { ...fresh, standing: notStarted, waiting: { ...nothingWaits, new: 4 } },
+        { ...atLimit, standing: notStarted, waiting: nothingWaits },
+        { ...noTasks, standing: notStarted, waiting: nothingWaits },
+      ],
+    });
+
+    expect(
+      await screen.findByRole("link", {
+        name: "Arabic",
+        description: spaced(
+          "We start with a question and use your answers to choose what comes next. 4 not started",
+        ),
+      }),
+    ).toBeTruthy();
+    // Whether at the day's limit or with nothing written yet: no question follows a tap.
+    for (const name of ["French", "German"]) {
+      expect(screen.getByRole("link", { name, description: spaced("4 not started") })).toBeTruthy();
+    }
+  });
+
+  test("lists the courses by title, claiming nothing, when standings are not read within their deadline", async () => {
     vi.useFakeTimers();
     renderAt("/", {
       signedIn: true,
       learnerCourses: async () => [
-        { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" },
+        { id: "c1", number: 4731, title: "French", urlLabel: "french" },
+        { id: "c2", number: 4732, title: "Spanish", urlLabel: "spanish" },
       ],
       learnerCoursesWithStanding: (options) => stall(options),
     });
     await waitOut(OPTIONAL_READ_DEADLINE_MS);
     vi.useRealTimers();
 
-    expect(await screen.findByRole("link", { name: "Spanish", description: "" })).toBeTruthy();
+    const french = await screen.findByRole("link", { name: "French", description: "" });
+    const spanish = screen.getByRole("link", { name: "Spanish", description: "" });
+    expect(screen.getAllByRole("link", { name: /French|Spanish/ })).toEqual([french, spanish]);
   });
 
   test("lists the learner's courses, each a way into it by its number", async () => {

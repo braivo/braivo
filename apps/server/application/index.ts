@@ -26,6 +26,7 @@ export type { FirstAnswersScope, ReportScope } from "../persistence/index.ts";
 export type { QuotedCitation } from "./citations.ts";
 export { citeSources, InvalidCitation, listObjectiveCitations } from "./citations.ts";
 export type { AuthoredCourse, CourseSummary } from "./courses.ts";
+export type { CourseWaiting } from "./practice.ts";
 export type { CourseStanding, Standing } from "./standing.ts";
 export type { AccessKind } from "./access.ts";
 export type { Ai } from "./ai.ts";

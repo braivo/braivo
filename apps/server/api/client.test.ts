@@ -164,6 +164,17 @@ describe("the Braivo client", () => {
     expect(url.searchParams.get("timeZone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 
+  test("names the runtime's time zone when listing what waits in each course", async () => {
+    const { calls, client } = clientFor(Response.json({ courses: [] }));
+
+    await client.learnerCoursesWithStanding();
+
+    const url = new URL(calls[0]!.url, "https://braivo.example");
+    expect(url.pathname).toBe("/api/courses");
+    expect(url.searchParams.get("standing")).toBe("true");
+    expect(url.searchParams.get("timeZone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+
   test("submits an attempt and returns Braivo's grade", async () => {
     const grade = { outcome: "failure", correctChoice: 0 };
     const { calls, client } = clientFor(Response.json(grade));

@@ -11,6 +11,7 @@ import type {
   CourseStanding,
   CourseSummary,
   CourseTaskList,
+  CourseWaiting,
   CourseWriteResult,
   DomainClaim,
   DomainList,
@@ -74,6 +75,7 @@ export type {
   CourseStanding,
   CourseSummary,
   CourseTaskList,
+  CourseWaiting,
   CourseWriteResult,
   Domain,
   DomainClaim,
@@ -341,13 +343,14 @@ export type BraivoClient = {
   learnerCourses(options?: RequestOptions): Promise<Course[]>;
 
   /**
-   * The same courses, each with where the learner stands in it (`standing`):
-   * what a course list shows of what waits where. Replays the learner's
-   * evidence, so the plain list is the cheaper read where none is shown.
+   * The same courses, each with where the learner stands in it (`standing`) and
+   * what practice would offer there now (`waiting`): what a course list shows of
+   * what waits where. Replays the learner's evidence, so the plain list is the
+   * cheaper read where none is shown.
    */
   learnerCoursesWithStanding(
     options?: RequestOptions,
-  ): Promise<(Course & { standing: CourseStanding })[]>;
+  ): Promise<(Course & { standing: CourseStanding; waiting: CourseWaiting })[]>;
 
   /**
    * The signed-in learner's course numbered `number` on this organization's
@@ -1223,15 +1226,18 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
     },
 
     async learnerCoursesWithStanding(requestOptions) {
-      const response = await get("/api/courses?standing=true", requestOptions);
+      const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
+      const response = await get(
+        `/api/courses?${new URLSearchParams({ standing: "true", timeZone })}`,
+        requestOptions,
+      );
 
       const doing = "listing the learner's courses with where they stand";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      const { courses } = await parsed<{ courses: (Course & { standing: CourseStanding })[] }>(
-        response,
-        doing,
-      );
+      const { courses } = await parsed<{
+        courses: (Course & { standing: CourseStanding; waiting: CourseWaiting })[];
+      }>(response, doing);
       return courses;
     },
 

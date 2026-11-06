@@ -3,12 +3,14 @@
 
 import {
   activeModel,
+  assessKnowledge,
   type Evidence,
   type KnowledgeEstimate,
   type LearningDecision,
   selectNext,
 } from "../learning/index.ts";
 import { limitNewObjectives, NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
+import { countStandings } from "./standing.ts";
 
 /**
  * What practice the activity selection would offer a learner in a course now,
@@ -45,6 +47,36 @@ export function decidePractice(
   if (decision !== undefined) return { kind: "no-activity", decision };
   return heldBack ? { kind: "daily-limit", limit: NEW_OBJECTIVES_PER_DAY } : { kind: "caught-up" };
 }
+
+/**
+ * What `decidePractice`'s selection would work through in a course if the
+ * learner answered everything right, rests aside as there: its candidates with
+ * a task, by the rule that chooses among them (`assessKnowledge` shares
+ * selection's), with no more new ones than the day's limit still lets start.
+ * Over this course alone: the limit is shared across the organization, so two
+ * courses may each count the same places left today.
+ *
+ * Counted by standing, not by walking `selectNext`, which is quadratic in what
+ * waits; `practice.test.ts` walks it to prove the two agree.
+ */
+export function countWaiting(
+  learner: Parameters<typeof decidePractice>[0],
+  withTasks: ReadonlySet<string>,
+  input: { now: Date; timeZone: string },
+): CourseWaiting {
+  const { candidates, newLeft } = limitNewObjectives(learner, input);
+  const { objectives } = assessKnowledge({
+    now: input.now,
+    objectiveIds: candidates.filter((id) => withTasks.has(id)),
+    estimates: learner.estimates,
+    model: activeModel,
+  });
+  const { learning, dueForReview, notStarted } = countStandings(objectives);
+  return { learning, dueForReview, new: Math.min(notStarted, newLeft) };
+}
+
+/** How many of a course's objectives practice would offer now, by why. */
+export type CourseWaiting = { learning: number; dueForReview: number; new: number };
 
 /**
  * `empty`: the course has no objective. `eligible`: an objective with a task

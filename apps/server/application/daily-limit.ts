@@ -17,6 +17,7 @@ export const NEW_OBJECTIVES_PER_DAY = 20;
  * less those not started yet once `NEW_OBJECTIVES_PER_DAY` were started today.
  * `heldBack` says whether any were left out, so a learner with nothing else to
  * do is told to come back tomorrow rather than that they are caught up.
+ * `newLeft`: how many more may start today, for saying what waits.
  *
  * Counted from evidence, never a counter: an objective is started on the day
  * of its first evidence at the organization, a learner's day in `timeZone`
@@ -30,7 +31,7 @@ export function limitNewObjectives(
     evidence: readonly Evidence[];
   },
   input: { now: Date; timeZone: string },
-): { candidates: readonly string[]; heldBack: boolean } {
+): { candidates: readonly string[]; heldBack: boolean; newLeft: number } {
   const { objectiveIds, evidence } = learner;
 
   const firstEvidenceAt = new Map<string, Date>();
@@ -43,10 +44,16 @@ export function limitNewObjectives(
   const today = dayOf(input.now);
   let started = 0;
   for (const at of firstEvidenceAt.values()) if (dayOf(at) === today) started++;
-  if (started < NEW_OBJECTIVES_PER_DAY) return { candidates: objectiveIds, heldBack: false };
+  if (started < NEW_OBJECTIVES_PER_DAY) {
+    return {
+      candidates: objectiveIds,
+      heldBack: false,
+      newLeft: NEW_OBJECTIVES_PER_DAY - started,
+    };
+  }
 
   const candidates = objectiveIds.filter((id) => firstEvidenceAt.has(id));
-  return { candidates, heldBack: candidates.length < objectiveIds.length };
+  return { candidates, heldBack: candidates.length < objectiveIds.length, newLeft: 0 };
 }
 
 /**

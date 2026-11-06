@@ -123,6 +123,12 @@ export type Course = { id: string; number: number; title: string; urlLabel: stri
 export type CourseStanding = application.CourseStanding;
 
 /**
+ * How many of a course's objectives practice would offer the learner now, by
+ * why: `new` no more than the day's limit still lets start (learner-loop-27).
+ */
+export type CourseWaiting = application.CourseWaiting;
+
+/**
  * A course as those allowed to author in its organization see it: `published` once a
  * person published it in the console, before which no learner reaches it;
  * `hidden` while a person has hidden it from learners since (ADR 0039).
