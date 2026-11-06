@@ -9,11 +9,14 @@ import { parseArgs } from "node:util";
 import { createDatabase, runMigrations } from "@braivo/db";
 
 import {
+  type AccountErasureCounts,
   type AiReportRow,
+  eraseAccount,
   type ErasureCounts,
   type ErasureLog,
   eraseLearnerHistory,
   exportLearner,
+  previewAccountErasure,
   previewHistoryErasure,
   readAiReport,
   registerLearnDomain,
@@ -85,6 +88,14 @@ Running an installation (a content owner's commands are braivo's):
                 refused, and the erasure is logged to BRAIVO_ERASURE_LOG.
                 --end-membership also ends their membership; otherwise their
                 next answers start a fresh history.
+  account erase --email <email> [--yes]
+                Erase the account and every row referring to it or its email, for
+                the account holder, each school listed having instructed:
+                shows the database, the account, those schools, and the counts,
+                and asks for the email typed back unless --yes. AI usage counts
+                stay, with no user. Logged to BRAIVO_ERASURE_LOG. Refused for
+                an organization's only owner. Finding nothing, it says so and
+                succeeds.
   reviewer set-password --email <email> [--password-stdin]
                 Let an existing account sign in with a password at
                 /login?method=password, for an app directory's reviewer, while
@@ -386,6 +397,56 @@ async function main(argv: readonly string[]): Promise<number> {
     return 0;
   }
 
+  if (argv[0] === "account" && argv[1] === "erase") {
+    const { values } = parseArgs({
+      args: argv.slice(2),
+      options: { email: { type: "string" }, yes: { type: "boolean" } },
+    });
+    if (!values.email) {
+      console.error(USAGE);
+      return 1;
+    }
+
+    // Before anything is read: without its log, no erasure may even start.
+    const log = openErasureLog();
+    const databaseUrl = readDatabaseUrl(process.env);
+    const database = createDatabase(databaseUrl);
+    try {
+      const { target, counts } = await previewAccountErasure({ database, email: values.email });
+      const { host, pathname } = new URL(databaseUrl);
+      console.log(`Database:     ${host}${pathname}`);
+      console.log(
+        target.userId === null
+          ? `Account:      No account has ${target.email}.`
+          : `Account:      ${target.email} (${target.userId})`,
+      );
+      // Nothing, and said so: that is not proof the person meant was erased, as
+      // the address may be mistyped, so the register notes which it was.
+      if (target.userId === null && Object.values(counts).every((rows) => rows === 0)) {
+        console.log("Nothing to erase: no row names this address.");
+        return 0;
+      }
+      for (const { slug, role, attempts, evidence } of target.organizations) {
+        console.log(
+          `School:       ${slug}: ${role ?? "no membership"}, attempts ${attempts}, evidence ${evidence}`,
+        );
+      }
+      console.log(`To erase:     ${formatAccountCounts(counts)}`);
+      console.log(`Kept:         ${formatKeptCounts(counts)}`);
+      if (!values.yes && (await typedBack(`Type ${target.email} to erase: `)) !== target.email) {
+        console.error("Not confirmed. Nothing was erased.");
+        return 1;
+      }
+
+      const { recordId, removed } = await eraseAccount({ database, target, log });
+      console.log(`Erased:       ${formatAccountCounts(removed)}`);
+      console.log(`Log record ${recordId}, done.`);
+    } finally {
+      await database.$client.end();
+    }
+    return 0;
+  }
+
   if (argv[0] === "reviewer" && (argv[1] === "set-password" || argv[1] === "remove-password")) {
     const { values } = parseArgs({
       args: argv.slice(2),
@@ -482,6 +543,34 @@ function openErasureLog(): ErasureLog {
         ? bucketStore(new Bun.S3Client({ bucket: files.bucket }))
         : durableDirectoryStore(files.directory),
   };
+}
+
+function formatAccountCounts(counts: AccountErasureCounts): string {
+  return [
+    `attempts ${counts.attempts}`,
+    `evidence ${counts.evidence}`,
+    `reports ${counts.reports}`,
+    `memberships ${counts.memberships}`,
+    `groups ${counts.groups}`,
+    `fences ${counts.fences}`,
+    `learner sessions ${counts.learnerSessions}`,
+    `console sessions ${counts.consoleSessions}`,
+    `sign-in methods ${counts.signInMethods}`,
+    `connections ${counts.connections}`,
+    `connection tokens ${counts.connectionTokens}`,
+    `apps registered ${counts.registeredApps}`,
+    `device codes ${counts.deviceCodes}`,
+    `handoffs ${counts.handoffs}`,
+    `invitations sent ${counts.invitationsSent}`,
+    `invitations received ${counts.invitationsReceived}`,
+    `invitation mail claims ${counts.mailClaims}`,
+    `sign-in codes ${counts.signInCodes}`,
+    `verification rows ${counts.verifications}`,
+  ].join(", ");
+}
+
+function formatKeptCounts(counts: AccountErasureCounts): string {
+  return `with no user: AI requests ${counts.aiRequests}, reports dismissed ${counts.reportsDismissed}, settings changed ${counts.settingsChanged}`;
 }
 
 /** The line typed in answer to `question`; empty if the input ends first. */

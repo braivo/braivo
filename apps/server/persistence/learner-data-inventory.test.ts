@@ -1,10 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { runMigrations } from "@braivo/db";
 import * as schema from "@braivo/db/schema";
-import { is } from "drizzle-orm";
+import * as testing from "@braivo/db/testing";
+import { and, eq, inArray, is, or, sql, type SQL } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
-import { describe, expect, test } from "vite-plus/test";
+import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+
+import { eraseAccount, previewAccountErasure } from "../application/erase-account.ts";
 
 // Every table, classified (docs/adr/0053-learners-data.md), so a new table, a
 // new column of a person's records, or a new column naming a person elsewhere
@@ -128,6 +132,7 @@ const recordTables: Record<string, Record<string, Classification>> = {
  * is in the export, or what the export reads of it.
  */
 const otherTables: Record<string, { naming: string[]; why: string }> = {
+  account_erasure: { naming: [], why: "a random ID, naming no one without the replay log" },
   ai_request: {
     naming: ["user_id"],
     why: "not in v1: an author's AI usage, counts and no content",
@@ -225,5 +230,548 @@ describe("learner data's inventory", () => {
       if (listed === undefined) continue;
       expect([name, namingColumns(table).sort()]).toEqual([name, [...listed.naming].sort()]);
     }
+  });
+});
+
+// Erasure's side (access-49): how each column naming a person is emptied, and a
+// row found by it. A foreign key's action is read from the schema, so one
+// changed fails here; identifier formats and JSON, which no name reveals, are
+// listed as entries of their own and seeded in the form they are stored in.
+
+/** The two people seeded, so a delete missing its predicate takes the other's. */
+type Person = { id: string; email: string };
+
+type Erasure = {
+  /** A foreign key's action, the row itself, or a delete by a predicate. */
+  how: "cascade" | "set null" | "deleted" | "explicit" | "names no one";
+  find: (person: Person) => SQL | undefined;
+};
+
+const {
+  account,
+  aiRequest,
+  attempt,
+  deviceCode,
+  group,
+  groupMember,
+  invitation,
+  invitationMailClaim,
+  learnerEvidence,
+  learnerHandoff,
+  learnerHistoryState,
+  learnerSession,
+  learnerSignInCode,
+  member,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthRefreshToken,
+  objective,
+  organization,
+  session,
+  taskReport,
+  user,
+  verification,
+} = schema;
+
+const inValue = (text: string) => sql`strpos(${verification.value}, ${text}) > 0`;
+
+const erasures: Record<string, Erasure> = {
+  "user.id": { how: "deleted", find: ({ id }) => eq(user.id, id) },
+  "user.email": { how: "deleted", find: ({ email }) => eq(user.email, email) },
+  "session.user_id": { how: "cascade", find: ({ id }) => eq(session.userId, id) },
+  "account.user_id": { how: "cascade", find: ({ id }) => eq(account.userId, id) },
+  "attempt.learner_id": { how: "cascade", find: ({ id }) => eq(attempt.learnerId, id) },
+  "learner_evidence.learner_id": {
+    how: "cascade",
+    find: ({ id }) => eq(learnerEvidence.learnerId, id),
+  },
+  "learner_history_state.learner_id": {
+    how: "cascade",
+    find: ({ id }) => eq(learnerHistoryState.learnerId, id),
+  },
+  "learner_session.user_id": { how: "cascade", find: ({ id }) => eq(learnerSession.userId, id) },
+  "learner_handoff.user_id": { how: "cascade", find: ({ id }) => eq(learnerHandoff.userId, id) },
+  "member.user_id": { how: "cascade", find: ({ id }) => eq(member.userId, id) },
+  // By its membership, a composite key.
+  "group_member.user_id": { how: "cascade", find: ({ id }) => eq(groupMember.userId, id) },
+  // By its attempt, a composite key.
+  "task_report.learner_id": { how: "cascade", find: ({ id }) => eq(taskReport.learnerId, id) },
+  "task_report.dismissed_by": { how: "set null", find: ({ id }) => eq(taskReport.dismissedBy, id) },
+  "oauth_consent.user_id": { how: "cascade", find: ({ id }) => eq(oauthConsent.userId, id) },
+  "oauth_access_token.user_id": {
+    how: "cascade",
+    find: ({ id }) => eq(oauthAccessToken.userId, id),
+  },
+  "oauth_refresh_token.user_id": {
+    how: "cascade",
+    find: ({ id }) => eq(oauthRefreshToken.userId, id),
+  },
+  "oauth_client.user_id": { how: "cascade", find: ({ id }) => eq(oauthClient.userId, id) },
+  "device_code.user_id": { how: "cascade", find: ({ id }) => eq(deviceCode.userId, id) },
+  "invitation.inviter_id": { how: "cascade", find: ({ id }) => eq(invitation.inviterId, id) },
+  "ai_request.user_id": { how: "set null", find: ({ id }) => eq(aiRequest.userId, id) },
+  "organization.tools_read_learner_data_changed_by": {
+    how: "set null",
+    find: ({ id }) => eq(organization.toolsReadLearnerDataChangedBy, id),
+  },
+  "invitation.email": { how: "explicit", find: ({ email }) => eq(invitation.email, email) },
+  "invitation_mail_claim.email": {
+    how: "explicit",
+    find: ({ email }) => eq(invitationMailClaim.email, email),
+  },
+  "learner_sign_in_code.email": {
+    how: "explicit",
+    find: ({ email }) => eq(learnerSignInCode.email, email),
+  },
+  "oauth_resource.identifier": { how: "names no one", find: () => undefined },
+  // Every format of `verification` that names someone.
+  "verification.identifier": {
+    how: "explicit",
+    find: ({ id, email }) =>
+      or(
+        ...["sign-in", "email-verification", "forget-password"].map((type) =>
+          eq(verification.identifier, `${type}-otp-${email}`),
+        ),
+        eq(verification.identifier, `sign-in-code-sent:${email}`),
+        eq(verification.identifier, `change-email-otp-${id}:new-${email}`),
+      ),
+  },
+  "verification.value": {
+    how: "explicit",
+    find: ({ id, email }) => or(inValue(id), inValue(email), inValue(encodeURIComponent(email))),
+  },
+};
+
+/** Every `verification` row naming `person`, in the form Better Auth stores it. */
+function verificationRows({ id, email }: Person) {
+  const hint = new URLSearchParams({ client_id: "app", login_hint: email }).toString();
+  const rows: [identifier: string, value: string][] = [
+    [`sign-in-otp-${email}`, "encrypted:0"],
+    [`email-verification-otp-${email}`, "encrypted:0"],
+    [`forget-password-otp-${email}`, "encrypted:0"],
+    [`sign-in-code-sent:${email}`, ""],
+    [`change-email-otp-${id}:new-${email}`, "encrypted:0"],
+    // A password reset's token, whose value is the account.
+    [`reset-password:token-${id}`, id],
+    // Google's state, while linking.
+    [`state-link-${id}`, JSON.stringify({ oauthState: "s", link: { email, userId: id } })],
+    // Google's state, signing in on the way through an OAuth client's request.
+    [`state-hint-${id}`, JSON.stringify({ oauthState: "s", serverContext: { query: hint } })],
+    // An OAuth authorization code.
+    [
+      `code-${id}`,
+      JSON.stringify({ type: "authorization_code", query: {}, userId: id, sessionId: "s" }),
+    ],
+  ];
+  const at = new Date();
+  return rows.map(([identifier, value]) => ({
+    id: identifier,
+    identifier,
+    value,
+    expiresAt: new Date(at.getTime() + 600_000),
+    createdAt: at,
+    updatedAt: at,
+  }));
+}
+
+const prefix = "erasure-inventory-test";
+const organizations = [`${prefix}-fernwood`, `${prefix}-birchwood`];
+const ada: Person = { id: `${prefix}-ada`, email: `${prefix}-ada+pupil@fernwood.example` };
+const ben: Person = { id: `${prefix}-ben`, email: `${prefix}-ben@fernwood.example` };
+const connectionString = process.env.TEST_DATABASE_URL;
+const database = testing.sharedDatabase(connectionString ?? "");
+
+/** The columns naming a person directly: no reference through their records. */
+function personColumns(table: PgTable): string[] {
+  const { columns, foreignKeys } = getTableConfig(table);
+  const toUser = foreignKeys.flatMap((key) => {
+    const reference = key.reference();
+    return getTableConfig(reference.foreignTable).name === "user"
+      ? reference.columns.map((column) => column.name)
+      : [];
+  });
+  return columns
+    .map((column) => column.name)
+    .filter(
+      (name) =>
+        toUser.includes(name) || /^(learner_id|user_id|email|identifier)$|_(by|email)$/.test(name),
+    );
+}
+
+/** How many rows anywhere name `person`, column by column of the catalog. */
+async function scanCatalog({ id, email }: Person): Promise<string[]> {
+  const { rows: columns } = await database.execute<{ table_name: string; column_name: string }>(sql`
+    select c.table_name, c.column_name
+    from information_schema.columns c
+    join information_schema.tables t using (table_schema, table_name)
+    where c.table_schema = 'public' and t.table_type = 'BASE TABLE'
+      and (c.data_type in ('text', 'character varying', 'json', 'jsonb', 'ARRAY'))
+  `);
+  const found: string[] = [];
+  const texts = [id, email, encodeURIComponent(email)];
+  for (const { table_name: table, column_name: column } of columns) {
+    const where = sql.join(
+      texts.map((text) => sql`strpos(${sql.identifier(column)}::text, ${text}) > 0`),
+      sql` or `,
+    );
+    const { rows } = await database.execute<{ count: string }>(
+      sql`select count(*) from ${sql.identifier(table)} where ${where}`,
+    );
+    if (Number(rows[0]?.count) > 0) found.push(`${table}.${column}`);
+  }
+  return found;
+}
+
+async function seedPerson(person: Person, organizationId: string, other: Person) {
+  const { id, email } = person;
+  const at = new Date("2026-09-01T08:00:00.000Z");
+  const later = new Date(Date.now() + 600_000);
+  const tag = `${id}-${organizationId}`;
+  // On rows that outlive the person: nothing but their references may name them.
+  const neutral = crypto.randomUUID();
+
+  const [objectiveRow] = await database
+    .select({ id: objective.id })
+    .from(objective)
+    .where(and(eq(objective.organizationId, organizationId), eq(objective.title, "Greetings")));
+  const objectiveId = objectiveRow?.id ?? `${organizationId}-objective`;
+  await database
+    .insert(objective)
+    .values({ id: objectiveId, organizationId, title: "Greetings" })
+    .onConflictDoNothing();
+  const taskId = await testing.createTask(database, {
+    organizationId,
+    objectiveId,
+    body: { kind: "choice", prompt: `Hello ${neutral}?`, options: ["Yes", "No"], answer: 0 },
+    createdAt: at,
+  });
+  // The same attempt and evidence IDs for both people, at both schools.
+  await database.insert(attempt).values({
+    id: "a1",
+    learnerId: id,
+    organizationId,
+    taskId,
+    response: { choice: 0 },
+    at,
+  });
+  await database
+    .insert(learnerEvidence)
+    .values({ id: "e1", learnerId: id, organizationId, objectiveId, outcome: "success", at });
+  await database.insert(taskReport).values({
+    id: `report-${tag}`,
+    learnerId: id,
+    organizationId,
+    attemptId: "a1",
+    taskId,
+    reason: "confusing",
+    createdAt: at,
+    // Dismissed by the other: a report of theirs that outlives this reviewer.
+    dismissedAt: at,
+    dismissedBy: other.id,
+  });
+  await database
+    .insert(learnerHistoryState)
+    .values({ learnerId: id, organizationId, epoch: 1, erasedAt: at });
+  await database.insert(learnerSession).values({
+    tokenHash: `hash-${tag}`,
+    userId: id,
+    organizationId,
+    hostname: `${organizationId}.example`,
+    expiresAt: later,
+  });
+  await database.insert(learnerHandoff).values({
+    id: `handoff-${tag}`,
+    organizationId,
+    hostname: `${organizationId}.example`,
+    returnPath: "/",
+    nonceHash: `nonce-${tag}`,
+    userId: id,
+    expiresAt: later,
+  });
+  await database.insert(learnerSignInCode).values({
+    hostname: `${organizationId}.example`,
+    email,
+    organizationId,
+    codeSeed: "seed",
+    expiresAt: later,
+    resendAt: later,
+  });
+  const groupId = `group-${neutral}`;
+  await database
+    .insert(group)
+    .values({ id: groupId, organizationId, name: groupId, creationDigest: groupId });
+  await database
+    .insert(groupMember)
+    .values({ organizationId, groupId, userId: id, role: "learner" });
+  await database.insert(invitationMailClaim).values({ email, organizationId, claimedAt: at });
+  await database.insert(invitation).values([
+    {
+      id: `to-${tag}`,
+      organizationId,
+      // As sent, in another case: Better Auth keeps it so.
+      email: email.toUpperCase(),
+      expiresAt: later,
+      createdAt: at,
+      inviterId: other.id,
+    },
+    {
+      id: `to-lower-${tag}`,
+      organizationId,
+      email,
+      expiresAt: later,
+      createdAt: at,
+      inviterId: other.id,
+    },
+    {
+      id: `from-${tag}`,
+      organizationId,
+      email: `${prefix}-invited-by-${id}@fernwood.example`,
+      expiresAt: later,
+      createdAt: at,
+      inviterId: id,
+    },
+  ]);
+  await database
+    .insert(aiRequest)
+    .values({ id: `ai-${neutral}`, organizationId, kind: "draft", userId: id, createdAt: at });
+}
+
+async function seedAccount(person: Person) {
+  const { id } = person;
+  const at = new Date("2026-09-01T08:00:00.000Z");
+  const later = new Date(Date.now() + 600_000);
+  await database.insert(session).values({
+    id: `session-${id}`,
+    token: `token-${id}`,
+    userId: id,
+    expiresAt: later,
+    createdAt: at,
+    updatedAt: at,
+    activeOrganizationId: organizations[0],
+  });
+  await database.insert(account).values({
+    id: `account-${id}`,
+    accountId: id,
+    providerId: "credential",
+    userId: id,
+    createdAt: at,
+    updatedAt: at,
+  });
+  const clientId = `client-${id}`;
+  await database
+    .insert(oauthClient)
+    .values({ id: clientId, clientId, userId: id, redirectUris: ["https://app.example/cb"] });
+  await database.insert(oauthConsent).values({
+    id: `consent-${id}`,
+    clientId,
+    userId: id,
+    referenceId: organizations[0],
+    scopes: ["braivo:author"],
+    createdAt: at,
+    updatedAt: at,
+  });
+  await database.insert(oauthRefreshToken).values({
+    id: `refresh-${id}`,
+    token: `refresh-token-${id}`,
+    clientId,
+    userId: id,
+    sessionId: `session-${id}`,
+    scopes: ["braivo:author"],
+  });
+  await database.insert(oauthAccessToken).values({
+    id: `access-${id}`,
+    token: `access-token-${id}`,
+    clientId,
+    userId: id,
+    sessionId: `session-${id}`,
+    refreshId: `refresh-${id}`,
+    scopes: ["braivo:author"],
+  });
+  await database.insert(deviceCode).values({
+    id: `device-${id}`,
+    deviceCode: `device-code-${id}`,
+    userCode: `user-code-${id}`,
+    userId: id,
+    expiresAt: later,
+    status: "approved",
+  });
+  await database.insert(verification).values(verificationRows(person));
+}
+
+async function clear() {
+  await database
+    .delete(verification)
+    .where(
+      or(
+        ...[ada, ben].flatMap(({ id, email }) => [
+          inValue(id),
+          inValue(email),
+          inValue(encodeURIComponent(email)),
+          sql`strpos(${verification.identifier}, ${email}) > 0`,
+          sql`strpos(${verification.identifier}, ${id}) > 0`,
+        ]),
+      ),
+    );
+  await database.delete(user).where(inArray(user.id, [ada.id, ben.id]));
+  await database.delete(aiRequest).where(inArray(aiRequest.organizationId, organizations));
+  await database
+    .delete(learnerSignInCode)
+    .where(inArray(learnerSignInCode.organizationId, organizations));
+  await database.delete(invitation).where(inArray(invitation.organizationId, organizations));
+  await database
+    .delete(invitationMailClaim)
+    .where(inArray(invitationMailClaim.email, [ada.email, ben.email]));
+  for (const id of organizations) await testing.clearLearningData(database, id);
+  await database.delete(organization).where(inArray(organization.id, organizations));
+}
+
+const tableOf = (name: string) =>
+  tables.find((table) => getTableConfig(table).name === name) as PgTable;
+
+async function counted(person: Person): Promise<Record<string, number>> {
+  const found: Record<string, number> = {};
+  for (const [entry, { find }] of Object.entries(erasures)) {
+    const where = find(person);
+    if (where === undefined) continue;
+    found[entry] = await database.$count(tableOf(entry.split(".")[0]!), where);
+  }
+  return found;
+}
+
+describe("an account's erasure, against the inventory", () => {
+  test("says how every column naming a person is emptied", () => {
+    const listed = Object.keys(erasures);
+    for (const table of tables) {
+      const { name } = getTableConfig(table);
+      for (const column of personColumns(table)) expect(listed).toContain(`${name}.${column}`);
+    }
+  });
+
+  test("a foreign key's action is what the inventory says", () => {
+    for (const [entry, { how }] of Object.entries(erasures)) {
+      if (how !== "cascade" && how !== "set null") continue;
+      const [name, column] = entry.split(".") as [string, string];
+      const { foreignKeys } = getTableConfig(tableOf(name));
+      // Directly to `user`, or through the person's own record whose key holds it.
+      const key = foreignKeys.find((candidate) =>
+        candidate.reference().columns.some((referenced) => referenced.name === column),
+      );
+      expect([entry, key?.onDelete]).toEqual([entry, how]);
+    }
+  });
+
+  describe.skipIf(!connectionString)("seeded, then erased", () => {
+    beforeAll(async () => {
+      await runMigrations(connectionString ?? "");
+    });
+
+    beforeEach(async () => {
+      await clear();
+      const at = new Date("2026-09-01T08:00:00.000Z");
+      for (const organizationId of organizations) {
+        await testing.seedOrganization(database, {
+          organizationId,
+          learnerIds: [],
+          at,
+        });
+      }
+      await database.insert(user).values(
+        [ada, ben].map((person) => ({
+          ...person,
+          name: person.id,
+          emailVerified: true,
+          createdAt: at,
+          updatedAt: at,
+        })),
+      );
+      for (const organizationId of organizations) {
+        await database.insert(member).values(
+          [ada, ben].map(({ id }) => ({
+            id: `${organizationId}:${id}`,
+            organizationId,
+            userId: id,
+            role: "member",
+            createdAt: at,
+          })),
+        );
+        await seedPerson(ada, organizationId, ben);
+        await seedPerson(ben, organizationId, ada);
+      }
+      await seedAccount(ada);
+      await seedAccount(ben);
+      await database
+        .update(organization)
+        .set({ toolsReadLearnerDataChangedBy: ada.id })
+        .where(eq(organization.id, organizations[0]!));
+      await database
+        .update(organization)
+        .set({ toolsReadLearnerDataChangedBy: ben.id })
+        .where(eq(organization.id, organizations[1]!));
+    });
+
+    const erase = async () => {
+      const { target } = await previewAccountErasure({ database, email: ada.email });
+      const log = {
+        hmacKey: "erasure-log-test-key-that-is-long-enough",
+        store: { put: async () => {} },
+      };
+      return eraseAccount({ database, target, log });
+    };
+
+    test("each predicate finds a row first, none after, and the other person's stay", async () => {
+      const before = await counted(ada);
+      const untouched = await counted(ben);
+      // Seeded: a predicate finding nothing here would prove nothing below.
+      for (const [entry, rows] of Object.entries(before)) {
+        expect([entry, rows > 0]).toEqual([entry, true]);
+      }
+
+      // What the operator confirms: every kind, seeded here, is counted, and reported the same.
+      const { counts } = await previewAccountErasure({ database, email: ada.email });
+      expect(Object.entries(counts).filter(([, rows]) => rows === 0)).toEqual([]);
+      const { removed } = await erase();
+      expect(removed).toEqual(counts);
+
+      const after = await counted(ada);
+      expect(Object.entries(after).filter(([, rows]) => rows > 0)).toEqual([]);
+      const kept = await counted(ben);
+      // What the two share went with Ada: invitations between them, and Ada's
+      // reports, which Ben dismissed.
+      const shared = ["invitation.email", "invitation.inviter_id", "task_report.dismissed_by"];
+      const without = (found: Record<string, number>) =>
+        Object.fromEntries(Object.entries(found).filter(([entry]) => !shared.includes(entry)));
+      expect(without(kept)).toEqual(without(untouched));
+    });
+
+    test("no column anywhere still names them, and the catalog scan sees the other person", async () => {
+      expect(await scanCatalog(ada)).not.toEqual([]);
+      await erase();
+      expect(await scanCatalog(ada)).toEqual([]);
+      expect(await scanCatalog(ben)).toContain("user.email");
+    });
+
+    test("AI usage counts are kept, with no user", async () => {
+      const where = inArray(aiRequest.organizationId, organizations);
+      const before = await database.$count(aiRequest, where);
+      await erase();
+      expect(await database.$count(aiRequest, where)).toBe(before);
+      const { rows } = await database.execute<{ count: string }>(
+        sql`select count(*) from ${aiRequest} where ${where} and ${aiRequest.userId} is null`,
+      );
+      expect(Number(rows[0]?.count)).toBe(before / 2);
+    });
+
+    test("a report of another's that they dismissed stays, its time kept, the reviewer gone", async () => {
+      await erase();
+      const [report] = await database
+        .select({ at: taskReport.dismissedAt, by: taskReport.dismissedBy })
+        .from(taskReport)
+        .where(
+          and(eq(taskReport.learnerId, ben.id), eq(taskReport.organizationId, organizations[0]!)),
+        );
+      expect(report?.at).toBeInstanceOf(Date);
+      expect(report?.by).toBeNull();
+    });
   });
 });

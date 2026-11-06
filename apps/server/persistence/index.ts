@@ -11,10 +11,18 @@ export {
   type ErasureCounts,
   type ErasureScope,
   HistoryErased,
+  lockLearnerHistory,
   withLearnerHistoryLock,
   readErasurePreview,
   readLearnerHistoryState,
 } from "./learner-history.ts";
+export {
+  type AccountErasureCounts,
+  type AffectedOrganization,
+  deleteAccount,
+  readAccountErasurePreview,
+  withAccountLock,
+} from "./account-erasure.ts";
 export { createCitations, readObjectiveCitations, readSourceTexts } from "./citation.ts";
 export type { Course, CourseWriteResult, ManagedCourse } from "./course.ts";
 export {

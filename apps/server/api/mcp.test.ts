@@ -13,6 +13,7 @@ import { and, eq } from "drizzle-orm";
 import { createLocalJWKSet, decodeJwt, jwtVerify } from "jose";
 import { beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { eraseAccount, previewAccountErasure } from "../application/erase-account.ts";
 import { registerOAuthClient, removeOAuthClient } from "../auth/oauth-client.ts";
 import { setReviewerPassword } from "../auth/reviewer.ts";
 import { createCourse, createObjectives } from "../persistence/index.ts";
@@ -553,6 +554,32 @@ describe.skipIf(!connectionString)("remote MCP", () => {
     expect(refused.status).toBe(400);
     expect(await refused.json()).toMatchObject({ error: "invalid_client" });
     expect(await removeOAuthClient(auth, removed)).toBe(false);
+  });
+
+  test("erasing the account stops its token, its refresh, and a code not yet redeemed, at once", async () => {
+    const erased = await signUp();
+    await database.insert(member).values({
+      id: `${organizationId}:${erased.id}`,
+      organizationId,
+      userId: erased.id,
+      role: "admin",
+      createdAt: new Date(),
+    });
+    const { access_token, refresh_token } = await tokensFor(erased);
+    // A bare call past the token's check: the protocol answers, not a refusal.
+    expect((await listTools(access_token)).status).not.toBe(401);
+    const { answered, verifier } = await authorize(erased);
+
+    const { target } = await previewAccountErasure({ database, email: erased.email });
+    await eraseAccount({
+      database,
+      target,
+      log: { hmacKey: "erasure-log-test-key-that-is-long-enough", store: { put: async () => {} } },
+    });
+
+    expect((await listTools(access_token)).status).toBe(401);
+    expect((await refresh(refresh_token!)).status).toBe(400);
+    expect((await exchange(answered.searchParams.get("code")!, verifier)).status).toBe(400);
   });
 
   test("registers only redirect URIs Better Auth accepts, a loopback's port free", async () => {

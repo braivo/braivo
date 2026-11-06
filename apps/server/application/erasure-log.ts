@@ -15,20 +15,29 @@ const EMAIL_RULE = "trim-lowercase-v1";
  * choice from a restored database. The email only as an HMAC under a key kept
  * outside them too, for rows that name no user.
  */
-export type ErasureRecord = {
+export type ErasureRecord<Subject extends ErasureSubject = ErasureSubject> = Subject & {
   format: "braivo-erasure-log";
   version: 1;
   id: string;
-  scope: "organization";
-  userId: string;
-  organizationId: string;
-  epoch: number;
-  endMembership: boolean;
   email: { hmac: string; rule: typeof EMAIL_RULE };
   intentAt: string;
   /** `null` while pending: written before deleting, set after commit. */
   doneAt: string | null;
 };
+
+/** One school's history of one learner. */
+export type OrganizationErasure = {
+  scope: "organization";
+  userId: string;
+  organizationId: string;
+  epoch: number;
+  endMembership: boolean;
+};
+
+/** A whole account; `userId` null when only rows naming the address go. */
+type AccountErasure = { scope: "account"; userId: string | null };
+
+type ErasureSubject = OrganizationErasure | AccountErasure;
 
 /** Where the log's records go, and the key its HMAC is under. */
 export type ErasureLog = {
@@ -45,20 +54,18 @@ function writeRecord(log: ErasureLog, record: ErasureRecord): Promise<void> {
 }
 
 /** Records that an erasure is about to run: `email` normalized as sign-in stores it. */
-export async function writeErasureIntent(
+export async function writeErasureIntent<Subject extends ErasureSubject>(
   log: ErasureLog,
-  intent: Pick<ErasureRecord, "userId" | "organizationId" | "epoch" | "endMembership"> & {
-    email: string;
-  },
-): Promise<ErasureRecord> {
-  const record: ErasureRecord = {
+  subject: Subject,
+  email: string,
+): Promise<ErasureRecord<Subject>> {
+  const record: ErasureRecord<Subject> = {
+    ...subject,
     format: "braivo-erasure-log",
     version: 1,
     id: crypto.randomUUID(),
-    scope: "organization",
-    ...intent,
     email: {
-      hmac: createHmac("sha256", log.hmacKey).update(intent.email).digest("hex"),
+      hmac: createHmac("sha256", log.hmacKey).update(email).digest("hex"),
       rule: EMAIL_RULE,
     },
     intentAt: new Date().toISOString(),
@@ -70,7 +77,7 @@ export async function writeErasureIntent(
 
 /**
  * Called after commit. A failure says so rather than done, and is not one to
- * repeat blindly: the history is gone, and a replay would carry the pending
+ * repeat blindly: what it erased is gone, and a replay would carry the pending
  * record out again, harmlessly.
  */
 export async function markErasureDone(log: ErasureLog, record: ErasureRecord): Promise<void> {
@@ -79,7 +86,7 @@ export async function markErasureDone(log: ErasureLog, record: ErasureRecord): P
   } catch (error) {
     const why = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `The history was erased, but log record ${record.id} could not be marked done: ${why}`,
+      `The ${record.scope === "account" ? "account" : "history"} was erased, but log record ${record.id} could not be marked done: ${why}`,
     );
   }
 }

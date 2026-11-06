@@ -67,13 +67,20 @@ export async function withLearnerHistoryLock<T>(
   scope: LearnerScope,
   work: (transaction: Transaction, history: LearnerHistoryState) => Promise<T>,
 ): Promise<T> {
-  const { learnerId, organizationId } = scope;
   return database.transaction(async (transaction) => {
-    await transaction.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${learnerId}::text || ':' || ${organizationId}::text, 0))`,
-    );
+    await lockLearnerHistory(transaction, scope);
     return work(transaction, await readLearnerHistoryState(transaction, scope));
   });
+}
+
+/** The lock of `withLearnerHistoryLock`, held to the end of `transaction`. */
+export async function lockLearnerHistory(
+  transaction: Transaction,
+  { learnerId, organizationId }: LearnerScope,
+): Promise<void> {
+  await transaction.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${learnerId}::text || ':' || ${organizationId}::text, 0))`,
+  );
 }
 
 /** Who an erasure at one organization is of: `email` as sign-in normalizes it. */

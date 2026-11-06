@@ -82,6 +82,12 @@ export {
   startHandoff,
 } from "./learner-sessions.ts";
 export {
+  type AccountErasureCounts,
+  type AccountErasureTarget,
+  eraseAccount,
+  previewAccountErasure,
+} from "./erase-account.ts";
+export {
   eraseLearnerHistory,
   type ErasureCounts,
   type HistoryErasureTarget,

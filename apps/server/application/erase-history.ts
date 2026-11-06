@@ -17,6 +17,7 @@ import {
   type ErasureLog,
   type ErasureRecord,
   markErasureDone,
+  type OrganizationErasure,
   writeErasureIntent,
 } from "./erasure-log.ts";
 
@@ -83,7 +84,7 @@ export async function eraseLearnerHistory(input: {
   const { database, target, endMembership, log } = input;
   const { learnerId, organizationId, email, organizationSlug } = target;
 
-  let pending: ErasureRecord | undefined;
+  let pending: ErasureRecord<OrganizationErasure> | undefined;
   const { record, removed } = await withLearnerHistoryLock(
     database,
     target,
@@ -94,13 +95,11 @@ export async function eraseLearnerHistory(input: {
         );
       }
       const epoch = history.epoch + 1;
-      const record = await writeErasureIntent(log, {
-        userId: learnerId,
-        organizationId,
-        epoch,
-        endMembership,
+      const record = await writeErasureIntent(
+        log,
+        { scope: "organization", userId: learnerId, organizationId, epoch, endMembership },
         email,
-      });
+      );
       pending = record;
       const removed = await deleteLearnerHistory(transaction, target, { epoch, endMembership });
       return { record, removed };
