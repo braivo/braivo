@@ -31,7 +31,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { CircleCheckIcon, CircleXIcon, EyeIcon, XIcon } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { AccountHeader } from "#components/account-header";
 import { MarkedAnswer } from "#components/marked-answer";
@@ -55,10 +55,11 @@ import {
 } from "#lib/deadline";
 import { pageHead } from "#lib/title";
 import {
-  refusalNoticePending,
+  readRefusalNotice,
   clearRefusalNotice,
   clearUnfinishedAttempt,
   markRefusalNotice,
+  type RefusalNotice,
   type UnfinishedAttempt,
   unfinishedAttempt,
   saveUnfinishedAttempt,
@@ -106,7 +107,7 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
         resumed,
         // Read here, not by `resume`: a refusal found by a load that then
         // failed is said by the load Try again makes.
-        lastAttemptRefused: refusalNoticePending(learnerId, courseId),
+        refusalNotice: readRefusalNotice(learnerId, courseId),
       };
     } catch (error) {
       if (left.aborted) throw error;
@@ -137,6 +138,11 @@ const REFUSALS_SAID = [400, 403, 413];
  * and a 409 is not retried once the rest ends (ADR 0017).
  */
 const FINAL_REFUSALS = [...REFUSALS_SAID, 404, 409];
+
+/** The learner's history here was erased since this answer was begun (learner-loop-25). */
+function isHistoryErased(error: BraivoError): boolean {
+  return error.status === 409 && error.code === "HISTORY_ERASED";
+}
 
 /**
  * The course `ref` names: its ID, or its number, resolved to the ID (and
@@ -211,7 +217,7 @@ async function resume(
   const { id, activity, response } = attempt;
   try {
     const grade = await braivo.submitAttempt(
-      { courseId, id, taskId: activity.task.id, response },
+      { courseId, id, taskId: activity.task.id, response, historyEpoch: activity.historyEpoch },
       { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
     );
     return { attempt, grade };
@@ -220,7 +226,10 @@ async function resume(
     if (error instanceof BraivoError && FINAL_REFUSALS.includes(error.status)) {
       // Forgotten first: storage too full for the notice has room once the attempt goes.
       clearUnfinishedAttempt(learnerId, courseId);
-      if (REFUSALS_SAID.includes(error.status)) markRefusalNotice(learnerId, courseId);
+      if (isHistoryErased(error)) markRefusalNotice(learnerId, courseId, "history-erased");
+      else if (REFUSALS_SAID.includes(error.status)) {
+        markRefusalNotice(learnerId, courseId, "refused");
+      }
       return undefined;
     }
     return { attempt };
@@ -277,10 +286,11 @@ function NextStep() {
     load: typeof routeLoad;
   }>();
   const load = continued?.routeLoad === routeLoad ? continued.load : routeLoad;
-  const { activity, progress, title, attemptId, resumed, lastAttemptRefused } = load;
+  const { activity, progress, title, attemptId, resumed, refusalNotice } = load;
   // This visit's session: its answers, then its end (`SessionEnd`) once
   // `SESSION_LENGTH` were graded, until Keep going starts another.
   const { session, count, restart } = usePracticeSession(routeLoad.resumed);
+  const [gradedAttempt, setGradedAttempt] = useState<string>();
   // The end, with what the selector offers next, read with it: `next`
   // undefined when that read failed, so nothing is claimed of it.
   const [end, setEnd] = useState<{
@@ -289,10 +299,27 @@ function NextStep() {
     at: Date;
   }>();
   const endStep = useEndStep(end);
-  // Said once: the load holds it, so the mark goes as it shows.
+  // A history erased takes the session that counted it (learner-loop-25).
+  const startAfresh = useCallback(() => {
+    restart();
+    setEnd(undefined);
+  }, [restart]);
+  // Said once: the load holds it, so the mark goes as it shows. A refusal says
+  // the history was erased even when no question follows, showing no new epoch.
   useEffect(() => {
-    if (routeLoad.lastAttemptRefused) clearRefusalNotice(user.id, routeLoad.courseId);
-  }, [routeLoad, user.id]);
+    if (routeLoad.refusalNotice) clearRefusalNotice(user.id, routeLoad.courseId);
+    if (routeLoad.refusalNotice === "history-erased") startAfresh();
+  }, [routeLoad, startAfresh, user.id]);
+  // With no answer refused, only a new epoch says so: another tab signed in again
+  // after the erasure, with no reload here.
+  const epoch = activity !== undefined && "task" in activity ? activity.historyEpoch : undefined;
+  const lastEpoch = useRef(epoch);
+  useEffect(() => {
+    if (epoch === undefined) return;
+    const moved = lastEpoch.current !== undefined && epoch !== lastEpoch.current;
+    lastEpoch.current = epoch;
+    if (moved) startAfresh();
+  }, [epoch, startAfresh]);
   // The route's load as of now, for a Continue that finishes after it changed.
   const latestRouteLoad = useRef(routeLoad);
   useLayoutEffect(() => {
@@ -367,7 +394,7 @@ function NextStep() {
             attemptId: crypto.randomUUID(),
             resumed: undefined,
             // Said of the load that found it, not of what comes after.
-            lastAttemptRefused: false,
+            refusalNotice: undefined,
           },
         });
       };
@@ -396,6 +423,22 @@ function NextStep() {
       ]);
       return () => {
         clearUnfinishedAttempt(user.id, load.courseId);
+        // A session of an erased history has no recap to give: on to what comes
+        // next, under the epoch that restarts it (learner-loop-25).
+        if (next?.activity && "task" in next.activity && next.activity.historyEpoch !== epoch) {
+          setContinued({
+            routeLoad,
+            load: {
+              ...load,
+              activity: next.activity,
+              progress: report,
+              attemptId: crypto.randomUUID(),
+              resumed: undefined,
+              refusalNotice: undefined,
+            },
+          });
+          return;
+        }
         setEnd({ report, next, at: new Date() });
       };
     });
@@ -430,8 +473,11 @@ function NextStep() {
       {title && <h1 className="sr-only">{title}</h1>}
       <PracticeBar answers={end ? SESSION_LENGTH : practising ? session.answers : undefined} />
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
-          load, so one found by a reload in place mounts anew, and is announced. */}
-      {lastAttemptRefused && <LastAttemptRefused key={attemptId} />}
+          load, so one found by a reload in place mounts anew, and is announced.
+          Gone once this load's answer is graded, or it would seem to mean that one. */}
+      {refusalNotice && gradedAttempt !== attemptId && (
+        <RefusalAlert key={attemptId} notice={refusalNotice} />
+      )}
       {end ? (
         <SessionEnd
           session={session}
@@ -474,7 +520,10 @@ function NextStep() {
           courseId={load.courseId}
           attemptId={attemptId}
           resumed={resumed}
-          onGraded={count}
+          onGraded={(attempt, grade) => {
+            count(attempt, grade);
+            setGradedAttempt(attempt);
+          }}
           onContinue={continueSession}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
@@ -490,16 +539,20 @@ function NextStep() {
 }
 
 /**
- * That the answer a reload resent was refused for good, and is gone. A status
+ * That an answer was refused for good, and is gone. A status
  * mounted empty, filled after (docs/apps.md): one mounted filled may go unsaid.
  */
-function LastAttemptRefused() {
+function RefusalAlert({ notice }: { notice: RefusalNotice }) {
   const { t } = useLingui();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const said =
+    notice === "history-erased"
+      ? t`Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh.`
+      : t`Your last answer couldn't be recorded.`;
   return (
     <p role="status" className="mb-6 text-sm">
-      {mounted ? t`Your last answer couldn't be recorded.` : ""}
+      {mounted ? said : ""}
     </p>
   );
 }
@@ -1043,7 +1096,7 @@ function Practice({
     saveUnfinishedAttempt(user.id, courseId, { id: attemptId, activity, response });
     try {
       const answered = await braivo.submitAttempt(
-        { courseId, id: attemptId, taskId: task.id, response },
+        { courseId, id: attemptId, taskId: task.id, response, historyEpoch: activity.historyEpoch },
         { signal: withDeadline(left, ANSWER_DEADLINE_MS) },
       );
       // Left meanwhile: marking that page graded would cancel the next one's reread.
@@ -1057,6 +1110,7 @@ function Practice({
       if (left?.aborted) return;
       if (error instanceof BraivoError) {
         if (FINAL_REFUSALS.includes(error.status)) clearUnfinishedAttempt(user.id, courseId);
+        if (isHistoryErased(error)) markRefusalNotice(user.id, courseId, "history-erased");
         // Reloading explains these. 401: the guard sends the learner to sign
         // in. 404: the course is gone, or the task was retired while on screen;
         // the reload offers what is there now. 409: the task was answered

@@ -251,13 +251,22 @@ export type BraivoClient = {
    * resolves to the same grade, while reusing `id` in the course's organization
    * for another answer, or
    * answering a task that is resting, is a {@link BraivoError} with status 409:
-   * ask for the activity again. Other refusals, by status: 401 no session;
-   * 404 course or task missing, retired, or not this learner's; 400 a
-   * response that cannot answer the task; 403 possibly forged; 413 body over
-   * 1 MB.
+   * ask for the activity again. One with `code` `HISTORY_ERASED`, a new attempt
+   * under a `historyEpoch` other than the current one, is final: the learner's
+   * history here was erased, so forget the answer. Other refusals, by status:
+   * 401 no session; 404 course or task missing, retired, or not this learner's;
+   * 400 a response that cannot answer the task; 403 possibly forged; 413 body
+   * over 1 MB.
    */
   submitAttempt(
-    input: { courseId: string; id: string; taskId: string; response: TaskResponse },
+    input: {
+      courseId: string;
+      id: string;
+      taskId: string;
+      response: TaskResponse;
+      /** As the activity it answers said; a resend sends the same. */
+      historyEpoch: number;
+    },
     options?: RequestOptions,
   ): Promise<Grade>;
 
@@ -616,12 +625,17 @@ export type BraivoClient = {
    * Redelivering a result is a no-op, so retrying after a timeout is safe. One
    * that disagrees with what its `id` already holds in that organization is a
    * {@link BraivoError} with status 409, and nothing in that batch is stored.
+   * So is one with `code` `HISTORY_ERASED`, final: the learner's history there
+   * was erased since `historyEpoch`, as a report said it, or, without one, since
+   * a record's date. Send the one read, so a result dated just after an erasure
+   * is not refused by its date.
    */
   recordEvidence(
     input: {
       organizationId: string;
       learnerId: string;
       evidence: readonly GradedEvidence[];
+      historyEpoch?: number;
     },
     options?: RequestOptions,
   ): Promise<void>;
@@ -1511,7 +1525,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       const response = await post(
         `/api/organizations/${encodeURIComponent(input.organizationId)}` +
           `/learners/${encodeURIComponent(input.learnerId)}/evidence`,
-        { evidence: input.evidence },
+        { evidence: input.evidence, historyEpoch: input.historyEpoch },
         requestOptions,
       );
 

@@ -102,6 +102,7 @@ function answer(
   options: { learnerId?: string; course?: string; host?: RequestHost } = {},
 ) {
   return submitAttempt({
+    historyEpoch: 0,
     database,
     learnerId: options.learnerId ?? learner,
     courseId: options.course ?? courseId,
@@ -719,6 +720,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     });
     const send = (text: string) =>
       submitAttempt({
+        historyEpoch: 0,
         database,
         learnerId: learner,
         courseId: wordCourse,
@@ -744,6 +746,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   test("records Show answer as a failure, and that it was asked", async () => {
     expect(
       await submitAttempt({
+        historyEpoch: 0,
         database,
         learnerId: learner,
         courseId,
@@ -766,17 +769,24 @@ describe.skipIf(!connectionString)("the learner loop", () => {
   test("answers a resend with the outcome recorded, not today's grade", async () => {
     // Recorded as a grader that has since changed would have: the right
     // option, graded a failure.
-    await recordAttempt(database, {
-      learnerId: learner,
-      organizationId,
-      attemptId: "regraded",
-      taskId: pastTenseTask,
-      response: { choice: 0 },
-      at: later(1),
-      restWindowStart: start,
-      restAttempts: 3,
-      evidence: { id: `attempt:regraded:${pastTense}`, objectiveId: pastTense, outcome: "failure" },
-    });
+    await database.transaction((transaction) =>
+      recordAttempt(transaction, {
+        learnerId: learner,
+        organizationId,
+        attemptId: "regraded",
+        taskId: pastTenseTask,
+        response: { choice: 0 },
+        at: later(1),
+        restWindowStart: start,
+        restAttempts: 3,
+        staleEpoch: false,
+        evidence: {
+          id: `attempt:regraded:${pastTense}`,
+          objectiveId: pastTense,
+          outcome: "failure",
+        },
+      }),
+    );
 
     expect(await answer("regraded", pastTenseTask, 0, later(2))).toMatchObject({
       kind: "graded",

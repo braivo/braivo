@@ -18,8 +18,8 @@ import {
   withoutHistory,
 } from "../application/index.ts";
 import { parseCourseNumber } from "../content/index.ts";
-import { type Guards, jsonBody } from "./guards.ts";
-import { secondsUntil } from "./refusals.ts";
+import { type Guards, isHistoryEpoch, jsonBody } from "./guards.ts";
+import { historyErasedRefusal, secondsUntil } from "./refusals.ts";
 
 /**
  * Reads an attempt's envelope out of a request body. The response inside it is
@@ -28,14 +28,15 @@ import { secondsUntil } from "./refusals.ts";
  */
 function parseAttempt(
   body: unknown,
-): { id: string; taskId: string; response: unknown } | undefined {
+): { id: string; taskId: string; response: unknown; historyEpoch: number } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const { id, taskId, response } = body as Record<string, unknown>;
+  const { id, taskId, response, historyEpoch } = body as Record<string, unknown>;
   if (typeof id !== "string") return undefined;
   if (typeof taskId !== "string" || taskId === "") return undefined;
+  if (!isHistoryEpoch(historyEpoch)) return undefined;
 
-  return { id, taskId, response };
+  return { id, taskId, response, historyEpoch };
 }
 
 /**
@@ -168,6 +169,7 @@ export function learningRoutes(
         return context.json({
           decision: next.decision,
           objective: next.objective,
+          historyEpoch: next.historyEpoch,
           task: next.task,
         });
       default:
@@ -195,6 +197,7 @@ export function learningRoutes(
         attemptId: attempt.id,
         taskId: attempt.taskId,
         response: attempt.response,
+        historyEpoch: attempt.historyEpoch,
         now: new Date(),
       });
 
@@ -208,6 +211,8 @@ export function learningRoutes(
         case "conflict":
         case "resting":
           return context.body(null, 409);
+        case "history-erased":
+          return historyErasedRefusal(context);
         case "graded":
           // `passages` only when there are some, as `explanation` only when
           // the task has one: a hand-written task cites nothing.

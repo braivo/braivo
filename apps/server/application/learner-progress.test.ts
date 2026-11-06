@@ -244,6 +244,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
       report: {
         modelVersion: activeModel.version,
         asOf: now,
+        historyEpoch: 0,
         repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
         lastPractisedAt: null,
         objectives: [],
@@ -264,6 +265,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     });
     expect(
       await submitAttempt({
+        historyEpoch: 0,
         database,
         learnerId: learner,
         courseId: reviewCourse,
@@ -317,6 +319,7 @@ describe.skipIf(!connectionString)("reading a learner's progress", () => {
     });
     expect(await progress()).toMatchObject({ report: { lastPractisedAt: null } });
     await submitAttempt({
+      historyEpoch: 0,
       database,
       learnerId: learner,
       courseId: reviewCourse,

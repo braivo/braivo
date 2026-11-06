@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { course, group, groupCourse, groupMember, user } from "@braivo/db/schema";
 import { aliasedTable, and, asc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 
@@ -144,8 +144,6 @@ export async function updateGroup(
     return true;
   });
 }
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
  * Adding someone already in the group in the other role: a learner listed

@@ -15,12 +15,14 @@ export const SPANISH_ID = "5a7e0000-0000-4000-8000-000000004732";
 export const typedActivity: Activity = {
   decision: { objectiveId: "o2", modelVersion: "v1", intent: "introduce" },
   objective: { id: "o2", title: "Sein" },
+  historyEpoch: 0,
   task: { id: "t2", kind: "typed", prompt: "I am tired: Ich ___ müde." },
 };
 
 export const activity = {
   decision: { objectiveId: "o1", modelVersion: "v1", intent: "introduce" },
   objective: { id: "o1", title: "Past tense" },
+  historyEpoch: 0,
   task: {
     id: "t1",
     kind: "choice",
@@ -42,6 +44,7 @@ export const anotherActivity: Activity = {
     lastEvidenceAt: "2026-06-01T00:00:00.000Z",
   },
   objective: { id: "o1", title: "Past tense" },
+  historyEpoch: 0,
   task: {
     id: "t2",
     kind: "choice",
@@ -56,6 +59,7 @@ export const anotherActivity: Activity = {
 export const noProgress: LearnerProgressSummary = {
   modelVersion: "v1",
   asOf: "2026-06-01T00:00:00.000Z",
+  historyEpoch: 0,
   repeatedMissesThreshold: 3,
   lastPractisedAt: null,
   objectives: [],

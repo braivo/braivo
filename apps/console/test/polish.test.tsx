@@ -36,6 +36,7 @@ describe("the console in Polish", () => {
           open: true,
           modelVersion: "v1",
           asOf: "2026-06-01T12:05:00.000Z",
+          historyEpoch: 0,
           repeatedMissesThreshold: 3,
           learners: [
             learner("u1", "Ana", "2026-06-01T08:00:00.000Z"),

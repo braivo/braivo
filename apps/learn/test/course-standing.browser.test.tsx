@@ -31,6 +31,7 @@ test("on a phone, wraps the standing summary between its counts, never inside on
     learnerProgress: async () => ({
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [
@@ -72,6 +73,7 @@ test("in Polish, joins a later review's date and its time with o", async () => {
     learnerProgress: async () => ({
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [

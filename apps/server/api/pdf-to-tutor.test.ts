@@ -154,6 +154,7 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
     expect(activity.objective.title).toBe("Say hello");
     const grade = await client.submitAttempt(
       {
+        historyEpoch: 0,
         courseId,
         id: crypto.randomUUID(),
         taskId: activity.task.id,

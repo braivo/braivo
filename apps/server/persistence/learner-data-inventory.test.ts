@@ -67,6 +67,12 @@ const recordTables: Record<string, Record<string, Classification>> = {
     outcome: "exported",
     at: "exported",
   },
+  learner_history_state: {
+    learner_id: "key",
+    organization_id: "key",
+    epoch: "withheld: the erasure's fence, the operator's bookkeeping, not in v1",
+    erased_at: "withheld: when an erasure ran, the operator's register's, not in v1",
+  },
   learner_session: {
     token_hash: "secret",
     user_id: "key",

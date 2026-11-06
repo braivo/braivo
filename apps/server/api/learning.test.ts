@@ -99,7 +99,12 @@ function postAttempt(
   return api.request(`/api/courses/${courseId}/attempts`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}), ...headers },
-    body: JSON.stringify(body),
+    // Under the learner's first epoch unless the test names another, or none.
+    body: JSON.stringify(
+      typeof body === "object" && body !== null && !Array.isArray(body)
+        ? { historyEpoch: 0, ...body }
+        : body,
+    ),
   });
 }
 
@@ -430,6 +435,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await unseen.json()).toEqual({
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
+      historyEpoch: 0,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       // Results recorded through the API, none an attempt answered here.
       lastPractisedAt: null,
@@ -442,6 +448,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
+      historyEpoch: 0,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       lastPractisedAt: null,
       objectives: [
@@ -465,6 +472,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await (await progress(courseId, learner.id, teacher.cookie)).json()).toEqual({
       modelVersion: activeModel.version,
       asOf: expect.stringMatching(ISO_MOMENT),
+      historyEpoch: 0,
       repeatedMissesThreshold: REPEATED_MISSES_THRESHOLD,
       lastPractisedAt: null,
       objectives: [
@@ -508,6 +516,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await (await read("?includeHistory=false")).json()).toEqual({
       ...full,
       asOf: expect.stringMatching(ISO_MOMENT),
+      historyEpoch: 0,
       objectives: [standing],
     });
     // Read as the default, a typo would send the whole history unnoticed.
@@ -878,6 +887,7 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(await response.json()).toEqual({
       decision: { objectiveId: pastTense, modelVersion: activeModel.version, intent: "introduce" },
       objective: { id: pastTense, title: "Past tense" },
+      historyEpoch: 0,
       task: {
         id: pastTenseTask,
         kind: "choice",
@@ -1027,7 +1037,12 @@ describe.skipIf(!connectionString)("the learning routes", () => {
   });
 
   test("refuses attempts it cannot or must not record, recording none", async () => {
-    const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } };
+    const attempt = {
+      id: crypto.randomUUID(),
+      taskId: pastTenseTask,
+      response: { choice: 0 },
+      historyEpoch: 0,
+    };
 
     const refusals = [
       await postAttempt(courseId, attempt),
@@ -1089,11 +1104,44 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(responses.map((response) => response.status)).toEqual([404, 404, 404]);
   });
 
+  test("refuses an attempt without a history epoch it can read, recording nothing", async () => {
+    for (const epoch of [undefined, null, "0", -1, 0.5]) {
+      const refused = await postAttempt(
+        courseId,
+        {
+          id: crypto.randomUUID(),
+          taskId: pastTenseTask,
+          response: { choice: 0 },
+          historyEpoch: epoch,
+        },
+        learner.cookie,
+      );
+      expect([epoch, refused.status]).toEqual([epoch, 400]);
+    }
+    expect(await stored(learner.id)).toEqual([]);
+  });
+
+  test("answers an attempt under another epoch a coded 409, apart from the bare ones", async () => {
+    const refused = await postAttempt(
+      courseId,
+      { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 }, historyEpoch: 1 },
+      learner.cookie,
+    );
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "HISTORY_ERASED" });
+    expect(await stored(learner.id)).toEqual([]);
+  });
+
   test("grades an attempt sent on a learn domain by its learner session", async () => {
     // As the learn app sends it: its own origin, its learner session; an
     // administrator's, since membership in any role is enrollment.
     const cookie = await learnerSessionOn(api, organizationOrigin, teacher.cookie);
-    const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } };
+    const attempt = {
+      id: crypto.randomUUID(),
+      taskId: pastTenseTask,
+      response: { choice: 0 },
+      historyEpoch: 0,
+    };
 
     const graded = await api.request(`${organizationOrigin}/api/courses/${courseId}/attempts`, {
       method: "POST",

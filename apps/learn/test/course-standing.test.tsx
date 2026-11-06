@@ -21,6 +21,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -88,6 +89,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -123,6 +125,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: reported,
@@ -184,6 +187,7 @@ describe("the learn app", () => {
     return {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [
@@ -268,6 +272,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -305,6 +310,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [retained("a", "Greetings", dueAt)],
@@ -343,6 +349,7 @@ describe("the learn app", () => {
     const progress: LearnerProgressSummary = {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [
@@ -403,6 +410,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [
@@ -432,6 +440,7 @@ describe("the learn app", () => {
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [

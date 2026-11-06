@@ -6,6 +6,15 @@
 // back, is decided here beside the code that needs it.
 
 export type { Citation, CitedPassage } from "./citation.ts";
+export {
+  deleteLearnerHistory,
+  type ErasureCounts,
+  type ErasureScope,
+  HistoryErased,
+  withLearnerHistoryLock,
+  readErasurePreview,
+  readLearnerHistoryState,
+} from "./learner-history.ts";
 export { createCitations, readObjectiveCitations, readSourceTexts } from "./citation.ts";
 export type { Course, CourseWriteResult, ManagedCourse } from "./course.ts";
 export {
@@ -102,7 +111,9 @@ export {
   readOrganizationRoles,
   readUser,
   deleteMember,
+  readUserIdByEmail,
   updateMemberRole,
+  isOnlyOwner,
 } from "./membership.ts";
 export type { ObjectiveSummary, Objective } from "./objective.ts";
 export {

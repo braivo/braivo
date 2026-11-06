@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Transaction } from "@braivo/db";
 import { runMigrations } from "@braivo/db";
 import { task as taskTable } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
@@ -16,7 +17,6 @@ import {
   readTaskCitations,
 } from "../persistence/index.ts";
 import { DuplicateCorrection, PublishedTask, StaleCorrection } from "../persistence/index.ts";
-import type { Transaction } from "../persistence/task.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import { InvalidCitation } from "./citations.ts";
 import { publish, StalePublication } from "./courses.ts";
@@ -226,6 +226,7 @@ describe.skipIf(!connectionString)("tasks", () => {
       retireTasks({ database, organizationId, actingAs, taskIds, now, byTool: false });
     const answer = (attemptId: string) =>
       submitAttempt({
+        historyEpoch: 0,
         database,
         learnerId: learner,
         courseId,

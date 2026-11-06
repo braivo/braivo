@@ -42,6 +42,7 @@ test("on a phone, wraps a learner's evidence between its date and time, not insi
       learnerProgress: async () => ({
         modelVersion: "v1",
         asOf: "2026-06-01T00:00:00.000Z",
+        historyEpoch: 0,
         repeatedMissesThreshold: 3,
         lastPractisedAt: null,
         objectives: [

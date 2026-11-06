@@ -3,7 +3,7 @@
 
 import { isDeepStrictEqual } from "node:util";
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import {
   attempt,
   course,
@@ -38,6 +38,7 @@ import {
   type Timing,
 } from "../content/index.ts";
 import type { Evidence } from "../learning/index.ts";
+import { HistoryErased } from "./learner-history.ts";
 
 type Task = { id: string; objectiveId: string; body: TaskBody };
 
@@ -123,8 +124,6 @@ export class RestingTask extends Error {
 
 /** A located passage a task was written from, positions in code points. */
 export type TaskCitation = { sourceId: string; start: number; end: number };
-
-export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** What learners are offered: published, and not retired (ADR 0039). */
 const offeredTask = and(isNotNull(task.publishedAt), isNull(task.retiredAt));
@@ -949,7 +948,7 @@ export async function countOtherAttempts(
  * attempt to resend.
  */
 export async function readCourseTask(
-  database: Database,
+  database: Database | Transaction,
   input: { courseId: string; taskId: string },
 ): Promise<Task | undefined> {
   const [row] = await database
@@ -988,9 +987,14 @@ export async function readCourseTask(
  * on other objectives followed it (docs/adr/0017-task-rest.md). Checked only
  * once the insert shows the attempt is new, so a resend is never mistaken for
  * another answer, whatever was answered since.
+ *
+ * A new attempt is `HistoryErased` when `staleEpoch`: resending a recorded one
+ * answers what it answered, whatever epoch it names (learner-loop-11), so this
+ * too waits for the insert. A caller holds `withLearnerHistoryLock`, which is what
+ * makes the epoch it compared still the current one here.
  */
 export async function recordAttempt(
-  database: Database,
+  transaction: Transaction,
   input: {
     learnerId: string;
     /** The task's organization, where the attempt and its evidence are recorded. */
@@ -1001,6 +1005,8 @@ export async function recordAttempt(
     at: Date;
     restWindowStart: Date;
     restAttempts: number;
+    /** Sent under an epoch other than the learner's current one here. */
+    staleEpoch: boolean;
     /** Dated by the attempt. */
     evidence: Omit<Evidence, "at">;
   },
@@ -1014,81 +1020,81 @@ export async function recordAttempt(
     at,
     restWindowStart,
     restAttempts,
+    staleEpoch,
     evidence,
   } = input;
 
-  return database.transaction(async (transaction) => {
-    const inserted = await transaction
-      .insert(attempt)
-      .values({ id: attemptId, learnerId, organizationId, taskId, response, at })
-      .onConflictDoNothing({ target: [attempt.learnerId, attempt.organizationId, attempt.id] })
-      .returning({ id: attempt.id });
+  const inserted = await transaction
+    .insert(attempt)
+    .values({ id: attemptId, learnerId, organizationId, taskId, response, at })
+    .onConflictDoNothing({ target: [attempt.learnerId, attempt.organizationId, attempt.id] })
+    .returning({ id: attempt.id });
 
-    if (inserted.length === 0) {
-      const [stored] = await transaction
-        .select({ taskId: attempt.taskId, response: attempt.response })
-        .from(attempt)
-        .where(
-          and(
-            eq(attempt.learnerId, learnerId),
-            eq(attempt.organizationId, organizationId),
-            eq(attempt.id, attemptId),
-          ),
-        );
-      if (stored?.taskId !== taskId || !isDeepStrictEqual(stored.response, response)) {
-        throw new ConflictingAttempt(attemptId);
-      }
-      const [recorded] = await transaction
-        .select({ outcome: learnerEvidence.outcome })
-        .from(learnerEvidence)
-        .where(
-          and(
-            eq(learnerEvidence.learnerId, learnerId),
-            eq(learnerEvidence.organizationId, organizationId),
-            eq(learnerEvidence.id, evidence.id),
-          ),
-        );
-      // Written with the attempt, so never missing: regrading instead would
-      // answer an outcome the evidence does not hold.
-      if (recorded === undefined) throw new Error(`Attempt ${attemptId} has no evidence.`);
-      return recorded.outcome;
-    }
-
-    const [current] = await transaction
-      .select({ retiredAt: task.retiredAt })
-      .from(task)
-      .where(eq(task.id, taskId))
-      .for("share");
-    if (current?.retiredAt) throw new RetiredTask();
-
-    // The latest: an earlier one may have been spaced out while this one was not.
-    const [previous] = await transaction
-      .select({ at: attempt.at })
+  if (inserted.length === 0) {
+    const [stored] = await transaction
+      .select({ taskId: attempt.taskId, response: attempt.response })
       .from(attempt)
       .where(
         and(
           eq(attempt.learnerId, learnerId),
-          eq(attempt.taskId, taskId),
-          ne(attempt.id, attemptId),
-          gt(attempt.at, restWindowStart),
+          eq(attempt.organizationId, organizationId),
+          eq(attempt.id, attemptId),
         ),
-      )
-      .orderBy(desc(attempt.at))
-      .limit(1);
-    const resting =
-      previous !== undefined &&
-      (await countOtherAttempts(transaction, {
-        learnerId,
-        organizationId,
-        objectiveId: evidence.objectiveId,
-        after: previous.at,
-      })) < restAttempts;
-    // Thrown inside the transaction, so the attempt just inserted goes with it.
-    if (resting) throw new RestingTask();
+      );
+    if (stored?.taskId !== taskId || !isDeepStrictEqual(stored.response, response)) {
+      throw new ConflictingAttempt(attemptId);
+    }
+    const [recorded] = await transaction
+      .select({ outcome: learnerEvidence.outcome })
+      .from(learnerEvidence)
+      .where(
+        and(
+          eq(learnerEvidence.learnerId, learnerId),
+          eq(learnerEvidence.organizationId, organizationId),
+          eq(learnerEvidence.id, evidence.id),
+        ),
+      );
+    // Written with the attempt, so never missing: regrading instead would
+    // answer an outcome the evidence does not hold.
+    if (recorded === undefined) throw new Error(`Attempt ${attemptId} has no evidence.`);
+    return recorded.outcome;
+  }
 
-    await transaction
-      .insert(learnerEvidence)
-      .values({ ...evidence, learnerId, organizationId, at });
-    return evidence.outcome;
-  });
+  // Thrown inside the transaction, so the attempt just inserted goes with it.
+  if (staleEpoch) throw new HistoryErased();
+
+  const [current] = await transaction
+    .select({ retiredAt: task.retiredAt })
+    .from(task)
+    .where(eq(task.id, taskId))
+    .for("share");
+  if (current?.retiredAt) throw new RetiredTask();
+
+  // The latest: an earlier one may have been spaced out while this one was not.
+  const [previous] = await transaction
+    .select({ at: attempt.at })
+    .from(attempt)
+    .where(
+      and(
+        eq(attempt.learnerId, learnerId),
+        eq(attempt.taskId, taskId),
+        ne(attempt.id, attemptId),
+        gt(attempt.at, restWindowStart),
+      ),
+    )
+    .orderBy(desc(attempt.at))
+    .limit(1);
+  const resting =
+    previous !== undefined &&
+    (await countOtherAttempts(transaction, {
+      learnerId,
+      organizationId,
+      objectiveId: evidence.objectiveId,
+      after: previous.at,
+    })) < restAttempts;
+  // Thrown inside the transaction, so the attempt just inserted goes with it.
+  if (resting) throw new RestingTask();
+
+  await transaction.insert(learnerEvidence).values({ ...evidence, learnerId, organizationId, at });
+  return evidence.outcome;
 }

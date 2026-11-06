@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { course, courseObjective, groupCourse, member, task } from "@braivo/db/schema";
 import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 
 import { urlLabel } from "../content/index.ts";
 import { ConflictingKey } from "./key.ts";
-import type { Transaction } from "./task.ts";
 
 /**
  * `number` names it in learners' links within its organization alone, and
@@ -214,7 +213,7 @@ export async function markCourseDeleted(
  * learners reach only an open course.
  */
 export async function readCourseOrganization(
-  database: Database,
+  database: Database | Transaction,
   courseId: string,
 ): Promise<{ organizationId: string; open: boolean } | undefined> {
   const [row] = await database

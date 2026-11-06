@@ -4,7 +4,12 @@
 import type { Database } from "@braivo/db";
 
 import type { Evidence } from "../learning/index.ts";
-import { findObjectivesOutsideOrganization, recordEvidence } from "../persistence/index.ts";
+import {
+  findObjectivesOutsideOrganization,
+  HistoryErased,
+  withLearnerHistoryLock,
+  recordEvidence,
+} from "../persistence/index.ts";
 import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
 import { assertMayAdminister, isMember, NotPermitted } from "./permission.ts";
 
@@ -59,10 +64,14 @@ export const MAX_EVIDENCE_ID_LENGTH = 256;
  * which changes while evidence must outlive it. Check 4 answers before the
  * schema would, which refuses evidence about another organization's objective.
  *
- * Membership holds as of the check. A learner removed before the insert still
- * gets the batch, but the row is inert: this organization's decisions re-check
- * membership, and no other organization's course has the objective. Locking
- * `member` to close the window would stall every membership change for nothing.
+ * 5. The learner's history here was not erased since the batch was begun: with
+ *    a `historyEpoch`, it is the current one; without one, every record is dated
+ *    past the erasure by more than `MAX_CLOCK_SKEW_MS`, so a record that could
+ *    have been stored ahead of it, then erased and replayed, cannot return
+ *    (docs/adr/0053-learners-data.md).
+ *
+ * Checks 3 to 5 and the write run under the lock an erasure takes, so a batch
+ * lands wholly before one, and is erased, or after it, and is refused.
  *
  * An empty batch does nothing and checks nothing.
  */
@@ -73,10 +82,12 @@ export async function recordGradedEvidence(input: {
   gradedBy: string;
   learnerId: string;
   evidence: readonly Evidence[];
+  /** The history epoch the sender read (`readLearnerProgress`), if it did. */
+  historyEpoch?: number;
   /** When the evidence was received, which is what its dates are held to. */
   now: Date;
 }): Promise<void> {
-  const { database, organizationId, gradedBy, learnerId, evidence, now } = input;
+  const { database, organizationId, gradedBy, learnerId, evidence, historyEpoch, now } = input;
   if (evidence.length === 0) return;
 
   // `Invalid Date` compares false against everything, so an unchecked one would
@@ -115,22 +126,44 @@ export async function recordGradedEvidence(input: {
 
   await assertMayAdminister(database, { organizationId, userId: gradedBy });
 
-  if (!(await isMember(database, { organizationId, userId: learnerId }))) {
-    throw new NotPermitted(
-      `Learner "${learnerId}" is not a member of organization "${organizationId}".`,
-    );
-  }
+  const scope = { learnerId, organizationId };
+  await withLearnerHistoryLock(database, scope, async (transaction, history) => {
+    if (!(await isMember(transaction, { organizationId, userId: learnerId }))) {
+      throw new NotPermitted(
+        `Learner "${learnerId}" is not a member of organization "${organizationId}".`,
+      );
+    }
 
-  const outside = await findObjectivesOutsideOrganization(
-    database,
-    organizationId,
-    evidence.map((record) => record.objectiveId),
-  );
-  if (outside.length > 0) {
-    throw new NotPermitted(
-      `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
+    const outside = await findObjectivesOutsideOrganization(
+      transaction,
+      organizationId,
+      evidence.map((record) => record.objectiveId),
     );
-  }
+    if (outside.length > 0) {
+      throw new NotPermitted(
+        `Organization "${organizationId}" does not own ${outside.map((id) => `"${id}"`).join(", ")}.`,
+      );
+    }
 
-  await recordEvidence(database, { learnerId, organizationId }, evidence);
+    if (
+      historyEpoch === undefined
+        ? mayPredateErasure(evidence, history.erasedAt)
+        : historyEpoch !== history.epoch
+    ) {
+      throw new HistoryErased();
+    }
+
+    await recordEvidence(transaction, scope, evidence);
+  });
+}
+
+/**
+ * Whether a batch naming no epoch holds a record that could be from before the
+ * erasure. Inclusive, as `MAX_CLOCK_SKEW_MS` is: one dated exactly that far past
+ * it may have been recorded in the erasure's last moment.
+ */
+function mayPredateErasure(evidence: readonly Evidence[], erasedAt: Date | null): boolean {
+  if (erasedAt === null) return false;
+  const limit = erasedAt.getTime() + MAX_CLOCK_SKEW_MS;
+  return evidence.some((record) => record.at.getTime() <= limit);
 }

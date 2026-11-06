@@ -318,10 +318,9 @@ describe("the learn app", () => {
       expect(await screen.findByRole("button", { name: "Continue" })).toBeTruthy();
       expect(submitAttempt).toHaveBeenCalledTimes(2);
       expect(submitAttempt.mock.calls[1]![0].id).not.toBe(sent.id);
-      // Said of that load alone: gone once the learner continues past it.
-      expect(screen.getByText(LAST_REFUSED)).toBeTruthy();
+      // Said of the refused answer alone: beside this one, it would seem to mean it.
+      expect(screen.queryByText(LAST_REFUSED)).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-      await vi.waitFor(() => expect(screen.queryByText(LAST_REFUSED)).toBeNull());
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       cleanup();
 
@@ -563,6 +562,7 @@ describe("the learn app", () => {
   });
 
   test.each([
+    ["no epoch", { ...activity, historyEpoch: undefined }],
     ["no decision", { ...activity, decision: undefined }],
     ["an intent it does not know", { ...activity, decision: { intent: "drill" } }],
     ["an option it cannot read", { ...activity, task: { ...activity.task, options: [null] } }],

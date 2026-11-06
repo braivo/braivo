@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import {
   account,
   attempt,
@@ -22,7 +22,6 @@ import {
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import type { StoredTaskReport } from "./task-report.ts";
-import type { Transaction } from "./task.ts";
 
 /**
  * What a learner export reads, row by row, before `exportLearner` shapes it

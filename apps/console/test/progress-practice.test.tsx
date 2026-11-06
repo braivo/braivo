@@ -72,6 +72,7 @@ function practiceOverview(): CourseProgressOverview {
 const report = (lastPractisedAt: string | null): LearnerProgressReport => ({
   modelVersion: "v1",
   asOf: AS_OF,
+  historyEpoch: 0,
   repeatedMissesThreshold: 3,
   lastPractisedAt,
   objectives: [{ objectiveId: "greetings", title: "Greetings", phase: "unseen", evidence: [] }],

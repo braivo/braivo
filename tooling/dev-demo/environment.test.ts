@@ -258,6 +258,7 @@ describe.skipIf(!target)("the development demo", { timeout: 30_000 }, () => {
       timeZone: "UTC",
     });
     const answered = await submitAttempt({
+      historyEpoch: 0,
       ...course,
       host: learnHost,
       attemptId: "retry",

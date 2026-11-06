@@ -71,7 +71,9 @@ It prints a random password once; `--password-stdin` reads one instead, 16 chara
 
 ## Learners' data
 
-The operator exports a learner's data on request, with the same environment as `serve`. Who may ask for which scope, and who receives the file, is [ADR 0053](../adr/0053-learners-data.md)'s:
+The operator exports and erases a learner's data on request, with the same environment as `serve`. Who may ask for which scope, and who receives the file, is [ADR 0053](../adr/0053-learners-data.md)'s.
+
+### Exporting
 
 ```bash
 bun --no-env-file apps/server/cli/index.ts learner export --email learner@fernwood.example --organization fernwood --out fernwood-learner.json
@@ -155,6 +157,29 @@ The file is JSON, `version` 1; a change to its format changes `version`. Times a
 }
 ```
 
+### Erasing one school's history
+
+On that school's written instruction, naming the learner and whether their membership ends:
+
+```bash
+bun --no-env-file apps/server/cli/index.ts learner erase-history --email learner@fernwood.example --organization fernwood
+```
+
+It needs `BRAIVO_ERASURE_LOG` and `BRAIVO_ERASURE_LOG_HMAC_KEY` (below), in addition to `DATABASE_URL`, and refuses to start without them. It shows the database, the account, the organization, and what it will remove, and asks for the slug typed back; `--yes` skips asking, for a script that has shown those already.
+
+- **Removed, at that school alone:** the learner's attempts, evidence, and reports; their learner sessions there, so a learn domain signs them out; their handoffs; sign-in codes and invitations for the address. The account, its console sessions, and other schools' records stay.
+- **Membership** is kept, and their next answers start a fresh history. Add `--end-membership` if the instruction says so: their groups go with it, and an organization's only owner is refused.
+- **What it leaves behind:** a fence, in `learner_history_state`, so that an old answer resent from an open tab or an integration's retry is refused rather than bringing the history back, even after they leave and rejoin; one record in the log; and any record of invitation mail to the address, which limits mail for a day and is pruned as later mail is sent.
+- **Reading its result:** it prints `done` only after the database committed and the log's record says so. "Not confirmed" changed nothing.
+- **"The history was erased, but log record … could not be marked done":** the history is gone. Do not run the command again to repair the record: the learner may have practised since, and that is new history. A pending record stays valid for a restore. Note its ID in the request's register entry, and fix the store.
+- **An error naming a pending log record and its epoch:** the commit may have gone through unconfirmed, and the counts cannot say, as the learner may have practised since. Run the command again and read its `History` line, typing nothing at the prompt. If it has reached the record's epoch, the erasure committed, so stop, as above. If it has not, confirm: nothing was erased, and the pending record is harmless beside the new one.
+- **An error naming no record** erased nothing.
+
+Integrations sending evidence should send the `historyEpoch` a learner's report gives them: without one, a result dated within five minutes after the erasure is refused too.
+
+> [!WARNING]
+> Nothing reads the log back yet, so restoring a backup taken before an erasure brings that history back, with an epoch too low to refuse what was refused before. Keep the log. After such a restore, before reopening the service, go through every pending record whatever its date, and every done record whose `doneAt` follows the backup: where the account the command shows has the record's `userId`, and its `History` line is behind the record's `epoch`, run it, with `--end-membership` if that learner's records say so, until the epoch reaches the highest of theirs there. Another account under that email is someone else: type nothing, as what it holds is not the record's to erase. A refusal that no account has the email means the account is absent from the restored database: none of its history is there, but invitations and sign-in codes for the address may have. Remove that school's by hand before reopening; do not create an account to run the command.
+
 ## Configuration
 
 `bun run serve` reads its environment alone, never an env file, so the repository's development defaults cannot stand in for a setting a deployment left out; set the variables below in the service's environment, as with systemd's `EnvironmentFile=`. Run the operator's commands with `--no-env-file` too, as shown, or Bun loads those defaults into them ([ADR 0051](../adr/0051-environment-files.md)).
@@ -190,3 +215,8 @@ AI requests may run for up to five minutes, so configure the proxy for that; ngi
 - `s3://<bucket>` in any S3-compatible store, with `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_REGION` as Bun's S3 client reads them. For Cloudflare R2, `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`; for Google Cloud Storage, `https://storage.googleapis.com` with an HMAC key.
 
 Unset, the installation keeps no files and its file routes answer 501. Braivo accepts original-file uploads up to 50 MB and source requests up to 10 MB. Configure the proxy to accept at least those sizes; nginx's `client_max_body_size` defaults to 1 MB.
+
+**Erasure log.** Only the commands that erase read these ([ADR 0053](../adr/0053-learners-data.md)); `serve` does not. Keep both outside the database and its backups, and apart from `BRAIVO_FILES`, with access only for whoever runs those commands, since each record names a user ID and an HMAC of their email.
+
+- `BRAIVO_ERASURE_LOG`: an absolute path to a directory that already exists, written to disk before anything is erased, or `s3://<bucket>`, with the `S3_*` variables above.
+- `BRAIVO_ERASURE_LOG_HMAC_KEY`: the HMAC's secret, at least 32 characters. Keep it for as long as the log: a replay matches email-keyed rows by it.

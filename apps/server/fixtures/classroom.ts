@@ -409,6 +409,7 @@ async function practise(input: {
       attemptId: crypto.randomUUID(),
       taskId: next.task.id,
       response,
+      historyEpoch: next.historyEpoch,
       now,
     });
     const expected = step.answer === "right" ? "success" : "failure";

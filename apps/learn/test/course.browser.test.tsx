@@ -183,6 +183,7 @@ test("on a phone, ends a session with Keep going and Done on the first screen, h
   const standing = (phase: "unseen" | "retaining") => ({
     modelVersion: "v1",
     asOf: "2026-06-01T00:00:00.000Z",
+    historyEpoch: 0,
     repeatedMissesThreshold: 3,
     lastPractisedAt: null,
     objectives: titles.map((title, index) =>

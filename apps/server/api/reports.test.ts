@@ -90,6 +90,7 @@ describe.skipIf(!connectionString)("the reports routes", () => {
       id: "a1",
       taskId,
       response: { text: "went." },
+      historyEpoch: 0,
     });
     await post(`/api/courses/${courseId}/attempts/a1/report`, {
       reason: "answer-correct",

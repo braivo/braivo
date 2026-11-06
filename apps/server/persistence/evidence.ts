@@ -1,17 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@braivo/db";
+import type { Database, Transaction } from "@braivo/db";
 import { learnerEvidence, member } from "@braivo/db/schema";
 import { and, asc, eq, inArray, lte } from "drizzle-orm";
 
 import type { Evidence } from "../learning/index.ts";
-
-/**
- * One learner's evidence at one organization: what a record's ID is unique in,
- * and all a decision there may read (docs/adr/0032-learner-history.md).
- */
-export type EvidenceScope = { learnerId: string; organizationId: string };
+import type { LearnerScope } from "./learner-history.ts";
 
 /**
  * A delivery that disagrees with what is already recorded under its ID.
@@ -55,10 +50,13 @@ export class ConflictingEvidence extends Error {
  * is whichever write actually won. Every sent record is compared, not only the
  * ones the insert skipped, because a batch naming one ID twice inserts the first
  * copy and would otherwise never look at the second.
+ *
+ * A use case calls this holding `withLearnerHistoryLock`, or the batch could land
+ * across an erasure; a bare `database` is for seeding tests.
  */
 export async function recordEvidence(
-  database: Database,
-  scope: EvidenceScope,
+  database: Database | Transaction,
+  scope: LearnerScope,
   evidence: readonly Evidence[],
 ): Promise<void> {
   const { learnerId, organizationId } = scope;
@@ -166,7 +164,7 @@ function isSameResult(sent: Evidence, stored: Evidence | undefined): boolean {
  */
 export async function readLearnerEvidence(
   database: Database,
-  scope: EvidenceScope,
+  scope: LearnerScope,
   asOf: Date,
 ): Promise<Evidence[]> {
   const { learnerId, organizationId } = scope;

@@ -65,6 +65,7 @@ const activity = (courseId: string, timeZone = "UTC") =>
 
 function answer(courseId: string, taskId: string, choice: number, at: Date) {
   return submitAttempt({
+    historyEpoch: 0,
     database,
     learnerId,
     courseId,

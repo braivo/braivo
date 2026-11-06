@@ -169,6 +169,7 @@ describe("the Braivo client", () => {
     const { calls, client } = clientFor(Response.json(grade));
 
     const answered = await client.submitAttempt({
+      historyEpoch: 0,
       courseId: "course/1",
       id: "attempt-1",
       taskId: "task-1",
@@ -181,6 +182,7 @@ describe("the Braivo client", () => {
     expect(new Headers(calls[0]!.init?.headers).get("content-type")).toBe("application/json");
     // The course is in the path, never repeated in the body.
     expect(JSON.parse(calls[0]!.init?.body as string)).toEqual({
+      historyEpoch: 0,
       id: "attempt-1",
       taskId: "task-1",
       response: { choice: 1 },
@@ -191,7 +193,13 @@ describe("the Braivo client", () => {
     const { client } = clientFor(new Response(null, { status: 409 }));
 
     const error = await client
-      .submitAttempt({ courseId: "c", id: "a", taskId: "t", response: { choice: 0 } })
+      .submitAttempt({
+        historyEpoch: 0,
+        courseId: "c",
+        id: "a",
+        taskId: "t",
+        response: { choice: 0 },
+      })
       .catch((thrown: unknown) => thrown);
 
     expect(error).toBeInstanceOf(BraivoError);
@@ -274,6 +282,7 @@ describe("the Braivo client", () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: "2026-05-30T09:00:00.000Z",
       objectives: [

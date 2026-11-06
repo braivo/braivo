@@ -146,13 +146,15 @@
 //
 //   { "decision": { "objectiveId": "…", "modelVersion": "v1", "intent": "introduce" },
 //     "objective": { "id": "…", "title": "Greetings" },
+//     "historyEpoch": 0,
 //     "task": { "id": "…", "kind": "choice", "prompt": "…",
 //               "options": [{ "choice": 1, "text": "…" }, { "choice": 0, "text": "…" }] } }
 //
 // or, for a typed task, where the learner types the answer,
 // `"task": { "id": "…", "kind": "typed", "prompt": "…" }`. A client meeting a
 // kind it does not know says the task is not supported there and sends
-// nothing (ADR 0038).
+// nothing (ADR 0038). `historyEpoch` comes only with a task: its answer sends it
+// back (`POST …/attempts`).
 //
 // When the decided objective has no task, 200 answers the decision and its
 // objective without one: the learner is not caught up, but has nothing to
@@ -176,8 +178,9 @@
 //
 // `POST /api/courses/:courseId/attempts` — the signed-in learner answers a task,
 // and Braivo grades it and records the evidence. Body
-// `{ "id": "…", "taskId": "…", "response": { "choice": 1 } }`, where `choice` is
-// the option's, as the activity gave it; to a typed task the response is
+// `{ "id": "…", "taskId": "…", "response": { "choice": 1 }, "historyEpoch": 0 }`,
+// where `historyEpoch` is the activity's, and `choice` the option's, as the
+// activity gave it; to a typed task the response is
 // `{ "text": "…" }`, at most 500 characters, stored as sent; and to either
 // kind, Show answer is `{ "reveal": true }`, graded a failure. A response names
 // exactly one of `choice`, `text`, and `reveal`. `id` is the client's, unique per
@@ -185,12 +188,14 @@
 // will do). Mint it once per answer,
 // and when delivery is uncertain (a network error, a 5xx) resend that same ID:
 // the resend records nothing twice and answers the same grade, where a fresh ID
-// would record it again. A 409 is not such a case.
+// would record it again. A 409 is not such a case. Resend `historyEpoch` as first
+// sent: it says which of the learner's histories here the answer belongs to
+// (learner-loop-25).
 //
 //   401  no session
-//   400  the body is not an attempt, `id` is empty or too long, or the response
-//        cannot answer the task or names more than one of `choice`, `text`,
-//        and `reveal`
+//   400  the body is not an attempt, `id` is empty or too long, `historyEpoch` is
+//        missing or not a non-negative integer, or the response cannot answer
+//        the task or names more than one of `choice`, `text`, and `reveal`
 //   403  the request could have been forged, as for evidence
 //   404  the course does not exist, is not the learner's, or has no such task,
 //        or the task was retired (a resend of an attempt recorded before that
@@ -198,7 +203,11 @@
 //   409  `id` was already used at this organization for a different task or
 //        response, or the task is resting for this learner since their latest
 //        answer to it. Either way, ask for the activity again rather than
-//        resending.
+//        resending. `{ "error": "…", "code": "HISTORY_ERASED" }`: a new `id`
+//        under a `historyEpoch` other than the learner's current one here,
+//        recording nothing; final, so forget the answer, and read the activity
+//        for the epoch to go on under. An `id` already recorded answers its
+//        grade, whatever `historyEpoch` it names.
 //   413  the body is larger than 1 MB
 //   200  the grade: `{ "kind": "choice", "outcome": "failure", "correctChoice": 0,
 //        "explanation": "…" }`, `correctChoice` the correct option's `choice`;
@@ -247,7 +256,9 @@
 // learns in that takes the course (ADR 0042); the learner must belong to it. A
 // learner session reads its own alone. `?includeHistory=false` leaves each
 // objective's `evidence` out, for a reader showing standings only: it grows
-// with every result.
+// with every result. `historyEpoch` is the learner's history epoch here, which a
+// sender of evidence names so a result it begins after this read is told from
+// one begun before an erasure (learner-loop-25).
 //
 //   400  `includeHistory` given more than once, or as other than `true` or `false`
 //   401  no session
@@ -318,7 +329,11 @@
 //
 //   { "evidence": [
 //       { "id": "…", "objectiveId": "…", "outcome": "success", "at": "2026-06-01T00:00:00.000Z" }
-//   ] }
+//   ], "historyEpoch": 0 }
+//
+// `historyEpoch`, optional, is the one the learner's report said (learner-loop-25).
+// Send it: without one, a result dated within five minutes after an erasure is
+// refused.
 //
 // `at` is exactly what `Date#toISOString` produces — UTC, with milliseconds —
 // and no more than five minutes ahead of the clock when the batch is validated.
@@ -327,8 +342,9 @@
 // it stays invisible until its date and resending it is a conflict.
 //
 //   401  no session
-//   400  the body is not evidence, carries more than 1000 records, dates a
-//        record more than five minutes ahead, or has an `id` longer than 256
+//   400  the body is not evidence, carries more than 1000 records, names a
+//        `historyEpoch` that is not a non-negative integer, dates a record more
+//        than five minutes ahead, or has an `id` longer than 256
 //        characters or starting with `attempt:`, which is reserved for evidence
 //        graded from attempts
 //   403  the request could have been forged (it must be `application/json`, and
@@ -343,6 +359,10 @@
 //        An evidence ID identifies one attempt's result for one objective;
 //        built from the task and the objective alone it repeats on every
 //        attempt, and each one after the first answers this.
+//        `{ "error": "…", "code": "HISTORY_ERASED" }`: the batch's optional
+//        `historyEpoch`, read from the learner's report, is not the current
+//        one, or it names none and a record is dated at or before five minutes
+//        past the learner's history here being erased. Nothing is stored; final.
 //   204  recorded. Redelivering the same result is a no-op, so a retry answers
 //        the same way and writes no second row. An empty `evidence` records
 //        nothing and is checked no further than the session and origin, so its

@@ -173,6 +173,7 @@ describe("repeated misses on the course overview", () => {
         learnerProgress: async () => ({
           modelVersion: "v1",
           asOf: "2026-06-01T12:05:00.000Z",
+          historyEpoch: 0,
           repeatedMissesThreshold: 3,
           lastPractisedAt: null,
           objectives: [],

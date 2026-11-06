@@ -274,6 +274,7 @@ describe("the console", () => {
     const report: LearnerProgressReport = {
       modelVersion: "v1",
       asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
       repeatedMissesThreshold: 3,
       lastPractisedAt: null,
       objectives: [
@@ -401,6 +402,7 @@ describe("the console", () => {
         learnerProgress: async (): Promise<LearnerProgressReport> => ({
           modelVersion: "v1",
           asOf: "2026-06-01T12:05:00.000Z",
+          historyEpoch: 0,
           repeatedMissesThreshold: 3,
           lastPractisedAt: null,
           objectives: [
@@ -453,6 +455,7 @@ describe("the console", () => {
         learnerProgress: async (): Promise<LearnerProgressReport> => ({
           modelVersion: "v1",
           asOf,
+          historyEpoch: 0,
           repeatedMissesThreshold: 3,
           lastPractisedAt: null,
           objectives: ["o1", "o2", "o3"].map((objectiveId) => ({
@@ -501,6 +504,7 @@ describe("the console", () => {
         learnerProgress: async () => ({
           modelVersion: "v1",
           asOf: "2026-06-01T00:00:00.000Z",
+          historyEpoch: 0,
           repeatedMissesThreshold: 3,
           lastPractisedAt: null,
           objectives: [],

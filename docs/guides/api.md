@@ -54,16 +54,17 @@ curl -sb jar.txt -X POST $BRAIVO/api/organizations/$ORG/tasks \
 ACTIVITY=$(curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity)
 echo "$ACTIVITY"
 # {"decision":{"objectiveId":"…","modelVersion":"v1","intent":"introduce"},
-#  "objective":{"id":"…","title":"Greetings"},
+#  "objective":{"id":"…","title":"Greetings"},"historyEpoch":0,
 #  "task":{"id":"…","kind":"choice","prompt":"Hello, in Spanish?",
 #          "options":[{"choice":1,"text":"Adiós"},{"choice":0,"text":"Hola"}]}}
 # Options are shuffled; each carries the `choice` value to submit.
 
 # Answer it, wrongly. Braivo grades the answer and records it as evidence.
 TASK=$(echo "$ACTIVITY" | field 'r.task.id')
+EPOCH=$(echo "$ACTIVITY" | field 'r.historyEpoch')
 curl -sb jar.txt -X POST $BRAIVO/api/courses/$COURSE/attempts \
   -H 'content-type: application/json' \
-  -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1}}"
+  -d "{\"id\":\"attempt-1\",\"taskId\":\"$TASK\",\"response\":{\"choice\":1},\"historyEpoch\":$EPOCH}"
 # {"outcome":"failure","correctChoice":0,"explanation":"Adiós is goodbye."}
 
 # What comes next follows from that answer: greetings again, with the other task.
@@ -73,7 +74,7 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/activity
 
 # See where the learner stands on each objective, as the organization's owner.
 curl -sb jar.txt $BRAIVO/api/courses/$COURSE/learners/$LEARNER/progress
-# {"modelVersion":"v1","asOf":"…","repeatedMissesThreshold":3,"lastPractisedAt":"…",
+# {"modelVersion":"v1","asOf":"…","historyEpoch":0,"repeatedMissesThreshold":3,"lastPractisedAt":"…",
 #  "objectives":[{…,"title":"Greetings","phase":"acquiring",
 #  "misses":{"count":1,"lastMissAt":"…","everSucceeded":false},…},
 #  {…,"title":"Numbers","phase":"unseen"}]}
@@ -94,8 +95,8 @@ The same loop runs in the learn app: sign in at `http://localhost:5173` as `owne
 ## What shapes it
 
 - **The session identifies the learner.** `activity` and `attempts` take no learner ID; they always act for the signed-in account. Course access is still checked: a course outside that account's organizations returns 404. Above, one account plays every part: it owns the organization, and owners may practise too.
-- **Learners submit responses, not outcomes.** Braivo grades each response and records the evidence. Each attempt carries an ID the client chooses, unique per learner within the organization, so retrying after a lost response records it once.
-- **Only an organization's administrators record evidence graded elsewhere.** An application with its own tasks asks `GET /api/courses/<id>/next` for the bare learning decision and records outcomes with `POST /api/organizations/<id>/learners/<id>/evidence`, which needs `owner` or `admin`, not `author`, since a `member` could otherwise grade themselves. The evidence's `at` timestamp must be exactly what `Date#toISOString()` produces; Braivo uses it to order evidence during replay.
+- **Learners submit responses, not outcomes.** Braivo grades each response and records the evidence. Each attempt carries an ID the client chooses, unique per learner within the organization, so retrying after a lost response records it once. It also carries the `historyEpoch` the activity gave with its task, unchanged on a retry; a 409 with `code` `HISTORY_ERASED` means the learner's history there was erased since, so forget that answer and read the activity again.
+- **Only an organization's administrators record evidence graded elsewhere.** An application with its own tasks asks `GET /api/courses/<id>/next` for the bare learning decision and records outcomes with `POST /api/organizations/<id>/learners/<id>/evidence`, which needs `owner` or `admin`, not `author`, since a `member` could otherwise grade themselves. The evidence's `at` timestamp must be exactly what `Date#toISOString()` produces; Braivo uses it to order evidence during replay. Send the `historyEpoch` from the learner's report (`GET /api/courses/<id>/learners/<id>/progress`), read before the work began: without one, a result dated within five minutes after an erasure is refused too, with the same 409.
 - **Learners can read their own progress; owners and admins can read any learner's progress in their organization.** The learn app shows a learner's standing above each question. A `member` asking about someone else gets 404, as for a course that does not exist.
 - **New material waits.** While anything in the course is still being acquired, none of its unseen objectives is introduced, so a learner who keeps failing stays within what they have already met instead of being handed more. Above, greetings come back until they are passed, and numbers wait; where several objectives are in progress, re-teaching moves between them, oldest first. So course order decides which unseen objective comes first, not the whole path ([selection rule](../specs/learning-model.md#selection-rule)). Only objectives with tasks to practise count: one whose tasks are all retired drops out of what the learn app offers.
 

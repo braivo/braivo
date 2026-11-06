@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { readDatabaseUrl, readServeConfig } from "./config.ts";
+import { readDatabaseUrl, readErasureLogConfig, readServeConfig } from "./config.ts";
 
 const valid = {
   DATABASE_URL: "postgres://localhost/braivo",
@@ -12,6 +12,38 @@ const valid = {
   BRAIVO_SMTP_URL: "smtps://user:password@smtp.example.com",
   BRAIVO_MAIL_FROM: "Braivo <signin@example.com>",
 };
+
+describe("the erasure log", () => {
+  const key = "k".repeat(32);
+
+  test("is a directory or a bucket, with its HMAC key", () => {
+    expect(
+      readErasureLogConfig({
+        BRAIVO_ERASURE_LOG: "/var/braivo/log",
+        BRAIVO_ERASURE_LOG_HMAC_KEY: key,
+      }),
+    ).toEqual({ files: { directory: "/var/braivo/log" }, hmacKey: key });
+    expect(
+      readErasureLogConfig({
+        BRAIVO_ERASURE_LOG: "s3://erasure-log",
+        BRAIVO_ERASURE_LOG_HMAC_KEY: key,
+      }),
+    ).toEqual({ files: { bucket: "erasure-log" }, hmacKey: key });
+  });
+
+  test.each([
+    [{ BRAIVO_ERASURE_LOG_HMAC_KEY: key }, "BRAIVO_ERASURE_LOG"],
+    [{ BRAIVO_ERASURE_LOG: "  ", BRAIVO_ERASURE_LOG_HMAC_KEY: key }, "BRAIVO_ERASURE_LOG"],
+    [{ BRAIVO_ERASURE_LOG: "log", BRAIVO_ERASURE_LOG_HMAC_KEY: key }, "BRAIVO_ERASURE_LOG"],
+    [{ BRAIVO_ERASURE_LOG: "/var/log" }, "BRAIVO_ERASURE_LOG_HMAC_KEY"],
+    [
+      { BRAIVO_ERASURE_LOG: "/var/log", BRAIVO_ERASURE_LOG_HMAC_KEY: "short" },
+      "BRAIVO_ERASURE_LOG_HMAC_KEY",
+    ],
+  ])("refuses %o, never defaulting", (environment, named) => {
+    expect(() => readErasureLogConfig(environment)).toThrow(named);
+  });
+});
 
 describe("reviewers", () => {
   test("are none unless listed, each an email, lowercased", () => {

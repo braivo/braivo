@@ -2645,6 +2645,10 @@ msgstr "Your learners see it on their site, and your team sees it here."
 msgid "Your learners see this name. If it's just you, use your own."
 msgstr "Your learners see this name. If it's just you, use your own."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
+msgstr "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
+
 #: apps/console/components/sign-in-page.tsx
 msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
 msgstr "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."

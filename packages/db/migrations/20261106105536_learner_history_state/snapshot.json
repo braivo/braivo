@@ -1,0 +1,249 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "dc27c2fd-3c42-48f8-a870-2debc55217f5",
+  "prevIds": [
+    "e7a8b694-ed1b-4de7-8780-be95eb475ab1"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "learner_history_state"
+      ],
+      "writes": [
+        "s|tbl|public.learner_history_state",
+        "n|tbl|public.learner_history_state",
+        "e|tbl|public.learner_history_state",
+        "n|rel|public.learner_history_state",
+        "n|type|public.learner_history_state",
+        "n|rel|public.learner_history_state_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "learner_history_state",
+        "learner_history_state_organization_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.learner_history_state_organization_id_idx",
+        "n|idx|public.learner_history_state_organization_id_idx",
+        "e|idx|public.learner_history_state_organization_id_idx",
+        "n|rel|public.learner_history_state_organization_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.learner_history_state",
+        "n|sch|public",
+        "n|col|public.learner_history_state.organization_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "learner_history_state"
+      ],
+      "writes": [
+        "s|fk|public.learner_history_state.learner_history_state_learner_id_user_id_fkey",
+        "n|fk|public.learner_history_state.learner_history_state_learner_id_user_id_fkey",
+        "e|fk|public.learner_history_state.learner_history_state_learner_id_user_id_fkey",
+        "n|con|public.learner_history_state.learner_history_state_learner_id_user_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.learner_history_state",
+        "n|sch|public",
+        "n|tbl|public.user",
+        "n|sch|public",
+        "n|col|public.learner_history_state.learner_id",
+        "n|col|public.user.id",
+        "e|uniqueness|public.user.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "learner_history_state"
+      ],
+      "writes": [
+        "s|fk|public.learner_history_state.learner_history_state_organization_id_organization_id_fkey",
+        "n|fk|public.learner_history_state.learner_history_state_organization_id_organization_id_fkey",
+        "e|fk|public.learner_history_state.learner_history_state_organization_id_organization_id_fkey",
+        "n|con|public.learner_history_state.learner_history_state_organization_id_organization_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.learner_history_state",
+        "n|sch|public",
+        "n|tbl|public.organization",
+        "n|sch|public",
+        "n|col|public.learner_history_state.organization_id",
+        "n|col|public.organization.id",
+        "e|uniqueness|public.organization.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "learner_history_state",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "learner_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "organization_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "epoch",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "erased_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "learner_history_state_organization_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "organization_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "learner_history_state_learner_id_user_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "learner_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "user",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "learner_history_state_organization_id_organization_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "organization_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "organization",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "learner_history_state",
+        "name": "learner_history_state_pkey",
+        "columns": [
+          "learner_id",
+          "organization_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

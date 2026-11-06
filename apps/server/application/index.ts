@@ -81,6 +81,13 @@ export {
   redeemHandoff,
   startHandoff,
 } from "./learner-sessions.ts";
+export {
+  eraseLearnerHistory,
+  type ErasureCounts,
+  type HistoryErasureTarget,
+  previewHistoryErasure,
+} from "./erase-history.ts";
+export type { ErasureLog } from "./erasure-log.ts";
 export { exportLearner } from "./learner-export.ts";
 export { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
@@ -154,6 +161,7 @@ export {
  */
 export {
   ConflictingEvidence,
+  HistoryErased,
   ConflictingGroupRole,
   ConflictingKey,
   CorrectionPending,
