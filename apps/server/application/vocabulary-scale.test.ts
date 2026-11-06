@@ -2,19 +2,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { runMigrations } from "@braivo/db";
+import { attempt, task } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 import {
   createCourse,
   createObjectives,
   createTasks,
+  readCourseObjectives,
   recordEvidence,
 } from "../persistence/index.ts";
 import { chooseNextActivity } from "./activity.ts";
 import { listLearnerCoursesWithStanding } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
 import { readLearnerProgress } from "./learner-progress.ts";
+import { readRestingObjectives } from "./rest.ts";
 
 /**
  * A vocabulary course has an objective per word, hundreds to thousands, where
@@ -227,6 +231,60 @@ describe.skipIf(!connectionString || process.env.BRAIVO_BENCH !== "1")(
       }
       return runs.toSorted((a, b) => a - b)[6]!;
     }
+
+    // A learner's attempts as many as their results, a few inside the rest
+    // window, the worst case for what waits: the second read runs too. Measured
+    // 5 to 10 ms for what rests, 3 to 5 with nothing recent, 70 to 115 for the
+    // whole list (2026-11-06, local PostgreSQL): bounds well above, as below.
+    test("reads what rests, and lists what waits, at 50,000 attempts", async () => {
+      const objectiveIds = await readCourseObjectives(database, practice.courseId);
+      const tasks = await database
+        .select({ id: task.id })
+        .from(task)
+        .where(inArray(task.objectiveId, objectiveIds));
+      for (let index = 0; index < 50_000; index += 1000) {
+        await database.insert(attempt).values(
+          Array.from({ length: 1000 }, (_unused, offset) => ({
+            id: `${practice.courseId}:${index + offset}`,
+            learnerId: practice.learnerId,
+            organizationId,
+            taskId: tasks[(index + offset) % tasks.length]!.id,
+            response: { choice: 0 },
+            // The last few within ten minutes of `now`, the rest long before.
+            at:
+              index + offset >= 49_990
+                ? new Date(now.getTime() - (50_000 - index - offset) * 1000)
+                : new Date(start.getTime() + (index + offset) * 5 * 60_000),
+          })),
+        );
+      }
+      const rests = await median(() =>
+        readRestingObjectives(database, {
+          learnerId: practice.learnerId,
+          organizationIds: [organizationId],
+          now,
+        }),
+      );
+      const quiet = await median(() =>
+        readRestingObjectives(database, {
+          learnerId: practice.learnerId,
+          organizationIds: [organizationId],
+          now: new Date(now.getTime() + 3_600_000),
+        }),
+      );
+      const list = await median(() =>
+        listLearnerCoursesWithStanding({
+          database,
+          learnerId: practice.learnerId,
+          host,
+          now,
+          timeZone: "UTC",
+        }),
+      );
+      expect(rests).toBeLessThan(1000);
+      expect(quiet).toBeLessThan(1000);
+      expect(list).toBeLessThan(3000);
+    }, 120_000);
 
     // Measured 70 to 150 ms each (2026-10-11, local PostgreSQL): a bound an
     // order of magnitude above, for a regression in the shape, not the constant.

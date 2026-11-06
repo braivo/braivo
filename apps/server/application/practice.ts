@@ -49,12 +49,12 @@ export function decidePractice(
 }
 
 /**
- * What `decidePractice`'s selection would work through in a course if the
- * learner answered everything right, rests aside as there: `assessed`, its
- * objectives' standings (assessment shares selection's rule), those with a task,
- * with no more new ones than `newLeft` (`dailyAllowance`). Over this course
- * alone: the limit is shared across the organization, so two courses may count
- * the same places left today.
+ * What the activity's selection would work through in a course now if the
+ * learner answered everything right: `assessed`, its objectives' standings
+ * (assessment shares selection's rule), those `offerable`, having a task that
+ * does not rest, with no more new ones than `newLeft` (`dailyAllowance`). Over
+ * this course alone: the limit is shared across the organization, so two courses
+ * may count the same places left today.
  *
  * Counted by standing, not by walking `selectNext`, which is quadratic in what
  * waits; `practice.test.ts` walks it to prove the two agree. Takes what its
@@ -62,11 +62,11 @@ export function decidePractice(
  */
 export function countWaiting(
   assessed: readonly ObjectiveStanding[],
-  withTasks: ReadonlySet<string>,
+  offerable: ReadonlySet<string>,
   newLeft: number,
 ): CourseWaiting {
   const { learning, dueForReview, notStarted } = countStandings(
-    assessed.filter(({ objectiveId }) => withTasks.has(objectiveId)),
+    assessed.filter(({ objectiveId }) => offerable.has(objectiveId)),
   );
   return { learning, dueForReview, new: Math.min(notStarted, newLeft) };
 }

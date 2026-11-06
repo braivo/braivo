@@ -921,6 +921,65 @@ export async function countOtherAttempts(
 }
 
 /**
+ * The attempts this learner recorded after `after` at `organizationIds`, each
+ * with its task's objective: those that can rest an objective or space its rest
+ * out (docs/adr/0017-task-rest.md). `countOtherAttempts`'s, for a read of many.
+ */
+export async function readAttemptsAfter(
+  database: Database,
+  input: { learnerId: string; organizationIds: readonly string[]; after: Date },
+): Promise<{ organizationId: string; objectiveId: string; at: Date }[]> {
+  if (input.organizationIds.length === 0) return [];
+  return await database
+    .select({
+      organizationId: attempt.organizationId,
+      objectiveId: task.objectiveId,
+      at: attempt.at,
+    })
+    .from(attempt)
+    .innerJoin(
+      task,
+      and(eq(task.organizationId, attempt.organizationId), eq(task.id, attempt.taskId)),
+    )
+    .where(
+      and(
+        eq(attempt.learnerId, input.learnerId),
+        inArray(attempt.organizationId, [...input.organizationIds]),
+        gt(attempt.at, input.after),
+      ),
+    );
+}
+
+/**
+ * For each of `objectiveIds` with an offered task, when this learner last
+ * answered the one `readNextTask` would offer: its offered task they answered
+ * least recently, `undefined` while one was never answered.
+ */
+export async function readLeastRecentAttempts(
+  database: Database,
+  input: { learnerId: string; objectiveIds: readonly string[] },
+): Promise<Map<string, Date | undefined>> {
+  const lastAttemptAt = sql<Date | null>`max(${attempt.at})`.mapWith(attempt.at);
+  const rows = await database
+    .select({ objectiveId: task.objectiveId, lastAttemptAt })
+    .from(task)
+    .leftJoin(attempt, and(eq(attempt.taskId, task.id), eq(attempt.learnerId, input.learnerId)))
+    .where(and(inArray(task.objectiveId, [...input.objectiveIds]), offeredTask))
+    .groupBy(task.id);
+
+  const leastRecent = new Map<string, Date | undefined>();
+  for (const { objectiveId, lastAttemptAt: at } of rows) {
+    const known = leastRecent.has(objectiveId);
+    const held = leastRecent.get(objectiveId);
+    if (!known) leastRecent.set(objectiveId, at ?? undefined);
+    else if (held !== undefined && (at === null || at < held)) {
+      leastRecent.set(objectiveId, at ?? undefined);
+    }
+  }
+  return leastRecent;
+}
+
+/**
  * A published task, provided it assesses one of this course's objectives:
  * answering is authorized through the course, so a task outside it, or one
  * still pending, is as good as missing. Retired ones included, so a resend of

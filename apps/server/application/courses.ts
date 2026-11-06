@@ -39,6 +39,7 @@ import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
 import { assertMayAuthor, NotPermitted } from "./permission.ts";
 import { type CourseWaiting, countWaiting } from "./practice.ts";
+import { readRestingObjectives } from "./rest.ts";
 import { type CourseStanding, countStandings } from "./standing.ts";
 
 /**
@@ -303,7 +304,7 @@ export async function listLearnerCoursesWithStanding(input: {
     courses.map(({ id }) => id),
   );
   const organizations = new Set([...scopes.values()].map(({ organizationId }) => organizationId));
-  const [histories, withTasks] = await Promise.all([
+  const [histories, withTasks, resting] = await Promise.all([
     Promise.all(
       [...organizations].map(async (organizationId) => {
         const evidence = await readLearnerEvidence(database, { learnerId, organizationId }, now);
@@ -320,7 +321,13 @@ export async function listLearnerCoursesWithStanding(input: {
       database,
       [...scopes.values()].flatMap(({ objectiveIds }) => objectiveIds),
     ),
+    readRestingObjectives(database, {
+      learnerId,
+      organizationIds: [...organizations],
+      now,
+    }),
   ]);
+  const offerable = new Set([...withTasks].filter((id) => !resting.has(id)));
   return courses.map((course) => {
     const scope = scopes.get(course.id);
     const history = scope && histories.get(scope.organizationId)!;
@@ -336,7 +343,7 @@ export async function listLearnerCoursesWithStanding(input: {
     return {
       ...course,
       standing: countStandings(objectives),
-      waiting: countWaiting(objectives, withTasks, history?.newLeft ?? 0),
+      waiting: countWaiting(objectives, offerable, history?.newLeft ?? 0),
     };
   });
 }

@@ -119,7 +119,7 @@ describe("countWaiting", () => {
   }
 
   /**
-   * What practice offers in turn, each answered right at once and rests aside:
+   * What practice offers in turn, each answered right at once, no task resting (`waiting-rests.test.ts`):
    * the selection itself, which `countWaiting` must agree with.
    */
   function walkPractice(objectiveIds: string[], evidence: Evidence[], withTasks: Set<string>) {
