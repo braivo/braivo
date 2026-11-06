@@ -157,15 +157,20 @@ function CourseCard({
   const { t } = useLingui();
   const titleId = useId();
   const lineId = useId();
-  const countsId = useId();
+  const saidId = useId();
   const waits = read !== undefined && hasWaiting(read.waiting);
   const started = read && read.standing.notStarted < totalOf(read.standing);
   const counts = read && countsLine(read.standing, t);
-  const line = !waits
-    ? counts
+  const next = !waits
+    ? undefined
     : started
       ? waitingLine(read.waiting, t)
       : t`We start with a question and use your answers to choose what comes next.`;
+  const line = next ?? counts;
+  // One text, not the two lines by reference: a description joins those with a
+  // bare space, running what waits into the standing's counts. A count line has
+  // no stop of its own; the sentence does.
+  const said = next && `${next}${started ? "." : ""} ${counts}`;
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -175,7 +180,7 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={waits ? `${lineId} ${countsId}` : line ? lineId : undefined}
+          aria-describedby={said ? saidId : line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
@@ -186,13 +191,14 @@ function CourseCard({
                 <StandingBar counts={read.standing} />
                 <ItemDescription
                   id={lineId}
+                  aria-hidden={said ? true : undefined}
                   className={cn("line-clamp-none", waits && "text-foreground")}
                 >
                   {line}
                 </ItemDescription>
-                {waits && (
-                  <span id={countsId} className="sr-only">
-                    {counts}
+                {said && (
+                  <span id={saidId} className="sr-only">
+                    {said}
                   </span>
                 )}
               </>

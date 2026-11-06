@@ -86,12 +86,14 @@ describe("the learn app", () => {
 
     const lead = await screen.findByRole("link", {
       name: "Spanish",
-      description: spaced("2 to review 1 retained · 2 due for review"),
+      description: spaced("2 to review. 1 retained · 2 due for review"),
     });
-    // One line to see, and the meter, whose counts are said to assistive technology.
-    expect(within(lead).getByText(spaced("1 retained · 2 due for review")).className).toContain(
-      "sr-only",
-    );
+    // One line to see, and the meter, whose counts are said to assistive technology,
+    // each with a stop of its own: the whole description, so a missing one fails.
+    expect(within(lead).getByText(spaced("2 to review")).getAttribute("aria-hidden")).toBe("true");
+    expect(
+      within(lead).getByText(spaced("2 to review. 1 retained · 2 due for review")).className,
+    ).toContain("sr-only");
     expect(lead.querySelector('[aria-hidden="true"].rounded-full')).toBeTruthy();
     const cards = screen.getAllByRole("link", { name: /Arabic|Spanish/ });
     expect(cards).toHaveLength(2);
@@ -149,13 +151,13 @@ describe("the learn app", () => {
     await screen.findByRole("link", {
       name: "French",
       description: spaced(
-        "1 to practise · 2 to review · 3 new 2 due for review · 1 learning · 3 not started",
+        "1 to practise · 2 to review · 3 new. 2 due for review · 1 learning · 3 not started",
       ),
     });
     expect(
       screen.getByRole("link", {
         name: "Spanish",
-        description: spaced("2 new 1 retained · 2 not started"),
+        description: spaced("2 new. 1 retained · 2 not started"),
       }),
     ).toBeTruthy();
     expect(
