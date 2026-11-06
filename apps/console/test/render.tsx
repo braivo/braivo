@@ -182,7 +182,7 @@ export function expectAiAppGuide(scope: HTMLElement = document.body) {
     name: "your own AI app, such as Claude or ChatGPT",
   });
   expect(link.getAttribute("href")).toBe(
-    "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md",
+    "https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx",
   );
   expect(link.getAttribute("target")).toBe("_blank");
   expect(link.getAttribute("rel")).toBe("noreferrer");

@@ -1266,7 +1266,7 @@ describe("the console", () => {
       expect(within(section).getByText(address)).toBeTruthy();
       const guide = within(section).getByRole("link", { name: "Step by step" });
       expect(guide.getAttribute("href")).toBe(
-        "https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect",
+        "https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx#connect",
       );
       expect(guide.getAttribute("target")).toBe("_blank");
       expect(guide.getAttribute("rel")).toBe("noreferrer");

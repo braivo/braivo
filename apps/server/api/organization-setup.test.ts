@@ -19,7 +19,7 @@ const long = createTestApi({
   selfServeDomain: `${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.example`,
 });
 
-/** Development's: each organization at `<slug>.localhost` (docs/guides/deployment.md). */
+/** Development's: each organization at `<slug>.localhost` (apps/docs/content/guides/deployment.mdx). */
 const local = createTestApi({ selfServeDomain: "localhost" });
 
 /** Slugs fresh each run, since organizations outlive it. */

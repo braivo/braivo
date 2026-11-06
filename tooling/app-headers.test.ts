@@ -3,7 +3,7 @@
 
 // The apps' security headers, in one guard as they are one policy: each
 // `public/_headers` is copied into the build, where Workers' static assets, or
-// a self-hoster's proxy, apply it (docs/guides/deployment.md).
+// a self-hoster's proxy, apply it (apps/docs/content/guides/deployment.mdx).
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

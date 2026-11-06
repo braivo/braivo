@@ -147,7 +147,7 @@ function HowToConnect() {
           In Claude, ChatGPT, or another AI app, add a custom connector with this address, then sign
           in and approve it.{" "}
           <a
-            href="https://github.com/braivo/braivo/blob/main/docs/guides/assistants.md#connect"
+            href="https://github.com/braivo/braivo/blob/main/apps/docs/content/guides/assistants.mdx#connect"
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-4"

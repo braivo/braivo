@@ -8,4 +8,4 @@ Include what is affected, how to reproduce it, and what an attacker gains. Expec
 
 ## Supported versions
 
-Braivo is pre-release: only the latest commit on `main` is supported, and fixes land there. Hardening an installation, such as putting the server behind a proxy, is covered in [the deployment guide](docs/guides/deployment.md).
+Braivo is pre-release: only the latest commit on `main` is supported, and fixes land there. Hardening an installation, such as putting the server behind a proxy, is covered in [the deployment guide](apps/docs/content/guides/deployment.mdx).

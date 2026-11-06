@@ -31,7 +31,7 @@ apps/server            API, use cases, learning model, auth, queries, operator's
   auth/                Better Auth server config
   mcp/                 Braivo's MCP tools over the API client, served at /mcp
   cli/                 process entry point (serve, db migrate, organization)
-  fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/guides/demo.md)
+  fixtures/            synthetic data to develop against, e.g. the demo's classroom (docs/demo.md)
 apps/learn             learner app (white-label, per organization; demo.braivo.app)
 apps/console           content owners' app
 apps/storybook         catalog of @braivo/ui

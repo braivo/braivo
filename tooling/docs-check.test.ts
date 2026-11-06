@@ -20,8 +20,8 @@ describe("docs check", () => {
 
   test("names the file and line of a path that does not exist", () => {
     const text = "# Guide\n\nStart at `apps/server/api/gone.ts`.\n";
-    expect(check([{ path: "docs/guides/api.md", text }], exists)).toEqual([
-      "docs/guides/api.md:3: `apps/server/api/gone.ts` does not exist",
+    expect(check([{ path: "apps/docs/content/guides/api.mdx", text }], exists)).toEqual([
+      "apps/docs/content/guides/api.mdx:3: `apps/server/api/gone.ts` does not exist",
     ]);
   });
 
@@ -49,5 +49,74 @@ describe("docs check", () => {
         exists,
       ),
     ).toEqual(['docs/specs/access.md: a living spec has no "## Entry points" section']);
+  });
+});
+
+describe("links between public pages", () => {
+  const page = "apps/docs/content/guides/authoring.mdx";
+  const other = "apps/docs/content/guides/api.mdx";
+  const files = (...paths: string[]) => new Set(paths);
+  const run = (text: string, otherText = "## The walkthrough\n") =>
+    check(
+      [
+        { path: page, text },
+        { path: other, text: otherText },
+      ],
+      (path) => files(page, other).has(path),
+    );
+
+  test("passes a page, its heading, and an address", () => {
+    expect(
+      run(
+        "## Own part\n\n[a](./api.mdx) [b](./api.mdx#the-walkthrough) [c](#own-part)\n[d](https://example.com/x)\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("names a page that does not exist", () => {
+    expect(run("[a](./gone.mdx)\n")).toEqual([`${page}:1: \`./gone.mdx\` does not exist`]);
+  });
+
+  test("names a heading another page does not have", () => {
+    expect(run("[a](./api.mdx#nowhere)\n")).toEqual([
+      `${page}:1: \`./api.mdx#nowhere\` names no heading of ${other}`,
+    ]);
+  });
+
+  test("names a heading its own page does not have", () => {
+    expect(run("[a](#nowhere)\n")).toEqual([`${page}:1: \`#nowhere\` names no heading of ${page}`]);
+  });
+
+  test("slugs a heading as GitHub and the site do, repeats included", () => {
+    expect(
+      run(
+        "[a](./api.mdx#the-braivo-command) [b](./api.mdx#ai-apps-1) [c](./api.mdx#an-organizations-domain)\n",
+        "## The `braivo` command\n\n## AI apps\n\n## AI apps\n\n## An organization's [domain](https://example.com)\n",
+      ),
+    ).toEqual([]);
+  });
+
+  test("ignores what is in code, and a fence's fake heading", () => {
+    expect(run("```text\n[a](./gone.mdx)\n## Fake\n```\n\n`[b](./gone.mdx)` [c](#fake)\n")).toEqual(
+      [`${page}:6: \`#fake\` names no heading of ${page}`],
+    );
+  });
+
+  test.each([
+    ["a route, which 404s on GitHub", "/guides/api"],
+    ["a file named without ./", "api.mdx"],
+    ["a page's route without its extension", "./api"],
+    ["a file outside the pages", "../../../../README.md"],
+    ["a page outside the pages", "../../outside.mdx"],
+  ])("refuses %s", (_, href) => {
+    expect(run(`[a](${href})\n`)).toEqual([
+      `${page}:1: \`${href}\` is neither an address nor a page's file, as \`./page.mdx\``,
+    ]);
+  });
+
+  test("leaves other documents' links alone", () => {
+    expect(
+      check([{ path: "docs/specs/access.md", text: "[a](/x) [b](./gone.mdx)\n" }], exists),
+    ).toEqual([]);
   });
 });
