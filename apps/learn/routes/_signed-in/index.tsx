@@ -78,14 +78,12 @@ function Courses() {
   // A number names a course on its organization's domain alone; elsewhere, or
   // with the domain's organization unknown, its ID does.
   const { organization } = root.useLoaderData();
-  // What waits comes first, each keeping the list's order among its kind, so
-  // the learner's next step is at the top and the rest stay findable by title.
-  // Unread, the list's order alone: nothing can be said of what waits.
-  const waits = (course: Course) => {
-    const waiting = standings?.get(course.id)?.waiting;
-    return waiting !== undefined && hasWaiting(waiting);
-  };
-  const ordered = [...courses.filter(waits), ...courses.filter((course) => !waits(course))];
+  // Weak and fading knowledge first, then new material, then the rest; a stable
+  // sort, so by title within each. Unread, the list's order alone: nothing can be
+  // said of what waits.
+  const ordered = courses.toSorted(
+    (a, b) => urgency(standings?.get(a.id)?.waiting) - urgency(standings?.get(b.id)?.waiting),
+  );
 
   return (
     <>
@@ -120,6 +118,13 @@ function Courses() {
       </section>
     </>
   );
+}
+
+/** Where a course lists: learning or reviews waiting, only new material, nothing or unread. */
+function urgency(waiting: CourseWaiting | undefined) {
+  if (waiting === undefined) return 2;
+  if (waiting.learning + waiting.dueForReview > 0) return 0;
+  return waiting.new > 0 ? 1 : 2;
 }
 
 /** How many objectives a course's standing counts. */

@@ -165,6 +165,39 @@ describe("the learn app", () => {
     ).toEqual(["/c/c1", "/c/c3", "/c/c0", "/c/c2"]);
   });
 
+  test("leads with reviews or learning over a course offering only new material, whose title sorts first", async () => {
+    const list = ["Arabic", "Basque", "Czech", "Dutch", "Estonian"].map((title, index) => ({
+      id: `c${index}`,
+      number: 4730 + index,
+      title,
+      urlLabel: title.toLowerCase(),
+    }));
+    const waiting = [
+      { ...nothingWaits, new: 3 },
+      nothingWaits,
+      { ...nothingWaits, dueForReview: 2 },
+      { ...nothingWaits, new: 1 },
+      { ...nothingWaits, learning: 1 },
+    ];
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => list,
+      learnerCoursesWithStanding: async () =>
+        list.map((course, index) => ({
+          ...course,
+          standing: { retained: 1, dueForReview: 0, learning: 0, notStarted: 0 },
+          waiting: waiting[index]!,
+        })),
+    });
+
+    await screen.findByRole("link", { name: "Czech" });
+    expect(
+      within(screen.getByRole("main"))
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/c/c2", "/c/c4", "/c/c0", "/c/c3", "/c/c1"]);
+  });
+
   test("says how a course begins while nothing is started, and only if a question can follow", async () => {
     const list = ["Arabic", "French", "German"].map((title, index) => ({
       id: `c${index}`,
