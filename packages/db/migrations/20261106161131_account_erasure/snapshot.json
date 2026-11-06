@@ -1,0 +1,70 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "9c1ee137-9d6d-484e-b2bd-fa8f5b8dedaa",
+  "prevIds": [
+    "dc27c2fd-3c42-48f8-a870-2debc55217f5"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "account_erasure"
+      ],
+      "writes": [
+        "s|tbl|public.account_erasure",
+        "n|tbl|public.account_erasure",
+        "e|tbl|public.account_erasure",
+        "n|rel|public.account_erasure",
+        "n|type|public.account_erasure",
+        "n|rel|public.account_erasure_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "account_erasure",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "account_erasure",
+        "name": "id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "account_erasure",
+        "name": "account_erasure_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

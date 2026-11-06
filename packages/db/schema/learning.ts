@@ -384,6 +384,16 @@ export const learnerHistoryState = pgTable(
 );
 
 /**
+ * That an account's erasure committed, by the ID of its record in the replay log
+ * (ADR 0053), written in its transaction: a restored database says for itself
+ * whether it holds that erasure, with no clock compared. `learner_history_state` goes
+ * with the account, so it cannot say. Names no one without the log.
+ */
+export const accountErasure = pgTable("account_erasure", {
+  id: text("id").primaryKey(),
+});
+
+/**
  * Why a learner reports a task: `answer-correct` (my answer seems correct),
  * `key-wrong`, `confusing`, `unsupported` (the passage does not support it),
  * or `other`, which needs a note (docs/adr/0052-task-reports.md).
