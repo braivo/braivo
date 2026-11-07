@@ -596,6 +596,10 @@ msgstr "Sprawdź pocztę"
 msgid "Checking…"
 msgstr "Sprawdzanie…"
 
+#: apps/learn/components/standing.tsx
+msgid "Choose a topic to practise"
+msgstr "Wybierz temat do ćwiczenia"
+
 #: apps/console/components/no-such-setting.tsx
 msgid "Choose one from the list."
 msgstr "Wybierz jedno z listy."

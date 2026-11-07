@@ -8,10 +8,11 @@ import {
   type Standing,
   standingOf,
 } from "@braivo/server/client";
+import { Button } from "@braivo/ui/components/button";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
-import { useLingui } from "@lingui/react/macro";
-import type { ReactNode } from "react";
+import { Trans, useLingui } from "@lingui/react/macro";
+import { type ReactNode, useRef, useState } from "react";
 
 /**
  * Each standing (`standingOf`) in words, in the summary's order: alone, beside
@@ -114,8 +115,9 @@ function StandingBar({ counts }: { counts: CourseStanding }) {
 /**
  * Where the learner stands (progress-8): a meter, each standing a segment in
  * proportion to its objectives, over its counts, which open into each objective
- * by title, each followed by `action`, if given. Nothing for a report with no
- * objectives.
+ * by title, each followed by `action`, if given, which a button before the
+ * counts says is there, opening them (learner-loop-27). Nothing for a report
+ * with no objectives.
  */
 export function StandingMeter({
   report,
@@ -125,14 +127,34 @@ export function StandingMeter({
   action?: (objective: { objectiveId: string; title: string }) => ReactNode;
 }) {
   const { t } = useLingui();
+  const details = useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = useState(false);
   if (report.objectives.length === 0) return null;
   const counts = countStandings(report.objectives);
   const line = countsLine(counts, t);
 
+  /** Opens the list, the focus on its first action, so the choice is in reach. */
+  function choose() {
+    const list = details.current;
+    if (!list) return;
+    list.open = true;
+    setOpen(true);
+    list.querySelector<HTMLElement>("li a, li button")?.focus();
+  }
+
   return (
     <div className="flex w-full flex-col gap-2 text-left text-sm">
+      {action && !open && (
+        <Button variant="outline" size="lg" className="w-full" onClick={choose}>
+          <Trans>Choose a topic to practise</Trans>
+        </Button>
+      )}
       <StandingBar counts={counts} />
-      <details className="wrap-break-word text-muted-foreground">
+      <details
+        ref={details}
+        onToggle={(event) => setOpen(event.currentTarget.open)}
+        className="wrap-break-word text-muted-foreground"
+      >
         {/* Padded to a touch target, keeping the browser's marker, which flex would drop. */}
         <summary className="cursor-pointer py-3">{line}</summary>
         <ul className="flex flex-col gap-1">

@@ -77,7 +77,7 @@ function focusing(chosen: (objectiveId: string) => Promise<Activity | undefined>
 }
 
 async function practiseGreetings() {
-  fireEvent.click(await screen.findByText("2 retained"));
+  fireEvent.click(await screen.findByRole("button", { name: "Choose a topic to practise" }));
   fireEvent.click(screen.getByRole("link", { name: "Practise Greetings" }));
 }
 
@@ -90,20 +90,25 @@ describe("the learn app", () => {
     });
     expect(await screen.findByText("You're caught up")).toBeTruthy();
 
-    // Each objective offers it, by name.
-    fireEvent.click(await screen.findByText("2 retained"));
+    // Said, not hidden in the counts: it opens them, each objective offering it by name.
+    fireEvent.click(screen.getByRole("button", { name: "Choose a topic to practise" }));
     const list = screen.getByRole("list");
-    expect(
-      within(list)
-        .getAllByRole("link")
-        .map((link) => link.getAttribute("aria-label")),
-    ).toEqual(["Practise Greetings", "Practise Numbers"]);
-    await practiseGreetings();
+    const practise = within(list).getAllByRole("link");
+    expect(practise.map((link) => link.getAttribute("aria-label"))).toEqual([
+      "Practise Greetings",
+      "Practise Numbers",
+    ]);
+    expect(list.closest("details")!.open).toBe(true);
+    expect(document.activeElement).toBe(practise[0]);
+    expect(screen.queryByRole("button", { name: "Choose a topic to practise" })).toBeNull();
+    fireEvent.click(practise[0]!);
 
-    // The learner's request, never the model's: said so, with the way back.
+    // The learner's request, never the model's: said so, with the way back
+    // beside it, and no session's count, as it is no part of one.
     expect(await screen.findByText("Hello, in Spanish? (t1)")).toBeTruthy();
     expect(screen.getByText("Extra practice · Greetings")).toBeTruthy();
-    expect(screen.getByText("Practising Greetings")).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Back to recommended" })).toHaveLength(1);
+    expect(screen.queryByRole("progressbar")).toBeNull();
     expect(router.state.location.search).toEqual({ objective: "a" });
     expect(nextActivity).toHaveBeenLastCalledWith("c1", {
       signal: expect.any(AbortSignal),
@@ -123,7 +128,9 @@ describe("the learn app", () => {
     expect(await screen.findByText("You're caught up")).toBeTruthy();
     expect(router.state.location.search).toEqual({});
     expect(nextActivity).toHaveBeenLastCalledWith("c1", { signal: expect.any(AbortSignal) });
-    expect(screen.queryByText("Practising Greetings")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Back to recommended" })).toBeNull();
+    // Not counted: the caught-up screen recaps no session.
+    expect(screen.queryByText("1 of 1 right.")).toBeNull();
   });
 
   test("asks an extra question again only when the learner taps Practise again", async () => {
@@ -191,30 +198,6 @@ describe("the learn app", () => {
     expect(screen.queryByText("Hello, in Spanish? (t2)")).toBeNull();
   });
 
-  // Ten answers: under a loaded suite, more than a test's default five seconds.
-  test(
-    "ends the session at its tenth answer, extra questions included",
-    { timeout: 30_000 },
-    async () => {
-      let asked = 0;
-      renderAt("/c/4732?objective=a", {
-        signedIn: true,
-        learnerProgress: async () => caughtUp,
-        nextActivity: focusing(async () => task("practise", `t${++asked}`)),
-      });
-      for (let answered = 1; answered <= 10; answered++) {
-        fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
-        fireEvent.click(await screen.findByRole("button", { name: "Practise again" }));
-        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-      }
-
-      expect(await screen.findByText("Session complete")).toBeTruthy();
-      // What comes next is the learner's to ask for, never "more to practise".
-      expect(screen.getByText("Nothing is due on Greetings right now.")).toBeTruthy();
-      expect(screen.queryByRole("button", { name: "Keep going" })).toBeNull();
-    },
-  );
-
   test("says when a chosen objective's practice resumes", async () => {
     renderPage(async () => ({
       objective: { id: "a", title: "Greetings" },
@@ -272,6 +255,10 @@ describe("the learn app", () => {
       await practiseGreetings();
       expect(await screen.findByText("Hello, in Spanish? (x)")).toBeTruthy();
       expect(screen.queryByText("Session complete")).toBeNull();
+
+      // Back, a new session, from none answered.
+      fireEvent.click(screen.getByRole("link", { name: "Back to recommended" }));
+      expect(await screen.findByText("Hello, in Spanish? (r)")).toBeTruthy();
       expect(
         screen.getByRole("progressbar", { name: "Session" }).getAttribute("aria-valuenow"),
       ).toBe("0");

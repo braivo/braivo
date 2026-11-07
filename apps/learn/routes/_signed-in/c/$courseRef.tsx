@@ -508,19 +508,26 @@ function NextStep() {
 
   // Under way: a task, or once answered, a pause that does not end it (a rest,
   // no activity), so the bar does not vanish as if the session restarted.
+  // Never on an extra question, which is no part of a session (ADR 0058).
   const practising =
     activity !== undefined &&
     ("task" in activity
-      ? isAnswerable(activity.task)
+      ? isAnswerable(activity.task) && !isExtra(activity)
       : session.answers > 0 && !("empty" in activity) && !("dailyLimit" in activity));
   // Shown where practice stops for now, caught up or at the day's limit.
   const sessionSoFar = session.answers > 0 ? session : undefined;
 
   // An extra question read by Continue, held until the learner asks for it.
   const extraHeld = isExtra(activity) && !extraRequested;
-  // An extra question answered here, or found graded by a reload: finished.
+  // This load's answer graded, here or found by a reload's resend.
   const answered = gradedAttempt === attemptId || resumed?.grade !== undefined;
-  const extraFinished = isExtra(activity) && !extraHeld && answered;
+  // A question shows, naming its objective and, while chosen, the way back itself.
+  const asking =
+    !end &&
+    activity !== undefined &&
+    "task" in activity &&
+    isAnswerable(activity.task) &&
+    !extraHeld;
   // The chosen objective's title, from what is shown or else where the learner stands.
   const focusTitle =
     focus === undefined
@@ -579,13 +586,9 @@ function NextStep() {
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
       <PracticeBar answers={end ? SESSION_LENGTH : practising ? session.answers : undefined} />
-      {focus !== undefined && (
-        // Its own way back, unless what shows offers it already, at the foot.
-        <FocusLine
-          title={focusTitle}
-          backHere={!extraHeld && !extraFinished}
-          onBack={changeFocus}
-        />
+      {focus !== undefined && !asking && (
+        // Its own way back, unless what shows offers it already.
+        <FocusLine title={focusTitle} backHere={!extraHeld} onBack={changeFocus} />
       )}
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced.
@@ -651,17 +654,13 @@ function NextStep() {
           attemptId={attemptId}
           resumed={resumed}
           onGraded={(attempt, grade) => {
-            count(attempt, grade);
+            // An extra question is no part of a session (ADR 0058).
+            if (!isExtra(activity)) count(attempt, grade);
             setGradedAttempt(attempt);
           }}
           onContinue={continueSession}
-          // Past the session's last answer, its end, as Continue would.
-          onPractiseAgain={(left) =>
-            session.answers >= SESSION_LENGTH
-              ? continueSession(left)
-              : advance(left, { extraRequested: true })
-          }
-          onBack={changeFocus}
+          onPractiseAgain={(left) => advance(left, { extraRequested: true })}
+          onBack={focus === undefined ? undefined : changeFocus}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -848,7 +847,8 @@ function BackToRecommended({
 }: {
   onClick: () => void;
   className?: string;
-  size?: "sm" | "lg";
+  /** `lg`, the foot's main action; otherwise text, its edges the text's own. */
+  size?: "lg";
   autoFocus?: boolean;
   /** What the page says beyond the verdict, read as the focus lands. */
   describedBy?: string;
@@ -859,7 +859,13 @@ function BackToRecommended({
     if (autoFocus) link.current?.focus();
   }, [autoFocus]);
   return (
-    <Button asChild size={size} variant={size === "lg" ? "default" : "ghost"} className={className}>
+    <Button
+      asChild
+      size={size}
+      variant={size === "lg" ? "default" : "link"}
+      // A text link at a content edge: no inline padding, so it lines up there.
+      className={cn(size !== "lg" && "h-auto px-0 py-2", className)}
+    >
       <Link
         ref={link}
         from={Route.fullPath}
@@ -875,9 +881,10 @@ function BackToRecommended({
 }
 
 /**
- * While practising an objective the learner chose: which, and, unless what
- * shows offers it at the foot (`backHere` false), the way back to the model's
- * choice. `title` unknown, the line says only that one was chosen.
+ * While practising an objective the learner chose, where no question names it
+ * (a rest, the day's limit, nothing due): which, and, unless what shows offers
+ * it (`backHere` false), the way back to the model's choice. `title` unknown,
+ * the line says only that one was chosen.
  */
 function FocusLine({
   title,
@@ -894,7 +901,7 @@ function FocusLine({
       <MutedText className="wrap-anywhere">
         {title === undefined ? t`Practising a topic you chose` : t`Practising ${title}`}
       </MutedText>
-      {backHere && <BackToRecommended size="sm" className="-me-3 shrink-0" onClick={onBack} />}
+      {backHere && <BackToRecommended className="shrink-0" onClick={onBack} />}
     </div>
   );
 }
@@ -1393,8 +1400,11 @@ function Practice({
   onContinue: (left: AbortSignal) => Promise<{ failed: boolean }>;
   /** After extra practice, in place of Continue: another, as `onContinue` reads it. */
   onPractiseAgain: (left: AbortSignal) => Promise<{ failed: boolean }>;
-  /** After extra practice, in place of Continue: back to the model's choice. */
-  onBack: () => void;
+  /**
+   * Back to the model's choice, on an objective the learner chose: beside the
+   * question's label, and once an extra question is graded, at the foot.
+   */
+  onBack: (() => void) | undefined;
   /** No objective started yet: says how practice goes. */
   nothingStarted: boolean;
 }) {
@@ -1600,19 +1610,26 @@ function Practice({
       {/* Hidden, not unmounted, while reviewing: Back to practice finds the
           feedback, a report sent or on its way, and Continue as they were. */}
       <section hidden={reviewing} className="flex flex-1 flex-col gap-6">
-        <div id={contextId} className="flex flex-col wrap-break-word">
-          <MutedText>
-            {t(INTENT_LABELS[decision.intent])} · {objective.title}
-          </MutedText>
-          <Reason decision={decision} />
-          {/* In the question's description, so it is read as the focus lands there. */}
-          {nothingStarted && (
-            <MutedText className="mt-2">
-              <Trans>
-                One question at a time. What you get wrong comes back soon; what you get right
-                returns for review before you're likely to forget it.
-              </Trans>
+        <div className="flex flex-wrap items-start justify-between gap-x-2">
+          <div id={contextId} className="flex min-w-0 flex-1 basis-48 flex-col wrap-break-word">
+            <MutedText>
+              {t(INTENT_LABELS[decision.intent])} · {objective.title}
             </MutedText>
+            <Reason decision={decision} />
+            {/* In the question's description, so it is read as the focus lands there. */}
+            {nothingStarted && (
+              <MutedText className="mt-2">
+                <Trans>
+                  One question at a time. What you get wrong comes back soon; what you get right
+                  returns for review before you're likely to forget it.
+                </Trans>
+              </MutedText>
+            )}
+          </div>
+          {/* Out of the question's description; at the foot instead once an
+            extra question is graded. Text level with the label's first line. */}
+          {onBack && !(extra && grade) && (
+            <BackToRecommended className="-mt-2 shrink-0" onClick={onBack} />
           )}
         </div>
         {/* Typed first: a kind added later then fails to compile on `options`
@@ -1790,7 +1807,7 @@ function Practice({
                     className="order-4 w-full"
                     autoFocus
                     describedBy={describedBy}
-                    onClick={onBack}
+                    onClick={() => onBack?.()}
                   />
                   <Button
                     size="lg"
