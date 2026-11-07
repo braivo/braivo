@@ -265,6 +265,45 @@ describe("the learn app", () => {
     },
   );
 
+  // Seven answers first: under a loaded suite, more than a test's default five seconds.
+  test(
+    "keeps a session's count through an extra question, resuming it on Back to recommended",
+    { timeout: 30_000 },
+    async () => {
+      // Unchosen, seven questions, then caught up, then one more; chosen, an extra question.
+      const recommended: (Activity | undefined)[] = [
+        ...Array.from({ length: 7 }, (_, index) => activity("reteach", `r${index + 1}`)),
+        undefined,
+        activity("reteach", "r8"),
+      ];
+      renderAt("/c/4732", {
+        signedIn: true,
+        learnerProgress: async () => caughtUp,
+        nextActivity: async (_courseId, options) =>
+          options?.objectiveId === undefined ? recommended.shift() : activity("practise", "x"),
+      });
+      for (let answered = 1; answered <= 7; answered++) {
+        fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+        // The answered question stays until the next replaces it: wait, or its option is pressed.
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      }
+      expect(await screen.findByText("You're caught up")).toBeTruthy();
+
+      await practiseGreetings();
+      fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+      await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Correct"));
+
+      // Not counted, nor restarted: the session goes on from seven.
+      fireEvent.click(screen.getByRole("link", { name: "Back to recommended" }));
+      expect(await screen.findByText("Hello, in Spanish? (r8)")).toBeTruthy();
+      const session = screen.getByRole("progressbar", { name: "Session" });
+      expect(session.getAttribute("aria-valuenow")).toBe("7");
+      fireEvent.click(screen.getByRole("button", { name: /Hola/ }));
+      await waitFor(() => expect(session.getAttribute("aria-valuenow")).toBe("8"));
+    },
+  );
+
   // Ten answers first: under a loaded suite, more than a test's default five seconds.
   test(
     "starts afresh when the browser's history returns to a chosen objective after a session's end",
