@@ -264,6 +264,36 @@ describe("the learn app", () => {
       ).toBe("0");
     },
   );
+
+  // Ten answers first: under a loaded suite, more than a test's default five seconds.
+  test(
+    "starts afresh when the browser's history returns to a chosen objective after a session's end",
+    { timeout: 30_000 },
+    async () => {
+      const { router } = renderAt("/c/4732?objective=a", {
+        signedIn: true,
+        learnerProgress: async () => caughtUp,
+        nextActivity: async (_courseId, options) =>
+          options?.objectiveId === undefined ? task("reteach", "r") : task("practise", "x"),
+      });
+      expect(await screen.findByText("Hello, in Spanish? (x)")).toBeTruthy();
+      fireEvent.click(screen.getByRole("link", { name: "Back to recommended" }));
+      expect(await screen.findByText("Hello, in Spanish? (r)")).toBeTruthy();
+      for (let answered = 1; answered <= 10; answered++) {
+        fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+        // The answered question stays until the next replaces it: wait, or its option is pressed.
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      }
+      expect(await screen.findByText("Session complete")).toBeTruthy();
+
+      // Not through Practise or Back to recommended: the browser's own Back.
+      router.history.back();
+      expect(await screen.findByText("Hello, in Spanish? (x)")).toBeTruthy();
+      expect(screen.queryByText("Session complete")).toBeNull();
+      expect(router.state.location.search).toEqual({ objective: "a" });
+    },
+  );
 });
 
 function renderPage(chosen: (objectiveId: string) => Promise<Activity | undefined>) {

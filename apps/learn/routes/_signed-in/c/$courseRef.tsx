@@ -538,23 +538,25 @@ function NextStep() {
         progress?.objectives.find(({ objectiveId }) => objectiveId === focus)?.title ??
         end?.report?.objectives.find(({ objectiveId }) => objectiveId === focus)?.title);
 
-  // Set by `changeFocus`, so the session restarts with the load it asked for.
-  const restartOnLoad = useRef(false);
+  // The focus the shown load was read under. A load under another, by Practise,
+  // Back to recommended, or the browser's history, leaves a session's end, or a
+  // session at its last answer, behind: a new one starts as that load shows,
+  // never before, so what is on screen meanwhile stays as it was.
+  const shown = useRef({ routeLoad, focus });
   useLayoutEffect(() => {
-    if (!restartOnLoad.current) return;
-    restartOnLoad.current = false;
-    startAfresh();
-  }, [routeLoad, startAfresh]);
+    // On a load alone: `focus` may change while the load it names is pending.
+    if (routeLoad === shown.current.routeLoad) return;
+    const moved = focus !== shown.current.focus;
+    shown.current = { routeLoad, focus };
+    if (moved && (end || session.answers >= SESSION_LENGTH)) startAfresh();
+  }, [routeLoad, focus, end, session.answers, startAfresh]);
 
   /**
    * Choosing an objective, or going back to the recommended, leaves what is on
-   * screen: an answer graded here is done, and a session's end starts a new one,
-   * as Keep going does.
+   * screen: an answer graded here is done. The session, as `shown` says.
    */
   function changeFocus() {
     if (answered) clearUnfinishedAttempt(user.id, load.courseId);
-    // Once the new load shows: until then, what is on screen stays as it was.
-    if (end || session.answers >= SESSION_LENGTH) restartOnLoad.current = true;
   }
 
   /**
