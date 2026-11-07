@@ -116,7 +116,7 @@ function StandingBar({ counts }: { counts: CourseStanding }) {
  * Where the learner stands (progress-8): a meter, each standing a segment in
  * proportion to its objectives, over its counts, which open into each objective
  * by title, each followed by `action`, if given, which a button before the
- * counts says is there, opening them (learner-loop-27). Nothing for a report
+ * counts says is there, opening them (learner-loop-28). Nothing for a report
  * with no objectives.
  */
 export function StandingMeter({
