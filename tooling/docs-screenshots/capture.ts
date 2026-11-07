@@ -17,7 +17,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { chromium, type Page } from "playwright";
+import { type Browser, chromium, type Locator, type Page } from "playwright";
 
 import { readServeConfig } from "../../apps/server/config.ts";
 import { prepareClassroom, PERSONAS } from "../../apps/server/fixtures/classroom.ts";
@@ -30,6 +30,14 @@ import { DRAFT, PDF_TITLE, handoutPdf } from "./material.ts";
 const ROOT = join(import.meta.dirname, "../..");
 const OUT = join(ROOT, "apps/docs/public/docs/screenshots/first-course");
 const PORTS = { server: 4830, console: 4831, learn: 4832 };
+
+/**
+ * A phone's width, so the console folds its sidebar away and a picture reads at
+ * nearly its size on a phone and at its size beside the guide (`.prose img` in
+ * apps/docs/styles.css shows it no wider); tall enough that each step's part of
+ * the page fits once scrolled to, so coordinates are the viewport's.
+ */
+const SCREEN = { viewport: { width: 480, height: 2400 }, deviceScaleFactor: 2 } as const;
 
 /** The model's address, answered here with the canned draft; anything else goes out as usual. */
 function cannedModel() {
@@ -81,87 +89,137 @@ async function sees(page: Page, ...labels: string[]) {
   }
 }
 
-async function walk(browser: import("playwright").Browser, codes: Map<string, string>) {
+/**
+ * The part of the page a step is about, from `from` to `to`, no wider than
+ * what they and `presses` span: the sidebar left out, so labels come out near
+ * the size they are read at. `presses`, what the step says to press, is
+ * inside the picture by construction, and its absence fails the run.
+ */
+async function region(page: Page, name: string, from: Locator, to: Locator, presses: Locator) {
+  await page.waitForLoadState("networkidle").catch(() => {});
+  // To the top, whichever element scrolls, so what follows it fits below.
+  await from.first().evaluate((node) => node.scrollIntoView({ block: "start" }));
+  const boxes = [];
+  for (const locator of [from, to, presses]) {
+    const box = await locator.first().boundingBox();
+    if (!box) throw new Error(`${name}: ${String(locator)} is not on the screen.`);
+    boxes.push(box);
+  }
+  const margin = 24;
+  const x = Math.max(0, Math.min(...boxes.map((box) => box.x)) - margin);
+  const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - margin);
+  const right = Math.min(
+    SCREEN.viewport.width,
+    Math.max(...boxes.map((box) => box.x + box.width)) + margin,
+  );
+  // Less below: the next line would show its top half.
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
+  if (bottom > SCREEN.viewport.height) throw new Error(`${name}: taller than the viewport.`);
+  await page.screenshot({
+    path: join(OUT, `${name}.png`),
+    clip: { x, y, width: right - x, height: bottom - y },
+  });
+  console.log(`  ${name}.png  ${Math.round(right - x)}×${Math.round(bottom - y)}  ${page.url()}`);
+}
+
+async function walk(browser: Browser, codes: Map<string, string>) {
   const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
   const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    deviceScaleFactor: 2,
-    colorScheme: "light",
-  });
-  const page = await context.newPage();
+  const page = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
   page.setDefaultTimeout(30_000);
-  const shot = async (name: string) => {
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await page.screenshot({ path: join(OUT, `${name}.png`) });
-    console.log(`  ${name}.png  ${page.url().replace(consoleUrl, "")}`);
-  };
 
   await signIn(page, consoleUrl, PERSONAS.author.email, () => codes.get(PERSONAS.author.email));
 
   // 1. Add the material.
+  // At a phone's width the sidebar is folded away; its Sources link opens this.
+  await page.goto(`${consoleUrl}/fernwood/sources`);
   await sees(page, "Sources");
-  await page.getByRole("link", { name: "Sources" }).first().click();
-  await page.getByRole("heading", { name: "Add material" }).waitFor();
+  const adding = page.getByRole("heading", { name: "Add material" });
+  await adding.waitFor();
   await page.getByLabel("Title").fill(PDF_TITLE);
   const pdf = join(mkdtempSync(join(tmpdir(), "braivo-handout-")), "why-plants-are-green.pdf");
   writeFileSync(pdf, handoutPdf());
   await page.getByLabel("Original file").setInputFiles(pdf);
-  await page.getByRole("heading", { name: "Add material" }).scrollIntoViewIfNeeded();
   await sees(page, "Add material", "Title", "Text", "Original file");
-  await shot("1-add-material");
-  await page.getByRole("button", { name: "Add material" }).click();
-  await page.getByRole("button", { name: "Save source" }).waitFor();
-  await page.getByRole("button", { name: "Save source" }).scrollIntoViewIfNeeded();
+  const add = page.getByRole("button", { name: "Add material", exact: true });
+  await region(page, "1-add-material", adding, add, add);
+  await add.click();
+
+  // 2. Check its pages.
+  const save = page.getByRole("button", { name: "Save source" });
+  await save.waitFor();
   await sees(page, "Text", "Keep", "Leave out", "Save source");
-  await shot("2-check-pages");
-  await page.getByRole("button", { name: "Save source" }).click();
+  await region(page, "2-check-pages", page.getByText("Printed page"), save, save);
+  await save.click();
 
-  // 2. Draft.
-  await page.getByRole("heading", { name: "Draft a course" }).waitFor();
+  // 3. Draft.
+  const drafting = page.getByRole("heading", { name: "Draft a course" });
+  await drafting.waitFor();
   await page.getByLabel("Learners").fill("Grade 5 science");
-  await page.getByRole("heading", { name: "Draft a course" }).scrollIntoViewIfNeeded();
   await sees(page, "Learners", "Draft a course");
-  await shot("3-draft");
-  await page.getByRole("button", { name: "Draft a course" }).click();
+  const draft = page.getByRole("button", { name: "Draft a course" });
+  const promise = page.getByText("You review the draft before learners see any of it.");
+  await region(page, "3-draft", drafting, promise, draft);
+  await draft.click();
 
-  // 3. Review.
-  await page.getByRole("heading", { name: "Review the draft" }).waitFor();
-  await page.getByRole("heading", { name: "Review the draft" }).scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, 400);
+  // 4. Review.
+  const reviewing = page.getByRole("heading", { name: "Review the draft" });
+  await reviewing.waitFor();
   await sees(page, "Review the draft", "Edit", "Course title", "Create course");
-  await shot("4-review");
+  const edit = page.getByRole("button", { name: "Edit “Why do plants look green?”" });
+  await region(
+    page,
+    "4-review",
+    reviewing,
+    page.getByText("Chlorophyll, the green pigment in leaves, reflects green light."),
+    edit,
+  );
 
-  // 4. Create it.
-  await page.getByRole("button", { name: "Create course" }).click();
+  // 5. Create it.
+  const create = page.getByRole("button", { name: "Create course" });
+  const titled = page.getByText("Course title", { exact: true });
+  await region(
+    page,
+    "5-create-course",
+    titled,
+    page.getByRole("button", { name: "Discard draft" }),
+    create,
+  );
+  await create.click();
+
+  // 6. Its page.
   await page.waitForURL(/\/courses\//);
-  await page.getByRole("heading", { level: 1, name: "Why plants are green" }).waitFor();
+  const course = page.getByRole("heading", { level: 1, name: "Why plants are green" });
+  await course.waitFor();
   await sees(page, "Copy address", "Hide from learners", "Retire");
-  await shot("5-course");
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await region(page, "6-course", course, hide, page.getByRole("button", { name: "Copy address" }));
 
-  // 5. As a learner.
-  const learner = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    deviceScaleFactor: 2,
-    colorScheme: "light",
-  });
-  const learnerPage = await learner.newPage();
-  learnerPage.setDefaultTimeout(30_000);
-  await signIn(learnerPage, learnUrl, PERSONAS.sam.email, () => codes.get(PERSONAS.sam.email));
-  await learnerPage
+  // 7. As a learner.
+  const learner = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
+  learner.setDefaultTimeout(30_000);
+  await signIn(learner, learnUrl, PERSONAS.sam.email, () => codes.get(PERSONAS.sam.email));
+  await learner
     .getByRole("link", { name: /Why plants are green/ })
     .first()
     .click();
-  await learnerPage.waitForURL(/\/c\//);
-  await learnerPage.waitForLoadState("networkidle").catch(() => {});
+  await learner.waitForURL(/\/c\//);
   // Off the options: a hover left by the click reads as a chosen answer.
-  await learnerPage.mouse.move(0, 0);
-  await learnerPage.waitForTimeout(800);
-  await learnerPage.screenshot({ path: join(OUT, "6-learner.png") });
-  console.log(`  6-learner.png  ${learnerPage.url()}`);
+  await learner.mouse.move(0, 0);
+  const show = learner.getByText("Show answer");
+  await show.waitFor();
+  await region(
+    learner,
+    "7-learner",
+    learner.getByText(/^New · /),
+    show,
+    learner.getByText("Roots take up green water"),
+  );
 }
 
 async function main() {
+  // Whole, so a picture the guide no longer shows does not linger.
+  rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
   const target = process.env.BRAIVO_DEMO_DATABASE_URL?.trim() || "postgres://localhost/postgres";
   const secret = crypto.randomUUID() + crypto.randomUUID();
