@@ -153,3 +153,63 @@
   width: max(100%, 37rem);
   max-width: none;
 }
+
+/* Questions that open in place (`Accordions` in components/mdx.tsx). */
+.accordions {
+  margin-block: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--color-fd-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-fd-card);
+  color: var(--color-fd-card-foreground);
+}
+
+.accordion + .accordion {
+  border-top: 1px solid var(--color-fd-border);
+}
+
+.accordion summary {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Decorative: `<summary>` already says open or closed to assistive technology. */
+.accordion summary::before {
+  flex-shrink: 0;
+  color: var(--color-fd-muted-foreground);
+  content: "›" / "";
+  transition: transform 150ms;
+}
+
+.accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion summary::before {
+    transition: none;
+  }
+}
+
+.accordion summary:focus-visible {
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: -2px;
+}
+
+.accordion-body {
+  padding: 0 1rem 0.25rem 2rem;
+  font-size: 0.9375rem;
+}
+
+.accordion-body > :first-child {
+  margin-top: 0;
+}
