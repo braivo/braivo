@@ -38,7 +38,9 @@ export const Route = createFileRoute("/_signed-in/")({
  * On to the learn domain of the one organization someone learns at, through
  * its own sign-in start (`learnSignInUrl`). In `/`'s place in the history, so
  * Back does not land here only to be sent on again. The link, should leaving
- * not happen.
+ * not happen. Through `visit` from here rather than a `redirect({ href })`
+ * from `beforeLoad`, which would replace history alike: tests stub `visit`,
+ * and the page says where it is going meanwhile.
  */
 function ToLearnDomain() {
   const { learnsAt, visit } = Route.useRouteContext();
