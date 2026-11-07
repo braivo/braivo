@@ -1,6 +1,6 @@
 # Glossary
 
-Canonical terms for Braivo's docs, code, API, MCP tools, CLI, and the console. Use each term as written here, in code and prose alike; where the code spells it differently, the code name follows in parentheses. Learners' copy, in any language, may say what reads naturally to a learner instead (a task is a question, an intent to review is Review), but never a word this glossary gives another term. A "Not" note names a synonym to avoid and why. User roles are defined in `product.md`; how they appear in code is below.
+Canonical terms for Braivo's docs, code, API, MCP tools, CLI, and the console. Use each term as written here, in code and prose alike; where the code spells it differently, the code name follows in parentheses. Learners' copy, in any language, may say what reads naturally to a learner instead (a task is a question, an intent to review is Review), but never a word this glossary gives another term. Educator guides (`apps/docs/content/`) say question for task in prose, once told that the console calls it a task, keeping exact labels and tool names as written; a source there is the saved text, the material the original it came from. A "Not" note names a synonym to avoid and why. User roles are defined in `product.md`; how they appear in code is below.
 
 ## Product and platform
 

@@ -42,6 +42,9 @@ export default defineConfig(({ command, mode }) => {
     // The PDF reader's worker is a module, as pdf.js is
     // (docs/adr/0055-pdf-text-in-the-browser.md).
     worker: { format: "es" as const },
+    // Found at first only through the PDF worker, these would re-optimize mid-session
+    // and mix two React bundle generations (Invalid hook call): optimized up front.
+    optimizeDeps: { include: ["pdfjs-dist", "pdfjs-dist/build/pdf.worker.mjs"] },
     // Links to a `.localhost` learn domain reach the learn app's dev server, at the demo's
     // port or `bun run dev`'s (`lib/learn-url.ts`); a build's are HTTPS alone.
     ...(command === "serve" && {

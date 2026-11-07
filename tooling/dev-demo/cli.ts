@@ -4,7 +4,7 @@
 /**
  * The worktree's demo: a populated Braivo to sign in to as an administrator,
  * an author, a teacher, or a learner, kept apart from the development database and every
- * other worktree's demo (docs/guides/demo.md, docs/adr/0043-development-demo.md).
+ * other worktree's demo (docs/demo.md, docs/adr/0043-development-demo.md).
  *
  *   bun run dev:demo [--migrate]                prepare it if new (or migrate it), then serve it
  *   bun run dev:demo:verify                     report its state, changing nothing

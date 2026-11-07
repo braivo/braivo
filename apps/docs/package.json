@@ -1,0 +1,33 @@
+{
+  "name": "@braivo/docs",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "imports": {
+    "#brand/*": "./brand/*",
+    "#components/*": "./components/*.tsx",
+    "#lib/*": "./lib/*.ts"
+  },
+  "scripts": {
+    "dev": "bun --bun astro dev --ignore-lock",
+    "build": "bun --bun astro build",
+    "preview": "bun --bun astro preview"
+  },
+  "dependencies": {
+    "@astrojs/react": "7.1.4",
+    "@fumadocs/astro": "0.2.1",
+    "astro": "7.4.2",
+    "fumadocs-core": "16.18.1",
+    "fumadocs-ui": "16.18.1",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "satteri": "0.10.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "playwright": "catalog:",
+    "tailwindcss": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

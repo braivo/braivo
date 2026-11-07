@@ -1,0 +1,50 @@
+---
+title: "Ask your AI app to prepare a course"
+description: "What to ask the AI app you already use for, what Braivo checks in what it writes, and what stays yours to check."
+---
+
+> [!WARNING]
+> What your AI app reads from Braivo, your material included, goes to the company that provides the app, under its terms. Before you connect it, check that your school allows that.
+
+An AI app such as Claude or ChatGPT, once [connected to Braivo](./assistants.mdx#connect), can prepare a course from your material with its own model and your subscription to it. It acts as you, in one organization, your school's space in Braivo, with your rights there. You need to be an Owner, Admin, or Author.
+
+<div className="learning-loop">
+
+1. Your AI app reads your material and writes questions
+2. Braivo checks every quote against the saved source text
+3. The course waits, marked Needs review
+4. You review and publish it
+5. Learners practise it
+
+</div>
+
+## What to ask for
+
+Start with one chapter or a few pages. Tell your AI app who the learners are and what they should be able to do. You can copy and adapt an example below.
+
+| Ask like this                                                                                                      | Not like this                  |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| "From pages 12–18 of Spanish A1, prepare practice on definite articles for adult beginners who speak English."     | "Make me a Spanish course."    |
+| "Turn chapter 2 of this PDF into a course for Grade 5: what plants take in and give out, one question per idea."   | "Make me a course on biology." |
+| "Convert this question bank: keep every question's wording and answer key, and list the ones that need a picture." | "Rewrite these questions."     |
+
+Add a long book in Braivo's console, or with the [`braivo` command](./authoring.mdx#the-braivo-command), rather than pasting it into a chat. Your AI app can then read it a section at a time. Retyping the book costs the app time and usage, and can change its words.
+
+## What Braivo checks, and what it doesn't
+
+Braivo checks:
+
+- that every passage the app quotes is in the saved source text, word for word, telling the app which one it couldn't find, so a paraphrase never passes for your words;
+- that every question is valid, such as one right answer among its options.
+
+Braivo doesn't check that an answer is right. A quote shows where a question came from, not that its answer key is correct, and a model retyping a statement can drop a "not" while quoting it correctly. That is yours to check when you review.
+
+## Braivo's own draft, or your AI app
+
+Braivo's own **Draft a course**, in the console, reads all the material saved together as one source, with [what its form asks](./first-course.mdx#draft-a-course). To draft from one chapter, add that chapter separately. Your AI app can also work from a range of pages, and whatever else you tell it.
+
+## What it can and can't do
+
+It can read and add material as text, define what the material teaches, write questions that quote it, correct them, and arrange them into a course. An app in your browser sends Braivo text from the files you attach. An agent running on your computer can also upload the original PDF, with your permission, through the [`braivo` command](./authoring.mdx#the-braivo-command).
+
+It can't publish anything, retire a published question, or read Braivo's learner lists or progress reports. Nothing it writes reaches a learner until you [review and publish it](./review-and-publish.mdx).

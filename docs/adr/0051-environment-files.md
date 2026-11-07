@@ -37,5 +37,5 @@ Because Vite reverses the order, what either app reads (`BRAIVO_*`, `PORT`) is o
 
 - A contributor writes only `BETTER_AUTH_SECRET` into `.env.local`, plus `TEST_DATABASE_URL` for the database suites; everything else has a working default.
 - `.env.local` holds development credentials only (ADR 0014): anything running as the developer, a branch's install scripts included, can read it. A paid key there should be a development key with a spend limit.
-- Commands run as `bun <file>` (`db:migrate`, `config check`, `organization create`) load the env files Bun finds, which is what makes them work locally; a deployment runs them with `--no-env-file` (`docs/guides/deployment.md`).
+- Commands run as `bun <file>` (`db:migrate`, `config check`, `organization create`) load the env files Bun finds, which is what makes them work locally; a deployment runs them with `--no-env-file` (`apps/docs/content/guides/deployment.mdx`).
 - Tests see only `.env.local`; suites build the configuration they test explicitly.

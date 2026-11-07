@@ -1,6 +1,6 @@
 # The development demo
 
-A populated Braivo for this worktree: Fernwood School, with an administrator, an author, a teacher, and two learners who have practised, a short source-backed course, and a group. Sign in as any of them, exercise the real apps, and reset to the baseline when you choose. It never touches your development database, your test database, or another worktree's demo ([ADR 0043](../adr/0043-development-demo.md)).
+A populated Braivo for this worktree: Fernwood School, with an administrator, an author, a teacher, and two learners who have practised, a short source-backed course, and a group. Sign in as any of them, exercise the real apps, and reset to the baseline when you choose. It never touches your development database, your test database, or another worktree's demo ([ADR 0043](adr/0043-development-demo.md)).
 
 ## Launch
 
@@ -32,7 +32,7 @@ Sign in as anyone listed: enter the email, then the six-digit code from this ter
 
 The two learners practised in the hour before the demo was seeded, through the use cases the learn app calls (no browser), so they take different paths from there. Zofia answered each objective right the first time: caught up, with reviews falling due about a day later. Sam missed a greeting, typed one right when asked again, then missed a polite request: the learn app asks for it again next, this time typed, and shows the passage it comes from once answered. Their standings age with real time, as anyone's do.
 
-To see practice reach a report: as a learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. To see what an author has ([ADR 0048](../adr/0048-author-role.md)): as the author, the console opens at **Courses**, with **Sources** beside it; they add material, review and publish, but find no Groups, Members, or other learners' progress. The console's links to where learners practise open the learn app at that address.
+To see practice reach a report: as a learner, answer a task; as the teacher, open **Groups**, then the course's **Progress**, and reload. To see what an author has ([ADR 0048](adr/0048-author-role.md)): as the author, the console opens at **Courses**, with **Sources** beside it; they add material, review and publish, but find no Groups, Members, or other learners' progress. The console's links to where learners practise open the learn app at that address.
 
 The demo serves 10 above each of the worktree's `bun run dev` ports (3010, 5183, and 5184 in the main checkout), so it runs beside them and beside other worktrees' demos. It keeps the ports it was created with: reset it to take new ones. Demos share cookies on `127.0.0.1` and `fernwood.localhost`, so use a browser profile per worktree's demo too. Ctrl-C stops the demo and only what it started.
 
@@ -55,8 +55,12 @@ bun run dev:demo:reset --environment ENVIRONMENT_ID  # delete it; the next launc
 
 Reset shows the database, ID, and storage it will delete, and needs that ID, the one `verify` prints: typed when asked, or `--environment`. It refuses while the demo runs, anything is connected to its database or listens on its ports, or `.dev-demo/` holds a file the demo did not put there. Afterwards old sign-ins stop working: close the demo's tabs.
 
+## The guides' screenshots
+
+`bun run docs:screenshots` walks the guides with pictures (`apps/docs/content/guides/`: first-course, follow-progress, learner-view, review-and-publish, maintain-practice, words) through the real server, console, and learn app on this classroom, in a database it creates and drops, and replaces their pictures in `apps/docs/public/docs/screenshots/` only once every step passed. It needs what the demo needs, leaves the demo alone, and needs no AI key, using no real AI credential and logging none: it answers the model's address with a canned draft, which Braivo checks as it does a model's (`tooling/docs-screenshots/`). A change to one of those screens is a run of it, and a look at the result.
+
 ## What it holds
 
 Settings and secrets in `.dev-demo/environment.json` (gitignored, readable by you alone, never printed), uploaded files in `.dev-demo/storage/`, data in `braivo_demo_<id>`. The server runs on these alone, never the env files: no mail server, AI key, Google client, or bucket reaches it. The apps' dev servers still load the env files, but the demo's values override what their proxy reads from them, `BRAIVO_URL` and `PORT`. Remove a worktree's demo with reset before removing the worktree, or `dropdb` its database afterwards.
 
-The classroom is a fixture, `apps/server/fixtures/classroom.ts`; `tooling/dev-demo/` creates, guards, and serves the demo ([ADR 0043](../adr/0043-development-demo.md)).
+The classroom is a fixture, `apps/server/fixtures/classroom.ts`; `tooling/dev-demo/` creates, guards, and serves the demo ([ADR 0043](adr/0043-development-demo.md)).

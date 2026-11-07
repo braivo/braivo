@@ -1,0 +1,40 @@
+---
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import type { GetStaticPaths, InferGetStaticPropsType } from "astro";
+
+import { Docs } from "#components/docs";
+import { source } from "#lib/source";
+
+import Layout from "../layouts/Layout.astro";
+
+export const getStaticPaths = (() =>
+  source.getPages().map((page) => ({
+    params: { slug: decodeURI(page.slugs.join("/")) || undefined },
+    props: { page },
+  }))) satisfies GetStaticPaths;
+
+type Props = InferGetStaticPropsType<typeof getStaticPaths>;
+
+// `pathname` is `page.url`: with `build.format: "file"`, `Astro.url.pathname` is
+// the emitted file's (`/docs.html`), which matches no page in the sidebar.
+const { page } = Astro.props;
+const { body: Content, toc } = await page.data.load();
+const tree = await source.serializePageTree(source.getPageTree());
+---
+
+<Layout title={page.data.title} description={page.data.description} path={page.url}>
+  <Docs
+    client:load
+    transition:persist="docs"
+    pathname={page.url}
+    params={Astro.params}
+    tree={tree}
+    title={page.data.title}
+    description={page.data.description}
+    toc={toc}
+  >
+    <Content />
+  </Docs>
+</Layout>

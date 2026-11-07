@@ -92,7 +92,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   # What a content owner runs, as the install commands in
-  # docs/guides/authoring.md do, against the prerelease by its tag. Twice, so
+  # apps/docs/content/guides/authoring.mdx do, against the prerelease by its tag. Twice, so
   # the second replaces an installed braivo, as an update does.
   install:
     name: install (${{ matrix.os }})

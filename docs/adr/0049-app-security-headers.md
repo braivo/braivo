@@ -8,11 +8,13 @@ Neither app sent a Content-Security-Policy, so any site could frame the console'
 
 ## Decision
 
-**Each app's `public/_headers` is its policy**, in the format Cloudflare's static assets read, which Vite copies into `dist/`: `default-src 'self'`, `script-src 'self'`, `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'self'`, `object-src 'none'`, with `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Braivo Cloud applies it with no change of its own; a self-hoster's host sends the same headers ([deployment guide](../guides/deployment.md)). HSTS stays the proxy's.
+**Each app's `public/_headers` is its policy**, in the format Cloudflare's static assets read, which Vite copies into `dist/`: `default-src 'self'`, `script-src 'self'`, `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'self'`, `object-src 'none'`, with `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. Braivo Cloud applies it with no change of its own; a self-hoster's host sends the same headers ([deployment guide](../../apps/docs/content/guides/deployment.mdx)). HSTS stays the proxy's.
 
 **No inline script.** What must run before the first paint is a blocking classic script from the app's origin: the console's `public/head.js` in `<head>`, and the file `bootLanguage()` emits under a name from its content, also in `<head>`. Blocking, nothing paints before they ran, so a dark page never flashes light and the loading message is shown in the visitor's language however slowly the script arrives; while it has not, the page stays blank, and if it fails, the message is English. The message's words are in the HTML in every language for that reason: a script at the end of `<body>` rewriting them lets the browser paint them first. `tooling/app-headers.test.ts` fails on an inline script in either `index.html` or on losing `frame-ancestors 'none'` or `script-src 'self'`.
 
 **Two exceptions, low risk.** `style-src 'unsafe-inline'`, as Radix positions popovers through `style` attributes, and `bootLanguage()`'s `<style>` shows the loading message's copy in the page's language; `img-src` and `font-src` allow `data:`, as Vite inlines an asset under 4 KB, Manrope's Cyrillic-ext subset among them. Neither runs script, and `img-src` and `connect-src` keep the requests an injected style could make on the app's origin, so it cannot send what its selectors read to another site.
+
+**The docs site is the exception to no inline script** ([ADR 0057](0057-public-docs-site.md)): its pages hold no session, call no API, and take no input, and Astro's islands and Fumadocs' theme write inline scripts into each. Its `_headers` differs from this policy in `script-src 'self' 'unsafe-inline'` alone, which `tooling/app-headers.test.ts` holds it to, and it never shares an origin with the console or a learn app.
 
 ## Alternatives rejected
 

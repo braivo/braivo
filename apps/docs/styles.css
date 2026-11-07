@@ -1,0 +1,273 @@
+/* SPDX-FileCopyrightText: 2026 Konstantin Tarkus */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/*
+ * Fumadocs' light muted text, 45% grey, reads at 4.2:1 on its card (callouts,
+ * the sidebar), short of 4.5:1 for body-size text; 40% reads at 5.1:1. In the
+ * theme's layer, as its light colours are, so dark's own rule and a brand's
+ * `brand.css` still win.
+ */
+@layer theme {
+  :root {
+    --color-fd-muted-foreground: hsl(0, 0%, 40%);
+  }
+}
+
+/* Fumadocs' Skip to Content stays screen-reader-only even focused: shown then. */
+a[href="#nd-page"]:focus-visible {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow: visible;
+  clip-path: none;
+  white-space: nowrap;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * An inline command moves whole to the next line where it fits there, as a
+ * browser otherwise breaks it at a hyphen (`--no-` / `env-file`). One wider than
+ * the column wraps inside it, anywhere, rather than overflowing a phone's.
+ */
+.prose :not(pre) > code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+/* The loop on the landing page: a list, so it reads as one on GitHub too. */
+.learning-loop ol {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.learning-loop li {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.75rem;
+  background: var(--color-fd-card);
+  color: var(--color-fd-card-foreground);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.learning-loop li:not(:last-child)::after {
+  /* Decoration: the list order says it, so a screen reader reads no arrow. */
+  content: "↓" / "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--color-fd-muted-foreground);
+  line-height: 1.75rem;
+}
+
+@media (min-width: 1024px) {
+  .learning-loop ol {
+    flex-direction: row;
+  }
+
+  .learning-loop li:not(:last-child)::after {
+    content: "→" / "";
+    top: 50%;
+    left: 100%;
+    width: 1.75rem;
+    transform: translateY(-50%);
+    text-align: center;
+  }
+}
+
+/* Screenshots are light: a border keeps one from melting into a light page, or glaring as a slab on a dark one. */
+.prose img {
+  /* At most their size, which `lib/page-links.ts` sets: narrowed on a phone, never enlarged. */
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+}
+
+/* The console's standing colours (apps/console/styles.css, --chart-1 to 4), so a card matches its column. */
+:root {
+  --standing-not-started: #a3aab8;
+  --standing-learning: #4a63d9;
+  --standing-retained: #5c7a12;
+  --standing-due: #b7791f;
+}
+
+.dark {
+  --standing-not-started: #4a5368;
+  --standing-learning: #8fa8ff;
+  --standing-retained: #b4d46a;
+  --standing-due: #f3c66c;
+}
+
+/* The four standings on the follow-progress page: a list, so it reads as one on GitHub and to a screen reader. */
+.standings ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.standings li {
+  --dot: var(--standing-not-started);
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.75rem;
+  background: var(--color-fd-card);
+  color: var(--color-fd-card-foreground);
+}
+
+@media (min-width: 768px) {
+  .standings ol {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* In the page's order: Not started, Learning, Retained, Due for review. */
+.standings li:nth-child(2) {
+  --dot: var(--standing-learning);
+}
+
+.standings li:nth-child(3) {
+  --dot: var(--standing-retained);
+}
+
+.standings li:nth-child(4) {
+  --dot: var(--standing-due);
+}
+
+.standings li::before {
+  content: "";
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-right: 0.5rem;
+  border-radius: 9999px;
+  background: var(--dot);
+}
+
+/*
+ * A table too wide for a phone, kept at a size it reads at: the picture
+ * scrolls sideways in its frame, the page does not.
+ */
+.wide-shot {
+  overflow-x: auto;
+}
+
+/* At most its own width, as any screenshot; on a phone, no narrower than 37rem. */
+.prose .wide-shot img {
+  max-width: max(100%, 37rem);
+}
+
+/*
+ * Opening the question a link names, after the browser or router restored the
+ * reader's place (Back, Forward, reload), would let scroll anchoring move them:
+ * on a page of questions, nothing anchors.
+ */
+.prose:has(.accordions) {
+  overflow-anchor: none;
+}
+
+/* Questions that open in place: native `<details class="accordion">` in a `.accordions` group, on the FAQ. */
+.accordions {
+  margin-block: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--color-fd-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-fd-card);
+  color: var(--color-fd-card-foreground);
+}
+
+.accordion + .accordion {
+  border-top: 1px solid var(--color-fd-border);
+}
+
+.accordion summary {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Decorative: `<summary>` already says open or closed to assistive technology. */
+.accordion summary::before {
+  flex-shrink: 0;
+  color: var(--color-fd-muted-foreground);
+  content: "›" / "";
+  transition: transform 150ms;
+}
+
+.accordion[open] summary::before {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accordion summary::before {
+    transition: none;
+  }
+}
+
+/*
+ * The question is a heading, so GitHub gives it an anchor too; the site makes
+ * its text a link to itself, which here passes a click to `<summary>` to open
+ * or close the answer. Its copy-link button, and the keyboard, still reach it.
+ */
+.accordion summary h3 {
+  flex: 1;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.accordion summary h3 > a {
+  pointer-events: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.accordion summary:focus-visible {
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: -2px;
+}
+
+.accordion > :not(summary) {
+  margin-block: 0 0.75rem;
+  padding-inline: 2rem 1rem;
+  font-size: 0.9375rem;
+}

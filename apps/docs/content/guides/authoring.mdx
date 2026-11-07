@@ -1,0 +1,105 @@
+---
+title: "Authoring a course from existing material"
+description: "Turn material you already have into a course: in the console, with your own AI app, or with your own scripts."
+---
+
+There are three ways to turn material you already have into a course, each open to an Owner, Admin, or Author of your organization, as the console calls your school's space in Braivo.
+
+<Cards>
+
+<Card title="In the console, with Braivo's AI">
+
+Pick this if you have a PDF with selectable text, and no AI app of your own: [your first course](./first-course.mdx). Your installation needs its AI on ([deployment](./deployment.mdx#configuration)).
+
+</Card>
+
+<Card title="With your own AI app">
+
+Pick this if you already use Claude, ChatGPT, or a desktop agent such as Claude Code: [ask your AI app to prepare a course](./draft-with-ai-app.mdx).
+
+</Card>
+
+<Card title="With your own scripts">
+
+Pick this if you are converting a lot of material: over the [API](./api.mdx), with `braivo sources add` [adding the material](#the-braivo-command).
+
+</Card>
+
+</Cards>
+
+All three follow the same rules (the console calls a question a task): Braivo checks every quote and question, as [what Braivo checks](./draft-with-ai-app.mdx#what-braivo-checks-and-what-it-doesnt) says, and what a tool writes waits for you to publish it in the console, as [what learners get, and when](./review-and-publish.mdx) shows.
+
+To practise on your own, without a school, set up an organization of your own where your installation offers it: you are its owner, so everything here is yours to do.
+
+What to prepare from what, and checking its words first: [choose and check your material](./prepare-material.mdx).
+
+## Convert an existing question bank
+
+Process only material you may: what an assistant reads goes to its provider ([where it goes](./faq.mdx#does-our-material-go-to-an-ai)). Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
+
+Braivo's own draft writes new questions, so a bank you want kept, each question's wording, answer key, and number, is converted instead. Have your agent write a converter rather than retype them: "Write a script that converts this question bank: every statement and its answer verbatim, quoted by its item number, grouped by topic. Rewrite nothing. Leave out items that need a picture, and list them. Keep a manifest of what you imported, and on a re-import skip what I corrected or retired; stop and ask when unsure." Braivo cannot tell a question never imported from one you rejected; the manifest can. A model retyping a statement can drop a "not" while quoting it correctly, and Braivo checks the quote, not the answer key. A bank's false statements are practice, not teaching: never cite one as the explanation of a rule.
+
+Bring large material in as a file, not through a chat: add it in the console or with `braivo sources add`, then let the assistant read it a part at a time. An assistant that writes a book's text, or thousands of questions, into its replies spends that many output tokens, and can change words as it goes. A converter needs an agent that can run code on your machine; a hosted assistant without one prepares a small, reviewed batch at a time.
+
+## The `braivo` command
+
+Braivo works with source content as text. Extract it with the tools you already use — `pdftotext` for PDFs, `yt-dlp` for video captions, Whisper for speech, or a desktop agent — then add it to any Braivo installation with the `braivo` command, which acts as you over the API.
+
+Install it, or update it, with one command:
+
+```sh
+# macOS and Linux: into ~/.local/bin
+curl -fsSL https://braivo.app/install.sh | bash
+```
+
+```powershell
+# Windows: into %LOCALAPPDATA%\Programs\Braivo, added to your Path
+irm https://braivo.app/install.ps1 | iex
+```
+
+On macOS and Linux, add `~/.local/bin` to your `PATH` if the installer says it is missing, or install elsewhere with `BRAIVO_INSTALL_DIR`. `BRAIVO_VERSION=v0.1.0` installs that release rather than the latest. From a clone, run it as `bun packages/cli/index.ts`, or build this machine's with `bun run build`, as `packages/cli/dist/braivo`.
+
+```sh
+# Sign in at the address you open Braivo's console at, copied from your browser:
+# braivo.example stands for it below; http://localhost:5174 under `bun run dev`.
+# Then open the link it prints, check the code, and approve.
+braivo login https://braivo.example
+
+# Fetch a video's Spanish captions.
+yt-dlp --skip-download --write-auto-subs --sub-langs es --sub-format vtt -o lesson \
+  "https://www.youtube.com/watch?v=…"
+
+# Add the transcript to the organization at …/my-school in the console,
+# keeping where it came from and its language.
+braivo sources add lesson.es.vtt --organization my-school \
+  --title "Los saludos" --url "https://www.youtube.com/watch?v=…" --language es
+# prints the new source's ID
+```
+
+A `.vtt` or `.srt` file is read into timed lines — markup dropped, and the rolling repeats of auto-generated captions skipped, though a line really said twice is kept — so a passage cited from it opens the video where it is said. A book's text from `pdftotext`, whose form feeds separate its pages, is added page by page, so a passage names the page to turn to:
+
+```sh
+pdftotext libro.pdf - | braivo sources add - --organization my-school \
+  --title "Mi primer libro" --language es --original libro.pdf
+```
+
+`--original` keeps the PDF itself with the text, so whoever reviews the source, or re-extracts it later, has what it came from.
+
+By default, the first extracted page is page 1. Where the book's numbering differs — after front matter, or for one chapter extracted alone — give the book's number of the first extracted page, printed or blank, with `--first-page`:
+
+```sh
+pdftotext -f 40 -l 61 libro.pdf - | braivo sources add - --organization my-school \
+  --title "Capítulo 3" --language es --first-page 28
+```
+
+Other text is added as is. Running the same command again adds nothing: if identical source content already exists, Braivo returns its ID.
+
+The command keeps your session in `~/.config/braivo/credentials.json` and acts with your account's roles; `braivo logout` ends it on the server and deletes the file.
+
+## Let your AI app build the course
+
+Ask your AI app to prepare a small part of your material. Start with these [example requests](./draft-with-ai-app.mdx); that page first says what your app's provider receives. Its new course waits under **Courses**, marked **Needs review**, until you [review and publish it](./review-and-publish.mdx).
+
+Once published, correct questions and add their explanations as [correct and manage published practice](./maintain-practice.mdx) shows.
+
+**Why it works this way:** [who may author](https://github.com/braivo/braivo/blob/main/docs/adr/0048-author-role.md), [how quotes are checked](https://github.com/braivo/braivo/blob/main/docs/adr/0021-citations.md), [why a tool's work waits](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md), [how tools sign in](https://github.com/braivo/braivo/blob/main/docs/adr/0022-machine-access.md), [the `braivo` command](https://github.com/braivo/braivo/blob/main/docs/adr/0027-standalone-cli.md), [timed transcripts](https://github.com/braivo/braivo/blob/main/docs/adr/0025-timed-transcripts.md), [paged documents](https://github.com/braivo/braivo/blob/main/docs/adr/0026-paged-documents.md), [adding what is already there](https://github.com/braivo/braivo/blob/main/docs/adr/0024-idempotent-authoring.md), [originals](https://github.com/braivo/braivo/blob/main/docs/adr/0028-original-files.md), and [connected AI apps](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md).

@@ -15,7 +15,7 @@ import { codeSentTo, createOutbox } from "../auth/testing.ts";
 import { type Api, createApi } from "./index.ts";
 
 /**
- * Runs the walkthrough in docs/guides/api.md against a real server, exactly
+ * Runs the walkthrough in apps/docs/content/guides/api.mdx against a real server, exactly
  * as written there — the one document here that can be made to fail rather than
  * drifting silently, and the only test that exercises a socket, a cookie jar,
  * and the commands a person would actually type.
@@ -27,7 +27,7 @@ const connectionString = process.env.TEST_DATABASE_URL;
 
 // `fileURLToPath` rather than `.pathname`, which leaves `%20` in place and would
 // look for a file that does not exist on a checkout path containing spaces.
-const guidePath = fileURLToPath(new URL("../../../docs/guides/api.md", import.meta.url));
+const guidePath = fileURLToPath(new URL("../../docs/content/guides/api.mdx", import.meta.url));
 const cliPath = fileURLToPath(new URL("../cli/index.ts", import.meta.url));
 const secret = "quickstart-secret-long-enough-32ch";
 
@@ -68,11 +68,24 @@ function runnable(block: string): string {
     'curl() { command curl --fail-with-body --show-error "$@" || { local status=$?; echo "failed: curl $*" >&2; exit "$status"; }; }',
   ].join("\n");
 
-  return block
-    .replace("BRAIVO=http://localhost:3000", `${strict}\nBRAIVO=${baseUrl}`)
-    .replace("bun apps/server/cli/index.ts", `bun ${JSON.stringify(cliPath)}`)
-    .replaceAll("owner@example.com", `owner-${unique}@example.com`)
-    .replaceAll("example-school", `example-school-${unique}`);
+  return (
+    block
+      .replace("BRAIVO=http://localhost:3000", `${strict}\nBRAIVO=${baseUrl}`)
+      .replace("bun apps/server/cli/index.ts", `bun ${JSON.stringify(cliPath)}`)
+      .replaceAll("owner@example.com", `owner-${unique}@example.com`)
+      .replaceAll("example-school", `example-school-${unique}`)
+      // An account that already authors in a school listed before it, by name:
+      // the walkthrough must still work in the school it just made.
+      .replace(
+        "\nORG=$(",
+        `\nbun ${JSON.stringify(cliPath)} organization create --name "Aardvark School" --slug aardvark-${unique} --owner owner-${unique}@example.com\nORG=$(`,
+      )
+  );
+}
+
+/** Which school the walkthrough wrote to, by slug, printed after it. */
+function namingItsSchool(script: string): string {
+  return `${script}\necho "wrote to $(curl -sb jar.txt $BRAIVO/api/organizations | field "r.organizations.find((o) => o.id === '$ORG').slug")"\n`;
 }
 
 describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", () => {
@@ -125,7 +138,7 @@ describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", (
     // the very curl it is waiting for.
     // The operator's command reaches the same database and installation as the
     // server, as it would beside a real one.
-    shell = Bun.spawn(["bash", "-c", runnable(block!)], {
+    shell = Bun.spawn(["bash", "-c", namingItsSchool(runnable(block!))], {
       cwd: workspace,
       env: {
         ...process.env,
@@ -152,5 +165,6 @@ describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", (
     expect(output).toContain('"prompt":"Goodbye, in Spanish?"');
     expect(output).toContain('"phase":"acquiring"');
     expect(output).toContain('"phase":"unseen"');
+    expect(output).toContain("wrote to example-school-");
   });
 });

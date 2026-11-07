@@ -1,0 +1,82 @@
+---
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import { ClientRouter } from "astro:transitions";
+
+import site from "#brand/site.ts";
+import { base } from "#lib/base";
+
+import "../styles.css";
+// After the site's own, so a brand overrides them.
+import "#brand/brand.css";
+
+interface Props {
+  title: string;
+  description?: string | undefined;
+  /** The page's address under the base, for its canonical link once `BRAIVO_DOCS_URL` gives an origin. */
+  path?: string;
+}
+
+const { title, description, path } = Astro.props;
+const canonical = Astro.site && path ? new URL(path, Astro.site).href : undefined;
+---
+
+<html lang="en" transition:animate="none">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · {site.name}</title>
+    <!-- Under docs/, as a shared host's root is another site's. -->
+    <link rel="icon" href={`${base}docs/favicon.svg`} type="image/svg+xml" />
+    {description && <meta name="description" content={description} />}
+    {canonical && <link rel="canonical" href={canonical} />}
+    {site.head && <Fragment set:html={site.head} />}
+    <ClientRouter />
+    <!-- Opens the question a URL's hash names: a native `<details class="accordion">` on the FAQ. -->
+    <script is:inline>
+      /** Opens the question whose heading the hash names, and answers that heading. */
+      function openTarget() {
+        let id;
+        try {
+          id = decodeURIComponent(location.hash.slice(1));
+        } catch {
+          return undefined; // A malformed link names nothing.
+        }
+        const target = document.getElementById(id);
+        const question = target?.parentElement?.closest("details");
+        if (!question || target.parentElement?.tagName !== "SUMMARY") return undefined;
+        question.open = true;
+        return target;
+      }
+      // How the page now shown was reached: the router's type, or before its
+      // first navigation, the browser's ("navigate", "reload", "back_forward").
+      let arrival = performance.getEntriesByType("navigation")[0]?.type;
+      document.addEventListener("astro:before-preparation", (event) => {
+        arrival = event.navigationType;
+      });
+      document.addEventListener("astro:page-load", () => {
+        const target = openTarget();
+        // Scrolled to on arriving by a link alone, as the router can restore the
+        // top after the browser's own hash scroll; Back, Forward, and a reload
+        // keep the reader's own position, which the browser or router restores.
+        if (target && (arrival === "navigate" || arrival === "push" || arrival === "replace")) {
+          target.scrollIntoView({ block: "start" });
+        }
+      });
+      // Within the page the browser scrolls to the hash itself: open alone.
+      addEventListener("hashchange", openTarget);
+      addEventListener("popstate", openTarget);
+      // The router takes a same-page link's hash without a hashchange.
+      document.addEventListener("click", (event) => {
+        const link = event.target instanceof Element && event.target.closest('a[href^="#"]');
+        const target = link && document.getElementById(link.hash.slice(1));
+        const question = target?.parentElement?.tagName === "SUMMARY" && target.closest("details");
+        if (question) question.open = true;
+      });
+    </script>
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <slot />
+  </body>
+</html>

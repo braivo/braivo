@@ -1,0 +1,21 @@
+{
+  "title": "Guides",
+  "pages": [
+    "---Teach---",
+    "first-course",
+    "prepare-material",
+    "learner-view",
+    "follow-progress",
+    "draft-with-ai-app",
+    "review-and-publish",
+    "maintain-practice",
+    "words",
+    "faq",
+    "authoring",
+    "assistants",
+    "---Build---",
+    "api",
+    "---Host---",
+    "deployment"
+  ]
+}

@@ -1,0 +1,66 @@
+---
+title: "Use Braivo from your AI app"
+description: "Connect an AI app such as Claude or ChatGPT to Braivo, and what it can do there."
+---
+
+Connect an AI app such as Claude or ChatGPT to your school's material in Braivo. It uses its own AI model and your subscription. Nothing to install: the app needs Braivo's address and your sign-in.
+
+## Connect
+
+> [!WARNING]
+> What the app reads from Braivo, your material included, goes to the company that provides the app, under its terms. Before you connect it, check that your school allows that.
+
+Braivo's address for apps is your installation's address followed by `/mcp`, such as `https://braivo.example/mcp`. Copy your installation's address from the console: it shows it, ready to copy, in your account's settings, **Connected apps**, and on an organization's Courses while it has none, with where to start in each app and a first prompt to paste. Add it in your app:
+
+### Claude
+
+In Customize, Connectors, select **+ Add**, then **Add custom connector**, and enter a name and the address. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors, and you select **Connect** under Customize, Connectors. A Free plan holds one custom connector.
+
+### ChatGPT
+
+ChatGPT calls Braivo a custom MCP server. Writing questions through Braivo needs ChatGPT's full custom MCP access, with write actions allowed: Business, Enterprise, and Edu workspaces, on the web, where in a Business workspace only its admins and owners add one. Some plans connect to read only, which can't write questions. If you can't add Braivo, or it can only read, ask your ChatGPT workspace's admin: Braivo's Author role grants neither. [OpenAI's guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) has the current steps; at this writing:
+
+1. In Plugins, select the plus button, then **Add custom MCP server**.
+2. Name it Braivo, paste the address, and set its authentication to OAuth, which Braivo uses.
+3. Read the risk warning, choose **I understand and want to continue**, and create it.
+4. Sign in to Braivo and approve your school's organization, as below.
+5. Review the tools it lists, and install it.
+6. In a chat, type @ and select Braivo, then [ask for a piece of work](./draft-with-ai-app.mdx#what-to-ask-for).
+
+### A desktop agent
+
+In Claude Code, run `claude mcp add --transport http braivo https://braivo.example/mcp` with your installation's address, then its `/mcp` command to sign in. Another agent adds a remote MCP server its own way.
+
+### Another app
+
+Any app that connects to remote MCP servers by OAuth works the same way ([ADR 0045](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md)). Once Braivo is listed in an app's directory, adding it from there does the same.
+
+### Then, in the page that opens
+
+1. Sign in to Braivo.
+2. Choose the organization it works in, as the console calls a school's space in Braivo: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
+3. Approve it. The page names the app and the organization.
+4. Turn it on where you work. In Claude, in a chat, under **+**, **Connectors**. In ChatGPT, in a new chat, type `@` and select it.
+
+The app acts as you, in that organization alone, with the rights you have there: once you no longer prepare its content, the connection can no longer list or reach it.
+
+Some installations fetch no client metadata documents, and accept only the apps their operator registered ([deployment](./deployment.mdx#remote-mcp-clients)). There, an unrecognized client or `invalid_client` at sign-in means the app is not registered: ask the installation's operator to register it.
+
+## What it can do
+
+- Find the organization's sources and courses, and read a source in parts, a range of pages, seconds, or characters at a time.
+- Add material as text: a document page by page, a transcript with its timings. A document too large for one request is refused; add it in Braivo's console or with [`braivo sources add`](./authoring.mdx#the-braivo-command).
+- Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks ([what it checks](./draft-with-ai-app.mdx#what-braivo-checks-and-what-it-doesnt)).
+- Write practice questions that cite those passages, correct one, or withdraw one still waiting for review.
+- Arrange objectives into a course.
+- Read a course's objectives and questions, or only its questions without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
+
+What it adds waits for you to [review and publish it](./review-and-publish.mdx) in the console; for each course and question it writes, Braivo usually gives the app the link to that page, to pass on to you. It can't publish anything or retire a published question, and this connection can't read Braivo's learner lists or progress reports, which wait for their own permission.
+
+## On your desktop
+
+A desktop agent can also run the [`braivo` command](./authoring.mdx#the-braivo-command) on your machine, signed in apart with `braivo login`, for what takes your files: adding a PDF's text with the PDF itself, or a book too long to send through its replies. The agent then reads and builds from the source through Braivo's tools, as above. The command acts as you in every organization where you prepare content, not only the connection's, so let it upload only files you name.
+
+## Disconnect
+
+In Braivo's console, your account's settings, Connected apps: Disconnect ends one connection at once. The app's next request is refused, and it asks you to sign in again.

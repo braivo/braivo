@@ -1,4 +1,7 @@
-# Deployment
+---
+title: "Deployment"
+description: "What to set before exposing a server, the apps, organizations and their domains, learners' data, and configuration."
+---
 
 **There is no deployment packaging yet**: no image, no static serving, no supported proxy configuration. `bun run serve` serves the API and nothing else. Self-hosting is what Braivo is for, and this repository holds everything an installation runs, but building the apps and putting them in front of the API is yours to arrange until it is packaged.
 
@@ -20,13 +23,13 @@ The server mounts Better Auth at `/api/auth/*` and serves the learning API along
 
 ## The apps
 
-Each app is served at the root of an origin that also serves `/api` from this server ([ADR 0004](../adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization. A proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
+Each app is served at the root of an origin that also serves `/api` from this server ([ADR 0004](https://github.com/braivo/braivo/blob/main/docs/adr/0004-one-application-origin.md)). `apps/console` goes on `BRAIVO_URL`'s origin; `apps/learn` goes on a domain serving one organization. A proxy in front must pass the `Host` header through unchanged. ADR 0004 is only partly implemented, so a procedure written today would describe a layout still changing.
 
 Each build's `dist/_headers` is the app's security policy, in the format of Cloudflare's static assets: a Content-Security-Policy that lets no site frame the app and runs scripts from its own origin alone, `X-Content-Type-Options`, and `Referrer-Policy`. Have the static host or proxy serving `dist/` send those headers on every path, `index.html` served for an app's deep links included, and not serve the file itself; Cloudflare Workers and Pages apply it as it is to the files they serve, but not to a response a Worker or Pages Function makes, which must send the same headers itself. Cache for long only the files whose names change with their content (`assets/` holds them, Vite's and the boot script's); revalidate the rest, `index.html` and the console's `head.js` among them, which keep their names across releases, as Cloudflare does by default. A request for a file under `assets/` that is not there must answer 404, never `index.html`: a tab left open across a release asks for code the release removed, and a script answered with HTML fails in ways each browser reports differently, which the router's reload after a failed route load may not recognize. Cloudflare's `single-page-application` fallback answers such a request with `index.html`, as Vite's preview server does; answer `assets/` without it. HSTS is the proxy's to set.
 
 ## Organizations
 
-The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none unless self-serve is on, below ([ADR 0018](../adr/0018-sign-in-and-invitations.md)):
+The operator creates organizations, for an account that has signed in once, with the same environment as `serve`; the console creates none unless self-serve is on, below ([ADR 0018](https://github.com/braivo/braivo/blob/main/docs/adr/0018-sign-in-and-invitations.md)):
 
 ```bash
 bun --no-env-file apps/server/cli/index.ts organization create --name "My School" --slug my-school --owner owner@example.com
@@ -39,15 +42,15 @@ bun --no-env-file apps/server/cli/index.ts organization add-member --slug my-sch
 
 **Privacy policy and terms.** `BRAIVO_PRIVACY_URL` and `BRAIVO_TERMS_URL`, absolute http or https URLs to pages you host, add "By continuing, you agree to the Terms and Privacy Policy" under `/login`'s sign-in, where an account is made; set both or neither. Unset, sign-in asks agreement to nothing: set them before inviting anyone beyond a pilot.
 
-**Self-serve.** `BRAIVO_SELF_SERVE_DOMAIN`, a domain such as `braivo.app`, lets anyone signed in who owns no organization set one up in the console, served at `<slug>.<domain>`; one each. It is also how an independent learner gets their own ([ADR 0046](../adr/0046-material-in-steps.md)). Serve the learn app on every subdomain first: wildcard DNS, a wildcard certificate, and a proxy passing `Host`. With it, an AI key needs `BRAIVO_AI_ORGANIZATIONS`, or the server refuses to start. Unset, only the operator creates organizations. Locally, `localhost` serves each at `<slug>.localhost`, as in [the API guide](api.md#an-organizations-domain-locally). `BRAIVO_DATA_REGION`, a region code such as `EU` or `DE`, has setup say the data region, named in each person's language; set it only if the database and files are both there, as Braivo checks neither. `BRAIVO_OTHER_REGIONS` lists the regions other installations serve, making it a choice: `US` shown as coming soon, `US=https://us.example.com` linking whoever chooses it to that installation's `/join` ([ADR 0040](../adr/0040-data-region-at-setup.md)). Before listing an origin, sign in there and set an organization up: Braivo does not check it. Both need `BRAIVO_SELF_SERVE_DOMAIN`; unset, setup says nothing of regions.
+**Self-serve.** `BRAIVO_SELF_SERVE_DOMAIN`, a domain such as `braivo.example`, lets anyone signed in who owns no organization set one up in the console, served at `<slug>.<domain>`; one each. It is also how an independent learner gets their own ([ADR 0046](https://github.com/braivo/braivo/blob/main/docs/adr/0046-material-in-steps.md)). Serve the learn app on every subdomain first: wildcard DNS, a wildcard certificate, and a proxy passing `Host`. With it, an AI key needs `BRAIVO_AI_ORGANIZATIONS`, or the server refuses to start. Unset, only the operator creates organizations. Locally, `localhost` serves each at `<slug>.localhost`, as in [the API guide](./api.mdx#an-organizations-domain-locally). `BRAIVO_DATA_REGION`, a region code such as `EU` or `DE`, has setup say the data region, named in each person's language; set it only if the database and files are both there, as Braivo checks neither. `BRAIVO_OTHER_REGIONS` lists the regions other installations serve, making it a choice: `US` shown as coming soon, `US=https://us.example.com` linking whoever chooses it to that installation's `/join` ([ADR 0040](https://github.com/braivo/braivo/blob/main/docs/adr/0040-data-region-at-setup.md)). Before listing an origin, sign in there and set an organization up: Braivo does not check it. Both need `BRAIVO_SELF_SERVE_DOMAIN`; unset, setup says nothing of regions.
 
 ### An organization's domain
 
-The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization, and Braivo trusts that origin only while the row exists ([ADR 0004](../adr/0004-one-application-origin.md)). The operator registers each with `organization add-domain --slug <slug> --hostname <hostname>`; an organization may have several, named by the latest registered, the earlier still serving, so its `<slug>.<self-serve domain>` stays a way in when its own domain does not work; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on the domain's own `/login`, by a code that works there alone; with Google, through `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. To try it locally, see [the API guide](api.md#an-organizations-domain-locally).
+The learn app presents itself as the organization whose domain serves it, per an `organization_domain` row mapping the hostname to the organization, and Braivo trusts that origin only while the row exists ([ADR 0004](https://github.com/braivo/braivo/blob/main/docs/adr/0004-one-application-origin.md)). The operator registers each with `organization add-domain --slug <slug> --hostname <hostname>`; an organization may have several, named by the latest registered, the earlier still serving, so its `<slug>.<self-serve domain>` stays a way in when its own domain does not work; DNS, TLS, and routing it to Braivo are set up outside Braivo. Learners sign in on the domain's own `/login`, by a code that works there alone; with Google, through `BRAIVO_URL`'s `/login`, which hands the domain a learner session of its own. To try it locally, see [the API guide](./api.mdx#an-organizations-domain-locally).
 
 ### Remote MCP clients
 
-AI apps such as ChatGPT and Claude connect at `<BRAIVO_URL>/mcp` by OAuth ([ADR 0045](../adr/0045-remote-mcp.md)), each connection to one organization its person authors in, chosen as they sign in (access-40); what a connection can do is in the [assistants guide](assistants.md). This server accepts a client named by the HTTPS URL of its metadata document (CIMD), fetched only from a public address. It is built for ChatGPT, Claude, and Claude Code; another CIMD client may connect, unsupported. An installation fetching them registers none of the clients below: ChatGPT would sign with a key the registration lacks.
+AI apps such as ChatGPT and Claude connect at `<BRAIVO_URL>/mcp` by OAuth ([ADR 0045](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md)), each connection to one organization its person authors in, chosen as they sign in (access-40); what a connection can do is in the [assistants guide](./assistants.mdx). This server accepts a client named by the HTTPS URL of its metadata document (CIMD), fetched only from a public address. It is built for ChatGPT, Claude, and Claude Code; another CIMD client may connect, unsupported. An installation fetching them registers none of the clients below: ChatGPT would sign with a key the registration lacks.
 
 On Workers, `createServer({ clientIdMetadataDocuments: "strictly-public" })` fetches them through the Worker's `fetch`, but only with the `global_fetch_strictly_public` compatibility flag in its configuration; without it, every client named by URL is refused `invalid_client`, since a document's URL on the Worker's own zone would reach the zone's origin, past its security settings. The flag applies to every `fetch` the Worker makes: one to its own zone goes through Cloudflare's public routing, and may reach the Worker again, never the origin directly. To switch from registered clients to fetching, deploy fetching, then at once remove the clients registered below (`oauth-client remove`), since a registration is found before any document; teachers then connect again. Better Auth's limits on fetching documents, and its cache of them, are held by the server, so a Worker building it per request has neither, and any sender could make it fetch from a host of their choosing: it must limit those fetches across requests itself. Either limit `/api/auth/oauth2/*` at the edge, as a request there may fetch a document and its `jwks_uri`, or count the fetches themselves with `wrapClientMetadataFetch`, which wraps each one; the wrapper makes every network request through the fetch it is given, never the global `fetch`, which would skip the refusal of private addresses.
 
@@ -63,7 +66,7 @@ The redirect URIs are copied from each document; recheck them there if a client'
 
 ### An app directory's reviewer
 
-A directory's review, such as OpenAI's for ChatGPT's, needs an account that signs in without a code ([ADR 0018](../adr/0018-sign-in-and-invitations.md)). Sign in once with an address you read, name the account, and add it to an organization (`organization add-member --role admin`); then list it in `BRAIVO_REVIEWER_EMAILS` and give it a password:
+A directory's review, such as OpenAI's for ChatGPT's, needs an account that signs in without a code ([ADR 0018](https://github.com/braivo/braivo/blob/main/docs/adr/0018-sign-in-and-invitations.md)). Sign in once with an address you read, name the account, and add it to an organization (`organization add-member --role admin`); then list it in `BRAIVO_REVIEWER_EMAILS` and give it a password:
 
 ```bash
 bun --no-env-file apps/server/cli/index.ts reviewer set-password --email reviewer@fernwood.example
@@ -73,7 +76,7 @@ It prints a random password once; `--password-stdin` reads one instead, 16 chara
 
 ## Learners' data
 
-The operator exports and erases a learner's data on request, with the same environment as `serve`. Who may ask for which scope, and who receives the file, is [ADR 0053](../adr/0053-learners-data.md)'s.
+The operator exports and erases a learner's data on request, with the same environment as `serve`. Who may ask for which scope, and who receives the file, is [ADR 0053](https://github.com/braivo/braivo/blob/main/docs/adr/0053-learners-data.md)'s.
 
 ### Exporting
 
@@ -185,7 +188,7 @@ Integrations sending evidence should send the `historyEpoch` a learner's report 
 
 ### Erasing an account
 
-On the account holder's own verified request, once every school listed has given its instruction ([ADR 0053](../adr/0053-learners-data.md)): this destroys each school's records of them, which no school alone can authorize, and telling a school afterwards is not asking it. Settle any retention exception first.
+On the account holder's own verified request, once every school listed has given its instruction ([ADR 0053](https://github.com/braivo/braivo/blob/main/docs/adr/0053-learners-data.md)): this destroys each school's records of them, which no school alone can authorize, and telling a school afterwards is not asking it. Settle any retention exception first.
 
 ```bash
 bun --no-env-file apps/server/cli/index.ts account erase --email learner@fernwood.example
@@ -195,7 +198,7 @@ It needs `DATABASE_URL`, `BRAIVO_ERASURE_LOG`, and `BRAIVO_ERASURE_LOG_HMAC_KEY`
 
 - **Removed:** the account, its sessions everywhere, its sign-in methods, its connected AI apps and their tokens, its memberships, groups, and every school's history; its device codes and handoffs; invitations to the address and those it sent; the address's invitation mail claims, so its mail bound starts again; sign-in codes for the address; verification rows naming either.
 - **Kept, naming no one:** AI usage counts, so a school's monthly count stays right; a report it dismissed; a setting it changed. Nulling is minimization, not anonymization: in a one-person organization the user is obvious.
-- **Out of its reach:** mail already sent. An invitation it sent stays in its recipient's mailbox, naming it, and one still being delivered can arrive after `done`; its link no longer works. Say so in the answer to the request if it matters. Also material a school wrote or uploaded that names the person, a source, its tasks, an objective's title, or an uploaded file: none carries a learner key, and redacting it is separate ([ADR 0053](../adr/0053-learners-data.md)). So never answer that nothing names them; check with each school if the request says it does.
+- **Out of its reach:** mail already sent. An invitation it sent stays in its recipient's mailbox, naming it, and one still being delivered can arrive after `done`; its link no longer works. Say so in the answer to the request if it matters. Also material a school wrote or uploaded that names the person, a source, its tasks, an objective's title, or an uploaded file: none carries a learner key, and redacting it is separate ([ADR 0053](https://github.com/braivo/braivo/blob/main/docs/adr/0053-learners-data.md)). So never answer that nothing names them; check with each school if the request says it does.
 - **An organization's only owner** is refused, nothing erased. On that school's instruction, make its chosen successor an owner first ([`organization make-owner`](#organizations)), adding them with `add-member` if they are not a member yet, and have them sign in to the console and open the school's members before you erase: someone who has only used its learn domain may not know the console. An organization that will not continue under anyone else takes the database: no command closes one.
 - **"What holds … changed since it was shown":** a school joined, or the account changed, meanwhile. Nothing was erased; run it again, and check any new school has instructed.
 - **"No account has …" and "Nothing to erase":** nothing names that address, as after an earlier run. It succeeds, but it does not prove the person you meant was erased, as the address may be mistyped: read it against the request's register entry.
@@ -211,41 +214,49 @@ It needs `DATABASE_URL`, `BRAIVO_ERASURE_LOG`, and `BRAIVO_ERASURE_LOG_HMAC_KEY`
 
 ## Configuration
 
-`bun run serve` reads its environment alone, never an env file, so the repository's development defaults cannot stand in for a setting a deployment left out; set the variables below in the service's environment, as with systemd's `EnvironmentFile=`. Run the operator's commands with `--no-env-file` too, as shown, or Bun loads those defaults into them ([ADR 0051](../adr/0051-environment-files.md)).
+`bun run serve` reads its environment alone, never an env file, so the repository's development defaults cannot stand in for a setting a deployment left out; set the variables below in the service's environment, as with systemd's `EnvironmentFile=`. Run the operator's commands with `--no-env-file` too, as shown, or Bun loads those defaults into them ([ADR 0051](https://github.com/braivo/braivo/blob/main/docs/adr/0051-environment-files.md)).
 
 **Origin**
 
 - `BRAIVO_URL`: the public origin serving the console and `/api`, which sign-in callbacks and links are built from; locally, the console's dev server, `http://localhost:5174`, not the server's own port.
 - `PORT`: the port the server listens on, 3000 by default.
 
-**Email.** People sign in with a code sent to their email ([ADR 0033](../adr/0033-email-over-smtp.md)).
+**Email.** People sign in with a code sent to their email ([ADR 0033](https://github.com/braivo/braivo/blob/main/docs/adr/0033-email-over-smtp.md)).
 
 - `BRAIVO_SMTP_URL`: an SMTP server as `smtps://user:password@host`, or `smtp://`, upgraded with STARTTLS where the server offers it.
 - `BRAIVO_MAIL_FROM`: the sender, such as `Braivo <signin@example.com>`.
 
 Unset, codes are written to the server's log, but only while `BRAIVO_URL` is `localhost`, `127.0.0.1`, or `[::1]`, and the server then listens there alone; anywhere else `serve` refuses to start. An address gets one code a minute.
 
-**AI.** Braivo's own drafting and reading of PDFs and photos, for content owners without an AI app of their own ([ADR 0029](../adr/0029-server-drafting.md), [ADR 0030](../adr/0030-server-extraction.md), [ADR 0031](../adr/0031-ai-limits.md)).
+**AI.** Braivo's own drafting and reading of PDFs and photos, for content owners without an AI app of their own ([ADR 0029](https://github.com/braivo/braivo/blob/main/docs/adr/0029-server-drafting.md), [ADR 0030](https://github.com/braivo/braivo/blob/main/docs/adr/0030-server-extraction.md), [ADR 0031](https://github.com/braivo/braivo/blob/main/docs/adr/0031-ai-limits.md)).
 
-- `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own AI apps through `/mcp` ([assistants](assistants.md)).
+- `ANTHROPIC_API_KEY`: enables it. Unset, those routes answer 501, and content owners draft with their own AI apps through `/mcp` ([assistants](./assistants.mdx)).
 - `BRAIVO_AI_MODEL`: the model, `claude-sonnet-5` by default.
 - `BRAIVO_AI_ORGANIZATIONS`: comma-separated organization IDs allowed to use the key. Unset means every organization, and is refused with `BRAIVO_SELF_SERVE_DOMAIN`; an empty value or `*` is invalid, and the server refuses to start.
 - `BRAIVO_AI_MONTHLY_LIMIT`: how many AI requests each organization may make in a calendar month — a count, not a spending cap, since one request costs more than another. Every request is recorded in `ai_request` either way, with its model, prompt version, and how it went; `bun --no-env-file apps/server/cli/index.ts ai report [--since <YYYY-MM-DD>] [--organization <slug>]` counts them.
 
 AI requests may run for up to five minutes, so configure the proxy for that; nginx's `proxy_read_timeout`, for one, defaults to 60 seconds. A request the proxy cuts off may still count toward the organization's limit.
 
-**Google sign-in.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, an OAuth client from Google Cloud's console, add "Continue with Google" to `/login`; set both or neither. The client's authorized redirect URI is `BRAIVO_URL` followed by `/api/auth/callback/google`, such as `http://localhost:5174/api/auth/callback/google` locally. Only a Google account whose email Google has verified makes or signs in to an account this way ([ADR 0018](../adr/0018-sign-in-and-invitations.md)).
+**Google sign-in.** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, an OAuth client from Google Cloud's console, add "Continue with Google" to `/login`; set both or neither. The client's authorized redirect URI is `BRAIVO_URL` followed by `/api/auth/callback/google`, such as `http://localhost:5174/api/auth/callback/google` locally. Only a Google account whose email Google has verified makes or signs in to an account this way ([ADR 0018](https://github.com/braivo/braivo/blob/main/docs/adr/0018-sign-in-and-invitations.md)).
 
 **Reviewers.** `BRAIVO_REVIEWER_EMAILS`, comma-separated, lists the accounts that may sign in with a password the operator set, for an app directory's review (above). Unset, no password signs in.
 
-**Files.** `BRAIVO_FILES` is where uploaded original files, such as the PDFs sources were extracted from, are stored ([ADR 0028](../adr/0028-original-files.md)):
+**Files.** `BRAIVO_FILES` is where uploaded original files, such as the PDFs sources were extracted from, are stored ([ADR 0028](https://github.com/braivo/braivo/blob/main/docs/adr/0028-original-files.md)):
 
 - an absolute path on this machine, or
 - `s3://<bucket>` in any S3-compatible store, with `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_REGION` as Bun's S3 client reads them. For Cloudflare R2, `S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com`; for Google Cloud Storage, `https://storage.googleapis.com` with an HMAC key.
 
 Unset, the installation keeps no files and its file routes answer 501. Braivo accepts original-file uploads up to 50 MB and source requests up to 10 MB. Configure the proxy to accept at least those sizes; nginx's `client_max_body_size` defaults to 1 MB.
 
-**Erasure log.** Only the commands that erase read these ([ADR 0053](../adr/0053-learners-data.md)); `serve` does not. Keep both outside the database and its backups, and apart from `BRAIVO_FILES`, with access only for whoever runs those commands, since each record names a user ID and an HMAC of their email.
+**Erasure log.** Only the commands that erase read these ([ADR 0053](https://github.com/braivo/braivo/blob/main/docs/adr/0053-learners-data.md)); `serve` does not. Keep both outside the database and its backups, and apart from `BRAIVO_FILES`, with access only for whoever runs those commands, since each record names a user ID and an HMAC of their email.
 
 - `BRAIVO_ERASURE_LOG`: an absolute path to a directory that already exists, written to disk before anything is erased, or `s3://<bucket>`, with the `S3_*` variables above.
 - `BRAIVO_ERASURE_LOG_HMAC_KEY`: the HMAC's secret, at least 32 characters. Keep it for as long as the log: a replay matches email-keyed rows by it.
+
+## These guides
+
+These guides build into a static site of their own, `apps/docs`, which you may publish beside your installation or leave on GitHub, which shows them too. `bun run build` writes it to `apps/docs/dist`; it holds no session and calls no API, so it may share a host with another site, but never the console's or a learn app's origin. Serve it with the headers in its `public/_headers`. On a shared host, send only the base's `docs`, `docs/*`, `guides`, and `guides/*` to `dist/`, such as with more specific Cloudflare routes, and never merge `dist/` into the other site's output: its root `index.html`, `404.html`, and `_headers` for `/*` would replace that site's. Three settings, at build, from the environment it runs in rather than an env file:
+
+- `BRAIVO_DOCS_BASE`: the path it sits at, such as `/help/`; `/` by default. Every page, link, image, and its search follow it.
+- `BRAIVO_DOCS_BRAND`: the absolute path of a directory to brand it from, in place of `apps/docs/brand/`, outside this repository so updating Braivo never conflicts with it. It holds `site.ts`, whose default export gives the site's `name`, which it must, and optionally a `githubUrl`, `links` for the navigation, and `head`, HTML for every page's head; and `brand.css`, which overrides the theme's `--color-fd-*` colours and fonts. A directory missing either fails the build. Those headers let a page load from and send to the site's own origin alone: bundle a font from `brand.css`, with `url()` to a file in the brand directory, and a font, script, or analytics endpoint elsewhere needs your own headers to allow it.
+- `BRAIVO_DOCS_URL`: its public origin, such as `https://docs.example`, without a path. With it, each page names its canonical address, and the build writes a `sitemap.xml` under the site's `docs/` path; without it, neither.

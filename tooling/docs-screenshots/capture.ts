@@ -1,0 +1,1151 @@
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+/**
+ * Regenerates the guides' screenshots by walking them through the real server,
+ * console, and learn app, on the demo's classroom, in a database it creates and
+ * drops. `bun run docs:screenshots`; needs what the demo needs (docs/demo.md),
+ * and no AI key. It uses no real AI credential, and logs none: its server is
+ * given a stand-in key, and its dev servers only the environment they run on,
+ * though Vite still reads the repository's env files, as under `bun run dev`.
+ *
+ * Only the AI's answer is canned: the script answers the model's address itself,
+ * so a run spends nothing and draws the same pictures. Braivo checks that answer
+ * as it does a model's, every quote against the source.
+ *
+ * The pictures are drawn into a temporary directory and replace the committed
+ * ones only once every step has passed, so a failed run leaves them as they were.
+ */
+
+import { type ChildProcess, spawn } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { type Browser, chromium, type Locator, type Page } from "playwright";
+
+import { readServeConfig } from "../../apps/server/config.ts";
+import { prepareClassroom, PERSONAS } from "../../apps/server/fixtures/classroom.ts";
+import { createServer } from "../../apps/server/server.ts";
+import { directoryStore } from "../../apps/server/storage/directory.ts";
+import { createDatabase, runMigrations } from "../../packages/db/index.ts";
+import {
+  createScratchDatabase,
+  dropScratchDatabase,
+  keepOptionOrder,
+  numberCourse,
+  type ScratchDatabase,
+} from "./database.ts";
+import { DRAFT, PDF_TITLE, TOOL_WORK, handoutPdf } from "./material.ts";
+
+const ROOT = join(import.meta.dirname, "../..");
+const SCREENSHOTS = join(ROOT, "apps/docs/public/docs/screenshots");
+const PORTS = { server: 4830, console: 4831, learn: 4832 };
+
+/**
+ * A phone's width, so the console folds its sidebar away and a picture reads at
+ * nearly its size on a phone and at its size beside the guide (`.prose img` in
+ * apps/docs/styles.css shows it no wider); tall enough that each step's part of
+ * the page fits once scrolled to, so coordinates are the viewport's.
+ */
+const SCREEN = {
+  viewport: { width: 480, height: 2400 },
+  deviceScaleFactor: 2,
+  // Times on the pages read the same wherever this runs, and say nothing of where.
+  timezoneId: "UTC",
+  locale: "en-US",
+} as const;
+
+/**
+ * The moment every run happens at, the demo's own seeding date (docs/demo.md):
+ * the classroom is seeded at it, and the server and the browsers read it as
+ * now, so times on the pages, standings, and estimated recall come out the
+ * same in every run, on a date a reader takes for real.
+ *
+ * The clock is let go while a learner signs in on the learn site: the
+ * database checks that code's expiry against its own clock
+ * (`clock_timestamp()`), which a past moment would fail, and the learner's
+ * pages pictured show no date. A future moment would pass, but dates reading
+ * years ahead look like a bug to a teacher.
+ */
+const NOW = new Date("2026-10-12T09:00:00Z");
+
+/** This process's `Date` reads `at` as now, one given a time as ever, until the function returned is called. */
+function freezeClock(at: Date): () => void {
+  const Real = Date;
+  const now = at.getTime();
+  class Frozen extends Real {
+    constructor(...args: ConstructorParameters<DateConstructor> | []) {
+      if (args.length === 0) super(now);
+      else super(...(args as ConstructorParameters<DateConstructor>));
+    }
+    static override now() {
+      return now;
+    }
+  }
+  globalThis.Date = Frozen as DateConstructor;
+  return () => {
+    globalThis.Date = Real;
+  };
+}
+
+/** The model's address, answered here with the canned draft; anything else goes out as usual. */
+function cannedModel() {
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (url.startsWith("https://api.anthropic.com/")) {
+      // The model's one caller sends a string.
+      const { tools } = JSON.parse(init?.body as string) as { tools: { name: string }[] };
+      const content = [{ type: "tool_use", id: "canned", name: tools[0]!.name, input: DRAFT }];
+      return Response.json({ stop_reason: "tool_use", content });
+    }
+    return real(input, init);
+  }) as typeof fetch;
+}
+
+/**
+ * Refuses a port something already answers on: the run would drive that, a
+ * developer's installation perhaps, in place of its own dev server.
+ */
+async function refuseTaken(ports: number[]) {
+  for (const port of ports) {
+    const url = `http://127.0.0.1:${port}`;
+    if (
+      await fetch(url).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      throw new Error(`${url} already answers; stop what serves it first.`);
+    }
+  }
+}
+
+/** `url` answering, from `child`, the dev server this run started, failing once it has exited. */
+async function waitFor(url: string, child?: ChildProcess) {
+  for (let tries = 0; tries < 120; tries++) {
+    if (child && (child.exitCode !== null || child.signalCode !== null)) {
+      throw new Error(`The dev server for ${url} exited.`);
+    }
+    if (
+      await fetch(url).then(
+        (r) => r.status < 500,
+        () => false,
+      )
+    )
+      return;
+    await Bun.sleep(500);
+  }
+  throw new Error(`${url} did not answer.`);
+}
+
+async function signIn(page: Page, base: string, email: string, codes: Map<string, string>) {
+  const code = () => codes.get(email);
+  // A code mailed for an earlier sign-in is spent: wait for this one's.
+  codes.delete(email);
+  await page.goto(`${base}/login`);
+  await page.getByLabel(/email/i).first().fill(email);
+  await page
+    .getByRole("button", { name: /continue|send|sign in/i })
+    .first()
+    .click();
+  const field = page.getByLabel("Code");
+  await field.waitFor();
+  for (let tries = 0; tries < 40 && !code(); tries++) await Bun.sleep(250);
+  await field.fill(code()!);
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 30_000 });
+}
+
+/** Every label the guide names on this screen, so a renamed one fails here, not in a reader's hands. */
+async function sees(page: Page, ...labels: string[]) {
+  for (const label of labels) {
+    await page
+      .getByText(label, { exact: true })
+      .filter({ visible: true })
+      .first()
+      .waitFor({ timeout: 5_000 });
+  }
+}
+
+/**
+ * Run in the page: `clip` grown to cover every line of text, control, and
+ * image it cuts through, and every bordered box it cuts at a side, with a
+ * little room; one wholly inside or outside stays as it is. A string, as this package's types know no DOM.
+ */
+const STRADDLING = `(clip) => {
+  const cuts = (r) =>
+    r.width > 1 && r.height > 1 && r.right - 1 <= innerWidth &&
+    r.right > clip.x && r.left < clip.right && r.bottom > clip.y && r.top < clip.bottom &&
+    (r.left < clip.x || r.right > clip.right || r.top < clip.y || r.bottom > clip.bottom);
+  const rects = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    rects.push(...range.getClientRects());
+  }
+  for (const element of document.querySelectorAll("button, input, select, textarea, img, svg, [role=checkbox]")) {
+    rects.push(element.getBoundingClientRect());
+  }
+  const grown = { ...clip };
+  // A bordered box, such as a card, its edge a border or a ring (a box
+  // shadow, as shadcn's cards), whole from side to side; not top to
+  // bottom, where a step's part of a long card or list is cut on purpose,
+  // and not one as wide as the screen, as the console's own panel.
+  for (const element of document.querySelectorAll("body *")) {
+    const style = getComputedStyle(element);
+    const edged =
+      parseFloat(style.borderLeftWidth) > 0 ||
+      parseFloat(style.borderRightWidth) > 0 ||
+      style.boxShadow !== "none";
+    if (!edged) continue;
+    const r = element.getBoundingClientRect();
+    if (r.width >= innerWidth - 2 || r.bottom <= clip.y || r.top >= clip.bottom) continue;
+    // Within 2px counts: a ring is drawn just outside the box it edges.
+    if (r.left < clip.x + 2 && r.right > clip.x) grown.x = Math.min(grown.x, r.left - 8);
+    if (r.right > clip.right - 2 && r.left < clip.right) grown.right = Math.max(grown.right, r.right + 8);
+  }
+  for (const r of rects.filter(cuts)) {
+    grown.x = Math.min(grown.x, r.left - 8);
+    grown.y = Math.min(grown.y, r.top - 4);
+    grown.right = Math.max(grown.right, r.right + 8);
+    grown.bottom = Math.max(grown.bottom, r.bottom + 8);
+  }
+  return grown;
+}`;
+
+/**
+ * The part of the page a step is about, from `from` to `to`, no wider than
+ * what they and `presses` span: the sidebar left out, so labels come out near
+ * the size they are read at. `presses`, what the step says to press, is
+ * inside the picture by construction, and its absence fails the run.
+ */
+async function region(
+  page: Page,
+  path: string,
+  from: Locator,
+  to: Locator,
+  presses: Locator,
+): Promise<void> {
+  await page.waitForLoadState("networkidle").catch(() => {});
+  // To the top, whichever element scrolls, so what follows it fits below.
+  await from.first().evaluate((node) => node.scrollIntoView({ block: "start" }));
+  const boxes = [];
+  for (const locator of [from, to, presses]) {
+    const box = await locator.first().boundingBox();
+    if (!box) throw new Error(`${path}: ${String(locator)} is not on the screen.`);
+    boxes.push(box);
+  }
+  const viewport = page.viewportSize()!;
+  let clip = {
+    x: Math.max(0, Math.min(...boxes.map((box) => box.x)) - 16),
+    y: Math.max(0, Math.min(...boxes.map((box) => box.y)) - 4),
+    right: Math.min(viewport.width, Math.max(...boxes.map((box) => box.x + box.width)) + 16),
+    bottom: Math.max(...boxes.map((box) => box.y + box.height)) + 8,
+  };
+  // Grown until no text or control straddles an edge, so nothing shows cut in half.
+  for (let pass = 0; ; pass++) {
+    const grown = (await page.evaluate(`(${STRADDLING})(${JSON.stringify(clip)})`)) as typeof clip;
+    // No further than the screen: what reaches its edge is whole as shown.
+    const next = {
+      x: Math.max(0, grown.x),
+      y: Math.max(0, grown.y),
+      right: Math.min(viewport.width, grown.right),
+      bottom: grown.bottom,
+    };
+    if (JSON.stringify(next) === JSON.stringify(clip)) break;
+    if (pass === 5) throw new Error(`${path}: something still straddles the picture's edge.`);
+    clip = next;
+  }
+  if (clip.bottom > viewport.height) throw new Error(`${path}: taller than the viewport.`);
+  const { x, y } = clip;
+  const right = clip.right;
+  const bottom = clip.bottom;
+  // Transitions finished: a bar filling or a ring fading reads differently run to run.
+  await page.screenshot({
+    path,
+    clip: { x, y, width: right - x, height: bottom - y },
+    animations: "disabled",
+  });
+  console.log(
+    `  ${path.split("/").slice(-2).join("/")}  ${Math.round(right - x)}×${Math.round(bottom - y)}`,
+  );
+}
+
+/** A browser at the phone width, light, and at `NOW`. */
+/**
+ * Each page's console errors and uncaught exceptions, printed when a step
+ * fails: an app's generic error screen alone hides its cause.
+ */
+const browserErrors = new WeakMap<Page, string[]>();
+
+function watch(page: Page): Page {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.stack ?? String(error)));
+  return page;
+}
+
+async function newPage(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ ...SCREEN, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const page = watch(await context.newPage());
+  page.setDefaultTimeout(30_000);
+  return page;
+}
+
+async function firstCourse(
+  scratch: ScratchDatabase,
+  /** Sam, signed in on the learning site by the learner-view tour. */
+  learner: Page,
+  browser: Browser,
+  out: string,
+  work: string,
+  codes: Map<string, string>,
+): Promise<Page> {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const shot = (name: string) => join(out, "first-course", `${name}.png`);
+  mkdirSync(join(out, "first-course"));
+  const page = await newPage(browser);
+
+  await signIn(page, consoleUrl, PERSONAS.author.email, codes);
+
+  // 1. Add the material.
+  // At a phone's width the sidebar is folded away; its Sources link opens this.
+  await page.goto(`${consoleUrl}/fernwood/sources`);
+  await sees(page, "Sources");
+  const adding = page.getByRole("heading", { name: "Add material" });
+  await adding.waitFor();
+  await page.getByLabel("Title").fill(PDF_TITLE);
+  const pdf = join(work, "why-plants-are-green.pdf");
+  writeFileSync(pdf, handoutPdf());
+  await page.getByLabel("Original file").setInputFiles(pdf);
+  await sees(page, "Add material", "Title", "Text", "Original file");
+  const add = page.getByRole("button", { name: "Add material", exact: true });
+  await region(page, shot("1-add-material"), adding, add, add);
+  await add.click();
+
+  // 2. Check its pages. Pictured once the button is ready, not while it reads as unavailable.
+  const save = page.getByRole("button", { name: "Save source", disabled: false });
+  await save.waitFor();
+  await sees(page, "Text", "Keep", "Leave out", "Next page", "Save source");
+  await page.waitForTimeout(300);
+  await region(
+    page,
+    shot("2-check-pages"),
+    page.getByText(/^Printed page of page \d+$/),
+    save,
+    save,
+  );
+  await save.click();
+
+  // 3. Draft.
+  const drafting = page.getByRole("heading", { name: "Draft a course" });
+  await drafting.waitFor();
+  await page.getByLabel("Learners").fill("Grade 5 science");
+  await sees(page, "Learners", "Draft a course");
+  const draft = page.getByRole("button", { name: "Draft a course" });
+  const promise = page.getByText("You review the draft before learners see any of it.");
+  await region(page, shot("3-draft"), drafting, promise, draft);
+  await draft.click();
+
+  // 4. Review, editing one question as the guide says: Edit, then Save.
+  const reviewing = page.getByRole("heading", { name: "Review the draft" });
+  await reviewing.waitFor();
+  await sees(page, "Review the draft", "Edit", "Course title", "Create course");
+  const edit = page.getByRole("button", {
+    name: "Edit “What is the green pigment in leaves called?”",
+  });
+  const explanation = page.getByText("Shown after a miss");
+  await region(page, shot("4-review"), reviewing, explanation, edit);
+  await edit.click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await edit.waitFor();
+
+  // 5. Create it.
+  const create = page.getByRole("button", { name: "Create course", disabled: false });
+  const titled = page.getByText("Course title", { exact: true });
+  const discard = page.getByRole("button", { name: "Discard draft" });
+  await region(page, shot("5-create-course"), titled, discard, create);
+  await create.click();
+
+  // 6. Its page.
+  await page.waitForURL(/\/courses\//);
+  const course = page.getByRole("heading", { level: 1, name: "Why plants are green" });
+  await course.waitFor();
+  await numberCourse(scratch, "Why plants are green", 2026);
+  await page.reload();
+  await course.waitFor();
+  await sees(page, "Copy address", "Hide from learners", "Retire");
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await region(
+    page,
+    shot("6-course"),
+    course,
+    hide,
+    page.getByRole("button", { name: "Copy address" }),
+  );
+
+  // 7. As a learner, at the console's pictures' width.
+  await learner.setViewportSize(SCREEN.viewport);
+  await learner.goto(learnUrl);
+  await learner
+    .getByRole("link", { name: /Why plants are green/ })
+    .first()
+    .click();
+  await learner.waitForURL(/\/c\//);
+  // Off the options: a hover left by the click reads as a chosen answer.
+  await learner.mouse.move(0, 0);
+  const show = learner.getByText("Show answer");
+  await show.waitFor();
+  const check = learner.getByRole("button", { name: "Check" });
+  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
+  return page;
+}
+
+/** The server's clock: let go for `steps` (see NOW), or frozen at another moment. */
+type Clock = {
+  real: (steps: () => Promise<void>) => Promise<void>;
+  set: (at: Date) => void;
+};
+
+/**
+ * The demo course's right answers, by prompt (apps/server/fixtures/classroom.ts),
+ * so the tour answers whichever question Braivo decides on.
+ */
+const RIGHT: Record<string, string> = {
+  "It is eight in the morning and you meet your teacher. What do you say?": "Good morning",
+  'It is seven in the evening. Complete the greeting: "Good ___"': "evening",
+  "It is seven in the evening. Which greeting fits?": "Good evening",
+  "Which request is polite?": "Could I have a glass of water, please?",
+  'Complete the polite request: "Could I have a glass of water, ___?"': "please",
+  "Someone helps you. What do you say?": "Thank you",
+  "You are leaving a friend's house. What can you say?": "See you later",
+  'Complete the casual goodbye: "See you ___"': "later",
+};
+
+/** Answers the question shown rightly, typed or chosen. */
+async function answerRight(page: Page) {
+  const prompts = Object.keys(RIGHT);
+  const prompt = page.getByText(
+    new RegExp(`^(${prompts.map((text) => RegExp.escape(text)).join("|")})$`),
+  );
+  const answer = RIGHT[(await prompt.first().innerText()).trim()]!;
+  const field = page.getByRole("textbox");
+  if (await field.count()) {
+    await field.fill(answer);
+    await page.getByRole("button", { name: "Check" }).click();
+  } else {
+    await page.getByRole("button", { name: answer }).click();
+  }
+}
+
+/** A phone's screen, where learners mostly practise: the answer's foot is pinned to its bottom. */
+const PHONE = { width: 390, height: 844 };
+
+/**
+ * The learner-view guide, as the demo's Sam on Fernwood's learning site: their
+ * course and what waits there, the question asked again after their seeded
+ * miss, missed again, its review, a right answer, and the end of practice.
+ * Signed in on the real clock (see NOW), practising on the frozen one, which
+ * the server's learning reads.
+ */
+async function learnerView(
+  clock: Clock,
+  browser: Browser,
+  out: string,
+  codes: Map<string, string>,
+): Promise<Page> {
+  const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const shot = (name: string) => join(out, "learner-view", `${name}.png`);
+  mkdirSync(join(out, "learner-view"));
+  const context = await browser.newContext({ ...SCREEN, viewport: PHONE, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const page = watch(await context.newPage());
+  page.setDefaultTimeout(30_000);
+  await clock.real(() => signIn(page, learnUrl, PERSONAS.sam.email, codes));
+  // A minute an answer, as the demo's own practice: answers at one moment
+  // leave rests and the next decision to ties between random IDs.
+  let minutes = 0;
+  const tick = async () => {
+    const at = new Date(NOW.getTime() + ++minutes * 60_000);
+    clock.set(at);
+    await context.clock.setFixedTime(at);
+  };
+
+  // 1. The course, with what waits for Sam there.
+  const course = page.getByRole("link", { name: /Everyday English/ });
+  await course.waitFor();
+  await region(
+    page,
+    shot("1-courses"),
+    page.getByRole("heading", { name: "Your courses" }),
+    course,
+    course,
+  );
+
+  // 2. The question Braivo asks again after Sam's seeded miss.
+  await course.click();
+  await page.waitForURL(/\/c\//);
+  const close = page.getByRole("link", { name: "Close" });
+  await sees(page, "Let's practise this again.", "Show answer");
+  const check = page.getByRole("button", { name: "Check" });
+  await region(page, shot("2-question"), close, page.getByText("Show answer"), check);
+
+  // 3. Missed again: the answer and the passage it quotes.
+  await page.getByRole("textbox").fill("thanks");
+  await tick();
+  await check.click();
+  const next = page.getByRole("button", { name: "Continue" });
+  await next.waitFor();
+  await sees(page, "Not quite", "Your answer", "From your lessons", "Review this topic");
+  const review = page.getByRole("button", { name: "Review this topic" });
+  await region(page, shot("3-miss"), close, next, review);
+
+  // 4. Reviewing the topic.
+  await review.click();
+  const back = page.getByRole("button", { name: "Back to practice" });
+  await back.waitFor();
+  await sees(page, "From your lessons");
+  await region(page, shot("4-review"), page.getByText(/^Review: /), back, back);
+  await back.click();
+
+  // 5. A right answer, to the question Braivo decides on next.
+  await next.click();
+  await sees(page, "Show answer");
+  await tick();
+  await answerRight(page);
+  await next.waitFor();
+  await sees(page, "Correct", "From your lessons");
+  await page.mouse.move(0, 0);
+  await region(page, shot("5-correct"), close, next, next);
+
+  // 6. Answered rightly until practice pauses.
+  const caughtUp = page.getByText("You're caught up");
+  for (let answers = 0; ; answers++) {
+    await next.click();
+    await page
+      .getByText(/^(Show answer|You're caught up)$/)
+      .first()
+      .waitFor();
+    if (await caughtUp.isVisible()) break;
+    if (answers === 8) throw new Error("Practice did not pause.");
+    await tick();
+    await answerRight(page);
+  }
+  // To the meter's counts: where Sam stands as practice pauses.
+  const counts = page.getByText("3 retained", { exact: true });
+  await region(page, shot("6-caught-up"), caughtUp, counts, caughtUp);
+  // Back to NOW, still signed in, for the first course's learner: a second
+  // code within a minute of the frozen clock would be refused.
+  clock.set(NOW);
+  await context.clock.setFixedTime(NOW);
+  return page;
+}
+
+/**
+ * The progress tables need 684px, wider than a phone's 480: at 740 they fit
+ * whole, with the sidebar still folded away.
+ */
+const WIDE = { width: 740, height: 2400 };
+
+/** The follow-progress guide, as the demo's teacher: their group, its course's progress, and one learner. */
+async function followProgress(
+  browser: Browser,
+  out: string,
+  codes: Map<string, string>,
+): Promise<Page> {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
+  mkdirSync(join(out, "follow-progress"));
+  const page = await newPage(browser);
+  await signIn(page, consoleUrl, PERSONAS.teacher.email, codes);
+
+  // 1. Their groups, where a teacher's console opens.
+  await page.goto(`${consoleUrl}/fernwood/groups`);
+  const progress = page.getByRole("link", { name: "Progress" });
+  await progress.waitFor();
+  await sees(page, "Groups", "Class A English", "Progress");
+  const groups = page.getByRole("heading", { level: 1, name: "Groups" });
+  await region(page, shot("1-groups"), groups, progress, progress);
+  await progress.click();
+
+  // 2 and 3. The course's progress, its learners and its objectives.
+  await page.setViewportSize(WIDE);
+  const byObjective = page.getByRole("heading", { name: "Progress by objective" });
+  await byObjective.waitFor();
+  await sees(page, "Not started", "Learning", "Repeated misses", "Retained", "Due for review");
+  const sam = page.getByRole("link", { name: PERSONAS.sam.name });
+  const learnerColumn = page.getByRole("columnheader", { name: "Learner", exact: true });
+  // The whole table, every standing's column; the guide shows it in a frame
+  // that scrolls on a phone (`.wide-shot` in apps/docs/styles.css).
+  const dueColumn = page.getByRole("columnheader", { name: "Due for review" });
+  await region(
+    page,
+    shot("2-learners"),
+    learnerColumn,
+    page.getByRole("rowheader").filter({ hasText: PERSONAS.zofia.name }),
+    dueColumn.first(),
+  );
+  const objectiveColumn = page.getByRole("columnheader", { name: "Objective", exact: true });
+  const lastObjective = page.getByRole("rowheader").filter({ hasText: "Say goodbye" });
+  await region(page, shot("3-objectives"), objectiveColumn, lastObjective, dueColumn.last());
+
+  // 4. One learner's report.
+  await page.setViewportSize(SCREEN.viewport);
+  await sam.click();
+  const report = page.getByRole("heading", { level: 1, name: PERSONAS.sam.name });
+  await report.waitFor();
+  await sees(page, "Standing", "Evidence", "Review due");
+  const last = page.getByText("Not started", { exact: true }).last();
+  await region(page, shot("4-learner"), report, last, report);
+  return page;
+}
+
+/** The capture's own tool, signed in as `braivo` is (ADR 0022): a device code the author approves at /device. */
+async function toolToken(page: Page, consoleUrl: string): Promise<string> {
+  const post = (path: string, body: unknown) =>
+    fetch(`${consoleUrl}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((response) => response.json() as Promise<Record<string, string>>);
+  const code = await post("/api/auth/device/code", { client_id: "braivo-cli" });
+  await page.goto(code.verification_uri_complete!);
+  await page.getByRole("button", { name: "Approve" }).click();
+  await page.getByText("Signed in. You can go back to your terminal.").waitFor();
+  const token = await post("/api/auth/device/token", {
+    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    device_code: code.device_code,
+    client_id: "braivo-cli",
+  });
+  if (!token.access_token) throw new Error(`No token: ${JSON.stringify(token)}`);
+  return token.access_token;
+}
+
+/**
+ * The review guide: a course and questions a tool wrote through the API, as an
+ * AI app or `braivo` would, waiting for the author in the console (ADR 0039).
+ */
+async function reviewAndPublish(scratch: ScratchDatabase, page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  mkdirSync(join(out, "review-and-publish"));
+  // The author's own page from the first course: Braivo mails an address one
+  // code a minute, and this run's clock never leaves its minute.
+  const token = await toolToken(page, consoleUrl);
+  const api = async (method: string, path: string, body?: unknown) => {
+    const response = await fetch(`${consoleUrl}/api${path}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`);
+    }
+    return (await response.json()) as Record<string, any>;
+  };
+  const { organizations } = await api("GET", "/organizations");
+  const org = organizations.find((o: { slug: string }) => o.slug === "fernwood").id;
+  const { sources } = await api("GET", `/organizations/${org}/sources`);
+  const sourceId = sources.find((s: { title: string }) => s.title === PDF_TITLE).id;
+  const { objectiveIds } = await api("POST", `/organizations/${org}/objectives`, {
+    objectives: TOOL_WORK.objectives.map(({ title, key }) => ({ title, key })),
+  });
+  await api("POST", `/organizations/${org}/citations`, {
+    citations: TOOL_WORK.objectives.flatMap(({ quotes }, i) =>
+      quotes.map((quote) => ({ objectiveId: objectiveIds[i], sourceId, quote })),
+    ),
+  });
+  await api("POST", `/organizations/${org}/tasks`, {
+    tasks: TOOL_WORK.objectives.flatMap(({ tasks }, i) =>
+      tasks.map(({ quotes, ...task }) => ({
+        objectiveId: objectiveIds[i],
+        ...task,
+        citations: quotes.map((quote) => ({ sourceId, quote })),
+      })),
+    ),
+  });
+  await api("POST", `/organizations/${org}/courses`, {
+    title: TOOL_WORK.course,
+    objectiveIds,
+    key: "photosynthesis-check",
+  });
+
+  await numberCourse(scratch, TOOL_WORK.course, 2027);
+  const shot = (name: string) => join(out, "review-and-publish", `${name}.png`);
+
+  // 1. Under Courses, marked Needs review.
+  await page.goto(`${consoleUrl}/fernwood`);
+  const listed = page.getByRole("link", { name: new RegExp(TOOL_WORK.course) }).first();
+  await listed.waitFor();
+  await sees(page, "Courses", "Needs review");
+  const courses = page.getByRole("heading", { level: 1, name: "Courses" });
+  await region(page, shot("1-courses"), courses, listed, listed);
+  await listed.click();
+
+  // 2. A question waiting, with its answer, explanation, and passage.
+  await page.waitForURL(/\/courses\//);
+  const objective = page.getByText("1. Say what a plant takes in to make food").first();
+  await objective.waitFor();
+  await sees(
+    page,
+    "Needs review",
+    "Unpublished",
+    "Correct answer",
+    "Edit",
+    "Retire",
+    "Delete course",
+  );
+  const select = page.getByRole("checkbox", {
+    name: "Select unpublished task “Where does a plant take in water?”",
+  });
+  const passage = page
+    .getByText("Leaves take in carbon dioxide from the air, and roots take up water from the soil.")
+    .first();
+  // Ticked, as the next step's picture counts it.
+  await select.click();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(500);
+  await region(page, shot("2-question"), objective, passage, select);
+
+  // 3. Publishing all, or a selection.
+  const withSelected = page.getByRole("button", { name: "Publish with selected (1)" });
+  const withAll = page.getByRole("button", { name: "Publish with all (2)" });
+  await withSelected.waitFor();
+  // Off the checkbox, and past its transition: a hover or half-drawn tick differs from run to run.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(500);
+  const intro = page.getByRole("heading", { level: 1, name: TOOL_WORK.course });
+  await region(
+    page,
+    shot("3-publish"),
+    intro,
+    page.getByRole("button", { name: "Delete course" }),
+    withAll,
+  );
+  await withAll.click();
+  const confirm = page.getByRole("alertdialog");
+  if (await confirm.isVisible().catch(() => false)) {
+    await confirm.getByRole("button", { name: /^Publish/ }).click();
+  }
+
+  // 4. What learners get.
+  const course = page.getByRole("heading", { level: 1, name: TOOL_WORK.course });
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await hide.waitFor();
+  await sees(page, "Copy address", "Hide from learners");
+  await region(
+    page,
+    shot("4-published"),
+    course,
+    hide,
+    page.getByRole("button", { name: "Copy address" }),
+  );
+}
+
+/**
+ * Stops what this run started, each apart, so one failure leaves the rest to
+ * be tried; a process group already gone (ESRCH) is already stopped.
+ */
+/**
+ * The maintain-practice guide, as the author, on the demo's published course,
+ * whose questions have no explanation: the count and its filter, a question's
+ * editor, and taking the course down. Last, as it opens an editor it cancels.
+ */
+async function maintainPractice(scratch: ScratchDatabase, page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "maintain-practice", `${name}.png`);
+  mkdirSync(join(out, "maintain-practice"));
+  // The spec's own example number (authoring.md), as its address is pictured.
+  await numberCourse(scratch, "Everyday English", 4732);
+  await page.goto(`${consoleUrl}/fernwood`);
+  await page
+    .getByRole("link", { name: /Everyday English/ })
+    .first()
+    .click();
+  const title = page.getByRole("heading", { level: 1, name: "Everyday English" });
+  await title.waitFor();
+
+  // 1. Questions without an explanation, counted, and the filter.
+  const count = page.getByText(/published tasks have no explanation/);
+  const only = page.getByRole("button", { name: "Show only these" });
+  await sees(page, "Show only these", "No explanation", "Edit", "Retire");
+  await region(page, shot("1-explanations"), count, only, only);
+
+  // 2. A published question's editor, an explanation written.
+  await only.click();
+  await page.getByRole("button", { name: /^Edit/ }).first().click();
+  const why = page.getByLabel("Why the answer is right");
+  await why.fill('"Good morning" is what people say when they meet in the morning.');
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  const cancel = page.getByRole("button", { name: "Cancel" });
+  await sees(page, "Question", "Options, the correct one chosen");
+  // Off the editor, which opens under the pointer: a hover would tint a control.
+  await page.mouse.move(0, 0);
+  await region(page, shot("2-edit"), page.getByText(/^Saving replaces the task/), cancel, save);
+  await cancel.click();
+
+  // 3. Taking the course down, on the page loaded afresh and unfiltered:
+  // Cancel hands focus back to Edit, which scrolls on a schedule of its own.
+  const unfiltered = new URL(page.url());
+  unfiltered.search = "";
+  await page.goto(unfiltered.href);
+  await title.waitFor();
+  await page.mouse.move(0, 0);
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await region(page, shot("3-hide"), title, hide, hide);
+}
+
+/**
+ * The words guide: tight crops of where each term shows in the console, as
+ * the author on the demo's course. Last, as it opens an editor it cancels.
+ */
+async function words(page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "words", `${name}.png`);
+  mkdirSync(join(out, "words"));
+
+  // The organization, named in the console's header.
+  await page.goto(`${consoleUrl}/fernwood/sources`);
+  const organization = page.getByText("Fernwood School", { exact: true }).first();
+  await organization.waitFor();
+  await page.mouse.move(0, 0);
+  await region(page, shot("organization"), organization, organization, organization);
+
+  // A source, listed under Sources.
+  const source = page.getByRole("link", { name: /Fernwood reader: everyday English/ }).first();
+  await region(page, shot("source"), source, source, source);
+
+  // An objective, its passage, and a question, on the course's page.
+  await page.goto(`${consoleUrl}/fernwood`);
+  await page
+    .getByRole("link", { name: /Everyday English/ })
+    .first()
+    .click();
+  const teaches = page.getByRole("heading", { name: "What it teaches" });
+  await teaches.waitFor();
+  const objective = page.getByText("Greet someone for the time of day").first();
+  await region(page, shot("objective"), teaches, objective, objective);
+  const quote = page
+    .getByText('In the morning, people often say "Good morning" when they meet.')
+    .first();
+  const from = page.getByText("Fernwood reader: everyday English").first();
+  await region(page, shot("passage"), quote, from, quote);
+  const prompt = page
+    .getByText("It is eight in the morning and you meet your teacher. What do you say?")
+    .first();
+  const edit = page.getByRole("button", { name: /^Edit/ }).first();
+  await sees(page, "No explanation", "Retire");
+  // Exact: the count above it says "no explanation" too.
+  const none = page.getByText("No explanation", { exact: true }).first();
+  await region(page, shot("question"), prompt, none, edit);
+
+  // A question's explanation, in its editor.
+  await edit.click();
+  const why = page.getByText("Why the answer is right", { exact: true });
+  const field = page.getByLabel("Why the answer is right");
+  await field.fill('"Good morning" is what people say when they meet in the morning.');
+  await page.mouse.move(0, 0);
+  await region(page, shot("explanation"), why, field, field);
+  await page.getByRole("button", { name: "Cancel" }).click();
+}
+
+/** Three days on: reviews have come due, and Zofia has missed one objective three times. */
+const LATER = new Date(NOW.getTime() + 3 * 24 * 60 * 60_000);
+
+/** Answers the question shown wrongly, typed or chosen. */
+async function answerWrong(page: Page) {
+  const prompts = Object.keys(RIGHT);
+  const prompt = page.getByText(
+    new RegExp(`^(${prompts.map((text) => RegExp.escape(text)).join("|")})$`),
+  );
+  const right = RIGHT[(await prompt.first().innerText()).trim()]!;
+  const field = page.getByRole("textbox");
+  if (await field.count()) {
+    await field.fill("no idea");
+    await page.getByRole("button", { name: "Check" }).click();
+  } else {
+    const options = page.locator("main button").filter({ hasNotText: /Show answer|Report/ });
+    for (const text of await options.allInnerTexts()) {
+      const label = text.replace(/^\d+\s*/, "").trim();
+      if (label && label !== right) {
+        await page.getByRole("button", { name: label, exact: true }).first().click();
+        return;
+      }
+    }
+    throw new Error("No wrong option to choose.");
+  }
+}
+
+/**
+ * The follow-progress guide's later pictures, through real practice: three
+ * days on, Zofia misses whatever Braivo asks, three times, a rest apart, and
+ * the teacher reads the course's progress then. The seed is not changed.
+ */
+async function laterProgress(
+  clock: Clock,
+  browser: Browser,
+  teacher: Page,
+  out: string,
+  codes: Map<string, string>,
+) {
+  const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const context = await browser.newContext({ ...SCREEN, viewport: PHONE, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const zofia = watch(await context.newPage());
+  zofia.setDefaultTimeout(30_000);
+  const course = zofia.getByRole("link", { name: /Everyday English/ }).first();
+  // Signed in and her courses shown before the clock moves: a jump while the
+  // sign-in settles can leave her page signed out.
+  await clock.real(async () => {
+    await signIn(zofia, learnUrl, PERSONAS.zofia.email, codes);
+    await course.waitFor();
+  });
+  let at = LATER;
+  const advance = async (minutes: number) => {
+    at = new Date(at.getTime() + minutes * 60_000);
+    clock.set(at);
+    await context.clock.setFixedTime(at);
+    await teacher.context().clock.setFixedTime(at);
+  };
+  await advance(0);
+  await course.click();
+  await zofia.waitForURL(/\/c\//);
+  for (let miss = 0; miss < 3; miss++) {
+    await zofia.getByText("Show answer").waitFor();
+    await answerWrong(zofia);
+    const next = zofia.getByRole("button", { name: "Continue" });
+    await next.waitFor();
+    // Past the ten-minute rest, so the objective is asked again.
+    await advance(11);
+    await next.click();
+  }
+  await context.close();
+
+  await teacher.goto(`http://127.0.0.1:${PORTS.console}/fernwood/groups`);
+  await teacher.getByRole("link", { name: "Progress" }).click();
+  await teacher.setViewportSize(WIDE);
+  await teacher.getByRole("heading", { name: "Progress by objective" }).waitFor();
+  const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
+  const due = teacher.getByRole("columnheader", { name: "Due for review" });
+
+  // 5. Learners, later: reviews due, and Zofia's repeated misses.
+  await region(
+    teacher,
+    shot("5-later-learners"),
+    teacher.getByRole("columnheader", { name: "Learner", exact: true }),
+    teacher.getByRole("rowheader").filter({ hasText: PERSONAS.zofia.name }),
+    due.first(),
+  );
+
+  // 6. Who has the repeated misses, opened from Progress by objective.
+  const who = teacher.getByRole("button", { name: "1 learner" });
+  await who.click();
+  await teacher.mouse.move(0, 0);
+  const named = teacher.getByRole("link", { name: PERSONAS.zofia.name }).last();
+  await named.waitFor();
+  console.log(
+    "OPENED:",
+    (await teacher.locator("main").innerText()).replace(/\n+/g, " | ").slice(-700),
+  );
+  // The whole table's width, every standing's column, as the other tables.
+  await region(
+    teacher,
+    shot("6-repeated-misses"),
+    teacher.getByRole("columnheader", { name: "Objective", exact: true }),
+    named,
+    due.last(),
+  );
+}
+
+async function cleanUp(steps: (() => unknown)[]) {
+  const failures: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, "Cleaning up failed.");
+}
+
+async function stop(child: ChildProcess) {
+  // Its group, even once `vp` has exited: Vite, its child, may outlive it.
+  const running = child.exitCode === null && child.signalCode === null;
+  const exited = running ? new Promise((resolve) => child.once("exit", resolve)) : undefined;
+  try {
+    process.kill(-child.pid!, "SIGTERM");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  }
+  if (exited) await Promise.race([exited, Bun.sleep(10_000)]);
+}
+
+/**
+ * What a dev server runs on, from this process's environment, which
+ * `.env.local` may fill with credentials it has no use for.
+ */
+const RUN_ON = Object.fromEntries(
+  ["PATH", "HOME", "TMPDIR", "LANG", "SHELL", "USER"].flatMap((name) =>
+    process.env[name] === undefined ? [] : [[name, process.env[name]]],
+  ),
+);
+
+async function main() {
+  const target = process.env.BRAIVO_DEMO_DATABASE_URL?.trim() || "postgres://localhost/postgres";
+  const secret = crypto.randomUUID() + crypto.randomUUID();
+  const baseUrl = `http://127.0.0.1:${PORTS.console}`;
+  const children: ChildProcess[] = [];
+  let work: string | undefined;
+  let scratch: ScratchDatabase | undefined;
+  let server: ReturnType<typeof Bun.serve> | undefined;
+  let browser: Browser | undefined;
+  await refuseTaken(Object.values(PORTS));
+  // Once, at the run's end or on Ctrl-C or a kill, which would otherwise leave
+  // the dev servers, in their own groups, running and the database behind.
+  let released: Promise<void> | undefined;
+  const release = () =>
+    (released ??= cleanUp([
+      () => browser?.close(),
+      ...children.map((child) => () => stop(child)),
+      () => server?.stop(true),
+      () => scratch && dropScratchDatabase(scratch),
+      () => work && rmSync(work, { recursive: true, force: true }),
+    ]));
+  for (const [signal, code] of [
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ] as const) {
+    process.once(signal, () => {
+      console.error(`${signal}: cleaning up.`);
+      void release().finally(() => process.exit(code));
+    });
+  }
+  try {
+    work = mkdtempSync(join(tmpdir(), "braivo-screenshots-"));
+    const out = join(work, "out");
+    const files = join(work, "files");
+    mkdirSync(out);
+    mkdirSync(files);
+    scratch = await createScratchDatabase(target);
+    await runMigrations(scratch.url);
+    await prepareClassroom({
+      databaseUrl: scratch.url,
+      authSecret: secret,
+      baseUrl,
+      now: NOW,
+    });
+    await keepOptionOrder(scratch);
+
+    let thaw = freezeClock(NOW);
+    const clock: Clock = {
+      real: async (steps) => {
+        thaw();
+        try {
+          await steps();
+        } finally {
+          thaw = freezeClock(NOW);
+        }
+      },
+      set: (at) => {
+        thaw();
+        thaw = freezeClock(at);
+      },
+    };
+    cannedModel();
+    const codes = new Map<string, string>();
+    const config = readServeConfig({
+      DATABASE_URL: scratch.url,
+      BETTER_AUTH_SECRET: secret,
+      BRAIVO_URL: baseUrl,
+      PORT: String(PORTS.server),
+      BRAIVO_FILES: files,
+      ANTHROPIC_API_KEY: "canned",
+    });
+    const api = createServer({
+      config,
+      database: createDatabase(config.databaseUrl),
+      files: directoryStore(files),
+      // The code is the only six digits in the mail.
+      sendMail: async (mail) => {
+        const code = /\b\d{6}\b/.exec(mail.text)?.[0];
+        if (code) codes.set(mail.to, code);
+      },
+    });
+    server = Bun.serve({
+      port: PORTS.server,
+      hostname: "127.0.0.1",
+      fetch: api.fetch,
+      idleTimeout: 60,
+    });
+
+    for (const app of ["console", "learn"] as const) {
+      const child = spawn(
+        join(ROOT, "node_modules/.bin/vp"),
+        ["dev", "--host", "127.0.0.1", "--port", String(PORTS[app]), "--strictPort"],
+        {
+          cwd: join(ROOT, "apps", app),
+          env: {
+            ...RUN_ON,
+            BRAIVO_URL: baseUrl,
+            PORT: String(PORTS.server),
+            BRAIVO_LEARN_PORT: String(PORTS.learn),
+          },
+          stdio: "ignore",
+          // Its own group: `vp` runs Vite in a child, which outlives a signal to `vp` alone.
+          detached: true,
+        },
+      );
+      child.on("error", (error) => console.error(`${app}: ${error.message}`));
+      children.push(child);
+    }
+    await waitFor(baseUrl, children[0]);
+    await waitFor(`http://127.0.0.1:${PORTS.learn}`, children[1]);
+
+    // Closed by `release`, not by Playwright's own signal handlers, which would exit first.
+    const launched = await chromium.launch({ handleSIGINT: false, handleSIGTERM: false });
+    browser = launched;
+    try {
+      // Before the first course exists, so the teacher's pages show the demo as seeded.
+      const teacher = await followProgress(browser, out, codes);
+      // Before the first course, so Sam's list holds the demo's course alone.
+      const learner = await learnerView(clock, browser, out, codes);
+      const author = await firstCourse(scratch, learner, browser, out, work, codes);
+      await reviewAndPublish(scratch, author, out);
+      await maintainPractice(scratch, author, out);
+      await words(author, out);
+      await laterProgress(clock, browser, teacher, out, codes);
+    } catch (error) {
+      for (const context of launched.contexts()) {
+        for (const page of context.pages()) {
+          await page.screenshot({ path: join(tmpdir(), "braivo-screenshots-failure.png") });
+          console.error(
+            `Failed at ${page.url()}; see ${join(tmpdir(), "braivo-screenshots-failure.png")}`,
+          );
+          console.error((await page.locator("body").innerText()).slice(0, 1500));
+          const errors = browserErrors.get(page) ?? [];
+          if (errors.length) console.error(`Browser errors:\n${errors.join("\n")}`);
+        }
+      }
+      throw error;
+    } finally {
+      await launched.close();
+    }
+
+    // Every step passed: the new set replaces the committed one whole.
+    rmSync(SCREENSHOTS, { recursive: true, force: true });
+    cpSync(out, SCREENSHOTS, { recursive: true });
+  } finally {
+    await release();
+  }
+}
+
+await main();
+process.exit(0);
