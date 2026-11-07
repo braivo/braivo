@@ -29,20 +29,20 @@ export const Route = createFileRoute("/_signed-in/")({
     const memberships = await context.braivo.listMemberships(options);
     const [only] = memberships;
     if (memberships.length !== 1 || !only?.learnDomain) throw redirect({ to: "/join" });
-    return { school: { name: only.name, learnDomain: only.learnDomain } };
+    return { learnsAt: { name: only.name, learnDomain: only.learnDomain } };
   },
-  component: ToSchool,
+  component: ToLearnDomain,
 });
 
 /**
- * On to the school's learn domain, through its own sign-in start
- * (`learnSignInUrl`). In `/`'s place in the history, so
+ * On to the learn domain of the one organization someone learns at, through
+ * its own sign-in start (`learnSignInUrl`). In `/`'s place in the history, so
  * Back does not land here only to be sent on again. The link, should leaving
  * not happen.
  */
-function ToSchool() {
-  const { school, visit } = Route.useRouteContext();
-  const href = learnSignInUrl(school.learnDomain);
+function ToLearnDomain() {
+  const { learnsAt, visit } = Route.useRouteContext();
+  const href = learnSignInUrl(learnsAt.learnDomain);
   // Once, as Strict Mode runs an effect twice.
   const left = useRef(false);
   useEffect(() => {
@@ -50,15 +50,16 @@ function ToSchool() {
     left.current = true;
     visit(href, { replace: true });
   }, [href, visit]);
-  const { name } = school;
+  // Named, so a translator sees what the placeholder holds.
+  const { name: school } = learnsAt;
   return (
     <div className="mx-auto flex max-w-140 flex-col items-center gap-4 py-10 text-center">
       <Spinner aria-hidden="true" />
       <p role="status" className="wrap-anywhere">
-        <Trans>Taking you to {name}…</Trans>
+        <Trans>Taking you to {school}…</Trans>
       </p>
       <a href={href} className="text-sm underline underline-offset-4 wrap-anywhere">
-        <Trans>Continue to {name}</Trans>
+        <Trans>Continue to {school}</Trans>
       </a>
     </div>
   );

@@ -1278,7 +1278,7 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
     async listMemberships(requestOptions) {
       const response = await get("/api/memberships", requestOptions);
 
-      const doing = "listing the schools you belong to";
+      const doing = "listing the organizations you belong to";
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return (await parsed<{ memberships: Membership[] }>(response, doing)).memberships;

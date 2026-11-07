@@ -75,7 +75,7 @@ function Join() {
   // who land here came to learn.
   const [settingUp, setSettingUp] = useState(false);
   // Back from the form, focus returns to what opened it.
-  const [returned, setReturned] = useState(false);
+  const [backFromSetup, setBackFromSetup] = useState(false);
   // Named, so a translator sees what the placeholder holds.
   const { email } = user;
 
@@ -91,7 +91,7 @@ function Join() {
             managesNone
               ? () => {
                   setSettingUp(false);
-                  setReturned(true);
+                  setBackFromSetup(true);
                 }
               : undefined
           }
@@ -106,7 +106,7 @@ function Join() {
   return (
     <div className="mx-auto max-w-140">
       {memberships.length > 0 ? (
-        <Schools memberships={memberships} email={email} />
+        <Memberships memberships={memberships} email={email} />
       ) : (
         <>
           <Heading>
@@ -138,7 +138,7 @@ function Join() {
           <MutedText>
             <Trans>Running courses of your own? Set up an organization for them.</Trans>
           </MutedText>
-          <Button variant="outline" autoFocus={returned} onClick={() => setSettingUp(true)}>
+          <Button variant="outline" autoFocus={backFromSetup} onClick={() => setSettingUp(true)}>
             <Trans>Set up an organization</Trans>
           </Button>
         </div>
@@ -151,7 +151,7 @@ function Join() {
  * The schools someone learns at, by name, each on to its learn domain's own
  * sign-in start (`learnSignInUrl`); one without a learn domain says so.
  */
-function Schools({ memberships, email }: { memberships: Membership[]; email: string }) {
+function Memberships({ memberships, email }: { memberships: Membership[]; email: string }) {
   return (
     <>
       <Heading>

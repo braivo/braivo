@@ -670,8 +670,8 @@ msgid "Continue to {hostname}"
 msgstr "Continue to {hostname}"
 
 #: apps/console/routes/_signed-in/index.tsx
-msgid "Continue to {name}"
-msgstr "Continue to {name}"
+msgid "Continue to {school}"
+msgstr "Continue to {school}"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
@@ -2317,8 +2317,8 @@ msgid "Take a short break"
 msgstr "Take a short break"
 
 #: apps/console/routes/_signed-in/index.tsx
-msgid "Taking you to {name}…"
-msgstr "Taking you to {name}…"
+msgid "Taking you to {school}…"
+msgstr "Taking you to {school}…"
 
 #. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx

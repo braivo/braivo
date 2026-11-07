@@ -52,7 +52,7 @@ export async function listOrganizations(input: {
   });
 }
 
-/** A school someone is a member of, as they find it to learn there. */
+/** An organization someone is a member of, as they find it to learn there. */
 type Membership = { id: string; name: string; learnDomain: string | null };
 
 /**
