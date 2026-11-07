@@ -4,7 +4,11 @@
 
 import { ClientRouter } from "astro:transitions";
 
+import site from "#brand/site.ts";
+
 import "../styles.css";
+// After the site's own, so a brand overrides them.
+import "#brand/brand.css";
 
 interface Props {
   title: string;
@@ -18,10 +22,11 @@ const { title, description } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · Braivo</title>
+    <title>{title} · {site.name}</title>
     <!-- Under docs/, as a shared host's root is another site's. -->
     <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/favicon.svg`} type="image/svg+xml" />
     {description && <meta name="description" content={description} />}
+    {site.head && <Fragment set:html={site.head} />}
     <ClientRouter />
     <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->
     <script is:inline>

@@ -9,6 +9,7 @@ import { DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/p
 import { RootProvider } from "fumadocs-ui/provider/astro";
 import type { ReactNode } from "react";
 
+import site from "#brand/site.ts";
 import DocsSearch from "#components/search";
 
 export interface DocsProps {
@@ -32,8 +33,9 @@ export function Docs({ pathname, params, tree, title, description, toc, children
       search={{ SearchDialog: DocsSearch }}
     >
       <DocsLayout
-        nav={{ title: "Braivo" }}
-        githubUrl="https://github.com/braivo/braivo"
+        nav={{ title: site.name, url: import.meta.env.BASE_URL.replace(/\/?$/, "/") }}
+        githubUrl={site.githubUrl}
+        links={site.links}
         tree={data.tree}
       >
         <DocsPage toc={toc}>

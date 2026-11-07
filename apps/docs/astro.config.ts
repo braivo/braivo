@@ -9,11 +9,19 @@ import { defineConfig } from "astro/config";
 import { loadEnv } from "vite-plus";
 
 import { docsPort, readDevPorts } from "../../tooling/dev-ports.ts";
+import { brandDirectory, docsBase } from "./lib/build-settings.ts";
 import { mdastPlugins } from "./lib/plugins.ts";
 
 const env = loadEnv("development", "../..", ["BRAIVO_", "PORT"]);
 
 const contentDir = fileURLToPath(new URL("content", import.meta.url));
+
+/** Set at build (ADR 0057), each once: where the site sits, and what brands it. */
+const base = docsBase(env.BRAIVO_DOCS_BASE);
+const brand = brandDirectory(
+  env.BRAIVO_DOCS_BRAND,
+  fileURLToPath(new URL("brand", import.meta.url)),
+);
 
 /**
  * Braivo's public documentation, static files with no server (ADR 0057). Pages
@@ -28,9 +36,10 @@ const contentDir = fileURLToPath(new URL("content", import.meta.url));
  */
 export default defineConfig({
   srcDir: ".",
+  base,
   trailingSlash: "never",
   build: { format: "file", assets: "docs/assets" },
-  redirects: { "/": "/docs" },
+  redirects: { "/": `${base}docs` },
   server: { port: docsPort(readDevPorts(env)) },
   devToolbar: { enabled: false },
   integrations: [
@@ -39,10 +48,14 @@ export default defineConfig({
         docs: {
           dir: "content",
           components: "./components/mdx.tsx",
-          mdastPlugins: mdastPlugins(contentDir, "/"),
+          mdastPlugins: mdastPlugins(contentDir, base),
         },
       },
     }),
   ],
-  vite: { plugins: [tailwindcss()] },
+  vite: {
+    plugins: [tailwindcss()],
+    // `#brand/` is `apps/docs/brand/` unless BRAIVO_DOCS_BRAND names another.
+    resolve: { alias: [{ find: /^#brand\//, replacement: `${brand}/` }] },
+  },
 });

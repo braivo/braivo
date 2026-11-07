@@ -252,3 +252,10 @@ Unset, the installation keeps no files and its file routes answer 501. Braivo ac
 
 - `BRAIVO_ERASURE_LOG`: an absolute path to a directory that already exists, written to disk before anything is erased, or `s3://<bucket>`, with the `S3_*` variables above.
 - `BRAIVO_ERASURE_LOG_HMAC_KEY`: the HMAC's secret, at least 32 characters. Keep it for as long as the log: a replay matches email-keyed rows by it.
+
+## These guides
+
+These guides build into a static site of their own, `apps/docs`, which you may publish beside your installation or leave on GitHub, which shows them too. `bun run build` writes it to `apps/docs/dist`; it holds no session and calls no API, so serve it from its own origin, with the headers in its `public/_headers`. Two settings, at build:
+
+- `BRAIVO_DOCS_BASE`: the path it sits at, such as `/help/`; `/` by default. Every page, link, image, and its search follow it.
+- `BRAIVO_DOCS_BRAND`: a directory to brand it from, in place of `apps/docs/brand/`, outside this repository so updating Braivo never conflicts with it. It holds `site.ts`, whose default export gives the site's `name`, and optionally a `githubUrl`, `links` for the navigation, and `head`, HTML for every page's head; and `brand.css`, which overrides the theme's `--color-fd-*` colours and fonts. A directory missing either fails the build. A font or script the head loads from elsewhere also needs your own `_headers` to allow it.

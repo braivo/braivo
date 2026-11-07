@@ -2,12 +2,14 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { base } from "#lib/source";
+
 import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout title="Page not found">
   <main class="m-auto p-8 text-center">
     <h1 class="mb-2 text-2xl font-semibold">Page not found</h1>
-    <a class="underline underline-offset-4" href="/docs">Go to the documentation</a>
+    <a class="underline underline-offset-4" href={`${base}docs`}>Go to the documentation</a>
   </main>
 </Layout>
