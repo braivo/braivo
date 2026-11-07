@@ -1024,6 +1024,53 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     });
   });
 
+  test("serves an objective the learner chose, extra practice when not due, and 404 outside the course (ADR 0058)", async () => {
+    const chosen = (objective: string, course = courseId) =>
+      api.request(
+        `/api/courses/${course}/activity?${new URLSearchParams({ timeZone: "UTC", objective })}`,
+        { headers: { cookie: learner.cookie } },
+      );
+    const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs too"]);
+    const [elsewhere] = await createObjectives(database, organizationId, ["In no course"]);
+    for (const objective of [theirs!, elsewhere!, "missing"]) {
+      const refused = await chosen(objective);
+      expect(refused.status).toBe(404);
+      expect(refused.headers.get("cache-control")).toBe("private, no-store");
+    }
+
+    // Caught up, so unchosen practice stops.
+    await retainPastTense(learner.id);
+    expect((await activity(courseId, learner.cookie)).status).toBe(204);
+    const response = await chosen(pastTense);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({
+      decision: { objectiveId: pastTense, modelVersion: activeModel.version, intent: "practise" },
+      objective: { id: pastTense, title: "Past tense" },
+      historyEpoch: 0,
+      task: {
+        id: pastTenseTask,
+        kind: "choice",
+        prompt: "Past tense of 'hablar'?",
+        options: [
+          { choice: 0, text: "hablé" },
+          { choice: 1, text: "hablo" },
+        ],
+      },
+    });
+
+    // Answered: its only task rests, and the chosen objective says when it resumes.
+    const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 0 } };
+    expect((await postAttempt(courseId, attempt, learner.cookie)).status).toBe(200);
+    const resting = (await (await chosen(pastTense)).json()) as { retryAfter: number };
+    expect(resting).toMatchObject({ objective: { id: pastTense }, reviewable: false });
+    expect(resting.retryAfter).toBeGreaterThan(0);
+    expect(resting.retryAfter).toBeLessThanOrEqual(600);
+
+    // A course the learner cannot reach answers alike, whatever it names.
+    expect((await chosen(pastTense, foreignCourseId)).status).toBe(404);
+  });
+
   test("grades a learner's answer, and the next activity follows from it", async () => {
     const attempt = { id: crypto.randomUUID(), taskId: pastTenseTask, response: { choice: 1 } };
 

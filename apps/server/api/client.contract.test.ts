@@ -969,6 +969,32 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.nextActivity(emptyCourseId, asLearner)).toEqual({ empty: true });
   });
 
+  test("reads extra practice on a chosen objective, and one outside the course as a 404", async () => {
+    const asLearner = { headers: { cookie: learnerCookie } };
+    const [graded] = await createObjectives(database, organizationId, ["Chosen, graded"]);
+    const { id: gradedCourseId } = await createCourse(database, {
+      published: true,
+      organizationId,
+      title: "Chosen",
+      objectiveIds: [graded!],
+    });
+    await recordEvidence(database, { learnerId, organizationId }, [
+      { id: "chosen", objectiveId: graded!, outcome: "success", at: new Date(Date.now() - 60_000) },
+    ]);
+
+    // No task: the learner's choice, said as such, without one.
+    expect(
+      await client.nextActivity(gradedCourseId, { ...asLearner, objectiveId: graded! }),
+    ).toEqual({
+      decision: { objectiveId: graded, modelVersion: activeModel.version, intent: "practise" },
+      objective: { id: graded, title: "Chosen, graded" },
+    });
+    const rejected = await client
+      .nextActivity(gradedCourseId, { ...asLearner, objectiveId: pastTense })
+      .catch((thrown: unknown) => thrown);
+    expect(rejected as BraivoError).toMatchObject({ status: 404 });
+  });
+
   test("reads an objective with nothing to practise as the decision without a task", async () => {
     const [untaught] = await createObjectives(database, organizationId, ["Untaught"]);
     const { id: untaughtCourseId } = await createCourse(database, {

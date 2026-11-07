@@ -162,6 +162,13 @@ describe("the Braivo client", () => {
     // The runtime's, a browser's being its user's: the day new objectives are
     // counted in.
     expect(url.searchParams.get("timeZone")).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    expect(url.searchParams.has("objective")).toBe(false);
+
+    // A chosen objective, as the query names it (ADR 0058).
+    await client.nextActivity("course-1", { objectiveId: "a&b" });
+    expect(new URL(calls[1]!.url, "https://braivo.example").searchParams.get("objective")).toBe(
+      "a&b",
+    );
   });
 
   test("names the runtime's time zone when listing what waits in each course", async () => {

@@ -4,11 +4,11 @@
 import { requireSession } from "@braivo/auth-client";
 import {
   type Activity,
+  type ActivityDecision,
   BraivoError,
   type BraivoClient,
   type Grade,
   type LearnerProgressSummary,
-  type LearningDecision,
   type ObjectiveReview,
   type TaskResponse,
   countStandings,
@@ -32,9 +32,23 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { CircleCheckIcon, CircleXIcon, EyeIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AccountHeader } from "#components/account-header";
+import {
+  BackToRecommended,
+  ChosenObjective,
+  NothingDue,
+  PractiseLink,
+} from "#components/chosen-objective";
 import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
@@ -75,9 +89,17 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
   // Never preloaded: loading may resend an unfinished answer, whose feedback
   // only a visit shows.
   preload: false,
-  loader: async ({ context, params, location, abortController }) => {
+  // The objective the learner chose to practise (ADR 0058): in the address, so
+  // a reload keeps it, and leaving the page, by any link, drops it.
+  validateSearch: (search: Record<string, unknown>): { objective?: string } =>
+    typeof search.objective === "string" && search.objective !== ""
+      ? { objective: search.objective }
+      : {},
+  loaderDeps: ({ search }) => ({ objective: search.objective }),
+  loader: async ({ context, params, location, abortController, deps }) => {
     const left = abortController.signal;
     const learnerId = context.user.id;
+    const { objective } = deps;
     try {
       const course = await resolveCourse(context.braivo, params.courseRef, left);
       const courseId = course.id;
@@ -89,7 +111,7 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
       // question back. Awaited with the activity so they cannot arrive later
       // and shift the question down.
       const [activity, progress, title] = await Promise.all([
-        resumed?.attempt.activity ?? readActivity(context.braivo, courseId, left),
+        resumed?.attempt.activity ?? readActivity(context.braivo, courseId, left, objective),
         readProgress(context.braivo, courseId, learnerId, left),
         // Unless resolving the number read it: from the list, rather than an
         // endpoint for one string.
@@ -107,6 +129,9 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
         // One attempt per activity shown, so a resend after a lost answer is
         // recorded once.
         attemptId: resumed?.attempt.id ?? crypto.randomUUID(),
+        // Loading the page with an objective chosen is asking for its question,
+        // extra practice included: Practise, a reload, a rest's end.
+        extraRequested: true,
         resumed,
         // Read here, not by `resume`: a refusal found by a load that then
         // failed is said by the load Try again makes.
@@ -114,6 +139,11 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
       };
     } catch (error) {
       if (left.aborted) throw error;
+      // An objective no longer in the course, or the course gone: the course's
+      // own practice, which says which.
+      if (error instanceof BraivoError && error.status === 404 && objective !== undefined) {
+        throw redirect({ to: "/c/$courseRef", params, search: {}, replace: true });
+      }
       // Braivo answers a missing course and someone else's alike.
       if (error instanceof BraivoError && error.status === 404) throw notFound();
       // The session ended since the guard checked it: checked again, which
@@ -169,19 +199,30 @@ async function resolveCourse(
     throw redirect({
       to: "/c/$courseRef",
       params: { courseRef: courseRef(course) },
+      search: true,
       replace: true,
     });
   }
   return course;
 }
 
-/** What to practise next, within a read's deadline. */
+/** What to practise next, on `objectiveId` if the learner chose one, within a read's deadline. */
 function readActivity(
   braivo: BraivoClient,
   courseId: string,
   left: AbortSignal,
+  objectiveId: string | undefined,
 ): Promise<Activity | undefined> {
-  return braivo.nextActivity(courseId, { signal: withDeadline(left, READ_DEADLINE_MS) });
+  const signal = withDeadline(left, READ_DEADLINE_MS);
+  return braivo.nextActivity(
+    courseId,
+    objectiveId === undefined ? { signal } : { signal, objectiveId },
+  );
+}
+
+/** Extra practice: a question the learner asked for, on an objective needing no attention (ADR 0058). */
+function isExtra(activity: Activity | undefined): boolean {
+  return activity !== undefined && "task" in activity && activity.decision.intent === "practise";
 }
 
 /** Where the learner stands, standings only, or nothing if unread within its own deadline. */
@@ -291,6 +332,7 @@ function CoursePage() {
 function NextStep() {
   const routeLoad = Route.useLoaderData();
   const { braivo, user } = Route.useRouteContext();
+  const { objective: chosenId } = Route.useSearch();
   const router = useRouter();
   // What Continue read, shown until the route loads again (a reload, a rest's end).
   const [continued, setContinued] = useState<{
@@ -298,7 +340,7 @@ function NextStep() {
     load: typeof routeLoad;
   }>();
   const load = continued?.routeLoad === routeLoad ? continued.load : routeLoad;
-  const { activity, progress, title, attemptId, resumed, refusalNotice } = load;
+  const { activity, progress, title, attemptId, resumed, refusalNotice, extraRequested } = load;
   // This visit's session: its answers, then its end (`SessionEnd`) once
   // `SESSION_LENGTH` were graded, until Keep going starts another.
   const { session, count, restart } = usePracticeSession(routeLoad.resumed);
@@ -389,10 +431,10 @@ function NextStep() {
    * (progress-8): a question shows none, so it never waits on, or costs, a
    * whole-course replay; a stop pays one more round trip, rarely.
    */
-  function advance(left: AbortSignal) {
+  function advance(left: AbortSignal, { extraRequested = false } = {}) {
     return proceed(left, async () => {
       const { courseId } = load;
-      const activity = await readActivity(braivo, courseId, left);
+      const activity = await readActivity(braivo, courseId, left, chosenId);
       const asking = activity !== undefined && "task" in activity && isAnswerable(activity.task);
       const progress = asking ? undefined : await readProgress(braivo, courseId, user.id, left);
       return () => {
@@ -404,6 +446,9 @@ function NextStep() {
             activity,
             progress,
             attemptId: crypto.randomUUID(),
+            // Only Practise again asks for an extra question: Continue never
+            // turns practice into one by itself (ADR 0058).
+            extraRequested,
             resumed: undefined,
             // Said of the load that found it, not of what comes after.
             refusalNotice: undefined,
@@ -422,7 +467,7 @@ function NextStep() {
     if (session.answers < SESSION_LENGTH) return advance(left);
     return proceed(left, async () => {
       const [next, report] = await Promise.all([
-        readActivity(braivo, load.courseId, left).then(
+        readActivity(braivo, load.courseId, left, chosenId).then(
           (activity) => ({ activity }),
           // Unknown for now, the score still said; but signed out, or the course
           // gone, as Continue says it (`proceed`): the course reloads.
@@ -445,6 +490,7 @@ function NextStep() {
               activity: next.activity,
               progress: report,
               attemptId: crypto.randomUUID(),
+              extraRequested: false,
               resumed: undefined,
               refusalNotice: undefined,
             },
@@ -468,13 +514,99 @@ function NextStep() {
 
   // Under way: a task, or once answered, a pause that does not end it (a rest,
   // no activity), so the bar does not vanish as if the session restarted.
+  // Never on an extra question, which is no part of a session (ADR 0058).
   const practising =
     activity !== undefined &&
     ("task" in activity
-      ? isAnswerable(activity.task)
+      ? isAnswerable(activity.task) && !isExtra(activity)
       : session.answers > 0 && !("empty" in activity) && !("dailyLimit" in activity));
   // Shown where practice stops for now, caught up or at the day's limit.
   const sessionSoFar = session.answers > 0 ? session : undefined;
+
+  // An extra question read by Continue, held until the learner asks for it.
+  const needsExtraRequest = isExtra(activity) && !extraRequested;
+  // This load's answer graded, here or found by a reload's resend.
+  const answered = gradedAttempt === attemptId || resumed?.grade !== undefined;
+  // A question shows, naming its objective and, while chosen, the way back itself.
+  const asking =
+    !end &&
+    activity !== undefined &&
+    "task" in activity &&
+    isAnswerable(activity.task) &&
+    !needsExtraRequest;
+  // The chosen objective's title, from what is shown or else where the learner stands.
+  const chosenTitle =
+    chosenId === undefined
+      ? undefined
+      : ((activity !== undefined && "objective" in activity
+          ? activity.objective.title
+          : undefined) ??
+        progress?.objectives.find(({ objectiveId }) => objectiveId === chosenId)?.title ??
+        end?.report?.objectives.find(({ objectiveId }) => objectiveId === chosenId)?.title);
+
+  // The objective chosen when the shown load was read. A load under another, by Practise,
+  // Back to recommended, or the browser's history, leaves a session's end, or a
+  // session at its last answer, behind: a new one starts as that load shows,
+  // never before, so what is on screen meanwhile stays as it was.
+  const shownLoad = useRef({ routeLoad, chosenId });
+  useLayoutEffect(() => {
+    // On a load alone: `chosenId` may change while the load it names is pending.
+    if (routeLoad === shownLoad.current.routeLoad) return;
+    const moved = chosenId !== shownLoad.current.chosenId;
+    shownLoad.current = { routeLoad, chosenId };
+    if (moved && (end || session.answers >= SESSION_LENGTH)) startAfresh();
+  }, [routeLoad, chosenId, end, session.answers, startAfresh]);
+
+  /**
+   * Choosing an objective, or going back to the recommended, leaves what is on
+   * screen: an answer graded here is done. The session, as `shownLoad` says.
+   */
+  function clearAnsweredAttempt() {
+    if (answered) clearUnfinishedAttempt(user.id, load.courseId);
+  }
+
+  /**
+   * A rest's end: the course reloads (learner-loop-20), unless practice on a
+   * chosen objective reached the rest by Continue, which never asks for an
+   * extra question (ADR 0058): then what comes next is read as Continue reads
+   * it, and a failed read stays on the rest to try again, never reloading,
+   * since a load asks for one.
+   */
+  async function restEnded(left: AbortSignal): Promise<{ failed: boolean }> {
+    if (chosenId === undefined || extraRequested) {
+      await reloadCourse(router);
+      return { failed: false };
+    }
+    return advance(left);
+  }
+
+  // Practise on the objective already chosen: the address stays, so it reads
+  // in place, as Practise again does, an explicit request (ADR 0058).
+  const [startingInPlace, setStartingInPlace] = useState(false);
+  const [inPlaceFailures, setInPlaceFailures] = useState(0);
+  async function practiseInPlace() {
+    if (startingInPlace) return;
+    setStartingInPlace(true);
+    const restartSession = end !== undefined || session.answers >= SESSION_LENGTH;
+    const { failed } = await advance(new AbortController().signal, { extraRequested: true });
+    setStartingInPlace(false);
+    setInPlaceFailures((count) => (failed ? count + 1 : 0));
+    if (!failed && restartSession) startAfresh();
+  }
+
+  // Practise, after each objective where practice pauses (progress-8).
+  const practiseAction = ({ objectiveId, title }: { objectiveId: string; title: string }) => (
+    <PractiseLink
+      objectiveId={objectiveId}
+      title={title}
+      onClick={clearAnsweredAttempt}
+      inPlace={
+        objectiveId === chosenId
+          ? { start: () => void practiseInPlace(), starting: startingInPlace }
+          : undefined
+      }
+    />
+  );
 
   return (
     // At least the screen's height, `main`'s bottom padding taken back, so a
@@ -484,6 +616,22 @@ function NextStep() {
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
       <PracticeBar answers={end ? SESSION_LENGTH : practising ? session.answers : undefined} />
+      {chosenId !== undefined && !asking && (
+        // Its own way back, unless what shows offers it already.
+        <ChosenObjective
+          title={chosenTitle}
+          showBack={!needsExtraRequest}
+          onBack={clearAnsweredAttempt}
+        />
+      )}
+      {/* Practise in place failed. Keyed, so failing again mounts a new one (docs/apps.md). */}
+      {inPlaceFailures > 0 && (
+        <Alert key={inPlaceFailures} variant="destructive" className="mb-6">
+          <AlertDescription>
+            <Trans>Could not load the next question. Try again.</Trans>
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced.
           Gone once this load's answer is graded, or it would seem to mean that one. */}
@@ -497,14 +645,20 @@ function NextStep() {
           nextStep={endStep.nextStep}
           canKeepGoing={endStep.canKeepGoing}
           onKeepGoing={keepGoing}
+          objectiveAction={practiseAction}
         />
       ) : !activity ? (
-        <CaughtUp report={progress} session={sessionSoFar} />
+        <CaughtUp report={progress} session={sessionSoFar} objectiveAction={practiseAction} />
       ) : "empty" in activity ? (
         // Not "caught up": nothing was ever there to finish.
         <EmptyCourse />
       ) : "dailyLimit" in activity ? (
-        <CaughtUp report={progress} session={sessionSoFar} limitReached />
+        <CaughtUp
+          report={progress}
+          session={sessionSoFar}
+          limitReached
+          objectiveAction={practiseAction}
+        />
       ) : "retryAfter" in activity ? (
         <Resting
           key={attemptId}
@@ -512,6 +666,7 @@ function NextStep() {
           objective={activity.objective}
           retryAfter={activity.retryAfter}
           reviewable={activity.reviewable}
+          onEnd={restEnded}
         />
       ) : !("task" in activity) ? (
         // Not "caught up": the objective selected next has nothing to practise it
@@ -525,6 +680,12 @@ function NextStep() {
         />
       ) : !isAnswerable(activity.task) ? (
         <UnsupportedTask />
+      ) : needsExtraRequest ? (
+        <NothingDue
+          objectiveTitle={activity.objective.title}
+          onExtra={() => setContinued({ routeLoad, load: { ...load, extraRequested: true } })}
+          onBack={clearAnsweredAttempt}
+        />
       ) : (
         // Keyed, so the next activity starts unanswered, and what a reload's
         // resend found replaces what was on screen.
@@ -535,10 +696,13 @@ function NextStep() {
           attemptId={attemptId}
           resumed={resumed}
           onGraded={(attempt, grade) => {
-            count(attempt, grade);
+            // An extra question is no part of a session (ADR 0058).
+            if (!isExtra(activity)) count(attempt, grade);
             setGradedAttempt(attempt);
           }}
           onContinue={continueSession}
+          onPractiseAgain={(left) => advance(left, { extraRequested: true })}
+          onBack={chosenId === undefined ? undefined : clearAnsweredAttempt}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -630,11 +794,14 @@ function CaughtUp({
   report,
   session,
   limitReached = false,
+  objectiveAction,
 }: {
   report: LearnerProgressSummary | undefined;
   /** This visit's session, if answered: its recap, as practice stops before its end. */
   session?: PracticeSession;
   limitReached?: boolean;
+  /** After each objective where the learner stands: Practise. */
+  objectiveAction: (objective: { objectiveId: string; title: string }) => ReactNode;
 }) {
   const { t } = useLingui();
   // Rendering stays pure: now is when this notice first showed.
@@ -675,7 +842,7 @@ function CaughtUp({
       }
     >
       {/* Where the learner stands, as practice pauses (progress-8). */}
-      {report && <StandingMeter report={report} />}
+      {report && <StandingMeter report={report} action={objectiveAction} />}
     </Notice>
   );
 }
@@ -704,6 +871,12 @@ function useEndStep(
   if (!end?.next) return { nextStep: undefined, canKeepGoing: true };
   if (activity === undefined || limitReached) return { nextStep: stopped, canKeepGoing: false };
   if ("task" in activity) {
+    // On a chosen objective needing no attention: an extra question is the
+    // learner's to ask, never "more to practise" (ADR 0058).
+    if (isExtra(activity)) {
+      const objectiveTitle = activity.objective.title;
+      return { nextStep: t`Nothing is due on ${objectiveTitle} right now.`, canKeepGoing: false };
+    }
     return isAnswerable(activity.task)
       ? { nextStep: t`More to practise now.`, canKeepGoing: true }
       : { nextStep: undefined, canKeepGoing: false };
@@ -967,24 +1140,56 @@ function CourseError() {
 }
 
 /**
- * Every task for what comes next was answered recently. Reloads itself once one
- * may be asked again, never while the learner reviews the objective, which
- * keeps the rest (ADR 0054): Back to practice then reloads at once if it ended
- * meanwhile, or waits out what is left.
+ * Every task for what comes next was answered recently. Reads what comes next
+ * once one may be asked again (`onEnd`), never while the learner reviews the
+ * objective, which keeps the rest (ADR 0054): Back to practice then reads at
+ * once if it ended meanwhile, or waits out what is left. A read that fails
+ * stays here, saying so, with Try again, which reads the same way.
  */
 function Resting({
   courseId,
   objective,
   retryAfter,
   reviewable,
+  onEnd,
 }: {
   courseId: string;
   objective: { id: string; title: string };
   retryAfter: number;
   reviewable: boolean;
+  /** Once the rest ends: what comes next, read again under `left`; whether it failed. */
+  onEnd: (left: AbortSignal) => Promise<{ failed: boolean }>;
 }) {
   const { braivo, user } = Route.useRouteContext();
   const router = useRouter();
+  // Failures in a row, each a new alert (docs/apps.md).
+  const [failures, setFailures] = useState(0);
+  const [reading, setReading] = useState(false);
+  // Aborted when this notice goes away: what replaced it is current.
+  const lifetime = useRef<AbortController>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
+  async function readNext() {
+    const left = lifetime.current?.signal;
+    if (reading || !left) return;
+    setReading(true);
+    try {
+      const { failed } = await onEnd(left);
+      if (!left.aborted) setFailures((count) => (failed ? count + 1 : 0));
+    } catch {
+      if (!left.aborted) setFailures((count) => count + 1);
+    } finally {
+      if (!left.aborted) setReading(false);
+    }
+  }
+  // The latest, so a render does not restart the timer.
+  const readNextRef = useRef(readNext);
+  useLayoutEffect(() => {
+    readNextRef.current = readNext;
+  });
   const { t, i18n } = useLingui();
   const objectiveTitle = objective.title;
   const delay = retryAfter * 1000;
@@ -997,11 +1202,11 @@ function Resting({
   useEffect(() => {
     if (reviewing) return;
     const timer = setTimeout(
-      () => void reloadCourse(router),
+      () => void readNextRef.current(),
       Math.max(0, endsAt - performance.now()),
     );
     return () => clearTimeout(timer);
-  }, [endsAt, router, reviewing]);
+  }, [endsAt, reviewing]);
 
   const continuesAt = new Intl.DateTimeFormat(i18n.locale, {
     hour: "numeric",
@@ -1027,6 +1232,19 @@ function Resting({
           title={t`Take a short break`}
           description={t`You practised ${objectiveTitle} recently. Practice continues at ${continuesAt}, so the next try shows what you remember.`}
         >
+          {failures > 0 && (
+            <Alert key={failures} variant="destructive">
+              <AlertDescription>
+                <Trans>Could not load the next question. Try again.</Trans>
+              </AlertDescription>
+            </Alert>
+          )}
+          {failures > 0 && (
+            // aria-disabled, not disabled, so that it keeps the focus meanwhile.
+            <Button aria-disabled={reading} onClick={() => void readNext()}>
+              {reading ? t`Loading…` : t`Try again`}
+            </Button>
+          )}
           {reviewable && <ReviewButton ref={reviewButton} variant="outline" onClick={openReview} />}
         </Notice>
       </div>
@@ -1071,10 +1289,17 @@ function RefusedAnswer() {
  * explainable. A reteach follows a failure, from a wrong answer or Show answer,
  * which the decision does not tell apart, so the wording claims neither.
  */
-function Reason({ decision }: { decision: LearningDecision }) {
+function Reason({ decision }: { decision: ActivityDecision }) {
   switch (decision.intent) {
     case "introduce":
       return null;
+    case "practise":
+      // The learner's request: never presented as the model's recommendation.
+      return (
+        <MutedText>
+          <Trans>You chose this. It isn't due for review yet.</Trans>
+        </MutedText>
+      );
     case "reteach":
       return (
         <MutedText>
@@ -1098,10 +1323,11 @@ function Reason({ decision }: { decision: LearningDecision }) {
 const FOOT_ANSWER_MAX_LENGTH = 60;
 
 /** In context, as each reads unlike the same English elsewhere ("Try again", the button). */
-const INTENT_LABELS: Record<LearningDecision["intent"], MessageDescriptor> = {
+const INTENT_LABELS: Record<ActivityDecision["intent"], MessageDescriptor> = {
   introduce: msg({ message: "New", context: "Why a question comes now" }),
   reteach: msg({ message: "Try again", context: "Why a question comes now" }),
   review: msg({ message: "Review", context: "Why a question comes now" }),
+  practise: msg({ message: "Extra practice", context: "Why a question comes now" }),
 };
 
 function Practice({
@@ -1111,6 +1337,8 @@ function Practice({
   resumed,
   onGraded,
   onContinue,
+  onPractiseAgain,
+  onBack,
   nothingStarted,
 }: {
   activity: Extract<Activity, { task: unknown }>;
@@ -1123,6 +1351,13 @@ function Practice({
   onGraded: (attempt: string, grade: Grade) => void;
   /** Continue, under this practice's lifetime: whether it failed, keeping it on screen. */
   onContinue: (left: AbortSignal) => Promise<{ failed: boolean }>;
+  /** After extra practice, in place of Continue: another, as `onContinue` reads it. */
+  onPractiseAgain: (left: AbortSignal) => Promise<{ failed: boolean }>;
+  /**
+   * Back to the model's choice, on an objective the learner chose: beside the
+   * question's label, and once an extra question is graded, at the foot.
+   */
+  onBack: (() => void) | undefined;
   /** No objective started yet: says how practice goes. */
   nothingStarted: boolean;
 }) {
@@ -1262,7 +1497,10 @@ function Practice({
     }
   }
 
-  async function next() {
+  // Extra practice is finished once answered: never Continue (ADR 0058).
+  const extra = decision.intent === "practise";
+
+  async function next(read = onContinue) {
     // Held until the next activity replaces this one, or fails to: a second
     // press would read it twice.
     if (continuing) return;
@@ -1270,7 +1508,7 @@ function Practice({
     if (!left) return;
     setContinuing(true);
     try {
-      const { failed } = await onContinue(left);
+      const { failed } = await read(left);
       if (failed && !left.aborted) setContinueFailures((count) => count + 1);
     } catch {
       // A reload that failed itself: said as any other failure, not left unhandled.
@@ -1300,6 +1538,11 @@ function Practice({
   // over the question, so it goes in the page with the explanation instead.
   const answerInFoot =
     correctAnswer !== undefined && correctAnswer.length <= FOOT_ANSWER_MAX_LENGTH;
+  // What the page says beyond the verdict, read as the focus lands on the next step.
+  const describedBy =
+    [correctAnswer && !answerInFoot && answerId, grade?.explanation && explanationId]
+      .filter(Boolean)
+      .join(" ") || undefined;
   // What a missed typed answer got wrong, marked in the answer (Show answer typed nothing).
   const markedAnswer = correctAnswer && (
     <MarkedAnswer answer={correctAnswer} typed={sent && "text" in sent ? sent.text : undefined} />
@@ -1320,19 +1563,27 @@ function Practice({
       {/* Hidden, not unmounted, while reviewing: Back to practice finds the
           feedback, a report sent or on its way, and Continue as they were. */}
       <section hidden={reviewing} className="flex flex-1 flex-col gap-6">
-        <div id={contextId} className="flex flex-col wrap-break-word">
-          <MutedText>
-            {t(INTENT_LABELS[decision.intent])} · {objective.title}
-          </MutedText>
-          <Reason decision={decision} />
-          {/* In the question's description, so it is read as the focus lands there. */}
-          {nothingStarted && (
-            <MutedText className="mt-2">
-              <Trans>
-                One question at a time. What you get wrong comes back soon; what you get right
-                returns for review before you're likely to forget it.
-              </Trans>
+        <div className="flex flex-wrap items-start justify-between gap-x-2">
+          <div id={contextId} className="flex min-w-0 flex-1 basis-48 flex-col wrap-break-word">
+            <MutedText>
+              {t(INTENT_LABELS[decision.intent])} · {objective.title}
             </MutedText>
+            {/* "Not due" no longer holds once missed: the miss made it acquiring. */}
+            {!(extra && grade?.outcome === "failure") && <Reason decision={decision} />}
+            {/* In the question's description, so it is read as the focus lands there. */}
+            {nothingStarted && (
+              <MutedText className="mt-2">
+                <Trans>
+                  One question at a time. What you get wrong comes back soon; what you get right
+                  returns for review before you're likely to forget it.
+                </Trans>
+              </MutedText>
+            )}
+          </div>
+          {/* Out of the question's description; at the foot instead once an
+            extra question is graded. Text level with the label's first line. */}
+          {onBack && !(extra && grade) && (
+            <BackToRecommended className="-mt-2 shrink-0" onClick={onBack} />
           )}
         </div>
         {/* Typed first: a kind added later then fails to compile on `options`
@@ -1502,22 +1753,39 @@ function Practice({
                   </AlertDescription>
                 </Alert>
               )}
-              {/* aria-disabled, not disabled, so that it keeps the focus meanwhile. */}
-              <Button
-                size="lg"
-                className="order-4 w-full"
-                autoFocus
-                aria-disabled={continuing}
-                // What the page says beyond the verdict, read as the focus lands.
-                aria-describedby={
-                  [correctAnswer && !answerInFoot && answerId, grade.explanation && explanationId]
-                    .filter(Boolean)
-                    .join(" ") || undefined
-                }
-                onClick={() => void next()}
-              >
-                {continuing ? t`Loading…` : t`Continue`}
-              </Button>
+              {extra ? (
+                <>
+                  {/* The way back first: another extra question is asked for, never offered as next. */}
+                  <BackToRecommended
+                    size="lg"
+                    className="order-4 w-full"
+                    autoFocus
+                    describedBy={describedBy}
+                    onClick={() => onBack?.()}
+                  />
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="order-4 w-full"
+                    aria-disabled={continuing}
+                    onClick={() => void next(onPractiseAgain)}
+                  >
+                    {continuing ? t`Loading…` : t`Practise again`}
+                  </Button>
+                </>
+              ) : (
+                // aria-disabled, not disabled, so that it keeps the focus meanwhile.
+                <Button
+                  size="lg"
+                  className="order-4 w-full"
+                  autoFocus
+                  aria-disabled={continuing}
+                  aria-describedby={describedBy}
+                  onClick={() => void next()}
+                >
+                  {continuing ? t`Loading…` : t`Continue`}
+                </Button>
+              )}
               <ReportProblem
                 triggerClassName="order-2 shrink-0"
                 statusClassName="order-5 basis-full"

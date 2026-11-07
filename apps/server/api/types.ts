@@ -25,6 +25,12 @@ type Json<T> = T extends Date
 /** What a learner should do next, as `GET /api/courses/:courseId/next` answers it. */
 export type LearningDecision = Json<learning.LearningDecision>;
 
+/**
+ * Why an activity's objective comes next: a `LearningDecision`, or `practise`,
+ * extra practice the learner chose on an objective needing no attention (ADR 0058).
+ */
+export type ActivityDecision = Json<application.ActivityDecision>;
+
 /** A learner's standing on each objective in a course, in content order. */
 export type LearnerProgressReport = Json<application.LearnerProgressReport>;
 
@@ -66,13 +72,13 @@ export type GradedEvidence = Json<Pick<learning.Evidence, "id" | "objectiveId" |
  */
 export type Activity =
   | {
-      decision: LearningDecision;
+      decision: ActivityDecision;
       objective: Objective;
       /** The history epoch to send with an answer to `task`. */
       historyEpoch: number;
       task: { id: string } & content.PresentedTask;
     }
-  | { decision: LearningDecision; objective: Objective }
+  | { decision: ActivityDecision; objective: Objective }
   | { objective: Objective; retryAfter: number; reviewable: boolean }
   | { dailyLimit: number }
   | { empty: true };

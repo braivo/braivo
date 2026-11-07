@@ -58,6 +58,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0039: Courses and tasks a tool writes wait to be published in the console](0039-published-in-the-console.md)
 - [0040: Setup asks for the data region, and another region is another installation](0040-data-region-at-setup.md)
 - [0041: A learner starts at most twenty new objectives a day](0041-daily-limit.md)
+- [0058: A learner may choose an objective to practise, one extra question at a time when nothing calls for it](0058-learner-chosen-objective.md)
 
 ## Web
 

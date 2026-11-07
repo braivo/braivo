@@ -4,7 +4,7 @@
 // Use cases that coordinate `content`, `learning`, `ai`, and `persistence`.
 // Workflows spanning modules live here so those modules never call each other.
 
-export type { NextActivity, Passage, SubmittedAttempt } from "./activity.ts";
+export type { ActivityDecision, NextActivity, Passage, SubmittedAttempt } from "./activity.ts";
 export { chooseNextActivity, submitAttempt } from "./activity.ts";
 export type { ObjectiveReview } from "./review.ts";
 export { reviewObjective } from "./review.ts";

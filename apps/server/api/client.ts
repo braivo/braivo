@@ -67,6 +67,7 @@ import type {
 
 export type {
   Activity,
+  ActivityDecision,
   AuthoredCourse,
   AuthoredTask,
   Connection,
@@ -245,8 +246,13 @@ export type BraivoClient = {
    * Days are counted in this runtime's time zone, a browser's being its user's. A
    * course that does not exist and one this learner may not see are both a
    * {@link BraivoError} with status 404, deliberately indistinguishable.
+   * `objectiveId`, the learner's choice, decides among that objective alone,
+   * one outside the course a 404 alike (ADR 0058).
    */
-  nextActivity(courseId: string, options?: RequestOptions): Promise<Activity | undefined>;
+  nextActivity(
+    courseId: string,
+    options?: RequestOptions & { objectiveId?: string },
+  ): Promise<Activity | undefined>;
 
   /**
    * Answers a task as the signed-in learner, and resolves to Braivo's grade.
@@ -1128,10 +1134,12 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return (await parsed<{ url: string }>(response, doing)).url;
     },
 
-    async nextActivity(courseId, requestOptions) {
+    async nextActivity(courseId, { objectiveId, ...requestOptions } = {}) {
       const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
+      const query = new URLSearchParams({ timeZone });
+      if (objectiveId !== undefined) query.set("objective", objectiveId);
       const response = await get(
-        `/api/courses/${encodeURIComponent(courseId)}/activity?${new URLSearchParams({ timeZone })}`,
+        `/api/courses/${encodeURIComponent(courseId)}/activity?${query}`,
         requestOptions,
       );
 

@@ -164,6 +164,14 @@
 // objective without one: the learner is not caught up, but has nothing to
 // practise until a task is added or another objective comes due.
 //
+// `?objective=<id>`, the learner's choice, decides among that objective of the
+// course alone, with the same answers except caught up: one needing no
+// attention is served all the same, as extra practice, `"intent": "practise"`
+// (the learner's request, never the model's, with no further values), with its
+// task or, without one, as no activity. Its rest and the daily limit apply as
+// ever, the limit only to one not started yet. One outside the course, or an
+// empty one, is a 404, as a missing course is (ADR 0058).
+//
 // Options come shuffled unless the author kept their order, so a learner cannot
 // rely on where the answer was last time. Show them as given and answer with
 // the option's `choice`. A reload keeps the order; each accepted answer reseeds it.

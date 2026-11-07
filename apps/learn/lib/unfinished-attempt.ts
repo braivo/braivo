@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Activity, LearningDecision, TaskResponse } from "@braivo/server/client";
+import type { Activity, ActivityDecision, TaskResponse } from "@braivo/server/client";
 
 /**
  * An answer sent and not yet continued past, kept so a reload can resend it
@@ -50,10 +50,11 @@ export function unfinishedAttempt(
 }
 
 /** Typed as a record, so a new intent cannot be left out unnoticed. */
-const INTENTS: Record<LearningDecision["intent"], true> = {
+const INTENTS: Record<ActivityDecision["intent"], true> = {
   introduce: true,
   reteach: true,
   review: true,
+  practise: true,
 };
 
 /**

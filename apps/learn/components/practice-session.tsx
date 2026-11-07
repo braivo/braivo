@@ -6,7 +6,14 @@ import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Notice } from "#components/notice";
 import { StandingMeter } from "#components/standing";
@@ -76,12 +83,15 @@ export function SessionEnd({
   nextStep,
   canKeepGoing,
   onKeepGoing,
+  objectiveAction,
 }: {
   session: PracticeSession;
   report: LearnerProgressSummary | undefined;
   nextStep: string | undefined;
   canKeepGoing: boolean;
   onKeepGoing: (left: AbortSignal) => Promise<{ failed: boolean }>;
+  /** After each objective where the learner stands, such as Practise. */
+  objectiveAction?: ComponentProps<typeof StandingMeter>["action"];
 }) {
   const { t } = useLingui();
   const [going, setGoing] = useState(false);
@@ -141,7 +151,7 @@ export function SessionEnd({
         </Link>
       </Button>
       {/* After the next step: its list may run long, never pushing the step away. */}
-      {report && <StandingMeter report={report} />}
+      {report && <StandingMeter report={report} action={objectiveAction} />}
     </Notice>
   );
 }
