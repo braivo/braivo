@@ -5,6 +5,12 @@ description: "Connect an AI app such as Claude or ChatGPT to Braivo, and what it
 
 An AI app that connects to remote MCP servers by OAuth, such as Claude, ChatGPT, or a desktop agent like Claude Code, can work with your organization's material in Braivo, using the app's own model and your subscription to it ([ADR 0045](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md)). Nothing to install: the app needs Braivo's address and your sign-in.
 
+<Callout type="warn">
+
+What the app reads from Braivo, your material included, goes to the company that provides the app, under its terms. Before you connect it, check that your school allows that.
+
+</Callout>
+
 ## Connect
 
 1. In the app, add Braivo with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. Braivo's console shows it, ready to copy, in your account's settings, Connected apps, and on an organization's Courses while it has none, with where to start in each app and a first prompt to paste. Once Braivo is listed in the app's directory, adding it from there does the same.
@@ -29,9 +35,7 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Arrange objectives into a course.
 - Read a course's objectives and tasks, or only its tasks without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
 
-What it adds waits for you: a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published task: both stay yours in the console. Nor can it read learners' names or progress, which wait for their own permission.
-
-What the app reads from Braivo, your material included, goes to the AI provider whose app it is, under its terms.
+What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published task: both stay yours in the console. Nor can it read learners' names or progress, which wait for their own permission.
 
 ## On your desktop
 

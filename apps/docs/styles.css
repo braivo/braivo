@@ -45,7 +45,8 @@
 }
 
 .learning-loop li:not(:last-child)::after {
-  content: "↓";
+  /* Decoration: the list order says it, so a screen reader reads no arrow. */
+  content: "↓" / "";
   position: absolute;
   top: 100%;
   left: 50%;
@@ -60,7 +61,7 @@
   }
 
   .learning-loop li:not(:last-child)::after {
-    content: "→";
+    content: "→" / "";
     top: 50%;
     left: 100%;
     width: 1.75rem;
