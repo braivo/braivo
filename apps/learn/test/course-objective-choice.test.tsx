@@ -48,7 +48,7 @@ const caughtUp: LearnerProgressSummary = {
   ],
 };
 
-function task(intent: "practise" | "reteach", id = "t1"): Activity {
+function activity(intent: "practise" | "reteach", id = "t1"): Activity {
   return {
     decision:
       intent === "practise"
@@ -86,7 +86,7 @@ describe("the learn app", () => {
     const { nextActivity, router } = renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => task("practise")),
+      nextActivity: whenChosen(async () => activity("practise")),
     });
     expect(await screen.findByText("You're caught up")).toBeTruthy();
 
@@ -134,11 +134,11 @@ describe("the learn app", () => {
   });
 
   test("asks an extra question again only when the learner taps Practise again", async () => {
-    const answers = [task("practise", "t1"), task("practise", "t2")];
+    const activities = [activity("practise", "t1"), activity("practise", "t2")];
     const { nextActivity } = renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => answers.shift()),
+      nextActivity: whenChosen(async () => activities.shift()),
     });
 
     // A reload, or a link, keeps the choice.
@@ -154,11 +154,11 @@ describe("the learn app", () => {
   });
 
   test("never turns practice on a chosen objective into extra practice by itself", async () => {
-    const answers = [task("reteach", "t1"), task("practise", "t2")];
+    const activities = [activity("reteach", "t1"), activity("practise", "t2")];
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => answers.shift()),
+      nextActivity: whenChosen(async () => activities.shift()),
     });
 
     // Being learned: practice as usual, Continue and all.
@@ -176,15 +176,15 @@ describe("the learn app", () => {
   });
 
   test("asks no extra question by itself when a rest Continue reached ends", async () => {
-    const answers: Activity[] = [
-      task("reteach", "t1"),
+    const activities: Activity[] = [
+      activity("reteach", "t1"),
       { objective: { id: "a", title: "Greetings" }, retryAfter: 1, reviewable: false },
-      task("practise", "t2"),
+      activity("practise", "t2"),
     ];
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => answers.shift()),
+      nextActivity: whenChosen(async () => activities.shift()),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
@@ -242,7 +242,7 @@ describe("the learn app", () => {
         signedIn: true,
         learnerProgress: async () => caughtUp,
         nextActivity: async (_courseId, options) =>
-          options?.objectiveId === undefined ? task("reteach", "r") : task("practise", "x"),
+          options?.objectiveId === undefined ? activity("reteach", "r") : activity("practise", "x"),
       });
       for (let answered = 1; answered <= 10; answered++) {
         fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
@@ -274,7 +274,7 @@ describe("the learn app", () => {
         signedIn: true,
         learnerProgress: async () => caughtUp,
         nextActivity: async (_courseId, options) =>
-          options?.objectiveId === undefined ? task("reteach", "r") : task("practise", "x"),
+          options?.objectiveId === undefined ? activity("reteach", "r") : activity("practise", "x"),
       });
       expect(await screen.findByText("Hello, in Spanish? (x)")).toBeTruthy();
       fireEvent.click(screen.getByRole("link", { name: "Back to recommended" }));
@@ -299,7 +299,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => task("practise")),
+      nextActivity: whenChosen(async () => activity("practise")),
       submitAttempt: async () => ({
         kind: "choice",
         outcome: "failure",
@@ -336,11 +336,11 @@ describe("the learn app", () => {
   });
 
   test("says Practise again is loading until the next question shows", async () => {
-    let asked = 0;
+    let reads = 0;
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: whenChosen(async () => (++asked === 1 ? task("practise") : stall())),
+      nextActivity: whenChosen(async () => (++reads === 1 ? activity("practise") : stall())),
     });
     fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
     const again = await screen.findByRole("button", { name: "Practise again" });
@@ -355,11 +355,11 @@ describe("the learn app", () => {
     "starts a new session when Practise names the objective already chosen, at a session's end",
     { timeout: 30_000 },
     async () => {
-      let asked = 0;
+      let reads = 0;
       renderAt("/c/4732?objective=a", {
         signedIn: true,
         learnerProgress: async () => caughtUp,
-        nextActivity: whenChosen(async () => task("reteach", `r${++asked}`)),
+        nextActivity: whenChosen(async () => activity("reteach", `r${++reads}`)),
       });
       for (let answered = 1; answered <= 10; answered++) {
         fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
@@ -370,7 +370,7 @@ describe("the learn app", () => {
       expect(await screen.findByText("Session complete")).toBeTruthy();
 
       // The same address: still an explicit start, read afresh.
-      const next = `Hello, in Spanish? (r${asked + 1})`;
+      const next = `Hello, in Spanish? (r${reads + 1})`;
       await practiseGreetings();
       expect(await screen.findByText(next)).toBeTruthy();
       expect(screen.queryByText("Session complete")).toBeNull();
@@ -381,17 +381,17 @@ describe("the learn app", () => {
   );
 
   test("keeps a rest Continue reached from asking an extra question when its end's read fails", async () => {
-    const answers: (Activity | Error)[] = [
-      task("reteach", "t1"),
+    const results: (Activity | Error)[] = [
+      activity("reteach", "t1"),
       { objective: { id: "a", title: "Greetings" }, retryAfter: 1, reviewable: false },
       new TypeError("Failed to fetch"),
-      task("practise", "t2"),
+      activity("practise", "t2"),
     ];
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
       nextActivity: whenChosen(async () => {
-        const next = answers.shift();
+        const next = results.shift();
         if (next instanceof Error) throw next;
         return next;
       }),
