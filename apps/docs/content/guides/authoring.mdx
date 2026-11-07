@@ -38,19 +38,15 @@ All three follow the same rules:
 
 To practise on your own, without a school, set up an organization of your own where your installation offers it: you are its owner, so everything here is yours to do.
 
-## Choose how to prepare material
+What to prepare from what, and checking its words first: [choose and check your material](./prepare-material.mdx).
 
-What a file holds, not its type, decides how it becomes practice, and one file can serve several purposes: a driving-theory question bank in a language the learner is still learning can become both the exam's practice and practice of the words its statements use. Tell whoever prepares it — Braivo's AI or your own — what learners should be able to do, and which part of the material matters.
-
-- **Teaching material** (a textbook chapter, notes, a lesson's transcript): _generate_ objectives and new questions from it. Keep each request to a part: "From pages 12–18 of _Spanish A1_, prepare practice on definite articles for adult beginners who speak English: narrow objectives, and questions grounded in the book's examples."
-- **Questions you already have** (a question bank, past exams): _convert_ them, keeping each question's wording, answer key, and number. Have your agent write a converter rather than retype them: "Write a script that converts this question bank: every statement and its answer verbatim, quoted by its item number, grouped by topic. Rewrite nothing. Leave out items that need a picture, and list them. Keep a manifest of what you imported, and on a re-import skip what I corrected or retired; stop and ask when unsure." Braivo cannot tell a question never imported from one you rejected; the manifest can. A model retyping a statement can drop a "not" while quoting it correctly, and Braivo checks the quote, not the answer key. A bank's false statements are practice, not teaching: never cite one as the explanation of a rule.
-- **The same material for another purpose**: add it once and prepare again from the same source: "From the source _Driving theory questions_, choose the words a learner must know to read its statements, most frequent first, and write recognition questions citing a statement each occurs in."
+## Convert an existing question bank
 
 Process only material you may, and remember that what an assistant reads goes to its provider. Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
 
-Bring large material in as a file, not through a chat: add it in the console or with `braivo sources add`, then let the assistant read it a part at a time. An assistant that writes a book's text, or thousands of questions, into its replies spends that many output tokens, and can change words as it goes. A converter needs an agent that can run code on your machine; a hosted assistant without one prepares a small, reviewed batch at a time.
+Braivo's own draft writes new questions, so a bank you want kept, each question's wording, answer key, and number, is converted instead. Have your agent write a converter rather than retype them: "Write a script that converts this question bank: every statement and its answer verbatim, quoted by its item number, grouped by topic. Rewrite nothing. Leave out items that need a picture, and list them. Keep a manifest of what you imported, and on a re-import skip what I corrected or retired; stop and ask when unsure." Braivo cannot tell a question never imported from one you rejected; the manifest can. A model retyping a statement can drop a "not" while quoting it correctly, and Braivo checks the quote, not the answer key. A bank's false statements are practice, not teaching: never cite one as the explanation of a rule.
 
-Some things do not carry over yet. A source is text: questions that depend on a picture cannot be practised, so leave them out and keep the list. Check a source's text against the original before drafting from it, columns and tables especially, since a misreading reaches every question citing it. A source cannot be changed: [correct it with a new one](./maintain-practice.mdx#the-source-itself-was-wrong).
+Bring large material in as a file, not through a chat: add it in the console or with `braivo sources add`, then let the assistant read it a part at a time. An assistant that writes a book's text, or thousands of questions, into its replies spends that many output tokens, and can change words as it goes. A converter needs an agent that can run code on your machine; a hosted assistant without one prepares a small, reviewed batch at a time.
 
 ## The `braivo` command
 
