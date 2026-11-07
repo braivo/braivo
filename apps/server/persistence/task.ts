@@ -955,7 +955,7 @@ export async function readAttemptsAfter(
  * answered the one `readNextTask` would offer: its offered task they answered
  * least recently, `undefined` while one was never answered.
  */
-export async function readLeastRecentAttempts(
+export async function readNextTaskAttemptTimes(
   database: Database,
   input: { learnerId: string; objectiveIds: readonly string[] },
 ): Promise<Map<string, Date | undefined>> {

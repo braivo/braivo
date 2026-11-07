@@ -184,7 +184,7 @@ export {
   markTasksRetired,
   readAttemptsAfter,
   readCourseTasks,
-  readLeastRecentAttempts,
+  readNextTaskAttemptTimes,
   readObjectiveTasks,
   readTaskCitations,
   readTaskObjective,

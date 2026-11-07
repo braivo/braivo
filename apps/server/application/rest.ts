@@ -6,7 +6,7 @@ import type { Database } from "@braivo/db";
 import {
   countOtherAttempts,
   readAttemptsAfter,
-  readLeastRecentAttempts,
+  readNextTaskAttemptTimes,
 } from "../persistence/index.ts";
 
 /**
@@ -63,7 +63,7 @@ export async function readRestingObjectives(
   if (recent.length === 0) return new Set();
 
   const organizationOf = new Map(recent.map((each) => [each.objectiveId, each.organizationId]));
-  const leastRecent = await readLeastRecentAttempts(database, {
+  const leastRecent = await readNextTaskAttemptTimes(database, {
     learnerId,
     objectiveIds: [...organizationOf.keys()],
   });

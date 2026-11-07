@@ -304,7 +304,7 @@ export async function listLearnerCoursesWithStanding(input: {
     courses.map(({ id }) => id),
   );
   const organizations = new Set([...scopes.values()].map(({ organizationId }) => organizationId));
-  const [histories, withTasks, resting] = await Promise.all([
+  const [learnerStates, withTasks, resting] = await Promise.all([
     Promise.all(
       [...organizations].map(async (organizationId) => {
         const evidence = await readLearnerEvidence(database, { learnerId, organizationId }, now);
@@ -330,20 +330,20 @@ export async function listLearnerCoursesWithStanding(input: {
   const offerable = new Set([...withTasks].filter((id) => !resting.has(id)));
   return courses.map((course) => {
     const scope = scopes.get(course.id);
-    const history = scope && histories.get(scope.organizationId)!;
+    const learnerState = scope && learnerStates.get(scope.organizationId)!;
     const { objectives } =
-      scope && history
+      scope && learnerState
         ? assessKnowledge({
             now,
             objectiveIds: scope.objectiveIds,
-            estimates: history.estimates,
+            estimates: learnerState.estimates,
             model: activeModel,
           })
         : { objectives: [] };
     return {
       ...course,
       standing: countStandings(objectives),
-      waiting: countWaiting(objectives, offerable, history?.newLeft ?? 0),
+      waiting: countWaiting(objectives, offerable, learnerState?.newLeft ?? 0),
     };
   });
 }
