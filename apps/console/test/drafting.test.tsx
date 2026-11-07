@@ -18,8 +18,8 @@ import {
   answerLeaving,
 } from "./render.tsx";
 
-/** Also the course title it suggests, which these tests send. */
-const GOAL = "Saludos";
+/** Unlike the source's title, which the review suggests for the course. */
+const GOAL = "Greet people";
 
 /** Fills in the goal the form requires and sends it, answering its button. */
 async function askForDraft(goal = GOAL) {
@@ -128,7 +128,7 @@ describe("the console", () => {
     );
   });
 
-  test("reviews a draft under what was asked, its title suggested from the goal, editable", async () => {
+  test("reviews a draft under what was asked, its title the source's, editable", async () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
     fireEvent.change(await screen.findByLabelText("Who are the learners?"), {
@@ -145,11 +145,9 @@ describe("the console", () => {
       "Learnersgrade 2",
       "Questions inEnglish",
     ]);
-    // Cut at a word, within 80 characters.
+    // The source's title, not a cut of the goal, which is shown above.
     const title = screen.getByLabelText<HTMLInputElement>("Course title");
-    expect(title.value).toBe(
-      "Order food and ask for the bill politely in a small cafe with friends, then",
-    );
+    expect(title.value).toBe("Saludos");
 
     fireEvent.change(title, { target: { value: "At the cafe" } });
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
@@ -159,29 +157,6 @@ describe("the console", () => {
         { signal: expect.any(AbortSignal) },
       ),
     );
-  });
-
-  test.each([
-    ["short, whole", "Order food", "Order food"],
-    [
-      "exactly 80 characters, whole",
-      "a".repeat(40) + " " + "b".repeat(39),
-      "a".repeat(40) + " " + "b".repeat(39),
-    ],
-    [
-      "a word ending at the 80th",
-      "a".repeat(40) + " " + "b".repeat(39) + " more",
-      "a".repeat(40) + " " + "b".repeat(39),
-    ],
-    ["one word too long to end at one", "a".repeat(120), "a".repeat(80)],
-    // Whole characters, never half of an emoji's pair.
-    ["emoji past the cut", "🍎".repeat(90), "🍎".repeat(80)],
-    ["lines joined", "order\n\nfood", "order food"],
-  ])("suggests a title from a goal: %s", async (_label, goal, expected) => {
-    renderAt("/example/sources/s1", { braivo: authoring() });
-    await askForDraft(goal);
-
-    expect((await screen.findByLabelText<HTMLInputElement>("Course title")).value).toBe(expected);
   });
 
   test("asks what language the questions are in, the console's own until changed", async () => {

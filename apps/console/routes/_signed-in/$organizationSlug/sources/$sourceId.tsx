@@ -78,24 +78,6 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
 /** Enough to recognise the material by; a source may run to megabytes. */
 const SHOWN_CHARACTERS = 20_000;
 
-/** Long enough for a course's name; a longer goal is cut for its title, not for the draft. */
-const SUGGESTED_TITLE_CHARACTERS = 80;
-
-/**
- * A course's title from its goal: the goal's first characters, ending at a word
- * unless one word is all there is. The owner edits it in review.
- */
-function suggestTitle(goal: string): string {
-  const characters = Array.from(goal.replace(/\s+/g, " "));
-  if (characters.length <= SUGGESTED_TITLE_CHARACTERS) return characters.join("");
-  // One past the limit, so a word ending exactly at it counts as ended.
-  const head = characters.slice(0, SUGGESTED_TITLE_CHARACTERS + 1).join("");
-  const lastSpace = head.lastIndexOf(" ");
-  return lastSpace > 0
-    ? head.slice(0, lastSpace)
-    : characters.slice(0, SUGGESTED_TITLE_CHARACTERS).join("");
-}
-
 /** Braivo's words when it gave any, or `fallback`. */
 function reasonOf(thrown: unknown, fallback: string): string {
   return (thrown instanceof BraivoError && thrown.reason) || fallback;
@@ -864,7 +846,9 @@ function ReviewDraft(props: {
               name="title"
               required
               maxLength={MAX_TITLE}
-              defaultValue={suggestTitle(brief.goal)}
+              // The source's: a goal is a sentence about learners, rarely a
+              // course's name, and the review shows it above.
+              defaultValue={source.title}
               onChange={() => clearFieldError(`${id}-title`)}
               {...ariaFor(`${id}-title`)}
             />
