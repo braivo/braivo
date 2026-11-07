@@ -32,8 +32,8 @@ async function askForDraft(goal = GOAL) {
 const GOAL_LABEL = "What should learners be able to do?";
 const LANGUAGE_LABEL = "What language should the questions be in?";
 
-/** The rows saying what a draft under review was asked for. */
-async function askedList() {
+/** The rows of a draft's brief, under review. */
+async function briefList() {
   const list = (await screen.findByText("Drafted from")).closest("dl")!;
   return { list, rows: Array.from(list.children, (row) => row.textContent) };
 }
@@ -135,7 +135,7 @@ describe("the console", () => {
     );
 
     // As it was sent, under the labels the form asked by, each its own row.
-    expect((await askedList()).rows).toEqual([
+    expect((await briefList()).rows).toEqual([
       "Drafted fromThe whole source",
       "GoalOrder food and ask for the bill politely in a small cafe with friends, then leave a tip",
       "Learnersgrade 2",
@@ -206,7 +206,7 @@ describe("the console", () => {
         { signal: expect.any(AbortSignal) },
       ),
     );
-    expect((await askedList()).rows).toContain("Questions inSpanish");
+    expect((await briefList()).rows).toContain("Questions inSpanish");
 
     // Kept when discarded, as the goal is, and as the owner last named it.
     fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
@@ -264,7 +264,7 @@ describe("the console", () => {
         { signal: expect.any(AbortSignal) },
       ),
     );
-    expect((await askedList()).rows).toContain(`Questions in${name}`);
+    expect((await briefList()).rows).toContain(`Questions in${name}`);
   });
 
   test("asks the required questions first, the optional one after", async () => {
@@ -291,7 +291,7 @@ describe("the console", () => {
     renderAt("/example/sources/s1", { braivo: authoring() });
     await askForDraft("Order food");
 
-    expect((await askedList()).rows).toEqual([
+    expect((await briefList()).rows).toEqual([
       "Drafted fromThe whole source",
       "GoalOrder food",
       "Questions inEnglish",
@@ -313,7 +313,7 @@ describe("the console", () => {
     const label = await screen.findByText("Not in the material");
     const note = label.parentElement!;
     expect(note.textContent).toBe(`Not in the materialBraivo's AI says: ${unsupported}`);
-    expect((await askedList()).list.nextElementSibling).toBe(note);
+    expect((await briefList()).list.nextElementSibling).toBe(note);
     // The review's heading takes the focus and is read from there: neither box
     // interrupts it.
     expect(screen.queryAllByRole("alert")).toEqual([]);

@@ -69,7 +69,7 @@ const COMMON_WORDS: Readonly<Record<string, ReadonlySet<string>>> = Object.fromE
   }).map(([language, words]) => [language, new Set(words.split(" "))]),
 );
 
-function commonWords(text: string, language: string): number {
+function countCommonWords(text: string, language: string): number {
   const words = COMMON_WORDS[language]!;
   return (text.toLowerCase().match(/\p{L}+/gu) ?? []).filter((word) => words.has(word)).length;
 }
@@ -96,7 +96,7 @@ function instructionsInAnotherLanguage(
   ];
   return kinds.flatMap(([kind, texts]) => {
     const whole = texts.join(" ");
-    return commonWords(whole, other) > 2 * commonWords(whole, language)
+    return countCommonWords(whole, other) > 2 * countCommonWords(whole, language)
       ? [`instructions not in ${asked}: ${kind}: ${texts[0]}`]
       : [];
   });

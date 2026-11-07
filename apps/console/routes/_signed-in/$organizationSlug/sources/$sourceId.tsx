@@ -212,8 +212,8 @@ function SourceText({ text }: { text: string }) {
   );
 }
 
-/** What a draft was asked with, as sent. */
-type DraftContext = { goal: string; audience?: string; instructionLanguage: string };
+/** What a draft was asked for, as sent: its brief. */
+type DraftBrief = { goal: string; audience?: string; instructionLanguage: string };
 
 /**
  * Asks Braivo's AI for a course drafted from this source, then lets the
@@ -230,9 +230,9 @@ function DraftCourse(props: { source: Source }) {
   const router = useRouter();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<Draft>();
-  // What the review's draft was asked with, frozen at sending. It outlives a
+  // The review's brief, frozen at sending. It outlives a
   // discarded review, so drafting again need not retype a required goal.
-  const [asked, setAsked] = useState<DraftContext>();
+  const [brief, setBrief] = useState<DraftBrief>();
   // The review replaces this form, so it takes the focus if the form held it.
   const [focusReview, setFocusReview] = useState(false);
   const [error, setError] = useState<string>();
@@ -254,21 +254,24 @@ function DraftCourse(props: { source: Source }) {
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
     const form = event.currentTarget;
-    const refuse = (field: HTMLTextAreaElement | HTMLInputElement, message: string) => {
+    const reportInvalid = (field: HTMLTextAreaElement | HTMLInputElement, message: string) => {
       field.setCustomValidity(message);
       field.reportValidity();
     };
     const goalField = form.elements.namedItem("goal") as HTMLTextAreaElement;
     const goal = goalField.value.trim();
     // `required` passes spaces (docs/apps.md, Text).
-    if (!goal) return refuse(goalField, "Say what learners should be able to do.");
+    if (!goal) return reportInvalid(goalField, "Say what learners should be able to do.");
     const languageField = form.elements.namedItem("instructionLanguage") as HTMLInputElement;
     const language = languageField.value.trim();
-    if (!language) return refuse(languageField, "Say what language to write them in.");
+    if (!language) return reportInvalid(languageField, "Say what language to write them in.");
     // Checked as the server would, which words it for an API's caller, not a teacher.
     const instructionLanguage = parseLanguageTag(languageTag(language)!);
     if (!instructionLanguage) {
-      return refuse(languageField, "Choose a language from the list, or type its English name.");
+      return reportInvalid(
+        languageField,
+        "Choose a language from the list, or type its English name.",
+      );
     }
     const audience = (new FormData(form).get("audience") as string).trim() || undefined;
     const signal = abortOnUnmount();
@@ -284,7 +287,7 @@ function DraftCourse(props: { source: Source }) {
         ),
       );
       setFocusReview(form.contains(document.activeElement));
-      setAsked({ goal, audience, instructionLanguage });
+      setBrief({ goal, audience, instructionLanguage });
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
@@ -297,12 +300,12 @@ function DraftCourse(props: { source: Source }) {
     }
   }
 
-  if (draft && asked) {
+  if (draft && brief) {
     return (
       <ReviewDraft
         source={source}
         draft={draft}
-        asked={asked}
+        brief={brief}
         takeFocus={focusReview}
         onDiscard={() => {
           setDraft(undefined);
@@ -348,7 +351,7 @@ function DraftCourse(props: { source: Source }) {
             maxLength={300}
             rows={2}
             readOnly={drafting}
-            defaultValue={asked?.goal}
+            defaultValue={brief?.goal}
             onChange={(event) => event.target.setCustomValidity("")}
             aria-describedby={`${id}-goal-hint`}
           />
@@ -369,7 +372,7 @@ function DraftCourse(props: { source: Source }) {
             readOnly={drafting}
             // The language this console speaks until told otherwise; a course's
             // language is the owner's to choose (generation-6).
-            defaultValue={languageName(asked?.instructionLanguage ?? i18n.locale)}
+            defaultValue={languageName(brief?.instructionLanguage ?? i18n.locale)}
             onChange={(event) => event.target.setCustomValidity("")}
             aria-describedby={`${id}-instruction-language-hint`}
           />
@@ -391,7 +394,7 @@ function DraftCourse(props: { source: Source }) {
             name="audience"
             maxLength={200}
             readOnly={drafting}
-            defaultValue={asked?.audience}
+            defaultValue={brief?.audience}
             placeholder="Grade 2, English speakers learning Spanish"
             aria-describedby={`${id}-audience-hint`}
           />
@@ -423,8 +426,8 @@ function DraftCourse(props: { source: Source }) {
 /** A language's name where the browser knows it, its tag otherwise. */
 const languageName = (tag: string) => languageNames.of(tag) ?? tag;
 
-/** One row of what a draft was asked for. */
-function AskedRow(props: { term: string; children: ReactNode }) {
+/** One row of a draft's brief. */
+function BriefRow(props: { term: string; children: ReactNode }) {
   return (
     <div className="contents">
       <dt className="text-muted-foreground">{props.term}</dt>
@@ -441,12 +444,12 @@ function AskedRow(props: { term: string; children: ReactNode }) {
 function ReviewDraft(props: {
   source: Source;
   draft: Draft;
-  asked: DraftContext;
+  brief: DraftBrief;
   /** Whether the heading takes the focus once shown. */
   takeFocus: boolean;
   onDiscard: () => void;
 }) {
-  const { source, draft, asked, takeFocus, onDiscard } = props;
+  const { source, draft, brief, takeFocus, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
   const { t } = useLingui();
   const organizationId = organization.id;
@@ -680,10 +683,10 @@ function ReviewDraft(props: {
       {/* What it was asked for, so the owner judges the draft against it, by
           the names the form asked with. */}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
-        <AskedRow term="Drafted from">The whole source</AskedRow>
-        <AskedRow term="Goal">{asked.goal}</AskedRow>
-        {asked.audience && <AskedRow term="Learners">{asked.audience}</AskedRow>}
-        <AskedRow term="Questions in">{languageName(asked.instructionLanguage)}</AskedRow>
+        <BriefRow term="Drafted from">The whole source</BriefRow>
+        <BriefRow term="Goal">{brief.goal}</BriefRow>
+        {brief.audience && <BriefRow term="Learners">{brief.audience}</BriefRow>}
+        <BriefRow term="Questions in">{languageName(brief.instructionLanguage)}</BriefRow>
       </dl>
       {/* The first thing to weigh the draft by, so right under what it qualifies.
           These boxes are notes, not alerts: they arrive with the review, whose
@@ -838,7 +841,7 @@ function ReviewDraft(props: {
             name="title"
             required
             maxLength={MAX_TITLE}
-            defaultValue={suggestTitle(asked.goal)}
+            defaultValue={suggestTitle(brief.goal)}
             onChange={() => clearFieldError(`${id}-title`)}
             {...ariaFor(`${id}-title`)}
           />

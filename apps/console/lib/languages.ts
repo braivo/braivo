@@ -48,24 +48,24 @@ const TAG_BY_NAME = (() => {
  * well type. Built when a name is not found above, as naming them all takes a
  * noticeable moment and few need it.
  */
-let threeLetterTags: Map<string, string> | undefined;
+let threeLetterTagByName: Map<string, string> | undefined;
 function threeLetterTagOf(name: string): string | undefined {
-  if (!threeLetterTags) {
-    threeLetterTags = new Map();
+  if (!threeLetterTagByName) {
+    threeLetterTagByName = new Map();
     const letters = "abcdefghijklmnopqrstuvwxyz";
     for (const first of letters) {
       for (const second of letters) {
         for (const third of letters) {
           const tag = first + second + third;
           const named = languageNames.of(tag)?.toLowerCase();
-          if (named && !threeLetterTags.has(named)) {
-            threeLetterTags.set(named, Intl.getCanonicalLocales(tag)[0]!);
+          if (named && !threeLetterTagByName.has(named)) {
+            threeLetterTagByName.set(named, Intl.getCanonicalLocales(tag)[0]!);
           }
         }
       }
     }
   }
-  return threeLetterTags.get(name);
+  return threeLetterTagByName.get(name);
 }
 
 /** A language named in full as its tag; anything else as typed, for Braivo to judge. */

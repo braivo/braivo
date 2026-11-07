@@ -161,7 +161,7 @@ Every quote is copied exactly from one continuous passage of the material and mu
  * can close a block and forge another. Not the material: the model quotes it
  * exactly. Neither language needs it: each is a checked BCP 47 tag.
  */
-function asData(text: string): string {
+function escapeMarkup(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
@@ -221,13 +221,14 @@ export async function draftCourse(
   const audience = options.audience ?? (goal === undefined ? parts.defaultAudience : undefined);
   const answered = await answer(model, DRAFT_OPERATION, {
     values: {
-      goal: goal === undefined ? "" : fill(parts.goal, { goal: asData(goal) }),
-      learners: audience === undefined ? "" : fill(parts.learners, { audience: asData(audience) }),
+      goal: goal === undefined ? "" : fill(parts.goal, { goal: escapeMarkup(goal) }),
+      learners:
+        audience === undefined ? "" : fill(parts.learners, { audience: escapeMarkup(audience) }),
       instructionLanguage:
         instructionLanguage === undefined
           ? ""
           : fill(parts.instructionLanguage, { instructionLanguage }),
-      title: asData(source.title),
+      title: escapeMarkup(source.title),
       language: source.language ? fill(parts.language, { language: source.language }) : "",
       material: source.text,
     },
