@@ -60,10 +60,10 @@ irm https://braivo.app/install.ps1 | iex
 On macOS and Linux, add `~/.local/bin` to your `PATH` if the installer says it is missing, or install elsewhere with `BRAIVO_INSTALL_DIR`. `BRAIVO_VERSION=v0.1.0` installs that release rather than the latest. From a clone, run it as `bun packages/cli/index.ts`, or build this machine's with `bun run build`, as `packages/cli/dist/braivo`.
 
 ```sh
-# Sign in at the address you open Braivo's console at: braivo.app, as below, your
-# installation's if you run one, http://localhost:5174 under `bun run dev`.
+# Sign in at the address you open Braivo's console at, copied from your browser:
+# braivo.example stands for it below; http://localhost:5174 under `bun run dev`.
 # Then open the link it prints, check the code, and approve.
-braivo login https://braivo.app
+braivo login https://braivo.example
 
 # Fetch a video's Spanish captions.
 yt-dlp --skip-download --write-auto-subs --sub-langs es --sub-format vtt -o lesson \

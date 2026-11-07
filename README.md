@@ -79,7 +79,7 @@ bun run storybook  # the component catalog
 ## Create a course
 
 - **In the console, with Braivo's AI.** Add a PDF or a photo as a source, have Braivo draft objectives and tasks from it, and review them before creating the course. Needs `ANTHROPIC_API_KEY`.
-- **With your own AI app.** Connect Claude, ChatGPT, or a desktop agent such as Claude Code to your installation's `/mcp` (`https://braivo.app/mcp` on Braivo Cloud), and it drafts with your AI account, what it writes waiting for your review in the console. On your desktop, the agent adds local files with `braivo sources add`. See [Use Braivo from your AI app](apps/docs/content/guides/assistants.mdx).
+- **With your own AI app.** Connect Claude, ChatGPT, or a desktop agent such as Claude Code to your installation's `/mcp`, and it drafts with your AI account, what it writes waiting for your review in the console. On your desktop, the agent adds local files with `braivo sources add`. See [Use Braivo from your AI app](apps/docs/content/guides/assistants.mdx).
 - **From the command line or the API.** `braivo sources add` adds text, a PDF's pages, or a video's captions; objectives, tasks, and courses come from either way above, or from your own scripts.
 
 All three go through the same checks: every quote must be found in its source, and every task must pass the same validation. See the [authoring guide](apps/docs/content/guides/authoring.mdx).

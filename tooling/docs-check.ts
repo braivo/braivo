@@ -5,7 +5,8 @@
  * Keeps the documentation's pointers true: every path that `AGENTS.md`, a
  * document in `docs/` or `docs/specs/`, or a public page in `apps/docs/content/`
  * names exists; every link of a public page reaches a page and a heading that
- * exist, and every image is there and described; and every living spec has the `## Entry points` section
+ * exist, and every image is there and described; no public page or the README
+ * offers one installation's address as an example; and every living spec has the `## Entry points` section
  * `docs/specs/README.md` asks for. Whether an entry point is still the right
  * place to start is left to review.
  *
@@ -33,11 +34,36 @@ const repositoryPath = /^(?:apps|packages|tooling|docs)\/[^<>*]+$/;
 /** A public page, whose links must also work on GitHub and at its route (ADR 0057). */
 const PAGES = "apps/docs/content/";
 
+/**
+ * One installation's address, which product text never offers as a reader's:
+ * examples say braivo.example. Only the installers live there, and the
+ * README's licensing contact.
+ */
+const INSTALLATION = /braivo\.app/;
+const INSTALLATION_ALLOWED = [
+  "https://braivo.app/install.sh",
+  "https://braivo.app/install.ps1",
+  "hello@braivo.app",
+];
+
 export function check(documents: Document[], exists: (path: string) => boolean): string[] {
   const problems: string[] = [];
   const texts = new Map(documents.map(({ path, text }) => [path, text]));
   for (const { path, text } of documents) {
     if (path.startsWith(PAGES)) problems.push(...checkLinks(path, text, texts, exists));
+    if (path.startsWith(PAGES) || path === "README.md") {
+      text.split("\n").forEach((line, index) => {
+        const rest = INSTALLATION_ALLOWED.reduce(
+          (left, allowed) => left.replaceAll(allowed, ""),
+          line,
+        );
+        if (INSTALLATION.test(rest)) {
+          problems.push(
+            `${path}:${index + 1}: names braivo.app, one installation's address: write braivo.example`,
+          );
+        }
+      });
+    }
     text.split("\n").forEach((line, index) => {
       for (const [, code] of line.matchAll(codeSpan)) {
         for (const named of code!.split(/\s+/)) {
@@ -168,6 +194,7 @@ function pagesIn(directory: string): string[] {
 function main() {
   const paths = [
     "AGENTS.md",
+    "README.md",
     ...["docs", "docs/specs"].flatMap(markdownIn),
     ...pagesIn("apps/docs/content"),
   ];

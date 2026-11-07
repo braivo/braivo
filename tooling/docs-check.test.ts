@@ -172,3 +172,24 @@ describe("links between public pages", () => {
     ).toEqual([]);
   });
 });
+
+describe("one installation's address", () => {
+  const page = "apps/docs/content/guides/assistants.mdx";
+
+  test("names braivo.app in a public page or the README, but not the installers", () => {
+    const text =
+      "Add `https://braivo.app/mcp`.\ncurl -fsSL https://braivo.app/install.sh | bash\nirm https://braivo.app/install.ps1 | iex\n";
+    expect(check([{ path: page, text }], () => true)).toEqual([
+      `${page}:1: names braivo.app, one installation's address: write braivo.example`,
+    ]);
+    expect(check([{ path: "README.md", text: "See braivo.app.\n" }], () => true)).toEqual([
+      "README.md:1: names braivo.app, one installation's address: write braivo.example",
+    ]);
+  });
+
+  test("leaves engineering documents alone", () => {
+    expect(
+      check([{ path: "docs/adr/0057-public-docs-site.md", text: "braivo.app\n" }], () => true),
+    ).toEqual([]);
+  });
+});
