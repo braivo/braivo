@@ -1198,7 +1198,7 @@ msgstr "W żadnym kursie"
 
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "In no course, or in several with tasks to review: each is listed here once, its tasks reviewed on its page."
-msgstr "Cele w żadnym kursie albo w kilku kursach i z zadaniami do sprawdzenia: każdy widnieje tu raz, a jego zadania sprawdzisz na jego stronie."
+msgstr "Cele w żadnym kursie albo w kilku kursach i z zadaniami do sprawdzenia: każdy jest tu wymieniony raz, a jego zadania sprawdzisz na jego stronie."
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Invitation"
@@ -2469,7 +2469,7 @@ msgstr "Ten uczeń nie istnieje albo nie masz wglądu w jego postępy."
 
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "This organization does not exist, or you do not manage it."
-msgstr "Ta organizacja nie istnieje albo nie zarządzasz nią."
+msgstr "Ta organizacja nie istnieje albo nią nie zarządzasz."
 
 #: apps/console/components/group-form.tsx
 msgid "This organization has no courses yet: draft one from a source first."
