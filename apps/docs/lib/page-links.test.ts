@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { pageRoute } from "./page-links.ts";
+import { assetRoute, pageRoute } from "./page-links.ts";
 
 describe("pageRoute", () => {
   test("turns a sibling page into its route", () => {
@@ -41,4 +41,19 @@ describe("pageRoute", () => {
   ])("leaves %s alone", (href) => {
     expect(pageRoute(href, "guides/authoring.mdx", "/")).toBeUndefined();
   });
+});
+
+describe("assetRoute", () => {
+  test("turns a file in public/ into where the site serves it, base applied once", () => {
+    const image = "../../public/docs/shots/a.png";
+    expect(assetRoute(image, "guides/first-course.mdx", "/")).toBe("/docs/shots/a.png");
+    expect(assetRoute(image, "guides/first-course.mdx", "/help/")).toBe("/help/docs/shots/a.png");
+  });
+
+  test.each(["https://example.com/a.png", "/docs/a.png", "./a.png", "../../../outside.png"])(
+    "leaves %s alone",
+    (href) => {
+      expect(assetRoute(href, "guides/first-course.mdx", "/")).toBeUndefined();
+    },
+  );
 });

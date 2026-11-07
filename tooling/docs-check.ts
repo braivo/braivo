@@ -5,7 +5,7 @@
  * Keeps the documentation's pointers true: every path that `AGENTS.md`, a
  * document in `docs/` or `docs/specs/`, or a public page in `apps/docs/content/`
  * names exists; every link of a public page reaches a page and a heading that
- * exist; and every living spec has the `## Entry points` section
+ * exist, and every image is there and described; and every living spec has the `## Entry points` section
  * `docs/specs/README.md` asks for. Whether an entry point is still the right
  * place to start is left to review.
  *
@@ -63,9 +63,12 @@ function checkLinks(
   const problems: string[] = [];
   for (const { line, number } of outsideFences(text)) {
     const prose = line.replace(/`[^`]*`/g, "");
-    for (const [, href] of prose.matchAll(/\]\(([^)\s]+)/g)) {
-      if (/^[a-z]+:/.test(href!)) continue;
-      const problem = checkLink(href!, path, texts, exists);
+    for (const [, image, alt, href] of prose.matchAll(/(!)?\[([^\]]*)\]\(([^)\s]+)/g)) {
+      const problem = image
+        ? checkImage(href!, alt!, path, exists)
+        : /^[a-z]+:/.test(href!)
+          ? undefined
+          : checkLink(href!, path, texts, exists);
       if (problem) problems.push(`${path}:${number}: ${problem}`);
     }
   }
@@ -91,6 +94,21 @@ function checkLink(
     return `\`${href}\` names no heading of ${target}`;
   }
   return undefined;
+}
+
+/** Relative to its page, so it shows on GitHub too; the site serves `public/` at its root. */
+function checkImage(
+  href: string,
+  alt: string,
+  from: string,
+  exists: (path: string) => boolean,
+): string | undefined {
+  const target = posix.normalize(posix.join(posix.dirname(from), href));
+  if (!href.startsWith("../") || !target.startsWith("apps/docs/public/")) {
+    return `\`${href}\` is not a file under the site's \`public/\`, as \`../../public/docs/a.png\``;
+  }
+  if (!exists(target)) return `\`${href}\` does not exist`;
+  return alt.trim() ? undefined : `\`${href}\` has no alt text`;
 }
 
 /** A page's heading IDs: GitHub's and the site's slugs, the same algorithm. */

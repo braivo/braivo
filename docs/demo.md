@@ -55,6 +55,10 @@ bun run dev:demo:reset --environment ENVIRONMENT_ID  # delete it; the next launc
 
 Reset shows the database, ID, and storage it will delete, and needs that ID, the one `verify` prints: typed when asked, or `--environment`. It refuses while the demo runs, anything is connected to its database or listens on its ports, or `.dev-demo/` holds a file the demo did not put there. Afterwards old sign-ins stop working: close the demo's tabs.
 
+## The guide's screenshots
+
+`bun run docs:screenshots` walks `apps/docs/content/guides/first-course.mdx` through the real server, console, and learn app on this classroom, in a database it creates and drops, and rewrites the guide's pictures in `apps/docs/public/docs/screenshots/first-course/`. It needs what the demo needs, leaves the demo alone, and needs no AI key: it answers the model's address with a canned draft, which Braivo checks as it does a model's (`tooling/docs-screenshots/`). A change to one of those screens is a run of it, and a look at the result.
+
 ## What it holds
 
 Settings and secrets in `.dev-demo/environment.json` (gitignored, readable by you alone, never printed), uploaded files in `.dev-demo/storage/`, data in `braivo_demo_<id>`. The server runs on these alone, never the env files: no mail server, AI key, Google client, or bucket reaches it. The apps' dev servers still load the env files, but the demo's values override what their proxy reads from them, `BRAIVO_URL` and `PORT`. Remove a worktree's demo with reset before removing the worktree, or `dropdb` its database afterwards.

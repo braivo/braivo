@@ -114,6 +114,38 @@ describe("links between public pages", () => {
     ]);
   });
 
+  test("passes an image in the site's public files, described", () => {
+    const image = "apps/docs/public/docs/a.png";
+    expect(
+      check(
+        [{ path: page, text: "![The form](../../public/docs/a.png)\n" }],
+        (path) => path === image,
+      ),
+    ).toEqual([]);
+  });
+
+  test("names an image that does not exist", () => {
+    expect(run("![The form](../../public/docs/gone.png)\n")).toEqual([
+      `${page}:1: \`../../public/docs/gone.png\` does not exist`,
+    ]);
+  });
+
+  test("names an image without alt text", () => {
+    const image = "apps/docs/public/docs/a.png";
+    expect(
+      check([{ path: page, text: "![](../../public/docs/a.png)\n" }], (path) => path === image),
+    ).toEqual([`${page}:1: \`../../public/docs/a.png\` has no alt text`]);
+  });
+
+  test.each(["/docs/a.png", "./a.png", "https://example.com/a.png"])(
+    "refuses an image at %s, which would not work in both places",
+    (href) => {
+      expect(run(`![The form](${href})\n`)).toEqual([
+        `${page}:1: \`${href}\` is not a file under the site's \`public/\`, as \`../../public/docs/a.png\``,
+      ]);
+    },
+  );
+
   test("leaves other documents' links alone", () => {
     expect(
       check([{ path: "docs/specs/access.md", text: "[a](/x) [b](./gone.mdx)\n" }], exists),
