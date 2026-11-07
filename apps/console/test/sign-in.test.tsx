@@ -250,6 +250,29 @@ describe("the console", () => {
       expect(completeHandoff).toHaveBeenCalledWith("h1", expect.anything());
     });
 
+    test("hands over on the dev server's learn app, at its own port, for a .localhost domain", async () => {
+      // As the dev server defines it (ADR 0043); the server names HTTPS, no port.
+      vi.stubEnv("BRAIVO_LEARN_PORT", "5203");
+      onTestFinished(() => {
+        vi.unstubAllEnvs();
+      });
+      const local = { organization: { name: "Fernwood" }, hostname: "fernwood.localhost" };
+      const { visit } = renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => local,
+          completeHandoff: async () => "https://fernwood.localhost/api/session/handoff?code=c1",
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      await vi.waitFor(() =>
+        expect(visit).toHaveBeenCalledWith(
+          "http://fernwood.localhost:5203/api/session/handoff?code=c1",
+        ),
+      );
+    });
+
     test("offers the account already signed in, or another", async () => {
       const completeHandoff = vi.fn(async () => url);
       const { auth, visit } = renderAt("/login?handoff=h1", {

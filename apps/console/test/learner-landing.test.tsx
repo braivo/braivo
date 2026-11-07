@@ -77,14 +77,17 @@ describe("a plain sign-in", () => {
 
     expect(await screen.findByRole("heading", { name: "Where you learn" })).toBeTruthy();
     expect(router.history.location.pathname).toBe("/join");
+    // The school it can open first, though the other comes first by name.
     const [first, second] = within(screen.getByRole("list")).getAllByRole("listitem");
-    expect(first!.textContent).toBe("BirchfieldIts site for learners is not available yet.");
-    expect(within(first!).queryByRole("link")).toBeNull();
     expect(
-      within(second!)
+      within(first!)
         .getByRole("link", { name: /Fernwood/ })
         .getAttribute("href"),
     ).toBe(fernwoodStart);
+    expect(second!.textContent).toBe("BirchfieldIts site for learners is not available yet.");
+    expect(within(second!).queryByRole("link")).toBeNull();
+    // Braivo's title, not the console's: the page speaks to a learner.
+    await vi.waitFor(() => expect(document.title).toBe("Where you learn · Braivo"));
     expect(screen.getByText(/Signed in as olive@example\.com\./)).toBeTruthy();
     // Choosing is a click; nothing leaves on its own.
     expect(visit).not.toHaveBeenCalled();

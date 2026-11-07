@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ConsoleSignInPage, InvitationNote, SignInBrand } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { learnUrl } from "#lib/learn-url";
 
 const expiredTitle = msg`This sign-in has expired`;
 
@@ -235,11 +236,14 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     try {
       // Leaving stays shown until the page is gone. Unanswered in time, it is
       // offered again: continuing replaces a code issued meanwhile (access-14).
-      visit(
+      const issued = new URL(
         await braivo.completeHandoff(handoffId, {
           signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
         }),
       );
+      // The server names the domain over HTTPS; opened as every link here to
+      // a learn domain is, so the dev server's reaches its learn app (ADR 0043).
+      visit(learnUrl(issued.hostname, issued.pathname + issued.search));
     } catch (thrown) {
       const status = thrown instanceof BraivoError ? thrown.status : undefined;
       if (status === 404) setView("expired");

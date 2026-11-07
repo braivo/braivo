@@ -13,6 +13,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@braivo/ui/components/item";
+import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
@@ -48,9 +49,20 @@ export const Route = createFileRoute("/_signed-in/join")({
     return {
       setup: setup?.maySetUp ? setup : null,
       managesNone,
-      memberships: managesNone ? await context.braivo.listMemberships(options) : [],
+      // Those it can open first, so the usable choice is on top; by name within each.
+      memberships: managesNone
+        ? (await context.braivo.listMemberships(options)).sort(
+            (a, b) => Number(!a.learnDomain) - Number(!b.learnDomain),
+          )
+        : [],
     };
   },
+  // Braivo's, not the console's, while it speaks to a learner; otherwise the
+  // console's own title stands.
+  head: ({ match }) =>
+    match.status === "success" && match.context.memberships.length > 0
+      ? { meta: [{ title: `${t`Where you learn`} · Braivo` }] }
+      : {},
   component: Join,
 });
 
