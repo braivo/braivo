@@ -26,7 +26,7 @@ Documentation differs: it describes that product, self-hosters need it, and it c
 
 The three are read from the build's own environment, never the repository's env files, whose development values would otherwise reach a production build. A brand's `site.ts` must export a name; one without fails the build, naming it.
 
-**The site occupies two paths under its base**, `guides/` and `docs/`, with its assets and search index under `docs/`, so it can share a host with another site, which keeps the rest. Publishing it that way is the host's own routing.
+**The site occupies two paths under its base**, `guides/` and `docs/`, with its assets and search index under `docs/`, so it can share a host with another site, which keeps the rest. Publishing it that way is the host's own routing, sending only those paths to the build, as its root files are for a host of its own.
 
 **The site never shares an origin with the console or a learn app.** It holds no session, calls no API, and takes no input, so it is the one app with an exception to [ADR 0049](0049-app-security-headers.md): its `_headers` keeps `frame-ancestors 'none'` and the rest of that policy, but allows inline scripts, which Astro's islands and Fumadocs' theme write into every page. Keeping this origin apart also means documentation reserves no slugs.
 

@@ -12,6 +12,12 @@ export interface Site {
   githubUrl?: string;
   /** More links in the navigation, such as back to a school's own site. */
   links?: { text: string; url: string }[];
-  /** HTML for every page's head, such as a font's stylesheet or an analytics tag. */
+  /**
+   * HTML for every page's head, such as a site verification `<meta>`.
+   * `public/_headers` lets a page load and send only to the site's own origin,
+   * so a font goes in `brand.css`, `url()` to a file in the brand directory,
+   * and a script, font, or analytics endpoint elsewhere needs the host to send
+   * its own headers.
+   */
   head?: string;
 }
