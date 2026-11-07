@@ -36,6 +36,9 @@ export const Route = createFileRoute("/_signed-in/")({
   // failing. Awaited with the list, as the course page awaits its optional
   // reads, so the cards never grow under a tap; a slow one holds the list back
   // no longer than its deadline.
+  // Dropped on leaving: practice changes what waits, and a kept list would show
+  // again, then reorder under a tap once read again.
+  gcTime: 0,
   loader: async ({ context, abortController }) => {
     const left = abortController.signal;
     const [courses, standings] = await Promise.all([

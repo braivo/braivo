@@ -255,6 +255,78 @@ describe("the learn app", () => {
     expect(screen.getAllByRole("link", { name: /French|Spanish/ })).toEqual([french, spanish]);
   });
 
+  describe("back from practice", () => {
+    const arabic = { id: "c0", number: 4731, title: "Arabic", urlLabel: "arabic" };
+    const spanish = { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" };
+    const read = (due: typeof arabic) =>
+      [arabic, spanish].map((course) => ({
+        ...course,
+        standing: { retained: 1, dueForReview: 1, learning: 0, notStarted: 0 },
+        waiting: course === due ? { learning: 0, dueForReview: 1, new: 0 } : nothingWaits,
+      }));
+
+    /** Home with Spanish due, then into its practice; the list read again by `reread`. */
+    async function practiseSpanish(reread: BraivoClient["learnerCoursesWithStanding"]) {
+      let reads = 0;
+      const rendered = renderAt("/", {
+        signedIn: true,
+        hostOrganization: async () => ({ name: "Fernwood" }),
+        learnerCourses: async () => [arabic, spanish],
+        learnerCoursesWithStanding: async (options) =>
+          reads++ === 0 ? read(spanish) : reread(options),
+        nextActivity: async () => activity,
+      });
+      fireEvent.click(await screen.findByRole("link", { name: "Spanish", description: /review/ }));
+      expect(await screen.findByText("Past tense of 'hablar'?")).toBeTruthy();
+      return rendered;
+    }
+
+    /** The cards in order, once shown. */
+    async function cards() {
+      await screen.findByRole("heading", { name: "Your courses" });
+      return screen
+        .getAllByRole("link", { name: /Arabic|Spanish/ })
+        .map((link) => link.textContent);
+    }
+
+    // What was read before practice is stale: shown, then reread, the cards would
+    // move under the learner's tap. So the list waits for its fresh read.
+    test.each([
+      ["Close", () => fireEvent.click(screen.getByRole("link", { name: "Close" }))],
+      ["Back", (router: { history: { back: () => void } }) => router.history.back()],
+    ])("by %s, shows the list only as read again", async (_, leave) => {
+      const held = Promise.withResolvers<ReturnType<typeof read>>();
+      const { router, learnerCoursesWithStanding } = await practiseSpanish(() => held.promise);
+
+      leave(router);
+      await vi.waitFor(() => expect(learnerCoursesWithStanding).toHaveBeenCalledTimes(2));
+      expect(screen.queryByRole("heading", { name: "Your courses" })).toBeNull();
+
+      held.resolve(read(arabic));
+      expect(await cards()).toEqual([
+        expect.stringContaining("Arabic"),
+        expect.stringContaining("Spanish"),
+      ]);
+    });
+
+    test("past the reread's deadline, shows the list by title, claiming nothing", async () => {
+      const { learnerCoursesWithStanding } = await practiseSpanish(stall);
+      vi.useFakeTimers();
+
+      fireEvent.click(screen.getByRole("link", { name: "Close" }));
+      // Not `vi.waitFor`, which would move the faked clock on.
+      await waitOut(0);
+      expect(learnerCoursesWithStanding).toHaveBeenCalledTimes(2);
+      await waitOut(OPTIONAL_READ_DEADLINE_MS - 1);
+      expect(screen.queryByRole("heading", { name: "Your courses" })).toBeNull();
+      await waitOut(1);
+      vi.useRealTimers();
+
+      expect(await cards()).toEqual(["Arabic", "Spanish"]);
+      expect(screen.getByRole("link", { name: "Spanish", description: "" })).toBeTruthy();
+    });
+  });
+
   test("lists the learner's courses, each a way into it by its number", async () => {
     const { learnerCourses, router } = renderAt("/", {
       signedIn: true,
