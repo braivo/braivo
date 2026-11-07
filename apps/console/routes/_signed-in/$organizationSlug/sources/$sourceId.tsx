@@ -334,8 +334,8 @@ function DraftCourse(props: { source: Source }) {
             aria-describedby={`${id}-goal-hint`}
           />
           <FieldDescription id={`${id}-goal-hint`}>
-            For example: order food and ask for the bill politely. The draft stays within the pages
-            you choose.
+            For example: order food and ask for the bill politely. Braivo's AI reads the whole
+            source, which can take a few minutes.
           </FieldDescription>
         </Field>
         <Field>
@@ -349,9 +349,7 @@ function DraftCourse(props: { source: Source }) {
             placeholder="Grade 2, English speakers learning Spanish"
             aria-describedby={`${id}-audience-hint`}
           />
-          <FieldDescription id={`${id}-audience-hint`}>
-            Optional. Braivo's AI reads the whole source, which can take a few minutes.
-          </FieldDescription>
+          <FieldDescription id={`${id}-audience-hint`}>Optional.</FieldDescription>
         </Field>
         {error && (
           <Alert variant="destructive">

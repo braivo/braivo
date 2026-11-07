@@ -87,8 +87,8 @@ describe("the console", () => {
     expect(goal.required).toBe(true);
     expect(goal.maxLength).toBe(300);
     expect(goal.getAttribute("aria-describedby")).toBeTruthy();
-    expect(document.getElementById(goal.getAttribute("aria-describedby")!)?.textContent).toMatch(
-      /^For example: order food and ask for the bill politely\./,
+    expect(document.getElementById(goal.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "For example: order food and ask for the bill politely. Braivo's AI reads the whole source, which can take a few minutes.",
     );
     // Optional beside it, with no default put in its place.
     expect(screen.getByLabelText<HTMLInputElement>("Who are the learners?").required).toBe(false);
