@@ -120,7 +120,7 @@ These are defined in the [spec](specs/learning-model.md); they are listed here s
 - **Replay** (`replay`): rebuilding a learner's estimates from their evidence in `(at, id)` order; the only way from evidence to estimates.
 - **Candidates** (`candidates`): the ordered objective IDs selection chooses from; position in the list is content order.
 - **Learning decision** (`LearningDecision`): the next objective and an intent, with the values that explain it. Never an activity. It explains itself as of when it was made: replay rebuilds estimates, not past decisions, since candidates, content, and the model may have changed since ([spec](specs/learning-model.md)).
-- **Intent** (`intent`: `introduce`, `reteach`, or `review`): why an objective comes next — new to the learner, still being acquired, or due. A phase, a participle, says what is true of the learner; an intent, a verb, says what Braivo does about it, so the two never share a word. Reasons for choosing an objective, not instructions: which activity serves `reteach` is the application's to decide.
+- **Intent** (`intent`: the learning model's `introduce`, `reteach`, or `review`, and the application's `practise` for extra practice): why an objective comes next — new to the learner, still being acquired, or due. A phase, a participle, says what is true of the learner; an intent, a verb, says what Braivo does about it, so the two never share a word. Reasons for choosing an objective, not instructions: which activity serves `reteach` is the application's to decide.
 - **Knowledge report** (`KnowledgeReport`, one `ObjectiveStanding` per objective): each objective's phase and values, in the order given, and whether it is due.
 
 ## Equivalents elsewhere

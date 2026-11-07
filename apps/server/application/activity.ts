@@ -95,7 +95,7 @@ export async function chooseNextActivity(input: {
 
   // A chosen objective that needs no attention is still served, as extra
   // practice: the learner's request, never the model's (ADR 0058).
-  const practise = (objectiveId: string): ActivityDecision => ({
+  const extraDecision = (objectiveId: string): ActivityDecision => ({
     objectiveId,
     modelVersion: activeModel.version,
     intent: "practise",
@@ -105,7 +105,7 @@ export async function chooseNextActivity(input: {
     if (chosen === undefined || practice.kind !== "caught-up") return practice;
     return withTasks.has(chosen)
       ? { kind: "eligible", candidates: [chosen] }
-      : { kind: "no-activity", decision: practise(chosen) };
+      : { kind: "no-activity", decision: extraDecision(chosen) };
   };
 
   const practice = decide();
@@ -117,7 +117,7 @@ export async function chooseNextActivity(input: {
   // back first once its rest ends.
   const select = (candidates: readonly string[]): ActivityDecision | undefined =>
     selectNext({ now, candidates, estimates: learner.estimates, model: activeModel }) ??
-    (chosen !== undefined && candidates.includes(chosen) ? practise(chosen) : undefined);
+    (chosen !== undefined && candidates.includes(chosen) ? extraDecision(chosen) : undefined);
   let candidates = practice.candidates;
   let resting: { objective: Objective; retryAt: Date } | undefined;
   for (let decision = select(candidates); decision !== undefined; decision = select(candidates)) {

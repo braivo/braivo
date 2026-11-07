@@ -327,7 +327,7 @@ function CoursePage() {
 function NextStep() {
   const routeLoad = Route.useLoaderData();
   const { braivo, user } = Route.useRouteContext();
-  const { objective: focus } = Route.useSearch();
+  const { objective: chosenId } = Route.useSearch();
   const router = useRouter();
   // What Continue read, shown until the route loads again (a reload, a rest's end).
   const [continued, setContinued] = useState<{
@@ -429,7 +429,7 @@ function NextStep() {
   function advance(left: AbortSignal, { extraRequested = false } = {}) {
     return proceed(left, async () => {
       const { courseId } = load;
-      const activity = await readActivity(braivo, courseId, left, focus);
+      const activity = await readActivity(braivo, courseId, left, chosenId);
       const asking = activity !== undefined && "task" in activity && isAnswerable(activity.task);
       const progress = asking ? undefined : await readProgress(braivo, courseId, user.id, left);
       return () => {
@@ -462,7 +462,7 @@ function NextStep() {
     if (session.answers < SESSION_LENGTH) return advance(left);
     return proceed(left, async () => {
       const [next, report] = await Promise.all([
-        readActivity(braivo, load.courseId, left, focus).then(
+        readActivity(braivo, load.courseId, left, chosenId).then(
           (activity) => ({ activity }),
           // Unknown for now, the score still said; but signed out, or the course
           // gone, as Continue says it (`proceed`): the course reloads.
@@ -519,7 +519,7 @@ function NextStep() {
   const sessionSoFar = session.answers > 0 ? session : undefined;
 
   // An extra question read by Continue, held until the learner asks for it.
-  const extraHeld = isExtra(activity) && !extraRequested;
+  const needsExtraRequest = isExtra(activity) && !extraRequested;
   // This load's answer graded, here or found by a reload's resend.
   const answered = gradedAttempt === attemptId || resumed?.grade !== undefined;
   // A question shows, naming its objective and, while chosen, the way back itself.
@@ -528,35 +528,35 @@ function NextStep() {
     activity !== undefined &&
     "task" in activity &&
     isAnswerable(activity.task) &&
-    !extraHeld;
+    !needsExtraRequest;
   // The chosen objective's title, from what is shown or else where the learner stands.
-  const focusTitle =
-    focus === undefined
+  const chosenTitle =
+    chosenId === undefined
       ? undefined
       : ((activity !== undefined && "objective" in activity
           ? activity.objective.title
           : undefined) ??
-        progress?.objectives.find(({ objectiveId }) => objectiveId === focus)?.title ??
-        end?.report?.objectives.find(({ objectiveId }) => objectiveId === focus)?.title);
+        progress?.objectives.find(({ objectiveId }) => objectiveId === chosenId)?.title ??
+        end?.report?.objectives.find(({ objectiveId }) => objectiveId === chosenId)?.title);
 
-  // The focus the shown load was read under. A load under another, by Practise,
+  // The objective chosen when the shown load was read. A load under another, by Practise,
   // Back to recommended, or the browser's history, leaves a session's end, or a
   // session at its last answer, behind: a new one starts as that load shows,
   // never before, so what is on screen meanwhile stays as it was.
-  const shown = useRef({ routeLoad, focus });
+  const shownLoad = useRef({ routeLoad, chosenId });
   useLayoutEffect(() => {
-    // On a load alone: `focus` may change while the load it names is pending.
-    if (routeLoad === shown.current.routeLoad) return;
-    const moved = focus !== shown.current.focus;
-    shown.current = { routeLoad, focus };
+    // On a load alone: `chosenId` may change while the load it names is pending.
+    if (routeLoad === shownLoad.current.routeLoad) return;
+    const moved = chosenId !== shownLoad.current.chosenId;
+    shownLoad.current = { routeLoad, chosenId };
     if (moved && (end || session.answers >= SESSION_LENGTH)) startAfresh();
-  }, [routeLoad, focus, end, session.answers, startAfresh]);
+  }, [routeLoad, chosenId, end, session.answers, startAfresh]);
 
   /**
    * Choosing an objective, or going back to the recommended, leaves what is on
-   * screen: an answer graded here is done. The session, as `shown` says.
+   * screen: an answer graded here is done. The session, as `shownLoad` says.
    */
-  function changeFocus() {
+  function clearAnsweredAttempt() {
     if (answered) clearUnfinishedAttempt(user.id, load.courseId);
   }
 
@@ -568,7 +568,7 @@ function NextStep() {
    * since a load asks for one.
    */
   async function restEnded(left: AbortSignal): Promise<{ failed: boolean }> {
-    if (focus === undefined || extraRequested) {
+    if (chosenId === undefined || extraRequested) {
       await reloadCourse(router);
       return { failed: false };
     }
@@ -577,15 +577,15 @@ function NextStep() {
 
   // Practise on the objective already chosen: the address stays, so it reads
   // in place, as Practise again does, an explicit request (ADR 0058).
-  const [startingHere, setStartingHere] = useState(false);
-  const [hereFailures, setHereFailures] = useState(0);
-  async function practiseHere() {
-    if (startingHere) return;
-    setStartingHere(true);
+  const [startingInPlace, setStartingInPlace] = useState(false);
+  const [inPlaceFailures, setInPlaceFailures] = useState(0);
+  async function practiseInPlace() {
+    if (startingInPlace) return;
+    setStartingInPlace(true);
     const restartSession = end !== undefined || session.answers >= SESSION_LENGTH;
     const { failed } = await advance(new AbortController().signal, { extraRequested: true });
-    setStartingHere(false);
-    setHereFailures((count) => (failed ? count + 1 : 0));
+    setStartingInPlace(false);
+    setInPlaceFailures((count) => (failed ? count + 1 : 0));
     if (!failed && restartSession) startAfresh();
   }
 
@@ -594,10 +594,10 @@ function NextStep() {
     <PractiseLink
       objectiveId={objectiveId}
       title={title}
-      onClick={changeFocus}
-      here={
-        objectiveId === focus
-          ? { start: () => void practiseHere(), starting: startingHere }
+      onClick={clearAnsweredAttempt}
+      inPlace={
+        objectiveId === chosenId
+          ? { start: () => void practiseInPlace(), starting: startingInPlace }
           : undefined
       }
     />
@@ -611,16 +611,20 @@ function NextStep() {
       {/* Named for assistive technology, first, and the tab; on screen, practice alone. */}
       {title && <h1 className="sr-only">{title}</h1>}
       <PracticeBar answers={end ? SESSION_LENGTH : practising ? session.answers : undefined} />
-      {focus !== undefined && !asking && (
+      {chosenId !== undefined && !asking && (
         // Its own way back, unless what shows offers it already.
-        <FocusLine title={focusTitle} backHere={!extraHeld} onBack={changeFocus} />
+        <ChosenObjective
+          title={chosenTitle}
+          showBack={!needsExtraRequest}
+          onBack={clearAnsweredAttempt}
+        />
       )}
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced.
           Gone once this load's answer is graded, or it would seem to mean that one. */}
       {/* Keyed, so failing again mounts a new one (docs/apps.md). */}
-      {hereFailures > 0 && (
-        <Alert key={hereFailures} variant="destructive" className="mb-6">
+      {inPlaceFailures > 0 && (
+        <Alert key={inPlaceFailures} variant="destructive" className="mb-6">
           <AlertDescription>
             <Trans>Could not load the next question. Try again.</Trans>
           </AlertDescription>
@@ -671,11 +675,11 @@ function NextStep() {
         />
       ) : !isAnswerable(activity.task) ? (
         <UnsupportedTask />
-      ) : extraHeld ? (
+      ) : needsExtraRequest ? (
         <NothingDue
           objectiveTitle={activity.objective.title}
           onExtra={() => setContinued({ routeLoad, load: { ...load, extraRequested: true } })}
-          onBack={changeFocus}
+          onBack={clearAnsweredAttempt}
         />
       ) : (
         // Keyed, so the next activity starts unanswered, and what a reload's
@@ -693,7 +697,7 @@ function NextStep() {
           }}
           onContinue={continueSession}
           onPractiseAgain={(left) => advance(left, { extraRequested: true })}
-          onBack={focus === undefined ? undefined : changeFocus}
+          onBack={chosenId === undefined ? undefined : clearAnsweredAttempt}
           // Until an answer starts an objective and Continue reloads progress;
           // unknown progress says nothing.
           nothingStarted={
@@ -846,13 +850,13 @@ function PractiseLink({
   objectiveId,
   title,
   onClick,
-  here,
+  inPlace,
 }: {
   objectiveId: string;
   title: string;
   onClick: () => void;
   /** The objective already chosen: read in place (`start`), the address unchanged. */
-  here?: { start: () => void; starting: boolean };
+  inPlace?: { start: () => void; starting: boolean };
 }) {
   const { t } = useLingui();
   // Its page loading: said on the link, as Continue says it, until it shows.
@@ -861,7 +865,7 @@ function PractiseLink({
       state.status === "pending" &&
       (state.location.search as { objective?: string }).objective === objectiveId,
   });
-  const loading = here ? here.starting : navigating;
+  const loading = inPlace ? inPlace.starting : navigating;
   return (
     <Button asChild variant="outline" size="sm" className="shrink-0">
       <Link
@@ -871,9 +875,9 @@ function PractiseLink({
         aria-label={loading ? undefined : t`Practise ${title}`}
         aria-disabled={loading}
         onClick={(event) => {
-          if (loading || here) event.preventDefault();
+          if (loading || inPlace) event.preventDefault();
           if (loading) return;
-          if (here) here.start();
+          if (inPlace) inPlace.start();
           else onClick();
         }}
       >
@@ -932,16 +936,16 @@ function BackToRecommended({
 /**
  * While practising an objective the learner chose, where no question names it
  * (a rest, the day's limit, nothing due): which, and, unless what shows offers
- * it (`backHere` false), the way back to the model's choice. `title` unknown,
+ * it (`showBack` false), the way back to the model's choice. `title` unknown,
  * the line says only that one was chosen.
  */
-function FocusLine({
+function ChosenObjective({
   title,
-  backHere,
+  showBack,
   onBack,
 }: {
   title: string | undefined;
-  backHere: boolean;
+  showBack: boolean;
   onBack: () => void;
 }) {
   const { t } = useLingui();
@@ -950,7 +954,7 @@ function FocusLine({
       <MutedText className="wrap-anywhere">
         {title === undefined ? t`Practising a topic you chose` : t`Practising ${title}`}
       </MutedText>
-      {backHere && <BackToRecommended className="shrink-0" onClick={onBack} />}
+      {showBack && <BackToRecommended className="shrink-0" onClick={onBack} />}
     </div>
   );
 }

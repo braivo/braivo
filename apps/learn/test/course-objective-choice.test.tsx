@@ -69,7 +69,7 @@ function task(intent: "practise" | "reteach", id = "t1"): Activity {
 }
 
 /** Caught up unless an objective is chosen; then `chosen`'s answer for it. */
-function focusing(chosen: (objectiveId: string) => Promise<Activity | undefined>) {
+function whenChosen(chosen: (objectiveId: string) => Promise<Activity | undefined>) {
   return (async (_courseId, options) =>
     options?.objectiveId === undefined
       ? undefined
@@ -86,7 +86,7 @@ describe("the learn app", () => {
     const { nextActivity, router } = renderAt("/c/4732", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => task("practise")),
+      nextActivity: whenChosen(async () => task("practise")),
     });
     expect(await screen.findByText("You're caught up")).toBeTruthy();
 
@@ -138,7 +138,7 @@ describe("the learn app", () => {
     const { nextActivity } = renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => answers.shift()),
+      nextActivity: whenChosen(async () => answers.shift()),
     });
 
     // A reload, or a link, keeps the choice.
@@ -158,7 +158,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => answers.shift()),
+      nextActivity: whenChosen(async () => answers.shift()),
     });
 
     // Being learned: practice as usual, Continue and all.
@@ -184,7 +184,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => answers.shift()),
+      nextActivity: whenChosen(async () => answers.shift()),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
@@ -299,7 +299,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => task("practise")),
+      nextActivity: whenChosen(async () => task("practise")),
       submitAttempt: async () => ({
         kind: "choice",
         outcome: "failure",
@@ -340,7 +340,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => (++asked === 1 ? task("practise") : stall())),
+      nextActivity: whenChosen(async () => (++asked === 1 ? task("practise") : stall())),
     });
     fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
     const again = await screen.findByRole("button", { name: "Practise again" });
@@ -359,7 +359,7 @@ describe("the learn app", () => {
       renderAt("/c/4732?objective=a", {
         signedIn: true,
         learnerProgress: async () => caughtUp,
-        nextActivity: focusing(async () => task("reteach", `r${++asked}`)),
+        nextActivity: whenChosen(async () => task("reteach", `r${++asked}`)),
       });
       for (let answered = 1; answered <= 10; answered++) {
         fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
@@ -390,7 +390,7 @@ describe("the learn app", () => {
     renderAt("/c/4732?objective=a", {
       signedIn: true,
       learnerProgress: async () => caughtUp,
-      nextActivity: focusing(async () => {
+      nextActivity: whenChosen(async () => {
         const next = answers.shift();
         if (next instanceof Error) throw next;
         return next;
@@ -419,6 +419,6 @@ function renderPage(chosen: (objectiveId: string) => Promise<Activity | undefine
   return renderAt("/c/4732?objective=a", {
     signedIn: true,
     learnerProgress: async () => caughtUp,
-    nextActivity: focusing(chosen),
+    nextActivity: whenChosen(chosen),
   });
 }

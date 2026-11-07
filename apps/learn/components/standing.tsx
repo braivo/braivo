@@ -134,7 +134,7 @@ export function StandingMeter({
   const line = countsLine(counts, t);
 
   /** Opens the list, the focus on its first action, so the choice is in reach. */
-  function choose() {
+  function openChoices() {
     const list = details.current;
     if (!list) return;
     list.open = true;
@@ -145,7 +145,7 @@ export function StandingMeter({
   return (
     <div className="flex w-full flex-col gap-2 text-left text-sm">
       {action && !open && (
-        <Button variant="outline" size="lg" className="w-full" onClick={choose}>
+        <Button variant="outline" size="lg" className="w-full" onClick={openChoices}>
           <Trans>Choose a topic to practise</Trans>
         </Button>
       )}

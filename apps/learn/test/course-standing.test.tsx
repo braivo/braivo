@@ -68,7 +68,7 @@ describe("the learn app", () => {
     expect(
       within(details)
         .getAllByRole("listitem")
-        // The label alone, without its Practise (course-focus.test.tsx).
+        // The label alone, without its Practise (course-objective-choice.test.tsx).
         .map((item) => item.firstElementChild?.textContent),
     ).toEqual([
       "Greetings: retained",

@@ -16,11 +16,11 @@ Most objectives a learner would choose at a pause need no attention. Caught up m
 - **Retained and not due: extra practice.** Its task is served with the intent `practise`, the learner's request, never the model's recommendation. `practise` is the application's (`apps/server/application/activity.ts`); `learning` keeps its three decisions and is unchanged. The learn app labels it Extra practice.
 - **Rules as usual.** The task follows rotation and its rest ([ADR 0017](0017-task-rest.md)): with every task resting, the answer says when practice resumes. The day's limit ([ADR 0041](0041-daily-limit.md)) holds back the objective only if it is not started yet; a started one takes nothing from it. The answer is graded and recorded as any other: a success moves the next review, a miss returns the objective to `acquiring`.
 - **One extra question per request.** An extra question is no part of a practice session: the app neither counts it nor shows a session's progress beside it, which would promise a run of ten. Once its feedback shows, it is finished: the app never asks another by itself. It offers Back to recommended, which after a miss continues acquisition through the model's own choice, and the learner may tap Practise again. Ordinary practice on a chosen objective continues in focus, on Continue, until it would turn into extra practice.
-- **Focus lasts the page.** The chosen objective is the course page's search parameter, so a reload keeps it; Back to recommended or leaving the course page drops it. The server keeps nothing.
+- **The choice lasts the page.** The chosen objective is the course page's search parameter, so a reload keeps it; Back to recommended or leaving the course page drops it. The server keeps nothing.
 
 ## Alternatives rejected
 
-- **Say a chosen objective is not due** (204, as selection would): the choice would be refused almost everywhere it is offered, and every focused run would end at its first success.
+- **Say a chosen objective is not due** (204, as selection would): the choice would be refused almost everywhere it is offered, and every run on a chosen objective would end at its first success.
 - **Offer Practise only where something is due**: avoids a refusal, but takes away the choice exactly when the learner has nothing else to do.
 - **Keep serving extra practice on Continue**: easy to repeat known material without a learning reason, which product.md rules out; one question per tap keeps every extra question the learner's own request.
 - **Choose in the app** by reading the standings and answering any task: attempts are not bound to an activity served (ADR 0015), so it would work, but rests, the limit, and rotation would be the app's to restate.
