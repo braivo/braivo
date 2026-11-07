@@ -4,7 +4,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import type { Evidence } from "../learning/index.ts";
-import { isTimeZone, NEW_OBJECTIVES_PER_DAY, limitNewObjectives } from "./daily-limit.ts";
+import {
+  dailyAllowance,
+  isTimeZone,
+  NEW_OBJECTIVES_PER_DAY,
+  limitNewObjectives,
+} from "./daily-limit.ts";
 
 const started = Array.from({ length: NEW_OBJECTIVES_PER_DAY }, (_, i) => `started-${i}`);
 const unseen = ["unseen-1", "unseen-2"];
@@ -100,4 +105,21 @@ test("isTimeZone accepts IANA names, and nothing else", () => {
   expect(isTimeZone("UTC")).toBe(true);
   expect(isTimeZone("Mars/Olympus_Mons")).toBe(false);
   expect(isTimeZone("")).toBe(false);
+});
+
+describe("dailyAllowance", () => {
+  const input = { now: new Date("2026-06-01T09:00:00Z"), timeZone: "UTC" };
+
+  test("leaves what the day's limit has not used, and never less than none", () => {
+    const today = "2026-06-01T08:00:00Z";
+    expect(dailyAllowance(startedAt(today, started.slice(1)), input).newLeft).toBe(1);
+    expect(dailyAllowance(startedAt(today), input).newLeft).toBe(0);
+    expect(dailyAllowance(startedAt(today, [...started, "one-more"]), input).newLeft).toBe(0);
+  });
+
+  test("names what was ever started, counting only today's against the limit", () => {
+    const allowance = dailyAllowance(startedAt("2026-05-31T08:00:00Z", ["before"]), input);
+    expect(allowance.started).toEqual(new Set(["before"]));
+    expect(allowance.newLeft).toBe(NEW_OBJECTIVES_PER_DAY);
+  });
 });

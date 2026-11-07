@@ -112,6 +112,37 @@ describe("the learn app in Polish", () => {
     expect(screen.getByText("Nie masz jeszcze kursów")).toBeTruthy();
   });
 
+  test("says what waits in a course, or that nothing does, in Polish forms", async () => {
+    const course = { id: "c1", number: 4732, title: "Hiszpański", urlLabel: "hiszpanski" };
+    const idle = { id: "c2", number: 4733, title: "Włoski", urlLabel: "wloski" };
+    renderAt("/", {
+      signedIn: true,
+      learnerCourses: async () => [course, idle],
+      learnerCoursesWithStanding: async () => [
+        {
+          ...course,
+          standing: { retained: 1, dueForReview: 2, learning: 0, notStarted: 5 },
+          waiting: { learning: 0, dueForReview: 2, new: 5 },
+        },
+        {
+          ...idle,
+          standing: { retained: 0, dueForReview: 0, learning: 1, notStarted: 0 },
+          waiting: { learning: 0, dueForReview: 0, new: 0 },
+        },
+      ],
+    });
+
+    expect(
+      await screen.findByRole("link", {
+        name: "Hiszpański",
+        description: (text) => text.replace(/\s/gu, " ") === "2 do powtórki · 5 nowych",
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Włoski", description: "Na razie brak zalecanych ćwiczeń" }),
+    ).toBeTruthy();
+  });
+
   test("says when the courses, a course, or signing out failed", async () => {
     const { signOut } = renderAt("/", {
       signedIn: true,

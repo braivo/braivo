@@ -723,6 +723,63 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect((await api.request("/api/courses?standing=true")).status).toBe(401);
   });
 
+  test("says on each course what practice would offer there, what the activity then offers", async () => {
+    const waitingIn = async (id: string, timeZone?: string) => {
+      const query = new URLSearchParams({ standing: "true", ...(timeZone && { timeZone }) });
+      const response = await api.request(`/api/courses?${query}`, {
+        headers: { cookie: learner.cookie },
+      });
+      const { courses } = (await response.json()) as {
+        courses: { id: string; waiting: Record<string, number> }[];
+      };
+      return courses.find((each) => each.id === id)?.waiting;
+    };
+    const decided = async () =>
+      (
+        (await (await activity(courseId, learner.cookie)).json()) as {
+          decision: { intent: string };
+        }
+      ).decision.intent;
+
+    // New: what the activity introduces.
+    expect(await waitingIn(courseId)).toEqual({ learning: 0, dueForReview: 0, new: 1 });
+    expect(await decided()).toBe("introduce");
+
+    // Missed, by outside evidence, which rests no task: what it reteaches.
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      {
+        id: "waiting-miss",
+        objectiveId: pastTense,
+        outcome: "failure",
+        at: new Date(Math.floor(Date.now() / 1000) * 1000 - 60_000),
+      },
+    ]);
+    expect(await waitingIn(courseId)).toEqual({ learning: 1, dueForReview: 0, new: 0 });
+    expect(await decided()).toBe("reteach");
+
+    // Retained: nothing waits, and the activity is caught up.
+    await recordEvidence(database, { learnerId: learner.id, organizationId }, [
+      {
+        id: "waiting-success",
+        objectiveId: pastTense,
+        outcome: "success",
+        at: new Date(Math.floor(Date.now() / 1000) * 1000 - 30_000),
+      },
+    ]);
+    expect(await waitingIn(courseId)).toEqual({ learning: 0, dueForReview: 0, new: 0 });
+    expect((await activity(courseId, learner.cookie)).status).toBe(204);
+
+    // Nothing to offer in a course with no objectives.
+    expect(await waitingIn(emptyCourseId)).toEqual({ learning: 0, dueForReview: 0, new: 0 });
+
+    // Named as for a course's activity.
+    const unknown = await api.request("/api/courses?standing=true&timeZone=Mars/Olympus_Mons", {
+      headers: { cookie: learner.cookie },
+    });
+    expect(unknown.status).toBe(400);
+    expect(await waitingIn(courseId, "Europe/Warsaw")).toBeDefined();
+  });
+
   test("counts each course's standing as the learner's own progress report counts it, as of now", async () => {
     type Standing = { phase: string; due?: boolean };
     const counted = async () => {

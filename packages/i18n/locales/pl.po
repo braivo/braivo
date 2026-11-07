@@ -147,6 +147,11 @@ msgstr "{days, plural, =0 {Ostatnie ćwiczenia: dzisiaj} =1 {Ostatnie ćwiczenia
 msgid "{domain} now serves your learners."
 msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
 
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{dueForReview, plural, one {# to review} other {# to review}}"
+msgstr "{dueForReview, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "{email} accepted the invitation before it could be cancelled. Remove them from members if they should not be here."
 msgstr "Zaproszenie dla {email} zostało przyjęte, zanim udało się je anulować. Jeśli ta osoba nie powinna tu być, usuń ją z członków."
@@ -166,6 +171,11 @@ msgstr "Adres {email} został już ponownie zaproszony."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# błąd} few {# błędy} many {# błędów} other {# błędu}}"
+
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{fresh, plural, one {# new} other {# new}}"
+msgstr "{fresh, plural, one {# nowy} few {# nowe} many {# nowych} other {# nowego}}"
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "{hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them."
@@ -199,6 +209,11 @@ msgstr "{kept, plural, one {# adres zostawiono wyżej do ponownej próby.} few {
 #: apps/console/components/first-answers.tsx
 msgid "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
 msgstr "{learners, plural, one {Pierwsze odpowiedzi # ucznia} few {Pierwsze odpowiedzi # uczniów} many {Pierwsze odpowiedzi # uczniów} other {Pierwsze odpowiedzi # ucznia}}: {counted}."
+
+#. A count of objectives missed, waiting for another try, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{learning, plural, one {# to practise} other {# to practise}}"
+msgstr "{learning, plural, one {# do przećwiczenia} few {# do przećwiczenia} many {# do przećwiczenia} other {# do przećwiczenia}}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "{membersLeft, plural, one {Room for # more member. An invitation reserves no place.} other {Room for # more members. An invitation reserves no place.}}"
@@ -1639,6 +1654,11 @@ msgstr "Jeszcze bez ćwiczeń z celów tego kursu"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No practice yet: {none}"
 msgstr "Jeszcze bez ćwiczeń: {none}"
+
+#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "No recommended practice right now"
+msgstr "Na razie brak zalecanych ćwiczeń"
 
 #: apps/console/components/explanations.tsx
 msgid "No tasks yet."

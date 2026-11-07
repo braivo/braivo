@@ -6,9 +6,11 @@ import {
   type Evidence,
   type KnowledgeEstimate,
   type LearningDecision,
+  type ObjectiveStanding,
   selectNext,
 } from "../learning/index.ts";
 import { limitNewObjectives, NEW_OBJECTIVES_PER_DAY } from "./daily-limit.ts";
+import { countStandings } from "./standing.ts";
 
 /**
  * What practice the activity selection would offer a learner in a course now,
@@ -45,6 +47,33 @@ export function decidePractice(
   if (decision !== undefined) return { kind: "no-activity", decision };
   return heldBack ? { kind: "daily-limit", limit: NEW_OBJECTIVES_PER_DAY } : { kind: "caught-up" };
 }
+
+/**
+ * What the activity's selection can offer in a course now, a snapshot rather
+ * than a session's length (answering can end a rest): `assessed`, its
+ * objectives' standings (assessment shares selection's rule), those
+ * `offerable`, having a task that does not rest, with no more new ones than
+ * `newLeft` (`dailyAllowance`). Over this course alone: the limit is shared
+ * across the organization, so two courses may count the same places left today.
+ *
+ * Counted by standing, not by walking `selectNext`, which is quadratic in what
+ * waits; `practice.test.ts` walks it, nothing resting, to prove the two agree,
+ * and `waiting-rests.test.ts` compares rests with the activity's. Takes what its
+ * caller already has, so a list of courses scans no history per course.
+ */
+export function countWaiting(
+  assessed: readonly ObjectiveStanding[],
+  offerable: ReadonlySet<string>,
+  newLeft: number,
+): CourseWaiting {
+  const { learning, dueForReview, notStarted } = countStandings(
+    assessed.filter(({ objectiveId }) => offerable.has(objectiveId)),
+  );
+  return { learning, dueForReview, new: Math.min(notStarted, newLeft) };
+}
+
+/** How many of a course's objectives practice would offer now, by why. */
+export type CourseWaiting = { learning: number; dueForReview: number; new: number };
 
 /**
  * `empty`: the course has no objective. `eligible`: an objective with a task

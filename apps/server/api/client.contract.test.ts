@@ -396,6 +396,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       title: "Not started",
       urlLabel: "not-started",
       standing: { retained: 0, dueForReview: 0, learning: 0, notStarted: 0 },
+      waiting: { learning: 0, dueForReview: 0, new: 0 },
     });
     // Every objective of a course counted once.
     const { standing } = courses.find(({ id }) => id === progressCourseId)!;

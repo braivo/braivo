@@ -20,6 +20,7 @@ import {
   markPublished,
   readCourseObjectives,
   readObjectivesForCourses,
+  readObjectivesWithTasks,
   readCourses,
   readDomainOrganization,
   readLearnerCourses,
@@ -33,9 +34,12 @@ import {
   updateCourseHidden,
   updateCourseUrlLabel,
 } from "../persistence/index.ts";
+import { dailyAllowance } from "./daily-limit.ts";
 import type { RequestHost } from "./host.ts";
 import { checkNames, InvalidDefinition } from "./objectives.ts";
 import { assertMayAuthor, NotPermitted } from "./permission.ts";
+import { type CourseWaiting, countWaiting } from "./practice.ts";
+import { readRestingObjectives } from "./rest.ts";
 import { type CourseStanding, countStandings } from "./standing.ts";
 
 /**
@@ -279,49 +283,68 @@ export async function listLearnerCourses(input: {
 }
 
 /**
- * The courses `listLearnerCourses` lists, each with where the learner stands
- * in it at `now`: what a course list shows to say what waits where. The
- * learner's evidence is replayed once per organization, as every decision
- * replays it whole (ADR 0009), not once per course.
+ * The courses `listLearnerCourses` lists, each with where the learner stands in
+ * it at `now` and what practice would offer there: what a course list shows to
+ * say what waits where. The learner's evidence is replayed once per
+ * organization, as every decision replays it whole (ADR 0009), not once per
+ * course.
  */
 export async function listLearnerCoursesWithStanding(input: {
   database: Database;
   learnerId: string;
   host: RequestHost;
   now: Date;
-}): Promise<(Course & { standing: CourseStanding })[]> {
-  const { database, learnerId, now } = input;
+  /** The learner's, an IANA name, for the day `limitNewObjectives` counts in. */
+  timeZone: string;
+}): Promise<(Course & { standing: CourseStanding; waiting: CourseWaiting })[]> {
+  const { database, learnerId, now, timeZone } = input;
   const courses = await listLearnerCourses(input);
   const scopes = await readObjectivesForCourses(
     database,
     courses.map(({ id }) => id),
   );
   const organizations = new Set([...scopes.values()].map(({ organizationId }) => organizationId));
-  const estimates = new Map(
-    await Promise.all(
-      [...organizations].map(
-        async (organizationId) =>
-          [
-            organizationId,
-            replay(
-              await readLearnerEvidence(database, { learnerId, organizationId }, now),
-              activeModel,
-            ),
-          ] as const,
-      ),
+  const [learnerStates, withTasks, resting] = await Promise.all([
+    Promise.all(
+      [...organizations].map(async (organizationId) => {
+        const evidence = await readLearnerEvidence(database, { learnerId, organizationId }, now);
+        return [
+          organizationId,
+          {
+            estimates: replay(evidence, activeModel),
+            newLeft: dailyAllowance(evidence, { now, timeZone }).newLeft,
+          },
+        ] as const;
+      }),
+    ).then((entries) => new Map(entries)),
+    readObjectivesWithTasks(
+      database,
+      [...scopes.values()].flatMap(({ objectiveIds }) => objectiveIds),
     ),
-  );
+    readRestingObjectives(database, {
+      learnerId,
+      organizationIds: [...organizations],
+      now,
+    }),
+  ]);
+  const offerable = new Set([...withTasks].filter((id) => !resting.has(id)));
   return courses.map((course) => {
     const scope = scopes.get(course.id);
-    const { objectives } = scope
-      ? assessKnowledge({
-          now,
-          objectiveIds: scope.objectiveIds,
-          estimates: estimates.get(scope.organizationId)!,
-          model: activeModel,
-        })
-      : { objectives: [] };
-    return { ...course, standing: countStandings(objectives) };
+    const learnerState = scope && learnerStates.get(scope.organizationId)!;
+    const { objectives } =
+      scope && learnerState
+        ? assessKnowledge({
+            now,
+            objectiveIds: scope.objectiveIds,
+            estimates: learnerState.estimates,
+            model: activeModel,
+          })
+        : { objectives: [] };
+    return {
+      ...course,
+      standing: countStandings(objectives),
+      waiting: countWaiting(objectives, offerable, learnerState?.newLeft ?? 0),
+    };
   });
 }
 

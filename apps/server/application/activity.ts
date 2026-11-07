@@ -13,7 +13,6 @@ import {
 import { activeModel, type LearningDecision, selectNext } from "../learning/index.ts";
 import {
   ConflictingAttempt,
-  countOtherAttempts,
   hasReviewPassage,
   type LearnerPassage,
   readCourseOrganization,
@@ -33,6 +32,7 @@ import { hostAdmits, type RequestHost } from "./host.ts";
 import { loadLearnerInCourse } from "./learner-in-course.ts";
 import { isMember } from "./permission.ts";
 import { decidePractice, type Practice } from "./practice.ts";
+import { restingUntil, TASK_REST_ATTEMPTS, TASK_REST_MS } from "./rest.ts";
 
 /**
  * Starts the ID of every evidence record graded from an attempt. Reserved:
@@ -46,14 +46,6 @@ export const ATTEMPT_EVIDENCE_PREFIX = "attempt:";
  * overflow PostgreSQL's index entry limit as an error rather than a refusal.
  */
 const MAX_ATTEMPT_ID_LENGTH = 128;
-
-/**
- * A task rests after Braivo accepts a learner's answer to it, because the grade
- * reveals the answer: for ten minutes, or until three attempts on other
- * objectives, whichever ends first. Provisional (docs/adr/0017-task-rest.md).
- */
-const TASK_REST_MS = 10 * 60_000;
-const TASK_REST_ATTEMPTS = 3;
 
 /**
  * The learner loop's first half: the next objective and a task to practise it.
@@ -160,30 +152,6 @@ export async function chooseNextActivity(input: {
     if (objective === undefined) throw new Error(`Objective ${decision.objectiveId} is missing`);
     return { kind: "no-activity", decision, objective };
   }
-}
-
-/**
- * When a task the learner last answered at `lastAttemptAt` may be offered
- * again, or nothing if it already may: after `TASK_REST_MS`, unless
- * `TASK_REST_ATTEMPTS` other objectives' attempts end the rest sooner. Ten
- * minutes is when it ends if nothing else is answered meanwhile.
- */
-async function restingUntil(
-  database: Database,
-  input: {
-    learnerId: string;
-    organizationId: string;
-    objectiveId: string;
-    lastAttemptAt: Date | undefined;
-    now: Date;
-  },
-): Promise<Date | undefined> {
-  const { lastAttemptAt, now } = input;
-  if (lastAttemptAt === undefined) return undefined;
-  const until = new Date(lastAttemptAt.getTime() + TASK_REST_MS);
-  if (until <= now) return undefined;
-  const attempts = await countOtherAttempts(database, { ...input, after: lastAttemptAt });
-  return attempts < TASK_REST_ATTEMPTS ? until : undefined;
 }
 
 /**

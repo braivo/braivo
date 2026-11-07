@@ -147,6 +147,11 @@ msgstr "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} o
 msgid "{domain} now serves your learners."
 msgstr "{domain} now serves your learners."
 
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{dueForReview, plural, one {# to review} other {# to review}}"
+msgstr "{dueForReview, plural, one {# to review} other {# to review}}"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "{email} accepted the invitation before it could be cancelled. Remove them from members if they should not be here."
 msgstr "{email} accepted the invitation before it could be cancelled. Remove them from members if they should not be here."
@@ -166,6 +171,11 @@ msgstr "{email} is already invited again."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# failure} other {# failures}}"
+
+#. A count of objectives, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{fresh, plural, one {# new} other {# new}}"
+msgstr "{fresh, plural, one {# new} other {# new}}"
 
 #: apps/console/components/organization-setup-form.tsx
 msgid "{hostname} is not a valid address. Use lowercase letters, digits, and single hyphens between them."
@@ -199,6 +209,11 @@ msgstr "{kept, plural, one {# address kept above to try again.} other {# address
 #: apps/console/components/first-answers.tsx
 msgid "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
 msgstr "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
+
+#. A count of objectives missed, waiting for another try, the noun implied (Polish: temat)
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "{learning, plural, one {# to practise} other {# to practise}}"
+msgstr "{learning, plural, one {# to practise} other {# to practise}}"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "{membersLeft, plural, one {Room for # more member. An invitation reserves no place.} other {Room for # more members. An invitation reserves no place.}}"
@@ -1639,6 +1654,11 @@ msgstr "No practice recorded yet on this course's objectives"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "No practice yet: {none}"
 msgstr "No practice yet: {none}"
+
+#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "No recommended practice right now"
+msgstr "No recommended practice right now"
 
 #: apps/console/components/explanations.tsx
 msgid "No tasks yet."

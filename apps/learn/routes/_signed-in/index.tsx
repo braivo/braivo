@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Course, type CourseStanding, courseRef } from "@braivo/server/client";
+import {
+  type Course,
+  type CourseStanding,
+  type CourseWaiting,
+  courseRef,
+} from "@braivo/server/client";
 import { Heading } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
@@ -13,6 +18,8 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@braivo/ui/components/item";
+import { cn } from "@braivo/ui/lib/utils";
+import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
@@ -20,25 +27,31 @@ import { useId } from "react";
 
 import { AccountHeader } from "#components/account-header";
 import { Notice } from "#components/notice";
-import { StandingBar, countsLine } from "#components/standing";
 import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createFileRoute("/_signed-in/")({
-  // The list, and beside it where the learner stands in each, read together:
-  // the standing replays their evidence, so it is optional, within its own
-  // shorter deadline, the list shown without it rather than failing. Awaited
-  // with the list, as the course page awaits its optional reads, so the cards
-  // never grow under a tap; a slow one holds the list back no longer than its deadline.
+  // The list, and beside it where the learner stands in each and what waits
+  // there, read together: those replay their evidence, so they are optional,
+  // within their own shorter deadline, the list shown without them rather than
+  // failing. Awaited with the list, as the course page awaits its optional
+  // reads, so the cards never grow under a tap; a slow one holds the list back
+  // no longer than its deadline.
+  // Dropped on leaving: practice changes what waits, and a kept list would show
+  // again, then reorder under a tap once read again.
+  gcTime: 0,
   loader: async ({ context, abortController }) => {
     const left = abortController.signal;
-    const [courses, standings] = await Promise.all([
+    const [courses, details] = await Promise.all([
       context.braivo.learnerCourses({ signal: withDeadline(left, READ_DEADLINE_MS) }),
       context.braivo
         .learnerCoursesWithStanding({ signal: withDeadline(left, OPTIONAL_READ_DEADLINE_MS) })
-        .then((listed) => new Map(listed.map(({ id, standing }) => [id, standing])))
+        .then(
+          (listed) =>
+            new Map(listed.map(({ id, standing, waiting }) => [id, { standing, waiting }])),
+        )
         .catch(() => undefined),
     ]);
-    return { courses, standings };
+    return { courses, details };
   },
   component: Courses,
   errorComponent: CoursesError,
@@ -64,10 +77,16 @@ function CoursesError() {
 const root = getRouteApi("__root__");
 
 function Courses() {
-  const { courses, standings } = Route.useLoaderData();
+  const { courses, details } = Route.useLoaderData();
   // A number names a course on its organization's domain alone; elsewhere, or
   // with the domain's organization unknown, its ID does.
   const { organization } = root.useLoaderData();
+  // Weak and fading knowledge first, then new material, then the rest; a stable
+  // sort, so by title within each. Unread, the list's order alone: nothing can be
+  // said of what waits.
+  const ordered = courses.toSorted(
+    (a, b) => rank(details?.get(a.id)?.waiting) - rank(details?.get(b.id)?.waiting),
+  );
 
   return (
     <>
@@ -89,12 +108,12 @@ function Courses() {
           </Empty>
         ) : (
           <ItemGroup className="gap-2">
-            {courses.map((course) => (
+            {ordered.map((course) => (
               <CourseCard
                 key={course.id}
                 course={course}
                 courseRef={organization ? courseRef(course) : course.id}
-                standing={standings?.get(course.id)}
+                details={details?.get(course.id)}
               />
             ))}
           </ItemGroup>
@@ -104,25 +123,92 @@ function Courses() {
   );
 }
 
+/** Where a course lists, first to last: learning or reviews waiting, only new material, nothing or unread. */
+function rank(waiting: CourseWaiting | undefined) {
+  if (waiting === undefined) return 2;
+  if (waiting.learning + waiting.dueForReview > 0) return 0;
+  return waiting.new > 0 ? 1 : 2;
+}
+
 /**
- * A course, the whole card its link: its title, and where the learner stands
- * in it, as the course page's meter and counts say it (progress-8), so the
- * list tells what waits where. Without a standing, or for a course with no
- * objectives, the title alone. Named by its title, the counts its description.
+ * What practice would offer in a course now (learner-loop-27), in the order it
+ * would, those with none left out, each count whole where it fits, so a phone
+ * wraps between counts: "2 to review · 3 new".
+ */
+function waitingLine(waiting: CourseWaiting, t: ReturnType<typeof useLingui>["t"]): string {
+  const { learning, dueForReview, new: fresh } = waiting;
+  return [
+    learning > 0 &&
+      t(
+        msg({
+          message: plural(learning, { one: "# to practise", other: "# to practise" }),
+          comment:
+            "A count of objectives missed, waiting for another try, the noun implied (Polish: temat)",
+        }),
+      ),
+    dueForReview > 0 &&
+      t(
+        msg({
+          message: plural(dueForReview, { one: "# to review", other: "# to review" }),
+          comment: "A count of objectives, the noun implied (Polish: temat)",
+        }),
+      ),
+    fresh > 0 &&
+      t(
+        msg({
+          message: plural(fresh, { one: "# new", other: "# new" }),
+          comment: "A count of objectives, the noun implied (Polish: temat)",
+        }),
+      ),
+  ]
+    .filter((count) => count !== false)
+    .map((count) => count.replaceAll(" ", "\u00a0"))
+    .join(" · ");
+}
+
+/** How many objectives a course's standing counts. */
+function totalOf(standing: CourseStanding) {
+  return Object.values(standing).reduce((sum, count) => sum + count, 0);
+}
+
+/** Whether practice would offer anything in a course now. */
+function hasWaiting({ learning, dueForReview, new: fresh }: CourseWaiting) {
+  return learning + dueForReview + fresh > 0;
+}
+
+/**
+ * A course, the whole card its link, a tap away from practice: its title and one
+ * line, what waits there now or that nothing does, the reason left to the course
+ * page. Where the learner stands shows where practice pauses (progress-8), not
+ * here: beside what waits it would count other things, unexplained. Without
+ * those read, or for a course with no objectives, the title alone. Named by its
+ * title, the line its description.
  */
 function CourseCard({
   course,
   courseRef,
-  standing,
+  details,
 }: {
   course: Course;
   courseRef: string;
-  standing: CourseStanding | undefined;
+  details: { standing: CourseStanding; waiting: CourseWaiting } | undefined;
 }) {
   const { t } = useLingui();
   const titleId = useId();
-  const countsId = useId();
-  const line = standing && countsLine(standing, t);
+  const lineId = useId();
+  const waits = details !== undefined && hasWaiting(details.waiting);
+  const line =
+    details === undefined || totalOf(details.standing) === 0
+      ? undefined
+      : waits
+        ? waitingLine(details.waiting, t)
+        : t(
+            msg({
+              message: "No recommended practice right now",
+              comment:
+                "A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up",
+            }),
+          );
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -132,19 +218,19 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={line ? countsId : undefined}
+          aria-describedby={line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
               {course.title}
             </ItemTitle>
-            {standing && line && (
-              <>
-                <StandingBar counts={standing} />
-                <ItemDescription id={countsId} className="line-clamp-none">
-                  {line}
-                </ItemDescription>
-              </>
+            {line && (
+              <ItemDescription
+                id={lineId}
+                className={cn("line-clamp-none", waits && "text-foreground")}
+              >
+                {line}
+              </ItemDescription>
             )}
           </ItemContent>
           <ItemActions className="shrink-0">
