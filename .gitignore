@@ -1,6 +1,5 @@
 node_modules/
 dist/
-# What Astro generates for apps/docs.
 .astro/
 tmp/
 *.local.md

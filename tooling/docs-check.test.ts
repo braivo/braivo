@@ -65,6 +65,21 @@ describe("links between public pages", () => {
       (path) => files(page, other).has(path),
     );
 
+  test("refuses a reference definition, which the site would not rewrite, whatever its target", () => {
+    const refused = (number: number, definition: string) =>
+      `${page}:${number}: \`${definition}\` is a reference definition, which the site does not rewrite: write the link inline, as \`[text](./page.mdx)\``;
+    expect(
+      run(
+        "[a](./api.mdx) [Start][a] [Gone][b] [Part][c]\n\n[a]: ./api.mdx\n[b]: ./not-a-page.mdx\n   [c]: ./api.mdx#the-walkthrough\n",
+      ),
+    ).toEqual([
+      refused(3, "[a]: ./api.mdx"),
+      refused(4, "[b]: ./not-a-page.mdx"),
+      refused(5, "[c]: ./api.mdx#the-walkthrough"),
+    ]);
+    expect(run("```md\n[a]: ./api.mdx\n```\n")).toEqual([]);
+  });
+
   test("passes a page, its heading, and an address", () => {
     expect(
       run(

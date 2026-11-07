@@ -93,6 +93,15 @@ function checkLinks(
 ): string[] {
   const problems: string[] = [];
   for (const { line, number } of outsideFences(text)) {
+    // The site's build rewrites inline links and images alone, so a reference's
+    // target would reach the reader as a `.mdx` file.
+    const definition = /^ {0,3}(\[[^\]]+\]:\s*\S+)/.exec(line)?.[1];
+    if (definition) {
+      problems.push(
+        `${path}:${number}: \`${definition}\` is a reference definition, which the site does not rewrite: write the link inline, as \`[text](./page.mdx)\``,
+      );
+      continue;
+    }
     const prose = line.replace(/`[^`]*`/g, "");
     for (const [, image, alt, href] of prose.matchAll(/(!)?\[([^\]]*)\]\(([^)\s]+)/g)) {
       const problem = image
