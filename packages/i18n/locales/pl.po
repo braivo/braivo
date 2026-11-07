@@ -668,7 +668,7 @@ msgstr "Kopiuj adres konektora"
 
 #: apps/console/components/connect-ai-app.tsx
 msgid "Copy first prompt"
-msgstr "Kopiuj pierwsze polecenie"
+msgstr "Kopiuj pierwszą prośbę"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Copy link"
@@ -1690,7 +1690,7 @@ msgstr "{date} o {time}"
 
 #: apps/console/components/connect-ai-app.tsx
 msgid "On the web: chatgpt.com/plugins, Add custom MCP server, choosing OAuth for authentication. Building needs a Business, Enterprise, or Edu plan."
-msgstr "W przeglądarce: chatgpt.com/plugins, Add custom MCP server, wybierając OAuth jako uwierzytelnianie. Budowanie wymaga planu Business, Enterprise lub Edu."
+msgstr "W przeglądarce: chatgpt.com/plugins, Add custom MCP server, z OAuth jako metodą uwierzytelniania. Zbudowanie kursu wymaga planu Business, Enterprise lub Edu."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "One question at a time. What you get wrong comes back soon; what you get right returns for review before you're likely to forget it."
@@ -1973,7 +1973,7 @@ msgstr "Rola"
 
 #: apps/console/components/connect-ai-app.tsx
 msgid "Run this command, then its <0>/mcp</0> command to sign in:"
-msgstr "Uruchom to polecenie, a potem jego komendę <0>/mcp</0>, aby się zalogować:"
+msgstr "Uruchom to polecenie, a potem w Claude Code komendę <0>/mcp</0>, aby się zalogować:"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
@@ -2556,7 +2556,7 @@ msgstr "Podaj adres e-mail, którego używasz w organizacji {organizationName}."
 
 #: apps/console/components/connect-ai-app.tsx
 msgid "Using Braivo, turn the material I attach into a course for {organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
-msgstr "Korzystając z Braivo, zamień załączony materiał w kurs dla organizacji {organization}: najpierw cele, potem zadania cytujące ten materiał. Kurs będzie potem czekać na mój przegląd w Braivo."
+msgstr "Korzystając z Braivo, zamień załączony materiał w kurs dla organizacji {organization}: najpierw cele nauczania, potem zadania do ćwiczeń z cytatami z tego materiału. Kurs będzie następnie czekać w Braivo, aż go sprawdzę."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Value"
@@ -2585,7 +2585,7 @@ msgstr "Co jest nie tak?"
 
 #: apps/console/components/connect-ai-app.tsx
 msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. Then, in Claude or ChatGPT, turn it on in a chat. <0>Step by step</0>"
-msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. Potem w Claude lub ChatGPT włącz ją na czacie. <0>Krok po kroku</0>"
+msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. Potem w Claude lub ChatGPT włącz Braivo w czacie. <0>Krok po kroku</0>"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"
@@ -2699,7 +2699,7 @@ msgstr "Nie udało się potwierdzić Twojej odpowiedzi."
 
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "Your app builds the course with its own model and your account with it, not Braivo's AI."
-msgstr "Twoja aplikacja buduje kurs własnym modelem i na Twoim koncie w niej, bez AI Braivo."
+msgstr "Twoja aplikacja buduje kurs własnym modelem, w ramach Twojego konta w niej, bez AI Braivo."
 
 #: apps/learn/routes/__root.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
