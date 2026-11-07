@@ -6,7 +6,12 @@ import * as testing from "@braivo/db/testing";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import type { TaskBody } from "../content/index.ts";
-import { createCourse, createObjectives, createTasks } from "../persistence/index.ts";
+import {
+  createCourse,
+  createObjectives,
+  createTasks,
+  markTasksRetired,
+} from "../persistence/index.ts";
 import { chooseNextActivity, submitAttempt } from "./activity.ts";
 import { listLearnerCoursesWithStanding } from "./courses.ts";
 import type { RequestHost } from "./host.ts";
@@ -178,6 +183,13 @@ describe.skipIf(!connectionString)("what waits in a course, while tasks rest", (
     const { id, tasks } = await course("Three others", [1, 1, 1, 1]);
     const elsewhere = await course("Elsewhere", [1, 1, 1], otherOrganizationId);
     await answer(learnerId, id, tasks[0]![0]!, WRONG, minutes(0));
+    // A snapshot of what a tap offers now, not a session's length: answering
+    // these three ends the miss's rest, and it waits too.
+    expect((await read(learnerId, id, minutes(0))).waiting).toEqual({
+      learning: 0,
+      dueForReview: 0,
+      new: 3,
+    });
 
     // Another organization's attempts space nothing out here.
     for (const [index, objective] of elsewhere.tasks.entries()) {
@@ -190,6 +202,39 @@ describe.skipIf(!connectionString)("what waits in a course, while tasks rest", (
     expect((await read(learnerId, id, minutes(6))).waiting.learning).toBe(0);
     await answer(learnerId, id, tasks[3]![0]!, RIGHT, minutes(7));
     expect(await read(learnerId, id, minutes(7))).toEqual({
+      waiting: { learning: 1, dueForReview: 0, new: 0 },
+      activity: "reteach",
+    });
+  });
+
+  test("does not end a rest by attempts at the same moment as its own", async () => {
+    const learnerId = await newLearner();
+    const { id, tasks } = await course("Same moment", [1, 1, 1, 1]);
+    await answer(learnerId, id, tasks[0]![0]!, WRONG, minutes(0));
+    for (const objective of tasks.slice(1)) {
+      await answer(learnerId, id, objective[0]!, RIGHT, minutes(0));
+    }
+
+    expect(await read(learnerId, id, minutes(0))).toEqual({
+      waiting: { learning: 0, dueForReview: 0, new: 0 },
+      activity: "resting",
+    });
+  });
+
+  test("rests an objective by its offered tasks alone, not one retired since", async () => {
+    const learnerId = await newLearner();
+    const { id, tasks } = await course("Retired since", [2]);
+    const [retired, offered] = tasks[0]!;
+    await answer(learnerId, id, retired!, WRONG, minutes(0));
+    await answer(learnerId, id, offered!, WRONG, minutes(5));
+    await markTasksRetired(database, [retired!], minutes(6), { byTool: false });
+
+    // The retired one's rest is over; the one still offered rests until 15.
+    expect(await read(learnerId, id, minutes(12))).toEqual({
+      waiting: { learning: 0, dueForReview: 0, new: 0 },
+      activity: "resting",
+    });
+    expect(await read(learnerId, id, minutes(15))).toEqual({
       waiting: { learning: 1, dueForReview: 0, new: 0 },
       activity: "reteach",
     });

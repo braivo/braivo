@@ -196,13 +196,14 @@ describe.skipIf(!connectionString)("a vocabulary-sized course", () => {
     await addCourse("Two");
     await addCourse("Three");
     const three = await measure();
+    // Before asserting, so a failed one leaves later tests the real method.
+    dated.mockRestore();
 
     expect(one.courses).toBe(1);
     expect(three.courses).toBe(3);
     expect(one.dates).toBeGreaterThan(0);
     expect(three.dates).toBe(one.dates);
     expect(three.sql).toBe(one.sql);
-    dated.mockRestore();
   });
 });
 

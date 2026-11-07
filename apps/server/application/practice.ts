@@ -49,15 +49,16 @@ export function decidePractice(
 }
 
 /**
- * What the activity's selection would work through in a course now if the
- * learner answered everything right: `assessed`, its objectives' standings
- * (assessment shares selection's rule), those `offerable`, having a task that
- * does not rest, with no more new ones than `newLeft` (`dailyAllowance`). Over
- * this course alone: the limit is shared across the organization, so two courses
- * may count the same places left today.
+ * What the activity's selection can offer in a course now, a snapshot rather
+ * than a session's length (answering can end a rest): `assessed`, its
+ * objectives' standings (assessment shares selection's rule), those
+ * `offerable`, having a task that does not rest, with no more new ones than
+ * `newLeft` (`dailyAllowance`). Over this course alone: the limit is shared
+ * across the organization, so two courses may count the same places left today.
  *
  * Counted by standing, not by walking `selectNext`, which is quadratic in what
- * waits; `practice.test.ts` walks it to prove the two agree. Takes what its
+ * waits; `practice.test.ts` walks it, nothing resting, to prove the two agree,
+ * and `waiting-rests.test.ts` compares rests with the activity's. Takes what its
  * caller already has, so a list of courses scans no history per course.
  */
 export function countWaiting(
