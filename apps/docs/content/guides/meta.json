@@ -1,14 +1,17 @@
 {
   "title": "Guides",
   "pages": [
+    "---Teach---",
     "first-course",
     "follow-progress",
-    "authoring",
-    "assistants",
     "draft-with-ai-app",
     "review-and-publish",
     "faq",
+    "authoring",
+    "assistants",
+    "---Build---",
     "api",
+    "---Host---",
     "deployment"
   ]
 }
