@@ -117,13 +117,13 @@ describe("drafting a course from a source", () => {
       }
     });
 
-    test("restates beside the goal that it never changes an objective's shape", async () => {
+    test("restates beside the goal that it never changes an objective's shape, and where to say what is missing", async () => {
       const { model, asked } = answering({ objectives: [] });
 
       await draftCourse(model, source, { goal });
 
       expect(asked[0]?.prompt).toContain(
-        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective.\n\n`,
+        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Where the material lacks the goal or part of it, say what is missing in unsupported, one sentence beside objectives, never as an objective; where it supports none of the goal, objectives is empty.\n\n`,
       );
     });
 

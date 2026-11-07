@@ -154,7 +154,7 @@ For each objective, write 2 to ${MAX_TASKS} tasks, each with an explanation of w
 An objective's tasks are all of one kind: recognising and recalling are different abilities, and Braivo counts every answer on an objective alike.
 For vocabulary, each word or phrase is its own objective, one meaning each. Write for the learners described, in the language <instruction_language> names or without one in their language, about what the material teaches.
 
-Every quote is copied exactly from one continuous passage of the material and must occur only once in it: Braivo checks each one, and drops what it cannot find or finds more than once. Line breaks may be written as spaces; the words, their order, letter case, and punctuation stay as in the material. Material repeats itself: a word in a word list comes back in the examples, the dialogue, and the exercises, and so do whole example sentences. So before choosing a quote, look for its words elsewhere in the material, and if they are there, extend the quote with the words right next to it until no other place matches, such as the translation beside a word in a word list, a dialogue line's speaker, or an exercise's number. Never join words from separate places, and never paraphrase. For example, where a word list has "le pain" on the line above "the bread", the examples have "Je voudrais le pain, s'il vous plaît." and a dialogue has "Paul: Je voudrais le pain, s'il vous plaît.", quote "le pain the bread" or "Paul: Je voudrais le pain", never "le pain" or "Je voudrais le pain, s'il vous plaît". Teach only what the material teaches.`;
+Every quote is copied exactly from one continuous passage of the material and must occur only once in it: Braivo checks each one, and drops what it cannot find or finds more than once. Line breaks may be written as spaces; the words, their order, letter case, and punctuation stay as in the material. Material repeats itself: a word in a word list comes back in the examples, the dialogue, and the exercises, and so do whole example sentences. So before choosing a quote, look for its words elsewhere in the material, and if they are there, extend the quote with the words right next to it until no other place matches, such as the translation beside a word in a word list, a dialogue line's speaker, or an exercise's number. Never join words from separate places, and never paraphrase. Several objectives or tasks may quote the same passage: a longer quote found once serves them all. For example, where a word list has "le pain" on the line above "the bread", the examples have "Je voudrais le pain, s'il vous plaît." and a dialogue has "Paul: Je voudrais le pain, s'il vous plaît.", quote "le pain the bread" or "Paul: Je voudrais le pain", never "le pain" or "Je voudrais le pain, s'il vous plaît". Teach only what the material teaches.`;
 
 /**
  * The goal, the audience, or the source's title as the prompt holds it, so none
@@ -169,7 +169,9 @@ function escapeMarkup(text: string): string {
  * What drafting tells the model; a request fills in the goal, the learners, the
  * language for their instructions, and the material. The goal's and the
  * language's rules are said again beside them: in the system text alone, a draft
- * with a goal bundled words into one objective and wrote in the material's language.
+ * with a goal bundled words into one objective and wrote in the material's language,
+ * and, with those beside the goal, its note on what the material lacks went
+ * unsent, came as an objective, or left a wholly unsupported goal drafted anyway.
  */
 export const DRAFT_OPERATION = {
   system: SYSTEM,
@@ -180,7 +182,7 @@ export const DRAFT_OPERATION = {
 </material>`,
   parts: {
     /** Said only when a goal is given. */
-    goal: "<goal>\n{{goal}}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective.\n\n",
+    goal: "<goal>\n{{goal}}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Where the material lacks the goal or part of it, say what is missing in unsupported, one sentence beside objectives, never as an objective; where it supports none of the goal, objectives is empty.\n\n",
     /** Said only when there are learners to describe. */
     learners: "<learners>\n{{audience}}\n</learners>\n\n",
     /** Said only when the content owner names a language. */
