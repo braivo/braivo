@@ -761,6 +761,8 @@ async function maintainPractice(scratch: ScratchDatabase, page: Page, out: strin
   const save = page.getByRole("button", { name: "Save", exact: true });
   const cancel = page.getByRole("button", { name: "Cancel" });
   await sees(page, "Question", "Options, the correct one chosen");
+  // Off the editor, which opens under the pointer: a hover would tint a control.
+  await page.mouse.move(0, 0);
   await region(page, shot("2-edit"), page.getByText(/^Saving replaces the task/), cancel, save);
   await cancel.click();
 
@@ -824,6 +826,7 @@ async function words(page: Page, out: string) {
   const why = page.getByText("Why the answer is right", { exact: true });
   const field = page.getByLabel("Why the answer is right");
   await field.fill('"Good morning" is what people say when they meet in the morning.');
+  await page.mouse.move(0, 0);
   await region(page, shot("explanation"), why, field, field);
   await page.getByRole("button", { name: "Cancel" }).click();
 }
