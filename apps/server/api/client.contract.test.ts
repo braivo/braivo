@@ -434,6 +434,16 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     expect(await client.listOrganizations({ headers: { cookie: learnerCookie } })).toEqual([]);
   });
 
+  test("lists a learner's own memberships in the shape it declares, with the learn domain", async () => {
+    const membership = { id: organizationId, name: organizationId, learnDomain: organizationHost };
+    expect(await client.listMemberships({ headers: { cookie: learnerCookie } })).toEqual([
+      membership,
+    ]);
+    expect(await client.listMemberships({ headers: { cookie: teacherCookie } })).toEqual([
+      membership,
+    ]);
+  });
+
   test("sets up an organization in the shape it declares, and says why it refuses one", async () => {
     const { cookie } = await signUp();
     const slug = `contract-${crypto.randomUUID().slice(0, 8)}`;

@@ -126,6 +126,8 @@ export function renderAt(
         courseProgress,
         signInSettings: async () => ({ google: false, legal: null }),
         organizationSetup: async () => null,
+        // A member of no school, unless a test says otherwise.
+        listMemberships: async () => [],
         readToolsReadLearnerData: async () => ({
           allowed: false,
           changedBy: null,

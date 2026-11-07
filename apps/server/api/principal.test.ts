@@ -134,6 +134,7 @@ describe.skipIf(!connectionString)("a connection on the API's routes", () => {
     ["approving a device", "POST", "/api/auth/device/approve", true],
     ["signing out", "POST", "/api/session/sign-out", true],
     ["handing off to a learn domain", "POST", "/api/handoffs/any", true],
+    ["listing memberships", "GET", "/api/memberships", false],
     ["Better Auth's session", "GET", "/api/auth/get-session", false],
     ["Better Auth's sign-out", "POST", "/api/auth/sign-out", false],
   ])("is refused %s", async (_label, method, path, tokenRefused) => {

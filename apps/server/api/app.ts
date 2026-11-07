@@ -194,6 +194,7 @@ export function createApi(options: ApiOptions) {
     const { path } = context.req;
     const installationOnly = [
       "/api/organizations",
+      "/api/memberships",
       "/api/organization-setup",
       "/api/invitations",
       "/api/auth",

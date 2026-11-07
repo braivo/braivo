@@ -515,6 +515,7 @@ describe("the console", () => {
           setUpOrganization,
         },
       });
+      fireEvent.click(await screen.findByRole("button", { name: "Załóż organizację" }));
 
       expect(
         await screen.findByRole("heading", { level: 1, name: "Załóż swoją organizację" }),
@@ -522,7 +523,6 @@ describe("the console", () => {
       // Regions' names are the browser's, in the chosen language.
       expect(screen.getByRole("option", { name: "Unia Europejska" })).toBeTruthy();
       expect(screen.getByRole("option", { name: "Stany Zjednoczone (wkrótce)" })).toBeTruthy();
-      expect(screen.getByText(/o dodanie adresu olive@example\.com\.$/)).toBeTruthy();
       fireEvent.change(screen.getByLabelText("Nazwa organizacji"), { target: { value: "Łąka" } });
       fireEvent.click(screen.getByRole("button", { name: "Utwórz organizację" }));
 

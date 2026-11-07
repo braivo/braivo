@@ -592,6 +592,10 @@ msgstr "Check your email"
 msgid "Checking…"
 msgstr "Checking…"
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Choose a school to continue there. Signed in as {email}."
+msgstr "Choose a school to continue there. Signed in as {email}."
+
 #: apps/learn/components/standing.tsx
 msgid "Choose a topic to practise"
 msgstr "Choose a topic to practise"
@@ -660,6 +664,10 @@ msgstr "Continue practising."
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Continue to {hostname}"
 msgstr "Continue to {hostname}"
+
+#: apps/console/routes/_signed-in/index.tsx
+msgid "Continue to {name}"
+msgstr "Continue to {name}"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
@@ -1177,10 +1185,6 @@ msgstr "Groups"
 msgid "Here it is"
 msgstr "Here it is"
 
-#: apps/console/routes/_signed-in/join.tsx
-msgid "Here to learn? Open the site your school or training provider gave you."
-msgstr "Here to learn? Open the site your school or training provider gave you."
-
 #. A course's mark: hidden from learners
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "Hidden"
@@ -1311,6 +1315,10 @@ msgstr "Its first answers stay with this version; the corrected one starts with 
 msgid "Its records are not available yet."
 msgstr "Its records are not available yet."
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Its site for learners is not available yet."
+msgstr "Its site for learners is not available yet."
+
 #: apps/console/components/group-form.tsx
 msgid "Its teachers will see no progress until it has learners and a course."
 msgstr "Its teachers will see no progress until it has learners and a course."
@@ -1330,10 +1338,6 @@ msgstr "Join {school} as an admin"
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school} as an author"
 msgstr "Join {school} as an author"
-
-#: apps/console/routes/_signed-in/join.tsx
-msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
-msgstr "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
 
 #: apps/learn/components/practice-session.tsx
 msgid "Keep going"
@@ -2066,6 +2070,10 @@ msgstr "Role"
 msgid "Run this command, then its <0>/mcp</0> command to sign in:"
 msgstr "Run this command, then its <0>/mcp</0> command to sign in:"
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Running courses of your own? Set up an organization for them."
+msgstr "Running courses of your own? Set up an organization for them."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
 msgid "Save"
@@ -2166,6 +2174,7 @@ msgid "Session complete"
 msgstr "Session complete"
 
 #: apps/console/components/organization-switcher.tsx
+#: apps/console/routes/_signed-in/join.tsx
 msgid "Set up an organization"
 msgstr "Set up an organization"
 
@@ -2302,6 +2311,10 @@ msgstr "System follows your device's light or dark mode."
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Take a short break"
 msgstr "Take a short break"
+
+#: apps/console/routes/_signed-in/index.tsx
+msgid "Taking you to {name}…"
+msgstr "Taking you to {name}…"
 
 #. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
@@ -2674,6 +2687,10 @@ msgstr "What's wrong?"
 #: apps/console/components/connect-ai-app.tsx
 msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. Then, in Claude or ChatGPT, turn it on in a chat. <0>Step by step</0>"
 msgstr "When the app opens Braivo's page, sign in, choose the organization, and approve it. Then, in Claude or ChatGPT, turn it on in a chat. <0>Step by step</0>"
+
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Where you learn"
+msgstr "Where you learn"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"

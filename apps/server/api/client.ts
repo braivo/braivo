@@ -32,6 +32,7 @@ import type {
   LearnerProgressSummary,
   LocatedCitation,
   Member,
+  Membership,
   ObjectiveReview,
   ObjectiveSummary,
   Organization,
@@ -101,6 +102,7 @@ export type {
   LocatedCitation,
   ManagedCourse,
   Member,
+  Membership,
   Objective,
   ObjectiveReview,
   ObjectiveSummary,
@@ -371,6 +373,8 @@ export type BraivoClient = {
    * flag. Not every one they are in, since a learner is a member too.
    */
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
+  /** The reader's own memberships, any role, each with its learn domain (access-59). */
+  listMemberships(options?: RequestOptions): Promise<Membership[]>;
 
   /**
    * Setting up an organization here: its domain, as `<slug>.<domain>`, and
@@ -1269,6 +1273,15 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       if (response.status !== 200) throw await unexpected(response, doing);
 
       return (await parsed<{ organizations: Organization[] }>(response, doing)).organizations;
+    },
+
+    async listMemberships(requestOptions) {
+      const response = await get("/api/memberships", requestOptions);
+
+      const doing = "listing the schools you belong to";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      return (await parsed<{ memberships: Membership[] }>(response, doing)).memberships;
     },
 
     async organizationSetup(requestOptions) {
