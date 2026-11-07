@@ -27,7 +27,9 @@ LEARNER=$(curl -sb jar.txt $BRAIVO/api/auth/get-session | field 'r.user.id')
 
 bun apps/server/cli/index.ts organization create \
   --name "Example School" --slug example-school --owner owner@example.com
-ORG=$(curl -sb jar.txt $BRAIVO/api/organizations | field 'r.organizations[0].id')
+# The account may author in other schools too: pick this one by its slug.
+ORG=$(curl -sb jar.txt $BRAIVO/api/organizations \
+  | field 'r.organizations.find((o) => o.slug === "example-school").id')
 
 # Name what is taught, then arrange it into a course. objectiveIds sets the
 # introduction order for unseen objectives.

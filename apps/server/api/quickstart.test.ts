@@ -68,11 +68,24 @@ function runnable(block: string): string {
     'curl() { command curl --fail-with-body --show-error "$@" || { local status=$?; echo "failed: curl $*" >&2; exit "$status"; }; }',
   ].join("\n");
 
-  return block
-    .replace("BRAIVO=http://localhost:3000", `${strict}\nBRAIVO=${baseUrl}`)
-    .replace("bun apps/server/cli/index.ts", `bun ${JSON.stringify(cliPath)}`)
-    .replaceAll("owner@example.com", `owner-${unique}@example.com`)
-    .replaceAll("example-school", `example-school-${unique}`);
+  return (
+    block
+      .replace("BRAIVO=http://localhost:3000", `${strict}\nBRAIVO=${baseUrl}`)
+      .replace("bun apps/server/cli/index.ts", `bun ${JSON.stringify(cliPath)}`)
+      .replaceAll("owner@example.com", `owner-${unique}@example.com`)
+      .replaceAll("example-school", `example-school-${unique}`)
+      // An account that already authors in a school listed before it, by name:
+      // the walkthrough must still work in the school it just made.
+      .replace(
+        "\nORG=$(",
+        `\nbun ${JSON.stringify(cliPath)} organization create --name "Aardvark School" --slug aardvark-${unique} --owner owner-${unique}@example.com\nORG=$(`,
+      )
+  );
+}
+
+/** Which school the walkthrough wrote to, by slug, printed after it. */
+function namingItsSchool(script: string): string {
+  return `${script}\necho "wrote to $(curl -sb jar.txt $BRAIVO/api/organizations | field "r.organizations.find((o) => o.id === '$ORG').slug")"\n`;
 }
 
 describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", () => {
@@ -125,7 +138,7 @@ describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", (
     // the very curl it is waiting for.
     // The operator's command reaches the same database and installation as the
     // server, as it would beside a real one.
-    shell = Bun.spawn(["bash", "-c", runnable(block!)], {
+    shell = Bun.spawn(["bash", "-c", namingItsSchool(runnable(block!))], {
       cwd: workspace,
       env: {
         ...process.env,
@@ -152,5 +165,6 @@ describe.skipIf(!connectionString || !hasShell)("the API guide's walkthrough", (
     expect(output).toContain('"prompt":"Goodbye, in Spanish?"');
     expect(output).toContain('"phase":"acquiring"');
     expect(output).toContain('"phase":"unseen"');
+    expect(output).toContain("wrote to example-school-");
   });
 });
