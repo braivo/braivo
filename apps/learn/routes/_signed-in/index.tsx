@@ -26,7 +26,7 @@ import { useId } from "react";
 
 import { AccountHeader } from "#components/account-header";
 import { Notice } from "#components/notice";
-import { StandingBar, countsLine, waitingLine } from "#components/standing";
+import { waitingLine } from "#components/standing";
 import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createFileRoute("/_signed-in/")({
@@ -141,12 +141,12 @@ function hasWaiting({ learning, dueForReview, new: fresh }: CourseWaiting) {
 }
 
 /**
- * A course, the whole card its link, a tap away from practice: its title, the
- * course page's meter, and one line: what waits there now, the next step, or
- * with nothing waiting, where the learner stands (progress-8). The meter is
- * hidden from assistive technology, so the standing's counts are always said to
- * it. Without those read, or for a course with no objectives, the title alone.
- * Named by its title, the rest its description.
+ * A course, the whole card its link, a tap away from practice: its title and one
+ * line, what waits there now or that nothing does, the reason left to the course
+ * page. Where the learner stands shows where practice pauses (progress-8), not
+ * here: beside what waits it would count other things, unexplained. Without
+ * those read, or for a course with no objectives, the title alone. Named by its
+ * title, the line its description.
  */
 function CourseCard({
   course,
@@ -160,20 +160,13 @@ function CourseCard({
   const { t } = useLingui();
   const titleId = useId();
   const lineId = useId();
-  const descriptionId = useId();
   const waits = details !== undefined && hasWaiting(details.waiting);
-  const started = details && details.standing.notStarted < totalOf(details.standing);
-  const counts = details && countsLine(details.standing, t);
-  const next = !waits
-    ? undefined
-    : started
-      ? waitingLine(details.waiting, t)
-      : t`We start with a question and use your answers to choose what comes next.`;
-  const line = next ?? counts;
-  // One text, not the two lines by reference: a description joins those with a
-  // bare space, running what waits into the standing's counts. A count line has
-  // no stop of its own; the sentence does.
-  const description = next && `${next}${started ? "." : ""} ${counts}`;
+  const line =
+    details === undefined || totalOf(details.standing) === 0
+      ? undefined
+      : waits
+        ? waitingLine(details.waiting, t)
+        : t`Nothing to practise right now`;
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -183,28 +176,19 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={description ? descriptionId : line ? lineId : undefined}
+          aria-describedby={line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
               {course.title}
             </ItemTitle>
-            {details && line && (
-              <>
-                <StandingBar counts={details.standing} />
-                <ItemDescription
-                  id={lineId}
-                  aria-hidden={description ? true : undefined}
-                  className={cn("line-clamp-none", waits && "text-foreground")}
-                >
-                  {line}
-                </ItemDescription>
-                {description && (
-                  <span id={descriptionId} className="sr-only">
-                    {description}
-                  </span>
-                )}
-              </>
+            {line && (
+              <ItemDescription
+                id={lineId}
+                className={cn("line-clamp-none", waits && "text-foreground")}
+              >
+                {line}
+              </ItemDescription>
             )}
           </ItemContent>
           <ItemActions className="shrink-0">

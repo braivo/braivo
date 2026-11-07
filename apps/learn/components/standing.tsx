@@ -72,7 +72,7 @@ export function formatCounts(counts: CourseStanding, t: ReturnType<typeof useLin
  * Counts as one line, each count whole where it fits, so a phone wraps between
  * counts, not at "1 not" / "started": "2 retained · 1 learning".
  */
-export function countsLine(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]): string {
+function countsLine(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]): string {
   return formatCounts(counts, t)
     .map((count) => count.replaceAll(" ", "\u00a0"))
     .join(" · ");
@@ -129,7 +129,7 @@ const STANDING_FILLS: Record<Standing, string> = {
  * The meter: each standing a segment in proportion to its objectives. Hidden
  * from assistive technology: its caller says the counts in words.
  */
-export function StandingBar({ counts }: { counts: CourseStanding }) {
+function StandingBar({ counts }: { counts: CourseStanding }) {
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
   return (
     <span aria-hidden="true" className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">

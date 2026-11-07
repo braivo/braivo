@@ -18,18 +18,18 @@ function spaced(text: string) {
 const nothingWaits = { learning: 0, dueForReview: 0, new: 0 };
 
 describe("the learn app", () => {
-  test("shows on each course where the learner stands in it, from one read", async () => {
+  test("says on each course what waits there now, or that nothing does, from one read", async () => {
     const spanish = { id: "c1", number: 4732, title: "Spanish", urlLabel: "spanish" };
-    const french = { id: "c2", number: 4733, title: "French", urlLabel: "french" };
+    const frenchCourse = { id: "c2", number: 4733, title: "French", urlLabel: "french" };
     const empty = { id: "c3", number: 4734, title: "German", urlLabel: "german" };
     const { learnerCoursesWithStanding } = renderAt("/", {
       signedIn: true,
-      learnerCourses: async () => [french, empty, spanish],
+      learnerCourses: async () => [frenchCourse, empty, spanish],
       learnerCoursesWithStanding: async () => [
         {
-          ...french,
+          ...frenchCourse,
           standing: { retained: 0, dueForReview: 2, learning: 0, notStarted: 1 },
-          waiting: nothingWaits,
+          waiting: { learning: 0, dueForReview: 2, new: 1 },
         },
         {
           ...empty,
@@ -44,21 +44,19 @@ describe("the learn app", () => {
       ],
     });
 
-    // Named by the title, the counts its description, in each card's order.
+    // Named by the title, the line its description.
+    const french = await screen.findByRole("link", {
+      name: "French",
+      description: spaced("2 to review · 1 new"),
+    });
+    // Learning, yet resting or at the day's limit: why is the course page's to say.
     expect(
-      await screen.findByRole("link", {
-        name: "French",
-        description: spaced("2 due for review · 1 not started"),
-      }),
+      screen.getByRole("link", { name: "Spanish", description: "Nothing to practise right now" }),
     ).toBeTruthy();
-    expect(
-      screen.getByRole("link", {
-        name: "Spanish",
-        description: spaced("3 retained · 1 learning"),
-      }),
-    ).toBeTruthy();
-    // Nothing to stand on: the title alone.
+    // Nothing to practise ever: the title alone.
     expect(screen.getByRole("link", { name: "German", description: "" })).toBeTruthy();
+    // Where the learner stands shows where practice pauses, not here.
+    expect(french.querySelector(".rounded-full")).toBeNull();
     expect(learnerCoursesWithStanding).toHaveBeenCalledOnce();
   });
 
@@ -86,21 +84,14 @@ describe("the learn app", () => {
 
     const lead = await screen.findByRole("link", {
       name: "Spanish",
-      description: spaced("2 to review. 1 retained · 2 due for review"),
+      description: spaced("2 to review"),
     });
-    // One line to see, and the meter, whose counts are said to assistive technology,
-    // each with a stop of its own: the whole description, so a missing one fails.
-    expect(within(lead).getByText(spaced("2 to review")).getAttribute("aria-hidden")).toBe("true");
-    expect(
-      within(lead).getByText(spaced("2 to review. 1 retained · 2 due for review")).className,
-    ).toContain("sr-only");
-    expect(lead.querySelector('[aria-hidden="true"].rounded-full')).toBeTruthy();
     const cards = screen.getAllByRole("link", { name: /Arabic|Spanish/ });
     expect(cards).toHaveLength(2);
     expect(cards[0]).toBe(lead);
     // The learner stays free to open the other, which claims nothing.
     expect(
-      screen.getByRole("link", { name: "Arabic", description: spaced("3 retained") }),
+      screen.getByRole("link", { name: "Arabic", description: "Nothing to practise right now" }),
     ).toBeTruthy();
 
     fireEvent.click(lead);
@@ -150,14 +141,12 @@ describe("the learn app", () => {
 
     await screen.findByRole("link", {
       name: "French",
-      description: spaced(
-        "1 to practise · 2 to review · 3 new. 2 due for review · 1 learning · 3 not started",
-      ),
+      description: spaced("1 to practise · 2 to review · 3 new"),
     });
     expect(
       screen.getByRole("link", {
         name: "Spanish",
-        description: spaced("2 new. 1 retained · 2 not started"),
+        description: spaced("2 new"),
       }),
     ).toBeTruthy();
     expect(
@@ -200,7 +189,7 @@ describe("the learn app", () => {
     ).toEqual(["/c/c2", "/c/c4", "/c/c0", "/c/c3", "/c/c1"]);
   });
 
-  test("says how a course begins while nothing is started, and only if a question can follow", async () => {
+  test("says what waits in a course not started like any other, and nothing past the day's limit", async () => {
     const list = ["Arabic", "French", "German"].map((title, index) => ({
       id: `c${index}`,
       number: 4730 + index,
@@ -224,16 +213,13 @@ describe("the learn app", () => {
     });
 
     expect(
-      await screen.findByRole("link", {
-        name: "Arabic",
-        description: spaced(
-          "We start with a question and use your answers to choose what comes next. 4 not started",
-        ),
-      }),
+      await screen.findByRole("link", { name: "Arabic", description: spaced("4 new") }),
     ).toBeTruthy();
     // Whether at the day's limit or with nothing written yet: no question follows a tap.
     for (const name of ["French", "German"]) {
-      expect(screen.getByRole("link", { name, description: spaced("4 not started") })).toBeTruthy();
+      expect(
+        screen.getByRole("link", { name, description: "Nothing to practise right now" }),
+      ).toBeTruthy();
     }
   });
 

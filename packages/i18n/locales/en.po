@@ -1711,6 +1711,7 @@ msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewA
 msgstr "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "Nothing to practise right now"
 msgstr "Nothing to practise right now"
 
@@ -2621,10 +2622,6 @@ msgstr "Verified"
 #: packages/auth-client/sign-in.tsx
 msgid "Wait a minute before asking for a code again."
 msgstr "Wait a minute before asking for a code again."
-
-#: apps/learn/routes/_signed-in/index.tsx
-msgid "We start with a question and use your answers to choose what comes next."
-msgstr "We start with a question and use your answers to choose what comes next."
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "What should we call you?"
