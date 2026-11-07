@@ -453,7 +453,7 @@ test("loads no server code at runtime, so an app bundling it bundles none", asyn
   // transpiler elides it, because an inline `import { type X }` can leave a
   // side-effect import behind in another compiler's output. What it shares
   // with the server at runtime, a course's address, whether a task is
-  // explained, its findings, a learner's day, and where they stand, are
+  // explained, its findings, a language's tag, a learner's day, and where they stand, are
   // modules importing nothing beyond each other.
   const read = (name: string) => readFile(new URL(name, import.meta.url), "utf8");
   const source = await read("client.ts");
@@ -467,6 +467,7 @@ test("loads no server code at runtime, so an app bundling it bundles none", asyn
     "../content/course-ref.ts",
     "../content/explanation.ts",
     "../content/findings.ts",
+    "../content/language-tag.ts",
     "../application/learner-day.ts",
     "../application/standing.ts",
   ]);
@@ -476,6 +477,7 @@ test("loads no server code at runtime, so an app bundling it bundles none", asyn
     "../content/explanation.ts": [],
     "../content/findings.ts": ["./answer.ts"],
     "../content/answer.ts": [],
+    "../content/language-tag.ts": [],
     "../application/learner-day.ts": [],
     "../application/standing.ts": [],
   };
