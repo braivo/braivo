@@ -1006,7 +1006,28 @@ async function main() {
   let work: string | undefined;
   let scratch: ScratchDatabase | undefined;
   let server: ReturnType<typeof Bun.serve> | undefined;
+  let browser: Browser | undefined;
   await refuseTaken(Object.values(PORTS));
+  // Once, at the run's end or on Ctrl-C or a kill, which would otherwise leave
+  // the dev servers, in their own groups, running and the database behind.
+  let released: Promise<void> | undefined;
+  const release = () =>
+    (released ??= cleanUp([
+      () => browser?.close(),
+      ...children.map((child) => () => stop(child)),
+      () => server?.stop(true),
+      () => scratch && dropScratchDatabase(scratch),
+      () => work && rmSync(work, { recursive: true, force: true }),
+    ]));
+  for (const [signal, code] of [
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+  ] as const) {
+    process.once(signal, () => {
+      console.error(`${signal}: cleaning up.`);
+      void release().finally(() => process.exit(code));
+    });
+  }
   try {
     work = mkdtempSync(join(tmpdir(), "braivo-screenshots-"));
     const out = join(work, "out");
@@ -1088,7 +1109,9 @@ async function main() {
     await waitFor(baseUrl, children[0]);
     await waitFor(`http://127.0.0.1:${PORTS.learn}`, children[1]);
 
-    const browser = await chromium.launch();
+    // Closed by `release`, not by Playwright's own signal handlers, which would exit first.
+    const launched = await chromium.launch({ handleSIGINT: false, handleSIGTERM: false });
+    browser = launched;
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
       const teacher = await followProgress(browser, out, codes);
@@ -1100,7 +1123,7 @@ async function main() {
       await words(author, out);
       await laterProgress(clock, browser, teacher, out, codes);
     } catch (error) {
-      for (const context of browser.contexts()) {
+      for (const context of launched.contexts()) {
         for (const page of context.pages()) {
           await page.screenshot({ path: join(tmpdir(), "braivo-screenshots-failure.png") });
           console.error(
@@ -1113,19 +1136,14 @@ async function main() {
       }
       throw error;
     } finally {
-      await browser.close();
+      await launched.close();
     }
 
     // Every step passed: the new set replaces the committed one whole.
     rmSync(SCREENSHOTS, { recursive: true, force: true });
     cpSync(out, SCREENSHOTS, { recursive: true });
   } finally {
-    await cleanUp([
-      ...children.map((child) => () => stop(child)),
-      () => server?.stop(true),
-      () => scratch && dropScratchDatabase(scratch),
-      () => work && rmSync(work, { recursive: true, force: true }),
-    ]);
+    await release();
   }
 }
 
