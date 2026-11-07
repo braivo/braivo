@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type Draft, type Source, taskFindings } from "@braivo/server/client";
+import {
+  BraivoError,
+  type Draft,
+  parseLanguageTag,
+  type Source,
+  taskFindings,
+} from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -248,21 +254,22 @@ function DraftCourse(props: { source: Source }) {
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
     const form = event.currentTarget;
-    // `required` passes spaces (docs/apps.md, Text).
-    const filledIn = (name: string, message: string) => {
-      const field = form.elements.namedItem(name) as HTMLTextAreaElement | HTMLInputElement;
-      const value = field.value.trim();
-      if (!value) {
-        field.setCustomValidity(message);
-        field.reportValidity();
-      }
-      return value;
+    const refuse = (field: HTMLTextAreaElement | HTMLInputElement, message: string) => {
+      field.setCustomValidity(message);
+      field.reportValidity();
     };
-    const goal = filledIn("goal", "Say what learners should be able to do.");
-    if (!goal) return;
-    const language = filledIn("instructionLanguage", "Say what language to write them in.");
-    if (!language) return;
-    const instructionLanguage = languageTag(language)!;
+    const goalField = form.elements.namedItem("goal") as HTMLTextAreaElement;
+    const goal = goalField.value.trim();
+    // `required` passes spaces (docs/apps.md, Text).
+    if (!goal) return refuse(goalField, "Say what learners should be able to do.");
+    const languageField = form.elements.namedItem("instructionLanguage") as HTMLInputElement;
+    const language = languageField.value.trim();
+    if (!language) return refuse(languageField, "Say what language to write them in.");
+    // Checked as the server would, which words it for an API's caller, not a teacher.
+    const instructionLanguage = parseLanguageTag(languageTag(language)!);
+    if (!instructionLanguage) {
+      return refuse(languageField, "Choose a language from the list, or type its English name.");
+    }
     const audience = (new FormData(form).get("audience") as string).trim() || undefined;
     const signal = abortOnUnmount();
 
@@ -351,19 +358,6 @@ function DraftCourse(props: { source: Source }) {
           </FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${id}-audience`}>Who are the learners?</FieldLabel>
-          <Input
-            id={`${id}-audience`}
-            name="audience"
-            maxLength={200}
-            readOnly={drafting}
-            defaultValue={asked?.audience}
-            placeholder="Grade 2, English speakers learning Spanish"
-            aria-describedby={`${id}-audience-hint`}
-          />
-          <FieldDescription id={`${id}-audience-hint`}>Optional.</FieldDescription>
-        </Field>
-        <Field>
           <FieldLabel htmlFor={`${id}-instruction-language`}>
             What language should the questions be in?
           </FieldLabel>
@@ -381,15 +375,27 @@ function DraftCourse(props: { source: Source }) {
           />
           <datalist id={`${id}-languages`}>
             {LANGUAGES.map((tag) => (
-              <option key={tag} value={tag}>
-                {languageNames.of(tag)}
-              </option>
+              // By name, so choosing one reads as the field starts and as typed.
+              <option key={tag} value={languageNames.of(tag)} />
             ))}
           </datalist>
           <FieldDescription id={`${id}-instruction-language-hint`}>
-            The language of titles, questions, and explanations, such as Spanish, or a tag such as
-            es or en-US. What the source teaches stays as it is.
+            The language of titles, questions, and explanations, such as Spanish. What the source
+            teaches stays as it is.
           </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-audience`}>Who are the learners?</FieldLabel>
+          <Input
+            id={`${id}-audience`}
+            name="audience"
+            maxLength={200}
+            readOnly={drafting}
+            defaultValue={asked?.audience}
+            placeholder="Grade 2, English speakers learning Spanish"
+            aria-describedby={`${id}-audience-hint`}
+          />
+          <FieldDescription id={`${id}-audience-hint`}>Optional.</FieldDescription>
         </Field>
         {error && (
           <Alert variant="destructive">

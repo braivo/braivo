@@ -186,8 +186,8 @@ describe("the console", () => {
     const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
     expect(field.value).toBe("English");
     expect(field.required).toBe(true);
-    expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toMatch(
-      /^The language of titles, questions, and explanations/,
+    expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "The language of titles, questions, and explanations, such as Spanish. What the source teaches stays as it is.",
     );
 
     // Spaces pass `required`, so the form's own handler refuses them.
@@ -213,24 +213,70 @@ describe("the console", () => {
     expect(screen.getByLabelText<HTMLInputElement>(LANGUAGE_LABEL).value).toBe("Spanish");
   });
 
-  test("sends a tag it has no name for as typed, and says Braivo's refusal", async () => {
-    const braivo = {
-      ...authoring(),
-      draftCourse: vi
-        .fn()
-        .mockRejectedValue(new BraivoError(400, "Refused.", "Not a language tag.")),
-    };
+  test("suggests languages by name, so the field never flips to a code", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
+
+    const suggested = Array.from(field.list!.options, (option) => option.value);
+    expect(suggested).toEqual(expect.arrayContaining(["English", "Spanish", "Polish"]));
+    expect(suggested).not.toContain("es");
+  });
+
+  test.each([
+    ["a name no language has", "Spansh"],
+    ["a word too long to be a tag", "Klingonish"],
+    ["a name with its region", "Brazilian Portuguese"],
+  ])("asks again for %s, in a teacher's words, sending nothing", async (_label, typed) => {
+    const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
-    fireEvent.change(await screen.findByLabelText(LANGUAGE_LABEL), {
-      target: { value: "Klingonish" },
-    });
+    const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
+    fireEvent.change(field, { target: { value: typed } });
+
     await askForDraft();
 
-    expect(await screen.findByText("Not a language tag.")).toBeTruthy();
-    expect(braivo.draftCourse).toHaveBeenCalledWith(
-      expect.objectContaining({ instructionLanguage: "Klingonish" }),
-      { signal: expect.any(AbortSignal) },
+    expect(braivo.draftCourse).not.toHaveBeenCalled();
+    expect(field.validationMessage).toBe(
+      "Choose a language from the list, or type its English name.",
     );
+    // Changing it clears the complaint, so it can be sent again.
+    fireEvent.change(field, { target: { value: "Spanish" } });
+    expect(field.validationMessage).toBe("");
+  });
+
+  test.each([
+    // Named in English, though only a three-letter tag says them.
+    ["Filipino", "fil", "Filipino"],
+    ["cantonese", "yue", "Cantonese"],
+    ["Hawaiian", "haw", "Hawaiian"],
+    // A tag still works, in its usual form, and reads by name in the review.
+    ["ES", "es", "Spanish"],
+    ["pt-br", "pt-BR", "Brazilian Portuguese"],
+  ])("takes %s as %s, reviewing it as %s", async (typed, tag, name) => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    fireEvent.change(await screen.findByLabelText(LANGUAGE_LABEL), { target: { value: typed } });
+
+    await askForDraft();
+
+    await vi.waitFor(() =>
+      expect(braivo.draftCourse).toHaveBeenCalledWith(
+        expect.objectContaining({ instructionLanguage: tag }),
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect((await askedList()).rows).toContain(`Questions in${name}`);
+  });
+
+  test("asks the required questions first, the optional one after", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    const goal = await screen.findByLabelText(GOAL_LABEL);
+    const language = screen.getByLabelText(LANGUAGE_LABEL);
+    const audience = screen.getByLabelText("Who are the learners?");
+
+    expect(goal.compareDocumentPosition(language) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      language.compareDocumentPosition(audience) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   test("keeps the goal when a review is discarded, as drafting again needs it", async () => {

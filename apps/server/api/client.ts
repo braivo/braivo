@@ -131,6 +131,7 @@ export type { ExplanationCounts } from "../content/explanation.ts";
 export { countExplanations, hasExplanation } from "../content/explanation.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
+export { parseLanguageTag } from "../content/language-tag.ts";
 export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";
 export type { Standing } from "../application/standing.ts";
 export { countStandings, standingOf } from "../application/standing.ts";

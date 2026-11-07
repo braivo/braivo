@@ -3,7 +3,8 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { normalizeSourceText, parseLanguageTag, parseSourceUrl, sourceDigest } from "./source.ts";
+import { parseLanguageTag } from "./language-tag.ts";
+import { normalizeSourceText, parseSourceUrl, sourceDigest } from "./source.ts";
 
 describe("what makes two sources the same", () => {
   const lesson = { title: "Unidad 1", text: "Hola", url: "https://example.com/u1", language: "es" };
