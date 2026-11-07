@@ -251,10 +251,26 @@ async function region(
 }
 
 /** A browser at the phone width, light, and at `NOW`. */
+/**
+ * Each page's console errors and uncaught exceptions, printed when a step
+ * fails: an app's generic error screen alone hides its cause.
+ */
+const browserErrors = new WeakMap<Page, string[]>();
+
+function watch(page: Page): Page {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.stack ?? String(error)));
+  return page;
+}
+
 async function newPage(browser: Browser): Promise<Page> {
   const context = await browser.newContext({ ...SCREEN, colorScheme: "light" });
   await context.clock.setFixedTime(NOW);
-  const page = await context.newPage();
+  const page = watch(await context.newPage());
   page.setDefaultTimeout(30_000);
   return page;
 }
@@ -426,7 +442,7 @@ async function learnerView(
   mkdirSync(join(out, "learner-view"));
   const context = await browser.newContext({ ...SCREEN, viewport: PHONE, colorScheme: "light" });
   await context.clock.setFixedTime(NOW);
-  const page = await context.newPage();
+  const page = watch(await context.newPage());
   page.setDefaultTimeout(30_000);
   await clock.real(() => signIn(page, learnUrl, PERSONAS.sam.email, codes));
   // A minute an answer, as the demo's own practice: answers at one moment
@@ -884,6 +900,8 @@ async function main() {
             `Failed at ${page.url()}; see ${join(tmpdir(), "braivo-screenshots-failure.png")}`,
           );
           console.error((await page.locator("body").innerText()).slice(0, 1500));
+          const errors = browserErrors.get(page) ?? [];
+          if (errors.length) console.error(`Browser errors:\n${errors.join("\n")}`);
         }
       }
       throw error;
