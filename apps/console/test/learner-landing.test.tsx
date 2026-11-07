@@ -5,11 +5,12 @@
 // console has nothing for: on to the school they learn at (access-59).
 
 import type { InvitationPage, Membership, Organization } from "@braivo/server/client";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
+import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { school } from "./fixtures.ts";
-import { renderAt, signInWithCode } from "./render.tsx";
+import { renderAt, signInWithCode, stall, waitOut } from "./render.tsx";
 
 const fernwood: Membership = {
   id: "org-fernwood",
@@ -38,6 +39,37 @@ describe("a plain sign-in", () => {
       fernwoodStart,
     );
     expect(router.history.location.pathname).toBe("/");
+  });
+
+  test("offers Try again when the schools go unread in time, then takes a learner on", async () => {
+    const listMemberships = vi
+      .fn()
+      .mockImplementationOnce((options?: { signal?: AbortSignal }) => stall(options))
+      .mockResolvedValueOnce([fernwood]);
+    const { visit } = renderAt("/login", {
+      signedIn: false,
+      organizations: [],
+      braivo: { listMemberships },
+    });
+    fireEvent.change(await screen.findByLabelText("Email address"), {
+      target: { value: "zofia@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
+    const code = await screen.findByLabelText("Code");
+
+    // Signed in, then Braivo stops answering: never a wait without end.
+    vi.useFakeTimers();
+    fireEvent.change(code, { target: { value: "123456" } });
+    await vi.waitFor(() => expect(listMemberships).toHaveBeenCalledTimes(1));
+    await waitOut(REQUEST_DEADLINE_MS);
+    vi.useRealTimers();
+
+    expect(await screen.findByRole("region", { name: "Something went wrong." })).toBeTruthy();
+    expect(visit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(fernwoodStart, { replace: true }));
+    expect(listMemberships).toHaveBeenCalledTimes(2);
   });
 
   test("keeps the console for someone who teaches at one school and learns at another", async () => {
@@ -119,6 +151,31 @@ describe("a plain sign-in", () => {
     expect(router.history.location.pathname).toBe("/join");
     expect(screen.getByRole("link", { name: /Fernwood/ }).getAttribute("href")).toBe(fernwoodStart);
     expect(visit).not.toHaveBeenCalled();
+  });
+
+  test("lets a learner put setup down again, back to their schools", async () => {
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        listMemberships: async () => [fernwood],
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up an organization" }));
+    expect(await screen.findByLabelText("Organization name")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { name: "Where you learn" })).toBeTruthy();
+    expect(screen.queryByLabelText("Organization name")).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Set up an organization" }),
+    );
   });
 
   test("says a learner's one school has no site yet, rather than leave", async () => {

@@ -6,6 +6,7 @@ import { Trans } from "@lingui/react/macro";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { organizationToOpen } from "#lib/last-organization";
 import { learnUrl } from "#lib/learn-url";
 
@@ -18,7 +19,9 @@ import { learnUrl } from "#lib/learn-url";
  */
 export const Route = createFileRoute("/_signed-in/")({
   beforeLoad: async ({ context, abortController }) => {
-    const options = { signal: abortController.signal };
+    // Unanswered in time, as unanswered at all, the page fails and offers
+    // Try again, rather than leave someone just signed in waiting.
+    const options = { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) };
     const organization = organizationToOpen(await context.braivo.listOrganizations(options));
     if (organization) {
       throw redirect({ to: "/$organizationSlug", params: { organizationSlug: organization.slug } });

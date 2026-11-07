@@ -482,6 +482,10 @@ msgstr "Poproś osobę, która Cię zaprosiła, o nowe zaproszenie."
 msgid "Author"
 msgstr "Autor"
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Back"
+msgstr "Wróć"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
 msgstr "Wróć do organizacji „{organizationName}”"

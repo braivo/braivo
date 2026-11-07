@@ -16,10 +16,11 @@ import {
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { ChevronRightIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { OrganizationSetupForm } from "#components/organization-setup-form";
+import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { organizationToOpen } from "#lib/last-organization";
 import { learnUrl } from "#lib/learn-url";
 
@@ -33,7 +34,9 @@ import { learnUrl } from "#lib/learn-url";
  */
 export const Route = createFileRoute("/_signed-in/join")({
   beforeLoad: async ({ context, abortController }) => {
-    const options = { signal: abortController.signal };
+    // Unanswered in time, as unanswered at all, the page fails and offers
+    // Try again, rather than leave someone just signed in waiting.
+    const options = { signal: withDeadline(abortController.signal, REQUEST_DEADLINE_MS) };
     const [organizations, setup] = await Promise.all([
       context.braivo.listOrganizations(options),
       context.braivo.organizationSetup(options),
@@ -71,6 +74,8 @@ function Join() {
   // Managing none, setting one up is asked for, not the page's default: most
   // who land here came to learn.
   const [settingUp, setSettingUp] = useState(false);
+  // Back from the form, focus returns to what opened it.
+  const [returned, setReturned] = useState(false);
   // Named, so a translator sees what the placeholder holds.
   const { email } = user;
 
@@ -78,6 +83,20 @@ function Join() {
   if (setup !== null && (!managesNone || settingUp)) {
     return (
       <div className="mx-auto max-w-140 sm:py-10">
+        {/* Asked for, so it can be put down again. */}
+        {managesNone && (
+          <Button
+            variant="link"
+            className="mb-4 px-0"
+            onClick={() => {
+              setSettingUp(false);
+              setReturned(true);
+            }}
+          >
+            <ArrowLeftIcon aria-hidden="true" />
+            <Trans>Back</Trans>
+          </Button>
+        )}
         <OrganizationSetupForm braivo={braivo} {...setup} />
       </div>
     );
@@ -121,7 +140,7 @@ function Join() {
           <MutedText>
             <Trans>Running courses of your own? Set up an organization for them.</Trans>
           </MutedText>
-          <Button variant="outline" onClick={() => setSettingUp(true)}>
+          <Button variant="outline" autoFocus={returned} onClick={() => setSettingUp(true)}>
             <Trans>Set up an organization</Trans>
           </Button>
         </div>

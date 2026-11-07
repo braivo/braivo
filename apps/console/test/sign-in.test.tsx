@@ -246,7 +246,7 @@ describe("the console", () => {
       expect(screen.queryByText(/Braivo/)).toBeNull();
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
 
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
       expect(completeHandoff).toHaveBeenCalledWith("h1", expect.anything());
     });
 
@@ -269,6 +269,7 @@ describe("the console", () => {
       await vi.waitFor(() =>
         expect(visit).toHaveBeenCalledWith(
           "http://fernwood.localhost:5203/api/session/handoff?code=c1",
+          { replace: true },
         ),
       );
     });
@@ -284,7 +285,7 @@ describe("the console", () => {
       expect(completeHandoff).not.toHaveBeenCalled();
       expect(visit).not.toHaveBeenCalled();
       fireEvent.click(offered);
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
       expect(completeHandoff).toHaveBeenCalledOnce();
       expect(auth.signOut).not.toHaveBeenCalled();
       cleanup();
@@ -378,7 +379,7 @@ describe("the console", () => {
       // The operator adds them meanwhile.
       member = true;
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     // Better Auth answers a failed read with an error, or throws when unreachable.
@@ -621,7 +622,7 @@ describe("the console", () => {
       await signInWithCode();
       fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     test("offers to try again when the handoff cannot be read in time", async () => {
@@ -658,7 +659,7 @@ describe("the console", () => {
         await screen.findByText("Could not connect. Check your connection and try again."),
       ).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Continue as Olive Owner" }));
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     test("tells a server's failure from a lost connection, offering to continue again", async () => {

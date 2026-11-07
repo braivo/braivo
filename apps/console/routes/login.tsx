@@ -243,7 +243,9 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
       );
       // The server names the domain over HTTPS; opened as every link here to
       // a learn domain is, so the dev server's reaches its learn app (ADR 0043).
-      visit(learnUrl(issued.hostname, issued.pathname + issued.search));
+      // In this page's place: spent once used, it would greet Back with a
+      // sign-in that never finishes, then one said to have expired.
+      visit(learnUrl(issued.hostname, issued.pathname + issued.search), { replace: true });
     } catch (thrown) {
       const status = thrown instanceof BraivoError ? thrown.status : undefined;
       if (status === 404) setView("expired");
