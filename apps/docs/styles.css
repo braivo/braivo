@@ -197,7 +197,7 @@ a[href="#nd-page"]:focus-visible {
   overflow-anchor: none;
 }
 
-/* Questions that open in place (`Accordions` in components/mdx.tsx). */
+/* Questions that open in place: native `<details class="accordion">` in a `.accordions` group, on the FAQ. */
 .accordions {
   margin-block: 1rem;
   overflow: hidden;

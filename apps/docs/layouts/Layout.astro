@@ -33,7 +33,7 @@ const canonical = Astro.site && path ? new URL(path, Astro.site).href : undefine
     {canonical && <link rel="canonical" href={canonical} />}
     {site.head && <Fragment set:html={site.head} />}
     <ClientRouter />
-    <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->
+    <!-- Opens the question a URL's hash names: a native `<details class="accordion">` on the FAQ. -->
     <script is:inline>
       /** Opens the question whose heading the hash names, and answers that heading. */
       function openTarget() {
