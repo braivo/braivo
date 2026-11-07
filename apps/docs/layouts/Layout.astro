@@ -5,6 +5,7 @@
 import { ClientRouter } from "astro:transitions";
 
 import site from "#brand/site.ts";
+import { base } from "#lib/base";
 
 import "../styles.css";
 // After the site's own, so a brand overrides them.
@@ -27,7 +28,7 @@ const canonical = Astro.site && path ? new URL(path, Astro.site).href : undefine
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · {site.name}</title>
     <!-- Under docs/, as a shared host's root is another site's. -->
-    <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/favicon.svg`} type="image/svg+xml" />
+    <link rel="icon" href={`${base}docs/favicon.svg`} type="image/svg+xml" />
     {description && <meta name="description" content={description} />}
     {canonical && <link rel="canonical" href={canonical} />}
     {site.head && <Fragment set:html={site.head} />}

@@ -5,8 +5,7 @@ import { toFumadocsSource } from "@fumadocs/astro/source";
 import { getCollection } from "astro:content";
 import { loader } from "fumadocs-core/source";
 
-/** Where the site sits, `BRAIVO_DOCS_BASE` as Astro took it, ending in `/`. */
-export const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+import { base } from "./base.ts";
 
 /** One tree: a page's path under `content/` is its URL, so each section is a folder. */
 export const source = loader({

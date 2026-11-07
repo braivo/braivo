@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 
 import site from "#brand/site.ts";
 import DocsSearch from "#components/search";
+import { base } from "#lib/base";
 
 export interface DocsProps {
   pathname: string;
@@ -35,7 +36,7 @@ export function Docs({ pathname, params, tree, title, description, toc, children
       <DocsLayout
         // The docs' home, as the root redirect and the 404 lead: the bare base
         // may be another site's on a shared host.
-        nav={{ title: site.name, url: `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs` }}
+        nav={{ title: site.name, url: `${base}docs` }}
         githubUrl={site.githubUrl}
         links={site.links}
         tree={data.tree}

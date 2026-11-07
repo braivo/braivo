@@ -14,10 +14,12 @@ import {
   type SharedProps,
 } from "fumadocs-ui/components/dialog/search";
 
+import { base } from "#lib/base";
+
 /** Searches in the browser, over the index `pages/docs/search.json.ts` emits. */
 export default function DocsSearch(props: SharedProps) {
   const search = useStaticSearch({
-    from: `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/search.json`,
+    from: `${base}docs/search.json`,
   });
   return (
     <SearchDialog {...search} {...props}>

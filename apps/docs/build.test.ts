@@ -114,22 +114,30 @@ describe("a build at /help/, with an outside brand and an origin", () => {
     expect(leadingHome).toEqual([]);
   });
 
-  test("searches under /help/, from its own index", () => {
+  test("searches under /help/, from its own index", async () => {
     const urls = searchUrls(branded);
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.filter((url) => !url.startsWith("/help/"))).toEqual([]);
-    // The client's address for the index, as the bundle writes it: the base in it.
-    const fetched = files(join(branded, "docs/assets"))
-      .filter((name) => name.endsWith(".js"))
-      .flatMap((name) => [
-        ...read(branded, `docs/assets/${name}`).matchAll(
-          /from:\s*(`(?:[^`]|`[^`]*`)*?docs\/search\.json`|"[^"]*docs\/search\.json")/g,
-        ),
-      ])
-      .map(([, address]) => address!);
-    expect(fetched.length).toBeGreaterThan(0);
-    expect(fetched.filter((address) => !address.includes("/help"))).toEqual([]);
-  });
+    // The index the browser fetches when a reader searches: under the base.
+    const site = await serve(branded, "/help");
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(`${site.url}/help/guides/faq`, { waitUntil: "load" });
+      // Once the page's island has hydrated, as a click before that opens nothing.
+      await page.waitForSelector("astro-island:not([ssr])");
+      const fetched = page.waitForRequest((request) => request.url().endsWith("search.json"));
+      await page
+        .getByRole("button", { name: /search/i })
+        .first()
+        .click();
+      await page.keyboard.type("course");
+      expect(new URL((await fetched).url()).pathname).toBe("/help/docs/search.json");
+    } finally {
+      await browser.close();
+      site.close();
+    }
+  }, 60_000);
 
   test("wears the brand: its name, head tags, and styles", () => {
     const faq = read(branded, "guides/faq.html");
