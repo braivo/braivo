@@ -28,7 +28,7 @@ Most objectives a learner would choose at a pause need no attention. Caught up m
 
 ## Consequences
 
-- An early success postpones the scheduled review, though it is little evidence of lasting recall: the success restarts the due clock and barely grows stability, as today's evidence model does for any success not due. Accepted; extra practice stays a visible, deliberate act, never repeated by itself.
+- An early success postpones the scheduled review, though it is little evidence of lasting recall: the success restarts the due clock and barely grows stability, as the evidence model does for any success not due. Accepted; extra practice stays a visible, deliberate act, never repeated by itself.
 - A miss on extra practice discards the objective's stability, as any lapse does.
 - A chosen objective's rest has nothing else to fill it: a one-task objective rests ten minutes, and the page says when it resumes.
 - The decision a learner sees can be the learner's own, so a client switching on `intent` handles `practise` too.

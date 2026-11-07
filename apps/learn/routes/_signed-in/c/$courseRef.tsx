@@ -624,10 +624,7 @@ function NextStep() {
           onBack={clearAnsweredAttempt}
         />
       )}
-      {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
-          load, so one found by a reload in place mounts anew, and is announced.
-          Gone once this load's answer is graded, or it would seem to mean that one. */}
-      {/* Keyed, so failing again mounts a new one (docs/apps.md). */}
+      {/* Practise in place failed. Keyed, so failing again mounts a new one (docs/apps.md). */}
       {inPlaceFailures > 0 && (
         <Alert key={inPlaceFailures} variant="destructive" className="mb-6">
           <AlertDescription>
@@ -635,6 +632,9 @@ function NextStep() {
           </AlertDescription>
         </Alert>
       )}
+      {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
+          load, so one found by a reload in place mounts anew, and is announced.
+          Gone once this load's answer is graded, or it would seem to mean that one. */}
       {refusalNotice && gradedAttempt !== attemptId && (
         <RefusalAlert key={attemptId} notice={refusalNotice} />
       )}

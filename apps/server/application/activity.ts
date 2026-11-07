@@ -184,7 +184,6 @@ export async function chooseNextActivity(input: {
 }
 
 /**
-/**
  * Why an activity's objective comes next: the model's decision, or `practise`,
  * the learner's own choice of one needing no attention (extra practice,
  * docs/adr/0058-learner-chosen-objective.md). The application's, so `learning`
