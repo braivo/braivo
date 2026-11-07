@@ -598,7 +598,7 @@ msgstr "Sprawdzanie…"
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Choose a school to continue there. Signed in as {email}."
-msgstr "Wybierz szkołę, aby tam kontynuować. Zalogowano jako {email}."
+msgstr "Wybierz szkołę, aby do niej przejść. Zalogowano jako {email}."
 
 #: apps/learn/components/standing.tsx
 msgid "Choose a topic to practise"
@@ -671,7 +671,7 @@ msgstr "Przejdź do {hostname}"
 
 #: apps/console/routes/_signed-in/index.tsx
 msgid "Continue to {name}"
-msgstr "Przejdź do: {name}"
+msgstr "Przejdź do szkoły „{name}”"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
@@ -1321,7 +1321,7 @@ msgstr "Jej rekordy nie są jeszcze dostępne."
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Its site for learners is not available yet."
-msgstr "Jej strona dla uczniów nie jest jeszcze dostępna."
+msgstr "Strona dla uczniów nie jest jeszcze dostępna."
 
 #: apps/console/components/group-form.tsx
 msgid "Its teachers will see no progress until it has learners and a course."
@@ -2318,7 +2318,7 @@ msgstr "Zrób krótką przerwę"
 
 #: apps/console/routes/_signed-in/index.tsx
 msgid "Taking you to {name}…"
-msgstr "Przechodzisz do: {name}…"
+msgstr "Trwa przekierowanie do szkoły „{name}”…"
 
 #. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
@@ -2694,7 +2694,7 @@ msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację
 
 #: apps/console/routes/_signed-in/join.tsx
 msgid "Where you learn"
-msgstr "Gdzie się uczysz"
+msgstr "Twoje szkoły"
 
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"

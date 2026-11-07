@@ -4,6 +4,7 @@
 // Where a plain sign-in at the installation's `/login` leads someone the
 // console has nothing for: on to the school they learn at (access-59).
 
+import { activateLocale } from "@braivo/i18n";
 import {
   BraivoError,
   type InvitationPage,
@@ -11,7 +12,7 @@ import {
   type Organization,
 } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { school } from "./fixtures.ts";
@@ -224,6 +225,22 @@ describe("a plain sign-in", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Set up an organization" }),
     );
+  });
+
+  test("lists a learner's schools in the chosen language, titled so", async () => {
+    onTestFinished(() => activateLocale("en"));
+    await activateLocale("pl");
+    renderAt("/join", {
+      organizations: [],
+      braivo: { listMemberships: async () => [birchfield, fernwood] },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Twoje szkoły" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Twoje szkoły · Braivo"));
+    expect(
+      screen.getByText("Wybierz szkołę, aby do niej przejść. Zalogowano jako olive@example.com."),
+    ).toBeTruthy();
+    expect(screen.getByText("Strona dla uczniów nie jest jeszcze dostępna.")).toBeTruthy();
   });
 
   test("says a learner's one school has no site yet, rather than leave", async () => {
