@@ -76,3 +76,32 @@
   border: 1px solid var(--color-fd-border);
   border-radius: 0.5rem;
 }
+
+/* A table that needs more than a phone's width is captured wider, and named so. */
+.prose img[src$="-wide.png"] {
+  max-width: 100%;
+}
+
+/* The four standings on the follow-progress page: a list, so it reads as one on GitHub and to a screen reader. */
+.standings ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.standings li {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.75rem;
+  background: var(--color-fd-card);
+  color: var(--color-fd-card-foreground);
+}
+
+@media (min-width: 768px) {
+  .standings ol {
+    grid-template-columns: 1fr 1fr;
+  }
+}

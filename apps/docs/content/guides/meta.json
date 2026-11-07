@@ -1,1 +1,4 @@
-{ "title": "Guides", "pages": ["first-course", "authoring", "assistants", "api", "deployment"] }
+{
+  "title": "Guides",
+  "pages": ["first-course", "follow-progress", "authoring", "assistants", "api", "deployment"]
+}

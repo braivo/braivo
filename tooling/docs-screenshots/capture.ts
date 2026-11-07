@@ -40,7 +40,13 @@ const PORTS = { server: 4830, console: 4831, learn: 4832 };
  * apps/docs/styles.css shows it no wider); tall enough that each step's part of
  * the page fits once scrolled to, so coordinates are the viewport's.
  */
-const SCREEN = { viewport: { width: 480, height: 2400 }, deviceScaleFactor: 2 } as const;
+const SCREEN = {
+  viewport: { width: 480, height: 2400 },
+  deviceScaleFactor: 2,
+  // Times on the pages read the same wherever this runs, and say nothing of where.
+  timezoneId: "UTC",
+  locale: "en-US",
+} as const;
 
 /** The model's address, answered here with the canned draft; anything else goes out as usual. */
 function cannedModel() {
@@ -88,7 +94,11 @@ async function signIn(page: Page, base: string, email: string, code: () => strin
 /** Every label the guide names on this screen, so a renamed one fails here, not in a reader's hands. */
 async function sees(page: Page, ...labels: string[]) {
   for (const label of labels) {
-    await page.getByText(label, { exact: true }).first().waitFor({ timeout: 5_000 });
+    await page
+      .getByText(label, { exact: true })
+      .filter({ visible: true })
+      .first()
+      .waitFor({ timeout: 5_000 });
   }
 }
 
@@ -117,13 +127,14 @@ async function region(
   const margin = 24;
   const x = Math.max(0, Math.min(...boxes.map((box) => box.x)) - margin);
   const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - margin);
+  const viewport = page.viewportSize()!;
   const right = Math.min(
-    SCREEN.viewport.width,
+    viewport.width,
     Math.max(...boxes.map((box) => box.x + box.width)) + margin,
   );
   // Less below: the next line would show its top half.
   const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
-  if (bottom > SCREEN.viewport.height) throw new Error(`${path}: taller than the viewport.`);
+  if (bottom > viewport.height) throw new Error(`${path}: taller than the viewport.`);
   await page.screenshot({ path, clip: { x, y, width: right - x, height: bottom - y } });
   console.log(
     `  ${path.split("/").slice(-2).join("/")}  ${Math.round(right - x)}×${Math.round(bottom - y)}`,
@@ -236,6 +247,58 @@ async function firstCourse(
 }
 
 /**
+ * The progress tables need 684px, wider than a phone's 480: at 740 they fit
+ * whole, with the sidebar still folded away. Such pictures are named `-wide`
+ * (apps/docs/styles.css shows them across the column).
+ */
+const WIDE = { width: 740, height: 2400 };
+
+/** The follow-progress guide, as the demo's teacher: their group, its course's progress, and one learner. */
+async function followProgress(browser: Browser, out: string, codes: Map<string, string>) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
+  mkdirSync(join(out, "follow-progress"));
+  const page = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
+  page.setDefaultTimeout(30_000);
+  await signIn(page, consoleUrl, PERSONAS.teacher.email, () => codes.get(PERSONAS.teacher.email));
+
+  // 1. Their groups, where a teacher's console opens.
+  await page.goto(`${consoleUrl}/fernwood/groups`);
+  const progress = page.getByRole("link", { name: "Progress" });
+  await progress.waitFor();
+  await sees(page, "Groups", "Class A English", "Progress");
+  const groups = page.getByRole("heading", { level: 1, name: "Groups" });
+  await region(page, shot("1-groups"), groups, progress, progress);
+  await progress.click();
+
+  // 2 and 3. The course's progress, its learners and its objectives.
+  await page.setViewportSize(WIDE);
+  const byObjective = page.getByRole("heading", { name: "Progress by objective" });
+  await byObjective.waitFor();
+  await sees(page, "Not started", "Learning", "Repeated misses", "Retained", "Due for review");
+  const sam = page.getByRole("link", { name: PERSONAS.sam.name });
+  const learners = page.getByRole("heading", { name: "Learners", exact: true });
+  await region(
+    page,
+    shot("2-learners-wide"),
+    learners,
+    page.getByText("Last practised today").last(),
+    sam,
+  );
+  const none = page.getByText("No objectives currently have repeated misses.");
+  await region(page, shot("3-objectives-wide"), byObjective, none, none);
+
+  // 4. One learner's report.
+  await page.setViewportSize(SCREEN.viewport);
+  await sam.click();
+  const report = page.getByRole("heading", { level: 1, name: PERSONAS.sam.name });
+  await report.waitFor();
+  await sees(page, "Standing", "Evidence", "Review due");
+  const last = page.getByText("Not started", { exact: true }).last();
+  await region(page, shot("4-learner"), report, last, report);
+}
+
+/**
  * Stops what this run started, each apart, so one failure leaves the rest to
  * be tried; a process group already gone (ESRCH) is already stopped.
  */
@@ -338,6 +401,8 @@ async function main() {
 
     const browser = await chromium.launch();
     try {
+      // Before the first course exists, so the teacher's pages show the demo as seeded.
+      await followProgress(browser, out, codes);
       await firstCourse(browser, out, work, codes);
     } catch (error) {
       for (const context of browser.contexts()) {
