@@ -531,7 +531,11 @@ async function learnerView(
 const WIDE = { width: 740, height: 2400 };
 
 /** The follow-progress guide, as the demo's teacher: their group, its course's progress, and one learner. */
-async function followProgress(browser: Browser, out: string, codes: Map<string, string>) {
+async function followProgress(
+  browser: Browser,
+  out: string,
+  codes: Map<string, string>,
+): Promise<Page> {
   const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
   const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
   mkdirSync(join(out, "follow-progress"));
@@ -576,6 +580,7 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   await sees(page, "Standing", "Evidence", "Review due");
   const last = page.getByText("Not started", { exact: true }).last();
   await region(page, shot("4-learner"), report, last, report);
+  return page;
 }
 
 /** The capture's own tool, signed in as `braivo` is (ADR 0022): a device code the author approves at /device. */
@@ -823,6 +828,114 @@ async function words(page: Page, out: string) {
   await page.getByRole("button", { name: "Cancel" }).click();
 }
 
+/** Three days on: reviews have come due, and Zofia has missed one objective three times. */
+const LATER = new Date(NOW.getTime() + 3 * 24 * 60 * 60_000);
+
+/** Answers the question shown wrongly, typed or chosen. */
+async function answerWrong(page: Page) {
+  const prompts = Object.keys(RIGHT);
+  const prompt = page.getByText(
+    new RegExp(`^(${prompts.map((text) => RegExp.escape(text)).join("|")})$`),
+  );
+  const right = RIGHT[(await prompt.first().innerText()).trim()]!;
+  const field = page.getByRole("textbox");
+  if (await field.count()) {
+    await field.fill("no idea");
+    await page.getByRole("button", { name: "Check" }).click();
+  } else {
+    const options = page.locator("main button").filter({ hasNotText: /Show answer|Report/ });
+    for (const text of await options.allInnerTexts()) {
+      const label = text.replace(/^\d+\s*/, "").trim();
+      if (label && label !== right) {
+        await page.getByRole("button", { name: label, exact: true }).first().click();
+        return;
+      }
+    }
+    throw new Error("No wrong option to choose.");
+  }
+}
+
+/**
+ * The follow-progress guide's later pictures, through real practice: three
+ * days on, Zofia misses whatever Braivo asks, three times, a rest apart, and
+ * the teacher reads the course's progress then. The seed is not changed.
+ */
+async function laterProgress(
+  clock: Clock,
+  browser: Browser,
+  teacher: Page,
+  out: string,
+  codes: Map<string, string>,
+) {
+  const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const context = await browser.newContext({ ...SCREEN, viewport: PHONE, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const zofia = watch(await context.newPage());
+  zofia.setDefaultTimeout(30_000);
+  const course = zofia.getByRole("link", { name: /Everyday English/ }).first();
+  // Signed in and her courses shown before the clock moves: a jump while the
+  // sign-in settles can leave her page signed out.
+  await clock.real(async () => {
+    await signIn(zofia, learnUrl, PERSONAS.zofia.email, codes);
+    await course.waitFor();
+  });
+  let at = LATER;
+  const advance = async (minutes: number) => {
+    at = new Date(at.getTime() + minutes * 60_000);
+    clock.set(at);
+    await context.clock.setFixedTime(at);
+    await teacher.context().clock.setFixedTime(at);
+  };
+  await advance(0);
+  await course.click();
+  await zofia.waitForURL(/\/c\//);
+  for (let miss = 0; miss < 3; miss++) {
+    await zofia.getByText("Show answer").waitFor();
+    await answerWrong(zofia);
+    const next = zofia.getByRole("button", { name: "Continue" });
+    await next.waitFor();
+    // Past the ten-minute rest, so the objective is asked again.
+    await advance(11);
+    await next.click();
+  }
+  await context.close();
+
+  await teacher.goto(`http://127.0.0.1:${PORTS.console}/fernwood/groups`);
+  await teacher.getByRole("link", { name: "Progress" }).click();
+  await teacher.setViewportSize(WIDE);
+  await teacher.getByRole("heading", { name: "Progress by objective" }).waitFor();
+  const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
+  const due = teacher.getByRole("columnheader", { name: "Due for review" });
+
+  // 5. Learners, later: reviews due, and Zofia's repeated misses.
+  await region(
+    teacher,
+    shot("5-later-learners"),
+    teacher.getByRole("columnheader", { name: "Learner", exact: true }),
+    teacher.getByRole("rowheader").filter({ hasText: PERSONAS.zofia.name }),
+    due.first(),
+  );
+
+  // 6. Who has the repeated misses, opened from Progress by objective.
+  const who = teacher.getByRole("button", { name: "1 learner" });
+  await who.click();
+  await teacher.mouse.move(0, 0);
+  const named = teacher.getByRole("link", { name: PERSONAS.zofia.name }).last();
+  await named.waitFor();
+  console.log(
+    "OPENED:",
+    (await teacher.locator("main").innerText()).replace(/\n+/g, " | ").slice(-700),
+  );
+  // The whole table's width, every standing's column, as the other tables.
+  await region(
+    teacher,
+    shot("6-repeated-misses"),
+    teacher.getByRole("columnheader", { name: "Objective", exact: true }),
+    named,
+    due.last(),
+  );
+}
+
 async function cleanUp(steps: (() => unknown)[]) {
   const failures: unknown[] = [];
   for (const step of steps) {
@@ -939,13 +1052,14 @@ async function main() {
     const browser = await chromium.launch();
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
-      await followProgress(browser, out, codes);
+      const teacher = await followProgress(browser, out, codes);
       // Before the first course, so Sam's list holds the demo's course alone.
       const learner = await learnerView(clock, browser, out, codes);
       const author = await firstCourse(scratch, learner, browser, out, work, codes);
       await reviewAndPublish(scratch, author, out);
       await maintainPractice(scratch, author, out);
       await words(author, out);
+      await laterProgress(clock, browser, teacher, out, codes);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {
