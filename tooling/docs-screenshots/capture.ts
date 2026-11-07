@@ -54,16 +54,21 @@ const SCREEN = {
 } as const;
 
 /**
- * The moment every run happens at: the classroom is seeded at it, and the
- * server and the browsers read it as now, so times on the pages, standings,
- * and estimated recall come out the same in every run. In the future, as the
- * database checks a learner's sign-in code against its own clock
- * (`clock_timestamp()`): move it on before the real date reaches it.
+ * The moment every run happens at, the demo's own seeding date (docs/demo.md):
+ * the classroom is seeded at it, and the server and the browsers read it as
+ * now, so times on the pages, standings, and estimated recall come out the
+ * same in every run, on a date a reader takes for real.
+ *
+ * The clock is let go while a learner signs in on the learn site: the
+ * database checks that code's expiry against its own clock
+ * (`clock_timestamp()`), which a past moment would fail, and the learner's
+ * pages pictured show no date. A future moment would pass, but dates reading
+ * years ahead look like a bug to a teacher.
  */
-const NOW = new Date("2030-09-16T09:00:00Z");
+const NOW = new Date("2026-10-12T09:00:00Z");
 
-/** This process's `Date` reads `NOW` as now; one given a time is as ever. */
-function freezeClock() {
+/** This process's `Date` reads `NOW` as now, one given a time as ever, until the function returned is called. */
+function freezeClock(): () => void {
   const Real = Date;
   const now = NOW.getTime();
   class Frozen extends Real {
@@ -76,6 +81,9 @@ function freezeClock() {
     }
   }
   globalThis.Date = Frozen as DateConstructor;
+  return () => {
+    globalThis.Date = Real;
+  };
 }
 
 /** The model's address, answered here with the canned draft; anything else goes out as usual. */
@@ -136,6 +144,37 @@ async function sees(page: Page, ...labels: string[]) {
 }
 
 /**
+ * Run in the page: `clip` grown to cover every line of text, control, and
+ * image it cuts through, with a little room; one wholly inside or outside
+ * stays as it is. A string, as this package's types know no DOM.
+ */
+const STRADDLING = `(clip) => {
+  const cuts = (r) =>
+    r.width > 1 && r.height > 1 && r.right - 1 <= innerWidth &&
+    r.right > clip.x && r.left < clip.right && r.bottom > clip.y && r.top < clip.bottom &&
+    (r.left < clip.x || r.right > clip.right || r.top < clip.y || r.bottom > clip.bottom);
+  const rects = [];
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    rects.push(...range.getClientRects());
+  }
+  for (const element of document.querySelectorAll("button, input, select, textarea, img, svg, [role=checkbox]")) {
+    rects.push(element.getBoundingClientRect());
+  }
+  const grown = { ...clip };
+  for (const r of rects.filter(cuts)) {
+    grown.x = Math.min(grown.x, r.left - 8);
+    grown.y = Math.min(grown.y, r.top - 4);
+    grown.right = Math.max(grown.right, r.right + 8);
+    grown.bottom = Math.max(grown.bottom, r.bottom + 8);
+  }
+  return grown;
+}`;
+
+/**
  * The part of the page a step is about, from `from` to `to`, no wider than
  * what they and `presses` span: the sidebar left out, so labels come out near
  * the size they are read at. `presses`, what the step says to press, is
@@ -157,19 +196,31 @@ async function region(
     if (!box) throw new Error(`${path}: ${String(locator)} is not on the screen.`);
     boxes.push(box);
   }
-  // Close above, so nothing of what precedes the heading shows.
-  const margin = 24;
-  const x = Math.max(0, Math.min(...boxes.map((box) => box.x)) - margin);
-  const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - 4);
   const viewport = page.viewportSize()!;
-  const right = Math.min(
-    viewport.width,
-    // Close on the right too: a table's next column would show its first mark.
-    Math.max(...boxes.map((box) => box.x + box.width)) + 8,
-  );
-  // Less below: the next line would show its top half.
-  const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
-  if (bottom > viewport.height) throw new Error(`${path}: taller than the viewport.`);
+  let clip = {
+    x: Math.max(0, Math.min(...boxes.map((box) => box.x)) - 16),
+    y: Math.max(0, Math.min(...boxes.map((box) => box.y)) - 4),
+    right: Math.min(viewport.width, Math.max(...boxes.map((box) => box.x + box.width)) + 16),
+    bottom: Math.max(...boxes.map((box) => box.y + box.height)) + 8,
+  };
+  // Grown until no text or control straddles an edge, so nothing shows cut in half.
+  for (let pass = 0; ; pass++) {
+    const grown = (await page.evaluate(`(${STRADDLING})(${JSON.stringify(clip)})`)) as typeof clip;
+    // No further than the screen: what reaches its edge is whole as shown.
+    const next = {
+      x: Math.max(0, grown.x),
+      y: Math.max(0, grown.y),
+      right: Math.min(viewport.width, grown.right),
+      bottom: grown.bottom,
+    };
+    if (JSON.stringify(next) === JSON.stringify(clip)) break;
+    if (pass === 5) throw new Error(`${path}: something still straddles the picture's edge.`);
+    clip = next;
+  }
+  if (clip.bottom > viewport.height) throw new Error(`${path}: taller than the viewport.`);
+  const { x, y } = clip;
+  const right = clip.right;
+  const bottom = clip.bottom;
   await page.screenshot({ path, clip: { x, y, width: right - x, height: bottom - y } });
   console.log(
     `  ${path.split("/").slice(-2).join("/")}  ${Math.round(right - x)}×${Math.round(bottom - y)}`,
@@ -187,6 +238,7 @@ async function newPage(browser: Browser): Promise<Page> {
 
 async function firstCourse(
   scratch: ScratchDatabase,
+  realTime: (steps: () => Promise<void>) => Promise<void>,
   browser: Browser,
   out: string,
   work: string,
@@ -278,25 +330,28 @@ async function firstCourse(
 
   // 7. As a learner.
   const learner = await newPage(browser);
-  await signIn(learner, learnUrl, PERSONAS.sam.email, codes);
-  await learner
-    .getByRole("link", { name: /Why plants are green/ })
-    .first()
-    .click();
-  await learner.waitForURL(/\/c\//);
-  // Off the options: a hover left by the click reads as a chosen answer.
-  await learner.mouse.move(0, 0);
-  const show = learner.getByText("Show answer");
-  await show.waitFor();
-  const check = learner.getByRole("button", { name: "Check" });
-  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
+  // On the real clock: see NOW. Frozen again after, so the author's session
+  // from the frozen moment still holds for what follows.
+  await realTime(async () => {
+    await signIn(learner, learnUrl, PERSONAS.sam.email, codes);
+    await learner
+      .getByRole("link", { name: /Why plants are green/ })
+      .first()
+      .click();
+    await learner.waitForURL(/\/c\//);
+    // Off the options: a hover left by the click reads as a chosen answer.
+    await learner.mouse.move(0, 0);
+    const show = learner.getByText("Show answer");
+    await show.waitFor();
+    const check = learner.getByRole("button", { name: "Check" });
+    await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
+  });
   return page;
 }
 
 /**
  * The progress tables need 684px, wider than a phone's 480: at 740 they fit
- * whole, with the sidebar still folded away; the pictures keep their first
- * columns, so they read on a phone.
+ * whole, with the sidebar still folded away.
  */
 const WIDE = { width: 740, height: 2400 };
 
@@ -323,19 +378,20 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   await byObjective.waitFor();
   await sees(page, "Not started", "Learning", "Repeated misses", "Retained", "Due for review");
   const sam = page.getByRole("link", { name: PERSONAS.sam.name });
-  // Its first columns, up to Repeated misses: what the step talks about, at a size a phone can read.
   const learnerColumn = page.getByRole("columnheader", { name: "Learner", exact: true });
-  const missesColumn = page.getByRole("columnheader", { name: "Repeated misses" });
+  // The whole table, every standing's column; the guide shows it in a frame
+  // that scrolls on a phone (`.wide-shot` in apps/docs/styles.css).
+  const dueColumn = page.getByRole("columnheader", { name: "Due for review" });
   await region(
     page,
     shot("2-learners"),
     learnerColumn,
-    page.getByText("Last practised today").last(),
-    missesColumn.first(),
+    page.getByRole("rowheader").filter({ hasText: PERSONAS.zofia.name }),
+    dueColumn.first(),
   );
   const objectiveColumn = page.getByRole("columnheader", { name: "Objective", exact: true });
   const lastObjective = page.getByRole("rowheader").filter({ hasText: "Say goodbye" });
-  await region(page, shot("3-objectives"), objectiveColumn, lastObjective, missesColumn.last());
+  await region(page, shot("3-objectives"), objectiveColumn, lastObjective, dueColumn.last());
 
   // 4. One learner's report.
   await page.setViewportSize(SCREEN.viewport);
@@ -447,17 +503,20 @@ async function reviewAndPublish(scratch: ScratchDatabase, page: Page, out: strin
   const passage = page
     .getByText("Leaves take in carbon dioxide from the air, and roots take up water from the soil.")
     .first();
+  // Ticked, as the next step's picture counts it.
+  await select.click();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(500);
   await region(page, shot("2-question"), objective, passage, select);
 
   // 3. Publishing all, or a selection.
-  await select.click();
   const withSelected = page.getByRole("button", { name: "Publish with selected (1)" });
   const withAll = page.getByRole("button", { name: "Publish with all (2)" });
   await withSelected.waitFor();
   // Off the checkbox, and past its transition: a hover or half-drawn tick differs from run to run.
   await page.mouse.move(0, 0);
   await page.waitForTimeout(500);
-  const intro = page.getByText(/^Review it below, the tasks needing review first/);
+  const intro = page.getByRole("heading", { level: 1, name: TOOL_WORK.course });
   await region(
     page,
     shot("3-publish"),
@@ -502,15 +561,15 @@ async function cleanUp(steps: (() => unknown)[]) {
 }
 
 async function stop(child: ChildProcess) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  const exited = new Promise((resolve) => child.once("exit", resolve));
+  // Its group, even once `vp` has exited: Vite, its child, may outlive it.
+  const running = child.exitCode === null && child.signalCode === null;
+  const exited = running ? new Promise((resolve) => child.once("exit", resolve)) : undefined;
   try {
     process.kill(-child.pid!, "SIGTERM");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
-    return;
   }
-  await Promise.race([exited, Bun.sleep(10_000)]);
+  if (exited) await Promise.race([exited, Bun.sleep(10_000)]);
 }
 
 async function main() {
@@ -536,7 +595,15 @@ async function main() {
       now: NOW,
     });
 
-    freezeClock();
+    let thaw = freezeClock();
+    const realTime = async (steps: () => Promise<void>) => {
+      thaw();
+      try {
+        await steps();
+      } finally {
+        thaw = freezeClock();
+      }
+    };
     cannedModel();
     const codes = new Map<string, string>();
     const config = readServeConfig({
@@ -591,7 +658,7 @@ async function main() {
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
       await followProgress(browser, out, codes);
-      const author = await firstCourse(scratch, browser, out, work, codes);
+      const author = await firstCourse(scratch, realTime, browser, out, work, codes);
       await reviewAndPublish(scratch, author, out);
     } catch (error) {
       for (const context of browser.contexts()) {

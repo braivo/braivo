@@ -139,3 +139,16 @@
   border-radius: 9999px;
   background: var(--dot);
 }
+
+/*
+ * A table too wide for a phone, kept at a size it reads at: the picture
+ * scrolls sideways in its frame, the page does not.
+ */
+.wide-shot {
+  overflow-x: auto;
+}
+
+.prose .wide-shot img {
+  width: max(100%, 37rem);
+  max-width: none;
+}
