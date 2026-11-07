@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { check } from "./docs-check.ts";
+import { check, existsOrIgnored } from "./docs-check.ts";
 
 const existing = new Set(["apps/server/api/app.ts", "docs/specs/access.md"]);
 const exists = (path: string) => existing.has(path);
@@ -210,5 +210,13 @@ describe("one installation's address", () => {
 
   test("leaves engineering documents alone", () => {
     expect(run("docs/adr/0057-public-docs-site.md", "braivo.app\n")).toEqual([]);
+  });
+});
+
+describe("existsOrIgnored", () => {
+  test("counts an ignored build directory never built, as on a fresh checkout", () => {
+    // `dist/` in .gitignore matches only a directory, which a missing path is not.
+    expect(existsOrIgnored("tooling/never-built/dist")).toBe(true);
+    expect(existsOrIgnored("tooling/never-built/output")).toBe(false);
   });
 });

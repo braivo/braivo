@@ -173,10 +173,14 @@ function isLivingSpec(path: string, text: string): boolean {
 
 /**
  * A path Git ignores is generated, such as a build's output, so it may be
- * missing from a fresh checkout and counts as existing.
+ * missing from a fresh checkout and counts as existing. Asked also with a
+ * trailing `/`, as a pattern such as `dist/` matches only a directory, which a
+ * missing path is not.
  */
 export function existsOrIgnored(path: string): boolean {
-  return existsSync(path) || spawnSync("git", ["check-ignore", "--quiet", path]).status === 0;
+  const ignored = (target: string) =>
+    spawnSync("git", ["check-ignore", "--quiet", target]).status === 0;
+  return existsSync(path) || ignored(path) || ignored(`${path}/`);
 }
 
 function read(path: string): Document {
