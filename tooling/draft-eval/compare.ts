@@ -210,11 +210,11 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
   return out.join("\n");
 }
 
-/** Keeps the header first, then groups each fixture's sides together. */
 function unsupportedNote(record: RunRecord): string | undefined {
   return (record.result as { unsupported?: string } | undefined)?.unsupported;
 }
 
+/** Keeps the header first, then groups each fixture's sides together. */
 function byFixture(a: string[], b: string[]): number {
   if (a[0] === "Fixture") return -1;
   if (b[0] === "Fixture") return 1;

@@ -47,7 +47,7 @@ import { FindingLines } from "#components/findings";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { LANGUAGES, languageNames, languageTag } from "#lib/languages";
+import { SUGGESTED_LANGUAGES, languageNames, resolveLanguageTag } from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -266,7 +266,7 @@ function DraftCourse(props: { source: Source }) {
     const language = languageField.value.trim();
     if (!language) return reportInvalid(languageField, "Say what language to write them in.");
     // Checked as the server would, which words it for an API's caller, not a teacher.
-    const instructionLanguage = parseLanguageTag(languageTag(language)!);
+    const instructionLanguage = parseLanguageTag(resolveLanguageTag(language)!);
     if (!instructionLanguage) {
       return reportInvalid(
         languageField,
@@ -377,7 +377,7 @@ function DraftCourse(props: { source: Source }) {
             aria-describedby={`${id}-instruction-language-hint`}
           />
           <datalist id={`${id}-languages`}>
-            {LANGUAGES.map((tag) => (
+            {SUGGESTED_LANGUAGES.map((tag) => (
               // By name, so choosing one reads as the field starts and as typed.
               <option key={tag} value={languageNames.of(tag)} />
             ))}

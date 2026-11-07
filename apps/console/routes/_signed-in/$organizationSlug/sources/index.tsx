@@ -36,7 +36,7 @@ import { PdfReview } from "#components/pdf-review";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
-import { LANGUAGES, languageNames, languageTag } from "#lib/languages";
+import { SUGGESTED_LANGUAGES, languageNames, resolveLanguageTag } from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { PDF_LIMITS, PdfReadError } from "#lib/pdf/read";
 import {
@@ -476,7 +476,7 @@ function AddSource() {
       organizationId,
       title: data.get("title") as string,
       url: optional("url"),
-      language: languageTag(optional("language")),
+      language: resolveLanguageTag(optional("language")),
     };
     // The request's size, refused before sending, as Braivo would refuse it
     // with a bare 413. Before the upload too when the text is known: a file
@@ -650,7 +650,7 @@ function AddSource() {
               aria-describedby={`${id}-language-hint`}
             />
             <datalist id={`${id}-languages`}>
-              {LANGUAGES.map((tag) => (
+              {SUGGESTED_LANGUAGES.map((tag) => (
                 <option key={tag} value={tag}>
                   {languageNames.of(tag)}
                 </option>

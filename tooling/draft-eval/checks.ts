@@ -79,15 +79,15 @@ function countCommonWords(text: string, language: string): number {
  * asked for. Whole, since one title says little, and by a clear margin, since the
  * material's own words belong in many: "die Eltern – the parents" leans its way.
  */
-function instructionsInAnotherLanguage(
+function instructionLanguageFailures(
   draft: KeptDraft,
-  asked: string | undefined,
-  material: string | undefined,
+  instructionLanguage: string | undefined,
+  materialLanguage: string | undefined,
 ): string[] {
-  const language = asked?.split("-")[0];
-  const other = material?.split("-")[0];
-  if (!language || !other || language === other) return [];
-  if (!COMMON_WORDS[language] || !COMMON_WORDS[other]) return [];
+  const expectedLanguage = instructionLanguage?.split("-")[0];
+  const sourceLanguage = materialLanguage?.split("-")[0];
+  if (!expectedLanguage || !sourceLanguage || expectedLanguage === sourceLanguage) return [];
+  if (!COMMON_WORDS[expectedLanguage] || !COMMON_WORDS[sourceLanguage]) return [];
   const tasks = draft.objectives.flatMap((objective) => objective.tasks);
   const kinds: [string, string[]][] = [
     ["titles", draft.objectives.map((objective) => objective.title)],
@@ -96,8 +96,8 @@ function instructionsInAnotherLanguage(
   ];
   return kinds.flatMap(([kind, texts]) => {
     const whole = texts.join(" ");
-    return countCommonWords(whole, other) > 2 * countCommonWords(whole, language)
-      ? [`instructions not in ${asked}: ${kind}: ${texts[0]}`]
+    return countCommonWords(whole, sourceLanguage) > 2 * countCommonWords(whole, expectedLanguage)
+      ? [`instructions not in ${instructionLanguage}: ${kind}: ${texts[0]}`]
       : [];
   });
 }
@@ -161,7 +161,7 @@ export function checkDraft(input: {
     seen.add(key);
   }
   failed.push(
-    ...instructionsInAnotherLanguage(draft, input.instructionLanguage, input.materialLanguage),
+    ...instructionLanguageFailures(draft, input.instructionLanguage, input.materialLanguage),
   );
   // Over everything the model wrote but its quotes, which may rightly quote
   // the injected instruction itself: obeying it shows in what it wrote.

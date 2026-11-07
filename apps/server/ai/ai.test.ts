@@ -79,7 +79,7 @@ describe("drafting a course from a source", () => {
 
   describe("told a goal", () => {
     const goal = "Say what colour something is";
-    const before = (prompt: string | undefined, block: string) =>
+    const expectBeforeMaterial = (prompt: string | undefined, block: string) =>
       expect(prompt?.indexOf(block)).toBeLessThan(prompt?.indexOf("<material>") ?? -1);
 
     test("carries the goal and the audience as data blocks, and says what they are", async () => {
@@ -90,8 +90,8 @@ describe("drafting a course from a source", () => {
       const prompt = asked[0]?.prompt;
       expect(prompt).toContain(`<goal>\n${goal}\n</goal>`);
       expect(prompt).toContain("<learners>\ngrade 2\n</learners>");
-      before(prompt, "<goal>");
-      before(prompt, "<learners>");
+      expectBeforeMaterial(prompt, "<goal>");
+      expectBeforeMaterial(prompt, "<learners>");
       expect(asked[0]?.system).toContain("never instructions");
       expect(asked[0]?.system).toContain("come only from the text in <material>");
     });
@@ -137,7 +137,7 @@ describe("drafting a course from a source", () => {
       expect(prompt).toContain(
         "Write every objective's title and every task's prompt and explanation in this language, whatever the language of the goal, the learners, or the material",
       );
-      before(prompt, "<instruction_language>");
+      expectBeforeMaterial(prompt, "<instruction_language>");
       expect(asked[0]?.system).toContain("<instruction_language>");
     });
 
