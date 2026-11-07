@@ -239,7 +239,12 @@ async function region(
   const { x, y } = clip;
   const right = clip.right;
   const bottom = clip.bottom;
-  await page.screenshot({ path, clip: { x, y, width: right - x, height: bottom - y } });
+  // Transitions finished: a bar filling or a ring fading reads differently run to run.
+  await page.screenshot({
+    path,
+    clip: { x, y, width: right - x, height: bottom - y },
+    animations: "disabled",
+  });
   console.log(
     `  ${path.split("/").slice(-2).join("/")}  ${Math.round(right - x)}×${Math.round(bottom - y)}`,
   );
@@ -702,6 +707,53 @@ async function reviewAndPublish(scratch: ScratchDatabase, page: Page, out: strin
  * Stops what this run started, each apart, so one failure leaves the rest to
  * be tried; a process group already gone (ESRCH) is already stopped.
  */
+/**
+ * The maintain-practice guide, as the author, on the demo's published course,
+ * whose questions have no explanation: the count and its filter, a question's
+ * editor, and taking the course down. Last, as it opens an editor it cancels.
+ */
+async function maintainPractice(scratch: ScratchDatabase, page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "maintain-practice", `${name}.png`);
+  mkdirSync(join(out, "maintain-practice"));
+  // The spec's own example number (authoring.md), as its address is pictured.
+  await numberCourse(scratch, "Everyday English", 4732);
+  await page.goto(`${consoleUrl}/fernwood`);
+  await page
+    .getByRole("link", { name: /Everyday English/ })
+    .first()
+    .click();
+  const title = page.getByRole("heading", { level: 1, name: "Everyday English" });
+  await title.waitFor();
+
+  // 1. Questions without an explanation, counted, and the filter.
+  const count = page.getByText(/published tasks have no explanation/);
+  const only = page.getByRole("button", { name: "Show only these" });
+  await sees(page, "Show only these", "No explanation", "Edit", "Retire");
+  await region(page, shot("1-explanations"), count, only, only);
+
+  // 2. A published question's editor, an explanation written.
+  await only.click();
+  await page.getByRole("button", { name: /^Edit/ }).first().click();
+  const why = page.getByLabel("Why the answer is right");
+  await why.fill('"Good morning" is what people say when they meet in the morning.');
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  const cancel = page.getByRole("button", { name: "Cancel" });
+  await sees(page, "Question", "Options, the correct one chosen");
+  await region(page, shot("2-edit"), page.getByText(/^Saving replaces the task/), cancel, save);
+  await cancel.click();
+
+  // 3. Taking the course down, on the page loaded afresh and unfiltered:
+  // Cancel hands focus back to Edit, which scrolls on a schedule of its own.
+  const unfiltered = new URL(page.url());
+  unfiltered.search = "";
+  await page.goto(unfiltered.href);
+  await title.waitFor();
+  await page.mouse.move(0, 0);
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await region(page, shot("3-hide"), title, hide, hide);
+}
+
 async function cleanUp(steps: (() => unknown)[]) {
   const failures: unknown[] = [];
   for (const step of steps) {
@@ -823,6 +875,7 @@ async function main() {
       const learner = await learnerView(clock, browser, out, codes);
       const author = await firstCourse(scratch, learner, browser, out, work, codes);
       await reviewAndPublish(scratch, author, out);
+      await maintainPractice(scratch, author, out);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {
