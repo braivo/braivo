@@ -16,11 +16,8 @@ The server mounts Better Auth at `/api/auth/*` and serves the learning API along
 
 ## Before you expose it
 
-<Callout type="warn">
-
-Do not expose the server directly. Put it behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend, and set `NODE_ENV=production`.
-
-</Callout>
+> [!WARNING]
+> Do not expose the server directly. Put it behind a proxy that sets `X-Forwarded-For` itself and blocks direct access to the backend, and set `NODE_ENV=production`.
 
 `NODE_ENV=production` enables Better Auth's rate limiting on its own endpoints. That limit is keyed on `X-Forwarded-For`, and the server does not give Better Auth the connection's address, so with nothing in front of it every caller shares one bucket per endpoint — 120 code requests and 120 sign-in attempts for the whole installation, each until a minute passes without an admitted one — and any caller can sidestep it by sending that header themselves. Braivo's own routes are not rate limited, but for a learn domain's sign-in (`/api/session/code` and `/api/session/sign-in`): 120 requests a minute to each per client, told apart as Better Auth's limiter does (its `X-Forwarded-For` value, an IPv6 address by its /64), in every environment, and none without the header; kept per process, so behind several processes each counts apart.
 
@@ -186,11 +183,8 @@ It needs `BRAIVO_ERASURE_LOG` and `BRAIVO_ERASURE_LOG_HMAC_KEY` (below), in addi
 
 Integrations sending evidence should send the `historyEpoch` a learner's report gives them: without one, a result dated within five minutes after the erasure is refused too.
 
-<Callout type="warn">
-
-Nothing reads the log back yet, so restoring a backup taken before an erasure brings that history back, with an epoch too low to refuse what was refused before, or an erased account back whole (see below). Keep the log. After such a restore, before reopening the service, go through every pending record whatever its date, and every done record whose `doneAt` follows the backup: where the account the command shows has the record's `userId`, and its `History` line is behind the record's `epoch`, run it, with `--end-membership` if that learner's records say so, until the epoch reaches the highest of theirs there. Another account under that email is someone else: type nothing, as what it holds is not the record's to erase. A refusal that no account has the email means the account is absent from the restored database: none of its history is there, but invitations and sign-in codes for the address may have. Remove that school's by hand before reopening; do not create an account to run the command.
-
-</Callout>
+> [!WARNING]
+> Nothing reads the log back yet, so restoring a backup taken before an erasure brings that history back, with an epoch too low to refuse what was refused before, or an erased account back whole (see below). Keep the log. After such a restore, before reopening the service, go through every pending record whatever its date, and every done record whose `doneAt` follows the backup: where the account the command shows has the record's `userId`, and its `History` line is behind the record's `epoch`, run it, with `--end-membership` if that learner's records say so, until the epoch reaches the highest of theirs there. Another account under that email is someone else: type nothing, as what it holds is not the record's to erase. A refusal that no account has the email means the account is absent from the restored database: none of its history is there, but invitations and sign-in codes for the address may have. Remove that school's by hand before reopening; do not create an account to run the command.
 
 ### Erasing an account
 
@@ -215,11 +209,8 @@ It needs `DATABASE_URL`, `BRAIVO_ERASURE_LOG`, and `BRAIVO_ERASURE_LOG_HMAC_KEY`
 - **An error naming a pending log record and an account:** the commit may have gone through unconfirmed. Run the command again and read its `Account` line, typing nothing at the prompt. Showing another ID, the erasure committed, and that is a new account, so stop. Showing that same ID, nothing was erased, so confirm: the pending record is harmless beside the new one. Showing no account, confirm whatever counts it shows, which erases only what still names the address; "Nothing to erase" means it is done.
 - **An error naming no record** erased nothing.
 
-<Callout type="warn">
-
-After restoring a backup taken before an account's erasure, before reopening the service, go through the log's `account` records, every pending one and every done one whose `doneAt` follows the backup: where the record's `id` is not in `account_erasure`, and no later record of the same email's `hmac` is, run the command again with the address the request's register names, and read its `Account` line before confirming. Showing the record's `userId`, or no account, confirm. Showing any other account, another ID or any account under a record with no `userId`, stop and settle it by hand against the register: it may be a later registration, as a pending record may never have committed. Leave alone a record whose `id` is there: that backup already holds the erasure, and any row naming the address is someone's since.
-
-</Callout>
+> [!WARNING]
+> After restoring a backup taken before an account's erasure, before reopening the service, go through the log's `account` records, every pending one and every done one whose `doneAt` follows the backup: where the record's `id` is not in `account_erasure`, and no later record of the same email's `hmac` is, run the command again with the address the request's register names, and read its `Account` line before confirming. Showing the record's `userId`, or no account, confirm. Showing any other account, another ID or any account under a record with no `userId`, stop and settle it by hand against the register: it may be a later registration, as a pending record may never have committed. Leave alone a record whose `id` is there: that backup already holds the erasure, and any row naming the address is someone's since.
 
 ## Configuration
 
