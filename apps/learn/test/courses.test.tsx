@@ -51,7 +51,7 @@ describe("the learn app", () => {
     });
     // Learning, yet resting or at the day's limit: why is the course page's to say.
     expect(
-      screen.getByRole("link", { name: "Spanish", description: "Nothing to practise right now" }),
+      screen.getByRole("link", { name: "Spanish", description: "Nothing due right now" }),
     ).toBeTruthy();
     // Nothing to practise ever: the title alone.
     expect(screen.getByRole("link", { name: "German", description: "" })).toBeTruthy();
@@ -91,7 +91,7 @@ describe("the learn app", () => {
     expect(cards[0]).toBe(lead);
     // The learner stays free to open the other, which claims nothing.
     expect(
-      screen.getByRole("link", { name: "Arabic", description: "Nothing to practise right now" }),
+      screen.getByRole("link", { name: "Arabic", description: "Nothing due right now" }),
     ).toBeTruthy();
 
     fireEvent.click(lead);
@@ -217,9 +217,7 @@ describe("the learn app", () => {
     ).toBeTruthy();
     // Whether at the day's limit or with nothing written yet: no question follows a tap.
     for (const name of ["French", "German"]) {
-      expect(
-        screen.getByRole("link", { name, description: "Nothing to practise right now" }),
-      ).toBeTruthy();
+      expect(screen.getByRole("link", { name, description: "Nothing due right now" })).toBeTruthy();
     }
   });
 

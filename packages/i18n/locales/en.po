@@ -1702,6 +1702,10 @@ msgstr "Not started"
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "Nothing due right now"
+msgstr "Nothing due right now"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Nothing is due right now."
@@ -1711,7 +1715,6 @@ msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewA
 msgstr "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-#: apps/learn/routes/_signed-in/index.tsx
 msgid "Nothing to practise right now"
 msgstr "Nothing to practise right now"
 

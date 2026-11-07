@@ -139,7 +139,7 @@ describe("the learn app in Polish", () => {
       }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "Włoski", description: "Na razie nie ma nic do ćwiczenia" }),
+      screen.getByRole("link", { name: "Włoski", description: "Na razie nic do powtórki" }),
     ).toBeTruthy();
   });
 

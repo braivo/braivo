@@ -1702,6 +1702,10 @@ msgstr "Nierozpoczęte"
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło; jeśli od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów, widać to pod stanem celu. „Pokaż odpowiedź” liczy się jako błąd."
 
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "Nothing due right now"
+msgstr "Na razie nic do powtórki"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Na razie nic nie czeka na powtórkę."
@@ -1711,7 +1715,6 @@ msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewA
 msgstr "Na razie nic nie czeka na powtórkę. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
-#: apps/learn/routes/_signed-in/index.tsx
 msgid "Nothing to practise right now"
 msgstr "Na razie nie ma nic do ćwiczenia"
 
