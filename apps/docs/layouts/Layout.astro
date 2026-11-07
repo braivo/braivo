@@ -25,7 +25,7 @@ const { title, description } = Astro.props;
     <ClientRouter />
     <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->
     <script is:inline>
-      /** Opens the question the hash names, and answers it. */
+      /** Opens the question whose heading the hash names, and answers that heading. */
       function openTarget() {
         let id;
         try {
@@ -34,8 +34,9 @@ const { title, description } = Astro.props;
           return undefined; // A malformed link names nothing.
         }
         const target = document.getElementById(id);
-        if (!(target instanceof HTMLDetailsElement)) return undefined;
-        target.open = true;
+        const question = target?.parentElement?.closest("details");
+        if (!question || target.parentElement?.tagName !== "SUMMARY") return undefined;
+        question.open = true;
         return target;
       }
       // How the page now shown was reached: the router's type, or before its
@@ -58,8 +59,10 @@ const { title, description } = Astro.props;
       addEventListener("popstate", openTarget);
       // The router takes a same-page link's hash without a hashchange.
       document.addEventListener("click", (event) => {
-        const link = event.target instanceof Element && event.target.closest(".accordion-link");
-        if (link) link.closest("details").open = true;
+        const link = event.target instanceof Element && event.target.closest('a[href^="#"]');
+        const target = link && document.getElementById(link.hash.slice(1));
+        const question = target?.parentElement?.tagName === "SUMMARY" && target.closest("details");
+        if (question) question.open = true;
       });
     </script>
   </head>

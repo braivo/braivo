@@ -18,7 +18,6 @@
     "astro": "7.4.2",
     "fumadocs-core": "16.18.1",
     "fumadocs-ui": "16.18.1",
-    "github-slugger": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "satteri": "0.10.5"

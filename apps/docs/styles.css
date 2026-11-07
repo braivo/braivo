@@ -174,11 +174,6 @@
   color: var(--color-fd-card-foreground);
 }
 
-/* Clear of the sticky header when a link lands on one, as a heading is. */
-.accordion {
-  scroll-margin-top: 7rem;
-}
-
 .accordion + .accordion {
   border-top: 1px solid var(--color-fd-border);
 }
@@ -215,18 +210,22 @@
   }
 }
 
-.accordion summary > span {
+/*
+ * The question is a heading, so GitHub gives it an anchor too; the site makes
+ * its text a link to itself, which here passes a click to `<summary>` to open
+ * or close the answer. Its copy-link button, and the keyboard, still reach it.
+ */
+.accordion summary h3 {
   flex: 1;
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
-.accordion-link {
-  padding-inline: 0.25rem;
-  color: var(--color-fd-muted-foreground);
+.accordion summary h3 > a {
+  pointer-events: none;
+  color: inherit;
   text-decoration: none;
-}
-
-.accordion-link:hover {
-  color: var(--color-fd-foreground);
 }
 
 .accordion summary:focus-visible {
@@ -234,11 +233,8 @@
   outline-offset: -2px;
 }
 
-.accordion-body {
-  padding: 0 1rem 0.25rem 2rem;
+.accordion > :not(summary) {
+  margin-block: 0 0.75rem;
+  padding-inline: 2rem 1rem;
   font-size: 0.9375rem;
-}
-
-.accordion-body > :first-child {
-  margin-top: 0;
 }

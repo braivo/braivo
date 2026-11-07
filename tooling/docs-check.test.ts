@@ -96,13 +96,24 @@ describe("links between public pages", () => {
     ).toEqual([]);
   });
 
-  test("passes a question's ID, slugged as its Accordion is", () => {
+  test("passes a question's heading inside a disclosure, as GitHub and the site both render it", () => {
     expect(
       run(
-        "[a](./api.mdx#does-our-material-go-to-an-ai) [b](./api.mdx#who-sees-a-learners-progress)\n",
-        '<Accordion title="Does our material go to an AI?">\n\n<Accordion title="Who sees a learner’s progress?">\n',
+        "[a](./api.mdx#does-our-material-go-to-an-ai)\n",
+        "<details>\n<summary>\n\n### Does our material go to an AI?\n\n</summary>\n\nNo.\n\n</details>\n",
       ),
     ).toEqual([]);
+  });
+
+  test("names a target only a component's attribute gives, which GitHub cannot render", () => {
+    expect(
+      run(
+        "[a](./api.mdx#does-our-material-go-to-an-ai)\n",
+        '<Accordion title="Does our material go to an AI?">\n',
+      ),
+    ).toEqual([
+      `${page}:1: \`./api.mdx#does-our-material-go-to-an-ai\` names no heading of ${other}`,
+    ]);
   });
 
   test("ignores what is in code, and a fence's fake heading", () => {
