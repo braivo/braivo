@@ -14,7 +14,7 @@ describe("slugProblem", () => {
     },
   );
 
-  test.each(["api", "assets", "invitations", "join", "login", "mcp"])(
+  test.each(["api", "assets", "invitations", "join", "learn", "login", "mcp"])(
     "refuses the reserved %s",
     (slug) => {
       expect(slugProblem(slug)).toContain("reserved");
