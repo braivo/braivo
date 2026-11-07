@@ -57,7 +57,7 @@ Reset shows the database, ID, and storage it will delete, and needs that ID, the
 
 ## The guides' screenshots
 
-`bun run docs:screenshots` walks the guides with pictures (`apps/docs/content/guides/`: first-course, follow-progress, learner-view, review-and-publish, maintain-practice, words) through the real server, console, and learn app on this classroom, in a database it creates and drops, and replaces their pictures in `apps/docs/public/docs/screenshots/` only once every step passed. It needs what the demo needs, leaves the demo alone, and needs no AI key: it answers the model's address with a canned draft, which Braivo checks as it does a model's (`tooling/docs-screenshots/`). A change to one of those screens is a run of it, and a look at the result.
+`bun run docs:screenshots` walks the guides with pictures (`apps/docs/content/guides/`: first-course, follow-progress, learner-view, review-and-publish, maintain-practice, words) through the real server, console, and learn app on this classroom, in a database it creates and drops, and replaces their pictures in `apps/docs/public/docs/screenshots/` only once every step passed. It needs what the demo needs, leaves the demo alone, and needs no AI key, using no real AI credential and logging none: it answers the model's address with a canned draft, which Braivo checks as it does a model's (`tooling/docs-screenshots/`). A change to one of those screens is a run of it, and a look at the result.
 
 ## What it holds
 

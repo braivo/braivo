@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
- * Regenerates the first-course guide's screenshots by walking the guide through
- * the real server, console, and learn app, on the demo's classroom, in a
- * database it creates and drops. `bun run docs:screenshots`; needs what the demo
- * needs (docs/demo.md), and no AI key.
+ * Regenerates the guides' screenshots by walking them through the real server,
+ * console, and learn app, on the demo's classroom, in a database it creates and
+ * drops. `bun run docs:screenshots`; needs what the demo needs (docs/demo.md),
+ * and no AI key. It uses no real AI credential, and logs none: its server is
+ * given a stand-in key, and its dev servers only the environment they run on,
+ * though Vite still reads the repository's env files, as under `bun run dev`.
  *
  * Only the AI's answer is canned: the script answers the model's address itself,
  * so a run spends nothing and draws the same pictures. Braivo checks that answer
@@ -963,6 +965,16 @@ async function stop(child: ChildProcess) {
   if (exited) await Promise.race([exited, Bun.sleep(10_000)]);
 }
 
+/**
+ * What a dev server runs on, from this process's environment, which
+ * `.env.local` may fill with credentials it has no use for.
+ */
+const RUN_ON = Object.fromEntries(
+  ["PATH", "HOME", "TMPDIR", "LANG", "SHELL", "USER"].flatMap((name) =>
+    process.env[name] === undefined ? [] : [[name, process.env[name]]],
+  ),
+);
+
 async function main() {
   const target = process.env.BRAIVO_DEMO_DATABASE_URL?.trim() || "postgres://localhost/postgres";
   const secret = crypto.randomUUID() + crypto.randomUUID();
@@ -1036,7 +1048,7 @@ async function main() {
         {
           cwd: join(ROOT, "apps", app),
           env: {
-            ...process.env,
+            ...RUN_ON,
             BRAIVO_URL: baseUrl,
             PORT: String(PORTS.server),
             BRAIVO_LEARN_PORT: String(PORTS.learn),
