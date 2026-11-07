@@ -103,6 +103,20 @@ describe.skipIf(!connectionString)("organization make-owner", { timeout: 30_000 
     const refused = await run(erase);
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain("only owner");
+    expect(refused.stderr).toContain(fernwood);
+    expect(refused.stderr).toContain("organization make-owner");
+    const ending = await run([
+      "learner",
+      "erase-history",
+      "--email",
+      ada.email,
+      "--organization",
+      fernwood,
+      "--end-membership",
+      "--yes",
+    ]);
+    expect(ending.code).toBe(1);
+    expect(ending.stderr).toContain("organization make-owner");
 
     const made = await run(makeOwner(ben.email, "--yes"));
     expect(made.code, made.stderr).toBe(0);
