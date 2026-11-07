@@ -6,6 +6,18 @@
 @import "fumadocs-ui/css/preset.css";
 
 /*
+ * Fumadocs' light muted text, 45% grey, reads at 4.2:1 on its card (callouts,
+ * the sidebar), short of 4.5:1 for body-size text; 40% reads at 5.1:1. In the
+ * theme's layer, as its light colours are, so dark's own rule and a brand's
+ * `brand.css` still win.
+ */
+@layer theme {
+  :root {
+    --color-fd-muted-foreground: hsl(0, 0%, 40%);
+  }
+}
+
+/*
  * An inline command moves whole to the next line where it fits there, as a
  * browser otherwise breaks it at a hyphen (`--no-` / `env-file`). One wider than
  * the column wraps inside it, anywhere, rather than overflowing a phone's.
