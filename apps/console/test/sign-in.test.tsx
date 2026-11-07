@@ -729,13 +729,11 @@ describe("the console", () => {
     test("frames the console's own sign-in with Braivo's logo alone, and a learn domain's with its organization alone", async () => {
       renderAt("/login", { signedIn: false });
       const heading = await screen.findByRole("heading", { name: "Sign in" });
-      // One page for whoever teaches or learns: Braivo's logo, no app's name,
-      // no pitch beside the form, and no learner sent elsewhere.
+      // One page for whoever teaches or learns: Braivo's logo, nothing beside
+      // the form, no app's name, and no learner sent elsewhere.
       expect(screen.getByText("braivo")).toBeTruthy();
       expect(screen.queryByRole("complementary")).toBeNull();
-      expect(
-        screen.queryByText(/Braivo Console|Open the site your school|Teach it once/),
-      ).toBeNull();
+      expect(screen.queryByText(/Braivo Console|Open the site your school/)).toBeNull();
       expect(screen.getAllByRole("heading")).toEqual([heading]);
       // The page's own frame, not the column of the console's other pages.
       expect(heading.closest("main")!.className).not.toContain("max-w-3xl");

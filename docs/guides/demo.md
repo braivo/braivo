@@ -28,7 +28,7 @@ Braivo demo 9f3c1a7e5b20, scenario 3, seeded 2026-10-12T09:00:00.000Z
 
 Rename the group or change a role, and the console shows your version; the list stays as seeded.
 
-Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator, the author, and the teacher use the console; the learners sign in at the learn app's address. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
+Sign in as anyone listed: enter the email, then the six-digit code from this terminal's log. The administrator, the author, and the teacher use the console; the learners sign in at the learn app's address, or at the console's, which sends them on to it. Use a separate browser profile or private window per person: one browser holds one sign-in per host. The demo's console is on `127.0.0.1`, so its sign-in stays apart from `bun run dev`'s on `localhost` (cookies ignore ports, not hosts).
 
 The two learners practised in the hour before the demo was seeded, through the use cases the learn app calls (no browser), so they take different paths from there. Zofia answered each objective right the first time: caught up, with reviews falling due about a day later. Sam missed a greeting, typed one right when asked again, then missed a polite request: the learn app asks for it again next, this time typed, and shows the passage it comes from once answered. Their standings age with real time, as anyone's do.
 

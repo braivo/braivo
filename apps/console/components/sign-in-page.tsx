@@ -11,8 +11,8 @@ import { BraivoLogo } from "./braivo-logo.tsx";
 import { LanguageMenu } from "./language-menu.tsx";
 
 /**
- * `/login`'s frame, `@braivo/ui`'s `SignInPage`, with the console's language and theme
- * menus beside `brand`.
+ * The frame of `/login` and an invitation's page, `@braivo/ui`'s `SignInPage`,
+ * with the console's language and theme menus beside `brand`.
  */
 export function ConsoleSignInPage(props: Omit<ComponentProps<typeof SignInPage>, "controls">) {
   return (
@@ -28,10 +28,7 @@ export function ConsoleSignInPage(props: Omit<ComponentProps<typeof SignInPage>,
   );
 }
 
-/**
- * Braivo above `/login`'s form, at every width. No app's name: the page is for
- * anyone who teaches or learns.
- */
+/** Braivo above `/login`'s form, naming no app: the page is for anyone who teaches or learns. */
 export function SignInBrand() {
   return <BraivoLogo className="text-2xl sm:text-3xl" />;
 }
@@ -52,10 +49,7 @@ export function ConsoleBrand() {
   );
 }
 
-/**
- * Below the form, for someone signing in to accept an invitation: here, not
- * on a course's website, is where they join.
- */
+/** Below the form, for someone signing in to accept an invitation, which only its address can. */
 export function InvitationNote() {
   return (
     <>

@@ -4,10 +4,9 @@
 import type { ReactNode } from "react";
 
 /**
- * A sign-in page's frame and `<main>`, after shadcn's login-02 block without
- * its side panel: `brand` and `controls` (a language or theme menu, say) above
- * the form, and `footer` below it. The form is centred, its width a phone's at
- * most.
+ * A sign-in page's frame and `<main>`: `brand` and `controls` (a language or
+ * theme menu, say) above the form, and `footer` below it. The form is centred,
+ * its width a phone's at most.
  */
 export function SignInPage(props: {
   brand?: ReactNode;
