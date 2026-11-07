@@ -492,9 +492,7 @@ describe("the console", () => {
       expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
       // The console's name stays, in every language.
       await vi.waitFor(() => expect(document.title).toBe("Braivo Console"));
-      expect(screen.getByText(/^Ucz raz\./)).toBeTruthy();
       expect(screen.getByRole("button", { name: "Motyw" })).toBeTruthy();
-      expect(screen.getByText("Do powtórki")).toBeTruthy();
     });
 
     test("sets up an organization in the chosen language, wording a refusal from its code", async () => {
@@ -704,16 +702,16 @@ describe("the console", () => {
       expect(screen.queryByText(/By continuing/)).toBeNull();
     });
 
-    test("frames the console's own sign-in with Braivo's pitch, and a learn domain's with its organization alone", async () => {
+    test("frames the console's own sign-in with Braivo's logo alone, and a learn domain's with its organization alone", async () => {
       renderAt("/login", { signedIn: false });
       const heading = await screen.findByRole("heading", { name: "Sign in" });
-      // One page for whoever teaches or learns: no app's name, and no learner
-      // sent elsewhere.
-      expect(screen.getByText(/^Teach it once\./)).toBeTruthy();
-      expect(screen.getByText("Learn it for good.")).toBeTruthy();
-      expect(screen.queryByText(/Braivo Console|Here to learn|course's website/)).toBeNull();
-      // The form's heading is the page's only one: the pitch beside it is not
-      // where a screen reader's heading navigation should land first.
+      // One page for whoever teaches or learns: Braivo's logo, no app's name,
+      // no pitch beside the form, and no learner sent elsewhere.
+      expect(screen.getByText("braivo")).toBeTruthy();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(
+        screen.queryByText(/Braivo Console|Here to learn|course's website|Teach it once/),
+      ).toBeNull();
       expect(screen.getAllByRole("heading")).toEqual([heading]);
       // The page's own frame, not the column of the console's other pages.
       expect(heading.closest("main")!.className).not.toContain("max-w-3xl");
@@ -722,7 +720,8 @@ describe("the console", () => {
       // Returning to an invitation: the same page, with the invitation's note.
       renderAt("/login?redirect=/invitations/inv-1", { signedIn: false });
       await screen.findByRole("heading", { name: "Sign in" });
-      expect(screen.getByText(/^Teach it once\./)).toBeTruthy();
+      expect(screen.getByText("braivo")).toBeTruthy();
+      expect(screen.queryByRole("complementary")).toBeNull();
       expect(
         screen.getByText(
           "Sign in with the email address the invitation was sent to, then accept it.",
@@ -736,7 +735,7 @@ describe("the console", () => {
         await screen.findByRole("heading", { name: "Sign in to Fernwood" });
         expect(screen.getByText("Fernwood")).toBeTruthy();
         expect(screen.getByText("You will continue at learn.fernwood.example.")).toBeTruthy();
-        expect(screen.queryByText(/braivo|console|teach it once|here to learn/i)).toBeNull();
+        expect(screen.queryByText(/braivo|console|here to learn/i)).toBeNull();
         cleanup();
       }
     });

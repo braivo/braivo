@@ -9,39 +9,22 @@ import type { ComponentProps } from "react";
 
 /**
  * Braivo's logo: Lucide's sparkle, then "braivo" in the logo's face
- * (`--font-logo`). The sparkle in the main action's colour: the theme's, or
- * with `tone="dark"` the story panel's accent, as that panel is dark in either
- * theme. Sized by its font size. "Beta" until Braivo's first release: the API,
+ * (`--font-logo`). The sparkle in the main action's colour. Sized by its font size. "Beta" until Braivo's first release: the API,
  * schema, and apps still change without notice (README).
  */
-export function BraivoLogo({
-  tone = "theme",
-  className,
-  ...props
-}: ComponentProps<"span"> & { tone?: "dark" | "theme" }) {
+export function BraivoLogo({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn("flex items-center gap-[0.35em] font-logo leading-none font-normal", className)}
       {...props}
     >
-      <SparkleIcon
-        aria-hidden="true"
-        className={cn(
-          "size-[0.9em] shrink-0",
-          tone === "dark" ? "text-brand-panel-accent" : "text-primary",
-        )}
-      />
+      <SparkleIcon aria-hidden="true" className="size-[0.9em] shrink-0 text-primary" />
       <span>braivo</span>
       <Badge
         variant="outline"
         // Scaled with the logo, as the sparkle is, and smaller than the
         // wordmark it labels; its own `em`s, at 0.45 of the logo's.
-        className={cn(
-          "h-[1.65em] px-[0.6em] py-0 font-sans text-[0.45em]",
-          tone === "dark"
-            ? "border-brand-panel-muted/40 text-brand-panel-muted"
-            : "text-muted-foreground",
-        )}
+        className="h-[1.65em] px-[0.6em] py-0 font-sans text-[0.45em] text-muted-foreground"
       >
         <Trans>Beta</Trans>
       </Badge>

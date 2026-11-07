@@ -14,8 +14,7 @@
  * deepened so a large button does not glare. Light is its counterpart; lime
  * fails as text on a light ground, so there an olive from it marks "retained".
  * Focus is Linear's indigo, lighter in dark, apart from both. Success (teal)
- * is not the brand's lime. The charts are the progress spec's standings;
- * `--brand-panel-*` is `/login`'s story panel, a navy in both themes.
+ * is not the brand's lime. The charts are the progress spec's standings.
  *
  * On the root, so dialogs and popovers outside `<main>` wear it too, but not
  * on a learn domain's sign-in, which keeps the neutral theme (ADR 0018):
@@ -124,15 +123,6 @@
   --info-background: #172a40;
 }
 
-:root {
-  --brand-panel: #0e1120;
-  --brand-panel-foreground: #f5f6f0;
-  --brand-panel-muted: #a9b1c3;
-  --brand-panel-accent: #b4d46a;
-  --brand-panel-review: #f3c66c;
-  --brand-panel-learning: #8fa8ff;
-}
-
 @theme inline {
   --color-sidebar-hover: var(--sidebar-hover);
   --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
@@ -142,12 +132,6 @@
   --color-warning-background: var(--warning-background);
   --color-info: var(--info);
   --color-info-background: var(--info-background);
-  --color-brand-panel: var(--brand-panel);
-  --color-brand-panel-foreground: var(--brand-panel-foreground);
-  --color-brand-panel-muted: var(--brand-panel-muted);
-  --color-brand-panel-accent: var(--brand-panel-accent);
-  --color-brand-panel-review: var(--brand-panel-review);
-  --color-brand-panel-learning: var(--brand-panel-learning);
   /* Headings (`font-heading`: shadcn's and `Heading`) in Braivo's heading face,
      `--brand-heading-font`, set with the colours, so a learn domain's sign-in
      keeps Inter; the rest is Inter everywhere. */

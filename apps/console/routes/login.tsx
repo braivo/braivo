@@ -13,12 +13,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import {
-  ConsoleSignInPage,
-  InvitationNote,
-  SignInBrand,
-  SignInStory,
-} from "#components/sign-in-page";
+import { ConsoleSignInPage, InvitationNote, SignInBrand } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 const expiredTitle = msg`This sign-in has expired`;
@@ -131,7 +126,7 @@ function Login() {
   // Returning to an invitation, which is accepted with the address it was sent to.
   const invited = redirect?.startsWith("/invitations/") === true;
   return (
-    <ConsoleSignInPage brand={<SignInBrand />} aside={<SignInStory />} footer={`© ${year} Braivo`}>
+    <ConsoleSignInPage brand={<SignInBrand />} footer={`© ${year} Braivo`}>
       {/* An account still without a name is named by `SignIn`'s step. */}
       {method === "password" && !needsName ? (
         <PasswordSignIn auth={auth} onSignedIn={onSignedIn} />

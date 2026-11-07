@@ -375,10 +375,6 @@ msgstr "Actions"
 msgid "Activate"
 msgstr "Activate"
 
-#: apps/console/components/sign-in-page.tsx
-msgid "Adaptive learning powered by AI"
-msgstr "Adaptive learning powered by AI"
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add a domain"
 msgstr "Add a domain"
@@ -872,10 +868,6 @@ msgstr "Could not sign in with Google. Try again, or sign in with a code."
 msgid "Could not sign out. Try again."
 msgstr "Could not sign out. Try again."
 
-#: apps/console/components/sign-in-page.tsx
-msgid "Course materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
-msgstr "Course materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
-
 #: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
@@ -969,7 +961,6 @@ msgstr "Done"
 msgid "due for review"
 msgstr "due for review"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -1459,7 +1450,6 @@ msgstr "learning"
 msgid "Learning"
 msgstr "Learning"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -2033,7 +2023,6 @@ msgstr "Results"
 msgid "retained"
 msgstr "retained"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -2317,10 +2306,6 @@ msgstr "Take a short break"
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Taught by {0}."
 msgstr "Taught by {0}."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "Teach it once. <0>Learn it for good.</0>"
-msgstr "Teach it once. <0>Learn it for good.</0>"
 
 #: apps/console/components/group-form.tsx
 msgid "Teacher"
