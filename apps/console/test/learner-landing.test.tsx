@@ -93,6 +93,31 @@ describe("a plain sign-in", () => {
     expect(screen.getByRole("button", { name: "Set up an organization" })).toBeTruthy();
   });
 
+  test("brings a learner of one school asking for /join there, to set up, not on to the school", async () => {
+    // Signed out, as a link from Braivo's website finds them: the guard's
+    // sign-in returns to `/join` (access-5), which sends no one on.
+    const { router, visit } = renderAt("/join", {
+      signedIn: false,
+      organizations: [],
+      braivo: {
+        listMemberships: async () => [fernwood],
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+      },
+    });
+
+    await signInWithCode();
+
+    expect(await screen.findByRole("button", { name: "Set up an organization" })).toBeTruthy();
+    expect(router.history.location.pathname).toBe("/join");
+    expect(screen.getByRole("link", { name: /Fernwood/ }).getAttribute("href")).toBe(fernwoodStart);
+    expect(visit).not.toHaveBeenCalled();
+  });
+
   test("says a learner's one school has no site yet, rather than leave", async () => {
     const { visit } = renderAt("/login", {
       signedIn: false,
