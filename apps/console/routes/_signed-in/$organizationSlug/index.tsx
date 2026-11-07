@@ -4,18 +4,13 @@
 import { Heading, MutedText } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@braivo/ui/components/empty";
+import { Card, CardContent, CardHeader } from "@braivo/ui/components/card";
+import { Trans } from "@lingui/react/macro";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 
-import { AiAppGuideLink } from "#components/ai-app-guide-link";
+import { ConnectAiApp } from "#components/connect-ai-app";
 import { LearnersSite } from "#components/learners-site";
 import { LinkList, linkRow } from "#components/link-list";
 import { readReports, ReportedTasks } from "#components/task-reports";
@@ -60,7 +55,7 @@ const formatReviewCount = (count: number) =>
 function Courses() {
   const { courses, objectives, reports } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
-  const { learnDomain, aiEnabled } = Route.useRouteContext().organization;
+  const { learnDomain, aiEnabled, name } = Route.useRouteContext().organization;
   const id = useId();
   // What needs review, each task once (ADR 0039): under its course when its
   // objective is in that course alone, else under its objective, whose page
@@ -108,32 +103,42 @@ function Courses() {
       {/* Keyed, so another organization's page never shows this one's list while it reads. */}
       <ReportedTasks key={organizationSlug} reports={reports} organizationSlug={organizationSlug} />
       {courses.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>No courses yet</EmptyTitle>
-            <EmptyDescription>
-              {aiEnabled === false ? (
-                <>
-                  Braivo's AI is off for this organization. You can still add material under
-                  Sources. To draft a course from it, ask whoever runs Braivo for you to turn the AI
-                  on, or use <AiAppGuideLink />.
-                </>
-              ) : (
-                <>
-                  Add material under Sources and draft a course from it there, or with{" "}
-                  <AiAppGuideLink />.
-                </>
-              )}
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button asChild>
-              <Link to="/$organizationSlug/sources" params={{ organizationSlug }}>
-                Open Sources
-              </Link>
-            </Button>
-          </EmptyContent>
-        </Empty>
+        <section aria-labelledby={`${id}-none`}>
+          <Heading id={`${id}-none`} level={2}>
+            <Trans>No courses yet</Trans>
+          </Heading>
+          {/* Two equal ways to start. Top-aligned, so the short one does not stretch. */}
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            <StartOption title={<Trans>Add material</Trans>}>
+              <MutedText className="mb-4 block wrap-break-word">
+                {aiEnabled === false ? (
+                  <Trans>
+                    Braivo's AI is off for this organization. You can still add material under
+                    Sources. To draft a course from it, ask whoever runs Braivo for you to turn the
+                    AI on, or build it with your own AI app.
+                  </Trans>
+                ) : (
+                  <Trans>Add material under Sources and draft a course from it there.</Trans>
+                )}
+              </MutedText>
+              <Button asChild>
+                <Link to="/$organizationSlug/sources" params={{ organizationSlug }}>
+                  <Trans>Open Sources</Trans>
+                </Link>
+              </Button>
+            </StartOption>
+            <StartOption title={<Trans>Build with your AI app</Trans>}>
+              <MutedText className="mb-4 block wrap-break-word">
+                {/* True whether or not Braivo's AI is on (generation-19). */}
+                <Trans>
+                  Your app builds the course with its own model and your account with it, not
+                  Braivo's AI.
+                </Trans>
+              </MutedText>
+              <ConnectAiApp organization={name} />
+            </StartOption>
+          </div>
+        </section>
       ) : (
         <LinkList>
           {courses.map((course) => {
@@ -225,6 +230,21 @@ function Courses() {
         </section>
       )}
     </>
+  );
+}
+
+/** One way to start a first course, named for a screen reader's list of regions. */
+function StartOption(props: { title: ReactNode; children: ReactNode }) {
+  const id = useId();
+  return (
+    <Card role="region" aria-labelledby={id} className="min-w-0">
+      <CardHeader>
+        <Heading id={id} level={3} className="mb-0">
+          {props.title}
+        </Heading>
+      </CardHeader>
+      <CardContent>{props.children}</CardContent>
+    </Card>
   );
 }
 

@@ -4,10 +4,14 @@ An AI app that connects to remote MCP servers by OAuth, such as Claude, ChatGPT,
 
 ## Connect
 
-1. In the app, add a connector (Claude: Customize, Connectors, Add custom connector; ChatGPT: a connector or app added by URL) with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. In Claude Code, run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in. Braivo's console shows it, ready to copy, in your account's settings, Connected apps. Once Braivo is listed in the app's directory, adding it from there does the same.
+1. In the app, add Braivo with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. Braivo's console shows it, ready to copy, in your account's settings, Connected apps, and on an organization's Courses while it has none, with where to start in each app and a first prompt to paste. Once Braivo is listed in the app's directory, adding it from there does the same.
+   - **Claude:** in Customize, Connectors, select **+ Add**, then **Add custom connector**, and enter a name and the address. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors, and you select **Connect** under Customize, Connectors. A Free plan holds one custom connector.
+   - **ChatGPT:** on the web. Building a course needs a Business, Enterprise, or Edu plan, the only ones with full MCP; Pro has read and fetch only ([OpenAI's help article](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)), and a workspace's policies apply ([its developer page](https://developers.openai.com/plugins/deploy/connect-chatgpt)). At [chatgpt.com/plugins](https://chatgpt.com/plugins), select the plus button, then **Add custom MCP server**. Enter a name and the address as the **Server URL**, and choose **OAuth** for authentication. Then select **Create as a plugin**, and install it.
+   - **Claude Code:** run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in.
 2. Sign in to Braivo in the page that opens.
 3. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
 4. Approve it. The page names the app and the organization.
+5. Turn it on where you work. In Claude, in a chat, under **+**, **Connectors**. In ChatGPT, in a new chat, type `@` and select it.
 
 The app acts as you, in that organization alone, with the rights you have there: once you no longer prepare its content, the connection can no longer list or reach it.
 
