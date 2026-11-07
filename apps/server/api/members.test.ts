@@ -19,7 +19,7 @@ import * as testing from "@braivo/db/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { createObjectives } from "../persistence/index.ts";
+import { createObjectives, makeMemberOwner } from "../persistence/index.ts";
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
 
 const { database, api, signUp, signUpAs } = createTestApi();
@@ -246,6 +246,13 @@ describe.skipIf(!connectionString)("members, over HTTP", () => {
       });
       expect(closed.status, path).toBe(404);
     }
+  });
+
+  test("made owner, a member's session has the authority at once, signing in again for nothing", async () => {
+    const listing = () => api.request(membersPath, { headers: { cookie: learner.cookie } });
+    expect((await listing()).status).toBe(403);
+    await makeMemberOwner(database, { organizationId, userId: learner.id });
+    expect((await listing()).status).toBe(200);
   });
 
   test("a member cannot leave by themselves: an administrator or the operator ends it", async () => {

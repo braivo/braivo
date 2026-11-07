@@ -125,6 +125,7 @@ export {
   readOrganizationRoles,
   readUser,
   deleteMember,
+  makeMemberOwner,
   readUserIdByEmail,
   updateMemberRole,
   isOnlyOwner,
