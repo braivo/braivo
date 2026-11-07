@@ -157,10 +157,11 @@ For vocabulary, each word or phrase is its own objective, one meaning each. Writ
 Every quote is copied exactly from one continuous passage of the material and must occur only once in it: Braivo checks each one, and drops what it cannot find or finds more than once. Line breaks may be written as spaces; the words, their order, letter case, and punctuation stay as in the material. Material repeats itself: a word in a word list comes back in the examples, the dialogue, and the exercises, and so do whole example sentences. So before choosing a quote, look for its words elsewhere in the material, and if they are there, extend the quote with the words right next to it until no other place matches, such as the translation beside a word in a word list, a dialogue line's speaker, or an exercise's number. Never join words from separate places, and never paraphrase. For example, where a word list has "le pain" on the line above "the bread", the examples have "Je voudrais le pain, s'il vous plaît." and a dialogue has "Paul: Je voudrais le pain, s'il vous plaît.", quote "le pain the bread" or "Paul: Je voudrais le pain", never "le pain" or "Je voudrais le pain, s'il vous plaît". Teach only what the material teaches.`;
 
 /**
- * The goal or the audience as its block's content, so neither can close its
- * block and forge another. Not the material: the model quotes it exactly.
+ * The goal, the audience, or the source's title as the prompt holds it, so none
+ * can close a block and forge another. Not the material: the model quotes it
+ * exactly. A source's language needs none: it is a checked BCP 47 tag.
  */
-function blockData(text: string): string {
+function asData(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
@@ -209,10 +210,9 @@ export async function draftCourse(
   const audience = options.audience ?? (goal === undefined ? parts.defaultAudience : undefined);
   const answered = await answer(model, DRAFT_OPERATION, {
     values: {
-      goal: goal === undefined ? "" : fill(parts.goal, { goal: blockData(goal) }),
-      learners:
-        audience === undefined ? "" : fill(parts.learners, { audience: blockData(audience) }),
-      title: source.title,
+      goal: goal === undefined ? "" : fill(parts.goal, { goal: asData(goal) }),
+      learners: audience === undefined ? "" : fill(parts.learners, { audience: asData(audience) }),
+      title: asData(source.title),
       language: source.language ? fill(parts.language, { language: source.language }) : "",
       material: source.text,
     },
