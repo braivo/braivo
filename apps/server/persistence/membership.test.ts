@@ -4,10 +4,16 @@
 import { runMigrations } from "@braivo/db";
 import { member, user } from "@braivo/db/schema";
 import { seedOrganization, sharedDatabase, violatedConstraint } from "@braivo/db/testing";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
-import { readMembers, readOrganizationRoles } from "./membership.ts";
+import {
+  deleteMember,
+  makeMemberOwner,
+  readMembers,
+  readOrganizationRoles,
+  updateMemberRole,
+} from "./membership.ts";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const database = sharedDatabase(connectionString ?? "");
@@ -134,6 +140,95 @@ describe.skipIf(!connectionString)("organization membership", () => {
     expect(await readOrganizationRoles(database, { organizationId, userId: learner })).toEqual([
       "member",
     ]);
+  });
+
+  describe("making a member an owner", () => {
+    const school = "make-owner-school";
+    const person = "make-owner-person";
+    const scope = { organizationId: school, userId: person };
+
+    const seed = (role: string) =>
+      seedOrganization(database, {
+        organizationId: school,
+        learnerIds: [person],
+        at: new Date("2026-06-01T00:00:00.000Z"),
+      }).then(() => database.update(member).set({ role }).where(eq(member.userId, person)));
+
+    /** Until a statement like `pattern` waits for another transaction's lock. */
+    async function waitForLock(pattern: string): Promise<void> {
+      for (let tries = 0; tries < 100; tries++) {
+        const waiting = await database.execute(
+          sql`
+          select 1 from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'
+            and query like ${pattern}`,
+          "objects",
+        );
+        if (waiting.length > 0) return;
+        await Bun.sleep(20);
+      }
+      throw new Error(`No statement like ${pattern} waited for a lock.`);
+    }
+
+    test("gives exactly `owner`, keeps an owner's roles, and never adds a member", async () => {
+      for (const role of ["author,member", "admin"]) {
+        await seed(role);
+        expect(await makeMemberOwner(database, scope)).toBe("made");
+        expect(await readOrganizationRoles(database, scope)).toEqual(["owner"]);
+      }
+
+      await seed("owner,admin");
+      expect(await makeMemberOwner(database, scope)).toBe("already owner");
+      expect(await readOrganizationRoles(database, scope)).toEqual(["owner", "admin"]);
+
+      await database.delete(member).where(eq(member.userId, person));
+      expect(await makeMemberOwner(database, scope)).toBe("not a member");
+      expect(await readOrganizationRoles(database, scope)).toEqual([]);
+    });
+
+    test("promotes that member at that school alone", async () => {
+      const elsewhere = "make-owner-elsewhere";
+      const colleague = "make-owner-colleague";
+      const at = new Date("2026-06-01T00:00:00.000Z");
+      await seedOrganization(database, {
+        organizationId: school,
+        learnerIds: [person, colleague],
+        at,
+      });
+      await seedOrganization(database, { organizationId: elsewhere, learnerIds: [person], at });
+
+      expect(await makeMemberOwner(database, scope)).toBe("made");
+
+      expect(await readOrganizationRoles(database, scope)).toEqual(["owner"]);
+      expect(
+        await readOrganizationRoles(database, { organizationId: school, userId: colleague }),
+      ).toEqual(["member"]);
+      expect(
+        await readOrganizationRoles(database, { organizationId: elsewhere, userId: person }),
+      ).toEqual(["member"]);
+    });
+
+    test.each([
+      ["a removal", () => deleteMember(database, scope), 'delete from "member"%'],
+      [
+        "a role change",
+        () => updateMemberRole(database, { ...scope, role: "admin" }),
+        'update "member"%',
+      ],
+    ] as const)(
+      "an owner just made is not undone by %s waiting on the row",
+      async (_, act, like) => {
+        await seed("member");
+        let acting!: Promise<unknown>;
+        await database.transaction(async (transaction) => {
+          expect(await makeMemberOwner(transaction, scope)).toBe("made");
+          acting = act();
+          await waitForLock(like);
+        });
+        expect(await acting).toBe("owner");
+        expect(await readOrganizationRoles(database, scope)).toEqual(["owner"]);
+      },
+    );
   });
 
   test("reports nothing for a user who does not exist", async () => {

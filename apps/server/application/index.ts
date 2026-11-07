@@ -122,7 +122,14 @@ export {
   mayRefresh,
   listConnections,
 } from "./connections.ts";
-export { MemberRefused, removeMember, setMemberRole } from "./members.ts";
+export {
+  MemberRefused,
+  type OwnerPromotionTarget,
+  previewOwnerPromotion,
+  promoteToOwner,
+  removeMember,
+  setMemberRole,
+} from "./members.ts";
 export {
   cancelInvitation,
   type CreateInvitationResult,

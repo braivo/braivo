@@ -60,7 +60,7 @@ export async function createOwnedOrganization(
   }
 }
 
-/** The roles the operator may give: never `owner`, which only `createOrganization` gives. */
+/** The roles `addMember` gives: never `owner` (access-21). */
 const MEMBER_ROLES = ["member", "author", "admin"] as const;
 type MemberRole = (typeof MEMBER_ROLES)[number];
 const isMemberRole = (role: string): role is MemberRole =>

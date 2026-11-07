@@ -302,7 +302,7 @@ export async function withAccountLock<T>(
     }
     if (onlyOwner.length > 0) {
       throw new Error(
-        `${email} is the only owner of ${onlyOwner.join(", ")}; give each another owner first. Nothing was erased.`,
+        `${email} is the only owner of ${onlyOwner.join(", ")}; give each another owner first, with organization make-owner --slug <slug> --email <successor>. Nothing was erased.`,
       );
     }
     return work(transaction);

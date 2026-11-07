@@ -91,7 +91,7 @@ export async function eraseLearnerHistory(input: {
     async (transaction, history) => {
       if (endMembership && (await isOnlyOwner(transaction, target))) {
         throw new Error(
-          `${email} is the only owner of ${organizationSlug}; give it another owner, or leave --end-membership out. Nothing was erased.`,
+          `${email} is the only owner of ${organizationSlug}; give it another owner, with organization make-owner --slug ${organizationSlug} --email <successor>, or leave --end-membership out. Nothing was erased.`,
         );
       }
       const epoch = history.epoch + 1;
