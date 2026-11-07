@@ -21,12 +21,14 @@ In Customize, Connectors, select **+ Add**, then **Add custom connector**, and e
 
 ### ChatGPT
 
-A custom MCP server, as ChatGPT calls Braivo, is for ChatGPT Business, Enterprise, and Edu workspaces, on the web; in a Business workspace only its admins and owners add one. Writing questions also needs write actions allowed for it. If you can't add Braivo, or it can only read, ask your ChatGPT workspace's admin: Braivo's Author role grants neither. [OpenAI's guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) has the current steps; at this writing:
+ChatGPT calls Braivo a custom MCP server. Writing questions through Braivo needs ChatGPT's full custom MCP access, with write actions allowed: Business, Enterprise, and Edu workspaces, on the web, where in a Business workspace only its admins and owners add one. Some plans connect to read only, which can't write questions. If you can't add Braivo, or it can only read, ask your ChatGPT workspace's admin: Braivo's Author role grants neither. [OpenAI's guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) has the current steps; at this writing:
 
 1. In Plugins, select the plus button, then **Add custom MCP server**.
-2. Name it Braivo, paste the address, and set its authentication to OAuth.
-3. Sign in to Braivo and approve your school, as below.
-4. In a chat, type @ and select Braivo, then [ask for a piece of work](./draft-with-ai-app.mdx#what-to-ask-for).
+2. Name it Braivo, paste the address, and set its authentication to OAuth, which Braivo uses.
+3. Read the risk warning, choose **I understand and want to continue**, and create it.
+4. Sign in to Braivo and approve your school's organization, as below.
+5. Review the tools it lists, and install it.
+6. In a chat, type @ and select Braivo, then [ask for a piece of work](./draft-with-ai-app.mdx#what-to-ask-for).
 
 ### A desktop agent
 
@@ -39,7 +41,7 @@ Any app that connects to remote MCP servers by OAuth works the same way ([ADR 00
 ### Then, in the page that opens
 
 1. Sign in to Braivo.
-2. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
+2. Choose the organization it works in, as the console calls a school's space in Braivo: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
 3. Approve it. The page names the app and the organization.
 4. Turn it on where you work. In Claude, in a chat, under **+**, **Connectors**. In ChatGPT, in a new chat, type `@` and select it.
 
@@ -52,11 +54,11 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Find the organization's sources and courses, and read a source in parts, a range of pages, seconds, or characters at a time.
 - Add material as text: a document page by page, a transcript with its timings. A document too large for one request is refused; add it in Braivo's console or with [`braivo sources add`](./authoring.mdx#the-braivo-command).
 - Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks word for word against the source.
-- Write practice tasks that cite those passages, correct one, or withdraw one still pending.
+- Write practice questions that cite those passages, correct one, or withdraw one still waiting for review.
 - Arrange objectives into a course.
-- Read a course's objectives and tasks, or only its tasks without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
+- Read a course's objectives and questions, or only its questions without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
 
-What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published task: both stay yours in the console. Nor can this connection read Braivo's learner lists or progress reports, which wait for their own permission.
+What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a question, or a correction of a published question reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and question it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published question: both stay yours in the console. Nor can this connection read Braivo's learner lists or progress reports, which wait for their own permission.
 
 ## On your desktop
 

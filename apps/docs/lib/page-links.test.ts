@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
@@ -70,6 +73,28 @@ describe("screenshotSize", () => {
       width: 318,
       height: 60,
     });
+  });
+
+  test("fails on a screenshot that is not a PNG at device scale 2, naming it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "braivo-screenshot-size-"));
+    const shots = join(dir, "docs/screenshots");
+    mkdirSync(shots, { recursive: true });
+    const real = readFileSync(screenshot("maintain-practice/1-explanations.png"));
+    const odd = Buffer.from(real);
+    odd.writeUInt32BE(101, 16);
+    const cases = {
+      "truncated.png": real.subarray(0, 20),
+      "foreign.png": Buffer.concat([Buffer.from("not a png at all"), real.subarray(16)]),
+      "odd.png": odd,
+    };
+    try {
+      for (const [name, bytes] of Object.entries(cases)) {
+        writeFileSync(join(shots, name), bytes);
+        expect(() => screenshotSize(join(shots, name))).toThrow(name);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test("leaves any other file alone", () => {

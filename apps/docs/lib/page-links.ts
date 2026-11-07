@@ -29,17 +29,30 @@ export function assetRoute(href: string, from: string, base: string): string | u
   return `${base.replace(/\/?$/, "/")}${file.slice("../public/".length)}`;
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /**
- * A screenshot's size on the page: half its pixels, as the capture takes them
- * at device scale 2 (tooling/docs-screenshots/capture.ts). Set on the image, a
+ * A screenshot's size on the page: half its pixels. `public/docs/screenshots/`
+ * holds only the capture's PNGs, taken at device scale 2
+ * (tooling/docs-screenshots/capture.ts); a picture of any other scale goes
+ * elsewhere, as a PNG cannot say its intended density. Set on the image, a
  * small crop shows at its size instead of stretched to the column, and the
- * page keeps its place while it loads. `undefined` for any other file.
+ * page keeps its place while it loads. `undefined` for any other file; a
+ * screenshot that is not such a PNG fails the build, naming it.
  */
 export function screenshotSize(file: string): { width: number; height: number } | undefined {
   if (!/\/docs\/screenshots\/.+\.png$/.test(file)) return undefined;
-  // A PNG's width and height, big-endian, follow its signature and IHDR's header.
-  const header = readFileSync(file).subarray(16, 24);
-  return { width: header.readUInt32BE(0) / 2, height: header.readUInt32BE(4) / 2 };
+  const bytes = readFileSync(file);
+  // The signature, then the IHDR chunk: its length, type, width, and height.
+  const valid =
+    bytes.length >= 24 &&
+    bytes.subarray(0, 8).equals(PNG_SIGNATURE) &&
+    bytes.toString("latin1", 12, 16) === "IHDR";
+  const pixels = valid ? [bytes.readUInt32BE(16), bytes.readUInt32BE(20)] : [];
+  if (pixels.length !== 2 || pixels.some((side) => side === 0 || side % 2 !== 0)) {
+    throw new Error(`${file} is not a screenshot PNG at device scale 2: an even width and height.`);
+  }
+  return { width: pixels[0]! / 2, height: pixels[1]! / 2 };
 }
 
 /** Rewrites each page's links and images into where the site serves them, as it compiles. */

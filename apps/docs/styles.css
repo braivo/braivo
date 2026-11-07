@@ -155,6 +155,15 @@
   max-width: none;
 }
 
+/*
+ * Opening the question a link names, after the browser or router restored the
+ * reader's place (Back, Forward, reload), would let scroll anchoring move them:
+ * on a page of questions, nothing anchors.
+ */
+.prose:has(.accordions) {
+  overflow-anchor: none;
+}
+
 /* Questions that open in place (`Accordions` in components/mdx.tsx). */
 .accordions {
   margin-block: 1rem;
