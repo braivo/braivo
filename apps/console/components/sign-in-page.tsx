@@ -5,7 +5,7 @@ import { ModeToggle, SignInPage } from "@braivo/ui";
 import { Separator } from "@braivo/ui/components/separator";
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans } from "@lingui/react/macro";
-import { GraduationCapIcon, MailIcon } from "lucide-react";
+import { MailIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
 import { BraivoLogo } from "./braivo-logo.tsx";
@@ -30,9 +30,17 @@ export function ConsoleSignInPage(props: Omit<ComponentProps<typeof SignInPage>,
 }
 
 /**
- * The console's name above its own form: Braivo's logo on a phone, where the
- * story panel is hidden, and the app's name beside the panel, which shows the
- * logo. "Braivo Console" in every language (localization-2).
+ * Braivo above `/login`'s form on a phone, where the story panel, which
+ * shows the logo from `lg`, is hidden. No app's name: the page is for anyone
+ * who teaches or learns.
+ */
+export function SignInBrand() {
+  return <BraivoLogo className="text-2xl sm:text-3xl lg:hidden" />;
+}
+
+/**
+ * The console's name above an invitation's page: Braivo's logo on a phone,
+ * the app's name from `lg`. "Braivo Console" in every language (localization-2).
  */
 export function ConsoleBrand() {
   return (
@@ -46,27 +54,9 @@ export function ConsoleBrand() {
   );
 }
 
-/** Below the form, for a learner who landed on the console rather than their course's site. */
-export function LearnerNote() {
-  return (
-    <>
-      <Separator className="my-6" />
-      <p className="flex gap-3 text-sm text-muted-foreground">
-        <GraduationCapIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span>
-          <Trans>
-            <strong className="font-medium text-foreground">Here to learn?</strong> Sign in through
-            your course's website.
-          </Trans>
-        </span>
-      </p>
-    </>
-  );
-}
-
 /**
- * Below the form, in the learner note's place, for someone signing in to
- * accept an invitation: here, not on a course's website, is where they join.
+ * Below the form, for someone signing in to accept an invitation: here, not
+ * on a course's website, is where they join.
  */
 export function InvitationNote() {
   return (
@@ -83,14 +73,14 @@ export function InvitationNote() {
 }
 
 /**
- * What Braivo does, for a teacher arriving at the console, beside its own
+ * What Braivo does, for anyone who teaches or learns, beside Braivo's own
  * sign-in only: a learn domain's wears no Braivo branding (ADR 0018). From
  * `lg`, where there is room; a phone gets straight to the form. The darker
  * navy in either theme (`--brand-panel-*`), so lime is its accent in both,
  * kept small: the eyebrow and the map, the headline in ink and grey. Its
  * texture stays faint, behind the text and map.
  */
-export function ConsoleStory() {
+export function SignInStory() {
   return (
     <aside className="relative hidden min-w-0 overflow-hidden bg-brand-panel p-10 text-brand-panel-foreground lg:flex xl:px-16">
       {/* A dot grid, fading in toward the map. */}
@@ -105,19 +95,19 @@ export function ConsoleStory() {
         <div className="flex flex-col gap-6">
           <p className="flex items-center gap-3 text-xs font-semibold tracking-widest text-brand-panel-accent uppercase">
             <span aria-hidden="true" className="h-px w-5 bg-current" />
-            <Trans>The learning engine behind your courses</Trans>
+            <Trans>Adaptive learning powered by AI</Trans>
           </p>
           {/* Not a heading: before the form's in the page, it would be where a
               screen reader's heading navigation lands first. */}
           <p className="font-heading text-[clamp(2.75rem,4vw,4rem)] leading-[1.1] font-bold text-balance">
             <Trans>
               Teach it once.{" "}
-              <span className="block text-brand-panel-muted">Tutor every learner.</span>
+              <span className="block text-brand-panel-muted">Learn it for good.</span>
             </Trans>
           </p>
           <p className="max-w-md text-base/relaxed text-brand-panel-muted">
             <Trans>
-              Your materials, turned into practice that knows each learner: what they've mastered,
+              Course materials, turned into practice that knows each learner: what they've mastered,
               what's slipping, and what comes next.
             </Trans>
           </p>
@@ -152,7 +142,7 @@ type Standing = "retained" | "due" | "learning";
 type Topic = { label: string; standing: Standing; x: number; y: number; width: number };
 
 /**
- * One learner's objectives as a teacher sees them, joined where one builds on
+ * One learner's objectives as Braivo tracks them, joined where one builds on
  * another, in the progress spec's standings: told apart by shape as well as
  * colour. Decorative, so hidden; the objectives are an English course's, so
  * stay as they are in every language.

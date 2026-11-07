@@ -14,19 +14,19 @@ import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
-  ConsoleBrand,
-  ConsoleStory,
-  InvitationNote,
-  LearnerNote,
   ConsoleSignInPage,
+  InvitationNote,
+  SignInBrand,
+  SignInStory,
 } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 const expiredTitle = msg`This sign-in has expired`;
 
 /**
- * Signing in on the installation's origin: to the console, or, with
- * `?handoff=`, to the learn domain that sent the person here (ADR 0018).
+ * Signing in on the installation's origin, one page for whoever teaches or
+ * learns, or, with `?handoff=`, to the learn domain that sent the person here
+ * (ADR 0018).
  */
 export const Route = createFileRoute("/login")({
   // `error`: why Google's round trip came back here rather than signed in.
@@ -128,15 +128,10 @@ function Login() {
   const onSignedIn = () => router.navigate({ href: redirect ?? "/", replace: true });
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
-  // Returning to an invitation: a learner among them, who joins here, so
-  // neither sent to a course's website nor told what Braivo does for teachers.
+  // Returning to an invitation, which is accepted with the address it was sent to.
   const invited = redirect?.startsWith("/invitations/") === true;
   return (
-    <ConsoleSignInPage
-      brand={<ConsoleBrand />}
-      aside={invited ? undefined : <ConsoleStory />}
-      footer={`© ${year} Braivo`}
-    >
+    <ConsoleSignInPage brand={<SignInBrand />} aside={<SignInStory />} footer={`© ${year} Braivo`}>
       {/* An account still without a name is named by `SignIn`'s step. */}
       {method === "password" && !needsName ? (
         <PasswordSignIn auth={auth} onSignedIn={onSignedIn} />
@@ -149,7 +144,7 @@ function Login() {
           onSignedIn={onSignedIn}
         />
       )}
-      {invited ? <InvitationNote /> : <LearnerNote />}
+      {invited && <InvitationNote />}
     </ConsoleSignInPage>
   );
 }

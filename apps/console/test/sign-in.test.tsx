@@ -491,9 +491,8 @@ describe("the console", () => {
 
       expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
       // The console's name stays, in every language.
-      expect(screen.getByText("Braivo Console")).toBeTruthy();
+      await vi.waitFor(() => expect(document.title).toBe("Braivo Console"));
       expect(screen.getByText(/^Ucz raz\./)).toBeTruthy();
-      expect(screen.getByText("Jesteś uczniem?")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Motyw" })).toBeTruthy();
       expect(screen.getByText("Do powtórki")).toBeTruthy();
     });
@@ -708,13 +707,27 @@ describe("the console", () => {
     test("frames the console's own sign-in with Braivo's pitch, and a learn domain's with its organization alone", async () => {
       renderAt("/login", { signedIn: false });
       const heading = await screen.findByRole("heading", { name: "Sign in" });
+      // One page for whoever teaches or learns: no app's name, and no learner
+      // sent elsewhere.
       expect(screen.getByText(/^Teach it once\./)).toBeTruthy();
+      expect(screen.getByText("Learn it for good.")).toBeTruthy();
+      expect(screen.queryByText(/Braivo Console|Here to learn|course's website/)).toBeNull();
       // The form's heading is the page's only one: the pitch beside it is not
       // where a screen reader's heading navigation should land first.
       expect(screen.getAllByRole("heading")).toEqual([heading]);
-      expect(screen.getByText("Here to learn?")).toBeTruthy();
       // The page's own frame, not the column of the console's other pages.
       expect(heading.closest("main")!.className).not.toContain("max-w-3xl");
+      cleanup();
+
+      // Returning to an invitation: the same page, with the invitation's note.
+      renderAt("/login?redirect=/invitations/inv-1", { signedIn: false });
+      await screen.findByRole("heading", { name: "Sign in" });
+      expect(screen.getByText(/^Teach it once\./)).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Sign in with the email address the invitation was sent to, then accept it.",
+        ),
+      ).toBeTruthy();
       cleanup();
 
       // Signing in, and offered the account already signed in.

@@ -330,10 +330,6 @@ msgstr "{without, plural, one {Zaznaczone zadania bez wyjaśnienia: # z {total}.
 msgid "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
 msgstr "{withoutExplanation, plural, one {Opublikowane zadania bez wyjaśnienia: # z {total}} few {Opublikowane zadania bez wyjaśnienia: # z {total}} many {Opublikowane zadania bez wyjaśnienia: # z {total}} other {Opublikowane zadania bez wyjaśnienia: # z {total}}}"
 
-#: apps/console/components/sign-in-page.tsx
-msgid "<0>Here to learn?</0> Sign in through your course's website."
-msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "300 invitations were sent from here in the last hour. Try again later."
 msgstr "W ciągu ostatniej godziny wysłano stąd już 300 zaproszeń. Spróbuj ponownie później."
@@ -378,6 +374,10 @@ msgstr "Działania"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Activate"
 msgstr "Aktywuj"
+
+#: apps/console/components/sign-in-page.tsx
+msgid "Adaptive learning powered by AI"
+msgstr "Adaptacyjna nauka napędzana przez AI"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Add a domain"
@@ -871,6 +871,10 @@ msgstr "Nie udało się zalogować przez Google. Spróbuj ponownie lub zaloguj s
 #: apps/learn/components/account-header.tsx
 msgid "Could not sign out. Try again."
 msgstr "Nie udało się wylogować. Spróbuj ponownie."
+
+#: apps/console/components/sign-in-page.tsx
+msgid "Course materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
+msgstr "Materiały kursu jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."
 
 #: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
@@ -2315,8 +2319,8 @@ msgid "Taught by {0}."
 msgstr "Prowadzący: {0}."
 
 #: apps/console/components/sign-in-page.tsx
-msgid "Teach it once. <0>Tutor every learner.</0>"
-msgstr "Ucz raz. <0>Prowadź każdego ucznia.</0>"
+msgid "Teach it once. <0>Learn it for good.</0>"
+msgstr "Ucz raz. <0>Naucz się na dobre.</0>"
 
 #: apps/console/components/group-form.tsx
 msgid "Teacher"
@@ -2396,10 +2400,6 @@ msgstr "Odpowiedź uznana za poprawną wydaje się błędna"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "The invitation to {email} was cancelled already."
 msgstr "Zaproszenie dla {email} zostało już anulowane."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "The learning engine behind your courses"
-msgstr "Silnik nauki stojący za Twoimi kursami"
 
 #: apps/learn/components/report-problem.tsx
 msgid "The lesson passage doesn't support this"
@@ -2844,10 +2844,6 @@ msgstr "Tę nazwę zobaczą Twoi uczniowie. Jeśli działasz samodzielnie, wpisz
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
 msgstr "Twoja historia nauki została tu wyczyszczona, więc ostatnia odpowiedź nie została zapisana. Zaczynasz od nowa."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
-msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/ui/compositions/sign-in-form.tsx
