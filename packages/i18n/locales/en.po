@@ -148,7 +148,7 @@ msgid "{domain} now serves your learners."
 msgstr "{domain} now serves your learners."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{dueForReview, plural, one {# to review} other {# to review}}"
 msgstr "{dueForReview, plural, one {# to review} other {# to review}}"
 
@@ -173,7 +173,7 @@ msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# failure} other {# failures}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{fresh, plural, one {# new} other {# new}}"
 msgstr "{fresh, plural, one {# new} other {# new}}"
 
@@ -211,7 +211,7 @@ msgid "{learners, plural, one {First answers from # learner} other {First answer
 msgstr "{learners, plural, one {First answers from # learner} other {First answers from # learners}}: {counted}."
 
 #. A count of objectives missed, waiting for another try, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{learning, plural, one {# to practise} other {# to practise}}"
 msgstr "{learning, plural, one {# to practise} other {# to practise}}"
 

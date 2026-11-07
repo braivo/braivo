@@ -148,7 +148,7 @@ msgid "{domain} now serves your learners."
 msgstr "Domena {domain} obsługuje teraz Twoich uczniów."
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{dueForReview, plural, one {# to review} other {# to review}}"
 msgstr "{dueForReview, plural, one {# do powtórki} few {# do powtórki} many {# do powtórki} other {# do powtórki}}"
 
@@ -173,7 +173,7 @@ msgid "{failures, plural, one {# failure} other {# failures}}"
 msgstr "{failures, plural, one {# błąd} few {# błędy} many {# błędów} other {# błędu}}"
 
 #. A count of objectives, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{fresh, plural, one {# new} other {# new}}"
 msgstr "{fresh, plural, one {# nowy} few {# nowe} many {# nowych} other {# nowego}}"
 
@@ -211,7 +211,7 @@ msgid "{learners, plural, one {First answers from # learner} other {First answer
 msgstr "{learners, plural, one {Pierwsze odpowiedzi # ucznia} few {Pierwsze odpowiedzi # uczniów} many {Pierwsze odpowiedzi # uczniów} other {Pierwsze odpowiedzi # ucznia}}: {counted}."
 
 #. A count of objectives missed, waiting for another try, the noun implied (Polish: temat)
-#: apps/learn/components/standing.tsx
+#: apps/learn/routes/_signed-in/index.tsx
 msgid "{learning, plural, one {# to practise} other {# to practise}}"
 msgstr "{learning, plural, one {# do przećwiczenia} few {# do przećwiczenia} many {# do przećwiczenia} other {# do przećwiczenia}}"
 

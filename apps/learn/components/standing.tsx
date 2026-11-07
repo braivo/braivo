@@ -3,7 +3,6 @@
 
 import {
   type CourseStanding,
-  type CourseWaiting,
   countStandings,
   type LearnerProgressSummary,
   type Standing,
@@ -74,41 +73,6 @@ export function formatCounts(counts: CourseStanding, t: ReturnType<typeof useLin
  */
 function countsLine(counts: CourseStanding, t: ReturnType<typeof useLingui>["t"]): string {
   return formatCounts(counts, t)
-    .map((count) => count.replaceAll(" ", "\u00a0"))
-    .join(" · ");
-}
-
-/**
- * What practice would offer in a course now (learner-loop-27), in the order it
- * would, those with none left out, as `countsLine` wraps: "2 to review · 3 new".
- */
-export function waitingLine(waiting: CourseWaiting, t: ReturnType<typeof useLingui>["t"]): string {
-  const { learning, dueForReview, new: fresh } = waiting;
-  return [
-    learning > 0 &&
-      t(
-        msg({
-          message: plural(learning, { one: "# to practise", other: "# to practise" }),
-          comment:
-            "A count of objectives missed, waiting for another try, the noun implied (Polish: temat)",
-        }),
-      ),
-    dueForReview > 0 &&
-      t(
-        msg({
-          message: plural(dueForReview, { one: "# to review", other: "# to review" }),
-          comment: "A count of objectives, the noun implied (Polish: temat)",
-        }),
-      ),
-    fresh > 0 &&
-      t(
-        msg({
-          message: plural(fresh, { one: "# new", other: "# new" }),
-          comment: "A count of objectives, the noun implied (Polish: temat)",
-        }),
-      ),
-  ]
-    .filter((count) => count !== false)
     .map((count) => count.replaceAll(" ", "\u00a0"))
     .join(" · ");
 }

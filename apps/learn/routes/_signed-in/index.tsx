@@ -19,6 +19,7 @@ import {
   ItemTitle,
 } from "@braivo/ui/components/item";
 import { cn } from "@braivo/ui/lib/utils";
+import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, getRouteApi, Link, useRouter } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
@@ -26,7 +27,6 @@ import { useId } from "react";
 
 import { AccountHeader } from "#components/account-header";
 import { Notice } from "#components/notice";
-import { waitingLine } from "#components/standing";
 import { OPTIONAL_READ_DEADLINE_MS, READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
 
 export const Route = createFileRoute("/_signed-in/")({
@@ -128,6 +128,42 @@ function rank(waiting: CourseWaiting | undefined) {
   if (waiting === undefined) return 2;
   if (waiting.learning + waiting.dueForReview > 0) return 0;
   return waiting.new > 0 ? 1 : 2;
+}
+
+/**
+ * What practice would offer in a course now (learner-loop-27), in the order it
+ * would, those with none left out, each count whole where it fits, so a phone
+ * wraps between counts: "2 to review · 3 new".
+ */
+function waitingLine(waiting: CourseWaiting, t: ReturnType<typeof useLingui>["t"]): string {
+  const { learning, dueForReview, new: fresh } = waiting;
+  return [
+    learning > 0 &&
+      t(
+        msg({
+          message: plural(learning, { one: "# to practise", other: "# to practise" }),
+          comment:
+            "A count of objectives missed, waiting for another try, the noun implied (Polish: temat)",
+        }),
+      ),
+    dueForReview > 0 &&
+      t(
+        msg({
+          message: plural(dueForReview, { one: "# to review", other: "# to review" }),
+          comment: "A count of objectives, the noun implied (Polish: temat)",
+        }),
+      ),
+    fresh > 0 &&
+      t(
+        msg({
+          message: plural(fresh, { one: "# new", other: "# new" }),
+          comment: "A count of objectives, the noun implied (Polish: temat)",
+        }),
+      ),
+  ]
+    .filter((count) => count !== false)
+    .map((count) => count.replaceAll(" ", "\u00a0"))
+    .join(" · ");
 }
 
 /** How many objectives a course's standing counts. */
