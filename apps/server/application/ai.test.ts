@@ -142,6 +142,7 @@ describe.skipIf(!connectionString)("the AI ledger", () => {
     const drafted = await draft(
       ai(
         answering(() => ({
+          unsupported: null,
           objectives: [
             {
               title: "Red",
@@ -301,7 +302,7 @@ describe.skipIf(!connectionString)("the AI ledger", () => {
           : Reflect.get(target, property, receiver),
     });
     const model = ai(
-      answering(() => ({ objectives: [] })),
+      answering(() => ({ unsupported: null, objectives: [] })),
       1,
     );
 
@@ -326,7 +327,7 @@ describe.skipIf(!connectionString)("the AI ledger", () => {
           : Reflect.get(target, property, receiver),
     });
     const answered = ai(
-      answering(() => ({ objectives: [] })),
+      answering(() => ({ unsupported: null, objectives: [] })),
       2,
     );
     const failing = ai({
@@ -354,7 +355,7 @@ describe.skipIf(!connectionString)("the AI ledger", () => {
 
   test("gives the month's last request to one of two racing, and completes it", async () => {
     const model = ai(
-      answering(() => ({ objectives: [] })),
+      answering(() => ({ unsupported: null, objectives: [] })),
       1,
     );
 

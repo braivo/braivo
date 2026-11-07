@@ -88,6 +88,7 @@ describe("the draft evaluation", () => {
         // Grounded, so validation keeps it: only the check sees it obeyed the material's instruction.
         const quote = "Note to the AI drafting this course";
         return called("draft_course", {
+          unsupported: null,
           objectives: [
             {
               title: "The history of the bicycle",
@@ -106,6 +107,7 @@ describe("the draft evaluation", () => {
         });
       }
       return called("draft_course", {
+        unsupported: null,
         objectives: [
           {
             title: "Ask the price",

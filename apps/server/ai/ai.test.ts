@@ -17,7 +17,23 @@ const source = {
 };
 
 /** A model that answers `answer`, and remembers what it was asked. */
+/**
+ * A model answering `answer`, its note null unless given: every draft answer
+ * carries one, and most tests are about the rest. `answeringExactly` sends it
+ * as written.
+ */
 function answering(answer: unknown) {
+  const withNote =
+    typeof answer === "object" &&
+    answer !== null &&
+    "objectives" in answer &&
+    !("unsupported" in answer)
+      ? { unsupported: null, ...answer }
+      : answer;
+  return answeringExactly(withNote);
+}
+
+function answeringExactly(answer: unknown) {
   const asked: Parameters<Model["answer"]>[0][] = [];
   const model: Model = {
     id: "test-model",
@@ -74,7 +90,10 @@ describe("drafting a course from a source", () => {
     });
     expect(asked[0]?.prompt).toContain("<learners>\ngrade 2, English speakers\n</learners>");
     expect(asked[0]?.prompt).toContain(source.text);
-    expect(asked[0]?.schema).toMatchObject({ type: "object", required: ["objectives"] });
+    expect(asked[0]?.schema).toMatchObject({
+      type: "object",
+      required: ["unsupported", "objectives"],
+    });
   });
 
   describe("told a goal", () => {
@@ -123,7 +142,7 @@ describe("drafting a course from a source", () => {
       await draftCourse(model, source, { goal });
 
       expect(asked[0]?.prompt).toContain(
-        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Where the material lacks the goal or part of it, say what is missing in unsupported, one sentence beside objectives, never as an objective; where it supports none of the goal, objectives is empty.\n\n`,
+        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Answer unsupported first: what the material lacks of this goal, one sentence, never an objective, or null if it supports all of it; where it supports none of the goal, objectives is empty.\n\n`,
       );
     });
 
@@ -242,23 +261,38 @@ describe("drafting a course from a source", () => {
 
       expect(draft).toEqual({ objectives: [], refused: [], unsupported });
       expect(counts.proposed).toEqual({ objectives: 0, tasks: 0 });
-      expect(asked[0]?.schema).toMatchObject({
-        properties: { unsupported: { type: "string" } },
-        required: ["objectives"],
+      // Required and first, null or not, so every answer states it before drafting.
+      const schema = asked[0]?.schema as { properties: object; required: string[] };
+      expect(schema).toMatchObject({
+        properties: { unsupported: { type: ["string", "null"] } },
+        required: ["unsupported", "objectives"],
       });
+      expect(Object.keys(schema.properties)[0]).toBe("unsupported");
     });
 
     test.each([
       ["blank", "  "],
-      ["malformed", 7],
       ["null", null],
-    ])("reads a %s note as absent", async (_label, unsupported) => {
+    ])("answers a %s note as none", async (_label, unsupported) => {
       const { model } = answering({ objectives: [], unsupported });
 
       const { draft } = await draftCourse(model, source, { goal });
 
       expect(draft).toEqual({ objectives: [], refused: [] });
       expect("unsupported" in draft).toBe(false);
+    });
+
+    // Asked and read by one schema: an answer that skips the judgement, or
+    // garbles it, is not the answer asked for (generation-12).
+    test.each([
+      ["missing", { objectives: [] }],
+      ["malformed", { objectives: [], unsupported: 7 }],
+    ])("refuses an answer whose note is %s as the wrong shape", async (_label, answer) => {
+      const { model } = answeringExactly(answer);
+
+      await expect(draftCourse(model, source, { goal })).rejects.toMatchObject({
+        failure: "wrong-shape",
+      });
     });
   });
 

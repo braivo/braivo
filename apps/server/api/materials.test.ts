@@ -575,6 +575,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       answer: async ({ prompt }) => {
         asked.push(prompt);
         return {
+          unsupported: null,
           objectives: [
             {
               title: "Say hello",
@@ -871,7 +872,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
             asked += 1;
             if (asked === 1)
               throw new ModelUnavailable("provider-error", "The model answered 529.");
-            return { objectives: [] };
+            return { unsupported: null, objectives: [] };
           },
         },
         organizations: "all",

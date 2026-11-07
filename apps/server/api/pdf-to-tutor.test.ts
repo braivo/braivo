@@ -35,6 +35,7 @@ const model: Model = {
       return { pages: [{ page: "12", text: page12 }] };
     }
     return {
+      unsupported: null,
       objectives: [
         {
           title: "Say hello",
