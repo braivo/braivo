@@ -10,10 +10,13 @@
  * Only the AI's answer is canned: the script answers the model's address itself,
  * so a run spends nothing and draws the same pictures. Braivo checks that answer
  * as it does a model's, every quote against the source.
+ *
+ * The pictures are drawn into a temporary directory and replace the committed
+ * ones only once every step has passed, so a failed run leaves them as they were.
  */
 
-import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -24,11 +27,11 @@ import { prepareClassroom, PERSONAS } from "../../apps/server/fixtures/classroom
 import { createServer } from "../../apps/server/server.ts";
 import { directoryStore } from "../../apps/server/storage/directory.ts";
 import { createDatabase, runMigrations } from "../../packages/db/index.ts";
-import { createScratchDatabase, dropScratchDatabase } from "./database.ts";
+import { createScratchDatabase, dropScratchDatabase, type ScratchDatabase } from "./database.ts";
 import { DRAFT, PDF_TITLE, handoutPdf } from "./material.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
-const OUT = join(ROOT, "apps/docs/public/docs/screenshots/first-course");
+const SCREENSHOTS = join(ROOT, "apps/docs/public/docs/screenshots");
 const PORTS = { server: 4830, console: 4831, learn: 4832 };
 
 /**
@@ -95,14 +98,20 @@ async function sees(page: Page, ...labels: string[]) {
  * the size they are read at. `presses`, what the step says to press, is
  * inside the picture by construction, and its absence fails the run.
  */
-async function region(page: Page, name: string, from: Locator, to: Locator, presses: Locator) {
+async function region(
+  page: Page,
+  path: string,
+  from: Locator,
+  to: Locator,
+  presses: Locator,
+): Promise<void> {
   await page.waitForLoadState("networkidle").catch(() => {});
   // To the top, whichever element scrolls, so what follows it fits below.
   await from.first().evaluate((node) => node.scrollIntoView({ block: "start" }));
   const boxes = [];
   for (const locator of [from, to, presses]) {
     const box = await locator.first().boundingBox();
-    if (!box) throw new Error(`${name}: ${String(locator)} is not on the screen.`);
+    if (!box) throw new Error(`${path}: ${String(locator)} is not on the screen.`);
     boxes.push(box);
   }
   const margin = 24;
@@ -114,17 +123,23 @@ async function region(page: Page, name: string, from: Locator, to: Locator, pres
   );
   // Less below: the next line would show its top half.
   const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
-  if (bottom > SCREEN.viewport.height) throw new Error(`${name}: taller than the viewport.`);
-  await page.screenshot({
-    path: join(OUT, `${name}.png`),
-    clip: { x, y, width: right - x, height: bottom - y },
-  });
-  console.log(`  ${name}.png  ${Math.round(right - x)}×${Math.round(bottom - y)}  ${page.url()}`);
+  if (bottom > SCREEN.viewport.height) throw new Error(`${path}: taller than the viewport.`);
+  await page.screenshot({ path, clip: { x, y, width: right - x, height: bottom - y } });
+  console.log(
+    `  ${path.split("/").slice(-2).join("/")}  ${Math.round(right - x)}×${Math.round(bottom - y)}`,
+  );
 }
 
-async function walk(browser: Browser, codes: Map<string, string>) {
+async function firstCourse(
+  browser: Browser,
+  out: string,
+  work: string,
+  codes: Map<string, string>,
+) {
   const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
   const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const shot = (name: string) => join(out, "first-course", `${name}.png`);
+  mkdirSync(join(out, "first-course"));
   const page = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
   page.setDefaultTimeout(30_000);
 
@@ -137,19 +152,26 @@ async function walk(browser: Browser, codes: Map<string, string>) {
   const adding = page.getByRole("heading", { name: "Add material" });
   await adding.waitFor();
   await page.getByLabel("Title").fill(PDF_TITLE);
-  const pdf = join(mkdtempSync(join(tmpdir(), "braivo-handout-")), "why-plants-are-green.pdf");
+  const pdf = join(work, "why-plants-are-green.pdf");
   writeFileSync(pdf, handoutPdf());
   await page.getByLabel("Original file").setInputFiles(pdf);
   await sees(page, "Add material", "Title", "Text", "Original file");
   const add = page.getByRole("button", { name: "Add material", exact: true });
-  await region(page, "1-add-material", adding, add, add);
+  await region(page, shot("1-add-material"), adding, add, add);
   await add.click();
 
-  // 2. Check its pages.
-  const save = page.getByRole("button", { name: "Save source" });
+  // 2. Check its pages. Pictured once the button is ready, not while it reads as unavailable.
+  const save = page.getByRole("button", { name: "Save source", disabled: false });
   await save.waitFor();
-  await sees(page, "Text", "Keep", "Leave out", "Save source");
-  await region(page, "2-check-pages", page.getByText("Printed page"), save, save);
+  await sees(page, "Text", "Keep", "Leave out", "Next page", "Save source");
+  await page.waitForTimeout(300);
+  await region(
+    page,
+    shot("2-check-pages"),
+    page.getByText(/^Printed page of page \d+$/),
+    save,
+    save,
+  );
   await save.click();
 
   // 3. Draft.
@@ -159,32 +181,27 @@ async function walk(browser: Browser, codes: Map<string, string>) {
   await sees(page, "Learners", "Draft a course");
   const draft = page.getByRole("button", { name: "Draft a course" });
   const promise = page.getByText("You review the draft before learners see any of it.");
-  await region(page, "3-draft", drafting, promise, draft);
+  await region(page, shot("3-draft"), drafting, promise, draft);
   await draft.click();
 
-  // 4. Review.
+  // 4. Review, editing one question as the guide says: Edit, then Save.
   const reviewing = page.getByRole("heading", { name: "Review the draft" });
   await reviewing.waitFor();
   await sees(page, "Review the draft", "Edit", "Course title", "Create course");
   const edit = page.getByRole("button", { name: "Edit “Why do plants look green?”" });
-  await region(
-    page,
-    "4-review",
-    reviewing,
-    page.getByText("Chlorophyll, the green pigment in leaves, reflects green light."),
-    edit,
+  const explanation = page.getByText(
+    "Chlorophyll, the green pigment in leaves, reflects green light.",
   );
+  await region(page, shot("4-review"), reviewing, explanation, edit);
+  await edit.click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await edit.waitFor();
 
   // 5. Create it.
-  const create = page.getByRole("button", { name: "Create course" });
+  const create = page.getByRole("button", { name: "Create course", disabled: false });
   const titled = page.getByText("Course title", { exact: true });
-  await region(
-    page,
-    "5-create-course",
-    titled,
-    page.getByRole("button", { name: "Discard draft" }),
-    create,
-  );
+  const discard = page.getByRole("button", { name: "Discard draft" });
+  await region(page, shot("5-create-course"), titled, discard, create);
   await create.click();
 
   // 6. Its page.
@@ -193,7 +210,13 @@ async function walk(browser: Browser, codes: Map<string, string>) {
   await course.waitFor();
   await sees(page, "Copy address", "Hide from learners", "Retire");
   const hide = page.getByRole("button", { name: "Hide from learners" });
-  await region(page, "6-course", course, hide, page.getByRole("button", { name: "Copy address" }));
+  await region(
+    page,
+    shot("6-course"),
+    course,
+    hide,
+    page.getByRole("button", { name: "Copy address" }),
+  );
 
   // 7. As a learner.
   const learner = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
@@ -208,27 +231,53 @@ async function walk(browser: Browser, codes: Map<string, string>) {
   await learner.mouse.move(0, 0);
   const show = learner.getByText("Show answer");
   await show.waitFor();
-  await region(
-    learner,
-    "7-learner",
-    learner.getByText(/^New · /),
-    show,
-    learner.getByText("Roots take up green water"),
-  );
+  const option = learner.getByText("Roots take up green water");
+  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, option);
+}
+
+/**
+ * Stops what this run started, each apart, so one failure leaves the rest to
+ * be tried; a process group already gone (ESRCH) is already stopped.
+ */
+async function cleanUp(steps: (() => unknown)[]) {
+  const failures: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length) throw new AggregateError(failures, "Cleaning up failed.");
+}
+
+async function stop(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  try {
+    process.kill(-child.pid!, "SIGTERM");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    return;
+  }
+  await Promise.race([exited, Bun.sleep(10_000)]);
 }
 
 async function main() {
-  // Whole, so a picture the guide no longer shows does not linger.
-  rmSync(OUT, { recursive: true, force: true });
-  mkdirSync(OUT, { recursive: true });
   const target = process.env.BRAIVO_DEMO_DATABASE_URL?.trim() || "postgres://localhost/postgres";
   const secret = crypto.randomUUID() + crypto.randomUUID();
   const baseUrl = `http://127.0.0.1:${PORTS.console}`;
-  const files = mkdtempSync(join(tmpdir(), "braivo-screenshots-"));
-  const scratch = await createScratchDatabase(target);
-  const children: ReturnType<typeof spawn>[] = [];
+  const children: ChildProcess[] = [];
+  let work: string | undefined;
+  let scratch: ScratchDatabase | undefined;
   let server: ReturnType<typeof Bun.serve> | undefined;
   try {
+    work = mkdtempSync(join(tmpdir(), "braivo-screenshots-"));
+    const out = join(work, "out");
+    const files = join(work, "files");
+    mkdirSync(out);
+    mkdirSync(files);
+    scratch = await createScratchDatabase(target);
     await runMigrations(scratch.url);
     await prepareClassroom({
       databaseUrl: scratch.url,
@@ -239,15 +288,14 @@ async function main() {
 
     cannedModel();
     const codes = new Map<string, string>();
-    const environment = {
+    const config = readServeConfig({
       DATABASE_URL: scratch.url,
       BETTER_AUTH_SECRET: secret,
       BRAIVO_URL: baseUrl,
       PORT: String(PORTS.server),
       BRAIVO_FILES: files,
       ANTHROPIC_API_KEY: "canned",
-    };
-    const config = readServeConfig(environment);
+    });
     const api = createServer({
       config,
       database: createDatabase(config.databaseUrl),
@@ -266,31 +314,31 @@ async function main() {
     });
 
     for (const app of ["console", "learn"] as const) {
-      children.push(
-        spawn(
-          join(ROOT, "node_modules/.bin/vp"),
-          ["dev", "--host", "127.0.0.1", "--port", String(PORTS[app]), "--strictPort"],
-          {
-            cwd: join(ROOT, "apps", app),
-            env: {
-              ...process.env,
-              BRAIVO_URL: baseUrl,
-              PORT: String(PORTS.server),
-              BRAIVO_LEARN_PORT: String(PORTS.learn),
-            },
-            stdio: "ignore",
-            // Its own group: `vp` runs Vite in a child, which outlives a signal to `vp` alone.
-            detached: true,
+      const child = spawn(
+        join(ROOT, "node_modules/.bin/vp"),
+        ["dev", "--host", "127.0.0.1", "--port", String(PORTS[app]), "--strictPort"],
+        {
+          cwd: join(ROOT, "apps", app),
+          env: {
+            ...process.env,
+            BRAIVO_URL: baseUrl,
+            PORT: String(PORTS.server),
+            BRAIVO_LEARN_PORT: String(PORTS.learn),
           },
-        ),
+          stdio: "ignore",
+          // Its own group: `vp` runs Vite in a child, which outlives a signal to `vp` alone.
+          detached: true,
+        },
       );
+      child.on("error", (error) => console.error(`${app}: ${error.message}`));
+      children.push(child);
     }
     await waitFor(baseUrl);
     await waitFor(`http://127.0.0.1:${PORTS.learn}`);
 
     const browser = await chromium.launch();
     try {
-      await walk(browser, codes);
+      await firstCourse(browser, out, work, codes);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {
@@ -305,11 +353,17 @@ async function main() {
     } finally {
       await browser.close();
     }
+
+    // Every step passed: the new set replaces the committed one whole.
+    rmSync(SCREENSHOTS, { recursive: true, force: true });
+    cpSync(out, SCREENSHOTS, { recursive: true });
   } finally {
-    for (const child of children) process.kill(-child.pid!, "SIGTERM");
-    await server?.stop(true);
-    await dropScratchDatabase(scratch);
-    rmSync(files, { recursive: true, force: true });
+    await cleanUp([
+      ...children.map((child) => () => stop(child)),
+      () => server?.stop(true),
+      () => scratch && dropScratchDatabase(scratch),
+      () => work && rmSync(work, { recursive: true, force: true }),
+    ]);
   }
 }
 
