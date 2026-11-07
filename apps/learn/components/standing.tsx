@@ -153,16 +153,17 @@ export function StandingMeter({
       <details
         ref={details}
         onToggle={(event) => setOpen(event.currentTarget.open)}
-        className="wrap-break-word text-muted-foreground"
+        className="wrap-break-word"
       >
-        {/* Padded to a touch target, keeping the browser's marker, which flex would drop. */}
-        <summary className="cursor-pointer py-3">{line}</summary>
+        {/* Padded to a touch target, keeping the browser's marker, which flex would drop.
+            Muted text, not the whole list: an action in it keeps a control's colours. */}
+        <summary className="cursor-pointer py-3 text-muted-foreground">{line}</summary>
         <ul className="flex flex-col gap-1">
           {report.objectives.map((standing) => (
             <li key={standing.objectiveId} className="flex items-center justify-between gap-2">
               {/* A flex item: without these, one long word sets its width,
                   pushing the action past the screen (docs/apps.md, Long words). */}
-              <span className="min-w-0 wrap-anywhere">
+              <span className="min-w-0 wrap-anywhere text-muted-foreground">
                 {standing.title}: {t(STANDING_LABELS[standingOf(standing)].alone)}
               </span>
               {action?.(standing)}

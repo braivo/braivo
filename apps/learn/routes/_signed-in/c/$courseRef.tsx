@@ -30,6 +30,7 @@ import {
   redirect,
   useLoaderData,
   useRouter,
+  useRouterState,
 } from "@tanstack/react-router";
 import { CircleCheckIcon, CircleXIcon, EyeIcon, XIcon } from "lucide-react";
 import {
@@ -563,21 +564,43 @@ function NextStep() {
    * A rest's end: the course reloads (learner-loop-20), unless practice on a
    * chosen objective reached the rest by Continue, which never asks for an
    * extra question (ADR 0058): then what comes next is read as Continue reads
-   * it, reloading only if that fails.
+   * it, and a failed read stays on the rest to try again, never reloading,
+   * since a load asks for one.
    */
-  function restEnded() {
+  async function restEnded(left: AbortSignal): Promise<{ failed: boolean }> {
     if (focus === undefined || extraRequested) {
-      void reloadCourse(router);
-      return;
+      await reloadCourse(router);
+      return { failed: false };
     }
-    void advance(new AbortController().signal).then(({ failed }) => {
-      if (failed) void reloadCourse(router);
-    });
+    return advance(left);
+  }
+
+  // Practise on the objective already chosen: the address stays, so it reads
+  // in place, as Practise again does, an explicit request (ADR 0058).
+  const [startingHere, setStartingHere] = useState(false);
+  const [hereFailures, setHereFailures] = useState(0);
+  async function practiseHere() {
+    if (startingHere) return;
+    setStartingHere(true);
+    const restartSession = end !== undefined || session.answers >= SESSION_LENGTH;
+    const { failed } = await advance(new AbortController().signal, { extraRequested: true });
+    setStartingHere(false);
+    setHereFailures((count) => (failed ? count + 1 : 0));
+    if (!failed && restartSession) startAfresh();
   }
 
   // Practise, after each objective where practice pauses (progress-8).
   const practiseAction = ({ objectiveId, title }: { objectiveId: string; title: string }) => (
-    <PractiseLink objectiveId={objectiveId} title={title} onClick={changeFocus} />
+    <PractiseLink
+      objectiveId={objectiveId}
+      title={title}
+      onClick={changeFocus}
+      here={
+        objectiveId === focus
+          ? { start: () => void practiseHere(), starting: startingHere }
+          : undefined
+      }
+    />
   );
 
   return (
@@ -595,6 +618,14 @@ function NextStep() {
       {/* Above whatever comes next: the answer it speaks of is gone. Keyed by
           load, so one found by a reload in place mounts anew, and is announced.
           Gone once this load's answer is graded, or it would seem to mean that one. */}
+      {/* Keyed, so failing again mounts a new one (docs/apps.md). */}
+      {hereFailures > 0 && (
+        <Alert key={hereFailures} variant="destructive" className="mb-6">
+          <AlertDescription>
+            <Trans>Could not load the next question. Try again.</Trans>
+          </AlertDescription>
+        </Alert>
+      )}
       {refusalNotice && gradedAttempt !== attemptId && (
         <RefusalAlert key={attemptId} notice={refusalNotice} />
       )}
@@ -815,22 +846,38 @@ function PractiseLink({
   objectiveId,
   title,
   onClick,
+  here,
 }: {
   objectiveId: string;
   title: string;
   onClick: () => void;
+  /** The objective already chosen: read in place (`start`), the address unchanged. */
+  here?: { start: () => void; starting: boolean };
 }) {
   const { t } = useLingui();
+  // Its page loading: said on the link, as Continue says it, until it shows.
+  const navigating = useRouterState({
+    select: (state) =>
+      state.status === "pending" &&
+      (state.location.search as { objective?: string }).objective === objectiveId,
+  });
+  const loading = here ? here.starting : navigating;
   return (
     <Button asChild variant="outline" size="sm" className="shrink-0">
       <Link
         from={Route.fullPath}
         to="."
         search={{ objective: objectiveId }}
-        aria-label={t`Practise ${title}`}
-        onClick={onClick}
+        aria-label={loading ? undefined : t`Practise ${title}`}
+        aria-disabled={loading}
+        onClick={(event) => {
+          if (loading || here) event.preventDefault();
+          if (loading) return;
+          if (here) here.start();
+          else onClick();
+        }}
       >
-        <Trans>Practise</Trans>
+        {loading ? <Trans>Loading…</Trans> : <Trans>Practise</Trans>}
       </Link>
     </Button>
   );
@@ -1229,10 +1276,11 @@ function CourseError() {
 }
 
 /**
- * Every task for what comes next was answered recently. Reloads itself once one
- * may be asked again, never while the learner reviews the objective, which
- * keeps the rest (ADR 0054): Back to practice then reloads at once if it ended
- * meanwhile, or waits out what is left.
+ * Every task for what comes next was answered recently. Reads what comes next
+ * once one may be asked again (`onEnd`), never while the learner reviews the
+ * objective, which keeps the rest (ADR 0054): Back to practice then reads at
+ * once if it ended meanwhile, or waits out what is left. A read that fails
+ * stays here, saying so, with Try again, which reads the same way.
  */
 function Resting({
   courseId,
@@ -1245,15 +1293,38 @@ function Resting({
   objective: { id: string; title: string };
   retryAfter: number;
   reviewable: boolean;
-  /** Once the rest ends: what comes next, read again. */
-  onEnd: () => void;
+  /** Once the rest ends: what comes next, read again under `left`; whether it failed. */
+  onEnd: (left: AbortSignal) => Promise<{ failed: boolean }>;
 }) {
   const { braivo, user } = Route.useRouteContext();
   const router = useRouter();
+  // Failures in a row, each a new alert (docs/apps.md).
+  const [failures, setFailures] = useState(0);
+  const [reading, setReading] = useState(false);
+  // Aborted when this notice goes away: what replaced it is current.
+  const lifetime = useRef<AbortController>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, []);
+  async function readNext() {
+    const left = lifetime.current?.signal;
+    if (reading || !left) return;
+    setReading(true);
+    try {
+      const { failed } = await onEnd(left);
+      if (!left.aborted) setFailures((count) => (failed ? count + 1 : 0));
+    } catch {
+      if (!left.aborted) setFailures((count) => count + 1);
+    } finally {
+      if (!left.aborted) setReading(false);
+    }
+  }
   // The latest, so a render does not restart the timer.
-  const ended = useRef(onEnd);
+  const ended = useRef(readNext);
   useLayoutEffect(() => {
-    ended.current = onEnd;
+    ended.current = readNext;
   });
   const { t, i18n } = useLingui();
   const objectiveTitle = objective.title;
@@ -1266,7 +1337,7 @@ function Resting({
 
   useEffect(() => {
     if (reviewing) return;
-    const timer = setTimeout(() => ended.current(), Math.max(0, endsAt - performance.now()));
+    const timer = setTimeout(() => void ended.current(), Math.max(0, endsAt - performance.now()));
     return () => clearTimeout(timer);
   }, [endsAt, reviewing]);
 
@@ -1294,6 +1365,19 @@ function Resting({
           title={t`Take a short break`}
           description={t`You practised ${objectiveTitle} recently. Practice continues at ${continuesAt}, so the next try shows what you remember.`}
         >
+          {failures > 0 && (
+            <Alert key={failures} variant="destructive">
+              <AlertDescription>
+                <Trans>Could not load the next question. Try again.</Trans>
+              </AlertDescription>
+            </Alert>
+          )}
+          {failures > 0 && (
+            // aria-disabled, not disabled, so that it keeps the focus meanwhile.
+            <Button aria-disabled={reading} onClick={() => void readNext()}>
+              {reading ? t`Loading…` : t`Try again`}
+            </Button>
+          )}
           {reviewable && <ReviewButton ref={reviewButton} variant="outline" onClick={openReview} />}
         </Notice>
       </div>
@@ -1617,7 +1701,8 @@ function Practice({
             <MutedText>
               {t(INTENT_LABELS[decision.intent])} · {objective.title}
             </MutedText>
-            <Reason decision={decision} />
+            {/* "Not due" no longer holds once missed: the miss made it acquiring. */}
+            {!(extra && grade?.outcome === "failure") && <Reason decision={decision} />}
             {/* In the question's description, so it is read as the focus lands there. */}
             {nothingStarted && (
               <MutedText className="mt-2">

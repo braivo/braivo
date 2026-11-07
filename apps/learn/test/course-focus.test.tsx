@@ -13,7 +13,7 @@ import {
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test } from "vite-plus/test";
 
-import { renderAt } from "./render.tsx";
+import { renderAt, stall } from "./render.tsx";
 
 const at = "2026-06-01T00:00:00.000Z";
 
@@ -294,6 +294,125 @@ describe("the learn app", () => {
       expect(router.state.location.search).toEqual({ objective: "a" });
     },
   );
+
+  test("drops that an extra question is not due once it is missed", async () => {
+    renderAt("/c/4732?objective=a", {
+      signedIn: true,
+      learnerProgress: async () => caughtUp,
+      nextActivity: focusing(async () => task("practise")),
+      submitAttempt: async () => ({
+        kind: "choice",
+        outcome: "failure",
+        correctChoice: 0,
+        reviewable: false,
+      }),
+    });
+    expect(await screen.findByText("You chose this. It isn't due for review yet.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Adiós/ }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/^Not quite/));
+    // The miss made it acquiring: "not due" no longer holds. Its label stays.
+    expect(screen.queryByText("You chose this. It isn't due for review yet.")).toBeNull();
+    expect(screen.getByText("Extra practice · Greetings")).toBeTruthy();
+  });
+
+  test("shows Practise as a control, not muted text, and says it is loading until its page shows", async () => {
+    renderAt("/c/4732", {
+      signedIn: true,
+      learnerProgress: async () => caughtUp,
+      nextActivity: async (_courseId, options) =>
+        options?.objectiveId === undefined ? undefined : stall(options),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Choose a topic to practise" }));
+    const practise = screen.getByRole("link", { name: "Practise Greetings" });
+    // Muted is the list's text, never its controls'.
+    expect(practise.closest(".text-muted-foreground")).toBeNull();
+
+    fireEvent.click(practise);
+    await waitFor(() => expect(practise.textContent).toBe("Loading…"));
+    expect(practise.getAttribute("aria-disabled")).toBe("true");
+    // The other objective's stays as it was.
+    expect(screen.getByRole("link", { name: "Practise Numbers" }).textContent).toBe("Practise");
+  });
+
+  test("says Practise again is loading until the next question shows", async () => {
+    let asked = 0;
+    renderAt("/c/4732?objective=a", {
+      signedIn: true,
+      learnerProgress: async () => caughtUp,
+      nextActivity: focusing(async () => (++asked === 1 ? task("practise") : stall())),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+    const again = await screen.findByRole("button", { name: "Practise again" });
+
+    fireEvent.click(again);
+    await waitFor(() => expect(again.textContent).toBe("Loading…"));
+    expect(again.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  // Ten answers first: under a loaded suite, more than a test's default five seconds.
+  test(
+    "starts a new session when Practise names the objective already chosen, at a session's end",
+    { timeout: 30_000 },
+    async () => {
+      let asked = 0;
+      renderAt("/c/4732?objective=a", {
+        signedIn: true,
+        learnerProgress: async () => caughtUp,
+        nextActivity: focusing(async () => task("reteach", `r${++asked}`)),
+      });
+      for (let answered = 1; answered <= 10; answered++) {
+        fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+        fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+        // The answered question stays until the next replaces it: wait, or its option is pressed.
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      }
+      expect(await screen.findByText("Session complete")).toBeTruthy();
+
+      // The same address: still an explicit start, read afresh.
+      const next = `Hello, in Spanish? (r${asked + 1})`;
+      await practiseGreetings();
+      expect(await screen.findByText(next)).toBeTruthy();
+      expect(screen.queryByText("Session complete")).toBeNull();
+      expect(
+        screen.getByRole("progressbar", { name: "Session" }).getAttribute("aria-valuenow"),
+      ).toBe("0");
+    },
+  );
+
+  test("keeps a rest Continue reached from asking an extra question when its end's read fails", async () => {
+    const answers: (Activity | Error)[] = [
+      task("reteach", "t1"),
+      { objective: { id: "a", title: "Greetings" }, retryAfter: 1, reviewable: false },
+      new TypeError("Failed to fetch"),
+      task("practise", "t2"),
+    ];
+    renderAt("/c/4732?objective=a", {
+      signedIn: true,
+      learnerProgress: async () => caughtUp,
+      nextActivity: focusing(async () => {
+        const next = answers.shift();
+        if (next instanceof Error) throw next;
+        return next;
+      }),
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /Hola/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Take a short break")).toBeTruthy();
+
+    // The read at the rest's end fails: said, with a retry that asks for nothing extra.
+    expect(
+      await screen.findByText(
+        "Could not load the next question. Try again.",
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("Hello, in Spanish? (t2)")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Nothing is due on Greetings right now")).toBeTruthy();
+    expect(screen.queryByText("Hello, in Spanish? (t2)")).toBeNull();
+  });
 });
 
 function renderPage(chosen: (objectiveId: string) => Promise<Activity | undefined>) {
