@@ -36,15 +36,23 @@ const PAGES = "apps/docs/content/";
 
 /**
  * One installation's address, which product text never offers as a reader's:
- * examples say braivo.example. Only the installers live there, and the
- * README's licensing contact.
+ * examples say braivo.example. The exceptions, each a whole address in its own
+ * file: the installers in authoring, and the README's licensing contact.
  */
-const INSTALLATION = /braivo\.app/;
-const INSTALLATION_ALLOWED = [
-  "https://braivo.app/install.sh",
-  "https://braivo.app/install.ps1",
-  "hello@braivo.app",
-];
+const INSTALLATION_ALLOWED: Record<string, readonly string[]> = {
+  "apps/docs/content/guides/authoring.mdx": [
+    "https://braivo.app/install.sh",
+    "https://braivo.app/install.ps1",
+  ],
+  "README.md": ["hello@braivo.app", "mailto:hello@braivo.app"],
+};
+
+/** Each address naming braivo.app, whole: up to a space, bracket, or quote, a sentence's end aside. */
+function installationAddresses(line: string): string[] {
+  return [...line.matchAll(/[^\s()<>[\]"'`|]*braivo\.app[^\s()<>[\]"'`|]*/g)].map(([address]) =>
+    address.replace(/[.,;:!?]+$/, ""),
+  );
+}
 
 export function check(documents: Document[], exists: (path: string) => boolean): string[] {
   const problems: string[] = [];
@@ -53,11 +61,8 @@ export function check(documents: Document[], exists: (path: string) => boolean):
     if (path.startsWith(PAGES)) problems.push(...checkLinks(path, text, texts, exists));
     if (path.startsWith(PAGES) || path === "README.md") {
       text.split("\n").forEach((line, index) => {
-        const rest = INSTALLATION_ALLOWED.reduce(
-          (left, allowed) => left.replaceAll(allowed, ""),
-          line,
-        );
-        if (INSTALLATION.test(rest)) {
+        const allowed = INSTALLATION_ALLOWED[path] ?? [];
+        if (installationAddresses(line).some((address) => !allowed.includes(address))) {
           problems.push(
             `${path}:${index + 1}: names braivo.app, one installation's address: write braivo.example`,
           );

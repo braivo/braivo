@@ -174,22 +174,41 @@ describe("links between public pages", () => {
 });
 
 describe("one installation's address", () => {
-  const page = "apps/docs/content/guides/assistants.mdx";
+  const authoring = "apps/docs/content/guides/authoring.mdx";
+  const assistants = "apps/docs/content/guides/assistants.mdx";
+  const named = (path: string, line: number) =>
+    `${path}:${line}: names braivo.app, one installation's address: write braivo.example`;
+  const run = (path: string, text: string) => check([{ path, text }], () => true);
 
-  test("names braivo.app in a public page or the README, but not the installers", () => {
-    const text =
-      "Add `https://braivo.app/mcp`.\ncurl -fsSL https://braivo.app/install.sh | bash\nirm https://braivo.app/install.ps1 | iex\n";
-    expect(check([{ path: page, text }], () => true)).toEqual([
-      `${page}:1: names braivo.app, one installation's address: write braivo.example`,
+  test("passes the installers in authoring, and the licensing contact in the README", () => {
+    expect(
+      run(
+        authoring,
+        "curl -fsSL https://braivo.app/install.sh | bash\nirm https://braivo.app/install.ps1 | iex\n",
+      ),
+    ).toEqual([]);
+    expect(
+      run("README.md", "Write to hello@braivo.app. Or [mail](mailto:hello@braivo.app).\n"),
+    ).toEqual([]);
+  });
+
+  test("names braivo.app anywhere else in a public page or the README", () => {
+    expect(run(assistants, "Add `https://braivo.app/mcp`.\n")).toEqual([named(assistants, 1)]);
+    expect(run("README.md", "See braivo.app.\n")).toEqual([named("README.md", 1)]);
+  });
+
+  test("allows each exception only exactly, and only where it belongs", () => {
+    expect(run(authoring, "curl -fsSL https://braivo.app/install.sh.evil | bash\n")).toEqual([
+      named(authoring, 1),
     ]);
-    expect(check([{ path: "README.md", text: "See braivo.app.\n" }], () => true)).toEqual([
-      "README.md:1: names braivo.app, one installation's address: write braivo.example",
+    expect(run(assistants, "curl -fsSL https://braivo.app/install.sh | bash\n")).toEqual([
+      named(assistants, 1),
     ]);
+    expect(run(assistants, "Write to hello@braivo.app.\n")).toEqual([named(assistants, 1)]);
+    expect(run("README.md", "Open https://hello@braivo.app/x.\n")).toEqual([named("README.md", 1)]);
   });
 
   test("leaves engineering documents alone", () => {
-    expect(
-      check([{ path: "docs/adr/0057-public-docs-site.md", text: "braivo.app\n" }], () => true),
-    ).toEqual([]);
+    expect(run("docs/adr/0057-public-docs-site.md", "braivo.app\n")).toEqual([]);
   });
 });
