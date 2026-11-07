@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, test } from "vite-plus/test";
 
-import { assetRoute, pageRoute } from "./page-links.ts";
+import { assetRoute, pageRoute, screenshotSize } from "./page-links.ts";
 
 describe("pageRoute", () => {
   test("turns a sibling page into its route", () => {
@@ -56,4 +58,23 @@ describe("assetRoute", () => {
       expect(assetRoute(href, "guides/first-course.mdx", "/")).toBeUndefined();
     },
   );
+});
+
+describe("screenshotSize", () => {
+  const screenshot = (path: string) =>
+    fileURLToPath(new URL(`../public/docs/screenshots/${path}`, import.meta.url));
+
+  test("is half a screenshot's pixels, as captured at device scale 2", () => {
+    // 636×120 pixels.
+    expect(screenshotSize(screenshot("maintain-practice/1-explanations.png"))).toEqual({
+      width: 318,
+      height: 60,
+    });
+  });
+
+  test("leaves any other file alone", () => {
+    expect(
+      screenshotSize(fileURLToPath(new URL("../public/docs/favicon.svg", import.meta.url))),
+    ).toBeUndefined();
+  });
 });

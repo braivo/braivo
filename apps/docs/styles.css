@@ -72,8 +72,9 @@
 
 /* Screenshots are light: a border keeps one from melting into a light page, or glaring as a slab on a dark one. */
 .prose img {
-  /* The width they are captured at (tooling/docs-screenshots/capture.ts): one pixel a pixel, not enlarged. */
-  max-width: min(100%, 480px);
+  /* At most their size, which `lib/page-links.ts` sets: narrowed on a phone, never enlarged. */
+  max-width: 100%;
+  height: auto;
   border: 1px solid var(--color-fd-border);
   border-radius: 0.5rem;
 }

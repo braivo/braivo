@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +29,19 @@ export function assetRoute(href: string, from: string, base: string): string | u
   return `${base.replace(/\/?$/, "/")}${file.slice("../public/".length)}`;
 }
 
+/**
+ * A screenshot's size on the page: half its pixels, as the capture takes them
+ * at device scale 2 (tooling/docs-screenshots/capture.ts). Set on the image, a
+ * small crop shows at its size instead of stretched to the column, and the
+ * page keeps its place while it loads. `undefined` for any other file.
+ */
+export function screenshotSize(file: string): { width: number; height: number } | undefined {
+  if (!/\/docs\/screenshots\/.+\.png$/.test(file)) return undefined;
+  // A PNG's width and height, big-endian, follow its signature and IHDR's header.
+  const header = readFileSync(file).subarray(16, 24);
+  return { width: header.readUInt32BE(0) / 2, height: header.readUInt32BE(4) / 2 };
+}
+
 /** Rewrites each page's links and images into where the site serves them, as it compiles. */
 export function pageLinks(contentDir: string, base: string): MdastPluginDefinition {
   const from = (fileURL: URL) => posix.relative(contentDir, fileURLToPath(fileURL));
@@ -40,8 +54,12 @@ export function pageLinks(contentDir: string, base: string): MdastPluginDefiniti
     },
     image(node, ctx) {
       if (!ctx.fileURL) return;
-      const route = assetRoute(node.url, from(ctx.fileURL), base);
-      if (route) ctx.setProperty(node, "url", route);
+      const page = from(ctx.fileURL);
+      const route = assetRoute(node.url, page, base);
+      if (!route) return;
+      ctx.setProperty(node, "url", route);
+      const size = screenshotSize(posix.join(contentDir, posix.dirname(page), node.url));
+      if (size) ctx.setProperty(node, "data", { hProperties: size });
     },
   };
 }
