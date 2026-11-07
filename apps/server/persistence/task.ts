@@ -959,6 +959,9 @@ export async function readNextTaskAttemptTimes(
   database: Database,
   input: { learnerId: string; objectiveIds: readonly string[] },
 ): Promise<Map<string, Date | undefined>> {
+  const leastRecent = new Map<string, Date | undefined>();
+  if (input.objectiveIds.length === 0) return leastRecent;
+
   const lastAttemptAt = sql<Date | null>`max(${attempt.at})`.mapWith(attempt.at);
   const rows = await database
     .select({ objectiveId: task.objectiveId, lastAttemptAt })
@@ -967,12 +970,12 @@ export async function readNextTaskAttemptTimes(
     .where(and(inArray(task.objectiveId, [...input.objectiveIds]), offeredTask))
     .groupBy(task.id);
 
-  const leastRecent = new Map<string, Date | undefined>();
+  // Per objective, the earliest of its tasks' latest attempts; a task never
+  // answered comes first, as `readNextTask` orders nulls first.
   for (const { objectiveId, lastAttemptAt: at } of rows) {
-    const known = leastRecent.has(objectiveId);
     const held = leastRecent.get(objectiveId);
-    if (!known) leastRecent.set(objectiveId, at ?? undefined);
-    else if (held !== undefined && (at === null || at < held)) {
+    const first = !leastRecent.has(objectiveId);
+    if (first || (held !== undefined && (at === null || at < held))) {
       leastRecent.set(objectiveId, at ?? undefined);
     }
   }
