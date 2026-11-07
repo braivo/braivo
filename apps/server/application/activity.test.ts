@@ -810,7 +810,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       });
     });
 
-    test("serves a learner caught up a retained objective as extra practice, counted as usual", async () => {
+    test("serves a learner caught up a retained objective as extra practice, its answer recorded as any other", async () => {
       const inTwoWords = { course: twoWordsCourseId };
       await answer("first", wordTasks[0]!, 0, start, inTwoWords);
       await answer("second", wordTasks[1]!, 0, later(1), inTwoWords);
