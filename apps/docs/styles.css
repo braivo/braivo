@@ -183,9 +183,9 @@ a[href="#nd-page"]:focus-visible {
   overflow-x: auto;
 }
 
+/* At most its own width, as any screenshot; on a phone, no narrower than 37rem. */
 .prose .wide-shot img {
-  width: max(100%, 37rem);
-  max-width: none;
+  max-width: max(100%, 37rem);
 }
 
 /*

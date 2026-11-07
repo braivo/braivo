@@ -26,6 +26,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@types/react": "catalog:",
+    "playwright": "catalog:",
     "tailwindcss": "catalog:",
     "vite-plus": "catalog:"
   }

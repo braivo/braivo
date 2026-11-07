@@ -11,9 +11,12 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { chromium } from "playwright";
 import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 /**
@@ -164,3 +167,69 @@ test("the default build's routes are its pages, at the root", () => {
   expect(read(neutral, "index.html")).toContain("url=/docs");
   expect(relative(app, neutral)).not.toBe("dist");
 });
+
+/** Serves a build at `base` as a static host does: `/guides/faq` is `guides/faq.html`. */
+async function serve(out: string, base = ""): Promise<{ url: string; close: () => void }> {
+  const types: Record<string, string> = {
+    ".html": "text/html",
+    ".css": "text/css",
+    ".js": "text/javascript",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".json": "application/json",
+  };
+  const server = createServer((request, response) => {
+    const pathname = decodeURIComponent(new URL(request.url!, "http://host").pathname);
+    const path = pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname;
+    const file = [join(out, path), join(out, `${path}.html`)].find(
+      (candidate) => existsSync(candidate) && extname(candidate) !== "",
+    );
+    if (!file) {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
+    response.end(readFileSync(file));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return { url: `http://127.0.0.1:${port}`, close: () => server.close() };
+}
+
+test("shows a screenshot at most at its own width, a wide one scrolling in its frame on a phone", async () => {
+  const site = await serve(neutral);
+  const browser = await chromium.launch();
+  try {
+    for (const width of [375, 1440]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      await page.goto(`${site.url}/guides/follow-progress`, { waitUntil: "load" });
+      const seen = await page.evaluate(() => ({
+        pageOverflows: document.documentElement.scrollWidth > innerWidth,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        shots: [...document.querySelectorAll<HTMLImageElement>(".prose img")].map((img) => {
+          const frame = img.closest(".wide-shot");
+          return {
+            src: img.getAttribute("src"),
+            own: Number(img.getAttribute("width")),
+            shown: img.getBoundingClientRect().width,
+            wide: frame !== null,
+            frameScrolls: frame !== null && frame.scrollWidth > frame.clientWidth,
+          };
+        }),
+      }));
+      await page.close();
+      expect(seen.pageOverflows, `the page overflows at ${width}px`).toBe(false);
+      expect(seen.shots.filter((shot) => shot.wide).length).toBeGreaterThan(0);
+      for (const shot of seen.shots) {
+        expect(shot.shown, `${shot.src} at ${width}px`).toBeLessThanOrEqual(shot.own);
+        if (width === 375 && shot.wide) {
+          expect(shot.shown, `${shot.src} at ${width}px`).toBe(Math.min(shot.own, 37 * seen.rem));
+          expect(shot.frameScrolls, `${shot.src}'s frame at ${width}px`).toBe(true);
+        }
+      }
+    }
+  } finally {
+    await browser.close();
+    site.close();
+  }
+}, 60_000);
