@@ -4,7 +4,8 @@
   "promptVersion": "bc3df784392e",
   "codeRevision": "4be711660282+changes",
   "raw": {
-    "unsupported": null,
+    "coverage": null,
+    "missing": null,
     "objectives": [
       {
         "title": "History of the bicycle: early invention",

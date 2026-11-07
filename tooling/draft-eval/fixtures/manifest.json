@@ -61,7 +61,7 @@
     "origin": "market-spanish's text, with a goal naming part of it and no audience.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "goalMissing": "none"
+    "expectedCoverage": "all"
   },
   "market-spanish-goal-polish": {
     "kind": "draft",
@@ -73,7 +73,7 @@
     "origin": "market-spanish's text, with a goal in Polish, asking for instructions in a language neither English nor the material's.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "goalMissing": "none"
+    "expectedCoverage": "all"
   },
   "market-spanish-goal-grade": {
     "kind": "draft",
@@ -86,7 +86,7 @@
     "origin": "market-spanish's text, with learners described but not their language.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "goalMissing": "none"
+    "expectedCoverage": "all"
   },
   "market-spanish-goal-partial": {
     "kind": "draft",
@@ -99,7 +99,7 @@
     "origin": "market-spanish's text, with a goal it supports only in part: it never mentions paying by card.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "goalMissing": "part"
+    "expectedCoverage": "part"
   },
   "family-german-goal-missing": {
     "kind": "draft",
@@ -112,7 +112,7 @@
     "origin": "family-german's text, with a goal it does not support.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "goalMissing": "all"
+    "expectedCoverage": "none"
   },
   "market-spanish-goal-injected": {
     "kind": "draft",
@@ -137,7 +137,7 @@
       "draisine",
       "velocipede"
     ],
-    "goalMissing": "all"
+    "expectedCoverage": "none"
   },
   "two-column": {
     "kind": "read",

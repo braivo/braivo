@@ -87,6 +87,7 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
   ];
   const problems: string[] = [];
   const notes: string[] = [];
+  const normalizations: string[] = [];
 
   for (const side of sides) {
     let objectives = [0, 0];
@@ -108,6 +109,10 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
         }
         const note = unsupportedNote(record);
         if (note) notes.push(`${side.name} ${fixture}#${record.run}: ${note}`);
+        for (const line of (record.checks as { normalized?: string[] } | undefined)?.normalized ??
+          []) {
+          normalizations.push(`${side.name} ${fixture}#${record.run}: ${line}`);
+        }
       }
       const failedChecks = ok.filter(
         (record) => (record.checks as { failed: string[] }).failed.length > 0,
@@ -189,6 +194,13 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
     out.push(
       "",
       `What drafts said the material does not support:\n${notes.map((line) => `- ${line}`).join("\n")}`,
+    );
+  }
+
+  if (normalizations.length) {
+    out.push(
+      "",
+      `Read past rather than refused (not failures; read each for a judgement it contradicts):\n${normalizations.map((line) => `- ${line}`).join("\n")}`,
     );
   }
 

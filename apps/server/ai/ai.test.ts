@@ -18,19 +18,19 @@ const source = {
 
 /** A model that answers `answer`, and remembers what it was asked. */
 /**
- * A model answering `answer`, its note null unless given: every draft answer
- * carries one, and most tests are about the rest. `answeringExactly` sends it
- * as written.
+ * A model answering `answer`, judging a goal wholly covered unless it says
+ * otherwise: every draft answer carries a judgement, and most tests are about
+ * the rest. `answeringExactly` sends it as written.
  */
 function answering(answer: unknown) {
-  const withNote =
+  const judged =
     typeof answer === "object" &&
     answer !== null &&
     "objectives" in answer &&
-    !("unsupported" in answer)
-      ? { unsupported: null, ...answer }
+    !("coverage" in answer)
+      ? { coverage: "all", missing: null, ...answer }
       : answer;
-  return answeringExactly(withNote);
+  return answeringExactly(judged);
 }
 
 function answeringExactly(answer: unknown) {
@@ -92,7 +92,7 @@ describe("drafting a course from a source", () => {
     expect(asked[0]?.prompt).toContain(source.text);
     expect(asked[0]?.schema).toMatchObject({
       type: "object",
-      required: ["unsupported", "objectives"],
+      required: ["coverage", "missing", "objectives"],
     });
   });
 
@@ -136,13 +136,13 @@ describe("drafting a course from a source", () => {
       }
     });
 
-    test("restates beside the goal that it never changes an objective's shape, and where to say what is missing", async () => {
+    test("restates beside the goal that it never changes an objective's shape, and to judge coverage first", async () => {
       const { model, asked } = answering({ objectives: [] });
 
       await draftCourse(model, source, { goal });
 
       expect(asked[0]?.prompt).toContain(
-        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Answer unsupported first: what the material lacks of this goal, one sentence, never an objective, or null if it supports all of it; where it supports none of the goal, objectives is empty.\n\n`,
+        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Answer coverage first, then missing, null for all, never as an objective; for none, objectives is empty.\n\n`,
       );
     });
 
@@ -253,46 +253,136 @@ describe("drafting a course from a source", () => {
       expect(counts.kept).toEqual({ objectives: 1, tasks: 1 });
     });
 
-    test("answers the model's note on what the material does not support", async () => {
-      const unsupported = "These pages do not cover asking for the bill.";
-      const { model, asked } = answering({ objectives: [], unsupported: ` ${unsupported} ` });
+    const red = {
+      title: "Red",
+      quotes: ["Rojo significa red."],
+      tasks: [task("¿Rojo?", 0, ["Rojo significa red."]), task("Red?", 0, ["Rojo significa red."])],
+    };
+    const note = "These pages do not cover asking for the bill.";
 
-      const { draft, counts } = await draftCourse(model, source, { goal });
+    test("asks for coverage, then what is missing, both required, before the objectives", async () => {
+      const { model, asked } = answering({ objectives: [] });
 
-      expect(draft).toEqual({ objectives: [], refused: [], unsupported });
-      expect(counts.proposed).toEqual({ objectives: 0, tasks: 0 });
-      // Required and first, null or not, so every answer states it before drafting.
-      const schema = asked[0]?.schema as { properties: object; required: string[] };
-      expect(schema).toMatchObject({
-        properties: { unsupported: { type: ["string", "null"] } },
-        required: ["unsupported", "objectives"],
+      await draftCourse(model, source, { goal });
+
+      const schema = asked[0]!.schema as Record<string, unknown> & {
+        properties: Record<string, unknown>;
+      };
+      expect(Object.keys(schema.properties)).toEqual(["coverage", "missing", "objectives"]);
+      expect(schema.required).toEqual(["coverage", "missing", "objectives"]);
+      expect(schema.properties.coverage).toMatchObject({
+        anyOf: [{ type: "string", enum: ["all", "part", "none"] }, { type: "null" }],
       });
-      expect(Object.keys(schema.properties)[0]).toBe("unsupported");
+      expect(schema.properties.missing).toMatchObject({ type: ["string", "null"] });
+      // How the fields agree is Braivo's check alone: the schema sent says nothing of it.
+      expect(Object.keys(schema)).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/^(oneOf|anyOf|allOf|if|dependent)/)]),
+      );
     });
 
     test.each([
-      ["blank", "  "],
-      ["null", null],
-    ])("answers a %s note as none", async (_label, unsupported) => {
-      const { model } = answering({ objectives: [], unsupported });
+      [
+        "none, saying what is missing",
+        { coverage: "none", missing: ` ${note} `, objectives: [] },
+        0,
+        note,
+      ],
+      [
+        "part, saying what is missing",
+        { coverage: "part", missing: note, objectives: [red] },
+        1,
+        note,
+      ],
+      ["all", { coverage: "all", missing: null, objectives: [red] }, 1, undefined],
+      // Remarks on a goal the material serves: dropped, never shown as missing.
+      [
+        "all, with remarks beside it",
+        { coverage: "all", missing: note, objectives: [red] },
+        1,
+        undefined,
+      ],
+      // Nothing proposed is not a contradiction: the review says nothing came.
+      ["all, proposing nothing", { coverage: "all", missing: null, objectives: [] }, 0, undefined],
+      ["part, proposing nothing", { coverage: "part", missing: note, objectives: [] }, 0, note],
+    ])("answers coverage %s as its note, or none", async (_label, answer, kept, unsupported) => {
+      const { model } = answeringExactly(answer);
 
       const { draft } = await draftCourse(model, source, { goal });
 
-      expect(draft).toEqual({ objectives: [], refused: [] });
-      expect("unsupported" in draft).toBe(false);
+      expect(draft.objectives).toHaveLength(kept);
+      expect(draft.unsupported).toBe(unsupported);
+      expect("unsupported" in draft).toBe(unsupported !== undefined);
     });
 
-    // Asked and read by one schema: an answer that skips the judgement, or
-    // garbles it, is not the answer asked for (generation-12).
+    test("keeps a partial judgement's note when Braivo then refuses all it proposed", async () => {
+      const invented = {
+        ...red,
+        quotes: ["Volcanoes erupt."],
+        tasks: [task("Lava?", 0, ["Lava."])],
+      };
+      const { model } = answeringExactly({
+        coverage: "part",
+        missing: note,
+        objectives: [invented],
+      });
+
+      const { draft, counts } = await draftCourse(model, source, { goal });
+
+      expect(draft.unsupported).toBe(note);
+      expect(draft.objectives).toEqual([]);
+      // Proposed, then refused: not an empty proposal.
+      expect(counts.proposed).toEqual({ objectives: 1, tasks: 1 });
+      expect(counts.kept).toEqual({ objectives: 0, tasks: 0 });
+    });
+
+    // Asked and read by one schema, then checked by Braivo for what it cannot
+    // say: each is the wrong shape (generation-12), charged and never retried.
     test.each([
-      ["missing", { objectives: [] }],
-      ["malformed", { objectives: [], unsupported: 7 }],
-    ])("refuses an answer whose note is %s as the wrong shape", async (_label, answer) => {
+      ["without coverage", { missing: null, objectives: [] }],
+      ["without missing", { coverage: "all", objectives: [] }],
+      ["without objectives", { coverage: "all", missing: null }],
+      ["with coverage not one of the three", { coverage: "most", missing: null, objectives: [] }],
+      ["with no judgement of the goal", { coverage: null, missing: null, objectives: [] }],
+      ["part, not saying what is missing", { coverage: "part", missing: null, objectives: [red] }],
+      ["part, a blank note", { coverage: "part", missing: "  ", objectives: [red] }],
+      ["none, a blank note", { coverage: "none", missing: "", objectives: [] }],
+      ["none, with objectives proposed", { coverage: "none", missing: note, objectives: [red] }],
+    ])("refuses an answer %s as the wrong shape", async (_label, answer) => {
       const { model } = answeringExactly(answer);
 
       await expect(draftCourse(model, source, { goal })).rejects.toMatchObject({
         failure: "wrong-shape",
       });
+    });
+  });
+
+  describe("told no goal", () => {
+    test.each([
+      ["null", { coverage: null, missing: null }],
+      ["none with a note", { coverage: "none", missing: "No goal." }],
+      ["part without one", { coverage: "part", missing: null }],
+    ])("ignores coverage answered %s, with nothing to judge", async (_label, judged) => {
+      const { model } = answeringExactly({
+        ...judged,
+        objectives: [
+          {
+            title: "Red",
+            quotes: ["Rojo significa red."],
+            tasks: [task("¿Rojo?", 0, ["Rojo significa red."])],
+          },
+        ],
+      });
+
+      const { draft } = await draftCourse(model, source);
+
+      expect(draft.objectives).toHaveLength(1);
+      expect("unsupported" in draft).toBe(false);
+    });
+
+    test("still needs the shape asked for", async () => {
+      const { model } = answeringExactly({ objectives: [] });
+
+      await expect(draftCourse(model, source)).rejects.toMatchObject({ failure: "wrong-shape" });
     });
   });
 

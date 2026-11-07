@@ -575,7 +575,8 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       answer: async ({ prompt }) => {
         asked.push(prompt);
         return {
-          unsupported: null,
+          coverage: "all",
+          missing: null,
           objectives: [
             {
               title: "Say hello",
@@ -694,7 +695,11 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       id: "test-model",
       answer: async ({ prompt }) => {
         prompts.push(prompt);
-        return { objectives: [], unsupported: "The material does not cover the bill." };
+        return {
+          coverage: "none",
+          missing: "The material does not cover the bill.",
+          objectives: [],
+        };
       },
     };
     const drafting = createApi({
@@ -872,7 +877,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
             asked += 1;
             if (asked === 1)
               throw new ModelUnavailable("provider-error", "The model answered 529.");
-            return { unsupported: null, objectives: [] };
+            return { coverage: "all", missing: null, objectives: [] };
           },
         },
         organizations: "all",
