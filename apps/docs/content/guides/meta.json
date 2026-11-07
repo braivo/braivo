@@ -1,4 +1,12 @@
 {
   "title": "Guides",
-  "pages": ["first-course", "follow-progress", "authoring", "assistants", "api", "deployment"]
+  "pages": [
+    "first-course",
+    "follow-progress",
+    "authoring",
+    "assistants",
+    "review-and-publish",
+    "api",
+    "deployment"
+  ]
 }

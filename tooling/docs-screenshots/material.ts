@@ -111,3 +111,43 @@ export const DRAFT = {
     },
   ],
 };
+
+/**
+ * What an AI app would write for the review guide, through the API as a tool:
+ * new objectives, so the course is the tool's alone, every quote in the handout.
+ */
+export const TOOL_WORK = {
+  course: "Photosynthesis: a quick check",
+  objectives: [
+    {
+      key: "photosynthesis-inputs",
+      title: "Say what a plant takes in to make food",
+      quotes: [quote.inputs],
+      tasks: [
+        {
+          kind: "choice",
+          prompt: "Where does a plant take in water?",
+          options: ["Through its roots", "Through its leaves", "Through its flowers"],
+          answer: 0,
+          explanation: "Roots take up water from the soil; leaves take in carbon dioxide.",
+          quotes: [quote.inputs],
+        },
+      ],
+    },
+    {
+      key: "photosynthesis-outputs",
+      title: "Say what a plant gives out",
+      quotes: [quote.oxygen],
+      tasks: [
+        {
+          kind: "typed",
+          prompt: "Which gas does a plant release into the air?",
+          accepted: ["oxygen"],
+          answerLanguage: "en",
+          explanation: "Oxygen is released into the air as a by-product.",
+          quotes: [quote.oxygen],
+        },
+      ],
+    },
+  ],
+};

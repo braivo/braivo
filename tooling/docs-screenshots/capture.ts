@@ -33,7 +33,7 @@ import {
   numberCourse,
   type ScratchDatabase,
 } from "./database.ts";
-import { DRAFT, PDF_TITLE, handoutPdf } from "./material.ts";
+import { DRAFT, PDF_TITLE, TOOL_WORK, handoutPdf } from "./material.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const SCREENSHOTS = join(ROOT, "apps/docs/public/docs/screenshots");
@@ -107,7 +107,10 @@ async function waitFor(url: string) {
   throw new Error(`${url} did not answer.`);
 }
 
-async function signIn(page: Page, base: string, email: string, code: () => string | undefined) {
+async function signIn(page: Page, base: string, email: string, codes: Map<string, string>) {
+  const code = () => codes.get(email);
+  // A code mailed for an earlier sign-in is spent: wait for this one's.
+  codes.delete(email);
   await page.goto(`${base}/login`);
   await page.getByLabel(/email/i).first().fill(email);
   await page
@@ -188,14 +191,14 @@ async function firstCourse(
   out: string,
   work: string,
   codes: Map<string, string>,
-) {
+): Promise<Page> {
   const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
   const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
   const shot = (name: string) => join(out, "first-course", `${name}.png`);
   mkdirSync(join(out, "first-course"));
   const page = await newPage(browser);
 
-  await signIn(page, consoleUrl, PERSONAS.author.email, () => codes.get(PERSONAS.author.email));
+  await signIn(page, consoleUrl, PERSONAS.author.email, codes);
 
   // 1. Add the material.
   // At a phone's width the sidebar is folded away; its Sources link opens this.
@@ -275,7 +278,7 @@ async function firstCourse(
 
   // 7. As a learner.
   const learner = await newPage(browser);
-  await signIn(learner, learnUrl, PERSONAS.sam.email, () => codes.get(PERSONAS.sam.email));
+  await signIn(learner, learnUrl, PERSONAS.sam.email, codes);
   await learner
     .getByRole("link", { name: /Why plants are green/ })
     .first()
@@ -287,6 +290,7 @@ async function firstCourse(
   await show.waitFor();
   const check = learner.getByRole("button", { name: "Check" });
   await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
+  return page;
 }
 
 /**
@@ -302,7 +306,7 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
   mkdirSync(join(out, "follow-progress"));
   const page = await newPage(browser);
-  await signIn(page, consoleUrl, PERSONAS.teacher.email, () => codes.get(PERSONAS.teacher.email));
+  await signIn(page, consoleUrl, PERSONAS.teacher.email, codes);
 
   // 1. Their groups, where a teacher's console opens.
   await page.goto(`${consoleUrl}/fernwood/groups`);
@@ -341,6 +345,144 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   await sees(page, "Standing", "Evidence", "Review due");
   const last = page.getByText("Not started", { exact: true }).last();
   await region(page, shot("4-learner"), report, last, report);
+}
+
+/** The capture's own tool, signed in as `braivo` is (ADR 0022): a device code the author approves at /device. */
+async function toolToken(page: Page, consoleUrl: string): Promise<string> {
+  const post = (path: string, body: unknown) =>
+    fetch(`${consoleUrl}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((response) => response.json() as Promise<Record<string, string>>);
+  const code = await post("/api/auth/device/code", { client_id: "braivo-cli" });
+  await page.goto(code.verification_uri_complete!);
+  await page.getByRole("button", { name: "Approve" }).click();
+  await page.getByText("Signed in. You can go back to your terminal.").waitFor();
+  const token = await post("/api/auth/device/token", {
+    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    device_code: code.device_code,
+    client_id: "braivo-cli",
+  });
+  if (!token.access_token) throw new Error(`No token: ${JSON.stringify(token)}`);
+  return token.access_token;
+}
+
+/**
+ * The review guide: a course and questions a tool wrote through the API, as an
+ * AI app or `braivo` would, waiting for the author in the console (ADR 0039).
+ */
+async function reviewAndPublish(scratch: ScratchDatabase, page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  mkdirSync(join(out, "review-and-publish"));
+  // The author's own page from the first course: Braivo mails an address one
+  // code a minute, and this run's clock never leaves its minute.
+  const token = await toolToken(page, consoleUrl);
+  const api = async (method: string, path: string, body?: unknown) => {
+    const response = await fetch(`${consoleUrl}/api${path}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`);
+    }
+    return (await response.json()) as Record<string, any>;
+  };
+  const { organizations } = await api("GET", "/organizations");
+  const org = organizations.find((o: { slug: string }) => o.slug === "fernwood").id;
+  const { sources } = await api("GET", `/organizations/${org}/sources`);
+  const sourceId = sources.find((s: { title: string }) => s.title === PDF_TITLE).id;
+  const { objectiveIds } = await api("POST", `/organizations/${org}/objectives`, {
+    objectives: TOOL_WORK.objectives.map(({ title, key }) => ({ title, key })),
+  });
+  await api("POST", `/organizations/${org}/citations`, {
+    citations: TOOL_WORK.objectives.flatMap(({ quotes }, i) =>
+      quotes.map((quote) => ({ objectiveId: objectiveIds[i], sourceId, quote })),
+    ),
+  });
+  await api("POST", `/organizations/${org}/tasks`, {
+    tasks: TOOL_WORK.objectives.flatMap(({ tasks }, i) =>
+      tasks.map(({ quotes, ...task }) => ({
+        objectiveId: objectiveIds[i],
+        ...task,
+        citations: quotes.map((quote) => ({ sourceId, quote })),
+      })),
+    ),
+  });
+  await api("POST", `/organizations/${org}/courses`, {
+    title: TOOL_WORK.course,
+    objectiveIds,
+    key: "photosynthesis-check",
+  });
+
+  await numberCourse(scratch, TOOL_WORK.course, 2027);
+  const shot = (name: string) => join(out, "review-and-publish", `${name}.png`);
+
+  // 1. Under Courses, marked Needs review.
+  await page.goto(`${consoleUrl}/fernwood`);
+  const listed = page.getByRole("link", { name: new RegExp(TOOL_WORK.course) }).first();
+  await listed.waitFor();
+  await sees(page, "Courses", "Needs review");
+  const courses = page.getByRole("heading", { level: 1, name: "Courses" });
+  await region(page, shot("1-courses"), courses, listed, listed);
+  await listed.click();
+
+  // 2. A question waiting, with its answer, explanation, and passage.
+  await page.waitForURL(/\/courses\//);
+  const objective = page.getByText("1. Say what a plant takes in to make food").first();
+  await objective.waitFor();
+  await sees(
+    page,
+    "Needs review",
+    "Unpublished",
+    "Correct answer",
+    "Edit",
+    "Retire",
+    "Delete course",
+  );
+  const select = page.getByRole("checkbox", {
+    name: "Select unpublished task “Where does a plant take in water?”",
+  });
+  const passage = page
+    .getByText("Leaves take in carbon dioxide from the air, and roots take up water from the soil.")
+    .first();
+  await region(page, shot("2-question"), objective, passage, select);
+
+  // 3. Publishing all, or a selection.
+  await select.click();
+  const withSelected = page.getByRole("button", { name: "Publish with selected (1)" });
+  const withAll = page.getByRole("button", { name: "Publish with all (2)" });
+  await withSelected.waitFor();
+  // Off the checkbox, and past its transition: a hover or half-drawn tick differs from run to run.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(500);
+  const intro = page.getByText(/^Review it below, the tasks needing review first/);
+  await region(
+    page,
+    shot("3-publish"),
+    intro,
+    page.getByRole("button", { name: "Delete course" }),
+    withAll,
+  );
+  await withAll.click();
+  const confirm = page.getByRole("alertdialog");
+  if (await confirm.isVisible().catch(() => false)) {
+    await confirm.getByRole("button", { name: /^Publish/ }).click();
+  }
+
+  // 4. What learners get.
+  const course = page.getByRole("heading", { level: 1, name: TOOL_WORK.course });
+  const hide = page.getByRole("button", { name: "Hide from learners" });
+  await hide.waitFor();
+  await sees(page, "Copy address", "Hide from learners");
+  await region(
+    page,
+    shot("4-published"),
+    course,
+    hide,
+    page.getByRole("button", { name: "Copy address" }),
+  );
 }
 
 /**
@@ -449,7 +591,8 @@ async function main() {
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
       await followProgress(browser, out, codes);
-      await firstCourse(scratch, browser, out, work, codes);
+      const author = await firstCourse(scratch, browser, out, work, codes);
+      await reviewAndPublish(scratch, author, out);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {
