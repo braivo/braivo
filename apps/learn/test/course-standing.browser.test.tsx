@@ -95,3 +95,38 @@ test("in Polish, joins a later review's date and its time with o", async () => {
     await screen.findByText(/Następna powtórka: „Powitania”, środa, 5 czerwca 2030 o 12:00\.$/),
   ).toBeTruthy();
 });
+
+test("on a phone, keeps Practise in view beside an objective titled by one long word", async () => {
+  await page.viewport(320, 568);
+  const at = new Date().toISOString();
+  // An unbroken word: a hyphen or space would let it wrap and hide the bug.
+  const title = "Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz";
+  renderAt("/c/4732", {
+    signedIn: true,
+    learnerProgress: async () => ({
+      modelVersion: "v1",
+      asOf: "2026-06-01T00:00:00.000Z",
+      historyEpoch: 0,
+      repeatedMissesThreshold: 3,
+      lastPractisedAt: null,
+      objectives: [
+        {
+          objectiveId: "a",
+          title,
+          phase: "retaining",
+          lastEvidenceAt: at,
+          stability: 3,
+          retrievability: 0.95,
+          due: false,
+          dueAt: new Date(Date.now() + 86_400_000).toISOString(),
+        },
+      ],
+    }),
+  });
+
+  (await screen.findByRole("button", { name: "Choose a topic to practise" })).click();
+  const practise = await screen.findByRole("link", { name: `Practise ${title}` });
+  const { right } = practise.getBoundingClientRect();
+  expect(right).toBeLessThanOrEqual(document.documentElement.clientWidth);
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+});

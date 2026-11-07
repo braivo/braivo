@@ -160,7 +160,9 @@ export function StandingMeter({
         <ul className="flex flex-col gap-1">
           {report.objectives.map((standing) => (
             <li key={standing.objectiveId} className="flex items-center justify-between gap-2">
-              <span>
+              {/* A flex item: without these, one long word sets its width,
+                  pushing the action past the screen (docs/apps.md, Long words). */}
+              <span className="min-w-0 wrap-anywhere">
                 {standing.title}: {t(STANDING_LABELS[standingOf(standing)].alone)}
               </span>
               {action?.(standing)}
