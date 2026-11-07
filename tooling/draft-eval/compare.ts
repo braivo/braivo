@@ -208,8 +208,9 @@ function byFixture(a: string[], b: string[]): number {
 }
 
 const CHECKLIST = [
-  "One assessable target per objective",
-  "The task tests its objective, not a neighbour",
+  "One assessable target per objective: a word or phrase, or one rule over several words, never words sharing only a topic",
+  "Answering the task shows its objective's ability, not a neighbour's: understanding a reply is not asking",
+  "The task's prompt and explanation are in the language asked for; its answer in the language the objective practises",
   "The keyed answer is right and supported by its quote (located is not supported)",
   "The explanation teaches the distinction tested",
   "Its feedback gives no other task's answer away",

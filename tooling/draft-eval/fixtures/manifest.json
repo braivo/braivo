@@ -75,6 +75,30 @@
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
     "goalInMaterial": "all"
   },
+  "market-spanish-polish": {
+    "kind": "draft",
+    "file": "market-spanish.txt",
+    "title": "Unit 3: At the market",
+    "language": "es",
+    "instructionLanguage": "pl",
+    "audience": "Polish-speaking adults learning Spanish at A1 level",
+    "origin": "market-spanish's text for Polish-speaking learners, instructions in Polish, with no goal: the control for market-spanish-polish-goal.",
+    "rights": "authored",
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text."
+  },
+  "market-spanish-polish-goal": {
+    "kind": "draft",
+    "file": "market-spanish.txt",
+    "title": "Unit 3: At the market",
+    "language": "es",
+    "goal": "Poprosić o określoną ilość jedzenia i zapytać, ile to kosztuje",
+    "instructionLanguage": "pl",
+    "audience": "Polish-speaking adults learning Spanish at A1 level",
+    "origin": "market-spanish-polish with a goal in Polish: everything else the same, so a difference between the two is the goal's.",
+    "rights": "authored",
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
+    "goalInMaterial": "all"
+  },
   "market-spanish-goal-grade": {
     "kind": "draft",
     "file": "market-spanish.txt",
@@ -87,6 +111,17 @@
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
     "goalInMaterial": "all"
+  },
+  "market-spanish-grade": {
+    "kind": "draft",
+    "file": "market-spanish.txt",
+    "title": "Unit 3: At the market",
+    "language": "es",
+    "instructionLanguage": "en",
+    "audience": "Grade 5",
+    "origin": "market-spanish-goal-grade without its goal: everything else the same, so a difference between the two is the goal's.",
+    "rights": "authored",
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text."
   },
   "market-spanish-goal-partial": {
     "kind": "draft",

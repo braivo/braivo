@@ -120,13 +120,17 @@ describe("drafting a course from a source", () => {
       }
     });
 
-    test("restates beside the goal that it never changes an objective's shape, nor fills a gap", async () => {
+    // What is sent, not what the model does with it: that is the draft evaluation's.
+    test("says beside the goal that it selects targets, never regroups them or moves their tasks", async () => {
       const { model, asked } = answering({ objectives: [] });
 
       await draftCourse(model, source, { goal });
 
       expect(asked[0]?.prompt).toContain(
-        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. Where the material supports none of the goal, objectives is empty.\n\n`,
+        `<goal>\n${goal}\n</goal>\nThe goal selects which of the material's learning targets you draft, never how they are grouped: each objective stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. One rule applied to several words is one objective; words that only share a topic are not. For example, "il libro" and "la penna" are two objectives, never "Classroom objects", while "Plurals: il libro → i libri, la penna → le penne" is one. A task whose objective the goal leaves out is left out with it, never moved into the nearest objective kept. Where the material supports none of the goal, objectives is empty.\n\n`,
+      );
+      expect(asked[0]?.system).toContain(
+        `A task belongs to an objective only if answering it shows that objective's ability: for "Ask where something is", "How do you ask where the pharmacy is?" does, while "What does the passer-by answer?" tests understanding the reply. Where the material allows only one such task, write one rather than add a task that tests something else.`,
       );
       expect(asked[0]?.system).toContain(
         "Where the material does not support the goal or part of it, draft only what it does support, even nothing, never filling the gap from what you know.",

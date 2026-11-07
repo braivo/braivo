@@ -23,7 +23,7 @@ import {
 } from "../../apps/server/ai/index.ts";
 import { checkDraft, checkReading } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
-import { readManifest, type RunRecord, runEvaluation } from "./eval.ts";
+import { type Fixture, readManifest, type RunRecord, runEvaluation } from "./eval.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -43,6 +43,27 @@ describe("the draft evaluation", () => {
     }
   });
 
+  // Attributing a difference to the goal needs a draft without it that is
+  // otherwise the same: without a goal or an audience, the model is told a
+  // default audience, so a control names the learners its goal fixture does.
+  test.each([
+    ["market-spanish-goal-grade", "market-spanish-grade"],
+    ["market-spanish-polish-goal", "market-spanish-polish"],
+  ])("matches %s with a control differing by the goal alone", (withGoal, control) => {
+    const manifest = readManifest();
+    const sent = ({ file, title, language, audience, instructionLanguage }: Fixture) => ({
+      file,
+      title,
+      language,
+      audience,
+      instructionLanguage,
+    });
+    expect(manifest[withGoal]!.goal).toBeTruthy();
+    expect(manifest[control]!.goal).toBeUndefined();
+    expect(manifest[control]!.audience).toBeTruthy();
+    expect(sent(manifest[control]!)).toEqual(sent(manifest[withGoal]!));
+  });
+
   test("says what it would spend, and spends nothing without --yes", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "braivo-draft-eval-"));
     const child = Bun.spawn([process.execPath, entry, "--checkout", root, "--runs", "2"], {
@@ -56,7 +77,7 @@ describe("the draft evaluation", () => {
 
     expect(code).toBe(0);
     expect(stdout).toContain(
-      `24 calls of claude-sonnet-5 (12 fixtures × 2 runs) with ${root}'s code`,
+      `30 calls of claude-sonnet-5 (15 fixtures × 2 runs) with ${root}'s code`,
     );
     expect(stdout).toContain("Nothing was asked. Add --yes to spend them.");
     expect(readdirSync(cwd)).toEqual([]);
