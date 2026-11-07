@@ -52,3 +52,20 @@ export async function numberCourse(
     await client.end();
   }
 }
+
+/**
+ * Keeps every multiple-choice task's options in the order written. A learner's
+ * order is shuffled by a seed of random IDs (`presentTask`), so a picture of a
+ * question would change from run to run; an author may keep the order too.
+ */
+export async function keepOptionOrder({ url }: ScratchDatabase): Promise<void> {
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE task SET body = jsonb_set(body, '{keepOrder}', 'true') WHERE body->>'kind' = 'choice'`,
+    );
+  } finally {
+    await client.end();
+  }
+}

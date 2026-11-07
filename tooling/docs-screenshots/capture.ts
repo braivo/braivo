@@ -30,6 +30,7 @@ import { createDatabase, runMigrations } from "../../packages/db/index.ts";
 import {
   createScratchDatabase,
   dropScratchDatabase,
+  keepOptionOrder,
   numberCourse,
   type ScratchDatabase,
 } from "./database.ts";
@@ -67,10 +68,10 @@ const SCREEN = {
  */
 const NOW = new Date("2026-10-12T09:00:00Z");
 
-/** This process's `Date` reads `NOW` as now, one given a time as ever, until the function returned is called. */
-function freezeClock(): () => void {
+/** This process's `Date` reads `at` as now, one given a time as ever, until the function returned is called. */
+function freezeClock(at: Date): () => void {
   const Real = Date;
-  const now = NOW.getTime();
+  const now = at.getTime();
   class Frozen extends Real {
     constructor(...args: ConstructorParameters<DateConstructor> | []) {
       if (args.length === 0) super(now);
@@ -255,7 +256,8 @@ async function newPage(browser: Browser): Promise<Page> {
 
 async function firstCourse(
   scratch: ScratchDatabase,
-  realTime: (steps: () => Promise<void>) => Promise<void>,
+  /** Sam, signed in on the learning site by the learner-view tour. */
+  learner: Page,
   browser: Browser,
   out: string,
   work: string,
@@ -345,24 +347,159 @@ async function firstCourse(
     page.getByRole("button", { name: "Copy address" }),
   );
 
-  // 7. As a learner.
-  const learner = await newPage(browser);
-  // On the real clock: see NOW. Frozen again after, so the author's session
-  // from the frozen moment still holds for what follows.
-  await realTime(async () => {
-    await signIn(learner, learnUrl, PERSONAS.sam.email, codes);
-    await learner
-      .getByRole("link", { name: /Why plants are green/ })
+  // 7. As a learner, at the console's pictures' width.
+  await learner.setViewportSize(SCREEN.viewport);
+  await learner.goto(learnUrl);
+  await learner
+    .getByRole("link", { name: /Why plants are green/ })
+    .first()
+    .click();
+  await learner.waitForURL(/\/c\//);
+  // Off the options: a hover left by the click reads as a chosen answer.
+  await learner.mouse.move(0, 0);
+  const show = learner.getByText("Show answer");
+  await show.waitFor();
+  const check = learner.getByRole("button", { name: "Check" });
+  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
+  return page;
+}
+
+/** The server's clock: let go for `steps` (see NOW), or frozen at another moment. */
+type Clock = {
+  real: (steps: () => Promise<void>) => Promise<void>;
+  set: (at: Date) => void;
+};
+
+/**
+ * The demo course's right answers, by prompt (apps/server/fixtures/classroom.ts),
+ * so the tour answers whichever question Braivo decides on.
+ */
+const RIGHT: Record<string, string> = {
+  "It is eight in the morning and you meet your teacher. What do you say?": "Good morning",
+  'It is seven in the evening. Complete the greeting: "Good ___"': "evening",
+  "It is seven in the evening. Which greeting fits?": "Good evening",
+  "Which request is polite?": "Could I have a glass of water, please?",
+  'Complete the polite request: "Could I have a glass of water, ___?"': "please",
+  "Someone helps you. What do you say?": "Thank you",
+  "You are leaving a friend's house. What can you say?": "See you later",
+  'Complete the casual goodbye: "See you ___"': "later",
+};
+
+/** Answers the question shown rightly, typed or chosen. */
+async function answerRight(page: Page) {
+  const prompts = Object.keys(RIGHT);
+  const prompt = page.getByText(
+    new RegExp(`^(${prompts.map((text) => RegExp.escape(text)).join("|")})$`),
+  );
+  const answer = RIGHT[(await prompt.first().innerText()).trim()]!;
+  const field = page.getByRole("textbox");
+  if (await field.count()) {
+    await field.fill(answer);
+    await page.getByRole("button", { name: "Check" }).click();
+  } else {
+    await page.getByRole("button", { name: answer }).click();
+  }
+}
+
+/** A phone's screen, where learners mostly practise: the answer's foot is pinned to its bottom. */
+const PHONE = { width: 390, height: 844 };
+
+/**
+ * The learner-view guide, as the demo's Sam on Fernwood's learning site: their
+ * course, the question asked again after their seeded miss, missed again, its
+ * review, a right answer, and the end of practice. Signed in on the real clock
+ * (see NOW), practising on the frozen one, which the server's learning reads.
+ */
+async function learnerView(
+  clock: Clock,
+  browser: Browser,
+  out: string,
+  codes: Map<string, string>,
+): Promise<Page> {
+  const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
+  const shot = (name: string) => join(out, "learner-view", `${name}.png`);
+  mkdirSync(join(out, "learner-view"));
+  const context = await browser.newContext({ ...SCREEN, viewport: PHONE, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const page = await context.newPage();
+  page.setDefaultTimeout(30_000);
+  await clock.real(() => signIn(page, learnUrl, PERSONAS.sam.email, codes));
+  // A minute an answer, as the demo's own practice: answers at one moment
+  // leave rests and the next decision to ties between random IDs.
+  let minutes = 0;
+  const tick = async () => {
+    const at = new Date(NOW.getTime() + ++minutes * 60_000);
+    clock.set(at);
+    await context.clock.setFixedTime(at);
+  };
+
+  // 1. The course, with where Sam stands in it.
+  const course = page.getByRole("link", { name: /Everyday English/ });
+  await course.waitFor();
+  await region(
+    page,
+    shot("1-courses"),
+    page.getByRole("heading", { name: "Your courses" }),
+    course,
+    course,
+  );
+
+  // 2. The question Braivo asks again after Sam's seeded miss.
+  await course.click();
+  await page.waitForURL(/\/c\//);
+  const close = page.getByRole("link", { name: "Close" });
+  await sees(page, "Let's practise this again.", "Show answer");
+  const check = page.getByRole("button", { name: "Check" });
+  await region(page, shot("2-question"), close, page.getByText("Show answer"), check);
+
+  // 3. Missed again: the answer and the passage it quotes.
+  await page.getByRole("textbox").fill("thanks");
+  await tick();
+  await check.click();
+  const next = page.getByRole("button", { name: "Continue" });
+  await next.waitFor();
+  await sees(page, "Not quite", "Your answer", "From your lessons", "Review this topic");
+  const review = page.getByRole("button", { name: "Review this topic" });
+  await region(page, shot("3-miss"), close, next, review);
+
+  // 4. Reviewing the topic.
+  await review.click();
+  const back = page.getByRole("button", { name: "Back to practice" });
+  await back.waitFor();
+  await sees(page, "From your lessons");
+  await region(page, shot("4-review"), page.getByText(/^Review: /), back, back);
+  await back.click();
+
+  // 5. A right answer, to the question Braivo decides on next.
+  await next.click();
+  await sees(page, "Show answer");
+  await tick();
+  await answerRight(page);
+  await next.waitFor();
+  await sees(page, "Correct", "From your lessons");
+  await page.mouse.move(0, 0);
+  await region(page, shot("5-correct"), close, next, next);
+
+  // 6. Answered rightly until practice pauses.
+  const caughtUp = page.getByText("You're caught up");
+  for (let answers = 0; ; answers++) {
+    await next.click();
+    await page
+      .getByText(/^(Show answer|You're caught up)$/)
       .first()
-      .click();
-    await learner.waitForURL(/\/c\//);
-    // Off the options: a hover left by the click reads as a chosen answer.
-    await learner.mouse.move(0, 0);
-    const show = learner.getByText("Show answer");
-    await show.waitFor();
-    const check = learner.getByRole("button", { name: "Check" });
-    await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
-  });
+      .waitFor();
+    if (await caughtUp.isVisible()) break;
+    if (answers === 8) throw new Error("Practice did not pause.");
+    await tick();
+    await answerRight(page);
+  }
+  // To the meter's counts: where Sam stands as practice pauses.
+  const counts = page.getByText("3 retained", { exact: true });
+  await region(page, shot("6-caught-up"), caughtUp, counts, caughtUp);
+  // Back to NOW, still signed in, for the first course's learner: a second
+  // code within a minute of the frozen clock would be refused.
+  clock.set(NOW);
+  await context.clock.setFixedTime(NOW);
   return page;
 }
 
@@ -611,15 +748,22 @@ async function main() {
       baseUrl,
       now: NOW,
     });
+    await keepOptionOrder(scratch);
 
-    let thaw = freezeClock();
-    const realTime = async (steps: () => Promise<void>) => {
-      thaw();
-      try {
-        await steps();
-      } finally {
-        thaw = freezeClock();
-      }
+    let thaw = freezeClock(NOW);
+    const clock: Clock = {
+      real: async (steps) => {
+        thaw();
+        try {
+          await steps();
+        } finally {
+          thaw = freezeClock(NOW);
+        }
+      },
+      set: (at) => {
+        thaw();
+        thaw = freezeClock(at);
+      },
     };
     cannedModel();
     const codes = new Map<string, string>();
@@ -675,7 +819,9 @@ async function main() {
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
       await followProgress(browser, out, codes);
-      const author = await firstCourse(scratch, realTime, browser, out, work, codes);
+      // Before the first course, so Sam's list holds the demo's course alone.
+      const learner = await learnerView(clock, browser, out, codes);
+      const author = await firstCourse(scratch, learner, browser, out, work, codes);
       await reviewAndPublish(scratch, author, out);
     } catch (error) {
       for (const context of browser.contexts()) {
