@@ -429,9 +429,10 @@ const PHONE = { width: 390, height: 844 };
 
 /**
  * The learner-view guide, as the demo's Sam on Fernwood's learning site: their
- * course, the question asked again after their seeded miss, missed again, its
- * review, a right answer, and the end of practice. Signed in on the real clock
- * (see NOW), practising on the frozen one, which the server's learning reads.
+ * course and what waits there, the question asked again after their seeded
+ * miss, missed again, its review, a right answer, and the end of practice.
+ * Signed in on the real clock (see NOW), practising on the frozen one, which
+ * the server's learning reads.
  */
 async function learnerView(
   clock: Clock,
@@ -456,7 +457,7 @@ async function learnerView(
     await context.clock.setFixedTime(at);
   };
 
-  // 1. The course, with where Sam stands in it.
+  // 1. The course, with what waits for Sam there.
   const course = page.getByRole("link", { name: /Everyday English/ });
   await course.waitFor();
   await region(
