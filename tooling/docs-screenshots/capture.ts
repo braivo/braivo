@@ -145,8 +145,8 @@ async function sees(page: Page, ...labels: string[]) {
 
 /**
  * Run in the page: `clip` grown to cover every line of text, control, and
- * image it cuts through, with a little room; one wholly inside or outside
- * stays as it is. A string, as this package's types know no DOM.
+ * image it cuts through, and every bordered box it cuts at a side, with a
+ * little room; one wholly inside or outside stays as it is. A string, as this package's types know no DOM.
  */
 const STRADDLING = `(clip) => {
   const cuts = (r) =>
@@ -165,6 +165,23 @@ const STRADDLING = `(clip) => {
     rects.push(element.getBoundingClientRect());
   }
   const grown = { ...clip };
+  // A bordered box, such as a card, its edge a border or a ring (a box
+  // shadow, as shadcn's cards), whole from side to side; not top to
+  // bottom, where a step's part of a long card or list is cut on purpose,
+  // and not one as wide as the screen, as the console's own panel.
+  for (const element of document.querySelectorAll("body *")) {
+    const style = getComputedStyle(element);
+    const edged =
+      parseFloat(style.borderLeftWidth) > 0 ||
+      parseFloat(style.borderRightWidth) > 0 ||
+      style.boxShadow !== "none";
+    if (!edged) continue;
+    const r = element.getBoundingClientRect();
+    if (r.width >= innerWidth - 2 || r.bottom <= clip.y || r.top >= clip.bottom) continue;
+    // Within 2px counts: a ring is drawn just outside the box it edges.
+    if (r.left < clip.x + 2 && r.right > clip.x) grown.x = Math.min(grown.x, r.left - 8);
+    if (r.right > clip.right - 2 && r.left < clip.right) grown.right = Math.max(grown.right, r.right + 8);
+  }
   for (const r of rects.filter(cuts)) {
     grown.x = Math.min(grown.x, r.left - 8);
     grown.y = Math.min(grown.y, r.top - 4);
