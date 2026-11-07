@@ -374,6 +374,16 @@ function DraftCourse(props: { source: Source }) {
   );
 }
 
+/** One row of what a draft was asked for. */
+function AskedRow(props: { term: string; children: ReactNode }) {
+  return (
+    <div className="contents">
+      <dt className="text-muted-foreground">{props.term}</dt>
+      <dd className="wrap-break-word">{props.children}</dd>
+    </div>
+  );
+}
+
 /**
  * A draft under review: every objective and task kept by default, each one
  * dropped by unticking it, objectives' titles and tasks correctable, and what
@@ -618,25 +628,34 @@ function ReviewDraft(props: {
       <Heading level={2} id={`${id}-heading`} ref={heading} tabIndex={-1}>
         Review the draft
       </Heading>
-      {/* What it was asked for, so the owner judges the draft against it. */}
-      <p className="text-sm wrap-break-word">
-        Drafted from the whole source for: {asked.goal}
-        {asked.audience && ` · Learners: ${asked.audience}`}
-      </p>
+      {/* What it was asked for, so the owner judges the draft against it, by
+          the names the form asked with. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+        <AskedRow term="Drafted from">The whole source</AskedRow>
+        <AskedRow term="Goal">{asked.goal}</AskedRow>
+        {asked.audience && <AskedRow term="Learners">{asked.audience}</AskedRow>}
+      </dl>
+      {/* The first thing to weigh the draft by, so right under what it qualifies.
+          These boxes are notes, not alerts: they arrive with the review, whose
+          heading takes the focus, and being assertive would talk over it.
+          Attributed, as the model's judgement rather than Braivo's check. */}
+      {draft.unsupported && (
+        <Alert role="note" className="wrap-anywhere">
+          <AlertTitle>Not in the material</AlertTitle>
+          <AlertDescription className="text-foreground">
+            Braivo's AI says: {draft.unsupported}
+          </AlertDescription>
+        </Alert>
+      )}
       <MutedText>
         {submitted
           ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
           : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
       </MutedText>
-      {draft.unsupported && (
-        <Alert className="wrap-anywhere">
-          <AlertDescription>The draft says: {draft.unsupported}</AlertDescription>
-        </Alert>
-      )}
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
         // longest word a reason quotes, such as a link.
-        <Alert className="wrap-anywhere">
+        <Alert role="note" className="wrap-anywhere">
           {/* Not only what Braivo could not find in the source: also invalid tasks,
               and what is past a cap. Each reason says which. */}
           <AlertTitle>Left out of the draft</AlertTitle>

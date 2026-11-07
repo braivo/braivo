@@ -31,6 +31,12 @@ async function askForDraft(goal = GOAL) {
 
 const GOAL_LABEL = "What should learners be able to do?";
 
+/** The rows saying what a draft under review was asked for. */
+async function askedList() {
+  const list = (await screen.findByText("Drafted from")).closest("dl")!;
+  return { list, rows: Array.from(list.children, (row) => row.textContent) };
+}
+
 describe("the console", () => {
   const LEAVE_REVIEW =
     "Leave this page? The draft and your changes to it will be lost, and drafting again uses another of this month's AI requests.";
@@ -121,12 +127,12 @@ describe("the console", () => {
       "Order food and ask for the bill politely in a small cafe with friends, then leave a tip",
     );
 
-    // As it was sent, whatever the form held after.
-    expect(
-      await screen.findByText(
-        "Drafted from the whole source for: Order food and ask for the bill politely in a small cafe with friends, then leave a tip · Learners: grade 2",
-      ),
-    ).toBeTruthy();
+    // As it was sent, under the labels the form asked by, each its own row.
+    expect((await askedList()).rows).toEqual([
+      "Drafted fromThe whole source",
+      "GoalOrder food and ask for the bill politely in a small cafe with friends, then leave a tip",
+      "Learnersgrade 2",
+    ]);
     // Cut at a word, within 80 characters.
     const title = screen.getByLabelText<HTMLInputElement>("Course title");
     expect(title.value).toBe(
@@ -174,6 +180,15 @@ describe("the console", () => {
     expect(screen.getByLabelText<HTMLTextAreaElement>(GOAL_LABEL).value).toBe("Order food");
   });
 
+  test("names only what was asked, and interrupts no one with what was left out", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    await askForDraft("Order food");
+
+    expect((await askedList()).rows).toEqual(["Drafted fromThe whole source", "GoalOrder food"]);
+    expect(screen.getByText("Left out of the draft")).toBeTruthy();
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
   test("says what the source does not support, even of a draft with nothing to review", async () => {
     const unsupported = "These pages do not cover asking for the bill.";
     const braivo = {
@@ -183,7 +198,14 @@ describe("the console", () => {
     renderAt("/example/sources/s1", { braivo });
     await askForDraft("Ask for the bill");
 
-    expect(await screen.findByText(`The draft says: ${unsupported}`)).toBeTruthy();
+    // Named, and said right under what it qualifies, ahead of the instructions.
+    const label = await screen.findByText("Not in the material");
+    const note = label.parentElement!;
+    expect(note.textContent).toBe(`Not in the materialBraivo's AI says: ${unsupported}`);
+    expect((await askedList()).list.nextElementSibling).toBe(note);
+    // The review's heading takes the focus and is read from there: neither box
+    // interrupts it.
+    expect(screen.queryAllByRole("alert")).toEqual([]);
     expect(screen.getByText("The draft proposes no objectives.")).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Create course" }).disabled).toBe(
       true,
