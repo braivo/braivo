@@ -482,7 +482,7 @@ msgstr "Ask whoever invited you to send a new one."
 msgid "Author"
 msgstr "Author"
 
-#: apps/console/routes/_signed-in/join.tsx
+#: apps/console/components/organization-setup-form.tsx
 msgid "Back"
 msgstr "Back"
 

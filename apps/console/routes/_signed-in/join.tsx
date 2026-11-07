@@ -16,7 +16,7 @@ import {
 import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { OrganizationSetupForm } from "#components/organization-setup-form";
@@ -84,20 +84,18 @@ function Join() {
     return (
       <div className="mx-auto max-w-140 sm:py-10">
         {/* Asked for, so it can be put down again. */}
-        {managesNone && (
-          <Button
-            variant="link"
-            className="mb-4 px-0"
-            onClick={() => {
-              setSettingUp(false);
-              setReturned(true);
-            }}
-          >
-            <ArrowLeftIcon aria-hidden="true" />
-            <Trans>Back</Trans>
-          </Button>
-        )}
-        <OrganizationSetupForm braivo={braivo} {...setup} />
+        <OrganizationSetupForm
+          braivo={braivo}
+          {...setup}
+          onBack={
+            managesNone
+              ? () => {
+                  setSettingUp(false);
+                  setReturned(true);
+                }
+              : undefined
+          }
+        />
       </div>
     );
   }

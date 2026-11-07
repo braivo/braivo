@@ -4,7 +4,12 @@
 // Where a plain sign-in at the installation's `/login` leads someone the
 // console has nothing for: on to the school they learn at (access-59).
 
-import type { InvitationPage, Membership, Organization } from "@braivo/server/client";
+import {
+  BraivoError,
+  type InvitationPage,
+  type Membership,
+  type Organization,
+} from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
@@ -173,6 +178,49 @@ describe("a plain sign-in", () => {
 
     expect(await screen.findByRole("heading", { name: "Where you learn" })).toBeTruthy();
     expect(screen.queryByLabelText("Organization name")).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Set up an organization" }),
+    );
+  });
+
+  test("keeps Back from leaving a setup under way, and offers it again once refused", async () => {
+    const answer = Promise.withResolvers<Organization>();
+    const setUpOrganization = vi.fn(() => answer.promise);
+    renderAt("/join", {
+      organizations: [],
+      braivo: {
+        listMemberships: async () => [fernwood],
+        organizationSetup: async () => ({
+          domain: "braivo.app",
+          maySetUp: true,
+          dataRegion: null,
+          otherRegions: [],
+        }),
+        setUpOrganization,
+      },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Set up an organization" }));
+    fireEvent.change(await screen.findByLabelText("Organization name"), {
+      target: { value: "Łąka" },
+    });
+    const back = screen.getByRole("button", { name: "Back" });
+    expect((back as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
+    await vi.waitFor(() => expect(setUpOrganization).toHaveBeenCalledTimes(1));
+    // Pending: whether it was made is not known yet, so no leaving.
+    expect((back as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(back);
+    expect(screen.getByLabelText("Organization name")).toBeTruthy();
+
+    answer.reject(new BraivoError(409, "Braivo answered 409", "taken", "ADDRESS_TAKEN"));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "laka.braivo.app is taken. Choose another address.",
+    );
+    expect((back as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(back);
+
+    expect(await screen.findByRole("heading", { name: "Where you learn" })).toBeTruthy();
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Set up an organization" }),
     );
