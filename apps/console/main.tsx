@@ -21,7 +21,8 @@ const router = createConsoleRouter({
   context: {
     braivo: createClient(),
     auth: createConsoleAuth(origin),
-    visit: (href) => window.location.assign(href),
+    visit: (href, options) =>
+      options?.replace ? window.location.replace(href) : window.location.assign(href),
     readPdf,
   },
 });

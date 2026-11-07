@@ -52,6 +52,27 @@ export async function listOrganizations(input: {
   });
 }
 
+/** An organization someone is a member of, as they find it to learn there. */
+type Membership = { id: string; name: string; learnDomain: string | null };
+
+/**
+ * Every organization someone is a member of, in any role, since membership is
+ * enrollment (access-23), by name, each with where its learners practise: for
+ * the console's `/` to send a learner on (access-59). `listOrganizations` is
+ * the console's own.
+ */
+export async function listMemberships(input: {
+  database: Database;
+  actingAs: string;
+}): Promise<Membership[]> {
+  const memberships = await readMemberships(input.database, input.actingAs);
+  return memberships.map(({ organization: { id, name, learnDomain } }) => ({
+    id,
+    name,
+    learnDomain,
+  }));
+}
+
 /** The organizations someone owns: self-serve allows one. */
 async function ownedOrganizations(database: Database, userId: string) {
   return (await readMemberships(database, userId)).filter(({ roles }) => roles.includes("owner"));

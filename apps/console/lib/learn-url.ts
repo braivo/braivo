@@ -20,3 +20,13 @@ export function learnUrl(hostname: string, path = ""): string {
     ? `http://${hostname}:${port}${path}`
     : `https://${hostname}${path}`;
 }
+
+/**
+ * A learn domain's own sign-in start: it sets its nonce cookie there and comes
+ * back to `/login?handoff=`, which offers the account signed in here
+ * ("Continue as Ada"), then hands it over without another code (ADR 0018,
+ * access-12 to 15).
+ */
+export function learnSignInUrl(hostname: string): string {
+  return learnUrl(hostname, "/api/session/sign-in");
+}

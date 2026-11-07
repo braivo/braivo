@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The authoring routes (`authoring.ts`): the organizations an account manages
-// and their members, objectives, tasks, courses, and the citations grounding
-// them, and the evidence an admin records for a learner. Which host admits each
+// or belongs to; their members, objectives, tasks, courses, and the citations
+// grounding them; and the evidence an admin records for a learner. Which host admits each
 // route, and each write's refusals and body limit, is `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
@@ -13,6 +13,7 @@ import { inArray } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Model } from "../ai/index.ts";
+import { registerLearnDomain } from "../application/index.ts";
 import { createCourse, createObjectives, createSource, createTasks } from "../persistence/index.ts";
 import { createApi } from "./app.ts";
 import { baseUrl, connectionString, createTestApi, type Signed } from "./testing.ts";
@@ -139,6 +140,41 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await (await list(learner.cookie)).json()).toEqual({ organizations: [] });
     expect(anonymous.status).toBe(401);
     for (const response of [managed, anonymous]) {
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+  });
+
+  test("lists someone's own memberships, any role, with each learn domain, only to a session", async () => {
+    // The admin also learns at a school with a learn domain.
+    const learningId = "authoring-test-learning-org";
+    await testing.seedOrganization(database, {
+      organizationId: learningId,
+      learnerIds: [teacher.id],
+      at,
+    });
+    await registerLearnDomain({
+      database,
+      baseUrl,
+      organizationSlug: learningId,
+      hostname: "learn.authoring-test.example",
+    });
+    const list = (cookie?: string) =>
+      api.request("/api/memberships", cookie ? { headers: { cookie } } : undefined);
+
+    const both = await list(teacher.cookie);
+    expect(await both.json()).toEqual({
+      memberships: [
+        { id: learningId, name: learningId, learnDomain: "learn.authoring-test.example" },
+        { id: organizationId, name: organizationId, learnDomain: null },
+      ],
+    });
+    // A learner, whom the console's list leaves out.
+    expect(await (await list(learner.cookie)).json()).toEqual({
+      memberships: [{ id: organizationId, name: organizationId, learnDomain: null }],
+    });
+    const anonymous = await list();
+    expect(anonymous.status).toBe(401);
+    for (const response of [both, anonymous]) {
       expect(response.headers.get("cache-control")).toBe("private, no-store");
     }
   });

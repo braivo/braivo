@@ -13,8 +13,11 @@ import type { ReadPdf } from "./pdf/read.ts";
 export type AppContext = {
   braivo: BraivoClient;
   auth: ConsoleAuth;
-  /** Loads a page outside the app, as handing sign-in to a learn domain does. */
-  visit: (href: string) => void;
+  /**
+   * Loads a page outside the app, as handing sign-in to a learn domain does;
+   * with `replace`, in the current page's place in the history.
+   */
+  visit: (href: string, options?: { replace?: boolean }) => void;
   /** Reads a PDF's text layer in a worker (docs/adr/0055-pdf-text-in-the-browser.md). */
   readPdf: ReadPdf;
 };

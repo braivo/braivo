@@ -107,6 +107,7 @@ export { isTimeZone } from "./daily-limit.ts";
 export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";
 export {
   listMembers,
+  listMemberships,
   listOrganizations,
   maySetUpOrganization,
   NameRefused,

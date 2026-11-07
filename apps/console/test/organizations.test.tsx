@@ -9,6 +9,11 @@ import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
 import { school, annex, readCourse } from "./fixtures.ts";
 import { renderAt, stall, waitOut } from "./render.tsx";
 
+/** Managing none, setup is asked for, not shown at once (access-59). */
+async function openSetup() {
+  fireEvent.click(await screen.findByRole("button", { name: "Set up an organization" }));
+}
+
 describe("the console", () => {
   test("sends an owner from /join to their organization, setup being theirs already", async () => {
     const { router } = renderAt("/join", {
@@ -225,8 +230,9 @@ describe("the console", () => {
     // The language a menu of its own, for whoever cannot read the page yet.
     expect(screen.getByRole("button", { name: "Language: English" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /sidebar|navigation/ })).toBeNull();
-    // Not new here: no word on where learners go.
-    expect(screen.queryByText(/Here to learn\?/)).toBeNull();
+    // Not new here: no word on where learners go, nor schools to learn at.
+    expect(screen.queryByText(/Open the site your school/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Where you learn" })).toBeNull();
   });
 
   test("switches between the organizations an owner manages from the sidebar, each at its home", async () => {
@@ -259,6 +265,7 @@ describe("the console", () => {
         }),
       },
     });
+    await openSetup();
 
     const region = (await screen.findByLabelText("Data region")) as HTMLSelectElement;
     expect(region.value).toBe("EU");
@@ -280,6 +287,7 @@ describe("the console", () => {
         }),
       },
     });
+    await openSetup();
 
     expect(await screen.findByText("European Union")).toBeTruthy();
     expect(screen.getByText("Data region")).toBeTruthy();
@@ -297,6 +305,7 @@ describe("the console", () => {
         }),
       },
     });
+    await openSetup();
 
     expect(await screen.findByLabelText("Organization name")).toBeTruthy();
     expect(screen.queryByText("Data region")).toBeNull();
@@ -314,6 +323,7 @@ describe("the console", () => {
         }),
       },
     });
+    await openSetup();
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Fernwood" },
     });
@@ -369,6 +379,12 @@ describe("the console", () => {
         listCourses: async () => [],
       },
     });
+    // Asked for: most who land here, managing none, came to learn, and are
+    // told where to go first, and who they are.
+    expect(await screen.findByText(/Open the site your school/)).toBeTruthy();
+    expect(screen.getByText("Signed in as olive@example.com.")).toBeTruthy();
+    expect(screen.queryByLabelText("Organization name")).toBeNull();
+    await openSetup();
 
     const name = await screen.findByLabelText("Organization name");
     expect(document.activeElement).toBe(name);
@@ -389,9 +405,6 @@ describe("the console", () => {
     fireEvent.change(address, { target: { value: "laka" } });
     fireEvent.change(name, { target: { value: "Szkoła Łąka w Lesie" } });
     expect(address.value).toBe("laka");
-    // A learner who came here is still told where to go, and anyone who they are.
-    expect(screen.getByText(/Open the site your school/)).toBeTruthy();
-    expect(screen.getByText(/to add olive@example\.com\.$/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Create organization" }));
 
@@ -422,6 +435,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
 
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Pimsleur" },
@@ -451,6 +465,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
     const name = await screen.findByLabelText("Organization name");
     fireEvent.change(name, { target: { value: "Pimsleur" } });
 
@@ -491,6 +506,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Pimsleur" },
     });
@@ -529,6 +545,7 @@ describe("the console", () => {
           setUpOrganization,
         },
       });
+      await openSetup();
       fireEvent.change(await screen.findByLabelText("Organization name"), {
         target: { value: "Fernwood" },
       });
@@ -556,6 +573,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Fernwood" },
     });
@@ -580,6 +598,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
 
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "東京" },
@@ -615,6 +634,7 @@ describe("the console", () => {
         setUpOrganization,
       },
     });
+    await openSetup();
     fireEvent.change(await screen.findByLabelText("Organization name"), {
       target: { value: "Łąka" },
     });

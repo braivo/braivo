@@ -184,6 +184,13 @@ export type Organization = {
   aiEnabled?: boolean;
 };
 
+/**
+ * An organization the reader is a member of, in any role, and the learn
+ * domain its learners practise on, `null` before one is registered:
+ * `GET /api/memberships` (access-59).
+ */
+export type Membership = { id: string; name: string; learnDomain: string | null };
+
 /** Self-serve setup (ADR 0018), and its data regions (ADR 0040), as `api/index.ts` documents. */
 export type OrganizationSetup = {
   domain: string;

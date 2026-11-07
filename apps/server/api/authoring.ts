@@ -24,6 +24,7 @@ import {
   listObjectiveCitations,
   listObjectives,
   listObjectiveTasks,
+  listMemberships,
   listOrganizations,
   maySetUpOrganization,
   publish,
@@ -559,6 +560,16 @@ export function authoringRoutes(
       ),
     });
   });
+
+  /**
+   * The session's user's own memberships, whatever their roles, each with its
+   * learn domain (access-59). Not a connection's: its grant is to author.
+   */
+  routes.get("/api/memberships", requireAccount, async (context) =>
+    context.json({
+      memberships: await listMemberships({ database, actingAs: context.var.userId }),
+    }),
+  );
 
   /**
    * Where an organization set up here would be served, for the console to

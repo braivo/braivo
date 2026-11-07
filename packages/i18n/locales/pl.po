@@ -330,10 +330,6 @@ msgstr "{without, plural, one {Zaznaczone zadania bez wyjaśnienia: # z {total}.
 msgid "{withoutExplanation, plural, one {# of {total} published tasks has no explanation} other {# of {total} published tasks have no explanation}}"
 msgstr "{withoutExplanation, plural, one {Opublikowane zadania bez wyjaśnienia: # z {total}} few {Opublikowane zadania bez wyjaśnienia: # z {total}} many {Opublikowane zadania bez wyjaśnienia: # z {total}} other {Opublikowane zadania bez wyjaśnienia: # z {total}}}"
 
-#: apps/console/components/sign-in-page.tsx
-msgid "<0>Here to learn?</0> Sign in through your course's website."
-msgstr "<0>Jesteś uczniem?</0> Zaloguj się przez stronę swojego kursu."
-
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "300 invitations were sent from here in the last hour. Try again later."
 msgstr "W ciągu ostatniej godziny wysłano stąd już 300 zaproszeń. Spróbuj ponownie później."
@@ -486,6 +482,10 @@ msgstr "Poproś osobę, która Cię zaprosiła, o nowe zaproszenie."
 msgid "Author"
 msgstr "Autor"
 
+#: apps/console/components/organization-setup-form.tsx
+msgid "Back"
+msgstr "Wróć"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
 msgid "Back to {organizationName}"
 msgstr "Wróć do organizacji „{organizationName}”"
@@ -596,6 +596,10 @@ msgstr "Sprawdź pocztę"
 msgid "Checking…"
 msgstr "Sprawdzanie…"
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Choose a school to continue there. Signed in as {email}."
+msgstr "Wybierz szkołę, aby do niej przejść. Zalogowano jako {email}."
+
 #: apps/learn/components/standing.tsx
 msgid "Choose a topic to practise"
 msgstr "Wybierz temat do ćwiczenia"
@@ -664,6 +668,14 @@ msgstr "Ćwicz dalej."
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Continue to {hostname}"
 msgstr "Przejdź do {hostname}"
+
+#: apps/console/routes/login.tsx
+msgid "Continue to {organizationName}"
+msgstr "Przejdź do organizacji „{organizationName}”"
+
+#: apps/console/routes/_signed-in/index.tsx
+msgid "Continue to {school}"
+msgstr "Przejdź do szkoły „{school}”"
 
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
@@ -965,7 +977,6 @@ msgstr "Gotowe"
 msgid "due for review"
 msgstr "do powtórki"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -1182,10 +1193,6 @@ msgstr "Grupy"
 msgid "Here it is"
 msgstr "Oto odpowiedź"
 
-#: apps/console/routes/_signed-in/join.tsx
-msgid "Here to learn? Open the site your school or training provider gave you."
-msgstr "Jesteś uczniem? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
-
 #. A course's mark: hidden from learners
 #: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "Hidden"
@@ -1316,6 +1323,10 @@ msgstr "Pierwsze odpowiedzi zostają przy tej wersji; poprawiona zaczyna bez ża
 msgid "Its records are not available yet."
 msgstr "Jej rekordy nie są jeszcze dostępne."
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Its site for learners is not available yet."
+msgstr "Strona dla uczniów nie jest jeszcze dostępna."
+
 #: apps/console/components/group-form.tsx
 msgid "Its teachers will see no progress until it has learners and a course."
 msgstr "Nauczyciele tej grupy nie zobaczą postępów, dopóki nie będzie w niej uczniów i kursu."
@@ -1335,10 +1346,6 @@ msgstr "Dołącz do organizacji „{school}” jako administrator"
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Join {school} as an author"
 msgstr "Dołącz do organizacji „{school}” jako autor"
-
-#: apps/console/routes/_signed-in/join.tsx
-msgid "Joining an organization? Ask its owner, or whoever set Braivo up for you, to add {email}."
-msgstr "Dołączasz do organizacji? Poproś jej właściciela lub osobę, która skonfigurowała dla Ciebie Braivo, o dodanie adresu {email}."
 
 #: apps/learn/components/practice-session.tsx
 msgid "Keep going"
@@ -1455,7 +1462,6 @@ msgstr "w trakcie nauki"
 msgid "Learning"
 msgstr "Nauka"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -2029,7 +2035,6 @@ msgstr "Wyniki"
 msgid "retained"
 msgstr "utrwalono"
 
-#: apps/console/components/sign-in-page.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgctxt "A learner's standing on an objective"
@@ -2072,6 +2077,10 @@ msgstr "Rola"
 #: apps/console/components/connect-ai-app.tsx
 msgid "Run this command, then its <0>/mcp</0> command to sign in:"
 msgstr "Uruchom to polecenie, a potem w Claude Code komendę <0>/mcp</0>, aby się zalogować:"
+
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Running courses of your own? Set up an organization for them."
+msgstr "Prowadzisz własne kursy? Załóż dla nich organizację."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/general.tsx
@@ -2173,6 +2182,7 @@ msgid "Session complete"
 msgstr "Koniec sesji"
 
 #: apps/console/components/organization-switcher.tsx
+#: apps/console/routes/_signed-in/join.tsx
 msgid "Set up an organization"
 msgstr "Załóż organizację"
 
@@ -2202,6 +2212,7 @@ msgstr "Pokaż tylko te"
 msgid "Shown to the people you work with, in every organization."
 msgstr "Widzą je osoby, z którymi pracujesz, w każdej organizacji."
 
+#: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
 #: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/sign-in-form.tsx
@@ -2309,14 +2320,14 @@ msgstr "Systemowy podąża za jasnym lub ciemnym trybem Twojego urządzenia."
 msgid "Take a short break"
 msgstr "Zrób krótką przerwę"
 
+#: apps/console/routes/_signed-in/index.tsx
+msgid "Taking you to {school}…"
+msgstr "Trwa przekierowanie do szkoły „{school}”…"
+
 #. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Taught by {0}."
 msgstr "Prowadzący: {0}."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "Teach it once. <0>Tutor every learner.</0>"
-msgstr "Ucz raz. <0>Prowadź każdego ucznia.</0>"
 
 #: apps/console/components/group-form.tsx
 msgid "Teacher"
@@ -2396,10 +2407,6 @@ msgstr "Odpowiedź uznana za poprawną wydaje się błędna"
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "The invitation to {email} was cancelled already."
 msgstr "Zaproszenie dla {email} zostało już anulowane."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "The learning engine behind your courses"
-msgstr "Silnik nauki stojący za Twoimi kursami"
 
 #: apps/learn/components/report-problem.tsx
 msgid "The lesson passage doesn't support this"
@@ -2689,6 +2696,10 @@ msgstr "Co jest nie tak?"
 msgid "When the app opens Braivo's page, sign in, choose the organization, and approve it. Then, in Claude or ChatGPT, turn it on in a chat. <0>Step by step</0>"
 msgstr "Gdy aplikacja otworzy stronę Braivo, zaloguj się, wybierz organizację i zezwól na dostęp. Potem w Claude lub ChatGPT włącz Braivo w czacie. <0>Krok po kroku</0>"
 
+#: apps/console/routes/_signed-in/join.tsx
+msgid "Where you learn"
+msgstr "Twoje szkoły"
+
 #: apps/console/routes/_signed-in/consent.tsx
 msgid "Which organization should {clientName} work in?"
 msgstr "W której organizacji ma działać {clientName}?"
@@ -2844,10 +2855,6 @@ msgstr "Tę nazwę zobaczą Twoi uczniowie. Jeśli działasz samodzielnie, wpisz
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
 msgstr "Twoja historia nauki została tu wyczyszczona, więc ostatnia odpowiedź nie została zapisana. Zaczynasz od nowa."
-
-#: apps/console/components/sign-in-page.tsx
-msgid "Your materials, turned into practice that knows each learner: what they've mastered, what's slipping, and what comes next."
-msgstr "Twoje materiały jako ćwiczenia, które znają każdego ucznia: co już opanował, co zaczyna mu umykać i co przed nim."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/account.tsx
 #: packages/ui/compositions/sign-in-form.tsx

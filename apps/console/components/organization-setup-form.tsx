@@ -25,7 +25,7 @@ import { Spinner } from "@braivo/ui/components/spinner";
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useRouter } from "@tanstack/react-router";
-import { ArrowRightIcon, CircleExclamationPointIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, CircleExclamationPointIcon } from "lucide-react";
 import { type FormEvent, useId, useState } from "react";
 import { flushSync } from "react-dom";
 
@@ -63,8 +63,13 @@ export function slugOf(name: string): string {
  * (ADR 0040), chosen only if other regions are listed: another open region is
  * another installation, so choosing it trades the form for a link there,
  * creating nothing here; one not yet open is listed only.
+ *
+ * With `onBack`, a Back above it, for setup someone asked for and may put down
+ * again (access-59): until a creation starts, and again once it fails.
  */
-export function OrganizationSetupForm(props: OrganizationSetup & { braivo: BraivoClient }) {
+export function OrganizationSetupForm(
+  props: OrganizationSetup & { braivo: BraivoClient; onBack?: () => void },
+) {
   const { braivo, domain, dataRegion, otherRegions } = props;
   const router = useRouter();
   const { t, i18n } = useLingui();
@@ -174,6 +179,19 @@ export function OrganizationSetupForm(props: OrganizationSetup & { braivo: Braiv
   return (
     // `data-touch` sizes its controls for touch (`globals.css`).
     <form onSubmit={submit} aria-labelledby={`${id}-heading`} data-touch>
+      {props.onBack && (
+        // Disabled while creating: leaving then would hide whether it was made.
+        <Button
+          type="button"
+          variant="link"
+          className="mb-4 px-0"
+          disabled={creating}
+          onClick={props.onBack}
+        >
+          <ArrowLeftIcon aria-hidden="true" />
+          <Trans>Back</Trans>
+        </Button>
+      )}
       <div className="mb-8 flex flex-col gap-3">
         <Heading id={`${id}-heading`} className="mb-0 text-4xl tracking-tight">
           <Trans>Set up your organization</Trans>

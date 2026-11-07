@@ -246,8 +246,32 @@ describe("the console", () => {
       expect(screen.queryByText(/Braivo/)).toBeNull();
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
 
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
       expect(completeHandoff).toHaveBeenCalledWith("h1", expect.anything());
+    });
+
+    test("hands over on the dev server's learn app, at its own port, for a .localhost domain", async () => {
+      // As the dev server defines it (ADR 0043); the server names HTTPS, no port.
+      vi.stubEnv("BRAIVO_LEARN_PORT", "5203");
+      onTestFinished(() => {
+        vi.unstubAllEnvs();
+      });
+      const local = { organization: { name: "Fernwood" }, hostname: "fernwood.localhost" };
+      const { visit } = renderAt("/login?handoff=h1", {
+        braivo: {
+          handoff: async () => local,
+          completeHandoff: async () => "https://fernwood.localhost/api/session/handoff?code=c1",
+        },
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Continue as Olive Owner" }));
+
+      await vi.waitFor(() =>
+        expect(visit).toHaveBeenCalledWith(
+          "http://fernwood.localhost:5203/api/session/handoff?code=c1",
+          { replace: true },
+        ),
+      );
     });
 
     test("offers the account already signed in, or another", async () => {
@@ -261,7 +285,7 @@ describe("the console", () => {
       expect(completeHandoff).not.toHaveBeenCalled();
       expect(visit).not.toHaveBeenCalled();
       fireEvent.click(offered);
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
       expect(completeHandoff).toHaveBeenCalledOnce();
       expect(auth.signOut).not.toHaveBeenCalled();
       cleanup();
@@ -355,7 +379,7 @@ describe("the console", () => {
       // The operator adds them meanwhile.
       member = true;
       fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     // Better Auth answers a failed read with an error, or throws when unreachable.
@@ -484,18 +508,15 @@ describe("the console", () => {
       expect(preferredLocale(["en-GB"])).toBe("pl");
     });
 
-    test("speaks the browser's language on the console's own sign-in, which keeps its name", async () => {
+    test("speaks the browser's language on the console's own sign-in, which names no app", async () => {
       onTestFinished(() => activateLocale("en"));
       await activateLocale(chooseLocale(["pl-PL", "en"]));
       renderAt("/login", { signedIn: false });
 
       expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
-      // The console's name stays, in every language.
-      expect(screen.getByText("Braivo Console")).toBeTruthy();
-      expect(screen.getByText(/^Ucz raz\./)).toBeTruthy();
-      expect(screen.getByText("Jesteś uczniem?")).toBeTruthy();
+      // Braivo's, not the console's: learners sign in here too.
+      await vi.waitFor(() => expect(document.title).toBe("Zaloguj się · Braivo"));
       expect(screen.getByRole("button", { name: "Motyw" })).toBeTruthy();
-      expect(screen.getByText("Do powtórki")).toBeTruthy();
     });
 
     test("sets up an organization in the chosen language, wording a refusal from its code", async () => {
@@ -518,6 +539,7 @@ describe("the console", () => {
           setUpOrganization,
         },
       });
+      fireEvent.click(await screen.findByRole("button", { name: "Załóż organizację" }));
 
       expect(
         await screen.findByRole("heading", { level: 1, name: "Załóż swoją organizację" }),
@@ -525,7 +547,6 @@ describe("the console", () => {
       // Regions' names are the browser's, in the chosen language.
       expect(screen.getByRole("option", { name: "Unia Europejska" })).toBeTruthy();
       expect(screen.getByRole("option", { name: "Stany Zjednoczone (wkrótce)" })).toBeTruthy();
-      expect(screen.getByText(/o dodanie adresu olive@example\.com\.$/)).toBeTruthy();
       fireEvent.change(screen.getByLabelText("Nazwa organizacji"), { target: { value: "Łąka" } });
       fireEvent.click(screen.getByRole("button", { name: "Utwórz organizację" }));
 
@@ -547,7 +568,9 @@ describe("the console", () => {
         },
       });
 
-      expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
+      expect(
+        await screen.findByRole("heading", { name: "Przejdź do organizacji „Fernwood”" }),
+      ).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("Logowanie: Fernwood"));
       expect(screen.getByText("Potem przejdziesz na stronę learn.fernwood.example.")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Użyj innego konta" })).toBeTruthy();
@@ -601,7 +624,7 @@ describe("the console", () => {
       await signInWithCode();
       fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
 
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     test("offers to try again when the handoff cannot be read in time", async () => {
@@ -638,7 +661,7 @@ describe("the console", () => {
         await screen.findByText("Could not connect. Check your connection and try again."),
       ).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "Continue as Olive Owner" }));
-      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url));
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(url, { replace: true }));
     });
 
     test("tells a server's failure from a lost connection, offering to continue again", async () => {
@@ -705,25 +728,41 @@ describe("the console", () => {
       expect(screen.queryByText(/By continuing/)).toBeNull();
     });
 
-    test("frames the console's own sign-in with Braivo's pitch, and a learn domain's with its organization alone", async () => {
+    test("frames the console's own sign-in with Braivo's logo alone, and a learn domain's with its organization alone", async () => {
       renderAt("/login", { signedIn: false });
       const heading = await screen.findByRole("heading", { name: "Sign in" });
-      expect(screen.getByText(/^Teach it once\./)).toBeTruthy();
-      // The form's heading is the page's only one: the pitch beside it is not
-      // where a screen reader's heading navigation should land first.
+      // One page for whoever teaches or learns: Braivo's logo, nothing beside
+      // the form, no app's name, and no learner sent elsewhere.
+      expect(screen.getByText("braivo")).toBeTruthy();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(screen.queryByText(/Braivo Console|Open the site your school/)).toBeNull();
       expect(screen.getAllByRole("heading")).toEqual([heading]);
-      expect(screen.getByText("Here to learn?")).toBeTruthy();
       // The page's own frame, not the column of the console's other pages.
       expect(heading.closest("main")!.className).not.toContain("max-w-3xl");
+      cleanup();
+
+      // Returning to an invitation: the same page, with the invitation's note.
+      renderAt("/login?redirect=/invitations/inv-1", { signedIn: false });
+      await screen.findByRole("heading", { name: "Sign in" });
+      expect(screen.getByText("braivo")).toBeTruthy();
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(
+        screen.getByText(
+          "Sign in with the email address the invitation was sent to, then accept it.",
+        ),
+      ).toBeTruthy();
       cleanup();
 
       // Signing in, and offered the account already signed in.
       for (const signedIn of [false, true]) {
         renderAt("/login?handoff=h1", { signedIn, braivo: { handoff: async () => fernwood } });
-        await screen.findByRole("heading", { name: "Sign in to Fernwood" });
+        // Continuing as the account signed in, not signing in a second time.
+        await screen.findByRole("heading", {
+          name: signedIn ? "Continue to Fernwood" : "Sign in to Fernwood",
+        });
         expect(screen.getByText("Fernwood")).toBeTruthy();
         expect(screen.getByText("You will continue at learn.fernwood.example.")).toBeTruthy();
-        expect(screen.queryByText(/braivo|console|teach it once|here to learn/i)).toBeNull();
+        expect(screen.queryByText(/braivo|console/i)).toBeNull();
         cleanup();
       }
     });

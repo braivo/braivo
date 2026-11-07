@@ -22,8 +22,9 @@
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
 // organization's learn domain — `/api/auth/*`, `/api/handoffs/*`,
-// `/api/sign-in-settings`, and every `/api/organizations…` route answer 404,
-// and any request carrying `Authorization` 401 (ADR 0004, ADR 0022).
+// `/api/sign-in-settings`, `/api/memberships`, and every `/api/organizations…`
+// route answer 404, and any request carrying `Authorization` 401 (ADR 0004,
+// ADR 0022).
 //
 // What PostgreSQL cannot store as sent, a NUL or an unpaired surrogate, is
 // refused after those host refusals and before any session is read: a path
@@ -475,6 +476,11 @@
 // that the organization may use (generation-9), whatever its month's
 // requests. A member who does none of these is not listed. 401 without a
 // session.
+//
+// `GET /api/memberships` — `{ "memberships": [{ "id", "name", "learnDomain" }] }`,
+// every organization the signed-in user is a member of, in any role, by name,
+// each with the learn domain it is named by, or `null` before one is
+// registered (access-59). 401 without a session; 403 to a connection.
 //
 // `GET /api/organization-setup` — `{ "domain": "…" | null, "maySetUp": true
 // | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",

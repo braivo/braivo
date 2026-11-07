@@ -13,20 +13,16 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import {
-  ConsoleBrand,
-  ConsoleStory,
-  InvitationNote,
-  LearnerNote,
-  ConsoleSignInPage,
-} from "#components/sign-in-page";
+import { ConsoleSignInPage, InvitationNote, SignInBrand } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { learnUrl } from "#lib/learn-url";
 
 const expiredTitle = msg`This sign-in has expired`;
 
 /**
- * Signing in on the installation's origin: to the console, or, with
- * `?handoff=`, to the learn domain that sent the person here (ADR 0018).
+ * Signing in on the installation's origin, one page for whoever teaches or
+ * learns, or, with `?handoff=`, to the learn domain that sent the person here
+ * (ADR 0018).
  */
 export const Route = createFileRoute("/login")({
   // `error`: why Google's round trip came back here rather than signed in.
@@ -92,8 +88,9 @@ export const Route = createFileRoute("/login")({
           })) ?? null),
   }),
   // A learn domain's sign-in never wears Braivo's name, expired included.
+  // Braivo's own names no app, as the page is for whoever teaches or learns.
   head: ({ loaderData }) => {
-    if (loaderData?.handoff === undefined) return {};
+    if (loaderData?.handoff === undefined) return { meta: [{ title: `${t`Sign in`} · Braivo` }] };
     const organizationName = loaderData.handoff?.organization.name;
     return {
       meta: [{ title: organizationName ? t`Sign in to ${organizationName}` : t(expiredTitle) }],
@@ -128,15 +125,10 @@ function Login() {
   const onSignedIn = () => router.navigate({ href: redirect ?? "/", replace: true });
 
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
-  // Returning to an invitation: a learner among them, who joins here, so
-  // neither sent to a course's website nor told what Braivo does for teachers.
+  // Returning to an invitation, which is accepted with the address it was sent to.
   const invited = redirect?.startsWith("/invitations/") === true;
   return (
-    <ConsoleSignInPage
-      brand={<ConsoleBrand />}
-      aside={invited ? undefined : <ConsoleStory />}
-      footer={`© ${year} Braivo`}
-    >
+    <ConsoleSignInPage brand={<SignInBrand />} footer={`© ${year} Braivo`}>
       {/* An account still without a name is named by `SignIn`'s step. */}
       {method === "password" && !needsName ? (
         <PasswordSignIn auth={auth} onSignedIn={onSignedIn} />
@@ -149,7 +141,7 @@ function Login() {
           onSignedIn={onSignedIn}
         />
       )}
-      {invited ? <InvitationNote /> : <LearnerNote />}
+      {invited && <InvitationNote />}
     </ConsoleSignInPage>
   );
 }
@@ -244,11 +236,16 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
     try {
       // Leaving stays shown until the page is gone. Unanswered in time, it is
       // offered again: continuing replaces a code issued meanwhile (access-14).
-      visit(
+      const issued = new URL(
         await braivo.completeHandoff(handoffId, {
           signal: withDeadline(undefined, REQUEST_DEADLINE_MS),
         }),
       );
+      // The server names the domain over HTTPS; opened as every link here to
+      // a learn domain is, so the dev server's reaches its learn app (ADR 0043).
+      // In this page's place: spent once used, Back would reopen it only to
+      // say the sign-in expired.
+      visit(learnUrl(issued.hostname, issued.pathname + issued.search), { replace: true });
     } catch (thrown) {
       const status = thrown instanceof BraivoError ? thrown.status : undefined;
       if (status === 404) setView("expired");
@@ -298,9 +295,11 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   );
   return (
     <ConsoleSignInPage brand={brand} footer={<Trans>You will continue at {hostname}.</Trans>}>
+      {/* Signed in already, so continuing, not signing in, there; the form
+          heads itself. */}
       {view !== "form" && (
         <Heading>
-          <Trans>Sign in to {organizationName}</Trans>
+          <Trans>Continue to {organizationName}</Trans>
         </Heading>
       )}
       {error && (
