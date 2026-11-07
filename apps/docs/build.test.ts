@@ -11,7 +11,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,7 +23,11 @@ import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
  */
 
 const app = fileURLToPath(new URL(".", import.meta.url));
-const work = mkdtempSync(join(tmpdir(), "braivo-docs-build-"));
+// Under apps/docs, ignored: Astro bundles a build writing outside the directory
+// it runs in through `apps/docs/.astro/.prerender`, which another such build at
+// the same time deletes from under it; inside, each keeps its own.
+mkdirSync(join(app, ".astro"), { recursive: true });
+const work = mkdtempSync(join(app, ".astro", "build-test-"));
 
 /** Builds the site into a directory of `work`, with these settings alone. */
 function build(name: string, settings: Record<string, string>): string {
