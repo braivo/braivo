@@ -104,8 +104,30 @@ function cannedModel() {
   }) as typeof fetch;
 }
 
-async function waitFor(url: string) {
+/**
+ * Refuses a port something already answers on: the run would drive that, a
+ * developer's installation perhaps, in place of its own dev server.
+ */
+async function refuseTaken(ports: number[]) {
+  for (const port of ports) {
+    const url = `http://127.0.0.1:${port}`;
+    if (
+      await fetch(url).then(
+        () => true,
+        () => false,
+      )
+    ) {
+      throw new Error(`${url} already answers; stop what serves it first.`);
+    }
+  }
+}
+
+/** `url` answering, from `child`, the dev server this run started, failing once it has exited. */
+async function waitFor(url: string, child?: ChildProcess) {
   for (let tries = 0; tries < 120; tries++) {
+    if (child && (child.exitCode !== null || child.signalCode !== null)) {
+      throw new Error(`The dev server for ${url} exited.`);
+    }
     if (
       await fetch(url).then(
         (r) => r.status < 500,
@@ -984,6 +1006,7 @@ async function main() {
   let work: string | undefined;
   let scratch: ScratchDatabase | undefined;
   let server: ReturnType<typeof Bun.serve> | undefined;
+  await refuseTaken(Object.values(PORTS));
   try {
     work = mkdtempSync(join(tmpdir(), "braivo-screenshots-"));
     const out = join(work, "out");
@@ -1062,8 +1085,8 @@ async function main() {
       child.on("error", (error) => console.error(`${app}: ${error.message}`));
       children.push(child);
     }
-    await waitFor(baseUrl);
-    await waitFor(`http://127.0.0.1:${PORTS.learn}`);
+    await waitFor(baseUrl, children[0]);
+    await waitFor(`http://127.0.0.1:${PORTS.learn}`, children[1]);
 
     const browser = await chromium.launch();
     try {
