@@ -770,6 +770,59 @@ async function maintainPractice(scratch: ScratchDatabase, page: Page, out: strin
   await region(page, shot("3-hide"), title, hide, hide);
 }
 
+/**
+ * The words guide: tight crops of where each term shows in the console, as
+ * the author on the demo's course. Last, as it opens an editor it cancels.
+ */
+async function words(page: Page, out: string) {
+  const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
+  const shot = (name: string) => join(out, "words", `${name}.png`);
+  mkdirSync(join(out, "words"));
+
+  // The organization, named in the console's header.
+  await page.goto(`${consoleUrl}/fernwood/sources`);
+  const organization = page.getByText("Fernwood School", { exact: true }).first();
+  await organization.waitFor();
+  await page.mouse.move(0, 0);
+  await region(page, shot("organization"), organization, organization, organization);
+
+  // A source, listed under Sources.
+  const source = page.getByRole("link", { name: /Fernwood reader: everyday English/ }).first();
+  await region(page, shot("source"), source, source, source);
+
+  // An objective, its passage, and a question, on the course's page.
+  await page.goto(`${consoleUrl}/fernwood`);
+  await page
+    .getByRole("link", { name: /Everyday English/ })
+    .first()
+    .click();
+  const teaches = page.getByRole("heading", { name: "What it teaches" });
+  await teaches.waitFor();
+  const objective = page.getByText("Greet someone for the time of day").first();
+  await region(page, shot("objective"), teaches, objective, objective);
+  const quote = page
+    .getByText('In the morning, people often say "Good morning" when they meet.')
+    .first();
+  const from = page.getByText("Fernwood reader: everyday English").first();
+  await region(page, shot("passage"), quote, from, quote);
+  const prompt = page
+    .getByText("It is eight in the morning and you meet your teacher. What do you say?")
+    .first();
+  const edit = page.getByRole("button", { name: /^Edit/ }).first();
+  await sees(page, "No explanation", "Retire");
+  // Exact: the count above it says "no explanation" too.
+  const none = page.getByText("No explanation", { exact: true }).first();
+  await region(page, shot("question"), prompt, none, edit);
+
+  // A question's explanation, in its editor.
+  await edit.click();
+  const why = page.getByText("Why the answer is right", { exact: true });
+  const field = page.getByLabel("Why the answer is right");
+  await field.fill('"Good morning" is what people say when they meet in the morning.');
+  await region(page, shot("explanation"), why, field, field);
+  await page.getByRole("button", { name: "Cancel" }).click();
+}
+
 async function cleanUp(steps: (() => unknown)[]) {
   const failures: unknown[] = [];
   for (const step of steps) {
@@ -892,6 +945,7 @@ async function main() {
       const author = await firstCourse(scratch, learner, browser, out, work, codes);
       await reviewAndPublish(scratch, author, out);
       await maintainPractice(scratch, author, out);
+      await words(author, out);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {
