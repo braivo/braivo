@@ -333,9 +333,10 @@ describe("the console", () => {
     // interrupts it.
     expect(screen.queryAllByRole("alert")).toEqual([]);
     expect(screen.getByText(EMPTY_DRAFT(""))).toBeTruthy();
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Create course" }).disabled).toBe(
-      true,
-    );
+    // Nothing to name or create: only the way back is offered.
+    expect(screen.queryByLabelText("Course title")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
   });
 
   test.each([

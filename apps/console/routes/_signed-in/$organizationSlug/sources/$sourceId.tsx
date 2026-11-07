@@ -733,7 +733,7 @@ function ReviewDraft(props: {
           the AI's note says the source lacks the goal; quotes not found empty a
           draft too. */}
       {draft.objectives.length === 0 && (
-        <p>
+        <p className="text-sm">
           Nothing in this draft can become a course
           {draft.unsupported
             ? ""
@@ -855,19 +855,22 @@ function ReviewDraft(props: {
             </article>
           );
         })}
-        <Field data-invalid={error?.field === `${id}-title` || undefined}>
-          <FieldLabel htmlFor={`${id}-title`}>Course title</FieldLabel>
-          <Input
-            id={`${id}-title`}
-            name="title"
-            required
-            maxLength={MAX_TITLE}
-            defaultValue={suggestTitle(brief.goal)}
-            onChange={() => clearFieldError(`${id}-title`)}
-            {...ariaFor(`${id}-title`)}
-          />
-          {fieldError(`${id}-title`)}
-        </Field>
+        {/* No title to ask for, nor course to create, from a draft of nothing. */}
+        {draft.objectives.length > 0 && (
+          <Field data-invalid={error?.field === `${id}-title` || undefined}>
+            <FieldLabel htmlFor={`${id}-title`}>Course title</FieldLabel>
+            <Input
+              id={`${id}-title`}
+              name="title"
+              required
+              maxLength={MAX_TITLE}
+              defaultValue={suggestTitle(brief.goal)}
+              onChange={() => clearFieldError(`${id}-title`)}
+              {...ariaFor(`${id}-title`)}
+            />
+            {fieldError(`${id}-title`)}
+          </Field>
+        )}
       </FieldSet>
       <FieldGroup>
         {error && !error.field && (
@@ -878,14 +881,16 @@ function ReviewDraft(props: {
         <Field orientation="horizontal">
           {/* Not while a task is open: its unsaved edit would be left out.
               While sending, aria-disabled, so that it keeps the focus. */}
-          <Button
-            type="submit"
-            ref={createButton}
-            disabled={kept.length === 0 || editing !== undefined}
-            aria-disabled={creating}
-          >
-            {submitted && !creating ? "Try again" : "Create course"}
-          </Button>
+          {draft.objectives.length > 0 && (
+            <Button
+              type="submit"
+              ref={createButton}
+              disabled={kept.length === 0 || editing !== undefined}
+              aria-disabled={creating}
+            >
+              {submitted && !creating ? "Try again" : "Create course"}
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"
