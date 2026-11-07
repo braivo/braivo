@@ -96,6 +96,15 @@ describe("links between public pages", () => {
     ).toEqual([]);
   });
 
+  test("passes a question's ID, slugged as its Accordion is", () => {
+    expect(
+      run(
+        "[a](./api.mdx#does-our-material-go-to-an-ai) [b](./api.mdx#who-sees-a-learners-progress)\n",
+        '<Accordion title="Does our material go to an AI?">\n\n<Accordion title="Who sees a learner’s progress?">\n',
+      ),
+    ).toEqual([]);
+  });
+
   test("ignores what is in code, and a fence's fake heading", () => {
     expect(run("```text\n[a](./gone.mdx)\n## Fake\n```\n\n`[b](./gone.mdx)` [c](#fake)\n")).toEqual(
       [`${page}:6: \`#fake\` names no heading of ${page}`],

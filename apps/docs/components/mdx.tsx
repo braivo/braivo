@@ -4,6 +4,7 @@
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { DocsBody } from "fumadocs-ui/layouts/docs/page";
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import { slug } from "github-slugger";
 import type { ReactNode } from "react";
 
 /**
@@ -18,15 +19,12 @@ function Accordions({ children }: { children?: ReactNode }) {
 }
 
 /**
- * Its ID is its question's slug, so a link can name one answer; `Layout.astro`
- * opens the one a URL's hash names, which `:target` cannot.
+ * Its ID is its question's slug, as `docs:check` reads it, so a link can name
+ * one answer; `Layout.astro` opens the one a URL's hash names, which `:target`
+ * cannot.
  */
 function Accordion({ title, children }: { title: string; children?: ReactNode }) {
-  const id = title
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
-    .trim()
-    .replace(/\s+/g, "-");
+  const id = slug(title);
   return (
     <details className="accordion" id={id}>
       <summary>

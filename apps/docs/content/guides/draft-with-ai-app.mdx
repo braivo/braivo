@@ -23,7 +23,7 @@ An AI app such as Claude or ChatGPT, once [connected to Braivo](./assistants.mdx
 
 ## What to ask for
 
-Ask for a small piece of work at a time, and say which part of your material, for whom, and what learners should be able to do.
+Start with one chapter or a few pages. Tell your AI app who the learners are and what they should be able to do. You can copy and adapt an example below.
 
 | Ask like this                                                                                                      | Not like this                  |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
@@ -31,7 +31,7 @@ Ask for a small piece of work at a time, and say which part of your material, fo
 | "Turn chapter 2 of this PDF into a course for Grade 5: what plants take in and give out, one question per idea."   | "Make me a course on biology." |
 | "Convert this question bank: keep every question's wording and answer key, and list the ones that need a picture." | "Rewrite these questions."     |
 
-Bring a long book in as a file, in the console or with the [`braivo` command](./authoring.mdx#the-braivo-command), rather than through a chat: the app then reads it a part at a time. An app that retypes a book into its replies spends that many tokens, and can change words as it goes.
+Add a long book in Braivo's console, or with the [`braivo` command](./authoring.mdx#the-braivo-command), rather than pasting it into a chat. Your AI app can then read it a section at a time. Retyping the book costs the app time and usage, and can change its words.
 
 ## What Braivo checks, and what it doesn't
 
@@ -44,10 +44,10 @@ Braivo doesn't check that an answer is right. A quote shows where a question cam
 
 ## Braivo's own draft, or your AI app
 
-Braivo's own **Draft a course**, in the console, reads a whole source and takes only who the course is for. To draft from one chapter, add that chapter as a source of its own. Your AI app can also take pages, goals, and the kind of question you want.
+Braivo's own **Draft a course**, in the console, reads all the material saved together as one source, and asks only who the course is for. To draft from one chapter, add that chapter separately. Your AI app can also take pages, goals, and the kind of question you want.
 
 ## What it can and can't do
 
-It can read and add material as text, define what the material teaches, write questions that quote it, correct them, and arrange them into a course. A hosted app adds the text it reads from what you attach; a desktop agent can also add a PDF with the file kept beside it, through the [`braivo` command](./authoring.mdx#the-braivo-command), which you let it run.
+It can read and add material as text, define what the material teaches, write questions that quote it, correct them, and arrange them into a course. An app in your browser sends Braivo text from the files you attach. An agent running on your computer can also upload the original PDF, with your permission, through the [`braivo` command](./authoring.mdx#the-braivo-command).
 
-It can't publish anything, retire a published question, or read your learners' names or progress. Everything it writes reaches no learner until you publish it: [review and publish it](./review-and-publish.mdx) in the console.
+It can't publish anything, retire a published question, or read Braivo's learner lists or progress reports. Everything it writes reaches no learner until you publish it: [review and publish it](./review-and-publish.mdx) in the console.

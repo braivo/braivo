@@ -17,7 +17,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
 
-import GithubSlugger from "github-slugger";
+import GithubSlugger, { slug } from "github-slugger";
 
 export type Document = { path: string; text: string };
 
@@ -111,7 +111,10 @@ function checkImage(
   return alt.trim() ? undefined : `\`${href}\` has no alt text`;
 }
 
-/** A page's heading IDs: GitHub's and the site's slugs, the same algorithm. */
+/**
+ * A page's heading IDs, GitHub's and the site's slugs alike, and its questions',
+ * which `Accordion` (`apps/docs/components/mdx.tsx`) slugs from its title.
+ */
 function headings(text: string): Set<string> {
   const slugger = new GithubSlugger();
   const ids = new Set<string>();
@@ -119,6 +122,7 @@ function headings(text: string): Set<string> {
     const heading = /^#{1,6}\s+(.+?)\s*$/.exec(line)?.[1];
     if (heading)
       ids.add(slugger.slug(heading.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[`*]/g, "")));
+    for (const [, title = ""] of line.matchAll(/<Accordion title="([^"]+)"/g)) ids.add(slug(title));
   }
   return ids;
 }

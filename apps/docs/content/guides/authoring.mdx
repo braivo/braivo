@@ -15,7 +15,7 @@ Pick this if you have a PDF with selectable text, and no AI app of your own: [yo
 
 <Card title="With your own AI app">
 
-Pick this if you already use Claude, ChatGPT, or a desktop agent such as Claude Code: [let it build the course](#let-your-ai-app-build-the-course).
+Pick this if you already use Claude, ChatGPT, or a desktop agent such as Claude Code: [ask your AI app to prepare a course](./draft-with-ai-app.mdx).
 
 </Card>
 
@@ -46,11 +46,11 @@ What a file holds, not its type, decides how it becomes practice, and one file c
 - **Questions you already have** (a question bank, past exams): _convert_ them, keeping each question's wording, answer key, and number. Have your agent write a converter rather than retype them: "Write a script that converts this question bank: every statement and its answer verbatim, quoted by its item number, grouped by topic. Rewrite nothing. Leave out items that need a picture, and list them. Keep a manifest of what you imported, and on a re-import skip what I corrected or retired; stop and ask when unsure." Braivo cannot tell a question never imported from one you rejected; the manifest can. A model retyping a statement can drop a "not" while quoting it correctly, and Braivo checks the quote, not the answer key. A bank's false statements are practice, not teaching: never cite one as the explanation of a rule.
 - **The same material for another purpose**: add it once and prepare again from the same source: "From the source _Driving theory questions_, choose the words a learner must know to read its statements, most frequent first, and write recognition questions citing a statement each occurs in."
 
+Process only material you may, and remember that what an assistant reads goes to its provider. Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
+
 Bring large material in as a file, not through a chat: add it in the console or with `braivo sources add`, then let the assistant read it a part at a time. An assistant that writes a book's text, or thousands of questions, into its replies spends that many output tokens, and can change words as it goes. A converter needs an agent that can run code on your machine; a hosted assistant without one prepares a small, reviewed batch at a time.
 
 Some things do not carry over yet. A source is text: questions that depend on a picture cannot be practised, so leave them out and keep the list. Check a source's text against the original before drafting from it, columns and tables especially, since a misreading reaches every question citing it. A source cannot be changed: to correct one that tasks already cite, add the corrected text as another source and write the corrected tasks citing it, each as a correction of the task it replaces; publishing a correction in the console retires that task.
-
-Process only material you may, and remember that what an assistant reads goes to its provider. Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
 
 ## The `braivo` command
 
@@ -109,7 +109,7 @@ The command keeps your session in `~/.config/braivo/credentials.json` and acts w
 
 ## Let your AI app build the course
 
-[Connect it to Braivo](./assistants.mdx#connect) first, then ask it for a bounded piece of work: [ask your AI app to prepare a course](./draft-with-ai-app.mdx) says what to ask for, what Braivo checks, and what stays yours to check. Its course then waits under **Courses**, marked **Needs review**, until you [review and publish it](./review-and-publish.mdx).
+Ask your AI app to prepare a small part of your material. Start with these [example requests](./draft-with-ai-app.mdx); that page first says what your app's provider receives. Its new course waits under **Courses**, marked **Needs review**, until you [review and publish it](./review-and-publish.mdx).
 
 Each question can explain its answer, which a learner reads after answering. A course's page counts the questions without an explanation under its title and marks each one; **Show only these** lists just them, and **Edit** opens each at its explanation, ready to write one from the passage it cites. A published question's correction is published as you save it, and the page moves on to the next. Or ask your AI app: "add an explanation to each question in this course that has none, from the passage it cites"; its corrections wait for your review, like any other.
 

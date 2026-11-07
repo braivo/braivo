@@ -3,7 +3,9 @@ title: "Use Braivo from your AI app"
 description: "Connect an AI app such as Claude or ChatGPT to Braivo, and what it can do there."
 ---
 
-An AI app that connects to remote MCP servers by OAuth, such as Claude, ChatGPT, or a desktop agent like Claude Code, can work with your organization's material in Braivo, using the app's own model and your subscription to it ([ADR 0045](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md)). Nothing to install: the app needs Braivo's address and your sign-in.
+Connect an AI app such as Claude or ChatGPT to your school's material in Braivo. It uses its own AI model and your subscription. Nothing to install: the app needs Braivo's address and your sign-in.
+
+## Connect
 
 <Callout type="warn">
 
@@ -11,16 +13,30 @@ What the app reads from Braivo, your material included, goes to the company that
 
 </Callout>
 
-## Connect
+Braivo's address for apps is your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. Braivo's console shows it, ready to copy, in your account's settings, **Connected apps**, and on an organization's Courses while it has none, with where to start in each app and a first prompt to paste. Add it in your app:
 
-1. In the app, add Braivo with your installation's address followed by `/mcp`, such as `https://braivo.app/mcp`. Braivo's console shows it, ready to copy, in your account's settings, Connected apps, and on an organization's Courses while it has none, with where to start in each app and a first prompt to paste. Once Braivo is listed in the app's directory, adding it from there does the same.
-   - **Claude:** in Customize, Connectors, select **+ Add**, then **Add custom connector**, and enter a name and the address. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors, and you select **Connect** under Customize, Connectors. A Free plan holds one custom connector.
-   - **ChatGPT:** on the web. Building a course needs a Business, Enterprise, or Edu plan, the only ones with full MCP; Pro has read and fetch only ([OpenAI's help article](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)), and a workspace's policies apply ([its developer page](https://developers.openai.com/plugins/deploy/connect-chatgpt)). At [chatgpt.com/plugins](https://chatgpt.com/plugins), select the plus button, then **Add custom MCP server**. Enter a name and the address as the **Server URL**, and choose **OAuth** for authentication. Then select **Create as a plugin**, and install it.
-   - **Claude Code:** run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in.
-2. Sign in to Braivo in the page that opens.
-3. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
-4. Approve it. The page names the app and the organization.
-5. Turn it on where you work. In Claude, in a chat, under **+**, **Connectors**. In ChatGPT, in a new chat, type `@` and select it.
+### Claude
+
+In Customize, Connectors, select **+ Add**, then **Add custom connector**, and enter a name and the address. On a Team or Enterprise plan, an Owner adds it in Organization settings, Connectors, and you select **Connect** under Customize, Connectors. A Free plan holds one custom connector.
+
+### ChatGPT
+
+On the web. Building a course needs a Business, Enterprise, or Edu plan, the only ones with full MCP; Pro has read and fetch only ([OpenAI's help article](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)), and a workspace's policies apply ([its developer page](https://developers.openai.com/plugins/deploy/connect-chatgpt)). At [chatgpt.com/plugins](https://chatgpt.com/plugins), select the plus button, then **Add custom MCP server**. Enter a name and the address as the **Server URL**, and choose **OAuth** for authentication. Then select **Create as a plugin**, and install it.
+
+### A desktop agent
+
+In Claude Code, run `claude mcp add --transport http braivo https://braivo.app/mcp` with your installation's address, then its `/mcp` command to sign in. Another agent adds a remote MCP server its own way.
+
+### Another app
+
+Any app that connects to remote MCP servers by OAuth works the same way ([ADR 0045](https://github.com/braivo/braivo/blob/main/docs/adr/0045-remote-mcp.md)). Once Braivo is listed in an app's directory, adding it from there does the same.
+
+### Then, in the page that opens
+
+1. Sign in to Braivo.
+2. Choose the organization it works in: one where you prepare content (as its owner, an admin, or an author). To work in another, reconnect and choose it; whether an app keeps two connections at once is the app's to allow.
+3. Approve it. The page names the app and the organization.
+4. Turn it on where you work. In Claude, in a chat, under **+**, **Connectors**. In ChatGPT, in a new chat, type `@` and select it.
 
 The app acts as you, in that organization alone, with the rights you have there: once you no longer prepare its content, the connection can no longer list or reach it.
 
@@ -35,7 +51,7 @@ Some installations fetch no client metadata documents, and accept only the apps 
 - Arrange objectives into a course.
 - Read a course's objectives and tasks, or only its tasks without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
 
-What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published task: both stay yours in the console. Nor can it read learners' names or progress, which wait for their own permission.
+What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a task, or a correction of a published task reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and task it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published task: both stay yours in the console. Nor can this connection read Braivo's learner lists or progress reports, which wait for their own permission.
 
 ## On your desktop
 
