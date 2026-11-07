@@ -53,7 +53,7 @@ export async function listOrganizations(input: {
 }
 
 /** A school someone is a member of, as they find it to learn there. */
-export type Membership = { id: string; name: string; learnDomain: string | null };
+type Membership = { id: string; name: string; learnDomain: string | null };
 
 /**
  * Every organization someone is a member of, in any role, since membership is

@@ -22,7 +22,7 @@ import { useState } from "react";
 import { OrganizationSetupForm } from "#components/organization-setup-form";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { organizationToOpen } from "#lib/last-organization";
-import { learnUrl } from "#lib/learn-url";
+import { learnSignInUrl } from "#lib/learn-url";
 
 /**
  * Setting up an organization, for whoever owns none (ADR 0018), and where
@@ -149,8 +149,7 @@ function Join() {
 
 /**
  * The schools someone learns at, by name, each on to its learn domain's own
- * sign-in start, which offers this account and hands it over without another
- * code (ADR 0018, access-12 to 14); one without a learn domain says so.
+ * sign-in start (`learnSignInUrl`); one without a learn domain says so.
  */
 function Schools({ memberships, email }: { memberships: Membership[]; email: string }) {
   return (
@@ -167,7 +166,7 @@ function Schools({ memberships, email }: { memberships: Membership[]; email: str
           <div key={id} role="listitem">
             {learnDomain ? (
               <Item variant="outline" asChild>
-                <a href={learnUrl(learnDomain, "/api/session/sign-in")}>
+                <a href={learnSignInUrl(learnDomain)}>
                   <ItemContent className="min-w-0">
                     <ItemTitle className="wrap-anywhere">{name}</ItemTitle>
                     <ItemDescription className="wrap-anywhere">{learnDomain}</ItemDescription>

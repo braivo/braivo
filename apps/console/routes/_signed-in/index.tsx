@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { organizationToOpen } from "#lib/last-organization";
-import { learnUrl } from "#lib/learn-url";
+import { learnSignInUrl } from "#lib/learn-url";
 
 /**
  * Where `/` sends someone signed in (ADR 0004, access-59): the organization
@@ -35,15 +35,14 @@ export const Route = createFileRoute("/_signed-in/")({
 });
 
 /**
- * On to the school's learn domain, through its own sign-in start, which comes
- * back to `/login?handoff=` offering this account, then hands it over without
- * another code (ADR 0018, access-12 to 14). In `/`'s place in the history, so
+ * On to the school's learn domain, through its own sign-in start
+ * (`learnSignInUrl`). In `/`'s place in the history, so
  * Back does not land here only to be sent on again. The link, should leaving
  * not happen.
  */
 function ToSchool() {
   const { school, visit } = Route.useRouteContext();
-  const href = learnUrl(school.learnDomain, "/api/session/sign-in");
+  const href = learnSignInUrl(school.learnDomain);
   // Once, as Strict Mode runs an effect twice.
   const left = useRef(false);
   useEffect(() => {

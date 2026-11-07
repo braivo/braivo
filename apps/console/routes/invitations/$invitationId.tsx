@@ -14,7 +14,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ConsoleBrand, ConsoleSignInPage } from "#components/sign-in-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { learnUrl } from "#lib/learn-url";
+import { learnSignInUrl } from "#lib/learn-url";
 
 /**
  * Accepting an invitation to an organization (ADR 0018). Signed out, the
@@ -213,14 +213,12 @@ function Mismatch({ email }: { email: string }) {
 }
 
 /**
- * Leaves for the learn domain's own sign-in start, which sets its nonce
- * cookie there and comes back to `/login?handoff=`, where the account just
- * used is offered ("Continue as Ada"), then handed over without another code
- * (ADR 0018, access-12 to 15). A navigation, kept in history, so Back returns
- * here to try again.
+ * Leaves for the learn domain's own sign-in start (`learnSignInUrl`), where
+ * the account just used is offered. A navigation, kept in history, so Back
+ * returns here to try again.
  */
 function toLearnSite(visit: (href: string) => void, hostname: string) {
-  visit(learnUrl(hostname, "/api/session/sign-in"));
+  visit(learnSignInUrl(hostname));
 }
 
 function Accept({ invitation, email }: { invitation: InvitationPage; email: string }) {
