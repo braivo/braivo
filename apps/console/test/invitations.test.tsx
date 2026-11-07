@@ -390,13 +390,12 @@ describe("invitations", () => {
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/login"));
     expect(router.state.location.search).toEqual({ redirect: "/invitations/inv-1" });
-    // Here to accept, so never sent off to a course's website.
+    // Here to accept, so told which address to sign in with.
     expect(
       await screen.findByText(
         "Sign in with the email address the invitation was sent to, then accept it.",
       ),
     ).toBeTruthy();
-    expect(screen.queryByText(/Here to learn\?/)).toBeNull();
   });
 
   test("tells another account the invitation is not theirs, and signs it out to use another", async () => {

@@ -230,8 +230,9 @@ describe("the console", () => {
     // The language a menu of its own, for whoever cannot read the page yet.
     expect(screen.getByRole("button", { name: "Language: English" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /sidebar|navigation/ })).toBeNull();
-    // Not new here: no word on where learners go.
-    expect(screen.queryByText(/Here to learn\?/)).toBeNull();
+    // Not new here: no word on where learners go, nor schools to learn at.
+    expect(screen.queryByText(/Open the site your school/)).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Where you learn" })).toBeNull();
   });
 
   test("switches between the organizations an owner manages from the sidebar, each at its home", async () => {

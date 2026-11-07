@@ -9,8 +9,9 @@ import type { ComponentProps } from "react";
 
 /**
  * Braivo's logo: Lucide's sparkle, then "braivo" in the logo's face
- * (`--font-logo`). The sparkle in the main action's colour. Sized by its font size. "Beta" until Braivo's first release: the API,
- * schema, and apps still change without notice (README).
+ * (`--font-logo`). The sparkle in the main action's colour. Sized by its font
+ * size. "Beta" until Braivo's first release: the API, schema, and apps still
+ * change without notice (README).
  */
 export function BraivoLogo({ className, ...props }: ComponentProps<"span">) {
   return (

@@ -710,7 +710,7 @@ describe("the console", () => {
       expect(screen.getByText("braivo")).toBeTruthy();
       expect(screen.queryByRole("complementary")).toBeNull();
       expect(
-        screen.queryByText(/Braivo Console|Here to learn|course's website|Teach it once/),
+        screen.queryByText(/Braivo Console|Open the site your school|Teach it once/),
       ).toBeNull();
       expect(screen.getAllByRole("heading")).toEqual([heading]);
       // The page's own frame, not the column of the console's other pages.
@@ -735,7 +735,7 @@ describe("the console", () => {
         await screen.findByRole("heading", { name: "Sign in to Fernwood" });
         expect(screen.getByText("Fernwood")).toBeTruthy();
         expect(screen.getByText("You will continue at learn.fernwood.example.")).toBeTruthy();
-        expect(screen.queryByText(/braivo|console|here to learn/i)).toBeNull();
+        expect(screen.queryByText(/braivo|console/i)).toBeNull();
         cleanup();
       }
     });

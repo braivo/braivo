@@ -16,8 +16,7 @@ export function SignInPage(props: {
   children: ReactNode;
 }) {
   return (
-    // `min-w-0`, so a long email or hostname wraps rather than widens the page.
-    <main className="flex min-h-svh min-w-0 flex-col gap-6 p-6 md:p-10">
+    <main className="flex min-h-svh flex-col gap-6 p-6 md:p-10">
       {/* The controls' height even without them, so every page's form sits alike. */}
       <header className="flex min-h-9 items-center justify-between gap-4">
         <div className="min-w-0">{props.brand}</div>

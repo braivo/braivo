@@ -20,7 +20,7 @@ const birchfield: Membership = { id: "org-birchfield", name: "Birchfield", learn
 const fernwoodStart = "https://learn.fernwood.example/api/session/sign-in";
 
 describe("a plain sign-in", () => {
-  test("takes a learner of one school on to its learn domain, in sign-in's place", async () => {
+  test("takes a learner of one school on to its learn domain, in `/`'s place", async () => {
     const { router, visit } = renderAt("/login", {
       signedIn: false,
       organizations: [],
