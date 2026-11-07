@@ -202,7 +202,13 @@ function CourseCard({
       ? undefined
       : waits
         ? waitingLine(details.waiting, t)
-        : t`Nothing due right now`;
+        : t(
+            msg({
+              message: "Nothing due right now",
+              comment:
+                "A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up",
+            }),
+          );
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
