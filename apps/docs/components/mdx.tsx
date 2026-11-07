@@ -17,10 +17,28 @@ function Accordions({ children }: { children?: ReactNode }) {
   return <div className="accordions">{children}</div>;
 }
 
+/**
+ * Its ID is its question's slug, so a link can name one answer; `Layout.astro`
+ * opens the one a URL's hash names, which `:target` cannot.
+ */
 function Accordion({ title, children }: { title: string; children?: ReactNode }) {
+  const id = title
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .trim()
+    .replace(/\s+/g, "-");
   return (
-    <details className="accordion">
-      <summary>{title}</summary>
+    <details className="accordion" id={id}>
+      <summary>
+        <span>{title}</span>
+        <a
+          className="accordion-link"
+          href={`#${id}`}
+          aria-label={`Link to this question: ${title}`}
+        >
+          #
+        </a>
+      </summary>
       <div className="accordion-body">{children}</div>
     </details>
   );

@@ -164,6 +164,11 @@
   color: var(--color-fd-card-foreground);
 }
 
+/* Clear of the sticky header when a link lands on one, as a heading is. */
+.accordion {
+  scroll-margin-top: 7rem;
+}
+
 .accordion + .accordion {
   border-top: 1px solid var(--color-fd-border);
 }
@@ -198,6 +203,20 @@
   .accordion summary::before {
     transition: none;
   }
+}
+
+.accordion summary > span {
+  flex: 1;
+}
+
+.accordion-link {
+  padding-inline: 0.25rem;
+  color: var(--color-fd-muted-foreground);
+  text-decoration: none;
+}
+
+.accordion-link:hover {
+  color: var(--color-fd-foreground);
 }
 
 .accordion summary:focus-visible {
