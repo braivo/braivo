@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { parseLanguageTag } from "@braivo/server/client";
+
 /**
  * Suggested for a language, as the tag Braivo takes (sources-3, generation-6) with
  * its name: a teacher knows "Spanish", not `es`.
@@ -68,9 +70,29 @@ function threeLetterTagOf(name: string): string | undefined {
   return threeLetterTagByName.get(name);
 }
 
-/** A language named in full as its tag; anything else as typed, for Braivo to judge. */
+/**
+ * A language named in full as its tag; anything else as typed, for Braivo to
+ * judge. A tag is taken as it is before three-letter names are looked through,
+ * so `pt-BR` or `fil` never waits on naming them all.
+ */
 export const resolveLanguageTag = (typed?: string) => {
   if (!typed) return typed;
   const name = typed.toLowerCase();
-  return TWO_LETTER_TAG_BY_NAME.get(name) ?? threeLetterTagOf(name) ?? typed;
+  return (
+    TWO_LETTER_TAG_BY_NAME.get(name) ??
+    (parseLanguageTag(typed) ? typed : (threeLetterTagOf(name) ?? typed))
+  );
 };
+
+/**
+ * A tag as a field shows it: by name where the name leads back to the same tag,
+ * else as the tag, since some names do not ("Brazilian Portuguese" for `pt-BR`),
+ * and a form must never fill in what it would then refuse.
+ */
+export function languageFieldValue(tag: string): string {
+  const name = languageNames.of(tag);
+  const canonical = parseLanguageTag(tag);
+  return name && canonical && parseLanguageTag(resolveLanguageTag(name)!) === canonical
+    ? name
+    : tag;
+}

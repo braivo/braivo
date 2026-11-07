@@ -47,7 +47,12 @@ import { FindingLines } from "#components/findings";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { SUGGESTED_LANGUAGES, languageNames, resolveLanguageTag } from "#lib/languages";
+import {
+  SUGGESTED_LANGUAGES,
+  languageFieldValue,
+  languageNames,
+  resolveLanguageTag,
+} from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -270,7 +275,7 @@ function DraftCourse(props: { source: Source }) {
     if (!instructionLanguage) {
       return reportInvalid(
         languageField,
-        "Choose a language from the list, or type its English name.",
+        "Choose a language from the list, or type its English name or its code, such as pt-BR.",
       );
     }
     const audience = (new FormData(form).get("audience") as string).trim() || undefined;
@@ -372,7 +377,7 @@ function DraftCourse(props: { source: Source }) {
             readOnly={drafting}
             // The language this console speaks until told otherwise; a course's
             // language is the owner's to choose (generation-6).
-            defaultValue={languageName(brief?.instructionLanguage ?? i18n.locale)}
+            defaultValue={languageFieldValue(brief?.instructionLanguage ?? i18n.locale)}
             onChange={(event) => event.target.setCustomValidity("")}
             aria-describedby={`${id}-instruction-language-hint`}
           />
@@ -700,11 +705,13 @@ function ReviewDraft(props: {
           </AlertDescription>
         </Alert>
       )}
-      <MutedText>
-        {submitted
-          ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
-          : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
-      </MutedText>
+      {draft.objectives.length > 0 && (
+        <MutedText>
+          {submitted
+            ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
+            : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
+        </MutedText>
+      )}
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
         // longest word a reason quotes, such as a link.
@@ -722,7 +729,21 @@ function ReviewDraft(props: {
           </AlertDescription>
         </Alert>
       )}
-      {draft.objectives.length === 0 && <MutedText>The draft proposes no objectives.</MutedText>}
+      {/* Said whatever left it empty, and claiming no more than is known: only
+          the AI's note says the source lacks the goal; quotes not found empty a
+          draft too. */}
+      {draft.objectives.length === 0 && (
+        <p>
+          Nothing in this draft can become a course
+          {draft.unsupported
+            ? ""
+            : draft.refused.length > 0
+              ? ": Braivo left out all the AI proposed, as listed above"
+              : ", and Braivo's AI gave no reason"}
+          . Discard it to change what you ask and draft again, which uses another of this month's AI
+          requests.
+        </p>
+      )}
       {/* Still while sending, and once sent: see `submitted`. */}
       <FieldSet disabled={creating || submitted !== undefined}>
         {draft.objectives.map((objective, index) => {

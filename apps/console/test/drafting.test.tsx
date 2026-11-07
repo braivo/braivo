@@ -32,6 +32,10 @@ async function askForDraft(goal = GOAL) {
 const GOAL_LABEL = "What should learners be able to do?";
 const LANGUAGE_LABEL = "What language should the questions be in?";
 
+/** What a review with nothing in it says, `why` after its first clause. */
+const EMPTY_DRAFT = (why: string) =>
+  `Nothing in this draft can become a course${why}. Discard it to change what you ask and draft again, which uses another of this month's AI requests.`;
+
 /** The rows of a draft's brief, under review. */
 async function briefList() {
   const list = (await screen.findByText("Drafted from")).closest("dl")!;
@@ -236,7 +240,7 @@ describe("the console", () => {
 
     expect(braivo.draftCourse).not.toHaveBeenCalled();
     expect(field.validationMessage).toBe(
-      "Choose a language from the list, or type its English name.",
+      "Choose a language from the list, or type its English name or its code, such as pt-BR.",
     );
     // Changing it clears the complaint, so it can be sent again.
     fireEvent.change(field, { target: { value: "Spanish" } });
@@ -251,6 +255,7 @@ describe("the console", () => {
     // A tag still works, in its usual form, and reads by name in the review.
     ["ES", "es", "Spanish"],
     ["pt-br", "pt-BR", "Brazilian Portuguese"],
+    ["zh-hant", "zh-Hant", "Chinese, Traditional"],
   ])("takes %s as %s, reviewing it as %s", async (typed, tag, name) => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
@@ -265,6 +270,16 @@ describe("the console", () => {
       ),
     );
     expect((await briefList()).rows).toContain(`Questions in${name}`);
+
+    // Drafting again unchanged sends the same: the form never fills in a name
+    // it would refuse, as "Brazilian Portuguese" would be.
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await vi.waitFor(() => expect(braivo.draftCourse).toHaveBeenCalledTimes(2));
+    expect(braivo.draftCourse).toHaveBeenLastCalledWith(
+      expect.objectContaining({ instructionLanguage: tag }),
+      { signal: expect.any(AbortSignal) },
+    );
   });
 
   test("asks the required questions first, the optional one after", async () => {
@@ -317,11 +332,35 @@ describe("the console", () => {
     // The review's heading takes the focus and is read from there: neither box
     // interrupts it.
     expect(screen.queryAllByRole("alert")).toEqual([]);
-    expect(screen.getByText("The draft proposes no objectives.")).toBeTruthy();
+    expect(screen.getByText(EMPTY_DRAFT(""))).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "Create course" }).disabled).toBe(
       true,
     );
   });
+
+  test.each([
+    [
+      "everything left out",
+      ["“Hola” isn't in the material."],
+      ": Braivo left out all the AI proposed, as listed above",
+    ],
+    // No note: it does not say the source lacks the goal, which nothing showed.
+    ["nothing proposed", [], ", and Braivo's AI gave no reason"],
+  ])(
+    "says why a draft with %s has nothing to create, and what to do",
+    async (_label, refused, why) => {
+      const braivo = {
+        ...authoring(),
+        draftCourse: vi.fn(async () => ({ objectives: [], refused })),
+      };
+      renderAt("/example/sources/s1", { braivo });
+      await askForDraft();
+
+      expect(await screen.findByText(EMPTY_DRAFT(why))).toBeTruthy();
+      expect(screen.queryByText("Not in the material")).toBeNull();
+      expect(screen.queryByText(/^Untick what is wrong/)).toBeNull();
+    },
+  );
 
   test("holds drafting still while it runs, says so, and keeps the focus on its button", async () => {
     const drafting = Promise.withResolvers<typeof drafted>();
