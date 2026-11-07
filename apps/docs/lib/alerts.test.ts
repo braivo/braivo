@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MdastNode } from "satteri";
+import { mdxToJs, type MdastNode } from "satteri";
 import { describe, expect, test } from "vite-plus/test";
 
 import { alertCallout } from "./alerts.ts";
+import { mdastPlugins } from "./plugins.ts";
 
 type Blockquote = Extract<MdastNode, { type: "blockquote" }>;
 
@@ -52,5 +53,19 @@ describe("alertCallout", () => {
     expect(alertCallout(quote("A quotation."))).toBeUndefined();
     expect(alertCallout(quote("[!DANGER]\nText."))).toBeUndefined();
     expect(alertCallout(quote("Text, then [!WARNING]."))).toBeUndefined();
+  });
+});
+
+describe("the site's pipeline", () => {
+  test("compiles a GitHub alert into a Callout, keeping what it holds", async () => {
+    const { code } = await mdxToJs(
+      "> [!WARNING]\n> Check **first** with [your school](./faq.mdx).\n",
+      { mdastPlugins: mdastPlugins("content", "/") },
+    );
+    expect(code).toContain("Callout");
+    expect(code).toContain('type: "warn"');
+    expect(code).not.toContain("[!WARNING]");
+    expect(code).toContain("first");
+    expect(code).toContain("your school");
   });
 });

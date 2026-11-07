@@ -9,8 +9,7 @@ import { defineConfig } from "astro/config";
 import { loadEnv } from "vite-plus";
 
 import { docsPort, readDevPorts } from "../../tooling/dev-ports.ts";
-import { alerts } from "./lib/alerts.ts";
-import { pageLinks } from "./lib/page-links.ts";
+import { mdastPlugins } from "./lib/plugins.ts";
 
 const env = loadEnv("development", "../..", ["BRAIVO_", "PORT"]);
 
@@ -40,7 +39,7 @@ export default defineConfig({
         docs: {
           dir: "content",
           components: "./components/mdx.tsx",
-          mdastPlugins: [alerts(), pageLinks(contentDir, "/")],
+          mdastPlugins: mdastPlugins(contentDir, "/"),
         },
       },
     }),
