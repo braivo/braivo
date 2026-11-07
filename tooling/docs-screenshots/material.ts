@@ -54,13 +54,25 @@ const quote = {
   oxygen: "Oxygen is released into the air as a by-product.",
 };
 
-/** What the model would answer, in the shape it is asked for; every quote is in the handout. */
+/**
+ * What the model would answer, in the shape it is asked for; every quote is in
+ * the handout. The first question is typed: a learner sees it first, and its
+ * picture has no options, whose order is shuffled differently in every run.
+ */
 export const DRAFT = {
   objectives: [
     {
       title: "Explain why plants look green",
       quotes: [quote.pigment, quote.green],
       tasks: [
+        {
+          kind: "typed",
+          prompt: "What is the green pigment in leaves called?",
+          accepted: ["chlorophyll"],
+          answerLanguage: "en",
+          explanation: "Chlorophyll is the green pigment in leaves.",
+          quotes: [quote.pigment],
+        },
         {
           kind: "choice",
           prompt: "Why do plants look green?",
@@ -72,14 +84,6 @@ export const DRAFT = {
           answer: 0,
           explanation: "Chlorophyll, the green pigment in leaves, reflects green light.",
           quotes: [quote.green],
-        },
-        {
-          kind: "typed",
-          prompt: "What is the green pigment in leaves called?",
-          accepted: ["chlorophyll"],
-          answerLanguage: "en",
-          explanation: "Chlorophyll is the green pigment in leaves.",
-          quotes: [quote.pigment],
         },
       ],
     },

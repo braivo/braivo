@@ -27,7 +27,12 @@ import { prepareClassroom, PERSONAS } from "../../apps/server/fixtures/classroom
 import { createServer } from "../../apps/server/server.ts";
 import { directoryStore } from "../../apps/server/storage/directory.ts";
 import { createDatabase, runMigrations } from "../../packages/db/index.ts";
-import { createScratchDatabase, dropScratchDatabase, type ScratchDatabase } from "./database.ts";
+import {
+  createScratchDatabase,
+  dropScratchDatabase,
+  numberCourse,
+  type ScratchDatabase,
+} from "./database.ts";
 import { DRAFT, PDF_TITLE, handoutPdf } from "./material.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
@@ -47,6 +52,31 @@ const SCREEN = {
   timezoneId: "UTC",
   locale: "en-US",
 } as const;
+
+/**
+ * The moment every run happens at: the classroom is seeded at it, and the
+ * server and the browsers read it as now, so times on the pages, standings,
+ * and estimated recall come out the same in every run. In the future, as the
+ * database checks a learner's sign-in code against its own clock
+ * (`clock_timestamp()`): move it on before the real date reaches it.
+ */
+const NOW = new Date("2030-09-16T09:00:00Z");
+
+/** This process's `Date` reads `NOW` as now; one given a time is as ever. */
+function freezeClock() {
+  const Real = Date;
+  const now = NOW.getTime();
+  class Frozen extends Real {
+    constructor(...args: ConstructorParameters<DateConstructor> | []) {
+      if (args.length === 0) super(now);
+      else super(...(args as ConstructorParameters<DateConstructor>));
+    }
+    static override now() {
+      return now;
+    }
+  }
+  globalThis.Date = Frozen as DateConstructor;
+}
 
 /** The model's address, answered here with the canned draft; anything else goes out as usual. */
 function cannedModel() {
@@ -124,13 +154,15 @@ async function region(
     if (!box) throw new Error(`${path}: ${String(locator)} is not on the screen.`);
     boxes.push(box);
   }
+  // Close above, so nothing of what precedes the heading shows.
   const margin = 24;
   const x = Math.max(0, Math.min(...boxes.map((box) => box.x)) - margin);
-  const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - margin);
+  const y = Math.max(0, Math.min(...boxes.map((box) => box.y)) - 4);
   const viewport = page.viewportSize()!;
   const right = Math.min(
     viewport.width,
-    Math.max(...boxes.map((box) => box.x + box.width)) + margin,
+    // Close on the right too: a table's next column would show its first mark.
+    Math.max(...boxes.map((box) => box.x + box.width)) + 8,
   );
   // Less below: the next line would show its top half.
   const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 8;
@@ -141,7 +173,17 @@ async function region(
   );
 }
 
+/** A browser at the phone width, light, and at `NOW`. */
+async function newPage(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ ...SCREEN, colorScheme: "light" });
+  await context.clock.setFixedTime(NOW);
+  const page = await context.newPage();
+  page.setDefaultTimeout(30_000);
+  return page;
+}
+
 async function firstCourse(
+  scratch: ScratchDatabase,
   browser: Browser,
   out: string,
   work: string,
@@ -151,8 +193,7 @@ async function firstCourse(
   const learnUrl = `http://fernwood.localhost:${PORTS.learn}`;
   const shot = (name: string) => join(out, "first-course", `${name}.png`);
   mkdirSync(join(out, "first-course"));
-  const page = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
-  page.setDefaultTimeout(30_000);
+  const page = await newPage(browser);
 
   await signIn(page, consoleUrl, PERSONAS.author.email, () => codes.get(PERSONAS.author.email));
 
@@ -199,10 +240,10 @@ async function firstCourse(
   const reviewing = page.getByRole("heading", { name: "Review the draft" });
   await reviewing.waitFor();
   await sees(page, "Review the draft", "Edit", "Course title", "Create course");
-  const edit = page.getByRole("button", { name: "Edit “Why do plants look green?”" });
-  const explanation = page.getByText(
-    "Chlorophyll, the green pigment in leaves, reflects green light.",
-  );
+  const edit = page.getByRole("button", {
+    name: "Edit “What is the green pigment in leaves called?”",
+  });
+  const explanation = page.getByText("Shown after a miss");
   await region(page, shot("4-review"), reviewing, explanation, edit);
   await edit.click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -219,6 +260,9 @@ async function firstCourse(
   await page.waitForURL(/\/courses\//);
   const course = page.getByRole("heading", { level: 1, name: "Why plants are green" });
   await course.waitFor();
+  await numberCourse(scratch, "Why plants are green", 2026);
+  await page.reload();
+  await course.waitFor();
   await sees(page, "Copy address", "Hide from learners", "Retire");
   const hide = page.getByRole("button", { name: "Hide from learners" });
   await region(
@@ -230,8 +274,7 @@ async function firstCourse(
   );
 
   // 7. As a learner.
-  const learner = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
-  learner.setDefaultTimeout(30_000);
+  const learner = await newPage(browser);
   await signIn(learner, learnUrl, PERSONAS.sam.email, () => codes.get(PERSONAS.sam.email));
   await learner
     .getByRole("link", { name: /Why plants are green/ })
@@ -242,14 +285,14 @@ async function firstCourse(
   await learner.mouse.move(0, 0);
   const show = learner.getByText("Show answer");
   await show.waitFor();
-  const option = learner.getByText("Roots take up green water");
-  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, option);
+  const check = learner.getByRole("button", { name: "Check" });
+  await region(learner, shot("7-learner"), learner.getByText(/^New · /), show, check);
 }
 
 /**
  * The progress tables need 684px, wider than a phone's 480: at 740 they fit
- * whole, with the sidebar still folded away. Such pictures are named `-wide`
- * (apps/docs/styles.css shows them across the column).
+ * whole, with the sidebar still folded away; the pictures keep their first
+ * columns, so they read on a phone.
  */
 const WIDE = { width: 740, height: 2400 };
 
@@ -258,8 +301,7 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   const consoleUrl = `http://127.0.0.1:${PORTS.console}`;
   const shot = (name: string) => join(out, "follow-progress", `${name}.png`);
   mkdirSync(join(out, "follow-progress"));
-  const page = await (await browser.newContext({ ...SCREEN, colorScheme: "light" })).newPage();
-  page.setDefaultTimeout(30_000);
+  const page = await newPage(browser);
   await signIn(page, consoleUrl, PERSONAS.teacher.email, () => codes.get(PERSONAS.teacher.email));
 
   // 1. Their groups, where a teacher's console opens.
@@ -277,16 +319,19 @@ async function followProgress(browser: Browser, out: string, codes: Map<string, 
   await byObjective.waitFor();
   await sees(page, "Not started", "Learning", "Repeated misses", "Retained", "Due for review");
   const sam = page.getByRole("link", { name: PERSONAS.sam.name });
-  const learners = page.getByRole("heading", { name: "Learners", exact: true });
+  // Its first columns, up to Repeated misses: what the step talks about, at a size a phone can read.
+  const learnerColumn = page.getByRole("columnheader", { name: "Learner", exact: true });
+  const missesColumn = page.getByRole("columnheader", { name: "Repeated misses" });
   await region(
     page,
-    shot("2-learners-wide"),
-    learners,
+    shot("2-learners"),
+    learnerColumn,
     page.getByText("Last practised today").last(),
-    sam,
+    missesColumn.first(),
   );
-  const none = page.getByText("No objectives currently have repeated misses.");
-  await region(page, shot("3-objectives-wide"), byObjective, none, none);
+  const objectiveColumn = page.getByRole("columnheader", { name: "Objective", exact: true });
+  const lastObjective = page.getByRole("rowheader").filter({ hasText: "Say goodbye" });
+  await region(page, shot("3-objectives"), objectiveColumn, lastObjective, missesColumn.last());
 
   // 4. One learner's report.
   await page.setViewportSize(SCREEN.viewport);
@@ -346,9 +391,10 @@ async function main() {
       databaseUrl: scratch.url,
       authSecret: secret,
       baseUrl,
-      now: new Date(),
+      now: NOW,
     });
 
+    freezeClock();
     cannedModel();
     const codes = new Map<string, string>();
     const config = readServeConfig({
@@ -403,7 +449,7 @@ async function main() {
     try {
       // Before the first course exists, so the teacher's pages show the demo as seeded.
       await followProgress(browser, out, codes);
-      await firstCourse(browser, out, work, codes);
+      await firstCourse(scratch, browser, out, work, codes);
     } catch (error) {
       for (const context of browser.contexts()) {
         for (const page of context.pages()) {

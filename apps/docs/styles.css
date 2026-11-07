@@ -77,9 +77,19 @@
   border-radius: 0.5rem;
 }
 
-/* A table that needs more than a phone's width is captured wider, and named so. */
-.prose img[src$="-wide.png"] {
-  max-width: 100%;
+/* The console's standing colours (apps/console/styles.css, --chart-1 to 4), so a card matches its column. */
+:root {
+  --standing-not-started: #a3aab8;
+  --standing-learning: #4a63d9;
+  --standing-retained: #5c7a12;
+  --standing-due: #b7791f;
+}
+
+.dark {
+  --standing-not-started: #4a5368;
+  --standing-learning: #8fa8ff;
+  --standing-retained: #b4d46a;
+  --standing-due: #f3c66c;
 }
 
 /* The four standings on the follow-progress page: a list, so it reads as one on GitHub and to a screen reader. */
@@ -92,6 +102,7 @@
 }
 
 .standings li {
+  --dot: var(--standing-not-started);
   margin: 0;
   padding: 0.75rem;
   border: 1px solid var(--color-fd-border);
@@ -104,4 +115,27 @@
   .standings ol {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* In the page's order: Not started, Learning, Retained, Due for review. */
+.standings li:nth-child(2) {
+  --dot: var(--standing-learning);
+}
+
+.standings li:nth-child(3) {
+  --dot: var(--standing-retained);
+}
+
+.standings li:nth-child(4) {
+  --dot: var(--standing-due);
+}
+
+.standings li::before {
+  content: "";
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-right: 0.5rem;
+  border-radius: 9999px;
+  background: var(--dot);
 }

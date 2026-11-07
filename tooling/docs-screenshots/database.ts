@@ -29,3 +29,26 @@ export async function dropScratchDatabase({ target, name }: ScratchDatabase): Pr
     await client.end();
   }
 }
+
+/**
+ * Gives the course titled `title` the number `number`, as the database would
+ * have picked one at random (ADR 0044): the address in a picture stays the same
+ * from run to run. The scratch database is this script's own fixture.
+ */
+export async function numberCourse(
+  { url }: ScratchDatabase,
+  title: string,
+  number: number,
+): Promise<void> {
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  try {
+    const { rowCount } = await client.query("UPDATE course SET number = $1 WHERE title = $2", [
+      number,
+      title,
+    ]);
+    if (rowCount !== 1) throw new Error(`Expected one course titled ${title}, found ${rowCount}.`);
+  } finally {
+    await client.end();
+  }
+}
