@@ -2195,6 +2195,7 @@ msgstr "Show only these"
 msgid "Shown to the people you work with, in every organization."
 msgstr "Shown to the people you work with, in every organization."
 
+#: apps/console/routes/login.tsx
 #: apps/learn/routes/login.tsx
 #: packages/auth-client/password-sign-in.tsx
 #: packages/ui/compositions/sign-in-form.tsx

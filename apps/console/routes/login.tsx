@@ -87,8 +87,9 @@ export const Route = createFileRoute("/login")({
           })) ?? null),
   }),
   // A learn domain's sign-in never wears Braivo's name, expired included.
+  // Braivo's own names no app, as the page is for whoever teaches or learns.
   head: ({ loaderData }) => {
-    if (loaderData?.handoff === undefined) return {};
+    if (loaderData?.handoff === undefined) return { meta: [{ title: `${t`Sign in`} · Braivo` }] };
     const organizationName = loaderData.handoff?.organization.name;
     return {
       meta: [{ title: organizationName ? t`Sign in to ${organizationName}` : t(expiredTitle) }],

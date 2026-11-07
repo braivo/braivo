@@ -484,14 +484,14 @@ describe("the console", () => {
       expect(preferredLocale(["en-GB"])).toBe("pl");
     });
 
-    test("speaks the browser's language on the console's own sign-in, which keeps its name", async () => {
+    test("speaks the browser's language on the console's own sign-in, which names no app", async () => {
       onTestFinished(() => activateLocale("en"));
       await activateLocale(chooseLocale(["pl-PL", "en"]));
       renderAt("/login", { signedIn: false });
 
       expect(await screen.findByRole("heading", { name: "Zaloguj się" })).toBeTruthy();
-      // The console's name stays, in every language.
-      await vi.waitFor(() => expect(document.title).toBe("Braivo Console"));
+      // Braivo's, not the console's: learners sign in here too.
+      await vi.waitFor(() => expect(document.title).toBe("Zaloguj się · Braivo"));
       expect(screen.getByRole("button", { name: "Motyw" })).toBeTruthy();
     });
 
