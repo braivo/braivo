@@ -7,10 +7,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { CopyButton } from "#components/copy-button";
 
 /**
- * How to connect an AI app at `/mcp`: the address, each supported app's steps
- * (docs/guides/assistants.md, Connect), and, given the `organization` to build
- * for, a first prompt. No prompt without one: settings are the account's, so
- * the organization they were opened from may not be one the person authors in.
+ * How to connect an AI app at `/mcp`: the address, where to start in each
+ * supported app (the full steps are docs/guides/assistants.md, Connect), and,
+ * given the `organization` to build for, a first prompt. No prompt without one:
+ * settings are the account's, so the organization they were opened from may
+ * not be one the person authors in.
  */
 export function ConnectAiApp({ organization }: { organization?: string }) {
   const { t } = useLingui();
@@ -26,7 +27,7 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
         </MutedText>
         <CopyableText text={address} label={t`Copy connector address`} />
       </div>
-      {/* Not a list: each app's name leads what to do in it. */}
+      {/* Pairs of an app and where to start in it, so not a list of items. */}
       <dl className="flex flex-col gap-2">
         <div>
           <dt className="font-medium">Claude</dt>

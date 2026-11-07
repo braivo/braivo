@@ -39,7 +39,7 @@ describe("the console", () => {
     const address = `${window.location.origin}/mcp`;
     const inOption = within(option);
     expect(inOption.getByText(address)).toBeTruthy();
-    // Each app the guide supports, its steps beside its name, and only those.
+    // Each app the guide supports, where to start beside its name, and only those.
     expect(inOption.getByText("Claude").nextElementSibling?.textContent).toBe(
       "Customize, Connectors, Add custom connector.",
     );
