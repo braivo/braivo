@@ -27,7 +27,10 @@ const { title, description } = Astro.props;
     <script is:inline>
       function openTarget() {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-        if (target instanceof HTMLDetailsElement) target.open = true;
+        if (!(target instanceof HTMLDetailsElement)) return;
+        target.open = true;
+        // The router can restore the top after the browser's own hash scroll.
+        target.scrollIntoView({ block: "start" });
       }
       addEventListener("hashchange", openTarget);
       addEventListener("popstate", openTarget);
