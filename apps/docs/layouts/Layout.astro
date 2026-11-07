@@ -26,7 +26,13 @@ const { title, description } = Astro.props;
     <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->
     <script is:inline>
       function openTarget() {
-        const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+        let id;
+        try {
+          id = decodeURIComponent(location.hash.slice(1));
+        } catch {
+          return; // A malformed link names nothing.
+        }
+        const target = document.getElementById(id);
         if (!(target instanceof HTMLDetailsElement)) return;
         target.open = true;
         // The router can restore the top after the browser's own hash scroll.
