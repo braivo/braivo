@@ -1326,9 +1326,9 @@ function Resting({
     }
   }
   // The latest, so a render does not restart the timer.
-  const ended = useRef(readNext);
+  const readNextRef = useRef(readNext);
   useLayoutEffect(() => {
-    ended.current = readNext;
+    readNextRef.current = readNext;
   });
   const { t, i18n } = useLingui();
   const objectiveTitle = objective.title;
@@ -1341,7 +1341,10 @@ function Resting({
 
   useEffect(() => {
     if (reviewing) return;
-    const timer = setTimeout(() => void ended.current(), Math.max(0, endsAt - performance.now()));
+    const timer = setTimeout(
+      () => void readNextRef.current(),
+      Math.max(0, endsAt - performance.now()),
+    );
     return () => clearTimeout(timer);
   }, [endsAt, reviewing]);
 
