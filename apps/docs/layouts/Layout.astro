@@ -25,22 +25,37 @@ const { title, description } = Astro.props;
     <ClientRouter />
     <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->
     <script is:inline>
+      /** Opens the question the hash names, and answers it. */
       function openTarget() {
         let id;
         try {
           id = decodeURIComponent(location.hash.slice(1));
         } catch {
-          return; // A malformed link names nothing.
+          return undefined; // A malformed link names nothing.
         }
         const target = document.getElementById(id);
-        if (!(target instanceof HTMLDetailsElement)) return;
+        if (!(target instanceof HTMLDetailsElement)) return undefined;
         target.open = true;
-        // The router can restore the top after the browser's own hash scroll.
-        target.scrollIntoView({ block: "start" });
+        return target;
       }
+      // How the page now shown was reached: the router's type, or before its
+      // first navigation, the browser's ("navigate", "reload", "back_forward").
+      let arrival = performance.getEntriesByType("navigation")[0]?.type;
+      document.addEventListener("astro:before-preparation", (event) => {
+        arrival = event.navigationType;
+      });
+      document.addEventListener("astro:page-load", () => {
+        const target = openTarget();
+        // Scrolled to on arriving by a link alone, as the router can restore the
+        // top after the browser's own hash scroll; Back, Forward, and a reload
+        // keep the reader's own position, which the browser or router restores.
+        if (target && (arrival === "navigate" || arrival === "push" || arrival === "replace")) {
+          target.scrollIntoView({ block: "start" });
+        }
+      });
+      // Within the page the browser scrolls to the hash itself: open alone.
       addEventListener("hashchange", openTarget);
       addEventListener("popstate", openTarget);
-      document.addEventListener("astro:page-load", openTarget);
       // The router takes a same-page link's hash without a hashchange.
       document.addEventListener("click", (event) => {
         const link = event.target instanceof Element && event.target.closest(".accordion-link");

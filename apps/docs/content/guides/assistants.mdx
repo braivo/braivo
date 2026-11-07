@@ -21,7 +21,12 @@ In Customize, Connectors, select **+ Add**, then **Add custom connector**, and e
 
 ### ChatGPT
 
-On the web. Building a course needs a Business, Enterprise, or Edu plan, the only ones with full MCP; Pro has read and fetch only ([OpenAI's help article](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)), and a workspace's policies apply ([its developer page](https://developers.openai.com/plugins/deploy/connect-chatgpt)). At [chatgpt.com/plugins](https://chatgpt.com/plugins), select the plus button, then **Add custom MCP server**. Enter a name and the address as the **Server URL**, and choose **OAuth** for authentication. Then select **Create as a plugin**, and install it.
+A custom MCP server, as ChatGPT calls Braivo, is for ChatGPT Business, Enterprise, and Edu workspaces, on the web; in a Business workspace only its admins and owners add one. Writing questions also needs write actions allowed for it. If you can't add Braivo, or it can only read, ask your ChatGPT workspace's admin: Braivo's Author role grants neither. [OpenAI's guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt) has the current steps; at this writing:
+
+1. In Plugins, select the plus button, then **Add custom MCP server**.
+2. Name it Braivo, paste the address, and set its authentication to OAuth.
+3. Sign in to Braivo and approve your school, as below.
+4. In a chat, type @ and select Braivo, then [ask for a piece of work](./draft-with-ai-app.mdx#what-to-ask-for).
 
 ### A desktop agent
 
