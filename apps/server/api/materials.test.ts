@@ -722,6 +722,22 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(prompts).toEqual([]);
     expect(await ledger()).toBe(charged);
 
+    // The language for learners' instructions is a tag, named when it is not.
+    for (const instructionLanguage of ["", "Spanish", "not a tag", "a".repeat(36), 7, null]) {
+      const refused = await draft({ instructionLanguage });
+      expect(refused.status, JSON.stringify(instructionLanguage)).toBe(400);
+      expect(await refused.json()).toEqual({
+        error: expect.stringMatching(/language for learners' instructions/),
+      });
+    }
+    expect(prompts).toEqual([]);
+    expect(await ledger()).toBe(charged);
+
+    // Any language's tag, not only those the console speaks, in its usual form.
+    expect((await draft({ instructionLanguage: "DE-at" })).status).toBe(200);
+    expect(prompts[0]).toContain("<instruction_language>\nde-AT\n</instruction_language>");
+    prompts.length = 0;
+
     // Counted trimmed, and asked trimmed. A draft of nothing still says why.
     const longest = "a".repeat(300);
     const asked = await draft({ goal: `  ${longest}  ` });
@@ -735,7 +751,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(prompts[0]).toContain(`<goal>\n${longest}\n</goal>`);
     expect(prompts[0]).not.toContain("<learners>");
     // Recorded as any draft that reached the model.
-    expect(await ledger()).toBe(charged + 1);
+    expect(await ledger()).toBe(charged + 2);
   });
 
   test("reads a PDF's text, page by page, for an organization the operator lets", async () => {

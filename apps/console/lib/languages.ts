@@ -1,0 +1,48 @@
+// SPDX-FileCopyrightText: 2026 Konstantin Tarkus
+// SPDX-License-Identifier: AGPL-3.0-only
+
+/**
+ * Suggested for a language, as the tag Braivo takes (sources-3, generation-6) with
+ * its name: a teacher knows "Spanish", not `es`.
+ */
+export const LANGUAGES = [
+  "en",
+  "es",
+  "fr",
+  "de",
+  "it",
+  "pt",
+  "pl",
+  "uk",
+  "nl",
+  "sv",
+  "zh",
+  "ja",
+  "ar",
+];
+export const languageNames = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
+
+/**
+ * Every two-letter tag by its English name, lowercase, as this browser names
+ * it. Some list a suggestion's tag alone (iOS Safari), so a name typed in full
+ * must work too, suggested or not. Deprecated tags canonicalize to the current
+ * one (`mo` to `ro`); of two current tags an engine names alike (ICU 78: `ak`
+ * and `tw`, "Akan"), the first, the macrolanguage, is kept.
+ */
+const TAG_BY_NAME = (() => {
+  const letters = "abcdefghijklmnopqrstuvwxyz";
+  const byName = new Map<string, string>();
+  for (const first of letters) {
+    for (const second of letters) {
+      const tag = first + second;
+      const name = languageNames.of(tag)?.toLowerCase();
+      if (name && !byName.has(name)) {
+        byName.set(name, Intl.getCanonicalLocales(tag)[0]!);
+      }
+    }
+  }
+  return byName;
+})();
+/** A language named in full as its tag; anything else as typed, for Braivo to judge. */
+export const languageTag = (typed?: string) =>
+  typed && (TAG_BY_NAME.get(typed.toLowerCase()) ?? typed);

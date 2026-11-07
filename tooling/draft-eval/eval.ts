@@ -36,6 +36,7 @@ export type Fixture = {
   /** Ignored by a checkout that does not read a goal, so a baseline shows the draft without one. */
   goal?: string;
   audience?: string;
+  instructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
   expectUnsupported?: boolean;
@@ -156,7 +157,11 @@ export async function runEvaluation(options: {
           const { draft, counts } = await ai.draftCourse(
             capturing,
             { id: fixture, title: spec.title ?? fixture, text: material, language: spec.language },
-            { goal: spec.goal, audience: spec.audience },
+            {
+              goal: spec.goal,
+              audience: spec.audience,
+              instructionLanguage: spec.instructionLanguage,
+            },
           );
           Object.assign(record, { result: draft, counts });
           record.checks = checkDraft({
@@ -165,6 +170,8 @@ export async function runEvaluation(options: {
             draft,
             offTopic: spec.offTopic,
             expectUnsupported: spec.expectUnsupported,
+            instructionLanguage: spec.instructionLanguage,
+            materialLanguage: spec.language,
           });
         } else {
           const { pages, counts } = await ai.extractPages(capturing, {

@@ -56,7 +56,7 @@ describe("the draft evaluation", () => {
 
     expect(code).toBe(0);
     expect(stdout).toContain(
-      `20 calls of claude-sonnet-5 (10 fixtures × 2 runs) with ${root}'s code`,
+      `22 calls of claude-sonnet-5 (11 fixtures × 2 runs) with ${root}'s code`,
     );
     expect(stdout).toContain("Nothing was asked. Add --yes to spend them.");
     expect(readdirSync(cwd)).toEqual([]);
@@ -347,6 +347,83 @@ describe("the draft evaluation", () => {
     ).toEqual(["nothing kept", "did not say the goal is unsupported"]);
   });
 
+  describe("the language of a draft's instructions", () => {
+    const drafted = (title: string, prompt: string, explanation: string) => ({
+      objectives: [{ title, tasks: [{ kind: "typed", prompt, explanation, accepted: ["x"] }] }],
+      refused: [],
+    });
+    const check = (draft: ReturnType<typeof drafted>, language = "en") =>
+      checkDraft({
+        material: "",
+        raw: {},
+        draft,
+        instructionLanguage: language,
+        materialLanguage: "es",
+      }).failed;
+
+    test("passes instructions in the language asked for, around the material's words", () => {
+      expect(
+        check(
+          drafted(
+            "la manzana – the apple",
+            "Translate into English: la manzana",
+            "The word list says that la manzana is the apple.",
+          ),
+        ),
+      ).toEqual([]);
+    });
+
+    test("names each kind of text written in the material's language instead", () => {
+      expect(
+        check(
+          drafted(
+            "Preguntar el precio de una cosa",
+            "Traduce al inglés: el plátano",
+            "La lista de vocabulario indica que el plátano es the banana.",
+          ),
+        ),
+      ).toEqual([
+        "instructions not in en: titles: Preguntar el precio de una cosa",
+        "instructions not in en: prompts: Traduce al inglés: el plátano",
+        "instructions not in en: explanations: La lista de vocabulario indica que el plátano es the banana.",
+      ]);
+      // Titles alone, with the prompts as asked.
+      expect(
+        check(
+          drafted(
+            "Preguntar el precio de una cosa",
+            "How do you ask the price of an apple?",
+            "The dialogue says it is how you ask the price.",
+          ),
+        ),
+      ).toEqual(["instructions not in en: titles: Preguntar el precio de una cosa"]);
+    });
+
+    test("reads no language it has no words for, and nothing when none was asked", () => {
+      const spanish = drafted("Preguntar el precio", "Traduce al inglés", "Es de la lista.");
+      expect(check(spanish, "ja")).toEqual([]);
+      expect(checkDraft({ material: "", raw: {}, draft: spanish }).failed).toEqual([]);
+    });
+
+    test("holds for a language other than English, and a draft of nothing passes", () => {
+      expect(
+        check(
+          drafted("Pytanie o cenę", "Przetłumacz na hiszpański: jabłko", "To jest w tekście."),
+          "pl",
+        ),
+      ).toEqual([]);
+      expect(
+        checkDraft({
+          material: "",
+          raw: {},
+          draft: { objectives: [], refused: [], unsupported: "It lacks the bill." },
+          instructionLanguage: "en",
+          materialLanguage: "es",
+        }).failed,
+      ).toEqual([]);
+    });
+  });
+
   test("finds a reading's lines whatever its quote marks and line breaks, in order", () => {
     const pages = [
       { page: "1", text: "Learn these words for Friday’s test.\n1. because\n6.  library" },
@@ -386,7 +463,11 @@ describe("the draft evaluation", () => {
     const { draft, counts } = await draftCourse(
       model,
       { id: replay.fixture, title: fixture.title!, text: material, language: fixture.language },
-      { goal: fixture.goal, audience: fixture.audience },
+      {
+        goal: fixture.goal,
+        audience: fixture.audience,
+        instructionLanguage: fixture.instructionLanguage,
+      },
     );
 
     expect(counts).toEqual(replay.counts);

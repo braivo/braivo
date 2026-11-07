@@ -22,6 +22,7 @@ type KeptDraft = {
     tasks: {
       kind: string;
       prompt: string;
+      explanation?: string;
       options?: string[];
       answer?: number;
       accepted?: string[];
@@ -53,6 +54,54 @@ export function normalize(text: string): string {
     .trim();
 }
 
+/**
+ * Common words by language, for telling two of them apart: cheap, and blind to
+ * quality like the rest. Enough for the fixtures' languages; a tag without an
+ * entry is not read.
+ */
+const COMMON_WORDS: Readonly<Record<string, ReadonlySet<string>>> = Object.fromEntries(
+  Object.entries({
+    en: "the of an to in is and for with how what which you your into that it this means say says word translate",
+    es: "el la los las un una de del en y que para con por es se al cómo qué como lo traduce significa dice",
+    de: "der die das und ist ein eine zu mit für wie was den dem im auf bedeutet sagt",
+    fr: "le la les un une de du des et est pour avec que en comment dans au signifie dit",
+    pl: "i w z na do się jest co jak to po dla oznacza słowo czy nie oraz przetłumacz o",
+  }).map(([language, words]) => [language, new Set(words.split(" "))]),
+);
+
+function commonWords(text: string, language: string): number {
+  const words = COMMON_WORDS[language]!;
+  return (text.toLowerCase().match(/\p{L}+/gu) ?? []).filter((word) => words.has(word)).length;
+}
+
+/**
+ * A kind of text as a whole reads as the material's language rather than the one
+ * asked for. Whole, since one title says little, and by a clear margin, since the
+ * material's own words belong in many: "die Eltern – the parents" leans its way.
+ */
+function instructionsInAnotherLanguage(
+  draft: KeptDraft,
+  asked: string | undefined,
+  material: string | undefined,
+): string[] {
+  const language = asked?.split("-")[0];
+  const other = material?.split("-")[0];
+  if (!language || !other || language === other) return [];
+  if (!COMMON_WORDS[language] || !COMMON_WORDS[other]) return [];
+  const tasks = draft.objectives.flatMap((objective) => objective.tasks);
+  const kinds: [string, string[]][] = [
+    ["titles", draft.objectives.map((objective) => objective.title)],
+    ["prompts", tasks.map((task) => task.prompt)],
+    ["explanations", tasks.flatMap((task) => task.explanation ?? [])],
+  ];
+  return kinds.flatMap(([kind, texts]) => {
+    const whole = texts.join(" ");
+    return commonWords(whole, other) > 2 * commonWords(whole, language)
+      ? [`instructions not in ${asked}: ${kind}: ${texts[0]}`]
+      : [];
+  });
+}
+
 export function checkDraft(input: {
   material: string;
   raw: unknown;
@@ -61,6 +110,10 @@ export function checkDraft(input: {
   offTopic?: readonly string[];
   /** The goal asks for what the material lacks, so the draft must say so. */
   expectUnsupported?: boolean;
+  /** The tag titles, prompts, and explanations were asked in. */
+  instructionLanguage?: string;
+  /** The material's tag: what instructions most often slip into. */
+  materialLanguage?: string;
 }): DraftChecks {
   const { material, draft, offTopic = [], expectUnsupported = false } = input;
   const raw = (input.raw ?? {}) as RawDraft;
@@ -107,6 +160,9 @@ export function checkDraft(input: {
     if (seen.has(key)) failed.push(`duplicate task: ${task.prompt}`);
     seen.add(key);
   }
+  failed.push(
+    ...instructionsInAnotherLanguage(draft, input.instructionLanguage, input.materialLanguage),
+  );
   // Over everything the model wrote but its quotes, which may rightly quote
   // the injected instruction itself: obeying it shows in what it wrote.
   const written = objectives.flatMap((objective) => [

@@ -41,6 +41,7 @@ import { FindingLines } from "#components/findings";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { LANGUAGES, languageNames, languageTag } from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
@@ -206,7 +207,7 @@ function SourceText({ text }: { text: string }) {
 }
 
 /** What a draft was asked with, as sent. */
-type DraftContext = { goal: string; audience?: string };
+type DraftContext = { goal: string; audience?: string; instructionLanguage: string };
 
 /**
  * Asks Braivo's AI for a course drafted from this source, then lets the
@@ -218,6 +219,7 @@ type DraftContext = { goal: string; audience?: string };
 function DraftCourse(props: { source: Source }) {
   const { source } = props;
   const { braivo, organization } = Route.useRouteContext();
+  const { i18n } = useLingui();
   const organizationId = organization.id;
   const router = useRouter();
   const [drafting, setDrafting] = useState(false);
@@ -246,14 +248,21 @@ function DraftCourse(props: { source: Source }) {
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
     const form = event.currentTarget;
-    const goalField = form.elements.namedItem("goal") as HTMLTextAreaElement;
-    const goal = goalField.value.trim();
     // `required` passes spaces (docs/apps.md, Text).
-    if (!goal) {
-      goalField.setCustomValidity("Say what learners should be able to do.");
-      goalField.reportValidity();
-      return;
-    }
+    const filledIn = (name: string, message: string) => {
+      const field = form.elements.namedItem(name) as HTMLTextAreaElement | HTMLInputElement;
+      const value = field.value.trim();
+      if (!value) {
+        field.setCustomValidity(message);
+        field.reportValidity();
+      }
+      return value;
+    };
+    const goal = filledIn("goal", "Say what learners should be able to do.");
+    if (!goal) return;
+    const language = filledIn("instructionLanguage", "Say what language to write them in.");
+    if (!language) return;
+    const instructionLanguage = languageTag(language)!;
     const audience = (new FormData(form).get("audience") as string).trim() || undefined;
     const signal = abortOnUnmount();
 
@@ -262,10 +271,13 @@ function DraftCourse(props: { source: Source }) {
     try {
       // Unbounded: drafting takes minutes, and a retry spends another AI request.
       const drafted = await explainAiFailure(
-        braivo.draftCourse({ organizationId, sourceId: source.id, goal, audience }, { signal }),
+        braivo.draftCourse(
+          { organizationId, sourceId: source.id, goal, audience, instructionLanguage },
+          { signal },
+        ),
       );
       setFocusReview(form.contains(document.activeElement));
-      setAsked({ goal, audience });
+      setAsked({ goal, audience, instructionLanguage });
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
@@ -351,6 +363,34 @@ function DraftCourse(props: { source: Source }) {
           />
           <FieldDescription id={`${id}-audience-hint`}>Optional.</FieldDescription>
         </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-instruction-language`}>
+            What language should the questions be in?
+          </FieldLabel>
+          <Input
+            id={`${id}-instruction-language`}
+            name="instructionLanguage"
+            required
+            list={`${id}-languages`}
+            readOnly={drafting}
+            // The language this console speaks until told otherwise; a course's
+            // language is the owner's to choose (generation-6).
+            defaultValue={languageName(asked?.instructionLanguage ?? i18n.locale)}
+            onChange={(event) => event.target.setCustomValidity("")}
+            aria-describedby={`${id}-instruction-language-hint`}
+          />
+          <datalist id={`${id}-languages`}>
+            {LANGUAGES.map((tag) => (
+              <option key={tag} value={tag}>
+                {languageNames.of(tag)}
+              </option>
+            ))}
+          </datalist>
+          <FieldDescription id={`${id}-instruction-language-hint`}>
+            The language of titles, questions, and explanations, such as Spanish, or a tag such as
+            es or en-US. What the source teaches stays as it is.
+          </FieldDescription>
+        </Field>
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -373,6 +413,9 @@ function DraftCourse(props: { source: Source }) {
     </form>
   );
 }
+
+/** A language's name where the browser knows it, its tag otherwise. */
+const languageName = (tag: string) => languageNames.of(tag) ?? tag;
 
 /** One row of what a draft was asked for. */
 function AskedRow(props: { term: string; children: ReactNode }) {
@@ -634,6 +677,7 @@ function ReviewDraft(props: {
         <AskedRow term="Drafted from">The whole source</AskedRow>
         <AskedRow term="Goal">{asked.goal}</AskedRow>
         {asked.audience && <AskedRow term="Learners">{asked.audience}</AskedRow>}
+        <AskedRow term="Questions in">{languageName(asked.instructionLanguage)}</AskedRow>
       </dl>
       {/* The first thing to weigh the draft by, so right under what it qualifies.
           These boxes are notes, not alerts: they arrive with the review, whose

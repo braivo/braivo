@@ -117,6 +117,39 @@ describe("drafting a course from a source", () => {
       }
     });
 
+    test("restates beside the goal that it never changes an objective's shape", async () => {
+      const { model, asked } = answering({ objectives: [] });
+
+      await draftCourse(model, source, { goal });
+
+      expect(asked[0]?.prompt).toContain(
+        `<goal>\n${goal}\n</goal>\nThe goal narrows what you draft, never an objective's shape: each stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective.\n\n`,
+      );
+    });
+
+    test("carries the language for learners' instructions as data, said to override the rest", async () => {
+      const { model, asked } = answering({ objectives: [] });
+
+      await draftCourse(model, source, { goal, instructionLanguage: "en" });
+
+      const prompt = asked[0]!.prompt;
+      expect(prompt).toContain("<instruction_language>\nen\n</instruction_language>");
+      expect(prompt).toContain(
+        "Write every objective's title and every task's prompt and explanation in this language, whatever the language of the goal, the learners, or the material",
+      );
+      before(prompt, "<instruction_language>");
+      expect(asked[0]?.system).toContain("<instruction_language>");
+    });
+
+    test("asks for no language when told none", async () => {
+      const { model, asked } = answering({ objectives: [] });
+
+      await draftCourse(model, source, { goal });
+
+      expect(asked[0]?.prompt).not.toContain("instruction_language");
+      expect(asked[0]?.prompt).not.toContain("in this language");
+    });
+
     test("keeps a closing delimiter inside the block it was written in", async () => {
       const { model, asked } = answering({ objectives: [] });
 
@@ -683,6 +716,10 @@ describe("an operation's prompt version", () => {
     ["the system text", { system: `${DRAFT_OPERATION.system} ` }],
     ["the message template", { template: `${DRAFT_OPERATION.template}\n` }],
     ["the default audience", { parts: { ...DRAFT_OPERATION.parts, defaultAudience: "adults" } }],
+    [
+      "the language's block",
+      { parts: { ...DRAFT_OPERATION.parts, instructionLanguage: "In {{instructionLanguage}}.\n" } },
+    ],
     ["the goal's block", { parts: { ...DRAFT_OPERATION.parts, goal: "Goal: {{goal}}\n" } }],
     [
       "the learners' block",
@@ -711,7 +748,11 @@ describe("an operation's prompt version", () => {
   test("is what drafting sends, whatever the goal, audience, title, language, or material", async () => {
     const { model, asked } = answering({ objectives: [] });
 
-    await draftCourse(model, source, { goal: "Name colours", audience: "grade 2" });
+    await draftCourse(model, source, {
+      goal: "Name colours",
+      audience: "grade 2",
+      instructionLanguage: "en",
+    });
     await draftCourse(model, { ...source, title: "Colores", text: "Verde.", language: undefined });
 
     for (const request of asked) {
@@ -725,6 +766,9 @@ describe("an operation's prompt version", () => {
       fill(DRAFT_OPERATION.template, {
         goal: fill(DRAFT_OPERATION.parts.goal, { goal: "Name colours" }),
         learners: fill(DRAFT_OPERATION.parts.learners, { audience: "grade 2" }),
+        instructionLanguage: fill(DRAFT_OPERATION.parts.instructionLanguage, {
+          instructionLanguage: "en",
+        }),
         title: source.title,
         language: fill(DRAFT_OPERATION.parts.language, { language: "es" }),
         material: source.text,
@@ -736,6 +780,7 @@ describe("an operation's prompt version", () => {
         learners: fill(DRAFT_OPERATION.parts.learners, {
           audience: DRAFT_OPERATION.parts.defaultAudience,
         }),
+        instructionLanguage: "",
         title: "Colores",
         language: "",
         material: "Verde.",

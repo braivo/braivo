@@ -896,7 +896,14 @@ export type BraivoClient = {
    * `reason`.
    */
   draftCourse(
-    input: { organizationId: string; sourceId: string; goal?: string; audience?: string },
+    input: {
+      organizationId: string;
+      sourceId: string;
+      goal?: string;
+      audience?: string;
+      /** The language of titles, prompts, and explanations, as a BCP 47 tag. */
+      instructionLanguage?: string;
+    },
     options?: RequestOptions,
   ): Promise<Draft>;
 
@@ -1821,10 +1828,13 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       }
     },
 
-    async draftCourse({ organizationId, sourceId, goal, audience }, requestOptions) {
+    async draftCourse(
+      { organizationId, sourceId, goal, audience, instructionLanguage },
+      requestOptions,
+    ) {
       const response = await post(
         `${organizationPath(organizationId)}/sources/${encodeURIComponent(sourceId)}/draft`,
-        { goal, audience },
+        { goal, audience, instructionLanguage },
         requestOptions,
       );
 

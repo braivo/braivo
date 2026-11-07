@@ -4,7 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { type Draft, draftCourse } from "../ai/index.ts";
-import { isStorableText } from "../content/index.ts";
+import { isStorableText, parseLanguageTag } from "../content/index.ts";
 import { readSource } from "../persistence/index.ts";
 import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 
@@ -39,6 +39,14 @@ export async function draftFromSource(input: {
   audience?: string;
   /** What learners should be able to do, as the request sent it. Absent, nothing guides the draft. */
   goal?: unknown;
+  /**
+   * The language of titles, prompts, and explanations, as the request sent it.
+   * A tag, as a source's language is: of any language, not only those Braivo's
+   * apps speak, since a course's language is not the interface's
+   * (docs/specs/localization.md, Boundaries), and never a name for the model to
+   * interpret. Absent, the model takes the learners' language.
+   */
+  instructionLanguage?: unknown;
   now: Date;
   /** The request's: the model is not kept answering someone who left. */
   signal?: AbortSignal;
@@ -59,6 +67,16 @@ export async function draftFromSource(input: {
   }
   const goal = input.goal?.trim();
 
+  const instructionLanguage =
+    typeof input.instructionLanguage === "string"
+      ? parseLanguageTag(input.instructionLanguage)
+      : undefined;
+  if (input.instructionLanguage !== undefined && instructionLanguage === undefined) {
+    throw new InvalidAiRequest(
+      "The language for learners' instructions must be a BCP 47 tag such as es or en-US, not a language's name.",
+    );
+  }
+
   const { ask } = await aiFor(database, ai, { organizationId, actingAs });
 
   const source = await readSource(cachedDatabase, organizationId, sourceId);
@@ -77,6 +95,7 @@ export async function draftFromSource(input: {
       const { draft, counts } = await draftCourse(model, source, {
         goal,
         audience,
+        instructionLanguage,
         signal: input.signal,
       });
       return { result: draft, counts };

@@ -901,9 +901,11 @@
 // `POST /api/organizations/:organizationId/sources/:sourceId/draft` — a course
 // drafted from the source by the installation's model, for review; nothing is
 // stored (ADR 0029). Body `{ "goal": "order food politely", "audience": "grade 2,
-// English speakers" }`, both optional: the goal 1 to 300 characters, the audience
-// at most 200. They describe the purpose and the learners to the model, and tasks
-// still come only from the source. Slow: the model reads the whole source.
+// English speakers", "instructionLanguage": "en" }`, all optional: the goal 1 to
+// 300 characters, the audience at most 200, the language of titles, prompts, and
+// explanations a BCP 47 tag. They describe the purpose and the learners to the
+// model, and tasks still come only from the source. Slow: the model reads the
+// whole source.
 // Answers 200 with
 //
 //   { "objectives": [{ "key": "<random, for this draft>", "title": "Say hello",
@@ -921,7 +923,7 @@
 // accept; `unsupported`, when present, is the model's own note on what of the
 // goal the source does not support, and may come with no objectives at all.
 // Each refusal carries an `error`: 400 for a source over 200,000 characters,
-// a long audience, or a goal blank, long, or not text; 403 `code` `AI_NOT_ENTITLED` when
+// a long audience, a goal blank, long, or not text, or a language not a tag; 403 `code` `AI_NOT_ENTITLED` when
 // `BRAIVO_AI_ORGANIZATIONS` is set and does not list the organization; 429,
 // with `Retry-After`, when it has made its month's requests under
 // `BRAIVO_AI_MONTHLY_LIMIT` (ADR 0031), each valid request counting, answered
