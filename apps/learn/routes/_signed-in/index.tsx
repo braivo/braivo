@@ -204,7 +204,7 @@ function CourseCard({
         ? waitingLine(details.waiting, t)
         : t(
             msg({
-              message: "Nothing due right now",
+              message: "No recommended practice right now",
               comment:
                 "A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up",
             }),

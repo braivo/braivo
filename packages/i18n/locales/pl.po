@@ -1655,6 +1655,11 @@ msgstr "Jeszcze bez ćwiczeń z celów tego kursu"
 msgid "No practice yet: {none}"
 msgstr "Jeszcze bez ćwiczeń: {none}"
 
+#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "No recommended practice right now"
+msgstr "Na razie brak zalecanych ćwiczeń"
+
 #: apps/console/components/explanations.tsx
 msgid "No tasks yet."
 msgstr "Na razie brak zadań."
@@ -1701,11 +1706,6 @@ msgstr "Nierozpoczęte"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło; jeśli od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów, widać to pod stanem celu. „Pokaż odpowiedź” liczy się jako błąd."
-
-#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
-#: apps/learn/routes/_signed-in/index.tsx
-msgid "Nothing due right now"
-msgstr "Na razie nic do powtórki"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."

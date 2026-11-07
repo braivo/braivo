@@ -1655,6 +1655,11 @@ msgstr "No practice recorded yet on this course's objectives"
 msgid "No practice yet: {none}"
 msgstr "No practice yet: {none}"
 
+#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
+#: apps/learn/routes/_signed-in/index.tsx
+msgid "No recommended practice right now"
+msgstr "No recommended practice right now"
+
 #: apps/console/components/explanations.tsx
 msgid "No tasks yet."
 msgstr "No tasks yet."
@@ -1701,11 +1706,6 @@ msgstr "Not started"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
-
-#. A course card's line, no stop, when practice offers nothing now: resting, at the day's limit, or caught up
-#: apps/learn/routes/_signed-in/index.tsx
-msgid "Nothing due right now"
-msgstr "Nothing due right now"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
