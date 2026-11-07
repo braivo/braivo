@@ -74,6 +74,36 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     }
   });
 
+  // The slug rules refuse it too, but only on creating, after the taken check.
+  test("refuses the address learn as reserved, even once registered for Braivo", async () => {
+    // A domain of its own, as the hostname outlives the run.
+    const selfServeDomain = `${crypto.randomUUID().slice(0, 8)}.example`;
+    const braivo = `braivo-${crypto.randomUUID()}`;
+    await database
+      .insert(organization)
+      .values({ id: braivo, name: "Braivo", slug: braivo, createdAt: at });
+    await registerLearnDomain({
+      database,
+      baseUrl: "https://braivo.example",
+      organizationSlug: braivo,
+      hostname: `learn.${selfServeDomain}`,
+    });
+    const create = vi.fn();
+
+    const setUp = setUpOrganization({
+      database,
+      baseUrl: "https://braivo.example",
+      selfServeDomain,
+      actingAs: `setup-learn-${crypto.randomUUID()}`,
+      name: "Learn",
+      slug: "learn",
+      create,
+    });
+
+    await expect(setUp).rejects.toMatchObject({ code: "ADDRESS_RESERVED" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
   test("undoes its organization when another takes the address before it registers", async () => {
     const userId = `setup-domain-${crypto.randomUUID()}`;
     await database

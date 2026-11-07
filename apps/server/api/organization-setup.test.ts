@@ -219,7 +219,8 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
   });
 
   // Written out, not imported: dropping a name from the code's list must fail
-  // here. `api` comes from the slug rules.
+  // here. `api` comes from the slug rules; `learn` from both, so dropping it
+  // from the code's list fails `application/organizations.test.ts` instead.
   test.each([
     "admin",
     "api",
@@ -230,6 +231,7 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     "domains",
     "eu",
     "help",
+    "learn",
     "mail",
     "status",
     "us",

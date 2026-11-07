@@ -130,8 +130,8 @@ export class SetUpRefused extends Error {
 /**
  * Service and region names no self-serve organization may take as its
  * subdomain, so none passes for the installation's own; `domains` is kept for
- * organizations' own domains to point at. Console routes are reserved by the
- * slug rules (`auth/slug.ts`).
+ * organizations' own domains to point at, `learn` for Braivo's own learn app.
+ * Console routes are reserved by the slug rules (`auth/slug.ts`).
  */
 const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set([
   "admin",
@@ -142,6 +142,7 @@ const RESERVED_SUBDOMAINS: ReadonlySet<string> = new Set([
   "domains",
   "eu",
   "help",
+  "learn",
   "mail",
   "status",
   "us",
