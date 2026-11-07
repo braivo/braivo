@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_signed-in/")({
   gcTime: 0,
   loader: async ({ context, abortController }) => {
     const left = abortController.signal;
-    const [courses, standings] = await Promise.all([
+    const [courses, details] = await Promise.all([
       context.braivo.learnerCourses({ signal: withDeadline(left, READ_DEADLINE_MS) }),
       context.braivo
         .learnerCoursesWithStanding({ signal: withDeadline(left, OPTIONAL_READ_DEADLINE_MS) })
@@ -51,7 +51,7 @@ export const Route = createFileRoute("/_signed-in/")({
         )
         .catch(() => undefined),
     ]);
-    return { courses, standings };
+    return { courses, details };
   },
   component: Courses,
   errorComponent: CoursesError,
@@ -77,7 +77,7 @@ function CoursesError() {
 const root = getRouteApi("__root__");
 
 function Courses() {
-  const { courses, standings } = Route.useLoaderData();
+  const { courses, details } = Route.useLoaderData();
   // A number names a course on its organization's domain alone; elsewhere, or
   // with the domain's organization unknown, its ID does.
   const { organization } = root.useLoaderData();
@@ -85,7 +85,7 @@ function Courses() {
   // sort, so by title within each. Unread, the list's order alone: nothing can be
   // said of what waits.
   const ordered = courses.toSorted(
-    (a, b) => urgency(standings?.get(a.id)?.waiting) - urgency(standings?.get(b.id)?.waiting),
+    (a, b) => rank(details?.get(a.id)?.waiting) - rank(details?.get(b.id)?.waiting),
   );
 
   return (
@@ -113,7 +113,7 @@ function Courses() {
                 key={course.id}
                 course={course}
                 courseRef={organization ? courseRef(course) : course.id}
-                read={standings?.get(course.id)}
+                details={details?.get(course.id)}
               />
             ))}
           </ItemGroup>
@@ -123,8 +123,8 @@ function Courses() {
   );
 }
 
-/** Where a course lists: learning or reviews waiting, only new material, nothing or unread. */
-function urgency(waiting: CourseWaiting | undefined) {
+/** Where a course lists, first to last: learning or reviews waiting, only new material, nothing or unread. */
+function rank(waiting: CourseWaiting | undefined) {
   if (waiting === undefined) return 2;
   if (waiting.learning + waiting.dueForReview > 0) return 0;
   return waiting.new > 0 ? 1 : 2;
@@ -151,29 +151,29 @@ function hasWaiting({ learning, dueForReview, new: fresh }: CourseWaiting) {
 function CourseCard({
   course,
   courseRef,
-  read,
+  details,
 }: {
   course: Course;
   courseRef: string;
-  read: { standing: CourseStanding; waiting: CourseWaiting } | undefined;
+  details: { standing: CourseStanding; waiting: CourseWaiting } | undefined;
 }) {
   const { t } = useLingui();
   const titleId = useId();
   const lineId = useId();
-  const saidId = useId();
-  const waits = read !== undefined && hasWaiting(read.waiting);
-  const started = read && read.standing.notStarted < totalOf(read.standing);
-  const counts = read && countsLine(read.standing, t);
+  const descriptionId = useId();
+  const waits = details !== undefined && hasWaiting(details.waiting);
+  const started = details && details.standing.notStarted < totalOf(details.standing);
+  const counts = details && countsLine(details.standing, t);
   const next = !waits
     ? undefined
     : started
-      ? waitingLine(read.waiting, t)
+      ? waitingLine(details.waiting, t)
       : t`We start with a question and use your answers to choose what comes next.`;
   const line = next ?? counts;
   // One text, not the two lines by reference: a description joins those with a
   // bare space, running what waits into the standing's counts. A count line has
   // no stop of its own; the sentence does.
-  const said = next && `${next}${started ? "." : ""} ${counts}`;
+  const description = next && `${next}${started ? "." : ""} ${counts}`;
   return (
     // `ItemGroup` is a list, and a link is not a list item. A chevron and a
     // press's fill mark it as a link on a phone, where nothing hovers.
@@ -183,25 +183,25 @@ function CourseCard({
           to="/c/$courseRef"
           params={{ courseRef }}
           aria-labelledby={titleId}
-          aria-describedby={said ? saidId : line ? lineId : undefined}
+          aria-describedby={description ? descriptionId : line ? lineId : undefined}
         >
           <ItemContent className="min-w-0 gap-2">
             <ItemTitle id={titleId} className="line-clamp-none wrap-anywhere">
               {course.title}
             </ItemTitle>
-            {read && line && (
+            {details && line && (
               <>
-                <StandingBar counts={read.standing} />
+                <StandingBar counts={details.standing} />
                 <ItemDescription
                   id={lineId}
-                  aria-hidden={said ? true : undefined}
+                  aria-hidden={description ? true : undefined}
                   className={cn("line-clamp-none", waits && "text-foreground")}
                 >
                   {line}
                 </ItemDescription>
-                {said && (
-                  <span id={saidId} className="sr-only">
-                    {said}
+                {description && (
+                  <span id={descriptionId} className="sr-only">
+                    {description}
                   </span>
                 )}
               </>
