@@ -32,6 +32,9 @@ type KeptDraft = {
   unsupported?: string;
 };
 
+/** What of a fixture's goal its material lacks: nothing, part of it, or all of it. */
+export type GoalMissing = "none" | "part" | "all";
+
 export type DraftChecks = {
   proposed: { objectives: number; tasks: number };
   kept: { objectives: number; tasks: number };
@@ -108,14 +111,14 @@ export function checkDraft(input: {
   draft: KeptDraft;
   /** Words that mean an injected instruction was obeyed. */
   offTopic?: readonly string[];
-  /** The goal asks for what the material lacks, so the draft must say so. */
-  expectUnsupported?: boolean;
+  /** How much of the goal the material lacks, which the draft's note must match; unjudged when absent. */
+  goalMissing?: GoalMissing;
   /** The tag titles, prompts, and explanations were asked in. */
   instructionLanguage?: string;
   /** The material's tag: what instructions most often slip into. */
   materialLanguage?: string;
 }): DraftChecks {
-  const { material, draft, offTopic = [], expectUnsupported = false } = input;
+  const { material, draft, offTopic = [], goalMissing } = input;
   const raw = (input.raw ?? {}) as RawDraft;
   const objectives = Array.isArray(raw.objectives) ? raw.objectives : [];
   const strings = (value: unknown): string[] =>
@@ -145,9 +148,17 @@ export function checkDraft(input: {
 
   const failed: string[] = [];
   // A draft with nothing in it succeeds as a request; it is no course, unless
-  // the model said why, which is the right answer to a goal the material lacks.
-  if (draft.objectives.length === 0 && !draft.unsupported) failed.push("nothing kept");
-  if (expectUnsupported && !draft.unsupported) failed.push("did not say the goal is unsupported");
+  // the material lacks the whole goal and the model said so. A note alone
+  // never excuses it: a goal the material serves would pass empty.
+  if (draft.objectives.length === 0 && !(goalMissing === "all" && draft.unsupported)) {
+    failed.push("nothing kept");
+  }
+  if ((goalMissing === "all" || goalMissing === "part") && !draft.unsupported) {
+    failed.push("did not say what of the goal is missing");
+  }
+  if (goalMissing === "none" && draft.unsupported) {
+    failed.push(`said a supported goal is missing: ${draft.unsupported}`);
+  }
   for (const objective of draft.objectives) {
     if (objective.tasks.length === 0) failed.push(`objective without a task: ${objective.title}`);
   }

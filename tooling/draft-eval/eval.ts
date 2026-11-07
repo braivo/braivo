@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { checkDraft, checkReading } from "./checks.ts";
+import { checkDraft, checkReading, type GoalMissing } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,7 +39,7 @@ export type Fixture = {
   instructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
-  expectUnsupported?: boolean;
+  goalMissing?: GoalMissing;
   lines?: string[];
   order?: [string, string][];
 };
@@ -169,7 +169,7 @@ export async function runEvaluation(options: {
             raw: record.raw,
             draft,
             offTopic: spec.offTopic,
-            expectUnsupported: spec.expectUnsupported,
+            goalMissing: spec.goalMissing,
             instructionLanguage: spec.instructionLanguage,
             materialLanguage: spec.language,
           });

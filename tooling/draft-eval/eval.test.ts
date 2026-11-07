@@ -21,7 +21,7 @@ import {
   promptVersion,
   READ_OPERATION,
 } from "../../apps/server/ai/index.ts";
-import { checkDraft, checkReading } from "./checks.ts";
+import { checkDraft, checkReading, type GoalMissing } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
 import { readManifest, type RunRecord, runEvaluation } from "./eval.ts";
 
@@ -56,7 +56,7 @@ describe("the draft evaluation", () => {
 
     expect(code).toBe(0);
     expect(stdout).toContain(
-      `22 calls of claude-sonnet-5 (11 fixtures × 2 runs) with ${root}'s code`,
+      `24 calls of claude-sonnet-5 (12 fixtures × 2 runs) with ${root}'s code`,
     );
     expect(stdout).toContain("Nothing was asked. Add --yes to spend them.");
     expect(readdirSync(cwd)).toEqual([]);
@@ -335,16 +335,38 @@ describe("the draft evaluation", () => {
     expect(
       checkDraft({ material: "", raw: {}, draft: { objectives: [], refused: [] } }).failed,
     ).toEqual(["nothing kept"]);
-    // Unless it says why, which a goal the material lacks must.
+  });
+
+  test("holds a draft's note to what of the goal its material lacks", () => {
     const empty = { objectives: [], refused: [] };
     const said = { ...empty, unsupported: "It does not cover the bill." };
-    expect(checkDraft({ material: "", raw: {}, draft: said }).failed).toEqual([]);
-    expect(
-      checkDraft({ material: "", raw: {}, draft: said, expectUnsupported: true }).failed,
-    ).toEqual([]);
-    expect(
-      checkDraft({ material: "", raw: {}, draft: empty, expectUnsupported: true }).failed,
-    ).toEqual(["nothing kept", "did not say the goal is unsupported"]);
+    const kept = {
+      objectives: [
+        { title: "la cuenta", tasks: [{ kind: "typed", prompt: "p", accepted: ["x"] }] },
+      ],
+      refused: [],
+    };
+    const failed = (draft: Parameters<typeof checkDraft>[0]["draft"], goalMissing?: GoalMissing) =>
+      checkDraft({ material: "", raw: {}, draft, goalMissing }).failed;
+
+    // Empty and saying why is right only where the material lacks all of it.
+    expect(failed(said, "all")).toEqual([]);
+    expect(failed(empty, "all")).toEqual([
+      "nothing kept",
+      "did not say what of the goal is missing",
+    ]);
+    // Where it lacks part, the rest is drafted, and the note still due.
+    expect(failed(said, "part")).toEqual(["nothing kept"]);
+    expect(failed(kept, "part")).toEqual(["did not say what of the goal is missing"]);
+    expect(failed({ ...kept, unsupported: "No paying by card." }, "part")).toEqual([]);
+    // Where it lacks none, a note is wrong, and no excuse for drafting nothing.
+    expect(failed(said, "none")).toEqual([
+      "nothing kept",
+      "said a supported goal is missing: It does not cover the bill.",
+    ]);
+    expect(failed(kept, "none")).toEqual([]);
+    // Unjudged without a goal: a note excuses nothing.
+    expect(failed(said)).toEqual(["nothing kept"]);
   });
 
   describe("the language of a draft's instructions", () => {
@@ -417,6 +439,7 @@ describe("the draft evaluation", () => {
           material: "",
           raw: {},
           draft: { objectives: [], refused: [], unsupported: "It lacks the bill." },
+          goalMissing: "all",
           instructionLanguage: "en",
           materialLanguage: "es",
         }).failed,

@@ -60,7 +60,8 @@
     "instructionLanguage": "en",
     "origin": "market-spanish's text, with a goal naming part of it and no audience.",
     "rights": "authored",
-    "review": "2026-11-07: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
+    "goalMissing": "none"
   },
   "market-spanish-goal-polish": {
     "kind": "draft",
@@ -71,7 +72,8 @@
     "instructionLanguage": "pl",
     "origin": "market-spanish's text, with a goal in Polish, asking for instructions in a language neither English nor the material's.",
     "rights": "authored",
-    "review": "2026-11-07: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
+    "goalMissing": "none"
   },
   "market-spanish-goal-grade": {
     "kind": "draft",
@@ -83,7 +85,21 @@
     "audience": "Grade 5",
     "origin": "market-spanish's text, with learners described but not their language.",
     "rights": "authored",
-    "review": "2026-11-07: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
+    "goalMissing": "none"
+  },
+  "market-spanish-goal-partial": {
+    "kind": "draft",
+    "file": "market-spanish.txt",
+    "title": "Unit 3: At the market",
+    "language": "es",
+    "goal": "Ask for a quantity of fruit and pay for it by card",
+    "instructionLanguage": "en",
+    "audience": "English-speaking adults learning Spanish at A1 level",
+    "origin": "market-spanish's text, with a goal it supports only in part: it never mentions paying by card.",
+    "rights": "authored",
+    "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
+    "goalMissing": "part"
   },
   "family-german-goal-missing": {
     "kind": "draft",
@@ -96,7 +112,7 @@
     "origin": "family-german's text, with a goal it does not support.",
     "rights": "authored",
     "review": "2026-11-07: fictional school and people only; no real school's material or published text.",
-    "expectUnsupported": true
+    "goalMissing": "all"
   },
   "market-spanish-goal-injected": {
     "kind": "draft",
@@ -121,7 +137,7 @@
       "draisine",
       "velocipede"
     ],
-    "expectUnsupported": true
+    "goalMissing": "all"
   },
   "two-column": {
     "kind": "read",
