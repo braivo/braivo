@@ -68,8 +68,13 @@ export async function chooseNextActivity(input: {
   now: Date;
   /** The learner's, an IANA name, for the day `limitNewObjectives` counts in. */
   timeZone: string;
+  /**
+   * The objective the learner chose, decided among alone; one outside the
+   * course is `unavailable` (docs/adr/0058-learner-chosen-objective.md).
+   */
+  objectiveId?: string;
 }): Promise<NextActivity> {
-  const { database, learnerId, courseId, host, now, timeZone } = input;
+  const { database, learnerId, courseId, host, now, timeZone, objectiveId: chosen } = input;
 
   const learner = await loadLearnerInCourse(database, {
     courseId,
@@ -80,17 +85,39 @@ export async function chooseNextActivity(input: {
     authorize: ({ open }) => open,
   });
   if (learner === undefined) return { kind: "unavailable" };
+  if (chosen !== undefined && !learner.objectiveIds.includes(chosen)) {
+    return { kind: "unavailable" };
+  }
+  const scope =
+    chosen === undefined ? learner : { ...learner, objectiveIds: [chosen] as readonly string[] };
 
-  const withTasks = await readObjectivesWithTasks(database, learner.objectiveIds);
-  const practice = decidePractice(learner, withTasks, { now, timeZone });
+  const withTasks = await readObjectivesWithTasks(database, scope.objectiveIds);
+
+  // A chosen objective that needs no attention is still served, as extra
+  // practice: the learner's request, never the model's (ADR 0058).
+  const practise = (objectiveId: string): ActivityDecision => ({
+    objectiveId,
+    modelVersion: activeModel.version,
+    intent: "practise",
+  });
+  const decide = (): Practice | { kind: "no-activity"; decision: ActivityDecision } => {
+    const practice = decidePractice(scope, withTasks, { now, timeZone });
+    if (chosen === undefined || practice.kind !== "caught-up") return practice;
+    return withTasks.has(chosen)
+      ? { kind: "eligible", candidates: [chosen] }
+      : { kind: "no-activity", decision: practise(chosen) };
+  };
+
+  const practice = decide();
   if (practice.kind !== "eligible") return await asActivity(practice);
 
   // While every task of the decided objective rests, select again without it,
   // so a learner practises something else, unseen objectives included
   // (docs/adr/0017-task-rest.md). `acquiring` outranks the rest, so it comes
   // back first once its rest ends.
-  const select = (candidates: readonly string[]) =>
-    selectNext({ now, candidates, estimates: learner.estimates, model: activeModel });
+  const select = (candidates: readonly string[]): ActivityDecision | undefined =>
+    selectNext({ now, candidates, estimates: learner.estimates, model: activeModel }) ??
+    (chosen !== undefined && candidates.includes(chosen) ? practise(chosen) : undefined);
   let candidates = practice.candidates;
   let resting: { objective: Objective; retryAt: Date } | undefined;
   for (let decision = select(candidates); decision !== undefined; decision = select(candidates)) {
@@ -140,12 +167,14 @@ export async function chooseNextActivity(input: {
   // Every objective selected lost its last task meanwhile: decided again as if
   // they never had one, the same order without them (a resting one keeps its
   // task, but none rests here).
-  const redecided = decidePractice(learner, withTasks, { now, timeZone });
+  const redecided = decide();
   // Unreachable: the loop ended because nothing with a task left needs attention.
   if (redecided.kind === "eligible") throw new Error("Practice without a task to offer");
   return await asActivity(redecided);
 
-  async function asActivity(state: Exclude<Practice, { kind: "eligible" }>): Promise<NextActivity> {
+  async function asActivity(
+    state: Exclude<ReturnType<typeof decide>, { kind: "eligible" }>,
+  ): Promise<NextActivity> {
     if (state.kind !== "no-activity") return state;
     const { decision } = state;
     const objective = await readObjective(database, decision.objectiveId);
@@ -153,6 +182,17 @@ export async function chooseNextActivity(input: {
     return { kind: "no-activity", decision, objective };
   }
 }
+
+/**
+/**
+ * Why an activity's objective comes next: the model's decision, or `practise`,
+ * the learner's own choice of one needing no attention (extra practice,
+ * docs/adr/0058-learner-chosen-objective.md). The application's, so `learning`
+ * keeps its three intents.
+ */
+export type ActivityDecision =
+  | LearningDecision
+  | { objectiveId: string; modelVersion: string; intent: "practise" };
 
 /**
  * As `NextObjective`, with the task to answer. `no-activity`: the decided
@@ -170,11 +210,11 @@ export type NextActivity =
   | { kind: "empty" }
   | { kind: "caught-up" }
   | { kind: "daily-limit"; limit: number }
-  | { kind: "no-activity"; decision: LearningDecision; objective: Objective }
+  | { kind: "no-activity"; decision: ActivityDecision; objective: Objective }
   | { kind: "resting"; objective: Objective; retryAt: Date; reviewable: boolean }
   | {
       kind: "decided";
-      decision: LearningDecision;
+      decision: ActivityDecision;
       objective: Objective;
       /** What an answer to `task` sends back (`submitAttempt`). */
       historyEpoch: number;

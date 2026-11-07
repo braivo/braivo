@@ -494,6 +494,10 @@ msgstr "Back to {organizationName}"
 msgid "Back to practice"
 msgstr "Back to practice"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Back to recommended"
+msgstr "Back to recommended"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Back to sign-in options"
 msgstr "Back to sign-in options"
@@ -1102,6 +1106,15 @@ msgstr "Expired"
 msgid "Expired on {expiredOn}."
 msgstr "Expired on {expiredOn}."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Extra practice"
+msgstr "Extra practice"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgctxt "Why a question comes now"
+msgid "Extra practice"
+msgstr "Extra practice"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "failure"
 msgstr "failure"
@@ -1708,6 +1721,14 @@ msgid "Not started means no evidence yet. Learning means practice has begun; one
 msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Nothing is due on {objectiveTitle} right now"
+msgstr "Nothing is due on {objectiveTitle} right now"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Nothing is due on {objectiveTitle} right now."
+msgstr "Nothing is due on {objectiveTitle} right now."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Nothing is due right now."
 
@@ -1825,6 +1846,18 @@ msgstr "Practice for {objectiveTitle} isn't available right now."
 msgid "Practice in the last 7 days"
 msgstr "Practice in the last 7 days"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise"
+msgstr "Practise"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise {title}"
+msgstr "Practise {title}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise again"
+msgstr "Practise again"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Practise its courses"
 msgstr "Practise its courses"
@@ -1837,6 +1870,14 @@ msgstr "Practised today: {todaySummary}."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Practised: {recent}"
 msgstr "Practised: {recent}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practising {title}"
+msgstr "Practising {title}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practising a topic you chose"
+msgstr "Practising a topic you chose"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -2680,12 +2721,20 @@ msgid "You are signed in as {email}. Sign in with the address it was sent to."
 msgstr "You are signed in as {email}. Sign in with the address it was sent to."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "You can answer an extra question on it, or go back to what's recommended."
+msgstr "You can answer an extra question on it, or go back to what's recommended."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Nothing is due right now."
 msgstr "You can start new material again tomorrow. Nothing is due right now."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "You chose this. It isn't due for review yet."
+msgstr "You chose this. It isn't due for review yet."
 
 #: apps/console/routes/_signed-in/consent.tsx
 #: apps/console/routes/_signed-in/join.tsx

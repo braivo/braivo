@@ -11,6 +11,7 @@ import {
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
 
 /**
  * Each standing (`standingOf`) in words, in the summary's order: alone, beside
@@ -113,9 +114,16 @@ function StandingBar({ counts }: { counts: CourseStanding }) {
 /**
  * Where the learner stands (progress-8): a meter, each standing a segment in
  * proportion to its objectives, over its counts, which open into each objective
- * by title. Nothing for a report with no objectives.
+ * by title, each followed by `action`, if given. Nothing for a report with no
+ * objectives.
  */
-export function StandingMeter({ report }: { report: LearnerProgressSummary }) {
+export function StandingMeter({
+  report,
+  action,
+}: {
+  report: LearnerProgressSummary;
+  action?: (objective: { objectiveId: string; title: string }) => ReactNode;
+}) {
   const { t } = useLingui();
   if (report.objectives.length === 0) return null;
   const counts = countStandings(report.objectives);
@@ -129,8 +137,11 @@ export function StandingMeter({ report }: { report: LearnerProgressSummary }) {
         <summary className="cursor-pointer py-3">{line}</summary>
         <ul className="flex flex-col gap-1">
           {report.objectives.map((standing) => (
-            <li key={standing.objectiveId}>
-              {standing.title}: {t(STANDING_LABELS[standingOf(standing)].alone)}
+            <li key={standing.objectiveId} className="flex items-center justify-between gap-2">
+              <span>
+                {standing.title}: {t(STANDING_LABELS[standingOf(standing)].alone)}
+              </span>
+              {action?.(standing)}
             </li>
           ))}
         </ul>

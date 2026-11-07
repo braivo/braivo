@@ -494,6 +494,10 @@ msgstr "Wróć do organizacji „{organizationName}”"
 msgid "Back to practice"
 msgstr "Wróć do ćwiczeń"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Back to recommended"
+msgstr "Wróć do zalecanych ćwiczeń"
+
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Back to sign-in options"
 msgstr "Wróć do opcji logowania"
@@ -1102,6 +1106,15 @@ msgstr "Wygasłe"
 msgid "Expired on {expiredOn}."
 msgstr "Wygasło {expiredOn}."
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Extra practice"
+msgstr "Dodatkowe ćwiczenie"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgctxt "Why a question comes now"
+msgid "Extra practice"
+msgstr "Dodatkowe ćwiczenie"
+
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "failure"
 msgstr "błąd"
@@ -1708,6 +1721,14 @@ msgid "Not started means no evidence yet. Learning means practice has begun; one
 msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło; jeśli od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów, widać to pod stanem celu. „Pokaż odpowiedź” liczy się jako błąd."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Nothing is due on {objectiveTitle} right now"
+msgstr "Temat „{objectiveTitle}” nie czeka teraz na powtórkę"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Nothing is due on {objectiveTitle} right now."
+msgstr "Temat „{objectiveTitle}” nie czeka teraz na powtórkę."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing is due right now."
 msgstr "Na razie nic nie czeka na powtórkę."
 
@@ -1825,6 +1846,18 @@ msgstr "Ćwiczenia z tematu „{objectiveTitle}” są obecnie niedostępne."
 msgid "Practice in the last 7 days"
 msgstr "Ćwiczenia w ostatnich 7 dniach"
 
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise"
+msgstr "Ćwicz"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise {title}"
+msgstr "Ćwicz „{title}”"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practise again"
+msgstr "Ćwicz jeszcze raz"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Practise its courses"
 msgstr "Ćwiczenie na jej kursach"
@@ -1837,6 +1870,14 @@ msgstr "Tematy ćwiczone dzisiaj: {todaySummary}."
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/progress.tsx
 msgid "Practised: {recent}"
 msgstr "Ćwiczyli: {recent}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practising {title}"
+msgstr "Ćwiczysz: {title}"
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "Practising a topic you chose"
+msgstr "Ćwiczysz wybrany temat"
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/preferences.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/route.tsx
@@ -2680,12 +2721,20 @@ msgid "You are signed in as {email}. Sign in with the address it was sent to."
 msgstr "Zalogowano jako {email}. Zaloguj się adresem, na który je wysłano."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "You can answer an extra question on it, or go back to what's recommended."
+msgstr "Możesz odpowiedzieć na dodatkowe pytanie z tego tematu albo wrócić do zalecanych ćwiczeń."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Następna powtórka: „{objectiveTitle}”, {nextReviewAt}."
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "You can start new material again tomorrow. Nothing is due right now."
 msgstr "Jutro możesz rozpocząć naukę nowego materiału. Na razie nic nie czeka na powtórkę."
+
+#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+msgid "You chose this. It isn't due for review yet."
+msgstr "To Twój wybór. Ten temat nie czeka jeszcze na powtórkę."
 
 #: apps/console/routes/_signed-in/consent.tsx
 #: apps/console/routes/_signed-in/join.tsx

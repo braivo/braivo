@@ -152,7 +152,8 @@ export function learningRoutes(
   /**
    * The signed-in learner's next objective, with a task to practise it or, while
    * every objective with a task that needs attention rests, when to ask again. Statuses as for the
-   * decision route.
+   * decision route. `?objective=` decides among that objective of the course
+   * alone, the learner's choice (docs/adr/0058-learner-chosen-objective.md).
    */
   routes.get("/api/courses/:courseId/activity", requireLearner, async (context) => {
     const timeZone = parseTimeZone(context.req.query("timeZone"));
@@ -166,6 +167,7 @@ export function learningRoutes(
       host: requestHost(context),
       now,
       timeZone,
+      objectiveId: context.req.query("objective"),
     });
 
     switch (next.kind) {

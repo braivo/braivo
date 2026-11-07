@@ -62,6 +62,8 @@ let untaughtCourseId!: string;
 /** Published, with no objective yet. */
 let emptyCourseId!: string;
 let foreignTask!: string;
+/** `foreignTask`'s objective, the other organization's. */
+let theirs!: string;
 /** The other organization's course of `foreignTask`, where the learner also studies. */
 let foreignCourseId!: string;
 /** A course of one task with six options: enough that orders rarely coincide. */
@@ -87,6 +89,19 @@ const sixOptions: TaskBody = {
 
 function activity(now: Date, learnerId = learner, course = courseId, host = installation) {
   return chooseNextActivity({ database, learnerId, courseId: course, host, now, timeZone: "UTC" });
+}
+
+/** The activity in `course` on the objective the learner chose (ADR 0058). */
+function chosen(now: Date, objectiveId: string, course = courseId) {
+  return chooseNextActivity({
+    database,
+    learnerId: learner,
+    courseId: course,
+    host: installation,
+    now,
+    timeZone: "UTC",
+    objectiveId,
+  });
 }
 
 async function decided(now: Date) {
@@ -250,10 +265,10 @@ describe.skipIf(!connectionString)("the learner loop", () => {
       Array.from({ length: NEW_OBJECTIVES_PER_DAY }, (_, i) => `Elsewhere ${i}`),
     );
 
-    const [theirs] = await createObjectives(database, otherOrganizationId, ["Theirs"]);
+    [theirs] = (await createObjectives(database, otherOrganizationId, ["Theirs"])) as [string];
     foreignTask = await testing.createTask(database, {
       organizationId: otherOrganizationId,
-      objectiveId: theirs!,
+      objectiveId: theirs,
       body: question("Theirs?"),
       createdAt: start,
     });
@@ -262,7 +277,7 @@ describe.skipIf(!connectionString)("the learner loop", () => {
         published: true,
         organizationId: otherOrganizationId,
         title: "Theirs",
-        objectiveIds: [theirs!],
+        objectiveIds: [theirs],
       })
     ).id;
   });
@@ -781,6 +796,114 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     expect(await activity(later(12))).toMatchObject({
       kind: "no-activity",
       objective: { id: untaught },
+    });
+  });
+
+  describe("on an objective the learner chose (ADR 0058)", () => {
+    test("decides among it alone, serving its task", async () => {
+      // Recommended: the past tense, first in the course.
+      expect(await chosen(start, fractions)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: fractions, intent: "introduce" },
+        objective: { id: fractions, title: "Fractions" },
+        task: { id: fractionsTasks[0] },
+      });
+    });
+
+    test("serves a learner caught up a retained objective as extra practice, counted as usual", async () => {
+      const inTwoWords = { course: twoWordsCourseId };
+      await answer("first", wordTasks[0]!, 0, start, inTwoWords);
+      await answer("second", wordTasks[1]!, 0, later(1), inTwoWords);
+      expect(await activity(later(15), learner, twoWordsCourseId)).toEqual({ kind: "caught-up" });
+
+      expect(await chosen(later(15), words[1]!, twoWordsCourseId)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: words[1], modelVersion: activeModel.version, intent: "practise" },
+        objective: { id: words[1], title: "zwei" },
+        task: { id: wordTasks[1] },
+      });
+      // Missed: acquiring again, as any lapse, so the model reteaches it.
+      expect(await answer("extra", wordTasks[1]!, 1, later(16), inTwoWords)).toMatchObject({
+        grade: { outcome: "failure" },
+      });
+      expect(await stored()).toContainEqual({
+        id: `attempt:extra:${words[1]}`,
+        objectiveId: words[1],
+        outcome: "failure",
+        at: later(16),
+      });
+      expect(await activity(later(30), learner, twoWordsCourseId)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: words[1], intent: "reteach" },
+      });
+    });
+
+    test("says when a chosen objective's resting task can be offered again", async () => {
+      await answer("missed", pastTenseTask, 1, start);
+      // Unchosen, practice moves on to fractions meanwhile.
+      expect(await chosen(later(1), pastTense)).toEqual({
+        kind: "resting",
+        objective: { id: pastTense, title: "Past tense" },
+        retryAt: later(10),
+        reviewable: false,
+      });
+    });
+
+    test("holds a chosen objective back past the day's limit only if not started", async () => {
+      await answer("retained", pastTenseTask, 0, start);
+      await recordEvidence(
+        database,
+        { learnerId: learner, organizationId },
+        elsewhere.map((objectiveId) => ({
+          id: objectiveId,
+          objectiveId,
+          outcome: "success" as const,
+          at: later(1),
+        })),
+      );
+
+      expect(await chosen(later(20), fractions)).toEqual({
+        kind: "daily-limit",
+        limit: NEW_OBJECTIVES_PER_DAY,
+      });
+      expect(await chosen(later(20), pastTense)).toMatchObject({
+        kind: "decided",
+        decision: { objectiveId: pastTense, intent: "practise" },
+      });
+    });
+
+    test("has no activity on a chosen objective without a task, as the model's or the learner's", async () => {
+      expect(await chosen(start, untaught)).toEqual({
+        kind: "no-activity",
+        decision: { objectiveId: untaught, modelVersion: activeModel.version, intent: "introduce" },
+        objective: { id: untaught, title: "Untaught" },
+      });
+      await recordEvidence(database, { learnerId: learner, organizationId }, [
+        { id: "elsewhere", objectiveId: untaught, outcome: "success", at: start },
+      ]);
+      expect(await chosen(later(15), untaught)).toEqual({
+        kind: "no-activity",
+        decision: { objectiveId: untaught, modelVersion: activeModel.version, intent: "practise" },
+        objective: { id: untaught, title: "Untaught" },
+      });
+    });
+
+    test("finds no objective outside the course, another organization's or none, as a missing course", async () => {
+      for (const objectiveId of [letters, theirs, "no-such-objective", ""]) {
+        expect(await chosen(start, objectiveId)).toEqual({ kind: "unavailable" });
+      }
+      // Nor for a learner who cannot reach the course at all.
+      expect(
+        await chooseNextActivity({
+          database,
+          learnerId: outsider,
+          courseId,
+          host: installation,
+          now: start,
+          timeZone: "UTC",
+          objectiveId: pastTense,
+        }),
+      ).toEqual({ kind: "unavailable" });
     });
   });
 
