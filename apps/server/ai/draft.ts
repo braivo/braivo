@@ -179,7 +179,7 @@ export const DRAFT_OPERATION = {
 </material>`,
   parts: {
     /** Said only when a goal is given. */
-    goal: '<goal>\n{{goal}}\n</goal>\nThe goal selects which of the material\'s learning targets you draft, never how they are grouped: each objective stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. One rule applied to several words is one objective; words that only share a topic are not. For example, "il libro" and "la penna" are two objectives, never "Classroom objects", while "Plurals: il libro → i libri, la penna → le penne" is one. A task whose objective the goal leaves out is left out with it, never moved into the nearest objective kept. Where the material supports none of the goal, objectives is empty.\n\n',
+    goal: '<goal>\n{{goal}}\n</goal>\nThe goal selects which of the material\'s learning targets you draft, never how they are grouped: each objective stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. One rule applied to several words is one objective; words that only share a topic are not. For example, "il libro" and "la penna" are two objectives, never "Classroom objects", while "Plurals: il libro → i libri, il tavolo → i tavoli" is one. A task whose objective the goal leaves out is left out with it, never moved into the nearest objective kept. Where the material supports none of the goal, objectives is empty.\n\n',
     /** Said only when there are learners to describe. */
     learners: "<learners>\n{{audience}}\n</learners>\n\n",
     /** Said only when the content owner names a language. */
