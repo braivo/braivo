@@ -9,19 +9,26 @@ import { defineConfig } from "astro/config";
 import { loadEnv } from "vite-plus";
 
 import { docsPort, readDevPorts } from "../../tooling/dev-ports.ts";
-import { brandDirectory, docsBase } from "./lib/build-settings.ts";
+import { brandDirectory, brandSite, docsBase, docsUrl } from "./lib/build-settings.ts";
 import { mdastPlugins } from "./lib/plugins.ts";
 
 const env = loadEnv("development", "../..", ["BRAIVO_", "PORT"]);
 
 const contentDir = fileURLToPath(new URL("content", import.meta.url));
 
-/** Set at build (ADR 0057), each once: where the site sits, and what brands it. */
-const base = docsBase(env.BRAIVO_DOCS_BASE);
+/**
+ * Set at build (ADR 0057), each once: where the site sits, its public origin,
+ * and what brands it. From the build's own environment alone, never the env
+ * files, whose development values would otherwise reach a production build.
+ */
+const base = docsBase(process.env.BRAIVO_DOCS_BASE);
+const site = docsUrl(process.env.BRAIVO_DOCS_URL);
 const brand = brandDirectory(
-  env.BRAIVO_DOCS_BRAND,
+  process.env.BRAIVO_DOCS_BRAND,
   fileURLToPath(new URL("brand", import.meta.url)),
 );
+// Read once here, so a brand without a name fails the build, naming it.
+await brandSite(brand);
 
 /**
  * Braivo's public documentation, static files with no server (ADR 0057). Pages
@@ -37,6 +44,7 @@ const brand = brandDirectory(
 export default defineConfig({
   srcDir: ".",
   base,
+  site,
   trailingSlash: "never",
   build: { format: "file", assets: "docs/assets" },
   redirects: { "/": `${base}docs` },

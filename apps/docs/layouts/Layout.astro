@@ -13,9 +13,12 @@ import "#brand/brand.css";
 interface Props {
   title: string;
   description?: string | undefined;
+  /** The page's address under the base, for its canonical link once `BRAIVO_DOCS_URL` gives an origin. */
+  path?: string;
 }
 
-const { title, description } = Astro.props;
+const { title, description, path } = Astro.props;
+const canonical = Astro.site && path ? new URL(path, Astro.site).href : undefined;
 ---
 
 <html lang="en" transition:animate="none">
@@ -26,6 +29,7 @@ const { title, description } = Astro.props;
     <!-- Under docs/, as a shared host's root is another site's. -->
     <link rel="icon" href={`${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs/favicon.svg`} type="image/svg+xml" />
     {description && <meta name="description" content={description} />}
+    {canonical && <link rel="canonical" href={canonical} />}
     {site.head && <Fragment set:html={site.head} />}
     <ClientRouter />
     <!-- Opens the question a URL's hash names (Accordion, components/mdx.tsx). -->

@@ -22,6 +22,9 @@ Documentation differs: it describes that product, self-hosters need it, and it c
 
 - `BRAIVO_DOCS_BASE`, default `/`, is where the site sits. It reaches Fumadocs' page tree and the links in a page, since Astro has no router to add it.
 - `BRAIVO_DOCS_BRAND` names a directory to use in place of `apps/docs/brand/`: the site's name and links, its stylesheet, and what goes in each page's head. A fork brands the site without changing a file of this repository, so merging from here cannot conflict.
+- `BRAIVO_DOCS_URL`, optional, is the site's public origin, such as `https://docs.example`: an http or https origin alone, as `BRAIVO_DOCS_BASE` gives the path. With it, each page names its canonical address, origin and base joined once, and the build writes `docs/sitemap.xml`, under a path the site occupies, listing every page; without it, neither, rather than guess a host.
+
+The three are read from the build's own environment, never the repository's env files, whose development values would otherwise reach a production build. A brand's `site.ts` must export a name; one without fails the build, naming it.
 
 **The site occupies two paths under its base**, `guides/` and `docs/`, with its assets and search index under `docs/`, so it can share a host with another site, which keeps the rest. Publishing it that way is the host's own routing.
 

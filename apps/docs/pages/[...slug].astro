@@ -24,7 +24,7 @@ const { body: Content, toc } = await page.data.load();
 const tree = await source.serializePageTree(source.getPageTree());
 ---
 
-<Layout title={page.data.title} description={page.data.description}>
+<Layout title={page.data.title} description={page.data.description} path={page.url}>
   <Docs
     client:load
     transition:persist="docs"

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { brandDirectory, docsBase } from "./build-settings.ts";
+import { brandDirectory, brandSite, docsBase, docsUrl } from "./build-settings.ts";
 
 describe("docsBase", () => {
   test("is the root when unset or empty", () => {
@@ -23,8 +23,15 @@ describe("docsBase", () => {
     expect(docsBase(" /school/help ")).toBe("/school/help/");
   });
 
-  test("refuses a host, a query, or a step up", () => {
-    for (const value of ["https://example.com/help/", "/help?x=1", "/a/../b/", "//help/"]) {
+  test("refuses a host, a query, or a step up, encoded or not", () => {
+    for (const value of [
+      "https://example.com/help/",
+      "/help?x=1",
+      "/a/../b/",
+      "//help/",
+      "/a/%2e%2e/help/",
+      "/a/%2E./help/",
+    ]) {
       expect(() => docsBase(value)).toThrow("BRAIVO_DOCS_BASE");
     }
   });
@@ -55,6 +62,54 @@ describe("brandDirectory", () => {
   });
 });
 
+describe("docsUrl", () => {
+  test("is no origin when unset or empty", () => {
+    expect(docsUrl(undefined)).toBeUndefined();
+    expect(docsUrl(" ")).toBeUndefined();
+  });
+
+  test("is an http or https origin, its slash dropped", () => {
+    expect(docsUrl("https://docs.example/")).toBe("https://docs.example");
+    expect(docsUrl("http://localhost:4321")).toBe("http://localhost:4321");
+  });
+
+  test("refuses a path, a query, credentials, or another scheme", () => {
+    for (const value of [
+      "https://docs.example/help/",
+      "https://docs.example/?x=1",
+      "https://user:secret@docs.example",
+      "ftp://docs.example",
+      "docs.example",
+    ]) {
+      expect(() => docsUrl(value)).toThrow("BRAIVO_DOCS_URL");
+    }
+  });
+});
+
+describe("brandSite", () => {
+  test("is the brand's site, with a name", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "braivo-brand-"));
+    try {
+      writeFileSync(join(dir, "site.ts"), 'export default { name: "Fernwood Help" };\n');
+      expect((await brandSite(dir)).name).toBe("Fernwood Help");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("fails on a brand without a name, naming the brand", async () => {
+    for (const site of ["export default {};\n", 'export default { name: "  " };\n']) {
+      const dir = mkdtempSync(join(tmpdir(), "braivo-brand-"));
+      try {
+        writeFileSync(join(dir, "site.ts"), site);
+        await expect(brandSite(dir)).rejects.toThrow(dir);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+});
+
 describe("the neutral build", () => {
   const app = fileURLToPath(new URL("..", import.meta.url));
   // Written apart, so this file does not name it.
@@ -76,4 +131,15 @@ describe("the neutral build", () => {
       .map((path) => relative(app, path));
     expect(naming).toEqual([]);
   });
+});
+
+test("the docs settings come from the build's own environment, never the env files", () => {
+  const config = readFileSync(
+    fileURLToPath(new URL("../astro.config.ts", import.meta.url)),
+    "utf8",
+  );
+  for (const name of ["BRAIVO_DOCS_BASE", "BRAIVO_DOCS_URL", "BRAIVO_DOCS_BRAND"]) {
+    expect(config).toContain(`process.env.${name}`);
+  }
+  expect(config).not.toMatch(/(?<!process\.)\benv\.BRAIVO_DOCS_/);
 });

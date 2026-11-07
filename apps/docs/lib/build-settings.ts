@@ -3,6 +3,9 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import type { Site } from "./brand.ts";
 
 /**
  * `BRAIVO_DOCS_BASE`, where the site sits (ADR 0057), as every part of the
@@ -12,10 +15,18 @@ import { join } from "node:path";
 export function docsBase(value: string | undefined): string {
   const trimmed = value?.trim() ?? "";
   const segments = trimmed.split("/").filter(Boolean);
+  // Decoded, as a browser resolves `%2e%2e` to `..`.
+  const decoded = segments.map((segment) => {
+    try {
+      return decodeURIComponent(segment);
+    } catch {
+      return "..";
+    }
+  });
   if (
     trimmed.startsWith("//") ||
     /[?#:\\]/.test(trimmed) ||
-    segments.some((segment) => segment === "." || segment === "..")
+    decoded.some((segment) => segment === "." || segment === ".." || segment.includes("/"))
   ) {
     throw new Error(
       `BRAIVO_DOCS_BASE must be a path, such as /help/, not ${JSON.stringify(value)}.`,
@@ -38,4 +49,47 @@ export function brandDirectory(value: string | undefined, fallback: string): str
     }
   }
   return dir;
+}
+
+/**
+ * `BRAIVO_DOCS_URL`, the site's public origin (ADR 0057), such as
+ * `https://docs.example`: with it, each page names its canonical address and
+ * the build writes `docs/sitemap.xml`; without it, neither, rather than guess a
+ * host. An origin alone, as the base gives the path.
+ */
+export function docsUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  let url: URL | undefined;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    url = undefined;
+  }
+  if (
+    !url ||
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      `BRAIVO_DOCS_URL must be an http or https origin, such as https://docs.example, not ${JSON.stringify(value)}.`,
+    );
+  }
+  return url.origin;
+}
+
+/** The brand's `site.ts`, with the one field every brand needs, its name, else the build fails naming it. */
+export async function brandSite(dir: string): Promise<Site> {
+  const module = (await import(pathToFileURL(join(dir, "site.ts")).href)) as {
+    default?: Partial<Site>;
+  };
+  const site = module.default;
+  if (typeof site?.name !== "string" || !site.name.trim()) {
+    throw new Error(`BRAIVO_DOCS_BRAND's ${join(dir, "site.ts")} exports no name.`);
+  }
+  return site as Site;
 }
