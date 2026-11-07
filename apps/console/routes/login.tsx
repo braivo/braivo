@@ -295,9 +295,11 @@ function LearnDomainSignIn({ handoffId }: { handoffId: string }) {
   );
   return (
     <ConsoleSignInPage brand={brand} footer={<Trans>You will continue at {hostname}.</Trans>}>
+      {/* Signed in already, so continuing, not signing in, there; the form
+          heads itself. */}
       {view !== "form" && (
         <Heading>
-          <Trans>Sign in to {organizationName}</Trans>
+          <Trans>Continue to {organizationName}</Trans>
         </Heading>
       )}
       {error && (

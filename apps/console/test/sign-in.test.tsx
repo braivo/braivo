@@ -568,7 +568,9 @@ describe("the console", () => {
         },
       });
 
-      expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
+      expect(
+        await screen.findByRole("heading", { name: "Przejdź do organizacji „Fernwood”" }),
+      ).toBeTruthy();
       await vi.waitFor(() => expect(document.title).toBe("Logowanie: Fernwood"));
       expect(screen.getByText("Potem przejdziesz na stronę learn.fernwood.example.")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Użyj innego konta" })).toBeTruthy();
@@ -754,7 +756,10 @@ describe("the console", () => {
       // Signing in, and offered the account already signed in.
       for (const signedIn of [false, true]) {
         renderAt("/login?handoff=h1", { signedIn, braivo: { handoff: async () => fernwood } });
-        await screen.findByRole("heading", { name: "Sign in to Fernwood" });
+        // Continuing as the account signed in, not signing in a second time.
+        await screen.findByRole("heading", {
+          name: signedIn ? "Continue to Fernwood" : "Sign in to Fernwood",
+        });
         expect(screen.getByText("Fernwood")).toBeTruthy();
         expect(screen.getByText("You will continue at learn.fernwood.example.")).toBeTruthy();
         expect(screen.queryByText(/braivo|console/i)).toBeNull();

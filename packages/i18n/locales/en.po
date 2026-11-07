@@ -669,6 +669,10 @@ msgstr "Continue practising."
 msgid "Continue to {hostname}"
 msgstr "Continue to {hostname}"
 
+#: apps/console/routes/login.tsx
+msgid "Continue to {organizationName}"
+msgstr "Continue to {organizationName}"
+
 #: apps/console/routes/_signed-in/index.tsx
 msgid "Continue to {school}"
 msgstr "Continue to {school}"
