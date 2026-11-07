@@ -17,6 +17,27 @@
   }
 }
 
+/* Fumadocs' Skip to Content stays screen-reader-only even focused: shown then. */
+a[href="#nd-page"]:focus-visible {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  overflow: visible;
+  clip-path: none;
+  white-space: nowrap;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.5rem;
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  outline: 2px solid var(--color-fd-ring);
+  outline-offset: 2px;
+}
+
 /*
  * An inline command moves whole to the next line where it fits there, as a
  * browser otherwise breaks it at a hyphen (`--no-` / `env-file`). One wider than
