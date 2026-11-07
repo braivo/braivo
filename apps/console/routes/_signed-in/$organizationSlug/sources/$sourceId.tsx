@@ -675,18 +675,6 @@ function ReviewDraft(props: {
         {brief.audience && <BriefRow term="Learners">{brief.audience}</BriefRow>}
         <BriefRow term="Questions in">{languageName(brief.instructionLanguage)}</BriefRow>
       </dl>
-      {/* The first thing to weigh the draft by, so right under what it qualifies.
-          These boxes are notes, not alerts: they arrive with the review, whose
-          heading takes the focus, and being assertive would talk over it.
-          Attributed, as the model's judgement rather than Braivo's check. */}
-      {draft.unsupported && (
-        <Alert role="note" className="wrap-anywhere">
-          <AlertTitle>Not in the material</AlertTitle>
-          <AlertDescription className="text-foreground">
-            Braivo's AI says: {draft.unsupported}
-          </AlertDescription>
-        </Alert>
-      )}
       {draft.objectives.length > 0 && (
         <MutedText>
           {submitted
@@ -696,7 +684,9 @@ function ReviewDraft(props: {
       )}
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
-        // longest word a reason quotes, such as a link.
+        // longest word a reason quotes, such as a link. A note, not an alert:
+        // it arrives with the review, whose heading takes the focus, and being
+        // assertive would talk over it.
         <Alert role="note" className="wrap-anywhere">
           {/* Not only what Braivo could not find in the source: also invalid tasks,
               and what is past a cap. Each reason says which. */}
@@ -711,19 +701,17 @@ function ReviewDraft(props: {
           </AlertDescription>
         </Alert>
       )}
-      {/* Said whatever left it empty, and claiming no more than is known: only
-          the AI's note says the source lacks the goal; quotes not found empty a
-          draft too. */}
+      {/* Only what Braivo knows left it empty: what it refused, or that the AI
+          proposed nothing. Never that the source lacks the goal, which nothing
+          checked (generation, Gaps). */}
       {draft.objectives.length === 0 && (
         <p className="text-sm">
-          Nothing in this draft can become a course
-          {draft.unsupported
-            ? ""
-            : draft.refused.length > 0
-              ? ": Braivo left out all the AI proposed, as listed above"
-              : ", and Braivo's AI gave no reason"}
-          . Discard it to change what you ask and draft again, which uses another of this month's AI
-          requests.
+          Nothing in this draft can become a course:{" "}
+          {draft.refused.length > 0
+            ? "Braivo left out all the AI proposed, as listed above"
+            : "Braivo's AI proposed nothing for this goal"}
+          . Discard it to reword the goal or check the source's text, then draft again, which uses
+          another of this month's AI requests.
         </p>
       )}
       {/* Still while sending, and once sent: see `submitted`. */}

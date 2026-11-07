@@ -575,8 +575,6 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       answer: async ({ prompt }) => {
         asked.push(prompt);
         return {
-          coverage: "all",
-          missing: null,
           objectives: [
             {
               title: "Say hello",
@@ -695,11 +693,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       id: "test-model",
       answer: async ({ prompt }) => {
         prompts.push(prompt);
-        return {
-          coverage: "none",
-          missing: "The material does not cover the bill.",
-          objectives: [],
-        };
+        return { objectives: [] };
       },
     };
     const drafting = createApi({
@@ -744,15 +738,11 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(prompts[0]).toContain("<instruction_language>\nde-AT\n</instruction_language>");
     prompts.length = 0;
 
-    // Counted trimmed, and asked trimmed. A draft of nothing still says why.
+    // Counted trimmed, and asked trimmed.
     const longest = "a".repeat(300);
     const asked = await draft({ goal: `  ${longest}  ` });
     expect(asked.status).toBe(200);
-    expect(await asked.json()).toEqual({
-      objectives: [],
-      refused: [],
-      unsupported: "The material does not cover the bill.",
-    });
+    expect(await asked.json()).toEqual({ objectives: [], refused: [] });
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain(`<goal>\n${longest}\n</goal>`);
     expect(prompts[0]).not.toContain("<learners>");
@@ -877,7 +867,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
             asked += 1;
             if (asked === 1)
               throw new ModelUnavailable("provider-error", "The model answered 529.");
-            return { coverage: "all", missing: null, objectives: [] };
+            return { objectives: [] };
           },
         },
         organizations: "all",

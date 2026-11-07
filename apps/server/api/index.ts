@@ -914,15 +914,12 @@
 //                   "citations": [...] }] }],
 //     "refused": [
 //       "Objective “Say hello”, task “Hola?”: the quote “Hola, amigo.” does not occur in the source."
-//     ],
-//     "unsupported": "These pages do not cover asking for the bill." }
+//     ] }
 //
 // in the shapes the objective, citation, and task routes take, so accepting it
 // is sending them. Every objective and task kept cites a passage found in the
 // source; `refused` names what the model proposed that Braivo would not
-// accept; `unsupported`, when present, is the model's own note on what of the
-// goal the source does not support, and may come with no objectives at all.
-// Each refusal carries an `error`: 400 for a source over 200,000 characters,
+// accept. Both may be empty: the model proposed nothing. Each refusal carries an `error`: 400 for a source over 200,000 characters,
 // a long audience, a goal blank, long, or not text, or a language not a tag; 403 `code` `AI_NOT_ENTITLED` when
 // `BRAIVO_AI_ORGANIZATIONS` is set and does not list the organization; 429,
 // with `Retry-After`, when it has made its month's requests under

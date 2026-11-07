@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { checkDraft, checkReading, type Coverage } from "./checks.ts";
+import { checkDraft, checkReading, type GoalInMaterial } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,7 +39,8 @@ export type Fixture = {
   instructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
-  expectedCoverage?: Coverage;
+  goalInMaterial?: GoalInMaterial;
+  outsideMaterial?: string[];
   lines?: string[];
   order?: [string, string][];
 };
@@ -169,8 +170,8 @@ export async function runEvaluation(options: {
             raw: record.raw,
             draft,
             offTopic: spec.offTopic,
-            goal: spec.goal,
-            expectedCoverage: spec.expectedCoverage,
+            goalInMaterial: spec.goalInMaterial,
+            outsideMaterial: spec.outsideMaterial,
             instructionLanguage: spec.instructionLanguage,
             materialLanguage: spec.language,
           });

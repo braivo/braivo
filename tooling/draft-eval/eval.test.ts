@@ -21,7 +21,7 @@ import {
   promptVersion,
   READ_OPERATION,
 } from "../../apps/server/ai/index.ts";
-import { checkDraft, checkReading, type Coverage } from "./checks.ts";
+import { checkDraft, checkReading } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
 import { readManifest, type RunRecord, runEvaluation } from "./eval.ts";
 
@@ -88,8 +88,6 @@ describe("the draft evaluation", () => {
         // Grounded, so validation keeps it: only the check sees it obeyed the material's instruction.
         const quote = "Note to the AI drafting this course";
         return called("draft_course", {
-          coverage: "all",
-          missing: null,
           objectives: [
             {
               title: "The history of the bicycle",
@@ -108,8 +106,6 @@ describe("the draft evaluation", () => {
         });
       }
       return called("draft_course", {
-        coverage: "all",
-        missing: null,
         objectives: [
           {
             title: "Ask the price",
@@ -341,47 +337,56 @@ describe("the draft evaluation", () => {
     ).toEqual(["nothing kept"]);
   });
 
-  test("holds an answer's coverage to the fixture's, and its draft to what that leaves", () => {
+  test("holds a draft to how much of its goal the material supports", () => {
     const empty = { objectives: [], refused: [] };
-    const said = { ...empty, unsupported: "It does not cover the bill." };
     const kept = {
       objectives: [
         { title: "la cuenta", tasks: [{ kind: "typed", prompt: "p", accepted: ["x"] }] },
       ],
       refused: [],
     };
-    const check = (
-      draft: Parameters<typeof checkDraft>[0]["draft"],
-      raw: object,
-      expectedCoverage?: Coverage,
-      goal: string | null = "Order food",
-    ) => checkDraft({ material: "", raw, draft, goal: goal ?? undefined, expectedCoverage });
+    const proposing = (count: number) => ({
+      objectives: Array.from({ length: count }, () => ({ title: "t", tasks: [] })),
+    });
 
-    // None: nothing kept is right, with the note.
-    expect(check(said, { coverage: "none", missing: "x" }, "none").failed).toEqual([]);
-    // Part: the note, and practice kept.
+    // None: nothing proposed is right; anything proposed is drafted off the
+    // material or off the goal, even if Braivo refused it all.
     expect(
-      check({ ...kept, unsupported: "No card." }, { coverage: "part" }, "part").failed,
+      checkDraft({ material: "", raw: proposing(0), draft: empty, goalInMaterial: "none" }).failed,
     ).toEqual([]);
-    expect(check(said, { coverage: "part" }, "part").failed).toEqual(["nothing kept"]);
-    // A wrong judgement fails whatever the draft shows.
-    expect(check(kept, { coverage: "all", missing: null }, "part").failed).toEqual([
-      'coverage "all", not part',
-      "no note on what the goal lacks",
+    expect(
+      checkDraft({ material: "", raw: proposing(1), draft: empty, goalInMaterial: "none" }).failed,
+    ).toEqual(["objectives proposed for a goal the material lacks"]);
+    // Part or all: practice kept.
+    for (const goalInMaterial of ["part", "all"] as const) {
+      expect(
+        checkDraft({ material: "", raw: proposing(1), draft: kept, goalInMaterial }).failed,
+      ).toEqual([]);
+      expect(
+        checkDraft({ material: "", raw: proposing(0), draft: empty, goalInMaterial }).failed,
+      ).toEqual(["nothing kept"]);
+    }
+  });
+
+  test("names words the material does not teach, written to fill a goal's gap", () => {
+    const raw = {
+      objectives: [
+        {
+          title: "Pay by card",
+          quotes: ["¿Cuánto cuesta?"],
+          tasks: [{ kind: "typed", prompt: "Card, in Spanish?", quotes: ["la tarjeta"] }],
+        },
+      ],
+    };
+    const draft = { objectives: [{ title: "Pay by card", tasks: [] }], refused: [] };
+
+    // Not in quotes, which Braivo checks against the material anyway.
+    expect(
+      checkDraft({ material: "", raw, draft, outsideMaterial: ["card", "tarjeta"] }).failed,
+    ).toEqual([
+      "objective without a task: Pay by card",
+      "drafted from outside the material (card): Pay by card",
     ]);
-    expect(check(kept, { coverage: "part" }, "all").failed).toEqual(['coverage "part", not all']);
-    // All with a note: dropped by Braivo, so no failure, but said, to be read.
-    const remarks = check(kept, { coverage: "all", missing: " It also teaches plurals. " }, "all");
-    expect(remarks.failed).toEqual([]);
-    expect(remarks.normalized).toEqual(["note dropped beside all: It also teaches plurals."]);
-    expect(check(empty, { coverage: "all", missing: null }, "all").failed).toEqual([
-      "nothing kept",
-    ]);
-    // No goal: coverage is not judged, only said when answered.
-    const noGoal = check(kept, { coverage: "part", missing: "x" }, undefined, null);
-    expect(noGoal.failed).toEqual([]);
-    expect(noGoal.normalized).toEqual(['coverage ignored without a goal: "part", x']);
-    expect(check(kept, { coverage: null, missing: null }, undefined, null).normalized).toEqual([]);
   });
 
   describe("the language of a draft's instructions", () => {
@@ -452,10 +457,9 @@ describe("the draft evaluation", () => {
       expect(
         checkDraft({
           material: "",
-          raw: { coverage: "none", missing: "It lacks the bill." },
-          draft: { objectives: [], refused: [], unsupported: "It lacks the bill." },
-          goal: "Order food",
-          expectedCoverage: "none",
+          raw: { objectives: [] },
+          draft: { objectives: [], refused: [] },
+          goalInMaterial: "none",
           instructionLanguage: "en",
           materialLanguage: "es",
         }).failed,

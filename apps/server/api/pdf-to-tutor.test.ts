@@ -35,8 +35,6 @@ const model: Model = {
       return { pages: [{ page: "12", text: page12 }] };
     }
     return {
-      coverage: "all",
-      missing: null,
       objectives: [
         {
           title: "Say hello",

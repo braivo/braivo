@@ -34,7 +34,7 @@ const LANGUAGE_LABEL = "What language should the questions be in?";
 
 /** What a review with nothing in it says, `why` after its first clause. */
 const EMPTY_DRAFT = (why: string) =>
-  `Nothing in this draft can become a course${why}. Discard it to change what you ask and draft again, which uses another of this month's AI requests.`;
+  `Nothing in this draft can become a course: ${why}. Discard it to reword the goal or check the source's text, then draft again, which uses another of this month's AI requests.`;
 
 /** The rows of a draft's brief, under review. */
 async function briefList() {
@@ -290,38 +290,14 @@ describe("the console", () => {
     expect(screen.queryAllByRole("alert")).toEqual([]);
   });
 
-  test("says what the source does not support, even of a draft with nothing to review", async () => {
-    const unsupported = "These pages do not cover asking for the bill.";
-    const braivo = {
-      ...authoring(),
-      draftCourse: vi.fn(async () => ({ objectives: [], refused: [], unsupported })),
-    };
-    renderAt("/example/sources/s1", { braivo });
-    await askForDraft("Ask for the bill");
-
-    // Named, and said right under what it qualifies, ahead of the instructions.
-    const label = await screen.findByText("Not in the material");
-    const note = label.parentElement!;
-    expect(note.textContent).toBe(`Not in the materialBraivo's AI says: ${unsupported}`);
-    expect((await briefList()).list.nextElementSibling).toBe(note);
-    // The review's heading takes the focus and is read from there: neither box
-    // interrupts it.
-    expect(screen.queryAllByRole("alert")).toEqual([]);
-    expect(screen.getByText(EMPTY_DRAFT(""))).toBeTruthy();
-    // Nothing to name or create: only the way back is offered.
-    expect(screen.queryByLabelText("Course title")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
-  });
-
   test.each([
     [
       "everything left out",
       ["“Hola” isn't in the material."],
-      ": Braivo left out all the AI proposed, as listed above",
+      "Braivo left out all the AI proposed, as listed above",
     ],
-    // No note: it does not say the source lacks the goal, which nothing showed.
-    ["nothing proposed", [], ", and Braivo's AI gave no reason"],
+    // Never that the source lacks the goal, which nothing checked.
+    ["nothing proposed", [], "Braivo's AI proposed nothing for this goal"],
   ])(
     "says why a draft with %s has nothing to create, and what to do",
     async (_label, refused, why) => {
@@ -333,8 +309,14 @@ describe("the console", () => {
       await askForDraft();
 
       expect(await screen.findByText(EMPTY_DRAFT(why))).toBeTruthy();
-      expect(screen.queryByText("Not in the material")).toBeNull();
       expect(screen.queryByText(/^Untick what is wrong/)).toBeNull();
+      // The review's heading takes the focus and is read from there: nothing
+      // interrupts it.
+      expect(screen.queryAllByRole("alert")).toEqual([]);
+      // Nothing to name or create: only the way back is offered.
+      expect(screen.queryByLabelText("Course title")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
     },
   );
 

@@ -86,8 +86,6 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
     ["Side", "Objectives kept", "Tasks kept", "Items kept", "Quotes ambiguous", "Refusal lines"],
   ];
   const problems: string[] = [];
-  const notes: string[] = [];
-  const normalizations: string[] = [];
 
   for (const side of sides) {
     let objectives = [0, 0];
@@ -106,12 +104,6 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
         }
         for (const failed of (record.checks as { failed?: string[] } | undefined)?.failed ?? []) {
           problems.push(`${side.name} ${fixture}#${record.run}: ${failed}`);
-        }
-        const note = unsupportedNote(record);
-        if (note) notes.push(`${side.name} ${fixture}#${record.run}: ${note}`);
-        for (const line of (record.checks as { normalized?: string[] } | undefined)?.normalized ??
-          []) {
-          normalizations.push(`${side.name} ${fixture}#${record.run}: ${line}`);
         }
       }
       const failedChecks = ok.filter(
@@ -190,20 +182,6 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
       : "No run or check failed.",
   );
 
-  if (notes.length) {
-    out.push(
-      "",
-      `What drafts said the material does not support:\n${notes.map((line) => `- ${line}`).join("\n")}`,
-    );
-  }
-
-  if (normalizations.length) {
-    out.push(
-      "",
-      `Read past rather than refused (not failures; read each for a judgement it contradicts):\n${normalizations.map((line) => `- ${line}`).join("\n")}`,
-    );
-  }
-
   // One per comparison, beside the candidate's runs, named by what both sides
   // recorded (a folder's name says nothing of which runs it holds): another
   // baseline, or either side's runs changed, writes another; comparing the
@@ -220,10 +198,6 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
     out.push("", `Rubric to grade by hand: ${rubric}`);
   }
   return out.join("\n");
-}
-
-function unsupportedNote(record: RunRecord): string | undefined {
-  return (record.result as { unsupported?: string } | undefined)?.unsupported;
 }
 
 /** Keeps the header first, then groups each fixture's sides together. */
@@ -281,11 +255,6 @@ function rubricSheet(sides: Side[], fixtures: string[]): string {
       );
       if (records.length === 0) continue;
       lines.push("", `## ${fixture}, ${side.name}`);
-      // A draft of nothing has no task to grade: its note is what there is to read.
-      for (const record of records) {
-        const note = unsupportedNote(record);
-        if (note) lines.push("", `Run ${record.run} says it cannot support the goal: ${note}`);
-      }
       (["first", "middle", "last"] as const).forEach((position, i) => {
         const record = records[i % records.length]!;
         const { objectives } = record.result as {

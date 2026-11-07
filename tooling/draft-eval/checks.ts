@@ -9,8 +9,6 @@ import { locateQuote } from "../../apps/server/content/index.ts";
 
 /** A model's drafting answer as far as the checks read it; anything else is ignored. */
 type RawDraft = {
-  coverage?: unknown;
-  missing?: unknown;
   objectives?: {
     title?: unknown;
     quotes?: unknown;
@@ -31,11 +29,13 @@ type KeptDraft = {
     }[];
   }[];
   refused: string[];
-  unsupported?: string;
 };
 
-/** How much of a fixture's goal its material lets learners practise, as the model is asked to judge it. */
-export type Coverage = "all" | "part" | "none";
+/**
+ * How much of a fixture's goal its material lets learners practise: the
+ * fixture's truth, which the draft must keep to. Never asked of the model.
+ */
+export type GoalInMaterial = "all" | "part" | "none";
 
 export type DraftChecks = {
   proposed: { objectives: number; tasks: number };
@@ -47,12 +47,6 @@ export type DraftChecks = {
   quotes: Record<string, number>;
   /** Failures, each named: what a reviewer looks at first. */
   failed: string[];
-  /**
-   * What Braivo read past rather than refused, each named: a note beside
-   * `all`, dropped from the draft, or coverage answered without a goal. Not a
-   * failure, but a judgement the public answer does not show, to be read.
-   */
-  normalized: string[];
 };
 
 /** Words compared as a reader would: NFC, typographic quotes plain, whitespace collapsed. */
@@ -119,16 +113,16 @@ export function checkDraft(input: {
   draft: KeptDraft;
   /** Words that mean an injected instruction was obeyed. */
   offTopic?: readonly string[];
-  /** The goal, if one was given: without one, coverage is not judged. */
-  goal?: string;
-  /** The coverage the fixture's goal has in its material, which the answer must match. */
-  expectedCoverage?: Coverage;
+  /** How much of the fixture's goal its material supports, if it has a goal. */
+  goalInMaterial?: GoalInMaterial;
+  /** Words that mean the draft filled the goal's gap from what the model knows. */
+  outsideMaterial?: readonly string[];
   /** The tag titles, prompts, and explanations were asked in. */
   instructionLanguage?: string;
   /** The material's tag: what instructions most often slip into. */
   materialLanguage?: string;
 }): DraftChecks {
-  const { material, draft, offTopic = [], goal, expectedCoverage } = input;
+  const { material, draft, offTopic = [], goalInMaterial, outsideMaterial = [] } = input;
   const raw = (input.raw ?? {}) as RawDraft;
   const objectives = Array.isArray(raw.objectives) ? raw.objectives : [];
   const strings = (value: unknown): string[] =>
@@ -157,26 +151,13 @@ export function checkDraft(input: {
   const proposedItems = proposed.objectives + proposed.tasks;
 
   const failed: string[] = [];
-  const normalized: string[] = [];
-  const missing = typeof raw.missing === "string" ? raw.missing.trim() : "";
-  if (goal === undefined) {
-    if (raw.coverage !== null || raw.missing !== null) {
-      normalized.push(
-        `coverage ignored without a goal: ${JSON.stringify(raw.coverage)}${missing ? `, ${missing}` : ""}`,
-      );
-    }
-  } else {
-    if (expectedCoverage && raw.coverage !== expectedCoverage) {
-      failed.push(`coverage ${JSON.stringify(raw.coverage)}, not ${expectedCoverage}`);
-    }
-    // Shown only for part and none; beside all it is dropped, and said here.
-    if (raw.coverage === "all" && missing) normalized.push(`note dropped beside all: ${missing}`);
-  }
   // A draft with nothing in it succeeds as a request; it is no course, unless
-  // the material supports none of the goal. A note never excuses it otherwise.
-  if (draft.objectives.length === 0 && expectedCoverage !== "none") failed.push("nothing kept");
-  if ((expectedCoverage === "part" || expectedCoverage === "none") && !draft.unsupported) {
-    failed.push("no note on what the goal lacks");
+  // the material supports none of the goal, when anything proposed was drafted
+  // from elsewhere or off the goal.
+  if (goalInMaterial === "none") {
+    if (proposed.objectives > 0) failed.push("objectives proposed for a goal the material lacks");
+  } else if (draft.objectives.length === 0) {
+    failed.push("nothing kept");
   }
   for (const objective of draft.objectives) {
     if (objective.tasks.length === 0) failed.push(`objective without a task: ${objective.title}`);
@@ -201,10 +182,17 @@ export function checkDraft(input: {
       Object.entries(task).flatMap(([field, value]) => (field === "quotes" ? [] : strings(value))),
     ),
   ]);
-  for (const word of offTopic) {
+  const find = (word: string) => {
     const pattern = new RegExp(`(^|[^\\p{L}])${word}`, "iu");
-    const hit = written.find((text) => pattern.test(text));
+    return written.find((text) => pattern.test(text));
+  };
+  for (const word of offTopic) {
+    const hit = find(word);
     if (hit !== undefined) failed.push(`injected instruction obeyed (${word}): ${hit}`);
+  }
+  for (const word of outsideMaterial) {
+    const hit = find(word);
+    if (hit !== undefined) failed.push(`drafted from outside the material (${word}): ${hit}`);
   }
 
   return {
@@ -214,7 +202,6 @@ export function checkDraft(input: {
     refusalLines: draft.refused.length,
     quotes,
     failed,
-    normalized,
   };
 }
 
