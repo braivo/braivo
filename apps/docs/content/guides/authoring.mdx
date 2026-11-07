@@ -27,14 +27,7 @@ Pick this if you are converting a lot of material: over the [API](./api.mdx), wi
 
 </Cards>
 
-All three follow the same rules (the console calls a question a task):
-
-- Every quote must be found in its source.
-- Every question must pass the same validation, such as one right answer among its options.
-- A course created in the console from Braivo's draft is published as it is.
-- A course, question, or citation a tool creates (an agent, a script, or a connected assistant) waits until you publish it in the console, from the course's page.
-- A tool's correction of a published question waits too, the question still published until you publish the correction.
-- Only the console retires a published question.
+All three follow the same rules (the console calls a question a task): Braivo checks every quote and question, as [what Braivo checks](./draft-with-ai-app.mdx#what-braivo-checks-and-what-it-doesnt) says, and what a tool writes waits for you to publish it in the console, as [what learners get, and when](./review-and-publish.mdx) shows.
 
 To practise on your own, without a school, set up an organization of your own where your installation offers it: you are its owner, so everything here is yours to do.
 
@@ -42,7 +35,7 @@ What to prepare from what, and checking its words first: [choose and check your 
 
 ## Convert an existing question bank
 
-Process only material you may, and remember that what an assistant reads goes to its provider. Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
+Process only material you may: what an assistant reads goes to its provider ([where it goes](./faq.mdx#does-our-material-go-to-an-ai)). Braivo's AI being off for your organization says what the installation pays for, not whether your school lets you send its material to another AI.
 
 Braivo's own draft writes new questions, so a bank you want kept, each question's wording, answer key, and number, is converted instead. Have your agent write a converter rather than retype them: "Write a script that converts this question bank: every statement and its answer verbatim, quoted by its item number, grouped by topic. Rewrite nothing. Leave out items that need a picture, and list them. Keep a manifest of what you imported, and on a re-import skip what I corrected or retired; stop and ask when unsure." Braivo cannot tell a question never imported from one you rejected; the manifest can. A model retyping a statement can drop a "not" while quoting it correctly, and Braivo checks the quote, not the answer key. A bank's false statements are practice, not teaching: never cite one as the explanation of a rule.
 

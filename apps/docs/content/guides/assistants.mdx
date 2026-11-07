@@ -53,12 +53,12 @@ Some installations fetch no client metadata documents, and accept only the apps 
 
 - Find the organization's sources and courses, and read a source in parts, a range of pages, seconds, or characters at a time.
 - Add material as text: a document page by page, a transcript with its timings. A document too large for one request is refused; add it in Braivo's console or with [`braivo sources add`](./authoring.mdx#the-braivo-command).
-- Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks word for word against the source.
+- Define what material teaches (objectives), and cite the passages that teach each, which Braivo checks ([what it checks](./draft-with-ai-app.mdx#what-braivo-checks-and-what-it-doesnt)).
 - Write practice questions that cite those passages, correct one, or withdraw one still waiting for review.
 - Arrange objectives into a course.
 - Read a course's objectives and questions, or only its questions without an explanation (what a learner reads after answering), to propose one from the passage each cites, as a correction.
 
-What it adds waits for you ([what to ask it for](./draft-with-ai-app.mdx)): a course, a question, or a correction of a published question reaches no learner until you publish it in Braivo's console ([ADR 0039](https://github.com/braivo/braivo/blob/main/docs/adr/0039-published-in-the-console.md)). For each course and question it writes, Braivo tells the app whether it is new or was there already, whether it is published, and usually the link to the console page where you review it, which the app can pass on to you; open it and publish as in [review and publish](./review-and-publish.mdx). It cannot publish anything or retire a published question: both stay yours in the console. Nor can this connection read Braivo's learner lists or progress reports, which wait for their own permission.
+What it adds waits for you to [review and publish it](./review-and-publish.mdx) in the console; for each course and question it writes, Braivo usually gives the app the link to that page, to pass on to you. It can't publish anything or retire a published question, and this connection can't read Braivo's learner lists or progress reports, which wait for their own permission.
 
 ## On your desktop
 
