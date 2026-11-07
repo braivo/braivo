@@ -494,7 +494,7 @@ msgstr "Back to {organizationName}"
 msgid "Back to practice"
 msgstr "Back to practice"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Back to recommended"
 msgstr "Back to recommended"
 
@@ -1110,7 +1110,7 @@ msgstr "Expired"
 msgid "Expired on {expiredOn}."
 msgstr "Expired on {expiredOn}."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Extra practice"
 msgstr "Extra practice"
 
@@ -1504,6 +1504,7 @@ msgstr "Light"
 msgid "Loading"
 msgstr "Loading"
 
+#: apps/learn/components/chosen-objective.tsx
 #: apps/learn/components/practice-session.tsx
 #: apps/learn/components/review-topic.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -1724,7 +1725,7 @@ msgstr "Not started"
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Nothing is due on {objectiveTitle} right now"
 msgstr "Nothing is due on {objectiveTitle} right now"
 
@@ -1850,11 +1851,11 @@ msgstr "Practice for {objectiveTitle} isn't available right now."
 msgid "Practice in the last 7 days"
 msgstr "Practice in the last 7 days"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practise"
 msgstr "Practise"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practise {title}"
 msgstr "Practise {title}"
 
@@ -1875,11 +1876,11 @@ msgstr "Practised today: {todaySummary}."
 msgid "Practised: {recent}"
 msgstr "Practised: {recent}"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practising {title}"
 msgstr "Practising {title}"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practising a topic you chose"
 msgstr "Practising a topic you chose"
 
@@ -2724,7 +2725,7 @@ msgstr "You are not a member of {school}"
 msgid "You are signed in as {email}. Sign in with the address it was sent to."
 msgstr "You are signed in as {email}. Sign in with the address it was sent to."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "You can answer an extra question on it, or go back to what's recommended."
 msgstr "You can answer an extra question on it, or go back to what's recommended."
 

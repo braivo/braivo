@@ -494,7 +494,7 @@ msgstr "Wróć do organizacji „{organizationName}”"
 msgid "Back to practice"
 msgstr "Wróć do ćwiczeń"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Back to recommended"
 msgstr "Wróć do zalecanych ćwiczeń"
 
@@ -1110,7 +1110,7 @@ msgstr "Wygasłe"
 msgid "Expired on {expiredOn}."
 msgstr "Wygasło {expiredOn}."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Extra practice"
 msgstr "Dodatkowe ćwiczenie"
 
@@ -1504,6 +1504,7 @@ msgstr "Jasny"
 msgid "Loading"
 msgstr "Ładowanie"
 
+#: apps/learn/components/chosen-objective.tsx
 #: apps/learn/components/practice-session.tsx
 #: apps/learn/components/review-topic.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
@@ -1724,7 +1725,7 @@ msgstr "Nierozpoczęte"
 msgid "Not started means no evidence yet. Learning means practice has begun; one missed {threshold} or more times since the last correct answer says so under it. Show answer counts as a miss."
 msgstr "„Nierozpoczęte” oznacza, że nie ma jeszcze wyników. „W trakcie nauki” oznacza, że ćwiczenie się zaczęło; jeśli od ostatniej poprawnej odpowiedzi było {threshold} lub więcej błędów, widać to pod stanem celu. „Pokaż odpowiedź” liczy się jako błąd."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Nothing is due on {objectiveTitle} right now"
 msgstr "Temat „{objectiveTitle}” nie czeka teraz na powtórkę"
 
@@ -1850,11 +1851,11 @@ msgstr "Ćwiczenia z tematu „{objectiveTitle}” są obecnie niedostępne."
 msgid "Practice in the last 7 days"
 msgstr "Ćwiczenia w ostatnich 7 dniach"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practise"
 msgstr "Ćwicz"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practise {title}"
 msgstr "Ćwicz „{title}”"
 
@@ -1875,11 +1876,11 @@ msgstr "Tematy ćwiczone dzisiaj: {todaySummary}."
 msgid "Practised: {recent}"
 msgstr "Ćwiczyli: {recent}"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practising {title}"
 msgstr "Ćwiczysz: {title}"
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "Practising a topic you chose"
 msgstr "Ćwiczysz wybrany temat"
 
@@ -2724,7 +2725,7 @@ msgstr "Nie należysz do organizacji „{school}”"
 msgid "You are signed in as {email}. Sign in with the address it was sent to."
 msgstr "Zalogowano jako {email}. Zaloguj się adresem, na który je wysłano."
 
-#: apps/learn/routes/_signed-in/c/$courseRef.tsx
+#: apps/learn/components/chosen-objective.tsx
 msgid "You can answer an extra question on it, or go back to what's recommended."
 msgstr "Możesz odpowiedzieć na dodatkowe pytanie z tego tematu albo wrócić do zalecanych ćwiczeń."
 
