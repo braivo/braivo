@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Site } from "./brand.ts";
@@ -38,11 +38,16 @@ export function docsBase(value: string | undefined): string {
 /**
  * `BRAIVO_DOCS_BRAND`, the directory to brand the site from in place of
  * `fallback` (ADR 0057): its `site.ts`, the name, links, and head tags, and its
- * `brand.css`. One missing either fails the build, naming what is missing.
+ * `brand.css`. One missing either fails the build, naming what is missing. An
+ * absolute path, as a relative one would be read from `apps/docs`, where the
+ * build runs, not from where it was started.
  */
 export function brandDirectory(value: string | undefined, fallback: string): string {
   const dir = value?.trim();
   if (!dir) return fallback;
+  if (!isAbsolute(dir)) {
+    throw new Error(`BRAIVO_DOCS_BRAND must be an absolute path, not ${JSON.stringify(value)}.`);
+  }
   for (const file of ["site.ts", "brand.css"]) {
     if (!existsSync(join(dir, file))) {
       throw new Error(`BRAIVO_DOCS_BRAND names ${dir}, which has no ${file}.`);

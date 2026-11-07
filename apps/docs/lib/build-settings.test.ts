@@ -57,6 +57,12 @@ describe("brandDirectory", () => {
     }
   });
 
+  test("refuses a relative path, which would be read from apps/docs, not where the build started", () => {
+    for (const value of ["brand", "./brand", "../school-brand"]) {
+      expect(() => brandDirectory(value, fallback)).toThrow("must be an absolute path");
+    }
+  });
+
   test("fails on a directory that is not there", () => {
     expect(() => brandDirectory("/nowhere/brand", fallback)).toThrow("/nowhere/brand");
   });
