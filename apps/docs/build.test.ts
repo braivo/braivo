@@ -101,6 +101,11 @@ describe("a build at /help/, with an outside brand and an origin", () => {
       'src="/help/docs/screenshots/first-course/1-add-material.png"',
     );
     expect(read(branded, "404.html")).toContain('href="/help/docs"');
+    // The bare base is the host's other site's, on a shared host (deployment guide).
+    const leadingHome = files(branded)
+      .filter((name) => name.endsWith(".html"))
+      .filter((name) => read(branded, name).includes('href="/help/"'));
+    expect(leadingHome).toEqual([]);
   });
 
   test("searches under /help/, from its own index", () => {

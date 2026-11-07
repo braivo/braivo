@@ -33,7 +33,9 @@ export function Docs({ pathname, params, tree, title, description, toc, children
       search={{ SearchDialog: DocsSearch }}
     >
       <DocsLayout
-        nav={{ title: site.name, url: import.meta.env.BASE_URL.replace(/\/?$/, "/") }}
+        // The docs' home, as the root redirect and the 404 lead: the bare base
+        // may be another site's on a shared host.
+        nav={{ title: site.name, url: `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}docs` }}
         githubUrl={site.githubUrl}
         links={site.links}
         tree={data.tree}
