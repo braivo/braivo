@@ -135,6 +135,10 @@ msgstr "{count, plural, one {# nierozpoczęty} few {# nierozpoczęte} many {# ni
 msgid "{count, plural, one {# retained} other {# retained}}"
 msgstr "{count, plural, one {# utrwalony} few {# utrwalone} many {# utrwalonych} other {# utrwalonego}}"
 
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "{count, plural, one {# task needs review} other {# tasks need review}}"
+msgstr "{count, plural, one {# zadanie do sprawdzenia} few {# zadania do sprawdzenia} many {# zadań do sprawdzenia} other {# zadania do sprawdzenia}}"
+
 #: apps/console/components/last-practised.tsx
 msgid "{days, plural, =0 {Last practised today} =1 {Last practised yesterday} other {Last practised # days ago}}"
 msgstr "{days, plural, =0 {Ostatnie ćwiczenia: dzisiaj} =1 {Ostatnie ćwiczenia: wczoraj} few {Ostatnie ćwiczenia: # dni temu} many {Ostatnie ćwiczenia: # dni temu} other {Ostatnie ćwiczenia: # dnia temu}}"
@@ -239,6 +243,10 @@ msgstr "{organizationName} zobaczy to pytanie, Twoją odpowiedź i notatkę. Tw�
 #: apps/console/components/explanations.tsx
 msgid "{pending, plural, one {# task waiting for review has no explanation.} other {# tasks waiting for review have no explanation.}}"
 msgstr "{pending, plural, one {# zadanie czekające na sprawdzenie nie ma wyjaśnienia.} few {# zadania czekające na sprawdzenie nie mają wyjaśnienia.} many {# zadań czekających na sprawdzenie nie ma wyjaśnienia.} other {# zadań czekających na sprawdzenie nie ma wyjaśnienia.}}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "{placed, plural, one {In # course} other {In # courses}}"
+msgstr "{placed, plural, one {W # kursie} few {W # kursach} many {W # kursach} other {W # kursu}}"
 
 #. {published}: how many of the published tasks have no explanation; then how many of those also cite no passage
 #: apps/console/components/explanations.tsx
@@ -843,6 +851,7 @@ msgstr "Nie udało się wylogować. Spróbuj ponownie."
 
 #: apps/console/components/group-form.tsx
 #: apps/console/components/organization-sidebar.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
 msgid "Courses"
 msgstr "Kursy"
@@ -1145,6 +1154,11 @@ msgstr "Oto odpowiedź"
 msgid "Here to learn? Open the site your school or training provider gave you."
 msgstr "Jesteś uczniem? Otwórz stronę otrzymaną od szkoły lub organizatora szkoleń."
 
+#. A course's mark: hidden from learners
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Hidden"
+msgstr "Ukryty"
+
 #: apps/console/components/first-answers.tsx
 msgid "How first answers are counted"
 msgstr "Jak liczone są pierwsze odpowiedzi"
@@ -1177,6 +1191,14 @@ msgstr "Jeśli nadal chcesz dołączyć, skontaktuj się z organizacją „{scho
 msgctxt "The wait before a sign-in code can be sent, as in: Send the code again in 0:42"
 msgid "in {time}"
 msgstr "za {time}"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "In no course"
+msgstr "W żadnym kursie"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "In no course, or in several with tasks to review: each is listed here once, its tasks reviewed on its page."
+msgstr "Cele w żadnym kursie albo w kilku kursach i z zadaniami do sprawdzenia: każdy widnieje tu raz, a jego zadania sprawdzisz na jego stronie."
 
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Invitation"
@@ -1370,11 +1392,13 @@ msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń."
 msgid "Learners have no site to practise on yet. Add a domain below."
 msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Dodaj domenę poniżej."
 
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
 msgstr "Uczniowie nie mają jeszcze strony do ćwiczeń. Poproś osobę, która skonfigurowała dla Ciebie Braivo, o jej dodanie."
 
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
 msgid "Learners practise at"
 msgstr "Uczniowie ćwiczą na stronie"
 
@@ -1513,6 +1537,10 @@ msgstr "Imię i nazwisko"
 #: apps/console/components/organization-sidebar.tsx
 msgid "Navigation"
 msgstr "Nawigacja"
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Needs review"
+msgstr "Do sprawdzenia"
 
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgctxt "Why a question comes now"
@@ -1742,6 +1770,10 @@ msgstr "Organizacje w tym regionie zakłada się na osobnej stronie, na której 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/groups/index.tsx
 msgid "Organize learners, teachers, and courses. Teachers can read progress for the learners and courses in their groups."
 msgstr "Łącz uczniów, nauczycieli i kursy w grupy. Nauczyciele widzą postępy uczniów w kursach swoich grup."
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "Other objectives"
+msgstr "Inne cele nauczania"
 
 #: apps/console/lib/roles.ts
 msgid "Owner"
@@ -2434,6 +2466,10 @@ msgstr "To zaproszenie wysłano na inny adres e-mail"
 #: apps/console/routes/_signed-in/$organizationSlug/courses/$courseId/learners/$learnerId.tsx
 msgid "This learner does not exist, or their progress is not yours to see."
 msgstr "Ten uczeń nie istnieje albo nie masz wglądu w jego postępy."
+
+#: apps/console/routes/_signed-in/$organizationSlug/index.tsx
+msgid "This organization does not exist, or you do not manage it."
+msgstr "Ta organizacja nie istnieje albo nie zarządzasz nią."
 
 #: apps/console/components/group-form.tsx
 msgid "This organization has no courses yet: draft one from a source first."

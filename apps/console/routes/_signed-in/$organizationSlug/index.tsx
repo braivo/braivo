@@ -5,7 +5,8 @@ import { Heading, MutedText } from "@braivo/ui";
 import { Badge } from "@braivo/ui/components/badge";
 import { Button } from "@braivo/ui/components/button";
 import { Card, CardContent, CardHeader } from "@braivo/ui/components/card";
-import { Trans } from "@lingui/react/macro";
+import { plural, t } from "@lingui/core/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import { type ReactNode, useId } from "react";
@@ -43,20 +44,24 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
     const reports = readReports(context.braivo, context.organization, {}, abortController.signal);
     return { courses, objectives, reports };
   },
-  head: (head) => pageHead(head, "Courses"),
+  head: (head) => pageHead(head, t`Courses`),
   component: Courses,
-  notFoundComponent: () => <p>This organization does not exist, or you do not manage it.</p>,
+  notFoundComponent: () => (
+    <p>
+      <Trans>This organization does not exist, or you do not manage it.</Trans>
+    </p>
+  ),
 });
-
-/** "1 task needs review", "3 tasks need review". */
-const formatReviewCount = (count: number) =>
-  `${count} ${count === 1 ? "task needs" : "tasks need"} review`;
 
 function Courses() {
   const { courses, objectives, reports } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
   const { learnDomain, aiEnabled, name } = Route.useRouteContext().organization;
   const id = useId();
+  const { t } = useLingui();
+  /** "1 task needs review", "3 tasks need review". */
+  const reviewCount = (count: number) =>
+    t({ message: plural(count, { one: "# task needs review", other: "# tasks need review" }) });
   // What needs review, each task once (ADR 0039): under its course when its
   // objective is in that course alone, else under its objective, whose page
   // reviews it for every course it is in, or for none.
@@ -85,20 +90,22 @@ function Courses() {
       {/* Beside the heading once there are courses, so a returning owner still
           finds where a new one starts: its material (the empty state says so). */}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <Heading className="mb-0">Courses</Heading>
+        <Heading className="mb-0">
+          <Trans>Courses</Trans>
+        </Heading>
         {courses.length > 0 && (
           <Button asChild>
             <Link to="/$organizationSlug/sources" params={{ organizationSlug }} hash="add-material">
               <PlusIcon data-icon="inline-start" aria-hidden="true" />
-              Add material
+              <Trans>Add material</Trans>
             </Link>
           </Button>
         )}
       </div>
       <LearnersSite
         learnDomain={learnDomain}
-        at="Learners practise at"
-        none="Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one."
+        at={t`Learners practise at`}
+        none={t`Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.`}
       />
       {/* Keyed, so another organization's page never shows this one's list while it reads. */}
       <ReportedTasks key={organizationSlug} reports={reports} organizationSlug={organizationSlug} />
@@ -147,12 +154,16 @@ function Courses() {
             const pending = pendingTaskCounts.get(course.id) ?? 0;
             const review =
               !course.published || (pending === 0 && pendingPassages.has(course.id))
-                ? "Needs review"
+                ? t`Needs review`
                 : pending > 0
-                  ? formatReviewCount(pending)
+                  ? reviewCount(pending)
                   : undefined;
             // Hidden from learners since it was published, first: what they meet now.
-            const marks = [...(course.hidden ? ["Hidden"] : []), ...(review ? [review] : [])];
+            const hidden = t({
+              comment: "A course's mark: hidden from learners",
+              message: "Hidden",
+            });
+            const marks = [...(course.hidden ? [hidden] : []), ...(review ? [review] : [])];
             return (
               <li key={course.id}>
                 <Link
@@ -184,17 +195,19 @@ function Courses() {
       {otherObjectives.length > 0 && (
         <section aria-labelledby="other-objectives" className="mt-8">
           <Heading level={2} id="other-objectives">
-            Other objectives
+            <Trans>Other objectives</Trans>
           </Heading>
           <MutedText className="mb-3 block">
-            In no course, or in several with tasks to review: each is listed here once, its tasks
-            reviewed on its page.
+            <Trans>
+              In no course, or in several with tasks to review: each is listed here once, its tasks
+              reviewed on its page.
+            </Trans>
           </MutedText>
           <LinkList>
             {otherObjectives.map((objective) => {
               const review =
                 objective.pendingTaskCount > 0
-                  ? formatReviewCount(objective.pendingTaskCount)
+                  ? reviewCount(objective.pendingTaskCount)
                   : undefined;
               const placed = objective.courseIds.length;
               const noteId = `${id}-${objective.id}`;
@@ -218,7 +231,14 @@ function Courses() {
                       )}
                       {/* The link's description, so its name stays the title and what waits. */}
                       <MutedText id={noteId} aria-hidden="true" className="font-normal">
-                        {placed === 0 ? "In no course" : `In ${placed} courses`}
+                        {placed === 0
+                          ? t`In no course`
+                          : t({
+                              message: plural(placed, {
+                                one: "In # course",
+                                other: "In # courses",
+                              }),
+                            })}
                       </MutedText>
                     </span>
                     <Chevron />

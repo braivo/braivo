@@ -70,6 +70,46 @@ describe("the console in Polish", () => {
     ]);
   });
 
+  test("lists an organization's courses and what waits in them, counted by plural forms", async () => {
+    const listed = { published: true, hidden: false };
+    const objective = { courseIds: [], pendingTaskCount: 0 };
+    renderAt("/example", {
+      braivo: {
+        listCourses: async () => [
+          { ...listed, id: "c1", number: 1001, title: "French", published: false },
+          { ...listed, id: "c2", number: 1002, title: "German", hidden: true },
+        ],
+        listObjectives: async () => [
+          { ...objective, id: "o1", title: "Cases", courseIds: ["c2"], pendingTaskCount: 3 },
+          {
+            ...objective,
+            id: "o2",
+            title: "Numbers",
+            courseIds: ["c1", "c2"],
+            pendingTaskCount: 1,
+          },
+          { ...objective, id: "o3", title: "Colours", pendingTaskCount: 5 },
+          { ...objective, id: "o4", title: "Weather" },
+        ],
+      },
+    });
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Kursy" })).toBeTruthy();
+    await vi.waitFor(() => expect(document.title).toBe("Kursy · Example School"));
+    expect(screen.getByText(/Uczniowie ćwiczą na stronie/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "French (do sprawdzenia)" })).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "German (ukryty, 3 zadania do sprawdzenia)" }).closest("li")!
+        .textContent,
+    ).toBe("German (ukryty, 3 zadania do sprawdzenia)Ukryty3 zadania do sprawdzenia");
+    const objectives = within(screen.getByRole("region", { name: "Inne cele nauczania" }));
+    expect(objectives.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Numbers (1 zadanie do sprawdzenia)1 zadanie do sprawdzeniaW 2 kursach",
+      "Colours (5 zadań do sprawdzenia)5 zadań do sprawdzeniaW żadnym kursie",
+      "WeatherW żadnym kursie",
+    ]);
+  });
+
   test("changes and removes members, cancels and invites again, in Polish", async () => {
     const waitingOne = {
       id: "inv-1",
