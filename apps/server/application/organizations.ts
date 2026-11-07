@@ -57,10 +57,9 @@ type Membership = { id: string; name: string; learnDomain: string | null };
 
 /**
  * Every organization someone is a member of, in any role, since membership is
- * enrollment (access-23), by name, each with where its learners practise:
- * for the console's `/` to send a learner on to their school's learn domain
- * (access-59).
- * Unlike `listOrganizations`, which is the console's.
+ * enrollment (access-23), by name, each with where its learners practise: for
+ * the console's `/` to send a learner on (access-59). `listOrganizations` is
+ * the console's own.
  */
 export async function listMemberships(input: {
   database: Database;

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The authoring routes (`authoring.ts`): the organizations an account manages,
-// and those it belongs to, and their members, objectives, tasks, courses, and the citations grounding
-// them, and the evidence an admin records for a learner. Which host admits each
+// The authoring routes (`authoring.ts`): the organizations an account manages
+// or belongs to; their members, objectives, tasks, courses, and the citations
+// grounding them; and the evidence an admin records for a learner. Which host admits each
 // route, and each write's refusals and body limit, is `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
