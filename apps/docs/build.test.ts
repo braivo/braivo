@@ -63,6 +63,9 @@ const read = (out: string, path: string) => readFileSync(join(out, path), "utf8"
 /** Each page's file under `content/`, such as `guides/faq.mdx`. */
 const pages = () => files(join(app, "content")).filter((name) => name.endsWith(".mdx"));
 
+/** Each page's Markdown copy, such as `guides/faq.md`. */
+const copies = () => pages().map((name) => name.replace(/x$/, ""));
+
 /** Every Markdown link's and image's destination. */
 const markdownUrls = (markdown: string) =>
   [...markdown.matchAll(/\]\(([^)\s]+)/g)].map(([, url]) => url!);
@@ -171,42 +174,47 @@ describe("a build at /help/, with an outside brand and an origin", () => {
 
   test("links each page's Markdown from docs/llms.txt, absolutely, each a file", () => {
     const urls = markdownUrls(read(branded, "docs/llms.txt"));
-    expect(urls).toContain("https://docs.example/help/docs/index.md");
-    expect(urls).toContain("https://docs.example/help/guides/faq.md");
-    const missing = urls.filter(
-      (url) => !existsSync(join(branded, url.replace(/^https:\/\/docs\.example\/help\//, ""))),
+    expect(urls.sort()).toEqual(
+      copies()
+        .map((copy) => `https://docs.example/help/${copy}`)
+        .sort(),
     );
-    expect(missing).toEqual([]);
-    expect(urls.length).toBe(pages().length);
+    expect(copies().filter((copy) => !existsSync(join(branded, copy)))).toEqual([]);
+  });
+
+  test("holds every page's copy in docs/llms-full.txt", () => {
+    const full = read(branded, "docs/llms-full.txt");
+    expect(copies().filter((copy) => !full.includes(read(branded, copy).trim()))).toEqual([]);
   });
 
   test("exports links and images where the site serves them, base and section once", () => {
-    const exports = ["docs/llms-full.txt", ...pages().map((page) => page.replace(/x$/, ""))];
-    for (const name of exports) {
+    for (const name of ["docs/llms-full.txt", ...copies()]) {
       const text = read(branded, name);
       // Any form a link could take, not only `](`: a JSX href, a reference definition.
       expect(text, name).not.toMatch(/\.\.?\/[^\s)"'`]*\.mdx\b|\.\.\/public\//);
       const urls = markdownUrls(text);
       expect(
-        urls.filter((url) => /\.mdx\b|(^|\/)public\//.test(url)),
+        urls.filter((url) => !url.startsWith("#") && !url.startsWith("https://")),
         name,
       ).toEqual([]);
-      expect(
-        urls.filter((url) => /\/(help|docs|guides)\/\1\//.test(url)),
-        name,
-      ).toEqual([]);
-      const local = urls.filter((url) => !url.startsWith("#") && !url.startsWith("https://"));
-      expect(local, name).toEqual([]);
+      // Each address on the site's origin is a file the build wrote, under the base once.
+      const unserved = urls
+        .filter((url) => url.startsWith("https://docs.example/"))
+        .filter((url) => {
+          const path = new URL(url).pathname;
+          if (!path.startsWith("/help/")) return true;
+          const file = join(branded, path.slice("/help/".length));
+          return !existsSync(`${file}.html`) && !(existsSync(file) && extname(file) !== "");
+        });
+      expect(unserved, name).toEqual([]);
     }
-    const guide = read(branded, "guides/first-course.md");
+    const guide = markdownUrls(read(branded, "guides/first-course.md"));
+    expect(guide).toContain("https://docs.example/help/guides/prepare-material");
     expect(guide).toContain(
-      "[choose and check it](https://docs.example/help/guides/prepare-material)",
+      "https://docs.example/help/docs/screenshots/first-course/1-add-material.png",
     );
-    expect(guide).toContain(
-      "(https://docs.example/help/docs/screenshots/first-course/1-add-material.png)",
-    );
-    expect(read(branded, "docs/index.md")).toContain(
-      "[make your first practice course](https://docs.example/help/guides/first-course)",
+    expect(markdownUrls(read(branded, "docs/index.md"))).toContain(
+      "https://docs.example/help/guides/first-course",
     );
   });
 });
@@ -224,8 +232,8 @@ test("without an origin, a build names no canonical address, writes no sitemap, 
   const full = read(unpublished, "docs/llms-full.txt");
   // An origin only prose names, as the deployment guide's example.
   expect(markdownUrls(full).filter((url) => url.includes("docs.example"))).toEqual([]);
-  expect(full).toContain("[choose and check it](/help/guides/prepare-material)");
-  expect(full).toContain("(/help/docs/screenshots/first-course/1-add-material.png)");
+  expect(markdownUrls(full)).toContain("/help/guides/prepare-material");
+  expect(markdownUrls(full)).toContain("/help/docs/screenshots/first-course/1-add-material.png");
 });
 
 test("a guide's Markdown keeps its steps, callouts, and headings; the index its cards' titles", () => {
@@ -248,13 +256,7 @@ test("the default build's routes are its pages, at the root, each with its Markd
   const routes = files(neutral).filter((name) => name.endsWith(".html"));
   expect(routes.sort()).toEqual(["404.html", "index.html", ...html].sort());
   const markdown = files(neutral).filter((name) => /\.(md|txt|xml)$/.test(name));
-  expect(markdown.sort()).toEqual(
-    [
-      "docs/llms.txt",
-      "docs/llms-full.txt",
-      ...pages().map((name) => name.replace(/x$/, "")),
-    ].sort(),
-  );
+  expect(markdown.sort()).toEqual(["docs/llms.txt", "docs/llms-full.txt", ...copies()].sort());
   expect(read(neutral, "index.html")).toContain("url=/docs");
   expect(relative(app, neutral)).not.toBe("dist");
 });
