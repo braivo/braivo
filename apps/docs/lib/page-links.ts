@@ -29,6 +29,26 @@ export function assetRoute(href: string, from: string, base: string): string | u
   return `${base.replace(/\/?$/, "/")}${file.slice("../public/".length)}`;
 }
 
+/**
+ * A page's processed Markdown with its links and images where the site serves
+ * them, by `pageLinks`' rules: Fumadocs slices it from the authored source,
+ * which that plugin's AST changes never reach. A page link goes to the HTML
+ * page, which its anchors name. From the origin's root, so they hold in
+ * `llms-full.txt` too; absolute with `origin`.
+ */
+export function publishedMarkdown(
+  markdown: string,
+  from: string,
+  base: string,
+  origin?: string,
+): string {
+  return markdown.replace(/\]\(([^)\s]+)/g, (link, href: string) => {
+    const route = pageRoute(href, from, base) ?? assetRoute(href, from, base);
+    if (!route) return link;
+    return `](${origin ? new URL(route, origin).href : route}`;
+  });
+}
+
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**

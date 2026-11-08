@@ -58,9 +58,10 @@ export function brandDirectory(value: string | undefined, fallback: string): str
 
 /**
  * `BRAIVO_DOCS_URL`, the site's public origin (ADR 0057), such as
- * `https://docs.example`: with it, each page names its canonical address and
- * the build writes `docs/sitemap.xml`; without it, neither, rather than guess a
- * host. An origin alone, as the base gives the path.
+ * `https://docs.example`: with it, each page names its canonical address, the
+ * Markdown exports link absolutely, and the build writes `sitemap.xml` at the
+ * base; without it, no address and no sitemap, rather than guess a host. An
+ * origin alone, as the base gives the path.
  */
 export function docsUrl(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
