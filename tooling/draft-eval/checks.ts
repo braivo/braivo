@@ -123,7 +123,7 @@ export function checkDraft(input: {
   goalInMaterial?: GoalInMaterial;
   /** Words that mean the draft filled the goal's gap from what the model knows. */
   outsideMaterial?: readonly string[];
-  /** The language titles, prompts, and explanations belong in: the tag sent, else the learners'. */
+  /** The language titles, prompts, and explanations belong in: the tag sent. */
   instructionLanguage?: string;
   /** The material's tag: what instructions most often slip into. */
   materialLanguage?: string;
