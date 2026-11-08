@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { assetRoute, markdownLinks, pageRoute, screenshotSize } from "./page-links.ts";
+import { assetRoute, pageRoute, publishedMarkdown, screenshotSize } from "./page-links.ts";
 
 describe("pageRoute", () => {
   test("turns a sibling page into its route", () => {
@@ -63,7 +63,7 @@ describe("assetRoute", () => {
   );
 });
 
-describe("markdownLinks", () => {
+describe("publishedMarkdown", () => {
   const page = [
     "See [the FAQ](./faq.mdx#ai), [home](../docs/index.mdx), and [a heading](#here).",
     '![A screen.](../../public/docs/shots/a.png "Title")',
@@ -71,7 +71,7 @@ describe("markdownLinks", () => {
   ].join("\n");
 
   test("rewrites page links and images by the build's rules, base applied once", () => {
-    expect(markdownLinks(page, "guides/authoring.mdx", "/help/")).toBe(
+    expect(publishedMarkdown(page, "guides/authoring.mdx", "/help/")).toBe(
       [
         "See [the FAQ](/help/guides/faq#ai), [home](/help/docs), and [a heading](#here).",
         '![A screen.](/help/docs/shots/a.png "Title")',
@@ -82,7 +82,7 @@ describe("markdownLinks", () => {
 
   test("makes them absolute with an origin", () => {
     expect(
-      markdownLinks(
+      publishedMarkdown(
         "[FAQ](./faq.mdx) ![](../../public/docs/a.png)",
         "guides/x.mdx",
         "/help/",

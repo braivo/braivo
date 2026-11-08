@@ -37,7 +37,7 @@ export function assetRoute(href: string, from: string, base: string): string | u
  * at the origin's root, base included, so they hold in `llms-full.txt` beside
  * other pages' too; with `origin`, they are absolute.
  */
-export function markdownLinks(
+export function publishedMarkdown(
   markdown: string,
   from: string,
   base: string,

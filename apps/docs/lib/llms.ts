@@ -6,7 +6,7 @@ import { llms } from "fumadocs-core/source";
 import site from "#brand/site.ts";
 
 import { base } from "./base.ts";
-import { markdownLinks } from "./page-links.ts";
+import { publishedMarkdown } from "./page-links.ts";
 import { source } from "./source.ts";
 
 type Page = ReturnType<typeof source.getPages>[number];
@@ -37,7 +37,7 @@ export const docsLlms = llms(source, {
     return page ? address(`${base}${markdownPath(page)}`) : item.url;
   },
   renderPage: async (page) => {
-    const text = markdownLinks(
+    const text = publishedMarkdown(
       await page.data.getText("processed"),
       page.path,
       base,
