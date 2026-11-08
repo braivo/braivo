@@ -607,7 +607,12 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: { model, organizations: new Set([organizationId]) },
     });
-    const draft = (source: string, cookie: string, body: object = {}, app = drafting) =>
+    const draft = (
+      source: string,
+      cookie: string,
+      body: object = { instructionLanguage: "en" },
+      app = drafting,
+    ) =>
       app.request(`/api/organizations/${organizationId}/sources/${source}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie },
@@ -615,7 +620,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       });
 
     cachedStatements.length = 0;
-    const drafted = await draft(sourceId, teacher.cookie, { audience: "grade 2" });
+    const drafted = await draft(sourceId, teacher.cookie, {
+      audience: "grade 2",
+      instructionLanguage: "en",
+    });
     expect(drafted.status).toBe(200);
     // The source alone comes through the cache; who may draft, and the quota
     // charged, never do.
@@ -651,7 +659,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       },
       { timeout },
     );
@@ -664,7 +672,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect((await draft(sourceId, learner.cookie, [])).status).toBe(400);
     expect(cachedStatements).toEqual([]);
     expect((await draft(crypto.randomUUID(), teacher.cookie)).status).toBe(404);
-    const long = await draft(sourceId, teacher.cookie, { audience: "a".repeat(201) });
+    const long = await draft(sourceId, teacher.cookie, {
+      audience: "a".repeat(201),
+      instructionLanguage: "en",
+    });
     expect(long.status).toBe(400);
     // Owning an organization is not the operator's leave to spend on it.
     const elsewhere = createApi({
@@ -673,7 +684,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: { model, organizations: new Set(["another-org"]) },
     });
-    const refused = await draft(sourceId, teacher.cookie, {}, elsewhere);
+    const refused = await draft(sourceId, teacher.cookie, undefined, elsewhere);
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({
       error: expect.stringContaining("ask its operator"),
@@ -682,7 +693,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(asked).toHaveLength(2);
   });
 
-  test("refuses a goal it cannot use, by name, before anything is asked or charged", async () => {
+  test("refuses a goal or a language it cannot use, by name, before anything is asked or charged", async () => {
     const added = await postSource(
       { title: "Goal", text: "Hola significa hello." },
       teacher.cookie,
@@ -707,7 +718,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       drafting.request(`/api/organizations/${organizationId}/sources/${sourceId}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ instructionLanguage: "en", ...body }),
       });
     const ledger = () => database.$count(aiRequest, eq(aiRequest.organizationId, organizationId));
     const charged = await ledger();
@@ -722,9 +733,18 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(prompts).toEqual([]);
     expect(await ledger()).toBe(charged);
 
-    // The language for learners' instructions is a tag, named when it is not.
-    for (const instructionLanguage of ["", "Spanish", "not a tag", "a".repeat(36), 7, null]) {
-      const refused = await draft({ instructionLanguage });
+    // The language for learners' instructions is required, a tag, named when
+    // missing or not one: never inferred from the learners.
+    for (const instructionLanguage of [
+      undefined,
+      "",
+      "Spanish",
+      "not a tag",
+      "a".repeat(36),
+      7,
+      null,
+    ]) {
+      const refused = await draft({ audience: "English-speaking adults", instructionLanguage });
       expect(refused.status, JSON.stringify(instructionLanguage)).toBe(400);
       expect(await refused.json()).toEqual({
         error: expect.stringMatching(/language for learners' instructions/),
@@ -874,7 +894,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         monthlyLimit: 2,
       },
     });
-    const draft = (source: string, body: object = {}) =>
+    const draft = (source: string, body: object = { instructionLanguage: "en" }) =>
       limited.request(`/api/organizations/${limitedOrganization}/sources/${source}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
@@ -884,6 +904,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     // Refused before the model is asked, so they cost nothing.
     expect((await draft(sourceId, [])).status).toBe(400);
     expect((await draft(sourceId, { audience: "a".repeat(201) })).status).toBe(400);
+    expect((await draft(sourceId, { audience: "English-speaking adults" })).status).toBe(400);
     const long = await draft(await add("a".repeat(200_001)));
     expect(long.status).toBe(400);
     expect(await long.json()).toEqual({
@@ -983,7 +1004,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       app.request(`/api/organizations/${organizationId}/sources/${sourceId}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       });
 
     const none = await draft(api);
@@ -994,7 +1015,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: learner.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       },
     );
     expect(learnerDraft.status).toBe(403);

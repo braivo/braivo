@@ -903,7 +903,7 @@ export type BraivoClient = {
       goal?: string;
       audience?: string;
       /** The language of titles, prompts, and explanations, as a BCP 47 tag. */
-      instructionLanguage?: string;
+      instructionLanguage: string;
     },
     options?: RequestOptions,
   ): Promise<Draft>;

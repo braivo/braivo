@@ -36,12 +36,8 @@ export type Fixture = {
   /** Ignored by a checkout that does not read a goal, so a baseline shows the draft without one. */
   goal?: string;
   audience?: string;
+  /** Required of a draft, as drafting requires it. */
   instructionLanguage?: string;
-  /**
-   * What the checks hold titles, prompts, and explanations to when no tag is
-   * sent: the learners' language as the audience says it. Never sent.
-   */
-  expectedInstructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
   goalInMaterial?: GoalInMaterial;
@@ -166,7 +162,7 @@ export async function runEvaluation(options: {
             {
               goal: spec.goal,
               audience: spec.audience,
-              instructionLanguage: spec.instructionLanguage,
+              instructionLanguage: spec.instructionLanguage!,
             },
           );
           Object.assign(record, { result: draft, counts });
@@ -177,7 +173,7 @@ export async function runEvaluation(options: {
             offTopic: spec.offTopic,
             goalInMaterial: spec.goalInMaterial,
             outsideMaterial: spec.outsideMaterial,
-            instructionLanguage: spec.instructionLanguage ?? spec.expectedInstructionLanguage,
+            instructionLanguage: spec.instructionLanguage,
             materialLanguage: spec.language,
           });
         } else {

@@ -285,7 +285,12 @@ describe.skipIf(!connectionString)("what each organization role reaches", () => 
     const aiStatusesFor = (who: Signed) =>
       Promise.all([
         status(client.readFileText({ organizationId, fileId }, as(who))),
-        status(client.draftCourse({ organizationId, sourceId, audience: "Adults" }, as(who))),
+        status(
+          client.draftCourse(
+            { organizationId, sourceId, audience: "Adults", instructionLanguage: "en" },
+            as(who),
+          ),
+        ),
       ]);
     // Past the role, refused for want of a model; a plain member, by the role.
     expect(await aiStatusesFor(author)).toEqual([501, 501]);

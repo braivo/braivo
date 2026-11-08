@@ -44,9 +44,10 @@ export async function draftFromSource(input: {
    * A tag, as a source's language is: of any language, not only those Braivo's
    * apps speak, since a course's language is not the interface's
    * (docs/specs/localization.md, Boundaries), and never a name for the model to
-   * interpret. Absent, the model takes the learners' language.
+   * interpret. Required: inferred from the learners, it was read as the
+   * language they learn (ADR 0029).
    */
-  instructionLanguage?: unknown;
+  instructionLanguage: unknown;
   now: Date;
   /** The request's: the model is not kept answering someone who left. */
   signal?: AbortSignal;
@@ -71,9 +72,9 @@ export async function draftFromSource(input: {
     typeof input.instructionLanguage === "string"
       ? parseLanguageTag(input.instructionLanguage)
       : undefined;
-  if (input.instructionLanguage !== undefined && instructionLanguage === undefined) {
+  if (instructionLanguage === undefined) {
     throw new InvalidAiRequest(
-      "The language for learners' instructions must be a BCP 47 tag such as es or en-US, not a language's name.",
+      "Name the language for learners' instructions as a BCP 47 tag such as es or en-US, not a language's name.",
     );
   }
 

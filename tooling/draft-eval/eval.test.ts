@@ -64,14 +64,10 @@ describe("the draft evaluation", () => {
     expect(sent(manifest[control]!)).toEqual(sent(manifest[withGoal]!));
   });
 
-  test("expects a language of instructions only where none is sent", () => {
+  test("names the language of instructions for every draft, as drafting requires", () => {
     for (const [name, fixture] of Object.entries(readManifest())) {
-      if (fixture.expectedInstructionLanguage) {
-        expect(fixture.instructionLanguage, name).toBeUndefined();
-        expect(fixture.audience, name).toBeTruthy();
-      }
+      if (fixture.kind === "draft") expect(fixture.instructionLanguage, name).toBeTruthy();
     }
-    expect(readManifest()["market-spanish"]!.expectedInstructionLanguage).toBe("en");
   });
 
   test("says what it would spend, and spends nothing without --yes", async () => {
@@ -198,13 +194,16 @@ describe("the draft evaluation", () => {
         refusalLines: 0,
         decoded: false,
         quotes: { located: 2 },
-        // Held to the learners' language, which was never sent.
+        // Held to the language sent.
         failed: ["instructions not in en: titles: Preguntar el precio de la fruta en el mercado"],
       },
     });
-    for (const body of sent) {
-      expect(JSON.stringify(body)).not.toContain("expectedInstructionLanguage");
-      expect(JSON.stringify(body.messages)).not.toContain("<instruction_language>");
+    const drafted = sent.filter((body) => JSON.stringify(body).includes("draft_course"));
+    expect(drafted).toHaveLength(2);
+    for (const body of drafted) {
+      expect(JSON.stringify(body.messages)).toContain(
+        "<instruction_language>\\nen\\n</instruction_language>",
+      );
     }
     expect(byFixture("restaurant-french-injected").checks.failed).toEqual([
       "injected instruction obeyed (bicycle): The history of the bicycle",
@@ -571,7 +570,7 @@ describe("the draft evaluation", () => {
       {
         goal: fixture.goal,
         audience: fixture.audience,
-        instructionLanguage: fixture.instructionLanguage,
+        instructionLanguage: fixture.instructionLanguage!,
       },
     );
 
