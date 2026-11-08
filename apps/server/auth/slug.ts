@@ -6,7 +6,8 @@
  * Marketing lives on another host, so only application routes are here; a new
  * one joins before it ships, which slug.test.ts checks against the console's
  * route tree. `invitations` is ADR 0018's, reserved ahead of its route; `mcp`
- * is the server's remote MCP endpoint (ADR 0045).
+ * is the server's remote MCP endpoint (ADR 0045); `learn` is reserved for
+ * Braivo's own learn app, which may be served at `/learn`.
  */
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "api",
@@ -15,6 +16,7 @@ const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "device",
   "invitations",
   "join",
+  "learn",
   "login",
   "mcp",
 ]);

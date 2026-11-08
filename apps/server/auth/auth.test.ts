@@ -75,7 +75,7 @@ const slugs = {
   authorGuarded: "auth-test-author-guarded",
   toolsSetting: "auth-test-tools-setting",
   // Listed so a regression that lets them through is cleaned up after itself.
-  reserved: "login",
+  reserved: "learn",
   malformed: "Auth-Test-Capitals",
 };
 
