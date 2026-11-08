@@ -11,11 +11,11 @@ import { source } from "./source.ts";
 
 type Page = ReturnType<typeof source.getPages>[number];
 
-/** An address from the base: absolute once `BRAIVO_DOCS_URL` gives the origin, else from its root. */
-const address = (path: string) => {
-  const origin = import.meta.env.SITE;
-  return origin ? new URL(path, origin).href : path;
-};
+/** `BRAIVO_DOCS_URL`, the origin: with it, every address the exports give is absolute. */
+const origin = import.meta.env.SITE;
+
+/** An address from the base, absolute with an origin, else from its root. */
+const address = (path: string) => (origin ? new URL(path, origin).href : path);
 
 /**
  * Where a page's Markdown copy sits: beside its HTML, inside the two paths the
@@ -37,12 +37,7 @@ export const docsLlms = llms(source, {
     return page ? address(`${base}${markdownPath(page)}`) : item.url;
   },
   renderPage: async (page) => {
-    const text = publishedMarkdown(
-      await page.data.getText("processed"),
-      page.path,
-      base,
-      import.meta.env.SITE,
-    );
+    const text = publishedMarkdown(await page.data.getText("processed"), page.path, base, origin);
     const description = page.data.description ? `> ${page.data.description}\n\n` : "";
     return `# ${page.data.title} (${address(page.url)})\n\n${description}${text}`;
   },
