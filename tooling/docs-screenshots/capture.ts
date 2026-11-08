@@ -348,8 +348,17 @@ async function firstCourse(
   // 3. Draft.
   const drafting = page.getByRole("heading", { name: "Draft a course" });
   await drafting.waitFor();
-  await page.getByLabel("Learners").fill("Grade 5 science");
-  await sees(page, "Learners", "Draft a course");
+  await page
+    .getByLabel("What should learners be able to do?")
+    .fill("Explain why leaves are green and what plants take in and give out");
+  await page.getByLabel("Who are the learners?").fill("Grade 5 science");
+  await sees(
+    page,
+    "What should learners be able to do?",
+    "What language should the questions be in?",
+    "Who are the learners?",
+    "Draft a course",
+  );
   const draft = page.getByRole("button", { name: "Draft a course" });
   const promise = page.getByText("You review the draft before learners see any of it.");
   await region(page, shot("3-draft"), drafting, promise, draft);
