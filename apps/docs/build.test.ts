@@ -60,6 +60,13 @@ function files(dir: string): string[] {
 
 const read = (out: string, path: string) => readFileSync(join(out, path), "utf8");
 
+/** Each page's file under `content/`, such as `guides/faq.mdx`. */
+const pages = () => files(join(app, "content")).filter((name) => name.endsWith(".mdx"));
+
+/** Every Markdown link's and image's destination. */
+const markdownUrls = (markdown: string) =>
+  [...markdown.matchAll(/\]\(([^)\s]+)/g)].map(([, url]) => url!);
+
 /** Every `url` of the search index. */
 function searchUrls(out: string): string[] {
   const urls: string[] = [];
@@ -149,29 +156,105 @@ describe("a build at /help/, with an outside brand and an origin", () => {
     expect(styles.some((css) => css.includes("--brand-marker"))).toBe(true);
   });
 
-  test("names each page's canonical address, and lists them in docs/sitemap.xml", () => {
+  test("names each page's canonical address, and lists them in sitemap.xml at the base", () => {
     expect(read(branded, "guides/faq.html")).toContain(
       '<link rel="canonical" href="https://docs.example/help/guides/faq">',
     );
-    const sitemap = read(branded, "docs/sitemap.xml");
+    // At the base: a sitemap under docs/ may not list /help/docs or /help/guides/*.
+    expect(existsSync(join(branded, "docs/sitemap.xml"))).toBe(false);
+    const sitemap = read(branded, "sitemap.xml");
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => loc);
+    expect(locs).toContain("https://docs.example/help/docs");
     expect(locs).toContain("https://docs.example/help/guides/faq");
     expect(locs.filter((loc) => !loc!.startsWith("https://docs.example/help/"))).toEqual([]);
   });
+
+  test("links each page's Markdown from docs/llms.txt, absolutely, each a file", () => {
+    const urls = markdownUrls(read(branded, "docs/llms.txt"));
+    expect(urls).toContain("https://docs.example/help/docs/index.md");
+    expect(urls).toContain("https://docs.example/help/guides/faq.md");
+    const missing = urls.filter(
+      (url) => !existsSync(join(branded, url.replace(/^https:\/\/docs\.example\/help\//, ""))),
+    );
+    expect(missing).toEqual([]);
+    expect(urls.length).toBe(pages().length);
+  });
+
+  test("exports links and images where the site serves them, base and section once", () => {
+    const exports = ["docs/llms-full.txt", ...pages().map((page) => page.replace(/x$/, ""))];
+    for (const name of exports) {
+      const text = read(branded, name);
+      // Any form a link could take, not only `](`: a JSX href, a reference definition.
+      expect(text, name).not.toMatch(/\.\.?\/[^\s)"'`]*\.mdx\b|\.\.\/public\//);
+      const urls = markdownUrls(text);
+      expect(
+        urls.filter((url) => /\.mdx\b|(^|\/)public\//.test(url)),
+        name,
+      ).toEqual([]);
+      expect(
+        urls.filter((url) => /\/(help|docs|guides)\/\1\//.test(url)),
+        name,
+      ).toEqual([]);
+      const local = urls.filter((url) => !url.startsWith("#") && !url.startsWith("https://"));
+      expect(local, name).toEqual([]);
+    }
+    const guide = read(branded, "guides/first-course.md");
+    expect(guide).toContain(
+      "[choose and check it](https://docs.example/help/guides/prepare-material)",
+    );
+    expect(guide).toContain(
+      "(https://docs.example/help/docs/screenshots/first-course/1-add-material.png)",
+    );
+    expect(read(branded, "docs/index.md")).toContain(
+      "[make your first practice course](https://docs.example/help/guides/first-course)",
+    );
+  });
 });
 
-test("without an origin, a build names no canonical address and writes no sitemap", () => {
+test("without an origin, a build names no canonical address, writes no sitemap, and exports paths from the root", () => {
   expect(read(unpublished, "guides/faq.html")).not.toContain('rel="canonical"');
+  expect(existsSync(join(unpublished, "sitemap.xml"))).toBe(false);
   expect(existsSync(join(unpublished, "docs/sitemap.xml"))).toBe(false);
+  const urls = markdownUrls(read(unpublished, "docs/llms.txt"));
+  expect(urls).toContain("/help/guides/faq.md");
+  expect(urls.filter((url) => !url.startsWith("/help/"))).toEqual([]);
+  expect(urls.filter((url) => !existsSync(join(unpublished, url.slice("/help/".length))))).toEqual(
+    [],
+  );
+  const full = read(unpublished, "docs/llms-full.txt");
+  // An origin only prose names, as the deployment guide's example.
+  expect(markdownUrls(full).filter((url) => url.includes("docs.example"))).toEqual([]);
+  expect(full).toContain("[choose and check it](/help/guides/prepare-material)");
+  expect(full).toContain("(/help/docs/screenshots/first-course/1-add-material.png)");
 });
 
-test("the default build's routes are its pages, at the root", () => {
-  const content = join(app, "content");
-  const pages = files(content)
-    .filter((name) => name.endsWith(".mdx"))
-    .map((name) => (name === "docs/index.mdx" ? "docs.html" : name.replace(/\.mdx$/, ".html")));
+test("a guide's Markdown keeps its steps, callouts, and headings; the index its cards' titles", () => {
+  const guide = read(neutral, "guides/first-course.md");
+  expect(guide).toMatch(/^# Your first course, in the console \(\/guides\/first-course\)\n/);
+  expect(guide).toContain("<Step>");
+  expect(guide).toContain("### Add your material");
+  expect(guide).toContain("> [!WARNING]\n> If a scan has no selectable text");
+  const index = read(neutral, "docs/index.md");
+  for (const title of ["I teach", "I build with the API", "I run Braivo myself"]) {
+    expect(index).toContain(`<Card title="${title}"`);
+  }
+  expect(read(neutral, "docs/llms.txt")).toMatch(/^# Braivo\n/);
+});
+
+test("the default build's routes are its pages, at the root, each with its Markdown beside it", () => {
+  const html = pages().map((name) =>
+    name === "docs/index.mdx" ? "docs.html" : name.replace(/\.mdx$/, ".html"),
+  );
   const routes = files(neutral).filter((name) => name.endsWith(".html"));
-  expect(routes.sort()).toEqual(["404.html", "index.html", ...pages].sort());
+  expect(routes.sort()).toEqual(["404.html", "index.html", ...html].sort());
+  const markdown = files(neutral).filter((name) => /\.(md|txt|xml)$/.test(name));
+  expect(markdown.sort()).toEqual(
+    [
+      "docs/llms.txt",
+      "docs/llms-full.txt",
+      ...pages().map((name) => name.replace(/x$/, "")),
+    ].sort(),
+  );
   expect(read(neutral, "index.html")).toContain("url=/docs");
   expect(relative(app, neutral)).not.toBe("dist");
 });

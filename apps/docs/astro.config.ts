@@ -32,8 +32,9 @@ await brandSite(brand);
 
 /**
  * Braivo's public documentation, static files with no server (ADR 0057). Pages
- * sit under `docs/` and `guides/`, and so do its assets and search index, so
- * it can share a host with another site.
+ * sit under `docs/` and `guides/`, and so do their Markdown copies, its
+ * assets, search index, and `llms.txt`, so it can share a host with another
+ * site.
  *
  * `dev` passes `--ignore-lock`: without it, Astro detaches from an AI agent's
  * shell, leaving a server behind that `bun run dev` cannot stop.
@@ -57,6 +58,8 @@ export default defineConfig({
           dir: "content",
           components: "./components/mdx.tsx",
           mdastPlugins: mdastPlugins(contentDir, base),
+          // As authored, JSX included: a step's or callout's text, a card's title.
+          includeProcessedMarkdown: true,
         },
       },
     }),

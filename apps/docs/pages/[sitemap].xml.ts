@@ -6,9 +6,11 @@ import type { APIRoute, GetStaticPaths } from "astro";
 import { source } from "#lib/source";
 
 /**
- * `docs/sitemap.xml`, every page's canonical address, written only once
+ * `sitemap.xml` at the base, every page's canonical address, written only once
  * `BRAIVO_DOCS_URL` gives the site's origin (ADR 0057): without one, there is
- * no address to give. Under `docs/`, which a host sharing its origin routes here.
+ * no address to give. At the base, as a sitemap may list only what sits under
+ * its own path, and `docs/` holds neither `guides/` nor `docs` itself. A host
+ * sharing its origin leaves it unrouted and lists the pages in its own.
  */
 export const getStaticPaths = (() =>
   import.meta.env.SITE ? [{ params: { sitemap: "sitemap" } }] : []) satisfies GetStaticPaths;

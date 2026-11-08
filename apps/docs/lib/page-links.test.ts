@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { assetRoute, pageRoute, screenshotSize } from "./page-links.ts";
+import { assetRoute, markdownLinks, pageRoute, screenshotSize } from "./page-links.ts";
 
 describe("pageRoute", () => {
   test("turns a sibling page into its route", () => {
@@ -61,6 +61,35 @@ describe("assetRoute", () => {
       expect(assetRoute(href, "guides/first-course.mdx", "/")).toBeUndefined();
     },
   );
+});
+
+describe("markdownLinks", () => {
+  const page = [
+    "See [the FAQ](./faq.mdx#ai), [home](../docs/index.mdx), and [a heading](#here).",
+    '![A screen.](../../public/docs/shots/a.png "Title")',
+    "[Elsewhere](https://example.com/a.mdx), `[code](x)`",
+  ].join("\n");
+
+  test("rewrites page links and images by the build's rules, base applied once", () => {
+    expect(markdownLinks(page, "guides/authoring.mdx", "/help/")).toBe(
+      [
+        "See [the FAQ](/help/guides/faq#ai), [home](/help/docs), and [a heading](#here).",
+        '![A screen.](/help/docs/shots/a.png "Title")',
+        "[Elsewhere](https://example.com/a.mdx), `[code](x)`",
+      ].join("\n"),
+    );
+  });
+
+  test("makes them absolute with an origin", () => {
+    expect(
+      markdownLinks(
+        "[FAQ](./faq.mdx) ![](../../public/docs/a.png)",
+        "guides/x.mdx",
+        "/help/",
+        "https://docs.example",
+      ),
+    ).toBe("[FAQ](https://docs.example/help/guides/faq) ![](https://docs.example/help/docs/a.png)");
+  });
 });
 
 describe("screenshotSize", () => {
