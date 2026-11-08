@@ -11,10 +11,9 @@ import { source } from "./source.ts";
 
 type Page = ReturnType<typeof source.getPages>[number];
 
-/** `BRAIVO_DOCS_URL`, the origin: with it, every address the exports give is absolute. */
+/** `BRAIVO_DOCS_URL`: with it, every address the exports give is absolute; without, from the root. */
 const origin = import.meta.env.SITE;
 
-/** An address from the base, absolute with an origin, else from its root. */
 const address = (path: string) => (origin ? new URL(path, origin).href : path);
 
 /**

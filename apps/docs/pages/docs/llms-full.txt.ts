@@ -5,5 +5,5 @@ import type { APIRoute } from "astro";
 
 import { docsLlms } from "#lib/llms";
 
-/** Every page's Markdown, by file path (ADR 0057). */
+/** Every page's Markdown copy, in one file (ADR 0057). */
 export const GET: APIRoute = async () => new Response(await docsLlms.full());

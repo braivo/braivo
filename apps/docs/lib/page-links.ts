@@ -31,11 +31,10 @@ export function assetRoute(href: string, from: string, base: string): string | u
 
 /**
  * A page's processed Markdown with its links and images where the site serves
- * them, by the rules `pageLinks` applies to the HTML: Fumadocs slices that
- * Markdown from the authored source, so the plugin's AST changes never reach
- * it. A page link goes to its HTML page, which its anchors name. Paths start
- * at the origin's root, base included, so they hold in `llms-full.txt` beside
- * other pages' too; with `origin`, they are absolute.
+ * them, by `pageLinks`' rules: Fumadocs slices it from the authored source,
+ * which that plugin's AST changes never reach. A page link goes to the HTML
+ * page, which its anchors name. From the origin's root, so they hold in
+ * `llms-full.txt` too; absolute with `origin`.
  */
 export function publishedMarkdown(
   markdown: string,

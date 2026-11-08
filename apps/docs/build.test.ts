@@ -230,7 +230,7 @@ test("without an origin, a build names no canonical address, writes no sitemap, 
     [],
   );
   const full = read(unpublished, "docs/llms-full.txt");
-  // An origin only prose names, as the deployment guide's example.
+  // The deployment guide's prose names docs.example; no link may.
   expect(markdownUrls(full).filter((url) => url.includes("docs.example"))).toEqual([]);
   expect(markdownUrls(full)).toContain("/help/guides/prepare-material");
   expect(markdownUrls(full)).toContain("/help/docs/screenshots/first-course/1-add-material.png");

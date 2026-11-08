@@ -32,8 +32,8 @@ await brandSite(brand);
 
 /**
  * Braivo's public documentation, static files with no server (ADR 0057). Pages
- * sit under `docs/` and `guides/`, and so do their Markdown copies, its
- * assets, search index, and `llms.txt`, so it can share a host with another
+ * and their Markdown copies sit under `docs/` and `guides/`, and so do its
+ * assets, search index, and llms files, so it can share a host with another
  * site.
  *
  * `dev` passes `--ignore-lock`: without it, Astro detaches from an AI agent's
