@@ -27,7 +27,7 @@ import { useId, useState } from "react";
 import { NoSuchSetting } from "#components/no-such-setting";
 import { pinnedColumn, ScrollingTable } from "#components/scrolling-table";
 import { SearchField } from "#components/search-field";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { schoolAdministratorsOnly, orNotFound } from "#lib/refusals";
 import { matchesQuery } from "#lib/search";
 import { pageHead } from "#lib/title";
 
@@ -36,7 +36,7 @@ import { pageHead } from "#lib/title";
  * teaches whom in which courses, each opened to change it.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/groups/")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: schoolAdministratorsOnly,
   loader: async ({ context, abortController }) => ({
     groups: await orNotFound(
       context.braivo.listGroups(context.organization.id, { signal: abortController.signal }),

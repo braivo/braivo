@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { learnSignInUrl } from "@braivo/auth-client";
 import type { Membership } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Button } from "@braivo/ui/components/button";
@@ -22,13 +23,13 @@ import { useState } from "react";
 import { OrganizationSetupForm } from "#components/organization-setup-form";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { organizationToOpen } from "#lib/last-organization";
-import { learnSignInUrl } from "#lib/learn-url";
 
 /**
- * Setting up an organization, for whoever owns none (ADR 0018), and where
- * someone managing none lands (ADR 0004): the schools they learn at, each on
- * to its learn domain (access-59). Whoever may not set one up but works in
- * one is sent to it, as from `/`, so an owner reloading after an unclear
+ * Setting up an organization, for whoever owns none (ADR 0018), and, for
+ * someone managing none, the schools they learn at, each on to its learn
+ * domain (access-59); no longer where `/` lands (ADR 0059). Whoever may not
+ * set one up but works in one is sent to the one whose console they last
+ * used, else the first, so an owner reloading after an unclear
  * setup finds it. In `beforeLoad`, which every navigation runs; a loader's
  * result a preload may reuse.
  */
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/_signed-in/join")({
       context.braivo.listOrganizations(options),
       context.braivo.organizationSetup(options),
     ]);
-    const organization = organizationToOpen(organizations);
+    const organization = organizationToOpen(organizations, context.user.id);
     if (organization && !setup?.maySetUp) {
       throw redirect({ to: "/$organizationSlug", params: { organizationSlug: organization.slug } });
     }

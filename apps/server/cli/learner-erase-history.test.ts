@@ -197,7 +197,7 @@ describe.skipIf(!connectionString)("learner erase-history", { timeout: 30_000 },
     expect(more).toEqual([]);
     expect(log?.record).toMatchObject({
       format: "braivo-erasure-log",
-      version: 1,
+      version: 2,
       scope: "organization",
       userId: ada.id,
       organizationId: fernwood,

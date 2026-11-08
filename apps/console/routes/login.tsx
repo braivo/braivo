@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { PasswordSignIn, safeRedirect, SignIn } from "@braivo/auth-client";
+import { PasswordSignIn, safeRedirect, SignIn, learnUrl } from "@braivo/auth-client";
 import { BraivoError } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -15,7 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ConsoleSignInPage, InvitationNote, SignInBrand } from "#components/sign-in-page";
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { learnUrl } from "#lib/learn-url";
+import { isLearnApp } from "#lib/learn-app";
 
 const expiredTitle = msg`This sign-in has expired`;
 
@@ -64,10 +64,20 @@ export const Route = createFileRoute("/login")({
     // in `/login`'s place, as every redirect is. A learn domain's sign-in
     // offers the account instead (access-13).
     if (search.handoff === undefined && user?.name.trim()) {
-      throw redirect({ href: search.redirect ?? "/" });
+      const to = search.redirect ?? "/";
+      if (!isLearnApp(to)) throw redirect({ href: to });
+      context.visit(to, { replace: true });
+      return {
+        leaving: true,
+        offersGoogle: false,
+        legal: undefined,
+        needsName: false,
+        account: undefined,
+      };
     }
     const settings = await settingsRead;
     return {
+      leaving: false,
       offersGoogle: settings.google,
       legal: settings.legal ?? undefined,
       needsName: user !== undefined && user.name.trim() === "",
@@ -115,15 +125,22 @@ function useGoogleSignIn(to: string) {
 }
 
 function Login() {
-  const { auth, needsName, legal } = Route.useRouteContext();
+  const { auth, needsName, legal, leaving, visit } = Route.useRouteContext();
   // Read once, so rendering stays pure.
   const [year] = useState(() => new Date().getFullYear());
   const { redirect, handoff, method } = Route.useSearch();
   const router = useRouter();
   const google = useGoogleSignIn(redirect ?? "/");
-  // In `/login`'s place, so Back does not return to it.
-  const onSignedIn = () => router.navigate({ href: redirect ?? "/", replace: true });
+  // In `/login`'s place, so Back does not return to it; the learn app by
+  // loading it, as it is not this router's (ADR 0059).
+  const onSignedIn = () => {
+    const to = redirect ?? "/";
+    if (isLearnApp(to)) visit(to, { replace: true });
+    else void router.navigate({ href: to, replace: true });
+  };
 
+  // On to the learn app, signed in already: nothing to show meanwhile.
+  if (leaving) return null;
   if (handoff !== undefined) return <LearnDomainSignIn handoffId={handoff} />;
   // Returning to an invitation, which is accepted with the address it was sent to.
   const invited = redirect?.startsWith("/invitations/") === true;

@@ -74,7 +74,7 @@ const find = () => previewAccountErasure({ database, email: adaEmail });
 
 async function erase(log = memoryLog()) {
   const { target } = await find();
-  return { ...(await eraseAccount({ database, target, log })), log };
+  return { ...(await eraseAccount({ database, target, log, files: undefined })), log };
 }
 
 /** Until some statement like `pattern` (SQL `like`) waits for another transaction's lock. */
@@ -302,7 +302,9 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       expect(target.organizations.map(({ id }) => id)).toEqual([fernwood]);
       await code(birchwood, "birchwood.example");
       const log = memoryLog();
-      await expect(eraseAccount({ database, target, log })).rejects.toThrow(/changed/);
+      await expect(eraseAccount({ database, target, log, files: undefined })).rejects.toThrow(
+        /changed/,
+      );
       expect(log.writes).toEqual([]);
     });
 
@@ -441,7 +443,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       const results = await Promise.allSettled(
         [adaEmail, `${owner}@example.com`].map(async (email) => {
           const { target } = await previewAccountErasure({ database, email });
-          return eraseAccount({ database, target, log: slow });
+          return eraseAccount({ database, target, log: slow, files: undefined });
         }),
       );
       expect(results.map(({ status }) => status).sort()).toEqual(["fulfilled", "rejected"]);
@@ -467,7 +469,9 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       });
       try {
         const log = memoryLog();
-        await expect(eraseAccount({ database, target, log })).rejects.toThrow(/changed/);
+        await expect(eraseAccount({ database, target, log, files: undefined })).rejects.toThrow(
+          /changed/,
+        );
         expect(log.writes).toEqual([]);
         expect(await database.$count(user, eq(user.id, ada))).toBe(1);
       } finally {
@@ -479,10 +483,10 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       const { target } = await find();
       const log = memoryLog();
       await expect(
-        eraseAccount({ database, target: { ...target, email: longer }, log }),
+        eraseAccount({ database, target: { ...target, email: longer }, log, files: undefined }),
       ).rejects.toThrow(/changed/);
       await expect(
-        eraseAccount({ database, target: { ...target, userId: "nobody" }, log }),
+        eraseAccount({ database, target: { ...target, userId: "nobody" }, log, files: undefined }),
       ).rejects.toThrow(/changed/);
       expect(log.writes).toEqual([]);
     });
@@ -504,7 +508,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
             response: { choice: 0 },
             at: new Date(),
           });
-          erasing = eraseAccount({ database, target, log: memoryLog() });
+          erasing = eraseAccount({ database, target, log: memoryLog(), files: undefined });
           await untilWaitingForLearner();
         },
       );
@@ -533,7 +537,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
           .from(learnerSignInCode)
           .where(eq(learnerSignInCode.email, adaEmail))
           .for("update");
-        erasing = eraseAccount({ database, target, log: memoryLog() });
+        erasing = eraseAccount({ database, target, log: memoryLog(), files: undefined });
         await waitForLock("%learner_sign_in_code%for update%");
         await transaction.insert(learnerSession).values({
           tokenHash: `${prefix}-spent`,
@@ -563,7 +567,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       let erasing!: Promise<unknown>;
       await database.transaction(async (transaction) => {
         await transaction.delete(learnerHandoff).where(eq(learnerHandoff.id, id));
-        erasing = eraseAccount({ database, target, log: memoryLog() });
+        erasing = eraseAccount({ database, target, log: memoryLog(), files: undefined });
         await waitForLock("%learner_handoff%for update%");
         await transaction.insert(learnerSession).values({
           tokenHash: `${prefix}-redeemed`,
@@ -656,10 +660,12 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       expect(log.writes).toHaveLength(2);
       expect(log.writes[0]).toMatchObject({
         format: "braivo-erasure-log",
-        version: 1,
+        version: 2,
         id: recordId,
         scope: "account",
         userId: ada,
+        personalOrganizationId: null,
+        supersededBy: null,
         email: {
           hmac: createHmac("sha256", secret).update(adaEmail).digest("hex"),
           rule: "trim-lowercase-v1",
@@ -685,7 +691,9 @@ describe.skipIf(!connectionString)("erasing an account", () => {
           },
         },
       };
-      await expect(eraseAccount({ database, target, log })).rejects.toThrow(/store unavailable/);
+      await expect(eraseAccount({ database, target, log, files: undefined })).rejects.toThrow(
+        /store unavailable/,
+      );
       expect(await database.$count(user, eq(user.id, ada))).toBe(1);
     });
 
@@ -704,7 +712,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       const log = memoryLog(async () => {
         await database.insert(accountErasure).values({ id: log.writes[0]!.id });
       });
-      await expect(eraseAccount({ database, target, log })).rejects.toThrow(
+      await expect(eraseAccount({ database, target, log, files: undefined })).rejects.toThrow(
         /Log record .* is pending/,
       );
       expect(log.writes).toHaveLength(1);
@@ -727,7 +735,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
           },
         },
       };
-      await expect(eraseAccount({ database, target, log })).rejects.toThrow(
+      await expect(eraseAccount({ database, target, log, files: undefined })).rejects.toThrow(
         /account was erased, but log record/,
       );
       expect(await database.$count(user, eq(user.id, ada))).toBe(0);
@@ -749,7 +757,7 @@ describe.skipIf(!connectionString)("erasing an account", () => {
       const { target, counts } = await find();
       expect(counts.signInCodes).toBe(1);
       const log = memoryLog();
-      await eraseAccount({ database, target, log });
+      await eraseAccount({ database, target, log, files: undefined });
       expect(await database.$count(learnerSignInCode, eq(learnerSignInCode.email, adaEmail))).toBe(
         0,
       );
@@ -767,7 +775,9 @@ describe.skipIf(!connectionString)("erasing an account", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      await expect(eraseAccount({ database, target, log: memoryLog() })).rejects.toThrow(/changed/);
+      await expect(
+        eraseAccount({ database, target, log: memoryLog(), files: undefined }),
+      ).rejects.toThrow(/changed/);
       expect(await database.$count(user, eq(user.id, ada))).toBe(1);
     });
   });

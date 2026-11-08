@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { learnUrl } from "@braivo/auth-client";
 import { MutedText } from "@braivo/ui";
 import { useLingui } from "@lingui/react/macro";
 
 import { CopyButton } from "#components/copy-button";
-import { learnUrl } from "#lib/learn-url";
 
 /**
  * Where an organization's learners practise: `at` and a link to its learn

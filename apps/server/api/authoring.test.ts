@@ -129,6 +129,7 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
           slug: organizationId,
           name: organizationId,
           learnDomain: null,
+          personal: false,
           administers: true,
           authors: true,
           teaches: false,

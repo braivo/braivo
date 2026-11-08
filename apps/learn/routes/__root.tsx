@@ -14,17 +14,19 @@ import {
 
 import { Notice } from "#components/notice";
 import type { AppContext } from "#lib/context";
-import { OPTIONAL_READ_DEADLINE_MS, withDeadline } from "#lib/deadline";
+import { useHome } from "#lib/home";
+import { readHost } from "#lib/host";
 
 export const Route = createRootRouteWithContext<AppContext>()({
-  // The brand of the organization this domain serves (ADR 0004), loaded before
-  // sign-in and kept across pages, a course's reloads included. A failure, a
-  // timeout included, leaves the app unbranded, not down.
-  loader: async ({ context, abortController }) => ({
-    organization: await context.braivo
-      .hostOrganization({ signal: withDeadline(abortController.signal, OPTIONAL_READ_DEADLINE_MS) })
-      .catch(() => undefined),
-  }),
+  // What this host serves, loaded before sign-in and kept across pages, a
+  // course's reloads included: the brand of the organization a domain serves
+  // (ADR 0004), or the installation's origin, whose home is `/learn` (ADR 0059).
+  // A failure, a timeout included, leaves the app unbranded on a school's
+  // home, not down.
+  loader: async ({ context }) => {
+    const host = await readHost(context.braivo).catch(() => undefined);
+    return { organization: host?.organization ?? undefined, installation: !!host?.installation };
+  },
   staleTime: Infinity,
   // The title, unless a page names itself (`#lib/title`); `index.html` has none.
   head: ({ loaderData }) => ({
@@ -36,10 +38,11 @@ export const Route = createRootRouteWithContext<AppContext>()({
 
 function NotFound() {
   const { t } = useLingui();
+  const home = useHome();
   return (
     <Notice title={t`There is nothing here.`}>
       <Button asChild variant="outline">
-        <Link to="/">
+        <Link to={home}>
           <Trans>Your courses</Trans>
         </Link>
       </Button>

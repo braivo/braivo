@@ -119,6 +119,15 @@ test("the words are text, whatever characters they hold", () => {
   });
 });
 
+test("the script goes where the app's other assets do", () => {
+  const plugin = bootLanguage();
+  (plugin.configResolved as (config: unknown) => void)({ build: { assetsDir: "learn/assets" } });
+  const { tags } = transform(indexHtml("learn"), plugin);
+  expect(tags[0]!.attrs).toEqual({
+    src: expect.stringMatching(/^\/learn\/assets\/boot-language-/),
+  });
+});
+
 test("a placeholder named twice, or not empty, fails the app's build", () => {
   const { html } = transform(indexHtml("learn"));
   expect(() => transform(html)).toThrow('data-boot="loading" once, on an empty element; has 1');

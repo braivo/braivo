@@ -272,6 +272,24 @@ describe("the console", () => {
         "Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.",
       ),
     ).toBeTruthy();
+    cleanup();
+
+    // A personal organization takes no domain: its courses open in My learning (ADR 0060).
+    const own = { ...annex, id: "org-own", slug: "olive-own", personal: true };
+    renderAt("/olive-own", { organizations: [own], braivo: { listCourses: async () => [] } });
+    const note = await screen.findByText(/Your own courses open in/);
+    expect(note.textContent).toBe("Your own courses open in My learning, and need no domain.");
+    expect(within(note).getByRole("link", { name: "My learning" }).getAttribute("href")).toBe(
+      "/learn",
+    );
+    expect(screen.queryByText(/Ask whoever set Braivo up/)).toBeNull();
+    // Named after its owner, so the first prompt asks for a course for them, not by their name.
+    expect(screen.getByText(/turn the material I attach into a course for me:/)).toBeTruthy();
+    expect(screen.queryByText(/a course for Annex/)).toBeNull();
+    // Its owner's alone, so no one to group (ADR 0060): Courses and Sources, no Groups.
+    const sidebar = screen.getByRole("link", { name: "Sources" }).closest("ul")!;
+    expect(within(sidebar).getByRole("link", { name: "Courses" })).toBeTruthy();
+    expect(within(sidebar).queryByRole("link", { name: "Groups" })).toBeNull();
   });
 
   test("copies the learners' address, saying so, or that it could not", async () => {
@@ -365,6 +383,44 @@ describe("the console", () => {
       await screen.findByText("Open to every learner in Annex, once it has a site to practise on."),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
+  });
+
+  test("gives a personal course its one address, by ID on this origin, and no label to edit", async () => {
+    // A personal organization never takes a site; a number never resolves on the origin (ADR 0059).
+    const own = { ...annex, id: "org-own", slug: "olive-own", personal: true };
+    renderAt("/olive-own/courses/course-1", { organizations: [own], braivo: { readCourse } });
+
+    const note = await screen.findByText(/Practise it at/);
+    const url = `${window.location.origin}/c/course-1`;
+    expect(within(note).getByRole("link").getAttribute("href")).toBe(url);
+    expect(screen.queryByText(/Open to every learner/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Label in its link" })).toBeNull();
+    // Its owner's alone: no learners' progress, and hiding takes it out of My learning.
+    expect(screen.queryByRole("link", { name: "Learner progress" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Hide from My learning" }));
+    expect(await screen.findByText("Hide “Beginners” from My learning?")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "You can't open it or practise it until you show it again. What you learned stays.",
+      ),
+    ).toBeTruthy();
+    cleanup();
+
+    renderAt("/olive-own/courses/course-1", {
+      organizations: [own],
+      braivo: {
+        readCourse: async (input: { courseId: string }) => ({
+          ...(await readCourse(input)),
+          hidden: true,
+        }),
+      },
+    });
+    expect(
+      await screen.findByText(
+        "It's out of My learning until you show it again. What you learned stays.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show in My learning" })).toBeTruthy();
   });
 
   test("changes the label after a course's number, showing it as it will be written", async () => {

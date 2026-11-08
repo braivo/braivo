@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { runMigrations } from "@braivo/db";
 import * as schema from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
@@ -9,6 +13,7 @@ import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { eraseAccount, previewAccountErasure } from "../application/erase-account.ts";
+import { directoryStore } from "../storage/index.ts";
 
 // Every table, classified (docs/adr/0053-learners-data.md), so a new table, a
 // new column of a person's records, or a new column naming a person elsewhere
@@ -167,8 +172,8 @@ const otherTables: Record<string, { naming: string[]; why: string }> = {
   objective: { naming: [], why: "the export reads its title" },
   objective_citation: { naming: [], why: "content" },
   organization: {
-    naming: ["tools_read_learner_data_changed_by"],
-    why: "the export reads its name; who last changed a setting is the school's record",
+    naming: ["personal_owner_id", "tools_read_learner_data_changed_by"],
+    why: "the export reads its name; who last changed a setting is the school's record, and whose personal organization it is, its own (ADR 0060)",
   },
   organization_domain: { naming: [], why: "a school's domain" },
   organization_domain_claim: { naming: [], why: "a school's domain" },
@@ -315,6 +320,11 @@ const erasures: Record<string, Erasure> = {
   "organization.tools_read_learner_data_changed_by": {
     how: "set null",
     find: ({ id }) => eq(organization.toolsReadLearnerDataChangedBy, id),
+  },
+  // Deleted with all it holds, before the account, which it restricts (ADR 0060).
+  "organization.personal_owner_id": {
+    how: "explicit",
+    find: ({ id }) => eq(organization.personalOwnerId, id),
   },
   "invitation.email": { how: "explicit", find: ({ email }) => eq(invitation.email, email) },
   "invitation_mail_claim.email": {
@@ -614,6 +624,17 @@ async function clear() {
         ]),
       ),
     );
+  // Each one's personal organization first, which restricts deleting them.
+  for (const { id } of [ada, ben]) {
+    const [own] = await database
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.personalOwnerId, id));
+    if (own) await testing.clearLearningData(database, own.id);
+  }
+  await database
+    .delete(organization)
+    .where(inArray(organization.personalOwnerId, [ada.id, ben.id]));
   await database.delete(user).where(inArray(user.id, [ada.id, ben.id]));
   await database.delete(aiRequest).where(inArray(aiRequest.organizationId, organizations));
   await database
@@ -701,6 +722,23 @@ describe("an account's erasure, against the inventory", () => {
       }
       await seedAccount(ada);
       await seedAccount(ben);
+      // Each one's own, erased with them alone (ADR 0060).
+      for (const { id } of [ada, ben]) {
+        await database.insert(organization).values({
+          id: `${id}-own`,
+          name: id,
+          slug: `${id}-own`,
+          personalOwnerId: id,
+          createdAt: at,
+        });
+        await database.insert(member).values({
+          id: `${id}-own:${id}`,
+          organizationId: `${id}-own`,
+          userId: id,
+          role: "owner",
+          createdAt: at,
+        });
+      }
       await database
         .update(organization)
         .set({ toolsReadLearnerDataChangedBy: ada.id })
@@ -717,7 +755,9 @@ describe("an account's erasure, against the inventory", () => {
         hmacKey: "erasure-log-test-key-that-is-long-enough",
         store: { put: async () => {} },
       };
-      return eraseAccount({ database, target, log });
+      // Their personal organization's files are the store's to delete (ADR 0060).
+      const files = directoryStore(await mkdtemp(join(tmpdir(), "inventory-files-")));
+      return eraseAccount({ database, target, log, files });
     };
 
     test("each predicate finds a row first, none after, and the other person's stay", async () => {

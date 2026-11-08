@@ -1119,3 +1119,72 @@ describe.skipIf(!connectionString)("listDomains", () => {
     }
   });
 });
+
+describe.skipIf(!connectionString)("a personal organization's learn domains (ADR 0059)", () => {
+  beforeAll(() => runMigrations(connectionString ?? ""));
+
+  const own = "domains-test-personal";
+  const owner = "domains-test-personal-owner";
+  const hostname = "learn.personal-test.example";
+  const ready: DomainStatus = { ready: true, records: [] };
+
+  /** A provisioner reporting every hostname ready, recording what it was asked. */
+  function provisioner() {
+    const asked: string[] = [];
+    const fake: DomainProvisioner = {
+      add: async (name) => (asked.push(`add ${name}`), ready),
+      status: async (name) => (asked.push(`status ${name}`), ready),
+      remove: async (name) => void asked.push(`remove ${name}`),
+    };
+    return { fake, asked };
+  }
+
+  async function refusedWith(attempt: Promise<unknown>): Promise<string> {
+    const thrown = await attempt.then(
+      () => expect.fail("allowed"),
+      (error: unknown) => error,
+    );
+    expect(thrown).toBeInstanceOf(DomainRefused);
+    return (thrown as DomainRefused).code;
+  }
+
+  beforeEach(async () => {
+    await seedOrganization(database, {
+      organizationId: own,
+      learnerIds: [],
+      personalOwnerId: owner,
+      at,
+    });
+    for (const table of [organizationDomain, organizationDomainClaim]) {
+      await database.delete(table).where(eq(table.organizationId, own));
+    }
+  });
+
+  test("takes none: no claim stored, nothing asked, and the hostname serves nothing", async () => {
+    const { fake, asked } = provisioner();
+    const input = { database, provisioner: fake, organizationId: own, actingAs: owner, hostname };
+
+    expect(await refusedWith(claimDomain({ ...input, baseUrl }))).toBe("PERSONAL_ORGANIZATION");
+    expect(await refusedWith(activateDomain(input))).toBe("PERSONAL_ORGANIZATION");
+    expect(await refusedWith(register(hostname, own))).toBe("PERSONAL_ORGANIZATION");
+
+    expect(asked).toEqual([]);
+    for (const table of [organizationDomain, organizationDomainClaim]) {
+      expect(await database.select().from(table).where(eq(table.organizationId, own))).toEqual([]);
+    }
+    expect(await readDomainOrganization(database, hostname)).toBeUndefined();
+  });
+
+  test("is offered no way to add one, where a school is", async () => {
+    const { fake } = provisioner();
+    const listed = await listDomains({
+      database,
+      provisioner: fake,
+      baseUrl,
+      organizationId: own,
+      actingAs: owner,
+    });
+
+    expect(listed).toEqual({ domains: [], claims: [], canAdd: false });
+  });
+});

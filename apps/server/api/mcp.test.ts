@@ -575,6 +575,7 @@ describe.skipIf(!connectionString)("remote MCP", () => {
       database,
       target,
       log: { hmacKey: "erasure-log-test-key-that-is-long-enough", store: { put: async () => {} } },
+      files: undefined,
     });
 
     expect((await listTools(access_token)).status).toBe(401);

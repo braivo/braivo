@@ -158,10 +158,13 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await testing.clearLearnerHistory(database, [learnerId]);
   });
 
-  test("names the organization a domain serves, and none for another", async () => {
+  test("says what a host serves: a domain its organization, the installation's itself", async () => {
     // `seedOrganization` names an organization after its ID.
-    expect(await onOrganizationDomain.hostOrganization()).toEqual({ name: organizationId });
-    expect(await client.hostOrganization()).toBeUndefined();
+    expect(await onOrganizationDomain.host()).toEqual({
+      organization: { name: organizationId },
+      installation: false,
+    });
+    expect(await client.host()).toEqual({ organization: null, installation: true });
   });
 
   test("hands a member over to a learn domain, whose session it reads and ends", async () => {
@@ -382,6 +385,29 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     ]);
   });
 
+  test("sets up the account's personal organization in the shape it declares, the same one again (ADR 0059)", async () => {
+    const { cookie } = await signUp();
+    const options = { headers: { cookie } };
+
+    const personal = await client.setUpPersonalOrganization(options);
+    expect(personal).toEqual({
+      id: expect.any(String),
+      name: expect.any(String),
+      slug: expect.stringMatching(/^p-/),
+      learnDomain: null,
+      personal: true,
+      administers: true,
+      authors: true,
+      teaches: false,
+    });
+    expect(await client.setUpPersonalOrganization(options)).toEqual(personal);
+  });
+
+  test("lists a learner's personal courses in the same shape, none of a school's (ADR 0059)", async () => {
+    // The learner here learns at a school alone: nothing of their own.
+    expect(await client.personalCourses({ headers: { cookie: learnerCookie } })).toEqual([]);
+  });
+
   test("lists a learner's courses with where they stand, in the shape it declares", async () => {
     const signedIn = { headers: { cookie: learnerCookie } };
     const courses = await client.learnerCoursesWithStanding(signedIn);
@@ -425,6 +451,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         name: organizationId,
         slug: organizationId,
         learnDomain: organizationHost,
+        personal: false,
         administers: true,
         authors: true,
         teaches: false,
@@ -466,6 +493,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
       name: "Fernwood Academy",
       slug,
       learnDomain: `${slug}.${selfServeDomain}`,
+      personal: false,
       administers: true,
       authors: true,
       teaches: false,
@@ -499,7 +527,7 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
         { name: "Contract School" },
       );
       // Its own domain names it so from then on.
-      expect(await onOrganizationDomain.hostOrganization()).toEqual({ name: "Contract School" });
+      expect((await onOrganizationDomain.host()).organization).toEqual({ name: "Contract School" });
       await expect(client.renameOrganization(organizationId, " ", options)).rejects.toMatchObject({
         status: 400,
         code: "NAME_INVALID",

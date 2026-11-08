@@ -894,7 +894,7 @@ describe.skipIf(!connectionString)("erasing one school's history", () => {
       const { record } = log.writes[1]!;
       expect(record).toEqual({
         format: "braivo-erasure-log",
-        version: 1,
+        version: 2,
         id: result.recordId,
         scope: "organization",
         userId: ada,
@@ -907,6 +907,7 @@ describe.skipIf(!connectionString)("erasing one school's history", () => {
         },
         intentAt: expect.any(String),
         doneAt: expect.any(String),
+        supersededBy: null,
       });
       expect(Date.parse(record.intentAt)).toBeGreaterThanOrEqual(before);
       // Holds no address, so reading the log alone names no one's email.

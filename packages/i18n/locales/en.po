@@ -673,10 +673,6 @@ msgstr "Continue to {hostname}"
 msgid "Continue to {organizationName}"
 msgstr "Continue to {organizationName}"
 
-#: apps/console/routes/_signed-in/index.tsx
-msgid "Continue to {school}"
-msgstr "Continue to {school}"
-
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "Continue with Google"
 msgstr "Continue with Google"
@@ -1558,6 +1554,12 @@ msgstr "Most repeated misses"
 msgid "My answer seems correct"
 msgstr "My answer seems correct"
 
+#: apps/console/components/account-menu.tsx
+#: apps/learn/components/own-learning.tsx
+#: apps/learn/routes/_signed-in/learn.tsx
+msgid "My learning"
+msgstr "My learning"
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Name"
 msgstr "Name"
@@ -1747,6 +1749,10 @@ msgstr "Nothing is due right now."
 msgid "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 msgstr "Nothing is due right now. Next review due: {objectiveTitle}, {nextReviewAt}."
 
+#: apps/learn/components/own-learning.tsx
+msgid "Nothing of your own yet"
+msgstr "Nothing of your own yet"
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Nothing to practise right now"
 msgstr "Nothing to practise right now"
@@ -1868,6 +1874,11 @@ msgstr "Practise {title}"
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Practise again"
 msgstr "Practise again"
+
+#. placeholder {0}: url.replace(/^https?:\/\//, "")
+#: apps/console/components/personal-courses.tsx
+msgid "Practise it at <0>{0}</0>."
+msgstr "Practise it at <0>{0}</0>."
 
 #: apps/console/routes/_signed-in/$organizationSlug/settings/members.tsx
 msgid "Practise its courses"
@@ -2320,10 +2331,6 @@ msgstr "System follows your device's light or dark mode."
 msgid "Take a short break"
 msgstr "Take a short break"
 
-#: apps/console/routes/_signed-in/index.tsx
-msgid "Taking you to {school}…"
-msgstr "Taking you to {school}…"
-
 #. placeholder {0}: list.format(group.teachers.map(({ name }) => name))
 #: apps/console/routes/_signed-in/$organizationSlug/groups.tsx
 msgid "Taught by {0}."
@@ -2602,6 +2609,7 @@ msgstr "Tools your organization's members connect, such as the braivo CLI, will 
 #: apps/learn/router.tsx
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 #: apps/learn/routes/_signed-in/index.tsx
+#: apps/learn/routes/_signed-in/learn.tsx
 msgid "Try again"
 msgstr "Try again"
 
@@ -2667,6 +2675,10 @@ msgstr "Use the email address {organizationName} knows you by."
 msgid "Using Braivo, turn the material I attach into a course for {organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
 msgstr "Using Braivo, turn the material I attach into a course for {organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
 
+#: apps/console/components/connect-ai-app.tsx
+msgid "Using Braivo, turn the material I attach into a course for me: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
+msgstr "Using Braivo, turn the material I attach into a course for me: objectives first, then practice tasks citing it. The course then waits for my review in Braivo."
+
 #: apps/console/routes/_signed-in/$organizationSlug/settings/domains.tsx
 msgid "Value"
 msgstr "Value"
@@ -2683,6 +2695,10 @@ msgstr "Wait a minute before asking for a code again."
 #: packages/ui/compositions/sign-in-form.tsx
 msgid "What should we call you?"
 msgstr "What should we call you?"
+
+#: apps/learn/components/own-learning.tsx
+msgid "What you learn for yourself, apart from any school, will be here. A school's courses open on its own site."
+msgstr "What you learn for yourself, apart from any school, will be here. A school's courses open on its own site."
 
 #: apps/learn/components/report-problem.tsx
 msgid "What's wrong with this question?"
@@ -2852,6 +2868,10 @@ msgstr "Your learners see it on their site, and your team sees it here."
 msgid "Your learners see this name. If it's just you, use your own."
 msgstr "Your learners see this name. If it's just you, use your own."
 
+#: apps/learn/routes/_signed-in/learn.tsx
+msgid "Your learning could not be loaded."
+msgstr "Your learning could not be loaded."
+
 #: apps/learn/routes/_signed-in/c/$courseRef.tsx
 msgid "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
 msgstr "Your learning history here was cleared, so your last answer wasn't saved. You're starting fresh."
@@ -2865,6 +2885,14 @@ msgstr "Your name"
 msgid "Your organization's data is stored in this region. You can't change it after setup."
 msgstr "Your organization's data is stored in this region. You can't change it after setup."
 
+#: apps/learn/components/own-learning.tsx
+msgid "Your organizations"
+msgstr "Your organizations"
+
+#: apps/console/components/personal-courses.tsx
+msgid "Your own courses open in <0>My learning</0>, and need no domain."
+msgstr "Your own courses open in <0>My learning</0>, and need no domain."
+
 #: apps/console/routes/invitations/$invitationId.tsx
 msgid "Your role there stays as it is."
 msgstr "Your role there stays as it is."
@@ -2872,6 +2900,10 @@ msgstr "Your role there stays as it is."
 #: apps/learn/components/report-problem.tsx
 msgid "Your school will see this question, your answer, and your note. Your result stays as it is."
 msgstr "Your school will see this question, your answer, and your note. Your result stays as it is."
+
+#: apps/learn/components/own-learning.tsx
+msgid "Your schools"
+msgstr "Your schools"
 
 #. An example address before a name makes one: lowercase a-z, digits, and hyphens only
 #: apps/console/components/organization-setup-form.tsx

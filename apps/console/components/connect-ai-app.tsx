@@ -9,11 +9,16 @@ import { CopyButton } from "#components/copy-button";
 /**
  * How to connect an AI app at `/mcp`: the address, where to start in each
  * supported app (the full steps are apps/docs/content/guides/assistants.mdx, Connect), and,
- * given the `organization` to build for, a first prompt. No prompt without one:
+ * given the `organization` to build for, a first prompt, asking a personal
+ * one's course for the person, as it bears their name. No prompt without one:
  * settings are the account's, so the organization they were opened from may
  * not be one the person authors in.
  */
-export function ConnectAiApp({ organization }: { organization?: string }) {
+export function ConnectAiApp({
+  organization,
+}: {
+  organization?: { name: string; personal: boolean };
+}) {
   const { t } = useLingui();
   // The console is served on BRAIVO_URL's origin, and AI apps connect at its
   // `/mcp` (ADR 0004, ADR 0045).
@@ -77,9 +82,12 @@ export function ConnectAiApp({ organization }: { organization?: string }) {
  * What to ask first. A connection cannot publish (ADR 0039), so it says the
  * course waits, and the teacher expects to come back.
  */
-function FirstPrompt({ organization }: { organization: string }) {
+function FirstPrompt(props: { organization: { name: string; personal: boolean } }) {
   const { t } = useLingui();
-  const prompt = t`Using Braivo, turn the material I attach into a course for ${organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo.`;
+  const organization = props.organization.name;
+  const prompt = props.organization.personal
+    ? t`Using Braivo, turn the material I attach into a course for me: objectives first, then practice tasks citing it. The course then waits for my review in Braivo.`
+    : t`Using Braivo, turn the material I attach into a course for ${organization}: objectives first, then practice tasks citing it. The course then waits for my review in Braivo.`;
   return (
     <div>
       <MutedText className="block wrap-break-word">

@@ -198,15 +198,16 @@ describe("the learn app", () => {
   });
 
   test.each([
-    ["the brand", { hostOrganization: (options) => stall(options) }],
-    ["the summary", { learnerProgress: (_input, options) => stall(options) }],
-    ["the title", { learnerCourses: (options) => stall(options) }],
-  ] satisfies [string, Partial<BraivoClient>][])(
+    // By number: a course named by ID waits on what the host serves (`lib/host.ts`).
+    ["the brand", "/c/4732", { hostOrganization: (options) => stall(options) }],
+    ["the summary", `/c/${SPANISH_ID}`, { learnerProgress: (_input, options) => stall(options) }],
+    // By ID, as the title is read from the list then.
+    ["the title", `/c/${SPANISH_ID}`, { learnerCourses: (options) => stall(options) }],
+  ] satisfies [string, string, Partial<Parameters<typeof renderAt>[1]>][])(
     "asks the question without %s when Braivo does not answer it in time",
-    async (_, stubs) => {
+    async (_, path, stubs) => {
       vi.useFakeTimers();
-      // By ID, as the title is read from the list then.
-      renderAt(`/c/${SPANISH_ID}`, {
+      renderAt(path, {
         signedIn: true,
         nextActivity: async () => activity,
         ...stubs,
@@ -1100,7 +1101,7 @@ describe("the learn app", () => {
       getSession: async () => ({ data: null, error: null }),
     } as unknown as AppContext["auth"];
     const braivo = {
-      hostOrganization: async () => undefined,
+      host: async () => ({ organization: null, installation: false }),
       session: async () => (signedIn ? { id: "ada", name: "Ada Learner" } : undefined),
       learnerCourseByNumber: async () => ({
         id: "c1",

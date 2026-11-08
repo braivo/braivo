@@ -25,7 +25,6 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   createFileRoute,
-  Link,
   notFound,
   redirect,
   useLoaderData,
@@ -49,6 +48,7 @@ import {
   NothingDue,
   PractiseLink,
 } from "#components/chosen-objective";
+import { HomeLink } from "#components/home-link";
 import { MarkedAnswer } from "#components/marked-answer";
 import { Notice, useFocusOnMount } from "#components/notice";
 import { PinnedFoot } from "#components/pinned-foot";
@@ -69,6 +69,7 @@ import {
   READ_DEADLINE_MS,
   withDeadline,
 } from "#lib/deadline";
+import { readHost } from "#lib/host";
 import { markReviewed, takeReviewed } from "#lib/reviewed";
 import { pageHead } from "#lib/title";
 import {
@@ -190,7 +191,17 @@ async function resolveCourse(
 ): Promise<{ id: string; title?: string }> {
   const named = parseCourseRef(ref);
   if (!named) throw notFound();
-  if ("id" in named) return named;
+  if ("id" in named) {
+    // The installation's origin opens a person's own courses alone, by ID; a
+    // school's opens on its domain (ADR 0059). Elsewhere, the host's ceiling
+    // decides, and an ID names a course there as on any host. Unread, the page
+    // fails, offering Try again, never guessing which.
+    if (!(await readHost(braivo)).installation) return named;
+    const own = await braivo.personalCourses({ signal: withDeadline(left, READ_DEADLINE_MS) });
+    const course = own.find(({ id }) => id === named.id);
+    if (!course) throw notFound();
+    return course;
+  }
   const course = await braivo.learnerCourseByNumber(named.number, {
     signal: withDeadline(left, READ_DEADLINE_MS),
   });
@@ -309,9 +320,9 @@ function CourseNotFound() {
         }
       >
         <Button asChild variant="outline">
-          <Link to="/">
+          <HomeLink>
             <Trans>Your courses</Trans>
-          </Link>
+          </HomeLink>
         </Button>
       </Notice>
     </>
@@ -748,9 +759,9 @@ function PracticeBar({ answers }: { answers: number | undefined }) {
     // `-ms-3`: the icon, not its padding, at the page's edge, as a text button's.
     <div className="-mt-3 mb-4 flex flex-wrap items-center gap-x-2">
       <Button asChild variant="ghost" size="icon" className="-ms-3 size-11 shrink-0">
-        <Link to="/" aria-label={t`Close`}>
+        <HomeLink aria-label={t`Close`}>
           <XIcon aria-hidden="true" className="size-5" />
-        </Link>
+        </HomeLink>
       </Button>
       {answers !== undefined && (
         // Not shadcn's `Progress`, which never hands Radix its value, so is
@@ -971,9 +982,9 @@ function UnsupportedTask() {
   return (
     <Notice title={t`This question can't be answered here yet.`}>
       <Button asChild variant="outline">
-        <Link to="/">
+        <HomeLink>
           <Trans>Your courses</Trans>
-        </Link>
+        </HomeLink>
       </Button>
     </Notice>
   );
@@ -985,9 +996,9 @@ function EmptyCourse() {
   return (
     <Notice title={t`This course has nothing to practise yet.`}>
       <Button asChild variant="outline">
-        <Link to="/">
+        <HomeLink>
           <Trans>Your courses</Trans>
-        </Link>
+        </HomeLink>
       </Button>
     </Notice>
   );
@@ -1073,9 +1084,9 @@ function NoActivity({
         {checking ? t`Checking…` : t`Check again`}
       </Button>
       <Button asChild variant="outline">
-        <Link to="/">
+        <HomeLink>
           <Trans>Your courses</Trans>
-        </Link>
+        </HomeLink>
       </Button>
       <p role="status" className="text-sm text-muted-foreground">
         {stillNothing ? t`Still nothing to practise.` : ""}
@@ -1131,9 +1142,9 @@ function CourseError() {
         <Trans>Try again</Trans>
       </Button>
       <Button asChild variant="outline">
-        <Link to="/">
+        <HomeLink>
           <Trans>Your courses</Trans>
-        </Link>
+        </HomeLink>
       </Button>
     </Notice>
   );
@@ -1276,9 +1287,9 @@ function RefusedAnswer() {
         {reloading ? t`Loading…` : t`Continue`}
       </Button>
       <Button asChild variant="outline">
-        <Link to="/">
+        <HomeLink>
           <Trans>Your courses</Trans>
-        </Link>
+        </HomeLink>
       </Button>
     </Notice>
   );

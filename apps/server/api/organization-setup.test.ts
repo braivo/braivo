@@ -5,7 +5,9 @@
 // installation with `selfServeDomain` and on one without.
 
 import { runMigrations } from "@braivo/db";
+import { member } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { registerLearnDomain } from "../application/index.ts";
@@ -46,6 +48,142 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     await runMigrations(connectionString ?? "");
   });
 
+  describe("the account's personal organization (ADR 0059)", () => {
+    test("is made once, its owner the account, and a retry answers the same one", async () => {
+      const person = await signUp();
+
+      const first = await setUp({ personal: true }, person.cookie);
+      expect(first.status).toBe(201);
+      const { organization } = (await first.json()) as { organization: Record<string, unknown> };
+      expect(organization).toEqual({
+        id: expect.any(String),
+        name: expect.any(String),
+        slug: expect.stringMatching(/^p-[a-z2-7]{16}$/),
+        learnDomain: null,
+        personal: true,
+        administers: true,
+        authors: true,
+        teaches: false,
+      });
+      const again = await setUp({ personal: true }, person.cookie);
+      expect(again.status).toBe(200);
+      expect(await again.json()).toEqual({ organization });
+      // Listed as theirs, personal, with no learn domain.
+      expect((await managed(person.cookie)).organizations).toEqual([
+        expect.objectContaining({ id: organization.id, personal: true, learnDomain: null }),
+      ]);
+    });
+
+    test.each(["owner,admin", "admin, owner"])(
+      "answers the same one to an owner whose roles read %s, one after another or at once",
+      async (roles) => {
+        const person = await signUp();
+        const first = await setUp({ personal: true }, person.cookie);
+        expect(first.status).toBe(201);
+        const { organization } = (await first.json()) as { organization: { id: string } };
+        await database
+          .update(member)
+          .set({ role: roles })
+          .where(and(eq(member.organizationId, organization.id), eq(member.userId, person.id)));
+
+        const again = await setUp({ personal: true }, person.cookie);
+        const atOnce = await Promise.all(
+          [1, 2, 3].map(async () => setUp({ personal: true }, person.cookie)),
+        );
+
+        for (const response of [again, ...atOnce]) {
+          expect(response.status).toBe(200);
+          expect(
+            ((await response.json()) as { organization: { id: string } }).organization.id,
+          ).toBe(organization.id);
+        }
+        expect(await database.select().from(member).where(eq(member.userId, person.id))).toEqual([
+          expect.objectContaining({ organizationId: organization.id, role: roles }),
+        ]);
+      },
+    );
+
+    test("takes no learn domain, even where the installation adds them (white-label-10)", async () => {
+      const asked: string[] = [];
+      const ready = { ready: true, records: [] };
+      const withDomains = createTestApi({
+        selfServeDomain,
+        domains: {
+          add: async (hostname) => (asked.push(`add ${hostname}`), ready),
+          status: async (hostname) => (asked.push(`status ${hostname}`), ready),
+          remove: async (hostname) => void asked.push(`remove ${hostname}`),
+        },
+      });
+      const person = await withDomains.signUp();
+      const created = await setUp({ personal: true }, person.cookie, withDomains.api);
+      const { id } = ((await created.json()) as { organization: { id: string } }).organization;
+      const hostname = `learn-${run}.personal.example`;
+      const write = (path: string, body: unknown) =>
+        withDomains.api.request(`/api/organizations/${id}/domains${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: person.cookie },
+          body: JSON.stringify(body),
+        });
+
+      const claimed = await write("", { hostname });
+      expect(claimed.status).toBe(409);
+      expect(await claimed.json()).toMatchObject({ code: "PERSONAL_ORGANIZATION" });
+      const activated = await write(`/${hostname}/activate`, {});
+      expect(activated.status).toBe(409);
+      expect(asked).toEqual([]);
+      const listed = await withDomains.api.request(`/api/organizations/${id}/domains`, {
+        headers: { cookie: person.cookie },
+      });
+      expect(await listed.json()).toEqual({ domains: [], claims: [], canAdd: false });
+      expect(await (await withDomains.api.request(`https://${hostname}/api/host`)).json()).toEqual({
+        organization: null,
+        installation: false,
+      });
+    });
+
+    test("comes beside a school, in either order, and never stops or counts as one", async () => {
+      const schoolFirst = await signUp();
+      expect(
+        (await setUp({ name: "Fernwood", slug: `fern-${run}` }, schoolFirst.cookie)).status,
+      ).toBe(201);
+      expect((await setUp({ personal: true }, schoolFirst.cookie)).status).toBe(201);
+
+      const ownFirst = await signUp();
+      expect((await setUp({ personal: true }, ownFirst.cookie)).status).toBe(201);
+      expect(await (await domain(ownFirst.cookie)).json()).toMatchObject({ maySetUp: true });
+      expect((await setUp({ name: "Oakridge", slug: `oak-${run}` }, ownFirst.cookie)).status).toBe(
+        201,
+      );
+      // A second school is still refused.
+      const second = await setUp({ name: "Birch", slug: `birch-${run}` }, ownFirst.cookie);
+      expect(second.status).toBe(409);
+      expect(await second.json()).toMatchObject({ code: "ALREADY_OWNER" });
+    });
+
+    test("is a person's own act: refused to a tool's token, and to a body asking anything else", async () => {
+      const person = await signUp();
+      const asTool = await api.request("/api/organization-setup", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${person.token}` },
+        body: JSON.stringify({ personal: true }),
+      });
+      expect(asTool.status).toBe(403);
+      for (const body of [
+        { personal: true, name: "Mine", slug: `mine-${run}` },
+        { personal: false },
+        { personal: "true" },
+      ]) {
+        expect((await setUp(body, person.cookie)).status, JSON.stringify(body)).toBe(400);
+      }
+      expect((await managed(person.cookie)).organizations).toEqual([]);
+      // Where only the operator creates organizations, none.
+      const operatedPerson = await operated.signUp();
+      expect((await setUp({ personal: true }, operatedPerson.cookie, operated.api)).status).toBe(
+        404,
+      );
+    });
+  });
+
   test("makes the account its owner, served at its slug under the domain", async () => {
     const teacher = await signUp();
     const slug = `fernwood-${run}`;
@@ -66,6 +204,7 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
         name: "Fernwood Academy",
         slug,
         learnDomain,
+        personal: false,
         administers: true,
         authors: true,
         teaches: false,
@@ -75,8 +214,10 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
       expect.objectContaining({ slug, learnDomain }),
     ]);
     // The learn app there presents it.
-    const served = await api.request(`https://${learnDomain}/api/organization`);
-    expect(await served.json()).toEqual({ name: "Fernwood Academy" });
+    const served = await api.request(`https://${learnDomain}/api/host`);
+    expect(((await served.json()) as { organization: unknown }).organization).toEqual({
+      name: "Fernwood Academy",
+    });
   });
 
   test("serves one set up locally at its slug under localhost", async () => {
@@ -86,8 +227,10 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     const response = await setUp({ name: "Local", slug }, teacher.cookie, local.api);
 
     expect(response.status).toBe(201);
-    const served = await local.api.request(`http://${slug}.localhost/api/organization`);
-    expect(await served.json()).toEqual({ name: "Local" });
+    const served = await local.api.request(`http://${slug}.localhost/api/host`);
+    expect(((await served.json()) as { organization: unknown }).organization).toEqual({
+      name: "Local",
+    });
   });
 
   test("makes the session's account the owner, never one a request names or another site sends", async () => {
@@ -219,8 +362,8 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
   });
 
   // Written out, not imported: dropping a name from the code's list must fail
-  // here. `api` comes from the slug rules; `learn` from both, so dropping it
-  // from the code's list fails `application/organizations.test.ts` instead.
+  // here. `api` comes from the slug rules; `learn` from both lists, so
+  // `application/organizations.test.ts` checks this one's.
   test.each([
     "admin",
     "api",

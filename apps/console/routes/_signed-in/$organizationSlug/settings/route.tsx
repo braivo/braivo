@@ -68,24 +68,32 @@ function reveal(row: Element, link: Element | null) {
 
 /**
  * The pages, grouped as Linear's: the account's own, then the organization's,
- * for whoever administers it alone (access-39). Each with its icon, as
- * Linear's; Groups wears the sidebar's.
+ * for whoever administers it alone (access-39), its people and sites to a
+ * school's alone, as a personal organization has none (ADR 0060). Each with
+ * its icon, as Linear's; Groups wears the sidebar's.
  */
 const SECTIONS = [
   {
     heading: msg`Account`,
     administratorsOnly: false,
     pages: [
-      { to: "/$organizationSlug/settings/account", label: msg`Profile`, Icon: CircleUserRoundIcon },
+      {
+        to: "/$organizationSlug/settings/account",
+        label: msg`Profile`,
+        Icon: CircleUserRoundIcon,
+        schoolsOnly: false,
+      },
       {
         to: "/$organizationSlug/settings/preferences",
         label: msg`Preferences`,
         Icon: SlidersHorizontalIcon,
+        schoolsOnly: false,
       },
       {
         to: "/$organizationSlug/settings/connections",
         label: msg`Connected apps`,
         Icon: PlugIcon,
+        schoolsOnly: false,
       },
     ],
   },
@@ -93,10 +101,30 @@ const SECTIONS = [
     heading: msg`Organization`,
     administratorsOnly: true,
     pages: [
-      { to: "/$organizationSlug/settings/general", label: msg`General`, Icon: SettingsIcon },
-      { to: "/$organizationSlug/settings/members", label: msg`Members`, Icon: ContactRoundIcon },
-      { to: "/$organizationSlug/settings/groups", label: msg`Groups`, Icon: UsersIcon },
-      { to: "/$organizationSlug/settings/domains", label: msg`Domains`, Icon: GlobeIcon },
+      {
+        to: "/$organizationSlug/settings/general",
+        label: msg`General`,
+        Icon: SettingsIcon,
+        schoolsOnly: false,
+      },
+      {
+        to: "/$organizationSlug/settings/members",
+        label: msg`Members`,
+        Icon: ContactRoundIcon,
+        schoolsOnly: true,
+      },
+      {
+        to: "/$organizationSlug/settings/groups",
+        label: msg`Groups`,
+        Icon: UsersIcon,
+        schoolsOnly: true,
+      },
+      {
+        to: "/$organizationSlug/settings/domains",
+        label: msg`Domains`,
+        Icon: GlobeIcon,
+        schoolsOnly: true,
+      },
     ],
   },
 ] as const;
@@ -216,18 +244,20 @@ function Settings() {
                 {i18n._(group.heading)}
               </h2>
               <ul className="flex gap-1 md:flex-col md:gap-0.5">
-                {group.pages.map(({ Icon, ...page }) => (
-                  <li key={page.to}>
-                    <Link
-                      to={page.to}
-                      params={{ organizationSlug }}
-                      className={cn(navLink, "max-md:whitespace-nowrap")}
-                    >
-                      <Icon className="size-4 shrink-0" />
-                      {i18n._(page.label)}
-                    </Link>
-                  </li>
-                ))}
+                {group.pages
+                  .filter(({ schoolsOnly }) => !schoolsOnly || !organization.personal)
+                  .map(({ Icon, to, label }) => (
+                    <li key={to}>
+                      <Link
+                        to={to}
+                        params={{ organizationSlug }}
+                        className={cn(navLink, "max-md:whitespace-nowrap")}
+                      >
+                        <Icon className="size-4 shrink-0" />
+                        {i18n._(label)}
+                      </Link>
+                    </li>
+                  ))}
               </ul>
             </Fragment>
           ))}

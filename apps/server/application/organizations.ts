@@ -6,6 +6,7 @@ import type { Database } from "@braivo/db";
 import {
   type ListedOrganization,
   deleteNewOrganization,
+  ensurePersonalOrganization,
   findToolsReadLearnerData,
   type Member,
   type Organization,
@@ -13,6 +14,7 @@ import {
   readMembers,
   readMemberships,
   readOrganizationBySlug,
+  readUser,
   type ToolsReadLearnerData,
   updateOrganizationName,
   updateToolsReadLearnerData,
@@ -23,6 +25,7 @@ import { DomainRefused, readLearnHostname, registerLearnDomain } from "./domains
 import { administers, assertMayAdminister, authors, NotPermitted } from "./permission.ts";
 
 type OrganizationListEntry = ListedOrganization & {
+  personal: boolean;
   administers: boolean;
   authors: boolean;
   teaches: boolean;
@@ -58,7 +61,7 @@ type Membership = { id: string; name: string; learnDomain: string | null };
 /**
  * Every organization someone is a member of, in any role, since membership is
  * enrollment (access-23), by name, each with where its learners practise: for
- * the console's `/` to send a learner on (access-59). `listOrganizations` is
+ * the console's `/join` to list (access-59). `listOrganizations` is
  * the console's own.
  */
 export async function listMemberships(input: {
@@ -73,20 +76,26 @@ export async function listMemberships(input: {
   }));
 }
 
-/** The organizations someone owns: self-serve allows one. */
-async function ownedOrganizations(database: Database, userId: string) {
-  return (await readMemberships(database, userId)).filter(({ roles }) => roles.includes("owner"));
+/**
+ * The organizations someone owns that are not personal, which self-serve
+ * allows one of: owning a personal organization leaves an account free to set
+ * a school up, and the reverse (ADR 0060).
+ */
+async function ownedNonPersonal(database: Database, userId: string) {
+  return (await readMemberships(database, userId)).filter(
+    ({ organization, roles }) => roles.includes("owner") && !organization.personal,
+  );
 }
 
 /**
- * Whether someone may set up an organization (ADR 0018): owning none. An
- * `admin` or `member` elsewhere may; administering is not owning.
+ * Whether someone may set up an organization (ADR 0018): owning no school
+ * (ADR 0059). An `admin` or `member` elsewhere may; administering is not owning.
  */
 export async function maySetUpOrganization(input: {
   database: Database;
   actingAs: string;
 }): Promise<boolean> {
-  return (await ownedOrganizations(input.database, input.actingAs)).length === 0;
+  return (await ownedNonPersonal(input.database, input.actingAs)).length === 0;
 }
 
 /**
@@ -183,7 +192,9 @@ export async function setUpOrganization(input: {
     slug: string;
     ownerId: string;
   }) => Promise<Organization | "slug taken" | "slug reserved" | "slug malformed">;
-}): Promise<ListedOrganization & { administers: true; authors: true; teaches: false }> {
+}): Promise<
+  ListedOrganization & { personal: false; administers: true; authors: true; teaches: false }
+> {
   const { database, actingAs, slug } = input;
   const name = parseOrganizationName(input.name);
   if (name === undefined) {
@@ -211,7 +222,7 @@ export async function setUpOrganization(input: {
     throw error;
   }
 
-  const owns = () => ownedOrganizations(database, actingAs);
+  const owns = () => ownedNonPersonal(database, actingAs);
   if ((await owns()).length > 0) throw alreadyOwns;
   if (
     hostname === new URL(input.baseUrl).hostname ||
@@ -256,9 +267,62 @@ export async function setUpOrganization(input: {
   return {
     ...organization,
     learnDomain: hostname,
+    // A school: a personal organization is `setUpPersonalOrganization`'s.
+    personal: false,
     administers: true,
     authors: true,
     teaches: false,
+  };
+}
+
+/** Lowercase letters and digits a personal organization's slug is drawn from: base32's. */
+const SLUG_LETTERS = "abcdefghijklmnopqrstuvwxyz234567";
+
+/**
+ * Sets up the account's personal organization (ADR 0060, ADR 0046), or
+ * answers the one it has: at most one, so a retry, or setups at once, answer
+ * the same. A person's own, never a school: no learn domain, as its courses are
+ * at the installation's `/c/<course ID>`, and a slug of `p-` and 16 random
+ * letters (80 bits), which names it in the console and in no address a school
+ * would want. Named after the account, its email while it has no name. Owning
+ * a school neither stops nor counts for it.
+ */
+export async function setUpPersonalOrganization(input: {
+  database: Database;
+  actingAs: string;
+  now: Date;
+}): Promise<{
+  organization: ListedOrganization & {
+    personal: true;
+    administers: true;
+    authors: true;
+    teaches: false;
+  };
+  created: boolean;
+}> {
+  const { database, actingAs } = input;
+  const account = await readUser(database, actingAs);
+  if (!account) throw new Error("A personal organization needs an account.");
+  const { organization, created } = await ensurePersonalOrganization(database, {
+    ownerId: actingAs,
+    at: input.now,
+    create: () => {
+      const random = crypto.getRandomValues(new Uint8Array(16));
+      const slug = `p-${Array.from(random, (byte) => SLUG_LETTERS[byte % 32]).join("")}`;
+      const name = (account.name.trim() || account.email).slice(0, MAX_NAME_LENGTH);
+      return { id: crypto.randomUUID(), name, slug };
+    },
+  });
+  return {
+    organization: {
+      ...organization,
+      learnDomain: null,
+      personal: true,
+      administers: true,
+      authors: true,
+      teaches: false,
+    },
+    created,
   };
 }
 

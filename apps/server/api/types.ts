@@ -166,7 +166,9 @@ export type ObjectiveSummary = Objective & {
 /**
  * An organization as those who work in it find it; `slug` is its console
  * address, `learnDomain` the hostname its learners practise on, the latest
- * of its learn domains registered, `null` until one is. `administers`: the
+ * of its learn domains registered, `null` until one is. `personal`: a
+ * personal organization rather than a school, as it was created (ADR 0059).
+ * `administers`: the
  * reader holds `owner` or `admin` there; `authors`: they manage its content,
  * as those or `author` (ADR 0048); `teaches`: they teach one of its groups
  * (ADR 0042). Listed when any is true. `aiEnabled`, only where they author:
@@ -178,6 +180,7 @@ export type Organization = {
   name: string;
   slug: string;
   learnDomain: string | null;
+  personal: boolean;
   administers: boolean;
   authors: boolean;
   teaches: boolean;
@@ -261,6 +264,12 @@ export type DomainList = { domains: Domain[]; claims: DomainClaim[]; canAdd: boo
 
 /** The organization a domain serves, as its learn app presents itself. */
 export type HostOrganization = { name: string };
+
+/**
+ * What a host serves the learn app as: an organization's domain, the
+ * installation's own origin (ADR 0059), or neither, both empty.
+ */
+export type Host = { organization: HostOrganization | null; installation: boolean };
 
 /** Who is signed in on the host asked (`GET /api/session`). */
 export type SessionUser = { id: string; name: string };

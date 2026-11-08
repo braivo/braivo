@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { learnSignInUrl } from "@braivo/auth-client";
 import type { InvitationPage } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -14,7 +15,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ConsoleBrand, ConsoleSignInPage } from "#components/sign-in-page";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { learnSignInUrl } from "#lib/learn-url";
 
 /**
  * Accepting an invitation to an organization (ADR 0018). Signed out, the

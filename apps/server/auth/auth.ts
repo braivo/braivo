@@ -33,6 +33,7 @@ import {
   claimSignInCode,
   countPendingInvitations,
   organizationOwnsLearningContent,
+  isPersonalOrganization,
   readLearnDomain,
   readOrganizationRoles,
   readPendingInvitationRole,
@@ -44,7 +45,7 @@ import {
   fetchStrictlyPublic,
 } from "./client-metadata.ts";
 import { constraints } from "./constraints.ts";
-import { invitationDelivery, NO_LEARN_DOMAIN } from "./invitations.ts";
+import { invitationDelivery, NO_LEARN_DOMAIN, PERSONAL_ORGANIZATION } from "./invitations.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -301,6 +302,18 @@ export function createAuth(options: AuthOptions) {
     throw new APIError("FORBIDDEN", {
       code: NO_LEARN_DOMAIN,
       message: "Learners have no site here yet.",
+    });
+  }
+  /**
+   * Refuses anyone joining a personal organization, or being invited to one,
+   * whoever writes it (ADR 0060): its owner's alone. The database refuses
+   * too; this answers in words, before Better Auth stores or claims anything.
+   */
+  async function refusePersonal(organizationId: string) {
+    if (!(await isPersonalOrganization(options.database, organizationId))) return;
+    throw new APIError("FORBIDDEN", {
+      code: PERSONAL_ORGANIZATION,
+      message: "A personal organization is its owner's alone: no one else joins it.",
     });
   }
   const auth = betterAuth({
@@ -570,6 +583,18 @@ export function createAuth(options: AuthOptions) {
         schema: {
           organization: {
             additionalFields: {
+              // Whose personal organization this is (ADR 0060), null for any
+              // other: one per account, set by Braivo at creation alone, never
+              // input to Better Auth, so no request makes a school personal.
+              // Restricted, so an account goes only once its own is erased.
+              personalOwnerId: {
+                type: "string",
+                required: false,
+                unique: true,
+                input: false,
+                returned: false,
+                references: { model: "user", field: "id", onDelete: "restrict" },
+              },
               // Whether a tool reads others' data here (ADR 0050), and who
               // last changed it and when. Never input: Better Auth's update,
               // were it reachable (access-54), must not change them. Never returned: it lists organizations to every
@@ -616,6 +641,7 @@ export function createAuth(options: AuthOptions) {
                 message: "Invite as a learner, an author, or an admin.",
               });
             }
+            await refusePersonal(invitedTo.id);
             await assertLearnersHaveASite(invitation.role, invitedTo.id);
             const now = new Date();
             const pending = { organizationId: invitedTo.id, now };
@@ -652,6 +678,7 @@ export function createAuth(options: AuthOptions) {
            * invitation, so it stays pending.
            */
           beforeAcceptInvitation: async ({ invitation: accepted, user: accepting }) => {
+            await refusePersonal(accepted.organizationId);
             const roles = await readOrganizationRoles(options.database, {
               organizationId: accepted.organizationId,
               userId: accepting.id,
@@ -663,6 +690,15 @@ export function createAuth(options: AuthOptions) {
               });
             }
             await assertLearnersHaveASite(accepted.role, accepted.organizationId);
+          },
+          /**
+           * Refuses the operator's add-member, which Better Auth runs, to a
+           * personal organization. Its owner's own membership is Braivo's to
+           * write, at setup, never through here; Better Auth's organization
+           * creation, which does run this, makes none personal.
+           */
+          beforeAddMember: async ({ organization: joined }) => {
+            await refusePersonal(joined.id);
           },
           /**
            * Refuses deleting an organization that still owns learning content,

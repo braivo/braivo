@@ -181,7 +181,12 @@ describe.skipIf(!connectionString)("createServer", () => {
   });
 
   test("keeps files only with the host's store", async () => {
-    const store: FileStore = { put: async () => {}, get: async () => undefined };
+    const store: FileStore = {
+      put: async () => {},
+      get: async () => undefined,
+      list: async () => [],
+      deletePrefix: async () => {},
+    };
 
     expect((await asAdmin(testServer(), "GET", "/files/none")).status).toBe(501);
     expect((await asAdmin(testServer({ files: store }), "GET", "/files/none")).status).toBe(404);

@@ -83,12 +83,15 @@ export async function readUser(
 export async function readMemberships(
   database: Database,
   userId: string,
-): Promise<{ organization: ListedOrganization; roles: string[]; teaches: boolean }[]> {
+): Promise<
+  { organization: ListedOrganization & { personal: boolean }; roles: string[]; teaches: boolean }[]
+> {
   const rows = await database
     .select({
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
+      personal: sql<boolean>`${organization.personalOwnerId} is not null`,
       // The one it is named by, as `readLearnDomain` reads it.
       learnDomain: sql<string | null>`(
         select ${organizationDomain.hostname} from ${organizationDomain}
@@ -229,6 +232,67 @@ export async function makeMemberOwner(
 
 function splitRoles(role: string): string[] {
   return role.split(",").map((each) => each.trim());
+}
+
+/**
+ * The account's personal organization (ADR 0060): the one whose
+ * `personal_owner_id` it is, or, having none, `create()`'s, with the account
+ * its `owner`, organization and membership in one transaction. The unique
+ * owner column holds one per account: setups at once insert one, the others
+ * meeting it on conflict and answering it. Never through Better Auth, which
+ * takes `personal_owner_id` as no input.
+ */
+export async function ensurePersonalOrganization(
+  database: Database,
+  input: { ownerId: string; at: Date; create: () => { id: string; name: string; slug: string } },
+): Promise<{ organization: Organization; created: boolean }> {
+  return database.transaction(async (transaction) => {
+    const created = input.create();
+    const [inserted] = await transaction
+      .insert(organization)
+      .values({ ...created, personalOwnerId: input.ownerId, createdAt: input.at })
+      .onConflictDoNothing({ target: organization.personalOwnerId })
+      .returning({ id: organization.id });
+    if (!inserted) {
+      // Committed by another setup, which this insert waited for: this
+      // statement's snapshot, taken after, sees it.
+      const owned = await readPersonalOrganization(transaction, input.ownerId);
+      if (!owned) throw new Error("A personal organization conflicted and was not there.");
+      return { organization: owned, created: false };
+    }
+    await transaction.insert(member).values({
+      id: crypto.randomUUID(),
+      organizationId: created.id,
+      userId: input.ownerId,
+      role: "owner",
+      createdAt: input.at,
+    });
+    return { organization: created, created: true };
+  });
+}
+
+/** The account's personal organization, by its owner column alone, never by membership. */
+export async function readPersonalOrganization(
+  database: Database | Transaction,
+  ownerId: string,
+): Promise<Organization | undefined> {
+  const [row] = await database
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.personalOwnerId, ownerId));
+  return row;
+}
+
+/** Whether the organization is someone's personal organization (ADR 0060); `false` for none. */
+export async function isPersonalOrganization(
+  database: Database | Transaction,
+  organizationId: string,
+): Promise<boolean> {
+  const [row] = await database
+    .select({ ownerId: organization.personalOwnerId })
+    .from(organization)
+    .where(eq(organization.id, organizationId));
+  return row?.ownerId != null;
 }
 
 /**

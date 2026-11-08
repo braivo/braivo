@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { rememberLastUsed } from "@braivo/auth-client";
 import { Button } from "@braivo/ui/components/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@braivo/ui/components/empty";
 import { createFileRoute, Link, notFound, Outlet } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
 
 import { OPTIONAL_READ_DEADLINE_MS, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { rememberOrganization } from "#lib/last-organization";
 
 /**
  * An organization's pages (ADR 0004), and the one place a slug becomes an
@@ -102,8 +102,12 @@ function NotFound(props: { title: string; children: ReactNode }) {
 }
 
 function Organization() {
-  const { organization } = Route.useRouteContext();
-  // Remembered once shown, not in `beforeLoad`, which preloading also runs.
-  useEffect(() => rememberOrganization(organization.id), [organization.id]);
+  const { organization, user } = Route.useRouteContext();
+  // The area a bare `/` resumes (ADR 0059). Remembered once shown, not in
+  // `beforeLoad`, which preloading also runs.
+  useEffect(
+    () => rememberLastUsed(user.id, { area: "console", organizationId: organization.id }),
+    [user.id, organization.id],
+  );
   return <Outlet />;
 }

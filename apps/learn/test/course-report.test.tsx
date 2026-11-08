@@ -31,7 +31,7 @@ async function graded(
     answer?: "hablo" | "reveal";
     reportAttempt?: BraivoClient["reportAttempt"];
     nextActivity?: BraivoClient["nextActivity"];
-    hostOrganization?: BraivoClient["hostOrganization"];
+    hostOrganization?: Parameters<typeof renderAt>[1]["hostOrganization"];
   } = {},
 ) {
   const rendered = renderAt("/c/4732", {

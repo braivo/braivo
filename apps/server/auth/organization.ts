@@ -4,6 +4,7 @@
 import { APIError } from "better-auth/api";
 
 import { type Auth, MEMBERSHIP_LIMIT } from "./auth.ts";
+import { PERSONAL_ORGANIZATION } from "./invitations.ts";
 import { isReservedSlug, slugProblem } from "./slug.ts";
 
 /**
@@ -100,6 +101,11 @@ export async function addMember(
     const code = error instanceof APIError ? error.body?.code : undefined;
     if (code === "USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION") {
       throw new Error(`${email} is already a member of ${organization.name}.`);
+    }
+    if (code === PERSONAL_ORGANIZATION) {
+      throw new Error(
+        `${organization.name} is a personal organization, its owner's alone: no one else joins it.`,
+      );
     }
     if (code === "ORGANIZATION_MEMBERSHIP_LIMIT_REACHED") {
       throw new Error(

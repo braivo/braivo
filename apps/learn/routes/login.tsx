@@ -24,13 +24,21 @@ export const Route = createFileRoute("/login")({
     // offering Try again, rather than stay blank.
     const signal = withDeadline(abortController.signal, READ_DEADLINE_MS);
     // An organization's domain signs in here, by its own codes, under its
-    // name (ADR 0018). A host serving no organization looks like the
-    // installation's and gets Better Auth's code form, which works only there.
-    const organization = await context.braivo.hostOrganization({ signal });
+    // name (ADR 0018). A host serving neither, misrouted, gets Better Auth's
+    // code form, which works only on the installation's.
+    const { organization: served, installation } = await context.braivo.host({ signal });
+    const organization = served ?? undefined;
+    // Braivo's own learn app, on the installation's origin, whose `/login` is
+    // the console's: the account signs in there, which loads `redirect` again
+    // after, My learning by default (ADR 0059). Nothing shows meanwhile.
+    if (installation) {
+      context.visit(`/login?${new URLSearchParams({ redirect: search.redirect ?? "/learn" })}`);
+      return { organization, leaving: true, needsName: false };
+    }
     if (!organization) {
       // Unread in time, as unread at all, it counts as no session: the form shows.
       const auth = { getSession: () => context.auth.getSession({ fetchOptions: { signal } }) };
-      return { organization, needsName: await needsName(auth) };
+      return { organization, leaving: false, needsName: await needsName(auth) };
     }
 
     // Not knowing what else it offers still leaves the code, so no reason to
@@ -45,6 +53,7 @@ export const Route = createFileRoute("/login")({
     const settings = await settingsRead;
     return {
       organization,
+      leaving: false,
       // Signed in here, unnamed: the form starts at the name.
       needsName: user !== undefined,
       offersGoogle: settings.google,
@@ -63,6 +72,7 @@ function Login() {
   // In `/login`'s place, so Back does not return to it.
   const onSignedIn = () => router.navigate({ href: redirect, replace: true });
 
+  if (context.leaving) return null;
   if (!context.organization) {
     return (
       <SignInPage>

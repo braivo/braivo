@@ -23,6 +23,9 @@ export const invitationDelivery = defineRequestState(() => ({
 /** Better Auth's refusal of a learner's invitation while the organization has no learn domain. */
 export const NO_LEARN_DOMAIN = "NO_LEARN_DOMAIN";
 
+/** Better Auth's refusal of a member or an invitation to a personal organization (ADR 0060). */
+export const PERSONAL_ORGANIZATION = "PERSONAL_ORGANIZATION";
+
 /**
  * Makes an invitation through Better Auth as the session in `headers`, which
  * runs its hooks (`beforeCreateInvitation`) and mails it. Its own HTTP

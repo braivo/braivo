@@ -350,19 +350,34 @@ export function createApi(options: ApiOptions) {
   );
 
   /**
-   * The organization this request's host serves, which a learn app on that
-   * domain is branded as. No session: the domain is public and so is its name.
-   * The host is the request URL's, so a router in front must forward `Host`.
-   * Uncacheable all the same: the same URL names a different organization on
-   * every domain, and a rename should show on the next load.
+   * What this request's host serves: an organization, which a learn app on
+   * that domain is branded as, or the installation itself, whose origin serves
+   * Braivo's own learn app (ADR 0059). No session: the domain is public and so
+   * is its name. The host is the request URL's, so a router in front must
+   * forward `Host`. Uncacheable all the same: the same URL answers differently
+   * on every domain, and a rename should show on the next load.
+   */
+  api.get("/api/host", async (context) => {
+    const host = requestHost(context);
+    const organization = host.installation
+      ? undefined
+      : await readHostOrganization({ database, hostname: host.hostname });
+
+    return context.json({ organization: organization ?? null, installation: host.installation });
+  });
+
+  /**
+   * `/api/host`'s organization alone, as learn apps built before it ask:
+   * Braivo Cloud deploys its API and its learn app separately, so for one
+   * release either may run without the other's change. Removed in the next.
    */
   api.get("/api/organization", async (context) => {
-    const found = await readHostOrganization({
-      database,
-      hostname: new URL(context.req.url).hostname,
-    });
+    const host = requestHost(context);
+    const organization = host.installation
+      ? undefined
+      : await readHostOrganization({ database, hostname: host.hostname });
 
-    return found ? context.json(found) : context.body(null, 404);
+    return organization ? context.json(organization) : context.body(null, 404);
   });
 
   // After the host gate, which runs only before routes registered after it.

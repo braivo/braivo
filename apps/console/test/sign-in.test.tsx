@@ -817,6 +817,35 @@ describe("the console", () => {
     expect(screen.queryByLabelText("Email address")).toBeNull();
   });
 
+  describe("returning to Braivo's own learn app, `/learn` and `/c/…` (ADR 0059)", () => {
+    test("loads it, in /login's place, once they sign in, never routing `c` as a slug", async () => {
+      const { visit, router } = renderAt("/login?redirect=%2Fc%2Fcourse-1", { signedIn: false });
+
+      await signInWithCode();
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/c/course-1", { replace: true }));
+      expect(router.history.location.pathname).toBe("/login");
+    });
+
+    test("loads it at once for an account signed in already, showing no form", async () => {
+      const { visit } = renderAt("/login?redirect=%2Flearn", {
+        braivo: { signInSettings: () => new Promise(() => {}) },
+      });
+
+      await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/learn", { replace: true }));
+      expect(screen.queryByLabelText("Email address")).toBeNull();
+    });
+
+    test("routes a slug merely beginning with either word as the console's own", async () => {
+      const { visit, router } = renderAt("/login?redirect=%2Flearners", {
+        braivo: { listCourses: async () => [] },
+      });
+
+      await vi.waitFor(() => expect(router.history.location.pathname).toBe("/learners"));
+      expect(visit).not.toHaveBeenCalled();
+    });
+  });
+
   test("returns an owner to the page they asked for once they sign in", async () => {
     const { auth, router } = renderAt("/example", {
       signedIn: false,

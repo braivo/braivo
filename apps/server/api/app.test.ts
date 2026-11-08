@@ -3,7 +3,7 @@
 
 // What `app.ts` does itself: Better Auth's mount (signing in by code, a tool's
 // device flow), the host gate keeping the console's API off learn domains, and
-// `GET /api/organization`. Each route group has its own suite; which host
+// `GET /api/host`. Each route group has its own suite; which host
 // admits each route is `policy.test.ts`'s table.
 
 import { runMigrations } from "@braivo/db";
@@ -205,15 +205,29 @@ describe.skipIf(!connectionString)("the HTTP API", () => {
     expect(signedIn.status).toBe(200);
   });
 
-  test("names the organization the request's host serves, and nothing for other hosts", async () => {
+  test("says what the request's host serves: an organization, the installation, or neither", async () => {
+    const served = await api.request(`${organizationOrigin}/api/host`);
+    const installation = await api.request(`${baseUrl}/api/host`);
+    const unserved = await api.request("https://nobody.example/api/host");
+
+    // `seedOrganization` names an organization after its ID.
+    expect(await served.json()).toEqual({
+      organization: { name: organizationId },
+      installation: false,
+    });
+    expect(served.headers.get("cache-control")).toBe("private, no-store");
+    expect(await installation.json()).toEqual({ organization: null, installation: true });
+    expect(await unserved.json()).toEqual({ organization: null, installation: false });
+  });
+
+  test("still names a school domain's organization at the old address, for a learn app built before /api/host", async () => {
     const served = await api.request(`${organizationOrigin}/api/organization`);
-    const unserved = await api.request(`${baseUrl}/api/organization`);
+    const installation = await api.request(`${baseUrl}/api/organization`);
 
     expect(served.status).toBe(200);
-    // `seedOrganization` names an organization after its ID.
     expect(await served.json()).toEqual({ name: organizationId });
     expect(served.headers.get("cache-control")).toBe("private, no-store");
-    expect(unserved.status).toBe(404);
+    expect(installation.status).toBe(404);
   });
 
   test("keeps the console's API and an account's tools on the installation's host", async () => {

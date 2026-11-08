@@ -20,6 +20,8 @@ export {
   type AccountErasureCounts,
   type AffectedOrganization,
   deleteAccount,
+  type PersonalOrganizationErasure,
+  readAccountErasureCommitted,
   readAccountErasurePreview,
   withAccountLock,
 } from "./account-erasure.ts";
@@ -90,7 +92,7 @@ export {
   storeLearnerSignInCode,
 } from "./learner-sign-in-code.ts";
 export type { StoredFile } from "./file.ts";
-export { readFile, recordFile } from "./file.ts";
+export { holdOrganization, readFile, recordFile } from "./file.ts";
 export type { Group, GroupChange, GroupDefinition, GroupPerson } from "./group.ts";
 export {
   ConflictingGroupRole,
@@ -119,6 +121,9 @@ export type { ListedOrganization, Member, Organization } from "./membership.ts";
 export {
   countMembers,
   deleteNewOrganization,
+  ensurePersonalOrganization,
+  isPersonalOrganization,
+  readPersonalOrganization,
   readMemberRolesByEmail,
   readMembers,
   readMemberships,
@@ -141,6 +146,7 @@ export {
 export type { ToolsReadLearnerData } from "./organization.ts";
 export {
   findToolsReadLearnerData,
+  organizationExists,
   organizationOwnsLearningContent,
   readOrganizationBySlug,
   toolsMayReadLearnerData,

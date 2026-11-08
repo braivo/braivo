@@ -21,7 +21,6 @@ describe("the console", () => {
     ["their only organization", [school], "/example"],
     // Listed by name, as Braivo lists them.
     ["the first among several", [annex, school], "/annex"],
-    ["setting one up, managing none", [], "/join"],
   ])("sends an owner at / to %s", async (_case, organizations, where) => {
     const { router } = renderAt("/", { organizations, braivo: { listCourses: async () => [] } });
 
@@ -60,6 +59,10 @@ describe("the console", () => {
     const menu = await openAccountMenu();
     expect(within(menu).getByText("Olive Owner")).toBeTruthy();
     expect(within(menu).getByText("olive@example.com")).toBeTruthy();
+    // The learn app's, loaded rather than routed (ADR 0059).
+    expect(within(menu).getByRole("menuitem", { name: "My learning" }).getAttribute("href")).toBe(
+      "/learn",
+    );
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Sign out" }));
     // Locked while it is sent.
     const reopened = await openAccountMenu();

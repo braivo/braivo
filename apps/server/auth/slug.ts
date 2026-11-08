@@ -5,13 +5,15 @@
  * The application's root-level paths, which `/<slug>` would shadow (ADR 0004).
  * Marketing lives on another host, so only application routes are here; a new
  * one joins before it ships, which slug.test.ts checks against the console's
- * route tree. `invitations` is ADR 0018's, reserved ahead of its route; `mcp`
- * is the server's remote MCP endpoint (ADR 0045); `learn` is reserved for
- * Braivo's own learn app, which may be served at `/learn`.
+ * and learn app's route trees, as the installation's origin serves Braivo's own
+ * learn app beside the console: `c` and `learn` are its (ADR 0059).
+ * `invitations` is ADR 0018's, reserved ahead of its route; `mcp` is the
+ * server's remote MCP endpoint (ADR 0045).
  */
 const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "api",
   "assets",
+  "c",
   "consent",
   "device",
   "invitations",

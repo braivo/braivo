@@ -10,6 +10,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0002: AGPL-3.0-only for Braivo's code, with a commercial license, and no SDK package](0002-agpl-only.md)
 - [0003: Flat apps, a database package, and Vite+ as the one toolchain](0003-workspace-layout.md)
 - [0004: Application origins and organization addressing](0004-one-application-origin.md)
+- [0059: Braivo's own learn app on the installation's origin, at `/learn` and `/c/<course ID>`](0059-own-learn-app-on-the-installations-origin.md)
 - [0014: One worktree bootstrap script, called from agent tools' hooks](0014-worktree-setup.md)
 - [0019: Local notes shared by every worktree through one link](0019-shared-local-notes.md)
 - [0051: Development defaults are committed in `.env.development`, a developer's values live in `.env.local`, and `serve` reads no env file](0051-environment-files.md)
@@ -32,6 +33,7 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0018: Accounts on Braivo's origin, invitations to organizations, and learners signing in on each learn domain](0018-sign-in-and-invitations.md)
 - [0042: Groups scope teaching: a teacher reads their groups' learners in their groups' courses](0042-groups-scope-teaching.md)
 - [0048: An `author` role prepares and publishes content, without administering the school](0048-author-role.md)
+- [0060: A personal organization is one account's, alone](0060-personal-organization-is-one-accounts.md)
 - [0050: An organization decides whether tools read its learners' data, off by default](0050-tools-read-learner-data.md)
 - [0052: A learner reports a problem with a task they answered, and the school's administrators resolve it in the console](0052-task-reports.md)
 - [0044: Learners' links name a course by a random number within its organization](0044-course-numbers.md) — proposed

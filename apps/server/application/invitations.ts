@@ -25,6 +25,7 @@ import {
   readUser,
   releaseInvitationMail,
   renewInvitation,
+  isPersonalOrganization,
 } from "../persistence/index.ts";
 import { assertMayAdminister, authors, NotPermitted } from "./permission.ts";
 
@@ -78,6 +79,7 @@ export class InvitationRefused extends Error {
       | "ALREADY_MEMBER"
       | "ALREADY_INVITED"
       | "PENDING_LIMIT"
+      | "PERSONAL_ORGANIZATION"
       | MailBoundCode,
     message: string,
     readonly existing: { roles?: string[]; role?: string } = {},
@@ -122,6 +124,18 @@ type CreateInvitation = (invitation: {
   email: string;
   role: InvitableRole;
 }) => Promise<CreateInvitationResult>;
+
+/**
+ * A personal organization is its owner's alone (ADR 0060): no one is invited
+ * to it, whatever the role. The database refuses one too; this says why.
+ */
+async function refusePersonal(database: Database, organizationId: string) {
+  if (!(await isPersonalOrganization(database, organizationId))) return;
+  throw new InvitationRefused(
+    "PERSONAL_ORGANIZATION",
+    "A personal organization is its owner's alone: no one else is invited to it.",
+  );
+}
 
 async function assertLearnersHaveASite(database: Database, organizationId: string) {
   if (await readLearnDomain(database, organizationId)) return;
@@ -203,6 +217,7 @@ export async function inviteToOrganization(input: {
 }): Promise<InvitationBatchResult> {
   const { database, organizationId, actingAs, role, create, now } = input;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await refusePersonal(database, organizationId);
 
   const entries = input.emails;
   if (
@@ -290,6 +305,7 @@ export async function resendInvitation(input: {
 }): Promise<InvitationResult & { outcome: "invited" }> {
   const { database, organizationId, actingAs, invitationId, now } = input;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
+  await refusePersonal(database, organizationId);
 
   const found = await readOrganizationInvitation(database, { organizationId, invitationId });
   if (!found) throw new InvitationRefused("INVITATION_NOT_FOUND", "No such invitation.");

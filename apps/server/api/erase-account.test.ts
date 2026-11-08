@@ -36,7 +36,7 @@ const log = {
 
 const erase = async (email: string) => {
   const { target } = await previewAccountErasure({ database, email });
-  return eraseAccount({ database, target, log });
+  return eraseAccount({ database, target, log, files: undefined });
 };
 
 describe.skipIf(!connectionString)("an account erased while signed in", () => {
@@ -138,7 +138,7 @@ describe.skipIf(!connectionString)("an account erased while signed in", () => {
     const { target, counts } = await previewAccountErasure({ database, email });
     expect(target.userId).toBeNull();
     expect(counts.verifications).toBe(2);
-    await eraseAccount({ database, target, log });
+    await eraseAccount({ database, target, log, files: undefined });
     expect(await identifiers()).toEqual([]);
     // And the old code signs no one in.
     const old = outbox.sent.findLast((mail) => mail.to === email)?.text.match(/\b\d{6}\b/)?.[0];
@@ -207,7 +207,7 @@ describe.skipIf(!connectionString)("an account erased while signed in", () => {
     expect(target.organizations.map(({ id }) => id)).toEqual([organizationId]);
     expect(counts.mailClaims).toBe(2);
 
-    await eraseAccount({ database, target, log });
+    await eraseAccount({ database, target, log, files: undefined });
     expect(await database.$count(invitationMailClaim, eq(invitationMailClaim.email, email))).toBe(
       0,
     );
