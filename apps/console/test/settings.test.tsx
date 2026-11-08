@@ -80,6 +80,40 @@ describe("the console", () => {
       expect(within(screen.getByRole("main")).queryByRole("list")).toBeNull();
     });
 
+    const own = { ...school, id: "org-own", slug: "olive-own", personal: true, learnDomain: null };
+
+    test("list no Members, Groups, or Domains for a personal organization (ADR 0060)", async () => {
+      renderAt("/olive-own/settings/general", { organizations: [own] });
+
+      const nav = await screen.findByRole("navigation", { name: "Settings" });
+      expect(within(nav).getByRole("link", { name: "General" })).toBeTruthy();
+      for (const name of ["Members", "Groups", "Domains"]) {
+        expect(within(nav).queryByRole("link", { name })).toBeNull();
+      }
+    });
+
+    test.each(["members", "groups", "groups/new", "groups/g-1", "domains"])(
+      "find no %s page in a personal organization, reading nothing (ADR 0060)",
+      async (page) => {
+        const listMembers = vi.fn(async () => []);
+        const listGroups = vi.fn(async () => []);
+        const listDomains = vi.fn(async () => ({ domains: [], claims: [], canAdd: false }));
+        renderAt(`/olive-own/settings/${page}`, {
+          organizations: [own],
+          braivo: { listMembers, listGroups, listDomains },
+        });
+
+        expect(
+          await screen.findByText(
+            /There is no such setting|This group does not exist, or is not yours to change/,
+          ),
+        ).toBeTruthy();
+        expect(listMembers).not.toHaveBeenCalled();
+        expect(listGroups).not.toHaveBeenCalled();
+        expect(listDomains).not.toHaveBeenCalled();
+      },
+    );
+
     test("say there is no such setting when Braivo refuses its domains", async () => {
       renderAt("/example/settings/domains", {
         braivo: { listDomains: vi.fn().mockRejectedValue(new BraivoError(403, "Not permitted.")) },

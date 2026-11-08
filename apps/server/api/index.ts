@@ -69,10 +69,16 @@
 // none of theirs by that ID. Both a browser's alone: 401 no session, 403 a
 // bearer token or a connection, or a write possibly forged (access-42).
 //
-// `GET /api/organization` — the organization the request's host serves, for the
-// learn app on that domain to present itself as. No session needed. 200 answers
-// `{ "name": "…" }`; 404 means the host serves no organization. The host is the
-// request's `Host`, so a router in front forwards it unchanged (ADR 0004).
+// `GET /api/host` — what the request's host serves, for the learn app there to
+// present itself as: `{ "organization": { "name": "…" } | null, "installation":
+// false | true }`, an organization's domain, or `BRAIVO_URL`'s, whose origin
+// serves Braivo's own learn app (ADR 0059); both empty, neither. No session
+// needed. The host is the request's `Host`, so a router in front forwards it
+// unchanged (ADR 0004).
+//
+// `GET /api/organization` — `/api/host`'s organization alone, `{ "name": "…" }`,
+// or 404, for learn apps built before `/api/host`; kept for one release, as the
+// API and the learn app may deploy apart.
 //
 // On an organization's domain, the learner's `/api/courses/:courseId/…` routes
 // below answer another organization's course 404, as one that does not exist.
@@ -140,6 +146,10 @@
 //                  The learner's evidence is replayed once per organization.
 //                  400 for any other value, beside `number`, or for an unknown
 //                  `timeZone`.
+//   ?personal=true only those of the learner's personal organization, the
+//                  one their account owns, never one they are a member of
+//                  (ADR 0060);
+//                  400 for any other value, or beside `standing`.
 //
 // `GET /api/courses/:courseId/activity` — the learner loop for learners Braivo
 // serves: the next objective, with a task to practise it or, while its tasks
@@ -469,9 +479,10 @@
 // `GET /api/organizations` — the organizations the signed-in user
 // administers (`owner` or `admin`), authors in (those or `author`, ADR 0048),
 // or teaches a group in, by name: `{ "organizations": [{ "id": "…", "name":
-// "…", "slug": "…", "learnDomain": "…" | null, "administers": true,
-// "authors": true, "teaches": false, "aiEnabled": true }] }`, each flag on its
-// own. `aiEnabled`, only where they author: whether they may have the
+// "…", "slug": "…", "learnDomain": "…" | null, "personal": false,
+// "administers": true, "authors": true, "teaches": false, "aiEnabled": true }] }`,
+// each flag on its own; `personal`, a personal organization rather than a
+// school, as it was created (ADR 0060). `aiEnabled`, only where they author: whether they may have the
 // installation's AI read a file's text and draft courses, there being a model
 // that the organization may use (generation-9), whatever its month's
 // requests. A member who does none of these is not listed. 401 without a
@@ -486,19 +497,28 @@
 // | false, "dataRegion": "…" | null, "otherRegions": [{ "region": "…",
 // "setupUrl": "…" | null }] }`: the domain an organization set up below is
 // served under, `null` where only the operator creates them (ADR 0018);
-// whether this account may set one up now, owning none (`false` there); the
+// whether this account may set one up now, owning no school, as a personal
+// organization counts for nothing here (ADR 0060) (`false` there); the
 // region code (`EU`, `US`) where the installation stores data, `null` unsaid;
 // and the regions whose own installations set up organizations, at
 // `setupUrl`, `null` not yet open (ADR 0040). 401 without a session.
 //
 // `POST /api/organization-setup` `{ "name", "slug" }`, a JSON write — sets up
-// an organization the session's user owns, at `<slug>.<domain>`: 201
+// a school the session's user owns, never a personal organization
+// (`"personal": false`, ADR 0059), at `<slug>.<domain>`: 201
 // `{ "organization" }` as listed above. 400 a malformed body, or `{ "error",
 // "code" }` for a name or slug that cannot be one (`NAME_INVALID`,
 // `ADDRESS_INVALID`, `ADDRESS_RESERVED`); 409 `{ "error", "code" }` for an
-// address taken (`ADDRESS_TAKEN`) or an organization the user already owns
+// address taken (`ADDRESS_TAKEN`) or a school the user already owns
 // (`ALREADY_OWNER`); 404 where only the operator creates them; 401 without a
 // session. `error` is English; a client words `code` in its own language.
+// With `{ "personal": true }` alone, it sets up the session's account's
+// personal organization instead (ADR 0060), a browser's session only (403 to a token or a
+// connection, with an `error`): `{ "organization" }` as listed, `"personal":
+// true`, `"learnDomain": null`, its slug `p-` and 16 random letters, named
+// after the account; 201 made now, 200 the one it already has, so a retry
+// answers the same. Owning a school neither stops it nor counts against it;
+// visiting `/learn` never makes one.
 //
 // The organization routes below share their refusals: 401 without a session,
 // and 403 unless the session holds the role there: `owner`, `admin`, or
@@ -693,7 +713,8 @@
 // how many more members fit, invitations holding no places. Refused whole,
 // inviting no one: 400 `{ "error", "code" }`, `EMAILS_INVALID`,
 // `TOO_MANY_ADDRESSES`, or `ROLE_NOT_INVITABLE` (`owner` included); 409
-// `NO_LEARN_DOMAIN`, learners while the organization has no learn domain. 403
+// `NO_LEARN_DOMAIN`, learners while the organization has no learn domain, and
+// `PERSONAL_ORGANIZATION`, anyone to a personal organization (access-60). 403
 // to anyone but an `owner` or `admin`, and to a tool, also once the actor is
 // no longer one partway through, no further address then tried (401 when
 // the session ended partway); 429 past 60 requests a minute from one client.
@@ -703,7 +724,7 @@
 // and role, its expiry renewed, the resender named; one expired meanwhile is
 // invited anew. 200 as one `"invited"` result above. 404
 // `INVITATION_NOT_FOUND`; 409 `NOT_PENDING` (accepted or cancelled),
-// `NO_LEARN_DOMAIN`, or, for one expired, `ALREADY_MEMBER` with `roles`,
+// `NO_LEARN_DOMAIN`, `PERSONAL_ORGANIZATION`, or, for one expired, `ALREADY_MEMBER` with `roles`,
 // `ALREADY_INVITED` with `role`, or `PENDING_LIMIT`; 429 a mail bound, by its
 // code, or the client limit; 403 as for inviting.
 //
@@ -733,7 +754,8 @@
 // does not exist; 403 to a tool. Accepting is Better Auth's `POST
 // /api/auth/organization/accept-invitation` `{ "invitationId" }`, for a
 // verified account with the invited email alone, a learner's only while the
-// organization has a learn domain (403 `NO_LEARN_DOMAIN`, still pending).
+// organization has a learn domain (403 `NO_LEARN_DOMAIN`, still pending), none
+// to a personal organization (403 `PERSONAL_ORGANIZATION`, still pending).
 //
 // `GET /api/organizations/:organizationId/groups` — the organization's groups,
 // by name: `{ "groups": [{ "id", "organizationId", "name", "learners": [{
@@ -773,7 +795,8 @@
 // claimed, each expiring seven days on unless activated, newest first, each
 // `status` `{ "ready", "records": [{ "type", "name", "value" }] }` as the
 // provisioner reads it now, or `null` when it cannot; and whether this
-// installation has a provisioner (ADR 0038).
+// installation has a provisioner (ADR 0038), never for a personal organization,
+// which takes no learn domain (ADR 0059).
 //
 // `POST /api/organizations/:organizationId/domains` `{ "hostname" }` — claims
 // a hostname, asking the provisioner to serve it once proven: 201 `{ "claim" }`
@@ -781,14 +804,17 @@
 // 400 `{ "error", "code" }` for one that cannot be a learn domain
 // (`DOMAIN_INVALID`) or is the installation's (`DOMAIN_RESERVED`); 409 for one
 // another organization holds (`DOMAIN_TAKEN`) or this one serves
-// (`ALREADY_ADDED`); 502 `PROVISIONING_FAILED`, the claim kept, which
+// (`ALREADY_ADDED`), and for a personal organization (`PERSONAL_ORGANIZATION`, ADR
+// 0059), storing no claim and asking no provisioner; 502
+// `PROVISIONING_FAILED`, the claim kept, which
 // claiming again retries; 501 where the installation has no provisioner.
 //
 // `POST /api/organizations/:organizationId/domains/:hostname/activate`, a JSON
 // write — makes a claimed hostname serve the learn app, as the organization's
 // primary domain, once the provisioner reports it ready: 204, also for one
 // serving it already, left as it is. 409 `{ "error", "code": "NOT_VERIFIED",
-// "status" }` while not ready, `status` as listed above; 404 for a
+// "status" }` while not ready, `status` as listed above; 409
+// `PERSONAL_ORGANIZATION` for a personal organization, asking nothing; 404 for a
 // hostname the organization has not claimed, or whose claim expired; 502
 // `PROVISIONING_FAILED`; 501 where the installation has no provisioner.
 //

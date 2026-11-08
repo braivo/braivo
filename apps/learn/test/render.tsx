@@ -20,6 +20,8 @@ afterEach(() => {
   cleanup();
   // Where an unfinished answer is kept across a reload.
   sessionStorage.clear();
+  // Where a bare `/` resumes, which My learning records.
+  localStorage.clear();
 });
 
 /** A request Braivo never answers: it ends only when its signal aborts, as `fetch` does. */
@@ -61,7 +63,9 @@ export function renderAt(
     /** Nothing to review, unless given. */
     objectiveReview?: BraivoClient["objectiveReview"];
     /** The organization whose domain serves the app; none unless given. */
-    hostOrganization?: BraivoClient["hostOrganization"];
+    hostOrganization?: (options?: RequestOptions) => Promise<{ name: string } | undefined>;
+    /** The installation's own origin, as `/learn` and `/c/<course ID>` there (ADR 0059). */
+    installation?: boolean;
     /** Braivo's answer to who is signed in, in place of `signedIn` and `user`. */
     session?: BraivoClient["session"];
     /** Who is signed in, when `signedIn`. */
@@ -72,9 +76,20 @@ export function renderAt(
     signInSettings?: BraivoClient["signInSettings"];
     /** A learn domain's code sign-in, in place of signing `user` in. */
     signInWithCode?: BraivoClient["signInWithCode"];
+    /** The organizations whose console the account works in; none unless given. */
+    listOrganizations?: BraivoClient["listOrganizations"];
+    /** The learner's courses in their personal organizations; none unless given. */
+    personalCourses?: BraivoClient["personalCourses"];
+    /** Every organization the account is a member of, with its learn domain; none unless given. */
+    listMemberships?: BraivoClient["listMemberships"];
   },
 ) {
   const hostOrganization = options.hostOrganization ?? (async () => undefined);
+  const host = vi.fn<BraivoClient["host"]>(async (requestOptions) => ({
+    organization: (await hostOrganization(requestOptions)) ?? null,
+    installation: options.installation ?? false,
+  }));
+  const personalCourses = vi.fn(options.personalCourses ?? (async () => []));
   const learnerCourses = vi.fn(options.learnerCourses ?? (async () => []));
   const learnerCoursesWithStanding = vi.fn<BraivoClient["learnerCoursesWithStanding"]>(
     options.learnerCoursesWithStanding ??
@@ -136,8 +151,13 @@ export function renderAt(
   const nameAccount = vi.fn<BraivoClient["nameAccount"]>(async (name) => {
     user.name = name;
   });
+  const listOrganizations = vi.fn(options.listOrganizations ?? (async () => []));
+  const listMemberships = vi.fn(options.listMemberships ?? (async () => []));
   const braivo = {
-    hostOrganization,
+    host,
+    listOrganizations,
+    listMemberships,
+    personalCourses,
     session: options.session ?? (async () => (signedIn ? user : undefined)),
     signInSettings: options.signInSettings ?? (async () => ({ google: false, legal: null })),
     sendSignInCode,
@@ -162,6 +182,10 @@ export function renderAt(
   render(<RouterProvider router={router} />);
 
   return {
+    host,
+    listOrganizations,
+    listMemberships,
+    personalCourses,
     learnerCourses,
     learnerCoursesWithStanding,
     learnerCourseByNumber,

@@ -7,7 +7,13 @@ import type { Database } from "@braivo/db";
 
 import { extractPages } from "../ai/index.ts";
 import type { Page } from "../content/index.ts";
-import { readFile, recordFile, type StoredFile } from "../persistence/index.ts";
+import {
+  holdOrganization,
+  organizationExists,
+  readFile,
+  recordFile,
+  type StoredFile,
+} from "../persistence/index.ts";
 import type { FileStore } from "../storage/index.ts";
 import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 import { assertMayAuthor } from "./permission.ts";
@@ -34,9 +40,14 @@ const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}\/[a-z0-9][a-z0-9!#$&^_.+-]
 /** Lowercase hex SHA-256: the only thing a file is named by. */
 export const FILE_ID = /^[0-9a-f]{64}$/;
 
+/** Where an organization's files are kept: erasing it empties this (ADR 0060). */
+export function filesOf(organizationId: string): string {
+  return `organizations/${organizationId}`;
+}
+
 /** Where an organization's file lives in the store: only its bytes decide. */
 function keyOf(organizationId: string, sha256: string): string {
-  return `organizations/${organizationId}/files/${sha256}`;
+  return `${filesOf(organizationId)}/files/${sha256}`;
 }
 
 /**
@@ -44,6 +55,13 @@ function keyOf(organizationId: string, sha256: string): string {
  * extracted from, say — and answers with what Braivo recorded, its SHA-256 the
  * ID to name it by (docs/adr/0028-original-files.md). The same bytes uploaded
  * again keep one record, which takes the content type last sent.
+ *
+ * One transaction holding the organization's row from authorizing through
+ * writing the bytes and recording them (ADR 0060), so erasing a personal
+ * organization waits for an upload under way and then erases what it
+ * recorded, and an upload arriving meanwhile waits, then finds nothing and
+ * writes nothing. It holds a database connection for one write to the store,
+ * of 50 MB at most: the price of that order.
  */
 export async function uploadFile(input: {
   database: Database;
@@ -63,24 +81,47 @@ export async function uploadFile(input: {
     throw new InvalidFile("A file needs its media type as Content-Type, such as application/pdf.");
   }
   if (bytes.length === 0) throw new InvalidFile("The file is empty.");
-
-  await assertMayAuthor(database, { organizationId, userId: actingAs });
-
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  // Bytes before the record, which promises they are there. Written even when
-  // already stored, so uploading again repairs a store that lost them.
-  await files.put(keyOf(organizationId, sha256), bytes, contentType);
-  await recordFile(database, {
-    organizationId,
-    sha256,
-    contentType,
-    size: bytes.length,
-    createdAt: now,
-  });
-  // A writer racing this one with the same bytes may have recorded them first.
-  const recorded = await readFile(database, organizationId, sha256);
-  if (!recorded) throw new Error("A file was recorded and then was not there.");
-  return recorded;
+
+  let writing = false;
+  try {
+    return await database.transaction(async (transaction) => {
+      // First, before any `file` row: the erasure's order. None held, none to author in.
+      const held = await holdOrganization(transaction, organizationId);
+      await assertMayAuthor(transaction, { organizationId, userId: actingAs });
+      if (!held) throw new Error("An organization was authored in and was not there.");
+
+      // Bytes before the record, which promises they are there. Written even when
+      // already stored, so uploading again repairs a store that lost them.
+      writing = true;
+      await files.put(keyOf(organizationId, sha256), bytes, contentType);
+      await recordFile(transaction, {
+        organizationId,
+        sha256,
+        contentType,
+        size: bytes.length,
+        createdAt: now,
+      });
+      // A writer racing this one with the same bytes may have recorded them first.
+      const recorded = await readFile(transaction, organizationId, sha256);
+      if (!recorded) throw new Error("A file was recorded and then was not there.");
+      return recorded;
+    });
+  } catch (error) {
+    // A lost connection drops the lock mid-write, so an erasure may have
+    // committed and emptied the prefix before these bytes landed, a write that
+    // failed included, as the store may have kept it. Gone, the organization's
+    // files are this upload's to delete: none is named by a row, and its ID is
+    // never reused. There, an erasure yet to commit deletes them after. A crash
+    // before this check leaves them (ADR 0060); unknown, as with the database
+    // down, counts as there, so the upload's own error is the one told.
+    const there =
+      !writing || (await organizationExists(database, organizationId).catch(() => true));
+    if (!there) {
+      await files.deletePrefix(filesOf(organizationId));
+    }
+    throw error;
+  }
 }
 
 /**

@@ -5,7 +5,7 @@ import { BraivoError, type LearnerProgressReport } from "@braivo/server/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vite-plus/test";
 
-import { members, courseProgress } from "./fixtures.ts";
+import { members, courseProgress, school } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 /** A moment as the learner report shows it, compact. */
@@ -115,6 +115,24 @@ describe("the console", () => {
     ).toBeTruthy();
     expect(screen.queryByText(/Learners practise it at/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Copy address" })).toBeNull();
+  });
+
+  test("links a personal course open to its owner by ID on this origin, never a site", async () => {
+    const own = { ...school, id: "org-own", slug: "olive-own", learnDomain: null, personal: true };
+    renderAt("/olive-own/courses/course-1/progress", {
+      organizations: [own],
+      braivo: {
+        listCourses: async () => [
+          { id: "course-1", number: 4732, title: "Beginners", urlLabel: "beginners" },
+        ],
+      },
+    });
+
+    const note = await screen.findByText(/Practise it at/);
+    expect(within(note).getByRole("link").getAttribute("href")).toBe(
+      `${window.location.origin}/c/course-1`,
+    );
+    expect(screen.queryByText(/Learners practise it at/)).toBeNull();
   });
 
   test("counts each objective's learners by standing, in content order", async () => {

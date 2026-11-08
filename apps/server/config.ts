@@ -398,6 +398,14 @@ function readRegions(
 }
 
 /**
+ * For a command that erases a personal organization's files (ADR 0060): the
+ * store the server keeps them in, as `serve` reads it; none, it keeps no files.
+ */
+export function readFilesConfig(environment: Environment): FilesConfig | undefined {
+  return readFiles(environment, "BRAIVO_FILES").files;
+}
+
+/**
  * For a command that erases: where the replay log goes, and its HMAC's key, both
  * kept outside the database and its backups (docs/adr/0053-learners-data.md).
  * Required rather than defaulted: an erasure no log records would come back with

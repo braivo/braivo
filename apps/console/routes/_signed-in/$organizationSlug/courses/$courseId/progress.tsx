@@ -32,6 +32,7 @@ import { LastPractised } from "#components/last-practised";
 import { LearnersSite } from "#components/learners-site";
 import { MissesSince } from "#components/misses-since";
 import { NameTag } from "#components/name-tag";
+import { PersonalCourseLink } from "#components/personal-courses";
 import { pinnedColumn, ScrollingTable } from "#components/scrolling-table";
 import { SearchField } from "#components/search-field";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
@@ -218,7 +219,9 @@ function ProgressView({ page, refresh }: { page: ProgressPageData; refresh: Reac
       </MutedText>
       {/* What a teacher sends learners to practise it, once there is a site and
           the course is open: published, and not hidden (ADR 0039). */}
-      {progress.open ? (
+      {progress.open && organization.personal ? (
+        <PersonalCourseLink courseId={course.id} />
+      ) : progress.open ? (
         <LearnersSite
           learnDomain={organization.learnDomain}
           path={`/c/${courseRef(course)}`}

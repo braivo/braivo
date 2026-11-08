@@ -9,9 +9,15 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite-plus";
 
 import { readDevPorts } from "../../tooling/dev-ports.ts";
-import { braivoApi } from "../../tooling/dev-proxy.ts";
+import { braivoApi, LEARN_PREFIX, learnMount } from "../../tooling/dev-proxy.ts";
 
-/** The learner-facing app, served at the root of an organization's own domain (ADR 0004). */
+/**
+ * The learner-facing app, served at the root of an organization's own domain
+ * (ADR 0004) and at `/learn` and `/c/…` on the installation's origin (ADR 0059).
+ * One build does both: its files are under `/learn/assets/` on either, clear
+ * of the console's `/assets/`. The dev server keeps its modules under
+ * `/learn/` too, where the console's proxies them (`learnMount`).
+ */
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, "../..", ["BRAIVO_", "PORT"]);
 
@@ -32,7 +38,17 @@ export default defineConfig(({ command, mode }) => {
       react(),
       bootLanguage(),
       tailwindcss(),
+      learnMount(env),
     ],
+    // Links to a `.localhost` school domain reach this dev server's port
+    // (`@braivo/auth-client`'s `learnUrl`); a build's are HTTPS alone.
+    ...(command === "serve" && {
+      define: {
+        "import.meta.env.BRAIVO_LEARN_PORT": JSON.stringify(String(readDevPorts(env).learn)),
+      },
+    }),
+    base: command === "serve" ? `${LEARN_PREFIX}/` : "/",
+    build: { assetsDir: `${LEARN_PREFIX.slice(1)}/assets` },
     server: {
       port: readDevPorts(env).learn,
       strictPort: true,

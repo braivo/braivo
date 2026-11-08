@@ -5,6 +5,7 @@ import type { Database } from "@braivo/db";
 
 import {
   deleteMember,
+  isPersonalOrganization,
   makeMemberOwner,
   type Member,
   type Organization,
@@ -127,6 +128,12 @@ export async function previewOwnerPromotion(input: {
   if (email === "") throw new Error("An email address is required.");
   const organization = await readOrganizationBySlug(database, slug);
   if (!organization) throw new Error(`No organization has the slug ${slug}.`);
+  // Its owner is whose it is, fixed at creation (ADR 0060); no one else is a member to promote.
+  if (await isPersonalOrganization(database, organization.id)) {
+    throw new Error(
+      `${organization.name} is a personal organization, its owner's alone: it takes no other owner.`,
+    );
+  }
   const userId = await readUserIdByEmail(database, email);
   if (userId === undefined) throw new Error(`No account has the email ${email}.`);
   const roles = await readOrganizationRoles(database, { organizationId: organization.id, userId });

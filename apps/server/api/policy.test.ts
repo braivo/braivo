@@ -55,6 +55,7 @@ const routes = [
   "POST /api/handoffs/:handoffId",
   "GET  /api/connections",
   "POST /api/connections/:connectionId/disconnect",
+  "GET  /api/host",
   "GET  /api/organization",
   "GET  /.well-known/oauth-protected-resource/mcp",
   "POST /mcp",
@@ -311,6 +312,7 @@ GET  /api/handoffs/:handoffId                                                   
 POST /api/handoffs/:handoffId                                                   401     404     403     401     403     403     403     403     401
 GET  /api/connections                                                           401     200     403     401       ·       ·       ·       ·       ·
 POST /api/connections/:connectionId/disconnect                                  401     404     403     401     403     403     403     403     1MB
+GET  /api/host                                                                  200     200     200     200       ·       ·       ·       ·       ·
 GET  /api/organization                                                          404     404     404     404       ·       ·       ·       ·       ·
 GET  /.well-known/oauth-protected-resource/mcp                                 200+    200+    200+    200+       ·       ·       ·       ·       ·
 POST /mcp                                                                       401     401     401     401     403     403     403     403     1MB
@@ -397,6 +399,7 @@ GET  /api/handoffs/:handoffId                                                   
 POST /api/handoffs/:handoffId                                                   404     404     401     404     404     404     404     404     404
 GET  /api/connections                                                           404     404     401     404       ·       ·       ·       ·       ·
 POST /api/connections/:connectionId/disconnect                                  404     404     401     404     404     404     404     404     404
+GET  /api/host                                                                  200     200     401     200       ·       ·       ·       ·       ·
 GET  /api/organization                                                          200     200     401     200       ·       ·       ·       ·       ·
 GET  /.well-known/oauth-protected-resource/mcp                                 404*    404*    404*    404*       ·       ·       ·       ·       ·
 POST /mcp                                                                       404     404     404     404     404     404     404     404     404

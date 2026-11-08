@@ -1,12 +1,12 @@
 # 0011: `packages/ui` for presentation, `packages/auth-client` for signing in, and Storybook as an app
 
-Status: accepted (2026-09-16)
+Status: accepted (2026-09-16), amended (2026-11-08: Braivo's colours for the learn app on the installation's origin, ADR 0059)
 
 ## Context
 
 Both apps render the same components and sign people in the same way. Shared browser code needs a home, and a package for whatever both apps share becomes wherever shared browser code lands, design and session logic alike.
 
-The product promises that others can run Braivo under their own brand ([product.md](../product.md)), so nothing the learn app or a shared component renders may hard-code Braivo's colours. The console is Braivo's own ([ADR 0004](0004-one-application-origin.md)) and wears them, except on the sign-in it serves for a learn domain ([ADR 0018](0018-sign-in-and-invitations.md)).
+The product promises that others can run Braivo under their own brand ([product.md](../product.md)), so nothing the learn app or a shared component renders may hard-code Braivo's colours. The console is Braivo's own ([ADR 0004](0004-one-application-origin.md)) and wears them, except on the sign-in it serves for a learn domain ([ADR 0018](0018-sign-in-and-invitations.md)). The learn app wears an organization's name on its domain and Braivo's colours on the installation's origin, where it serves a person's own learning, never Braivo's on a school's domain; until it does, it is unbranded there ([ADR 0059](0059-own-learn-app-on-the-installations-origin.md)).
 
 A component's states and variants should be visible without finding a screen that happens to use them, or reading its source.
 

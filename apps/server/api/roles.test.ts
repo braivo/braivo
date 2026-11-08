@@ -413,7 +413,7 @@ describe.skipIf(!connectionString)("what each organization role reaches", () => 
   });
 
   test("lists where someone authors, administers, or teaches, each flag on its own", async () => {
-    const entry = (id: string) => ({ id, name: id, slug: id, learnDomain: null });
+    const entry = (id: string) => ({ id, name: id, slug: id, learnDomain: null, personal: false });
 
     expect(await client.listOrganizations(as(teacherAuthor))).toEqual([
       {

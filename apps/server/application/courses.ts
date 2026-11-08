@@ -272,13 +272,17 @@ export async function listLearnerCourses(input: {
    * alone, so on the installation's host, which serves them all, it names none.
    */
   number?: number;
+  /** Only those of the personal organization the learner owns (ADR 0060): what the installation's own learn app opens. */
+  personal?: true;
 }): Promise<Course[]> {
-  const { database, learnerId, host, number } = input;
-  if (host.installation) return number === undefined ? readLearnerCourses(database, learnerId) : [];
+  const { database, learnerId, host, number, personal } = input;
+  if (host.installation) {
+    return number === undefined ? readLearnerCourses(database, learnerId, { personal }) : [];
+  }
 
   const served = await readDomainOrganization(database, host.hostname);
   return served
-    ? readLearnerCourses(database, learnerId, { organizationId: served.id, number })
+    ? readLearnerCourses(database, learnerId, { organizationId: served.id, number, personal })
     : [];
 }
 

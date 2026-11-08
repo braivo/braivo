@@ -42,6 +42,7 @@ import {
   SetUpRefused,
   setToolsReadLearnerData,
   setUpOrganization,
+  setUpPersonalOrganization,
 } from "../application/index.ts";
 import { type Auth, createOwnedOrganization } from "../auth/index.ts";
 import { parseTaskBody, type TaskBody, taskFindings } from "../content/index.ts";
@@ -129,12 +130,21 @@ const MAX_ITEMS_PER_REQUEST = 1000;
  */
 const MAX_QUOTES_PER_REQUEST = 200;
 
-/** Reads an organization's setup out of a request body: only the types. */
-function parseSetup(body: unknown): { name: string; slug: string } | undefined {
+/**
+ * Reads an organization's setup out of a request body, only the types: a
+ * school's `{ name, slug }`, or `{ personal: true }` for the account's personal
+ * organization (ADR 0059).
+ */
+function parseSetup(
+  body: unknown,
+): { personal: true } | { personal?: undefined; name: string; slug: string } | undefined {
   if (typeof body !== "object" || body === null) return undefined;
 
-  const { name, slug } = body as Record<string, unknown>;
-  if (typeof name !== "string" || typeof slug !== "string") return undefined;
+  const { name, slug, personal } = body as Record<string, unknown>;
+  if (personal === true) return name === undefined && slug === undefined ? { personal } : undefined;
+  if (personal !== undefined || typeof name !== "string" || typeof slug !== "string") {
+    return undefined;
+  }
 
   return { name, slug };
 }
@@ -587,11 +597,30 @@ export function authoringRoutes(
     }),
   );
 
-  /** Sets up an organization the session's user owns (ADR 0018). */
+  /**
+   * Sets up a school the session's user owns (ADR 0018), or with
+   * `{ personal: true }` their personal organization (ADR 0059): from a browser alone,
+   * as a person's own act, and answering the one they have on a retry.
+   */
   routes.post("/api/organization-setup", ...trustedJsonWrite(), requireAccount, async (context) => {
     if (selfServeDomain === undefined) return context.body(null, 404);
     const setup = parseSetup(await jsonBody(context));
     if (!setup) return context.body(null, 400);
+
+    if (setup.personal) {
+      if (presentsToolCredential(context)) {
+        return context.json(
+          { error: "Set up your personal organization in Braivo, signed in." },
+          403,
+        );
+      }
+      const { organization, created } = await setUpPersonalOrganization({
+        database,
+        actingAs: context.var.userId,
+        now: new Date(),
+      });
+      return context.json({ organization }, created ? 201 : 200);
+    }
 
     try {
       const organization = await setUpOrganization({
@@ -740,7 +769,10 @@ export function authoringRoutes(
         return context.json({ claim }, 201);
       } catch (error) {
         if (error instanceof DomainRefused) {
-          const conflict = error.code === "DOMAIN_TAKEN" || error.code === "ALREADY_ADDED";
+          const conflict =
+            error.code === "DOMAIN_TAKEN" ||
+            error.code === "ALREADY_ADDED" ||
+            error.code === "PERSONAL_ORGANIZATION";
           return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
         }
         if (error instanceof ProvisioningFailed) {
@@ -781,6 +813,9 @@ export function authoringRoutes(
           409,
         );
       } catch (error) {
+        if (error instanceof DomainRefused && error.code === "PERSONAL_ORGANIZATION") {
+          return context.json({ error: error.message, code: error.code }, 409);
+        }
         // Not claimed: as missing as any other organization's resource.
         if (error instanceof DomainRefused) return context.body(null, 404);
         if (error instanceof ProvisioningFailed) {

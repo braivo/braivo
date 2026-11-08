@@ -14,21 +14,25 @@ describe("slugProblem", () => {
     },
   );
 
-  test.each(["api", "assets", "invitations", "join", "learn", "login", "mcp"])(
+  test.each(["api", "assets", "c", "invitations", "join", "learn", "login", "mcp"])(
     "refuses the reserved %s",
     (slug) => {
       expect(slugProblem(slug)).toContain("reserved");
     },
   );
 
-  // A console route missing from the list would be shadowed by `/<slug>`, or shadow it.
-  // The generated tree is current: a route file absent from it fails `vp check`.
-  test("reserves every root-level console route", async () => {
+  // An app's route missing from the list would be shadowed by `/<slug>`, or shadow it: the
+  // console's, and the learn app's, which the installation's origin serves too (ADR 0059).
+  // The generated trees are current: a route file absent from one fails `vp check`.
+  test.each([
+    ["console", "login"],
+    ["learn", "c"],
+  ])("reserves every root-level %s route", async (app, known) => {
     const routeTree = await Bun.file(
-      new URL("../../console/routeTree.gen.ts", import.meta.url),
+      new URL(`../../${app}/routeTree.gen.ts`, import.meta.url),
     ).text();
     const roots = [...routeTree.matchAll(/fullPath: '\/([^/'$]+)/g)].map((match) => match[1]);
-    expect(roots).toContain("login");
+    expect(roots).toContain(known);
     expect(roots.filter((root) => !slugProblem(root as string)?.includes("reserved"))).toEqual([]);
   });
 

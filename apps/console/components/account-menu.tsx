@@ -16,7 +16,7 @@ import {
 import { cn } from "@braivo/ui/lib/utils";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon } from "lucide-react";
+import { ChevronsUpDownIcon, GraduationCapIcon, LogOutIcon, SettingsIcon } from "lucide-react";
 import type { Ref } from "react";
 
 import { LanguageRadioGroup } from "./language-menu.tsx";
@@ -35,7 +35,8 @@ function initialsOf(name: string): string {
 
 /**
  * The signed-in account, after shadcn's nav-user: its initials open a menu
- * naming it, opening settings, choosing the theme, and signing out. Signing
+ * naming it, opening My learning, opening settings, choosing the theme, and
+ * signing out. Signing
  * out is the caller's, locked while `signingOut`. `inSidebar`: the name and
  * email beside the initials, which the rail shows alone; else a header's
  * round button. Given `onLanguageFailureChange`, the language too, a failure
@@ -111,6 +112,13 @@ export function AccountMenu({
           <EmailAddress address={user.email} />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {/* The learn app's, loaded rather than routed (ADR 0059). */}
+        <DropdownMenuItem asChild>
+          <a href="/learn">
+            <GraduationCapIcon />
+            <Trans>My learning</Trans>
+          </a>
+        </DropdownMenuItem>
         {props.organizationSlug && (
           <>
             <DropdownMenuItem asChild>

@@ -17,6 +17,8 @@ import {
   SetUpRefused,
   setToolsReadLearnerData,
   setUpOrganization,
+  maySetUpOrganization,
+  setUpPersonalOrganization,
 } from "./organizations.ts";
 import { NotPermitted } from "./permission.ts";
 
@@ -74,8 +76,73 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
     }
   });
 
-  // The slug rules refuse it too, but only on creating, after the taken check.
-  test("refuses the address learn as reserved, even once registered for Braivo", async () => {
+  test("makes one personal organization per account, however many setups run at once (ADR 0059)", async () => {
+    const userId = `personal-race-${crypto.randomUUID()}`;
+    await database
+      .insert(user)
+      .values({ id: userId, name: " Ada Own ", email: `${userId}@example.com`, createdAt: at });
+
+    const results = await Promise.all(
+      [1, 2, 3].map(() => setUpPersonalOrganization({ database, actingAs: userId, now: at })),
+    );
+
+    expect(results.filter(({ created }) => created)).toHaveLength(1);
+    expect(new Set(results.map(({ organization }) => organization.id)).size).toBe(1);
+    expect(results[0]!.organization).toMatchObject({ name: "Ada Own", personal: true });
+    const owned = await database.select().from(member).where(eq(member.userId, userId));
+    expect(owned).toEqual([expect.objectContaining({ role: "owner" })]);
+  });
+
+  test("lets the owner of a personal organization set up a school, as it counts schools alone (ADR 0059)", async () => {
+    const userId = `setup-personal-${crypto.randomUUID()}`;
+    await database
+      .insert(user)
+      .values({ id: userId, name: "Own", email: `${userId}@example.com`, createdAt: at });
+    const own = `own-${crypto.randomUUID()}`;
+    await database
+      .insert(organization)
+      .values({ id: own, name: "Own", slug: own, personalOwnerId: userId, createdAt: at });
+    await database.insert(member).values({
+      id: crypto.randomUUID(),
+      organizationId: own,
+      userId,
+      role: "owner",
+      createdAt: at,
+    });
+
+    expect(await maySetUpOrganization({ database, actingAs: userId })).toBe(true);
+    const slug = `school-${crypto.randomUUID().slice(0, 8)}`;
+    const setUp = (name: string, slugAsked: string) =>
+      setUpOrganization({
+        database,
+        baseUrl: "https://braivo.example",
+        selfServeDomain: "braivo.example",
+        actingAs: userId,
+        name,
+        slug: slugAsked,
+        create: async ({ name, slug, ownerId }) => {
+          const id = crypto.randomUUID();
+          await database.insert(organization).values({ id, name, slug, createdAt: at });
+          await database.insert(member).values({
+            id: crypto.randomUUID(),
+            organizationId: id,
+            userId: ownerId,
+            role: "owner",
+            createdAt: at,
+          });
+          return { id, name, slug };
+        },
+      });
+    expect(await setUp("A school", slug)).toMatchObject({ slug, personal: false });
+
+    // A school now theirs, not a second one.
+    expect(await maySetUpOrganization({ database, actingAs: userId })).toBe(false);
+    await expect(setUp("Another", `${slug}-2`)).rejects.toMatchObject({ code: "ALREADY_OWNER" });
+  });
+
+  // The slug rules refuse it too, but only once creating; the hostname is
+  // refused first, even registered for Braivo, as reserved, not taken.
+  test("refuses the address learn before creating anything", async () => {
     // A domain of its own, as the hostname outlives the run.
     const selfServeDomain = `${crypto.randomUUID().slice(0, 8)}.example`;
     const braivo = `braivo-${crypto.randomUUID()}`;

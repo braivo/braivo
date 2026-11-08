@@ -3,7 +3,7 @@
 
 declare global {
   interface ImportMetaEnv {
-    /** The learn app's port, on the console's dev server alone (`vite.config.ts`). */
+    /** The learn app's port, on the apps' dev servers alone (their `vite.config.ts`). */
     readonly BRAIVO_LEARN_PORT?: string;
   }
 }

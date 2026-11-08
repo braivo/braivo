@@ -1,0 +1,124 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "f5385b8f-5fc9-440d-869c-43f39957a4a1",
+  "prevIds": [
+    "b9a87a17-b343-4f24-9100-89502ac606fe"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "organization",
+        "personal_owner_id"
+      ],
+      "writes": [
+        "s|col|public.organization.personal_owner_id",
+        "n|col|public.organization.personal_owner_id",
+        "e|col|public.organization.personal_owner_id"
+      ],
+      "reads": [
+        "n|tbl|public.organization",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "organization"
+      ],
+      "writes": [
+        "s|uq|public.organization.organization_personal_owner_id_key",
+        "n|uq|public.organization.organization_personal_owner_id_key",
+        "e|uq|public.organization.organization_personal_owner_id_key",
+        "n|con|public.organization.organization_personal_owner_id_key",
+        "n|rel|public.organization_personal_owner_id_key"
+      ],
+      "reads": [
+        "n|tbl|public.organization",
+        "n|sch|public",
+        "n|col|public.organization.personal_owner_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "organization"
+      ],
+      "writes": [
+        "s|fk|public.organization.organization_personal_owner_id_user_id_fkey",
+        "n|fk|public.organization.organization_personal_owner_id_user_id_fkey",
+        "e|fk|public.organization.organization_personal_owner_id_user_id_fkey",
+        "n|con|public.organization.organization_personal_owner_id_user_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.organization",
+        "n|sch|public",
+        "n|tbl|public.user",
+        "n|sch|public",
+        "n|col|public.organization.personal_owner_id",
+        "n|col|public.user.id",
+        "e|uniqueness|public.user.id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "organization",
+        "name": "personal_owner_id",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "organization",
+        "name": "organization_personal_owner_id_user_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "personal_owner_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "user",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "RESTRICT",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "organization",
+        "name": "organization_personal_owner_id_key",
+        "nameExplicit": false,
+        "columns": [
+          "personal_owner_id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    }
+  ]
+}

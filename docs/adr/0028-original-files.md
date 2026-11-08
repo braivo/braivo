@@ -1,6 +1,6 @@
 # 0028: Originals are content-addressed files in a store the installation chooses
 
-Status: accepted (2026-09-24)
+Status: accepted (2026-09-24), amended (2026-11-08: a store lists a folder and deletes one, for erasing a personal organization, ADR 0060)
 
 ## Context
 
@@ -8,7 +8,7 @@ A source is text ([ADR 0020](0020-source-content.md)), extracted by whoever hold
 
 ## Decision
 
-- **A `storage` module with two operations.** `FileStore` is `put(key, bytes, contentType)` and `get(key)`. `directoryStore` keeps files under a directory, written beside and renamed into place; `bucketStore` wraps Bun's S3 client, which speaks to R2, Google Cloud Storage's interoperability API, MinIO, and S3 alike. Keys are checked segment by segment and can never leave the directory or name `..`.
+- **A `storage` module with two operations** ([ADR 0060](0060-personal-organization-is-one-accounts.md), adds listing a folder and deleting one, for an erased personal organization's files and for reading back the erasure log). `FileStore` is `put(key, bytes, contentType)` and `get(key)`. `directoryStore` keeps files under a directory, written beside and renamed into place; `bucketStore` wraps Bun's S3 client, which speaks to R2, Google Cloud Storage's interoperability API, MinIO, and S3 alike. Keys are checked segment by segment and can never leave the directory or name `..`.
 - **Chosen by `BRAIVO_FILES`.** `s3://<bucket>` with Bun's own `S3_*` variables, or an absolute path. Unset, the installation keeps no files, and its file routes answer 501 saying so: text-only Braivo remains a complete product.
 - **A file is its SHA-256.** `POST …/files` takes the raw body, typed by `Content-Type`, hashes it, stores the bytes under `organizations/<organizationId>/files/<sha256>` and records the file in the `file` table, and answers the hash as `fileId`. Uploading the same bytes again adds no record and answers the same, which is [ADR 0024](0024-idempotent-authoring.md)'s rule for files — except its content type, which becomes the one it was last uploaded as, as the store's does: a PDF first sent as `application/octet-stream` is fixed by sending it again. Bytes first, record second, so a record always has bytes behind it; and the bytes are written on every upload, so a store that lost them — or a new bucket an operator moved to — is repaired by uploading the file again. Until then, reading it answers 500.
 - **A source names its original.** `original` on `POST …/sources` is a `fileId` of the same organization's, enforced by a composite foreign key. It is part of the source's digest, marked `original:` so it cannot be read as another field: the same words from another file are another source, and a source, being immutable, gains an original only by being added again with it.
@@ -28,5 +28,5 @@ A source is text ([ADR 0020](0020-source-content.md)), extracted by whoever hold
 - Video will not fit in 50 MB. It goes straight to the store with a presigned upload (`S3Client#presign`), the server recording it afterwards — a second path, added when generated or uploaded video needs it.
 - Learners cannot open an original: a book's PDF is the school's to share or not, which is a product decision, not this one.
 - The CLI uploads an original before Braivo checks the source; a source then refused leaves its file stored, unreferenced, and the retry that fixes it finds the same file.
-- Nothing deletes a file. A source keeps its original (restricted), and deletion waits with sources' own.
+- Nothing deletes a file, but erasing an account with its personal organization ([ADR 0060](0060-personal-organization-is-one-accounts.md)). A source keeps its original (restricted), and deletion waits with sources' own.
 - Storing a file is not adding a source: a file may stay unnamed by any source, and nothing lists the organization's files, keeps a file's name, or uploads several at once. A source names one original, so the photos of one worksheet cannot be one source. [ADR 0046](0046-material-in-steps.md) (accepted, not built yet) lists files, extracts several files as one source whose pages each know their file, and lets a file nothing uses be deleted.

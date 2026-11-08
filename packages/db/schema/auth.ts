@@ -93,6 +93,9 @@ export const organization = pgTable(
     logo: text("logo"),
     createdAt: timestamp("created_at").notNull(),
     metadata: text("metadata"),
+    personalOwnerId: text("personal_owner_id")
+      .unique()
+      .references(() => user.id, { onDelete: "restrict" }),
     toolsReadLearnerData: boolean("tools_read_learner_data").default(false).notNull(),
     toolsReadLearnerDataChangedBy: text("tools_read_learner_data_changed_by").references(
       () => user.id,
@@ -439,6 +442,10 @@ export const authRelations = defineRelationsPart(
     },
     organization: {
       user: r.one.user({
+        from: r.organization.personalOwnerId,
+        to: r.user.id,
+      }),
+      ToolsReadLearnerDataChangedByUser: r.one.user({
         from: r.organization.toolsReadLearnerDataChangedBy,
         to: r.user.id,
       }),

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Where a plain sign-in at the installation's `/login` leads someone the
-// console has nothing for: on to the school they learn at (access-59).
+// Where a bare `/` resumes on the installation's origin (access-59, ADR 0059),
+// and `/join`, where someone managing none finds their schools.
 
+import { rememberLastUsed } from "@braivo/auth-client";
 import { activateLocale } from "@braivo/i18n";
 import {
   BraivoError,
@@ -11,11 +12,11 @@ import {
   type Membership,
   type Organization,
 } from "@braivo/server/client";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { REQUEST_DEADLINE_MS } from "../lib/deadline.ts";
-import { school } from "./fixtures.ts";
+import { annex, school } from "./fixtures.ts";
 import { renderAt, signInWithCode, stall, waitOut } from "./render.tsx";
 
 const fernwood: Membership = {
@@ -27,46 +28,29 @@ const birchfield: Membership = { id: "org-birchfield", name: "Birchfield", learn
 const fernwoodStart = "https://learn.fernwood.example/api/session/sign-in";
 
 describe("a plain sign-in", () => {
-  test("takes a learner of one school on to its learn domain, in `/`'s place", async () => {
+  test("takes a learner to My learning, in `/`'s place, never asking their schools", async () => {
+    const memberships = vi.fn(async () => [fernwood]);
     const { router, visit } = renderAt("/login", {
       signedIn: false,
       organizations: [],
-      braivo: { listMemberships: async () => [fernwood] },
+      braivo: { listMemberships: memberships },
     });
 
     await signInWithCode();
 
-    // The domain's own sign-in start, whose handoff offers this account
-    // (access-12 to 14): no second code.
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(fernwoodStart, { replace: true }));
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/learn", { replace: true }));
     expect(visit).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status").textContent).toBe("Taking you to Fernwood…");
-    expect(screen.getByRole("link", { name: "Continue to Fernwood" }).getAttribute("href")).toBe(
-      fernwoodStart,
-    );
     expect(router.history.location.pathname).toBe("/");
+    expect(memberships).not.toHaveBeenCalled();
   });
 
-  test("offers Try again when the schools go unread in time, then takes a learner on", async () => {
-    const listMemberships = vi
+  test("offers Try again when the organizations go unread in time, then goes on", async () => {
+    const listOrganizations = vi
       .fn()
       .mockImplementationOnce((options?: { signal?: AbortSignal }) => stall(options))
-      .mockResolvedValueOnce([fernwood]);
-    const { visit } = renderAt("/login", {
-      signedIn: false,
-      organizations: [],
-      braivo: { listMemberships },
-    });
-    fireEvent.change(await screen.findByLabelText("Email address"), {
-      target: { value: "zofia@example.com" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send me a code" }));
-    const code = await screen.findByLabelText("Code");
-
-    // Signed in, then Braivo stops answering: never a wait without end.
+      .mockResolvedValueOnce([]);
     vi.useFakeTimers();
-    fireEvent.change(code, { target: { value: "123456" } });
-    await vi.waitFor(() => expect(listMemberships).toHaveBeenCalledTimes(1));
+    const { visit } = renderAt("/", { braivo: { listOrganizations } });
     await waitOut(REQUEST_DEADLINE_MS);
     vi.useRealTimers();
 
@@ -74,8 +58,37 @@ describe("a plain sign-in", () => {
     expect(visit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
-    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith(fernwoodStart, { replace: true }));
-    expect(listMemberships).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/learn", { replace: true }));
+    expect(listOrganizations).toHaveBeenCalledTimes(2);
+  });
+
+  test("resumes My learning for whoever last used it, staff included, asking nothing", async () => {
+    rememberLastUsed("u1", { area: "learning" });
+    const listOrganizations = vi.fn(async () => [school]);
+    const { visit } = renderAt("/", { braivo: { listOrganizations } });
+
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/learn", { replace: true }));
+    expect(listOrganizations).not.toHaveBeenCalled();
+  });
+
+  test("resumes the console last used while it is theirs, else a school's, a personal organization no school", async () => {
+    const own: Organization = { ...annex, id: "org-own", slug: "olive", personal: true };
+    const braivo = { listCourses: async () => [] };
+    rememberLastUsed("u1", { area: "console", organizationId: own.id });
+    const resumed = renderAt("/", { organizations: [own, school], braivo });
+    await vi.waitFor(() => expect(resumed.router.state.location.pathname).toBe("/olive"));
+    cleanup();
+
+    // No longer theirs: their school's, never their personal organization's.
+    rememberLastUsed("u1", { area: "console", organizationId: "org-gone" });
+    const stale = renderAt("/", { organizations: [own, school], braivo });
+    await vi.waitFor(() => expect(stale.router.state.location.pathname).toBe("/example"));
+    cleanup();
+
+    // Owning only a personal organization, they learn.
+    localStorage.clear();
+    const { visit } = renderAt("/", { organizations: [own], braivo });
+    await vi.waitFor(() => expect(visit).toHaveBeenCalledWith("/learn", { replace: true }));
   });
 
   test("keeps the console for someone who teaches at one school and learns at another", async () => {
@@ -97,8 +110,7 @@ describe("a plain sign-in", () => {
   });
 
   test("lets a learner of several schools choose, saying which has no site yet", async () => {
-    const { router, visit } = renderAt("/login", {
-      signedIn: false,
+    const { router, visit } = renderAt("/join", {
       organizations: [],
       braivo: {
         listMemberships: async () => [birchfield, fernwood],
@@ -110,8 +122,6 @@ describe("a plain sign-in", () => {
         }),
       },
     });
-
-    await signInWithCode();
 
     expect(await screen.findByRole("heading", { name: "Where you learn" })).toBeTruthy();
     expect(router.history.location.pathname).toBe("/join");
@@ -244,13 +254,10 @@ describe("a plain sign-in", () => {
   });
 
   test("says a learner's one school has no site yet, rather than leave", async () => {
-    const { visit } = renderAt("/login", {
-      signedIn: false,
+    const { visit } = renderAt("/join", {
       organizations: [],
       braivo: { listMemberships: async () => [birchfield] },
     });
-
-    await signInWithCode();
 
     expect(await screen.findByText("Its site for learners is not available yet.")).toBeTruthy();
     expect(screen.getByText("Birchfield")).toBeTruthy();

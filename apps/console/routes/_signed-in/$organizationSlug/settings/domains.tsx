@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { learnUrl } from "@braivo/auth-client";
 import { BraivoError, type DomainClaim } from "@braivo/server/client";
 import { Heading, MutedText } from "@braivo/ui";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
@@ -38,8 +39,7 @@ import { type FormEvent, useId, useLayoutEffect, useRef, useState } from "react"
 import { CopyButton } from "#components/copy-button";
 import { NoSuchSetting } from "#components/no-such-setting";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { learnUrl } from "#lib/learn-url";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { schoolAdministratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -50,7 +50,7 @@ import { pageHead } from "#lib/title";
  * (ADR 0038).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/domains")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: schoolAdministratorsOnly,
   // Another organization's domains are another page: nothing typed or pending carries over.
   remountDeps: ({ params }) => params.organizationSlug,
   loader: ({ context, abortController }) =>

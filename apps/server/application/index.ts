@@ -88,7 +88,10 @@ export {
   type AccountErasureCounts,
   type AccountErasureTarget,
   eraseAccount,
+  type PendingErasureOutcome,
+  type PersonalOrganizationErasure,
   previewAccountErasure,
+  resolvePendingErasures,
 } from "./erase-account.ts";
 export {
   eraseLearnerHistory,
@@ -96,7 +99,7 @@ export {
   type HistoryErasureTarget,
   previewHistoryErasure,
 } from "./erase-history.ts";
-export type { ErasureLog } from "./erasure-log.ts";
+export type { ErasureLog, ReadableErasureLog } from "./erasure-log.ts";
 export { exportLearner } from "./learner-export.ts";
 export { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
@@ -116,6 +119,7 @@ export {
   SetUpRefused,
   setToolsReadLearnerData,
   setUpOrganization,
+  setUpPersonalOrganization,
 } from "./organizations.ts";
 export {
   type Connection,

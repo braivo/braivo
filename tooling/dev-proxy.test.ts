@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { braivoApi } from "./dev-proxy.ts";
+import { braivoApi, learnApp, learnMount } from "./dev-proxy.ts";
 
 /**
  * Pins the condition on the rewrite: the tempting simplification — rewriting
@@ -70,5 +70,77 @@ describe("the development API proxy", () => {
 
   test("leaves a request carrying no origin alone", () => {
     expect(rewritten({ host: "localhost:5173" })).toBeUndefined();
+  });
+});
+
+/** What the learn app's dev server does with `url` asked of `host`: serves it from `url`, or redirects. */
+function mounted(url: string, host = "fernwood.localhost:5253"): string {
+  let use:
+    | ((
+        request: { url: string; headers: { host: string } },
+        response: unknown,
+        next: () => void,
+      ) => void)
+    | undefined;
+  (
+    learnMount({ BRAIVO_URL: "http://localhost:5254", BRAIVO_LEARN_PORT: "5253" })
+      .configureServer as (server: unknown) => void
+  )({
+    middlewares: { use: (handle: typeof use) => (use = handle) },
+  });
+  const request = { url, headers: { host } };
+  let redirected: string | undefined;
+  const response = {
+    writeHead: (_status: number, headers: { location: string }) => {
+      redirected = `redirect ${headers.location}`;
+      return { end: () => {} };
+    },
+  };
+  use!(request, response, () => {});
+  return redirected ?? request.url;
+}
+
+describe("the learn app in development (ADR 0059)", () => {
+  test("the console's dev server sends `/learn`, `/c/…`, and nothing else to the learn app's", () => {
+    const routes = learnApp({ BRAIVO_LEARN_PORT: "5253" });
+    for (const options of Object.values(routes)) {
+      expect(options).toEqual({ target: "http://localhost:5253", ws: true });
+    }
+    const proxied = (path: string) => Object.keys(routes).some((key) => new RegExp(key).test(path));
+    for (const path of ["/learn", "/learn/", "/learn/assets/x.js", "/learn?x=1", "/c/123", "/c"]) {
+      expect(proxied(path), path).toBe(true);
+    }
+    // A slug beginning with either is an organization's console.
+    for (const path of ["/", "/login", "/learner", "/cafe", "/fernwood/learn", "/assets/x.js"]) {
+      expect(proxied(path), path).toBe(false);
+    }
+  });
+
+  test("serves every page from its modules' prefix, the address unchanged", () => {
+    expect(mounted("/")).toBe("/learn/");
+    expect(mounted("/c/4732-spanish")).toBe("/learn/c/4732-spanish");
+    expect(mounted("/login?redirect=%2F")).toBe("/learn/login?redirect=%2F");
+    expect(mounted("/learn")).toBe("/learn/learn");
+    expect(mounted("/learner")).toBe("/learn/learner");
+  });
+
+  test("leaves its modules, and what goes to the server, where they are", () => {
+    for (const url of [
+      "/learn/",
+      "/learn/@vite/client",
+      "/learn/assets/boot-language-1.js",
+      "/api/session",
+      "/api",
+      "/mcp",
+      "/.well-known/oauth-protected-resource",
+    ]) {
+      expect(mounted(url)).toBe(url);
+    }
+  });
+
+  test("sends the installation's hostname at its own port to the origin, where `/login` is the console's", () => {
+    expect(mounted("/c/1?x=1", "localhost:5253")).toBe("redirect http://localhost:5254/c/1?x=1");
+    // Proxied by the console's dev server, it keeps the console's host.
+    expect(mounted("/c/1", "localhost:5254")).toBe("/learn/c/1");
   });
 });

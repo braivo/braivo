@@ -120,15 +120,19 @@ export function learningRoutes(
    * `?number=`, the one so numbered, as a learn domain's `/c/4732` names it;
    * with `?standing=true`, each with where the learner stands in it and what
    * waits there, which a number's lookup, read on every course page, never pays
-   * for, the day's limit counted in `timeZone`.
+   * for, the day's limit counted in `timeZone`; with `?personal=true`, only
+   * those of the personal organization the learner owns (ADR 0060).
    */
   routes.get("/api/courses", requireLearner, async (context) => {
     const numbered = context.req.query("number");
     const number = numbered === undefined ? undefined : parseCourseNumber(numbered);
     if (numbered !== undefined && number === undefined) return context.body(null, 400);
+    const personalAsked = context.req.query("personal");
+    if (personalAsked !== undefined && personalAsked !== "true") return context.body(null, 400);
+    const personal = personalAsked === "true" ? (true as const) : undefined;
     const standing = context.req.query("standing");
     if (standing !== undefined) {
-      if (standing !== "true" || numbered !== undefined) return context.body(null, 400);
+      if (standing !== "true" || numbered !== undefined || personal) return context.body(null, 400);
       const timeZone = parseTimeZone(context.req.query("timeZone"));
       if (timeZone === undefined) return context.body(null, 400);
       const courses = await listLearnerCoursesWithStanding({
@@ -145,6 +149,7 @@ export function learningRoutes(
       learnerId: context.var.learner.id,
       host: requestHost(context),
       number,
+      personal,
     });
     return context.json({ courses });
   });

@@ -80,7 +80,8 @@ export function OrganizationSidebar(props: {
   });
 
   // Courses and Sources to whoever authors (ADR 0048), Groups to whoever
-  // administers or teaches (access-39).
+  // administers or teaches (access-39), but in a personal organization, which
+  // has no one to group (ADR 0060).
   const sections = [
     ...(organization.authors
       ? ([
@@ -93,7 +94,7 @@ export function OrganizationSidebar(props: {
           },
         ] as const)
       : []),
-    ...(organization.administers || organization.teaches
+    ...((organization.administers || organization.teaches) && !organization.personal
       ? ([
           { key: "groups", to: "/$organizationSlug/groups", label: t`Groups`, Icon: UsersIcon },
         ] as const)

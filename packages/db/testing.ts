@@ -81,51 +81,67 @@ export async function seedOrganization(
     learnerIds: readonly string[];
     /** Members who may act on the organization rather than only study in it. */
     adminIds?: readonly string[];
+    /**
+     * Whose personal organization this is (ADR 0060), seeded as its `owner`
+     * and its only member; a school unless given.
+     */
+    personalOwnerId?: string;
     at: Date;
   },
 ): Promise<void> {
-  const { organizationId, learnerIds, adminIds = [], at } = options;
+  const { organizationId, learnerIds, adminIds = [], personalOwnerId = null, at } = options;
 
   await clearLearningData(database, organizationId);
-
-  // Its settings back to their defaults, which an earlier run may have changed.
-  await database
-    .insert(organization)
-    .values({ id: organizationId, name: organizationId, slug: organizationId, createdAt: at })
-    .onConflictDoUpdate({
-      target: organization.id,
-      set: {
-        toolsReadLearnerData: false,
-        toolsReadLearnerDataChangedBy: null,
-        toolsReadLearnerDataChangedAt: null,
-      },
-    });
+  // Gone first: a personal organization admits no one else, so an earlier
+  // run's memberships could refuse the owner set below.
+  await database.delete(member).where(eq(member.organizationId, organizationId));
 
   // One membership per person. Someone listed as both is an admin, since that
   // is the role a suite listing them there means to test.
   const roles = new Map<string, string>();
   for (const id of learnerIds) roles.set(id, "member");
   for (const id of adminIds) roles.set(id, "admin");
+  if (personalOwnerId !== null) roles.set(personalOwnerId, "owner");
   const people = [...roles].map(([id, role]) => ({ id, role }));
 
-  // Replaced rather than merged: a role an earlier run left behind would
-  // otherwise survive, and a test of a refusal could pass for the wrong reason.
-  await database.delete(member).where(eq(member.organizationId, organizationId));
-  if (people.length === 0) return;
+  // Before the organization, which may name one as its personal owner.
+  if (people.length > 0) {
+    await database
+      .insert(user)
+      .values(
+        people.map(({ id }) => ({
+          id,
+          name: id,
+          email: `${id}@example.com`,
+          emailVerified: false,
+          createdAt: at,
+          updatedAt: at,
+        })),
+      )
+      .onConflictDoNothing();
+  }
 
+  // Its settings back to their defaults, which an earlier run may have changed.
   await database
-    .insert(user)
-    .values(
-      people.map(({ id }) => ({
-        id,
-        name: id,
-        email: `${id}@example.com`,
-        emailVerified: false,
-        createdAt: at,
-        updatedAt: at,
-      })),
-    )
-    .onConflictDoNothing();
+    .insert(organization)
+    .values({
+      id: organizationId,
+      name: organizationId,
+      slug: organizationId,
+      personalOwnerId,
+      createdAt: at,
+    })
+    .onConflictDoUpdate({
+      target: organization.id,
+      set: {
+        personalOwnerId,
+        toolsReadLearnerData: false,
+        toolsReadLearnerDataChangedBy: null,
+        toolsReadLearnerDataChangedAt: null,
+      },
+    });
+
+  if (people.length === 0) return;
 
   // Membership, and the role with it: someone who is not in the organization is
   // entitled to nothing in it, and someone who is only a `member` may study but

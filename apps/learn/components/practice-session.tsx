@@ -5,7 +5,6 @@ import type { Grade, LearnerProgressSummary } from "@braivo/server/client";
 import { Alert, AlertDescription } from "@braivo/ui/components/alert";
 import { Button } from "@braivo/ui/components/button";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
 import {
   type ComponentProps,
   useCallback,
@@ -15,6 +14,7 @@ import {
   useState,
 } from "react";
 
+import { HomeLink } from "#components/home-link";
 import { Notice } from "#components/notice";
 import { StandingMeter } from "#components/standing";
 
@@ -146,9 +146,9 @@ export function SessionEnd({
         </Button>
       )}
       <Button asChild size="lg" variant={canKeepGoing ? "outline" : "default"} className="w-full">
-        <Link to="/">
+        <HomeLink>
           <Trans>Done</Trans>
-        </Link>
+        </HomeLink>
       </Button>
       {/* After the next step: its list may run long, never pushing the step away. */}
       {report && <StandingMeter report={report} action={objectiveAction} />}

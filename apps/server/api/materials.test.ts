@@ -850,7 +850,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       database,
       baseUrl,
       files: {
-        put: (key, bytes, type) => store.put(key, bytes, type),
+        ...store,
         // As a bucket's lazy file does: found, and then failing to download.
         get: async (key) =>
           failing

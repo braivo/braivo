@@ -38,6 +38,14 @@ export async function organizationOwnsLearningContent(
   return found.some((rows) => rows.length > 0);
 }
 
+/** Whether an organization with this ID is there. */
+export async function organizationExists(
+  database: Database,
+  organizationId: string,
+): Promise<boolean> {
+  return (await database.$count(organization, eq(organization.id, organizationId))) > 0;
+}
+
 /** An organization by its slug, or `undefined` when no organization has it. */
 export async function readOrganizationBySlug(
   database: Database,

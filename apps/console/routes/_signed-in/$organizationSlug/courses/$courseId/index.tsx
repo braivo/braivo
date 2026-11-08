@@ -45,6 +45,7 @@ import {
   readFirstAnswers,
 } from "#components/first-answers";
 import { LearnersSite } from "#components/learners-site";
+import { PersonalCourseLink } from "#components/personal-courses";
 import { readReports, TaskReportsProvider } from "#components/task-reports";
 import {
   type CitationKey,
@@ -255,19 +256,23 @@ function Course() {
       </Heading>
       {/* A tool's course and tasks wait for a person's review here (ADR 0039);
           the console's own, accepted from a draft, are published as created. */}
-      {course.published && !course.hidden && (
-        <LearnersSite
-          learnDomain={organization.learnDomain}
-          path={`/c/${courseRef(course)}`}
-          at={`Open to every learner in ${organization.name} at`}
-          none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
-        />
-      )}
+      {course.published &&
+        !course.hidden &&
+        (organization.personal ? (
+          <PersonalCourseLink courseId={course.id} />
+        ) : (
+          <LearnersSite
+            learnDomain={organization.learnDomain}
+            path={`/c/${courseRef(course)}`}
+            at={`Open to every learner in ${organization.name} at`}
+            none={`Open to every learner in ${organization.name}, once it has a site to practise on.`}
+          />
+        ))}
       {course.hidden && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
           <Badge variant="outline">Hidden</Badge>
           <MutedText className="wrap-break-word">
-            Learners can't open this course until you show it again. What they learned stays.
+            {visibilityWords(organization).hiddenNote}
           </MutedText>
         </div>
       )}
@@ -313,14 +318,16 @@ function Course() {
       >
         {status.message}
       </MutedText>
-      {/* Its link's label, once the link reaches learners. */}
-      {course.published && (
+      {/* Its link's label, once the link reaches learners; a personal course's
+          link is its ID, with no label (ADR 0059). */}
+      {course.published && !organization.personal && (
         <CourseUrlLabel braivo={braivo} organizationId={organization.id} course={course} />
       )}
       <div className="mb-8 flex flex-wrap items-start gap-2">
         {/* Every member's progress, an administrator's; a teacher's own
-            learners' is reached from Groups (access-39). */}
-        {organization.administers && (
+            learners' is reached from Groups (access-39). A personal course has
+            no learners but its owner, who sees their own in the learn app. */}
+        {organization.administers && !organization.personal && (
           <Button asChild variant="outline">
             <Link
               to="/$organizationSlug/courses/$courseId/progress"
@@ -781,6 +788,35 @@ function DeleteCourse(props: {
 }
 
 /**
+ * How hiding a course is said: to a school's learners, or, for a personal
+ * course, whose only learner is its owner, to their My learning (ADR 0060).
+ */
+const VISIBILITY_WORDS = {
+  school: {
+    hide: "Hide from learners",
+    show: "Show to learners",
+    hidden: "Hidden from learners.",
+    shown: "Shown to learners again.",
+    from: "learners",
+    confirm:
+      "Learners can't open it or practise it until you show it again. What they learned stays.",
+    hiddenNote: "Learners can't open this course until you show it again. What they learned stays.",
+  },
+  personal: {
+    hide: "Hide from My learning",
+    show: "Show in My learning",
+    hidden: "Hidden from My learning.",
+    shown: "Shown in My learning again.",
+    from: "My learning",
+    confirm: "You can't open it or practise it until you show it again. What you learned stays.",
+    hiddenNote: "It's out of My learning until you show it again. What you learned stays.",
+  },
+};
+
+const visibilityWords = (organization: { personal: boolean }) =>
+  VISIBILITY_WORDS[organization.personal ? "personal" : "school"];
+
+/**
  * Hiding a published course from learners, asked first, or showing it again:
  * it stays published, and what they learned stays (ADR 0039). Done, the page
  * shows it so.
@@ -802,6 +838,7 @@ function CourseVisibility(props: {
   const router = useRouter();
   // What it asks for: hiding while learners reach it, else showing.
   const hide = !course.hidden;
+  const words = visibilityWords(organization);
   // A ref, set at once, refuses a second request before `pending` renders.
   const sending = useRef(false);
   /** The last failure's count keys the alert, so a repeat is announced too. */
@@ -830,7 +867,7 @@ function CourseVisibility(props: {
       }
       // Done: only the request's failure is said; a reload's shows as the page's own.
       await router.invalidate({ sync: true });
-      onDone(hide ? "Hidden from learners." : "Shown to learners again.");
+      onDone(hide ? words.hidden : words.shown);
     } finally {
       sending.current = false;
       onPending(false);
@@ -844,9 +881,9 @@ function CourseVisibility(props: {
       {hide ? "Hiding…" : "Showing…"}
     </>
   ) : hide ? (
-    "Hide from learners"
+    words.hide
   ) : (
-    "Show to learners"
+    words.show
   );
   // Focusable meanwhile, doing nothing.
   const button = (
@@ -873,12 +910,9 @@ function CourseVisibility(props: {
             <AlertDialogHeader>
               {/* A grid item, which a long unbroken title would widen past the dialog. */}
               <AlertDialogTitle className="wrap-anywhere">
-                Hide “{course.title}” from learners?
+                Hide “{course.title}” from {words.from}?
               </AlertDialogTitle>
-              <AlertDialogDescription>
-                Learners can't open it or practise it until you show it again. What they learned
-                stays.
-              </AlertDialogDescription>
+              <AlertDialogDescription>{words.confirm}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Keep it open</AlertDialogCancel>

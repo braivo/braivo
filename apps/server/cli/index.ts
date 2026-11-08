@@ -13,7 +13,8 @@ import {
   type AiReportRow,
   eraseAccount,
   type ErasureCounts,
-  type ErasureLog,
+  type PersonalOrganizationErasure,
+  type ReadableErasureLog,
   eraseLearnerHistory,
   exportLearner,
   previewAccountErasure,
@@ -22,6 +23,7 @@ import {
   promoteToOwner,
   readAiReport,
   registerLearnDomain,
+  resolvePendingErasures,
 } from "../application/index.ts";
 import {
   addMember,
@@ -37,6 +39,7 @@ import {
   readAuthConfig,
   readDatabaseUrl,
   readErasureLogConfig,
+  readFilesConfig,
   readServeConfig,
 } from "../config.ts";
 import { logMail, type SendMail, smtpMail } from "../mail/index.ts";
@@ -99,10 +102,14 @@ Running an installation (a content owner's commands are braivo's):
                 Erase the account and every row referring to it or its email, for
                 the account holder, each school listed having instructed:
                 shows the database, the account, those schools, and the counts,
-                and asks for the email typed back unless --yes. AI usage counts
-                stay, with no user. Logged to BRAIVO_ERASURE_LOG. Refused for
-                an organization's only owner. Finding nothing, it says so and
-                succeeds.
+                and asks for the email typed back unless --yes. Their personal
+                organization goes with them, its files in BRAIVO_FILES after
+                the database commits. AI usage counts of schools stay, with no
+                user. Logged to BRAIVO_ERASURE_LOG; an erasure of the email left
+                pending there is finished or closed first, and then whatever
+                account the email names now is asked about afresh, --yes or
+                not. Refused for a school's only owner. Finding nothing, it says
+                so and succeeds.
   reviewer set-password --email <email> [--password-stdin]
                 Let an existing account sign in with a password at
                 /login?method=password, for an app directory's reviewer, while
@@ -464,9 +471,31 @@ async function main(argv: readonly string[]): Promise<number> {
 
     // Before anything is read: without its log, no erasure may even start.
     const log = openErasureLog();
+    const files = openFiles(readFilesConfig(process.env));
     const databaseUrl = readDatabaseUrl(process.env);
     const database = createDatabase(databaseUrl);
     try {
+      // This email's erasures left pending first, each by its own record's IDs
+      // (ADR 0060), never by whoever has the email now.
+      const resolved = await resolvePendingErasures({
+        database,
+        log,
+        files,
+        email: values.email,
+        timeoutMs: PENDING_ERASURE_WAIT_MS,
+      });
+      for (const { record, outcome, filesDeleted } of resolved) {
+        console.log(`Pending:      log record ${record.id}: ${PENDING_OUTCOMES[outcome]}`);
+        if (filesDeleted)
+          console.log(`              files of ${record.personalOrganizationId} deleted`);
+      }
+      if (resolved.some(({ outcome }) => outcome === "held")) {
+        console.error(
+          "An erasure of this address still holds its account. Nothing more was changed; run this again once it has ended.",
+        );
+        return 1;
+      }
+
       const { target, counts } = await previewAccountErasure({ database, email: values.email });
       const { host, pathname } = new URL(databaseUrl);
       console.log(`Database:     ${host}${pathname}`);
@@ -481,20 +510,45 @@ async function main(argv: readonly string[]): Promise<number> {
         console.log("Nothing to erase: no row names this address.");
         return 0;
       }
-      for (const { slug, role, attempts, evidence } of target.organizations) {
+      for (const { id, slug, role, attempts, evidence } of target.organizations) {
+        if (id === target.personal?.id) continue;
         console.log(
           `School:       ${slug}: ${role ?? "no membership"}, attempts ${attempts}, evidence ${evidence}`,
         );
       }
+      if (target.personal) {
+        console.log(
+          `Personal:     ${target.personal.slug} (${target.personal.id}), erased with the account: ${formatPersonalCounts(target.personal)}`,
+        );
+      }
       console.log(`To erase:     ${formatAccountCounts(counts)}`);
       console.log(`Kept:         ${formatKeptCounts(counts)}`);
-      if (!values.yes && (await typedBack(`Type ${target.email} to erase: `)) !== target.email) {
+      // Whoever has the address now may not be whom an earlier run's record
+      // names, so then it asks again, --yes or not.
+      const asked = !values.yes || resolved.some(({ record }) => record.userId !== target.userId);
+      if (asked && (await typedBack(`Type ${target.email} to erase: `)) !== target.email) {
         console.error("Not confirmed. Nothing was erased.");
         return 1;
       }
 
-      const { recordId, removed } = await eraseAccount({ database, target, log });
+      const { recordId, removed, personal, filesDeleted } = await eraseAccount({
+        database,
+        target,
+        log,
+        files,
+        resolved,
+      });
       console.log(`Erased:       ${formatAccountCounts(removed)}`);
+      if (personal) {
+        console.log(
+          `              ${personal.slug}: ${formatPersonalCounts(personal)}${filesDeleted ? ", files deleted" : ""}`,
+        );
+      }
+      for (const { record, outcome } of resolved) {
+        if (outcome === "not committed" && record.userId === target.userId) {
+          console.log(`Log record ${record.id}, superseded by ${recordId}.`);
+        }
+      }
       console.log(`Log record ${recordId}, done.`);
     } finally {
       await database.$client.end();
@@ -549,16 +603,10 @@ async function main(argv: readonly string[]): Promise<number> {
   if (argv.length === 1 && argv[0] === "serve") {
     const config = readServeConfig(process.env);
     const database = createDatabase(config.databaseUrl);
-    const { files } = config;
     const api = createServer({
       config,
       database,
-      files:
-        files === undefined
-          ? undefined
-          : "bucket" in files
-            ? bucketStore(new Bun.S3Client({ bucket: files.bucket }))
-            : directoryStore(files.directory),
+      files: openFiles(config.files),
       sendMail: config.mail === "log" ? logMail : smtpMail(config.mail),
     });
 
@@ -588,8 +636,33 @@ function formatCounts(counts: ErasureCounts): string {
   return `attempts ${attempts}, evidence ${evidence}, reports ${reports}, learner sessions ${sessions}, handoffs ${handoffs}, sign-in codes ${signInCodes}, invitations ${invitations}`;
 }
 
+/** How long a run waits on an erasure of the same email still running (ADR 0060). */
+const PENDING_ERASURE_WAIT_MS = 30_000;
+
+const PENDING_OUTCOMES = {
+  done: "it committed; now done",
+  "not committed":
+    "not committed in this database (rolled back, or lost to a restore); kept until an erasure of its account commits",
+  held: "an erasure still holds its account; left pending",
+  undetermined:
+    "no account to wait on and no mark of a commit, so it may still be running; left pending for the replay",
+} as const;
+
+/** The server's file store, or none: what `serve` and the erasure open alike. */
+function openFiles(files: ReturnType<typeof readFilesConfig>) {
+  if (files === undefined) return undefined;
+  return "bucket" in files
+    ? bucketStore(new Bun.S3Client({ bucket: files.bucket }))
+    : directoryStore(files.directory);
+}
+
+function formatPersonalCounts(personal: PersonalOrganizationErasure): string {
+  const { courses, objectives, tasks, sources, files, aiRequests } = personal;
+  return `courses ${courses}, objectives ${objectives}, tasks ${tasks}, sources ${sources}, files ${files}, AI requests ${aiRequests}`;
+}
+
 /** The erasure log the environment names; throws if it names none. */
-function openErasureLog(): ErasureLog {
+function openErasureLog(): ReadableErasureLog {
   const { files, hmacKey } = readErasureLogConfig(process.env);
   return {
     hmacKey,

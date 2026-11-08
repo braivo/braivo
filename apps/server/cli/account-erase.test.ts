@@ -1,16 +1,20 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runMigrations } from "@braivo/db";
 import { learnerSignInCode, member, organization, user, verification } from "@braivo/db/schema";
-import { sharedDatabase } from "@braivo/db/testing";
+import { clearLearningData, sharedDatabase } from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+
+import { uploadFile } from "../application/files.ts";
+import { setUpPersonalOrganization } from "../application/organizations.ts";
+import { directoryStore } from "../storage/index.ts";
 
 // The operator's command against a real database (access-49): what it says and
 // asks before anything is erased. What erasing removes is
@@ -27,6 +31,7 @@ const at = new Date("2026-09-01T08:00:00.000Z");
 const key = "erasure-log-test-key-that-is-long-enough";
 
 let logDirectory = "";
+let filesDirectory = "";
 
 async function run(args: string[], options: { stdin?: string; env?: Record<string, string> } = {}) {
   const child = Bun.spawn([process.execPath, entry, ...args], {
@@ -35,6 +40,7 @@ async function run(args: string[], options: { stdin?: string; env?: Record<strin
       DATABASE_URL: connectionString ?? "",
       BRAIVO_ERASURE_LOG: logDirectory,
       BRAIVO_ERASURE_LOG_HMAC_KEY: key,
+      BRAIVO_FILES: filesDirectory,
       ...options.env,
     },
     stdin: new Blob([options.stdin ?? ""]),
@@ -53,7 +59,19 @@ const erase = (...more: string[]) => ["account", "erase", "--email", ada.email, 
 const accounts = () => database.$count(user, eq(user.id, ada.id));
 
 async function clear() {
-  await database.delete(user).where(inArray(user.id, [ada.id]));
+  const owned = await database
+    .select({ id: organization.id })
+    .from(organization)
+    .innerJoin(user, eq(user.id, organization.personalOwnerId))
+    .where(eq(user.email, ada.email));
+  for (const { id } of owned) await clearLearningData(database, id);
+  await database.delete(organization).where(
+    inArray(
+      organization.id,
+      owned.map(({ id }) => id),
+    ),
+  );
+  await database.delete(user).where(eq(user.email, ada.email));
   await database.delete(learnerSignInCode).where(eq(learnerSignInCode.organizationId, fernwood));
   await database.delete(organization).where(eq(organization.id, fernwood));
 }
@@ -69,6 +87,8 @@ describe.skipIf(!connectionString)("account erase", { timeout: 30_000 }, () => {
     await clear();
     if (logDirectory) await rm(logDirectory, { recursive: true, force: true });
     logDirectory = await mkdtemp(join(tmpdir(), `${prefix}-log-`));
+    if (filesDirectory) await rm(filesDirectory, { recursive: true, force: true });
+    filesDirectory = await mkdtemp(join(tmpdir(), `${prefix}-files-`));
     await database
       .insert(user)
       .values({ ...ada, emailVerified: true, createdAt: at, updatedAt: at });
@@ -87,6 +107,7 @@ describe.skipIf(!connectionString)("account erase", { timeout: 30_000 }, () => {
   afterAll(async () => {
     await clear();
     if (logDirectory) await rm(logDirectory, { recursive: true, force: true });
+    if (filesDirectory) await rm(filesDirectory, { recursive: true, force: true });
   });
 
   test("shows the installation, account, schools, and counts, and needs the email typed back", async () => {
@@ -196,5 +217,58 @@ describe.skipIf(!connectionString)("account erase", { timeout: 30_000 }, () => {
     expect(owner.stderr).toContain("only owner");
     expect(await accounts()).toBe(1);
     expect(await readdir(logDirectory)).toEqual([]);
+  });
+
+  test("erases their personal organization and its files, finishing a pending one first, and asks afresh after", async () => {
+    const { organization: own } = await setUpPersonalOrganization({
+      database,
+      actingAs: ada.id,
+      now: at,
+    });
+    const files = directoryStore(filesDirectory);
+    await uploadFile({
+      database,
+      files,
+      organizationId: own.id,
+      actingAs: ada.id,
+      bytes: new TextEncoder().encode("%PDF-1.7 Ada's"),
+      contentType: "application/pdf",
+      now: new Date(),
+    });
+    // Where its bytes are, made unwritable so none can be unlinked.
+    const stored = join(filesDirectory, "organizations", own.id, "files");
+
+    const shown = await run(erase(), { stdin: "\n" });
+    expect(shown.stdout).toContain(
+      `Personal:     ${own.slug} (${own.id}), erased with the account`,
+    );
+    expect(shown.stdout).toContain("files 1");
+    expect(shown.stdout).not.toContain(`School:       ${own.slug}`);
+
+    // Its files cannot be deleted: the rows go, the bytes stay, the record pending.
+    await chmod(stored, 0o555);
+    const failed = await run(erase("--yes")).finally(() => chmod(stored, 0o755));
+    expect(failed.code).toBe(1);
+    const [, recordId] = /Log record (\S+) is pending; run this command again/.exec(failed.stderr)!;
+    expect(await accounts()).toBe(0);
+    expect(await database.$count(organization, eq(organization.id, own.id))).toBe(0);
+    expect(await files.list(`organizations/${own.id}`)).toHaveLength(1);
+
+    // The address registers again before the next run, which finishes Ada's and
+    // then asks about this account, --yes or not; unanswered, it keeps it.
+    const later = { id: `${prefix}-later`, name: "Ada Again", email: ada.email };
+    await database
+      .insert(user)
+      .values({ ...later, emailVerified: true, createdAt: at, updatedAt: at });
+    const again = await run(erase("--yes"), { stdin: "" });
+    expect(again.stdout).toContain(`Pending:      log record ${recordId}: it committed; now done`);
+    expect(again.stdout).toContain(`files of ${own.id} deleted`);
+    expect(again.stdout).toContain(`Account:      ${ada.email} (${later.id})`);
+    expect(again.code).toBe(1);
+    expect(again.stderr).toContain("Not confirmed. Nothing was erased.");
+    expect(await files.list(`organizations/${own.id}`)).toEqual([]);
+    expect(await database.$count(user, eq(user.id, later.id))).toBe(1);
+    const record = JSON.parse(await readFile(join(logDirectory, `${recordId}.json`), "utf8"));
+    expect(record).toMatchObject({ personalOrganizationId: own.id, doneAt: expect.any(String) });
   });
 });

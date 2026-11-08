@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Database, Transaction } from "@braivo/db";
-import { course, courseObjective, groupCourse, member, task } from "@braivo/db/schema";
+import {
+  course,
+  courseObjective,
+  groupCourse,
+  member,
+  organization,
+  task,
+} from "@braivo/db/schema";
 import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 
 import { urlLabel } from "../content/index.ts";
@@ -399,12 +406,13 @@ export async function updateCourseUrlLabel(
 export async function readLearnerCourses(
   database: Database,
   learnerId: string,
-  only: { organizationId?: string; number?: number } = {},
+  only: { organizationId?: string; number?: number; personal?: true } = {},
 ): Promise<Course[]> {
   const rows = await database
     .select(COURSE_COLUMNS)
     .from(course)
     .innerJoin(member, eq(member.organizationId, course.organizationId))
+    .innerJoin(organization, eq(organization.id, course.organizationId))
     .where(
       and(
         eq(member.userId, learnerId),
@@ -414,6 +422,8 @@ export async function readLearnerCourses(
           ? undefined
           : eq(course.organizationId, only.organizationId),
         only.number === undefined ? undefined : eq(course.number, only.number),
+        // Whose it is, never membership: a stray membership row lists no one's own as another's.
+        only.personal ? eq(organization.personalOwnerId, learnerId) : undefined,
       ),
     )
     .orderBy(asc(course.title), asc(course.id));

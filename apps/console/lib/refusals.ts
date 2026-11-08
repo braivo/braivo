@@ -35,16 +35,28 @@ export function administratorsOnly({ context }: { context: { organization: Organ
 }
 
 /**
+ * As `administratorsOnly`, for the people and their sites, Members, Groups,
+ * and Domains, which a personal organization has none of: it is its owner's
+ * alone and takes no learn domain (ADR 0060). Not found there, as elsewhere.
+ */
+export function schoolAdministratorsOnly(route: { context: { organization: Organization } }) {
+  if (route.context.organization.personal) throw notFound();
+  administratorsOnly(route);
+}
+
+/**
  * Groups' `beforeLoad`, as `administratorsOnly`, for whoever administers or
- * teaches there: an `author` who teaches nothing has no group to see.
+ * teaches there: an `author` who teaches nothing has no group to see, nor
+ * anyone in a personal organization.
  */
 export function administratorsOrTeachersOnly({
   context,
 }: {
   context: { organization: Organization };
 }) {
-  const { administers, teaches } = context.organization;
-  if (!administers && !teaches) throw notFound();
+  const { administers, teaches, personal } = context.organization;
+  // A personal organization has no one to group (ADR 0060).
+  if (personal || (!administers && !teaches)) throw notFound();
 }
 
 /**

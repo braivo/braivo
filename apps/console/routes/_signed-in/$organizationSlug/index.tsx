@@ -14,6 +14,7 @@ import { type ReactNode, useId } from "react";
 import { ConnectAiApp } from "#components/connect-ai-app";
 import { LearnersSite } from "#components/learners-site";
 import { LinkList, linkRow } from "#components/link-list";
+import { PersonalCoursesNote } from "#components/personal-courses";
 import { readReports, ReportedTasks } from "#components/task-reports";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { orNotFound } from "#lib/refusals";
@@ -56,7 +57,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/")({
 function Courses() {
   const { courses, objectives, reports } = Route.useLoaderData();
   const { organizationSlug } = Route.useParams();
-  const { learnDomain, aiEnabled, name } = Route.useRouteContext().organization;
+  const { learnDomain, aiEnabled, name, personal } = Route.useRouteContext().organization;
   const id = useId();
   const { t } = useLingui();
   /** "1 task needs review", "3 tasks need review". */
@@ -102,11 +103,15 @@ function Courses() {
           </Button>
         )}
       </div>
-      <LearnersSite
-        learnDomain={learnDomain}
-        at={t`Learners practise at`}
-        none={t`Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.`}
-      />
+      {personal ? (
+        <PersonalCoursesNote />
+      ) : (
+        <LearnersSite
+          learnDomain={learnDomain}
+          at={t`Learners practise at`}
+          none={t`Learners have no site to practise on yet. Ask whoever set Braivo up for you to add one.`}
+        />
+      )}
       {/* Keyed, so another organization's page never shows this one's list while it reads. */}
       <ReportedTasks key={organizationSlug} reports={reports} organizationSlug={organizationSlug} />
       {courses.length === 0 ? (
@@ -142,7 +147,7 @@ function Courses() {
                   Braivo's AI.
                 </Trans>
               </MutedText>
-              <ConnectAiApp organization={name} />
+              <ConnectAiApp organization={{ name, personal }} />
             </StartOption>
           </div>
         </section>

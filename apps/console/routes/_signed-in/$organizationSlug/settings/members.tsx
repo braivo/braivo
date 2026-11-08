@@ -75,7 +75,7 @@ import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import { type InvitationDraft, invitationDrafts } from "#lib/invitation-drafts";
 import { nameWithTag, sharedNameTags } from "#lib/name-tags";
 import { refreshInPlace } from "#lib/page-scroller";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { schoolAdministratorsOnly, orNotFound } from "#lib/refusals";
 import { sayRoles } from "#lib/roles";
 import { pageHead } from "#lib/title";
 
@@ -88,7 +88,7 @@ import { pageHead } from "#lib/title";
  * (access-38), so each role shows with the groups its member teaches.
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/members")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: schoolAdministratorsOnly,
   loader: async ({ context, abortController }) => {
     const options = { signal: abortController.signal };
     // Both or neither: without the groups, a teacher would read as only a learner.

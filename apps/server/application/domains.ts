@@ -14,6 +14,7 @@ import {
   readDomainClaim,
   readDomainClaims,
   readDomains,
+  isPersonalOrganization,
   readOrganizationBySlug,
 } from "../persistence/index.ts";
 import { assertMayAdminister } from "./permission.ts";
@@ -85,9 +86,10 @@ export async function listDomains(input: {
 }> {
   const { database, provisioner, organizationId, actingAs } = input;
   await assertMayAdminister(database, { organizationId, userId: actingAs });
-  const [domains, claimed] = await Promise.all([
+  const [domains, claimed, personal] = await Promise.all([
     readDomains(database, organizationId),
     readDomainClaims(database, organizationId),
+    isPersonalOrganization(database, organizationId),
   ]);
   const claims = await Promise.all(
     claimed.map(async ({ hostname, id }) => ({
@@ -104,13 +106,15 @@ export async function listDomains(input: {
         : null,
     })),
   );
-  const canAdd = provisioner !== undefined;
+  // Never for a personal organization, which takes no learn domain (ADR 0059).
+  const canAdd = provisioner !== undefined && !personal;
   return {
     // As `removeDomain` allows: with a provisioner, never the installation's
     // own, nor the last.
     domains: domains.map(({ hostname }) => ({
       hostname,
-      removable: canAdd && !isInstallationHostname(hostname, input) && domains.length > 1,
+      removable:
+        provisioner !== undefined && !isInstallationHostname(hostname, input) && domains.length > 1,
     })),
     claims,
     canAdd,
@@ -142,11 +146,26 @@ export class DomainRefused extends Error {
       | "ALREADY_ADDED"
       | "NOT_CLAIMED"
       | "LAST_DOMAIN"
-      | "NO_ORGANIZATION",
+      | "NO_ORGANIZATION"
+      | "PERSONAL_ORGANIZATION",
     message: string,
   ) {
     super(message);
     this.name = "DomainRefused";
+  }
+}
+
+/**
+ * A personal organization takes no learn domain (ADR 0059): its courses are
+ * the installation's, at `/c/<course ID>`, and a domain would serve them
+ * under a brand as a school's. Refused before anything is stored or asked.
+ */
+async function refusePersonal(database: Database, organizationId: string): Promise<void> {
+  if (await isPersonalOrganization(database, organizationId)) {
+    throw new DomainRefused(
+      "PERSONAL_ORGANIZATION",
+      "A personal organization takes no learn domain: its courses are at the installation's /c/<course ID>.",
+    );
   }
 }
 
@@ -232,6 +251,7 @@ export async function registerLearnDomain(input: {
       `No organization has the slug "${input.organizationSlug}".`,
     );
   }
+  await refusePersonal(database, organization.id);
 
   const holder = await insertLearnDomain(database, { hostname, organizationId: organization.id });
   if (holder && !(holder.holds === "domain" && holder.organization.id === organization.id)) {
@@ -274,6 +294,7 @@ export async function claimDomain(input: {
 }): Promise<DomainClaim & { status: DomainStatus }> {
   const { database, provisioner, organizationId } = input;
   await assertMayAdminister(database, { organizationId, userId: input.actingAs });
+  await refusePersonal(database, organizationId);
   const hostname = readLearnHostname(input.hostname);
   if (isInstallationHostname(hostname, input)) {
     throw new DomainRefused("DOMAIN_RESERVED", `${hostname} is this installation's own.`);
@@ -320,6 +341,7 @@ export async function activateDomain(input: {
 }): Promise<{ active: true } | { active: false; status: DomainStatus }> {
   const { database, provisioner, organizationId } = input;
   await assertMayAdminister(database, { organizationId, userId: input.actingAs });
+  await refusePersonal(database, organizationId);
   const hostname = readLearnHostname(input.hostname);
   const notClaimed = new DomainRefused(
     "NOT_CLAIMED",

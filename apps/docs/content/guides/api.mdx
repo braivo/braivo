@@ -95,7 +95,7 @@ curl -sb jar.txt $BRAIVO/api/courses/$COURSE/progress
 #  {…,"title":"Numbers",…}]}
 ```
 
-The same loop runs in the learn app: sign in at `http://localhost:5173` as `owner@example.com` and choose the course.
+The same loop runs in the learn app on the organization's own domain, once it has one: see [An organization's domain locally](#an-organizations-domain-locally). The installation's own origin opens a person's own courses alone ([ADR 0059](https://github.com/braivo/braivo/blob/main/docs/adr/0059-own-learn-app-on-the-installations-origin.md)).
 
 ## What shapes it
 
@@ -114,8 +114,8 @@ bun apps/server/cli/index.ts organization add-domain \
   --slug example-school --hostname example.localhost
 # Registered example.localhost for Example School.
 
-curl -s http://example.localhost:3000/api/organization
-# {"name":"Example School"}
+curl -s http://example.localhost:3000/api/host
+# {"organization":{"name":"Example School"},"installation":false}
 ```
 
 The learn app at `http://example.localhost:5173` now shows that organization's name, and the API there serves its courses only, answering 404 for others. A member signs in there by a code, which `serve` writes to its log without SMTP; with Google it does not work locally, as Google's round trip goes to `BRAIVO_URL`'s `/login` and back over HTTPS, which needs a proxy this repository does not set up.

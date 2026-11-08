@@ -95,7 +95,9 @@ const BOOT_STYLE = `${LOCALES.map(
  * loads `bootScript` in its `<head>`, in development and in builds:
  * a blocking classic script from the app's origin, never inline, so the policy
  * in its `_headers` allows scripts from the origin alone, and so nothing paints
- * before it chose. Named by its content, as Vite names a build's other assets.
+ * before it chose. Named by its content, as Vite names a build's other assets,
+ * and beside them, in the app's `build.assetsDir`: the learn app's are its own
+ * on an origin whose `/assets/` is the console's (ADR 0059).
  * The style choosing the copy is inline, as `style-src` allows (ADR 0049).
  * Read once, when Vite loads its config: after editing this file, `BOOT`, or
  * `LOCALES`, restart the dev server, which keeps serving the old ones.
@@ -103,9 +105,12 @@ const BOOT_STYLE = `${LOCALES.map(
 export function bootLanguage(): Plugin {
   const source = bootScript();
   const hash = createHash("sha256").update(source).digest("hex").slice(0, 8);
-  const fileName = `assets/boot-language-${hash}.js`;
+  let fileName = `assets/boot-language-${hash}.js`;
   return {
     name: "braivo:boot-language",
+    configResolved(config) {
+      fileName = `${config.build.assetsDir}/boot-language-${hash}.js`;
+    },
     configureServer(server) {
       server.middlewares.use(`/${fileName}`, (_request, response) => {
         response.setHeader("Content-Type", "text/javascript");

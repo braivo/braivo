@@ -6,7 +6,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { GroupForm } from "#components/group-form";
 import { REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { administratorsOnly, orNotFound } from "#lib/refusals";
+import { schoolAdministratorsOnly, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
 /**
@@ -14,7 +14,7 @@ import { pageHead } from "#lib/title";
  * here, never the whole roster (access-38).
  */
 export const Route = createFileRoute("/_signed-in/$organizationSlug/settings/groups/$groupId")({
-  beforeLoad: administratorsOnly,
+  beforeLoad: schoolAdministratorsOnly,
   loader: async ({ context, params, abortController }) => {
     const organizationId = context.organization.id;
     // Bounded: a save waits for this read, and would otherwise wait forever.

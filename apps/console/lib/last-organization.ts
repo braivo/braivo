@@ -1,35 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/**
- * The organization last opened in this browser, where `/` returns (ADR 0004).
- * By ID, since a slug can change and then name another organization. A
- * preference that grants nothing: `/` checks it against the listed ones.
- * Unavailable storage just means `/` forgets.
- */
-const KEY = "braivo.lastOrganizationId";
-
-export function lastOrganization(): string | null {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function rememberOrganization(id: string): void {
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    // See above: forgetting is fine.
-  }
-}
+import { lastUsed } from "@braivo/auth-client";
 
 /**
- * Where `/` opens among the organizations someone works in, listed by name:
- * the one last opened here, else the first; none when there are none.
+ * Which of the organizations someone works in, listed by name, to open: the
+ * one whose console they last used in this browser (ADR 0059), else the
+ * first school, as a personal organization is none; none when there is no
+ * school. A preference that grants nothing: only one still listed is opened.
  */
-export function organizationToOpen<T extends { id: string }>(organizations: T[]): T | undefined {
-  const last = lastOrganization();
-  return organizations.find(({ id }) => id === last) ?? organizations[0];
+export function organizationToOpen<T extends { id: string; personal: boolean }>(
+  organizations: T[],
+  userId: string,
+): T | undefined {
+  const last = lastUsed(userId);
+  const remembered = last?.area === "console" ? last.organizationId : undefined;
+  return (
+    organizations.find(({ id }) => id === remembered) ??
+    organizations.find(({ personal }) => !personal)
+  );
 }

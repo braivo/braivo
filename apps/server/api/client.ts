@@ -23,7 +23,7 @@ import type {
   GroupChange,
   GroupDefinition,
   Handoff,
-  HostOrganization,
+  Host,
   InvitableRole,
   InvitationPage,
   InvitationResult,
@@ -90,6 +90,7 @@ export type {
   GroupChange,
   GroupDefinition,
   Handoff,
+  Host,
   HostOrganization,
   InvitableRole,
   InvitationPage,
@@ -182,11 +183,11 @@ export type RequestOptions = {
 
 export type BraivoClient = {
   /**
-   * The organization the app's own domain serves, which it is branded as, or
-   * `undefined` when the domain serves none — an installation reached at its
-   * own address, say. Needs no session.
+   * What the app's own host serves: the organization it is branded as, or the
+   * installation itself, where Braivo's own learn app runs (ADR 0059). Needs
+   * no session.
    */
-  hostOrganization(options?: RequestOptions): Promise<HostOrganization | undefined>;
+  host(options?: RequestOptions): Promise<Host>;
 
   /**
    * Who is signed in on this host, or `undefined` when no one is: on a learn
@@ -373,6 +374,11 @@ export type BraivoClient = {
    * flag. Not every one they are in, since a learner is a member too.
    */
   listOrganizations(options?: RequestOptions): Promise<Organization[]>;
+  /**
+   * The signed-in learner's courses in the personal organization they own (ADR 0060):
+   * what the installation's own learn app lists and opens.
+   */
+  personalCourses(options?: RequestOptions): Promise<Course[]>;
   /** The reader's own memberships, any role, each with its learn domain (access-59). */
   listMemberships(options?: RequestOptions): Promise<Membership[]>;
 
@@ -392,6 +398,13 @@ export type BraivoClient = {
     organization: { name: string; slug: string },
     options?: RequestOptions,
   ): Promise<Organization>;
+
+  /**
+   * Sets up the signed-in account's personal organization, or answers the one it
+   * has, so a retry is safe (ADR 0059): `personal`, with no learn domain. From
+   * a browser's session alone; 404 where the operator creates organizations.
+   */
+  setUpPersonalOrganization(options?: RequestOptions): Promise<Organization>;
 
   /**
    * Renames an organization, answering the name as stored, trimmed. A
@@ -440,7 +453,8 @@ export type BraivoClient = {
    * distinct address's result, in order, and how many more members fit. A
    * browser's session alone, for an `owner` or `admin`; otherwise a
    * {@link BraivoError}: 403, 400 with `code` `EMAILS_INVALID`,
-   * `TOO_MANY_ADDRESSES`, or `ROLE_NOT_INVITABLE`, or 409 `NO_LEARN_DOMAIN`.
+   * `TOO_MANY_ADDRESSES`, or `ROLE_NOT_INVITABLE`, or 409 `NO_LEARN_DOMAIN` or
+   * `PERSONAL_ORGANIZATION` (access-60).
    */
   invite(
     organizationId: string,
@@ -452,7 +466,7 @@ export type BraivoClient = {
    * Mails a pending invitation again: the same link and role, its expiry
    * renewed; an expired one is invited again, a new link. Refused as
    * `invite`, or a {@link BraivoError} with `code`: 404
-   * `INVITATION_NOT_FOUND`, 409 `NOT_PENDING`, `NO_LEARN_DOMAIN`,
+   * `INVITATION_NOT_FOUND`, 409 `NOT_PENDING`, `NO_LEARN_DOMAIN`, `PERSONAL_ORGANIZATION`,
    * `ALREADY_MEMBER`, `ALREADY_INVITED`, or `PENDING_LIMIT`, 429 a mail bound
    * (`RECIPIENT_DAILY_LIMIT`, `RECIPIENT_COOLDOWN`, `ORGANIZATION_HOURLY_LIMIT`).
    */
@@ -582,8 +596,9 @@ export type BraivoClient = {
    * Claims `hostname` for an organization, answering the DNS records that
    * point it here and prove it theirs; it serves once activated (ADR 0038).
    * Claiming it again answers again. A {@link BraivoError} whose `code` says
-   * why: 400 `DOMAIN_INVALID` or `DOMAIN_RESERVED`, 409 `DOMAIN_TAKEN` or
-   * `ALREADY_ADDED`, 502 `PROVISIONING_FAILED`, which may pass on a retry;
+   * why: 400 `DOMAIN_INVALID` or `DOMAIN_RESERVED`, 409 `DOMAIN_TAKEN`,
+   * `ALREADY_ADDED`, or `PERSONAL_ORGANIZATION` for a personal organization,
+   * which takes none (ADR 0059), 502 `PROVISIONING_FAILED`, which may pass on a retry;
    * 403 without `owner` or `admin` there; 501 where domains cannot be added.
    */
   claimDomain(
@@ -1062,14 +1077,13 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
   }
 
   const client: BraivoClient = {
-    async hostOrganization(requestOptions) {
-      const response = await get("/api/organization", requestOptions);
+    async host(requestOptions) {
+      const response = await get("/api/host", requestOptions);
 
-      const doing = "asking which organization this domain serves";
-      if (response.status === 404) return undefined;
+      const doing = "asking what this host serves";
       if (response.status !== 200) throw await unexpected(response, doing);
 
-      return parsed<HostOrganization>(response, doing);
+      return parsed<Host>(response, doing);
     },
 
     async session(requestOptions) {
@@ -1237,6 +1251,16 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       return courses;
     },
 
+    async personalCourses(requestOptions) {
+      const response = await get("/api/courses?personal=true", requestOptions);
+
+      const doing = "listing the learner's own courses";
+      if (response.status !== 200) throw await unexpected(response, doing);
+
+      const { courses } = await parsed<{ courses: Course[] }>(response, doing);
+      return courses;
+    },
+
     async learnerCoursesWithStanding(requestOptions) {
       const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
       const response = await get(
@@ -1301,6 +1325,17 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
 
       const doing = "setting up an organization";
       if (response.status !== 201) throw await unexpected(response, doing);
+
+      return (await parsed<{ organization: Organization }>(response, doing)).organization;
+    },
+
+    async setUpPersonalOrganization(requestOptions) {
+      const response = await post("/api/organization-setup", { personal: true }, requestOptions);
+
+      const doing = "setting up the account's personal organization";
+      if (response.status !== 201 && response.status !== 200) {
+        throw await unexpected(response, doing);
+      }
 
       return (await parsed<{ organization: Organization }>(response, doing)).organization;
     },

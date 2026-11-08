@@ -62,7 +62,7 @@ export function administers(roles: readonly string[]): boolean {
 
 /** Whether this user may manage this organization's learning content. */
 export async function mayAuthor(
-  database: Database,
+  database: Database | Transaction,
   input: { organizationId: string; userId: string },
 ): Promise<boolean> {
   return authors(await readOrganizationRoles(database, input));
@@ -102,7 +102,7 @@ export async function assertMayAdminister(
 
 /** Refuses unless this user may manage this organization's learning content, as `assertMayAdminister`. */
 export async function assertMayAuthor(
-  database: Database,
+  database: Database | Transaction,
   input: { organizationId: string; userId: string },
 ): Promise<void> {
   if (!(await mayAuthor(database, input))) {

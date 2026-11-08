@@ -684,6 +684,127 @@ describe.skipIf(!connectionString)("the learning routes", () => {
     expect(anonymous.headers.get("cache-control")).toBe("private, no-store");
   });
 
+  test("lists only the learner's own personal organizations' courses when asked (ADR 0059)", async () => {
+    const mine = "learning-test-personal-mine";
+    const theirs = "learning-test-personal-theirs";
+    const other = await signUp();
+    await testing.seedOrganization(database, {
+      organizationId: mine,
+      learnerIds: [],
+      personalOwnerId: learner.id,
+      at,
+    });
+    await testing.seedOrganization(database, {
+      organizationId: theirs,
+      learnerIds: [],
+      personalOwnerId: other.id,
+      at,
+    });
+    const own = await createCourse(database, {
+      published: true,
+      organizationId: mine,
+      title: "My Greek",
+      objectiveIds: [],
+    });
+    const another = await createCourse(database, {
+      published: true,
+      organizationId: theirs,
+      title: "Their Greek",
+      objectiveIds: [],
+    });
+    const list = async (query: string, cookie: string) => {
+      const response = await api.request(`/api/courses${query}`, { headers: { cookie } });
+      return { status: response.status, body: response.ok ? await response.json() : undefined };
+    };
+
+    // Its own personal course alone: not the school's it learns at, nor another account's.
+    expect((await list("?personal=true", learner.cookie)).body).toEqual({
+      courses: [expect.objectContaining({ id: own.id, title: "My Greek" })],
+    });
+    expect((await list("?personal=true", other.cookie)).body).toEqual({
+      courses: [expect.objectContaining({ id: another.id })],
+    });
+    // Unasked, every course of theirs, the school's included.
+    const all = (await list("", learner.cookie)).body as { courses: { id: string }[] };
+    expect(all.courses.map(({ id }) => id)).toEqual(expect.arrayContaining([own.id, courseId]));
+
+    for (const query of ["?personal=yes", "?personal=true&standing=true&timeZone=UTC"]) {
+      expect((await list(query, learner.cookie)).status, query).toBe(400);
+    }
+  });
+
+  test("keeps equal-number personal courses and a school course distinct for two accounts", async () => {
+    // Setup allowed, so each account makes its personal organization as a person would (ADR 0059).
+    const selfServe = createTestApi({ selfServeDomain: "learning-test-self-serve.example" });
+    const [alice, bob] = [await selfServe.signUp(), await selfServe.signUp()];
+    const personalOf = async (cookie: string) => {
+      const response = await selfServe.api.request("/api/organization-setup", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ personal: true }),
+      });
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { organization: { id: string } }).organization.id;
+    };
+    const [aliceOwn, bobOwn] = [await personalOf(alice.cookie), await personalOf(bob.cookie)];
+    // Alice owns the school too.
+    await database.insert(member).values({
+      id: `${organizationId}:${alice.id}`,
+      organizationId,
+      userId: alice.id,
+      role: "owner",
+      createdAt: at,
+    });
+    const published = async (inOrganization: string, title: string) => {
+      const [objective] = await createObjectives(database, inOrganization, [title]);
+      return (
+        await createCourse(database, {
+          published: true,
+          organizationId: inOrganization,
+          title,
+          objectiveIds: [objective!],
+        })
+      ).id;
+    };
+    const aliceCourse = await published(aliceOwn, "Alice's Greek");
+    const bobCourse = await published(bobOwn, "Bob's Greek");
+    const schoolCourse = await published(organizationId, "Fernwood's Greek");
+    // The same local number in all three (ADR 0044 numbers within an organization).
+    await database
+      .update(course)
+      .set({ number: 7559 })
+      .where(inArray(course.id, [aliceCourse, bobCourse, schoolCourse]));
+    const ids = async (path: string, cookie: string, origin = baseUrl) => {
+      const response = await api.request(`${origin}${path}`, { headers: { cookie } });
+      expect(response.status, path).toBe(200);
+      return ((await response.json()) as { courses: { id: string }[] }).courses.map(({ id }) => id);
+    };
+
+    // Each account's own, by its ID; never the other's, never the school's.
+    expect(await ids("/api/courses?personal=true", alice.cookie)).toEqual([aliceCourse]);
+    expect(await ids("/api/courses?personal=true", bob.cookie)).toEqual([bobCourse]);
+    // A number names nothing on the installation's host, for either.
+    for (const cookie of [alice.cookie, bob.cookie]) {
+      expect(await ids("/api/courses?number=7559", cookie)).toEqual([]);
+      expect(await ids("/api/courses?personal=true&number=7559", cookie)).toEqual([]);
+    }
+    // On the school's domain, its own.
+    const onDomain = await learnerSessionOn(api, organizationOrigin, alice.cookie);
+    expect(await ids("/api/courses?number=7559", onDomain, organizationOrigin)).toEqual([
+      schoolCourse,
+    ]);
+    // Alice's exact course is not Bob's to practise; each owner's own is theirs.
+    const activity = async (courseId: string, cookie: string) =>
+      (
+        await api.request(`/api/courses/${courseId}/activity?timeZone=UTC`, {
+          headers: { cookie },
+        })
+      ).status;
+    expect(await activity(aliceCourse, bob.cookie)).toBe(404);
+    expect(await activity(aliceCourse, alice.cookie)).toBe(200);
+    expect(await activity(bobCourse, bob.cookie)).toBe(200);
+  });
+
   test("lists each course with where the learner stands in it when asked, and only so", async () => {
     await retainPastTense(learner.id);
     const list = (query: string, cookie = learner.cookie) =>

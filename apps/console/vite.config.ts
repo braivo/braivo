@@ -9,7 +9,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite-plus";
 
 import { readDevPorts } from "../../tooling/dev-ports.ts";
-import { braivoApi } from "../../tooling/dev-proxy.ts";
+import { braivoApi, learnApp } from "../../tooling/dev-proxy.ts";
 import { pdfjsFiles } from "../../tooling/pdfjs-files.ts";
 
 /**
@@ -46,7 +46,7 @@ export default defineConfig(({ command, mode }) => {
     // and mix two React bundle generations (Invalid hook call): optimized up front.
     optimizeDeps: { include: ["pdfjs-dist", "pdfjs-dist/build/pdf.worker.mjs"] },
     // Links to a `.localhost` learn domain reach the learn app's dev server, at the demo's
-    // port or `bun run dev`'s (`lib/learn-url.ts`); a build's are HTTPS alone.
+    // port or `bun run dev`'s (`@braivo/auth-client`'s `learnUrl`); a build's are HTTPS alone.
     ...(command === "serve" && {
       define: {
         "import.meta.env.BRAIVO_LEARN_PORT": JSON.stringify(String(ports.learn)),
@@ -55,7 +55,8 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: ports.console,
       strictPort: true,
-      proxy: braivoApi(env),
+      // `/learn` is Braivo's own learn app, as the origin's router sends it there (ADR 0059).
+      proxy: { ...braivoApi(env), ...learnApp(env) },
     },
   };
 });
