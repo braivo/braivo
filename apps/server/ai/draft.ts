@@ -182,6 +182,13 @@ export const DRAFT_OPERATION = {
     goal: '<goal>\n{{goal}}\n</goal>\nThe goal selects which of the material\'s learning targets you draft, never how they are grouped: each objective stays one skill or piece of knowledge, and for vocabulary each word or phrase is its own objective. One rule applied to several words is one objective; words that only share a topic are not. For example, "il libro" and "la penna" are two objectives, never "Classroom objects", while "Plurals: il libro → i libri, il tavolo → i tavoli" is one. A task whose objective the goal leaves out is left out with it, never moved into the nearest objective kept. Where the material supports none of the goal, objectives is empty.\n\n',
     /** Said only when there are learners to describe. */
     learners: "<learners>\n{{audience}}\n</learners>\n\n",
+    /**
+     * Said beside the learners when no language is named, which then takes
+     * precedence: without it, drafts for English-speaking learners titled and
+     * asked in the material's language (generation, P1 evaluation).
+     */
+    learnersLanguage:
+      "Write every objective's title and every task's prompt and explanation in these learners' language, whatever the language of the material; the material's words being taught stay as they are.\n\n",
     /** Said only when the content owner names a language. */
     instructionLanguage:
       "<instruction_language>\n{{instructionLanguage}}\n</instruction_language>\nWrite every objective's title and every task's prompt and explanation in this language, whatever the language of the goal, the learners, or the material; the material's words being taught stay as they are.\n\n",
@@ -196,6 +203,35 @@ export const DRAFT_OPERATION = {
   },
   schema: Answer,
 } satisfies Operation;
+
+/**
+ * The model at times sends its objectives as JSON text in a string, a whole
+ * draft or `{"objectives": []}` (P1 evaluation: 2 of 39 drafts, beside one that
+ * was not JSON). Decoded once, as an array or an object holding only
+ * `objectives`, then validated like any answer. No repair: anything else stays
+ * the wrong shape.
+ */
+export function decodeObjectives(answered: unknown): unknown {
+  if (typeof answered !== "object" || answered === null) return answered;
+  const { objectives } = answered as { objectives?: unknown };
+  if (typeof objectives !== "string") return answered;
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(objectives);
+  } catch {
+    return answered;
+  }
+  if (Array.isArray(decoded)) return { ...answered, objectives: decoded };
+  if (
+    typeof decoded === "object" &&
+    decoded !== null &&
+    Object.keys(decoded).length === 1 &&
+    Array.isArray((decoded as { objectives?: unknown }).objectives)
+  ) {
+    return { ...answered, objectives: (decoded as { objectives: unknown[] }).objectives };
+  }
+  return answered;
+}
 
 /**
  * Drafts a course from one source with `model`, keeping only what Braivo would
@@ -222,7 +258,10 @@ export async function draftCourse(
     values: {
       goal: goal === undefined ? "" : fill(parts.goal, { goal: escapeMarkup(goal) }),
       learners:
-        audience === undefined ? "" : fill(parts.learners, { audience: escapeMarkup(audience) }),
+        audience === undefined
+          ? ""
+          : fill(parts.learners, { audience: escapeMarkup(audience) }) +
+            (instructionLanguage === undefined ? parts.learnersLanguage : ""),
       instructionLanguage:
         instructionLanguage === undefined
           ? ""
@@ -233,7 +272,7 @@ export async function draftCourse(
     },
     signal: options.signal,
   });
-  const parsed = Answer.safeParse(answered);
+  const parsed = Answer.safeParse(decodeObjectives(answered));
   if (!parsed.success)
     throw new ModelUnavailable("wrong-shape", "The model answered without the shape asked for.");
 

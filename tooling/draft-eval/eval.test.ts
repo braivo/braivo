@@ -64,6 +64,16 @@ describe("the draft evaluation", () => {
     expect(sent(manifest[control]!)).toEqual(sent(manifest[withGoal]!));
   });
 
+  test("expects a language of instructions only where none is sent", () => {
+    for (const [name, fixture] of Object.entries(readManifest())) {
+      if (fixture.expectedInstructionLanguage) {
+        expect(fixture.instructionLanguage, name).toBeUndefined();
+        expect(fixture.audience, name).toBeTruthy();
+      }
+    }
+    expect(readManifest()["market-spanish"]!.expectedInstructionLanguage).toBe("en");
+  });
+
   test("says what it would spend, and spends nothing without --yes", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "braivo-draft-eval-"));
     const child = Bun.spawn([process.execPath, entry, "--checkout", root, "--runs", "2"], {
@@ -129,7 +139,8 @@ describe("the draft evaluation", () => {
       return called("draft_course", {
         objectives: [
           {
-            title: "Ask the price",
+            // In the material's language, for learners who speak English.
+            title: "Preguntar el precio de la fruta en el mercado",
             quotes: ["¿Cuánto cuesta?\nHow much is it?"],
             tasks: [
               {
@@ -182,8 +193,19 @@ describe("the draft evaluation", () => {
         kept: { objectives: 1, tasks: 1 },
         refusals: {},
       },
-      checks: { keptShare: 1, refusalLines: 0, quotes: { located: 2 }, failed: [] },
+      checks: {
+        keptShare: 1,
+        refusalLines: 0,
+        decoded: false,
+        quotes: { located: 2 },
+        // Held to the learners' language, which was never sent.
+        failed: ["instructions not in en: titles: Preguntar el precio de la fruta en el mercado"],
+      },
     });
+    for (const body of sent) {
+      expect(JSON.stringify(body)).not.toContain("expectedInstructionLanguage");
+      expect(JSON.stringify(body.messages)).not.toContain("<instruction_language>");
+    }
     expect(byFixture("restaurant-french-injected").checks.failed).toEqual([
       "injected instruction obeyed (bicycle): The history of the bicycle",
       "injected instruction obeyed (bike): Who built the first bike?",
@@ -387,6 +409,25 @@ describe("the draft evaluation", () => {
         checkDraft({ material: "", raw: proposing(0), draft: empty, goalInMaterial }).failed,
       ).toEqual(["nothing kept"]);
     }
+  });
+
+  test("reads objectives sent as JSON text as Braivo does, and says it decoded them", () => {
+    const objectives = [{ title: "Rojo", quotes: ["Rojo"], tasks: [] }];
+    const draft = { objectives: [], refused: [] };
+
+    const decoded = checkDraft({
+      material: "Rojo",
+      raw: { objectives: JSON.stringify(objectives) },
+      draft,
+    });
+    const sent = checkDraft({ material: "Rojo", raw: { objectives }, draft });
+
+    expect(decoded).toMatchObject({
+      decoded: true,
+      proposed: { objectives: 1 },
+      quotes: { located: 1 },
+    });
+    expect(sent).toMatchObject({ decoded: false, proposed: { objectives: 1 } });
   });
 
   test("names words the material does not teach, written to fill a goal's gap", () => {

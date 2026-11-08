@@ -37,6 +37,11 @@ export type Fixture = {
   goal?: string;
   audience?: string;
   instructionLanguage?: string;
+  /**
+   * What the checks hold titles, prompts, and explanations to when no tag is
+   * sent: the learners' language as the audience says it. Never sent.
+   */
+  expectedInstructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
   goalInMaterial?: GoalInMaterial;
@@ -172,7 +177,7 @@ export async function runEvaluation(options: {
             offTopic: spec.offTopic,
             goalInMaterial: spec.goalInMaterial,
             outsideMaterial: spec.outsideMaterial,
-            instructionLanguage: spec.instructionLanguage,
+            instructionLanguage: spec.instructionLanguage ?? spec.expectedInstructionLanguage,
             materialLanguage: spec.language,
           });
         } else {

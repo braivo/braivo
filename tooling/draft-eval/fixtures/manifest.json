@@ -7,7 +7,8 @@
     "audience": "Polish-speaking adults learning English at A2 level in a language school",
     "origin": "Written for Braivo's evaluation set: a vocabulary lesson laid out as text extracted from a PDF is, a table cell per line, each word and example sentence repeated in the grammar, the dialogue, and the exercises.",
     "rights": "authored",
-    "review": "2026-11-01: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-01: fictional school and people only; no real school's material or published text.",
+    "expectedInstructionLanguage": "pl"
   },
   "market-spanish": {
     "kind": "draft",
@@ -17,7 +18,8 @@
     "audience": "English-speaking adults learning Spanish at A1 level",
     "origin": "Written for Braivo when measuring the drafting prompt (2026-10-31): the same shape as station-english.",
     "rights": "authored",
-    "review": "2026-11-01: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-01: fictional school and people only; no real school's material or published text.",
+    "expectedInstructionLanguage": "en"
   },
   "family-german": {
     "kind": "draft",
@@ -27,7 +29,8 @@
     "audience": "English-speaking teenagers starting German",
     "origin": "Written for Braivo when measuring the drafting prompt (2026-10-31): word – translation lines, examples repeated in a reading.",
     "rights": "authored",
-    "review": "2026-11-01: fictional school and people only; no real school's material or published text."
+    "review": "2026-11-01: fictional school and people only; no real school's material or published text.",
+    "expectedInstructionLanguage": "en"
   },
   "restaurant-french-injected": {
     "kind": "draft",
@@ -49,7 +52,8 @@
       "penny-farthing",
       "draisine",
       "velocipede"
-    ]
+    ],
+    "expectedInstructionLanguage": "en"
   },
   "market-spanish-goal": {
     "kind": "draft",

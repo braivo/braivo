@@ -293,6 +293,116 @@ describe("drafting a course from a source", () => {
     });
   });
 
+  describe("the language of instructions without one named", () => {
+    const rule = DRAFT_OPERATION.parts.learnersLanguage;
+
+    test.each([
+      ["without a goal", {}, "young learners at school"],
+      [
+        "without a goal, learners described",
+        { audience: "English-speaking adults" },
+        "English-speaking adults",
+      ],
+      [
+        "with a goal",
+        { goal: "Name colours", audience: "English-speaking adults" },
+        "English-speaking adults",
+      ],
+    ])(
+      "asks for the learners' language right after them, %s",
+      async (_label, options, learners) => {
+        const { model, asked } = answering({ objectives: [] });
+
+        await draftCourse(model, source, options);
+
+        expect(rule).toContain("whatever the language of the material");
+        expect(asked[0]?.prompt).toContain(`<learners>\n${learners}\n</learners>\n\n${rule}`);
+      },
+    );
+
+    test("leaves it to the language named, and says nothing of it without learners", async () => {
+      const named = answering({ objectives: [] });
+      const unsaid = answering({ objectives: [] });
+
+      await draftCourse(named.model, source, { audience: "adults", instructionLanguage: "pl" });
+      await draftCourse(unsaid.model, source, { goal: "Name colours" });
+
+      expect(named.asked[0]?.prompt).not.toContain(rule);
+      expect(named.asked[0]?.prompt).toContain(
+        "<instruction_language>\npl\n</instruction_language>",
+      );
+      expect(unsaid.asked[0]?.prompt).not.toContain(rule);
+    });
+  });
+
+  // The model at times sends its objectives as JSON text: decoded once, then
+  // held to every rule an answer is.
+  describe("objectives answered as JSON text", () => {
+    const objective = {
+      title: "Red",
+      quotes: ["Rojo significa red."],
+      tasks: [task("¿Rojo?", 0, ["Rojo significa red."])],
+    };
+
+    test.each([
+      ["an array", JSON.stringify([objective])],
+      ["an object holding only objectives", JSON.stringify({ objectives: [objective] })],
+    ])("reads %s as the objectives", async (_label, text) => {
+      const { model } = answering({ objectives: text });
+
+      const { draft } = await draftCourse(model, source);
+
+      expect(draft.objectives.map(({ title }) => title)).toEqual(["Red"]);
+      expect(draft.refused).toEqual([]);
+    });
+
+    test("reads an empty list so, still a draft", async () => {
+      const { model } = answering({ objectives: '{"objectives": []}' });
+
+      expect((await draftCourse(model, source)).draft).toEqual({ objectives: [], refused: [] });
+    });
+
+    test.each([
+      ["text that is not JSON", '[{"title": "Red", quotes: []}]'],
+      ["JSON that is no list", '{"title": "Red"}'],
+      ["an object holding more than objectives", JSON.stringify({ objectives: [], note: "x" })],
+      [
+        "objectives that are text again",
+        JSON.stringify({ objectives: JSON.stringify([objective]) }),
+      ],
+      ["a list in text in text", JSON.stringify(JSON.stringify([objective]))],
+      ["a number", "3"],
+      ["objectives decoded without tasks", JSON.stringify([{ title: "Red", quotes: [] }])],
+    ])("refuses %s as the wrong shape", async (_label, text) => {
+      const { model } = answering({ objectives: text });
+
+      await expect(draftCourse(model, source)).rejects.toMatchObject({ failure: "wrong-shape" });
+    });
+
+    test("refuses what it decodes as it would any answer", async () => {
+      const { model } = answering({
+        objectives: JSON.stringify([
+          { ...objective, tasks: [task("¿Rojo?", 5, ["Rojo significa red."])] },
+          {
+            title: "Blue",
+            quotes: ["Azul is blue."],
+            tasks: [task("¿Azul?", 1, ["Azul significa blue."])],
+          },
+        ]),
+      });
+
+      const { draft } = await draftCourse(model, source);
+
+      expect(draft.objectives).toEqual([]);
+      expect(draft.refused).toEqual([
+        expect.stringContaining("Objective “Red”, task “¿Rojo?”: the task"),
+        "Objective “Red”: none of its tasks was kept.",
+        "Objective “Blue”: the quote “Azul is blue.” does not occur in the source.",
+        "Objective “Blue”: none of its quotes was found in the source.",
+      ]);
+    });
+  });
+
   test("keeps typed tasks, reading a malformed or other-kind field as absent", async () => {
     const { model, asked } = answering({
       objectives: [
@@ -808,9 +918,10 @@ describe("an operation's prompt version", () => {
     expect(asked[1]!.prompt).toBe(
       fill(DRAFT_OPERATION.template, {
         goal: "",
-        learners: fill(DRAFT_OPERATION.parts.learners, {
-          audience: DRAFT_OPERATION.parts.defaultAudience,
-        }),
+        learners:
+          fill(DRAFT_OPERATION.parts.learners, {
+            audience: DRAFT_OPERATION.parts.defaultAudience,
+          }) + DRAFT_OPERATION.parts.learnersLanguage,
         instructionLanguage: "",
         title: "Colores",
         language: "",

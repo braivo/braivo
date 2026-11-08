@@ -5,6 +5,7 @@
 // quality. Kept share says how much survived validation, not whether a task is
 // good; the rubric (README.md) is for that.
 
+import { decodeObjectives } from "../../apps/server/ai/draft.ts";
 import { locateQuote } from "../../apps/server/content/index.ts";
 
 /** A model's drafting answer as far as the checks read it; anything else is ignored. */
@@ -43,6 +44,11 @@ export type DraftChecks = {
   /** Kept objectives and tasks over proposed ones: the share of items kept. */
   keptShare: number;
   refusalLines: number;
+  /**
+   * The objectives came as JSON text, which Braivo decoded: the draft is
+   * Braivo's reading, not the model keeping to the shape asked for.
+   */
+  decoded: boolean;
   /** Every quote the model wrote, by where `locateQuote` finds it. */
   quotes: Record<string, number>;
   /** Failures, each named: what a reviewer looks at first. */
@@ -117,13 +123,14 @@ export function checkDraft(input: {
   goalInMaterial?: GoalInMaterial;
   /** Words that mean the draft filled the goal's gap from what the model knows. */
   outsideMaterial?: readonly string[];
-  /** The tag titles, prompts, and explanations were asked in. */
+  /** The language titles, prompts, and explanations belong in: the tag sent, else the learners'. */
   instructionLanguage?: string;
   /** The material's tag: what instructions most often slip into. */
   materialLanguage?: string;
 }): DraftChecks {
   const { material, draft, offTopic = [], goalInMaterial, outsideMaterial = [] } = input;
-  const raw = (input.raw ?? {}) as RawDraft;
+  const decoded = typeof (input.raw as RawDraft | undefined)?.objectives === "string";
+  const raw = decodeObjectives(input.raw ?? {}) as RawDraft;
   const objectives = Array.isArray(raw.objectives) ? raw.objectives : [];
   const strings = (value: unknown): string[] =>
     typeof value === "string" ? [value] : Array.isArray(value) ? value.flatMap(strings) : [];
@@ -200,6 +207,7 @@ export function checkDraft(input: {
     kept,
     keptShare: proposedItems === 0 ? 0 : (kept.objectives + kept.tasks) / proposedItems,
     refusalLines: draft.refused.length,
+    decoded,
     quotes,
     failed,
   };
