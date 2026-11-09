@@ -208,7 +208,6 @@ export function materialsRoutes(
       const body = parseObject(await jsonBody(context));
       if (body === undefined) return context.body(null, 400);
       const { audience, goal, instructionLanguage } = body;
-      if (audience !== undefined && typeof audience !== "string") return context.body(null, 400);
 
       disableBunIdleTimeout(context);
       try {

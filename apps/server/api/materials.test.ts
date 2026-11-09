@@ -693,7 +693,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect(asked).toHaveLength(2);
   });
 
-  test("refuses a goal or a language it cannot use, by name, before anything is asked or charged", async () => {
+  test("refuses a goal, an audience, or a language it cannot use, by name, before anything is asked or charged", async () => {
     const added = await postSource(
       { title: "Goal", text: "Hola significa hello." },
       teacher.cookie,
@@ -727,6 +727,14 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       const refused = await draft({ goal });
       expect(refused.status, JSON.stringify(goal)).toBe(400);
       expect(await refused.json()).toEqual({ error: expect.stringMatching(/\bgoal\b/) });
+    }
+    // An audience is checked as a goal is, blank counting as absent.
+    for (const audience of ["a".repeat(201), 7, null, ["grade 2"]]) {
+      const refused = await draft({ goal: "Greet", audience });
+      expect(refused.status, JSON.stringify(audience)).toBe(400);
+      expect(await refused.json()).toEqual({
+        error: expect.stringMatching(/^Describe the learners/),
+      });
     }
     // Refused before the role, as any invalid body: it reveals nothing.
     expect((await draft({ goal: " " }, learner.cookie)).status).toBe(400);

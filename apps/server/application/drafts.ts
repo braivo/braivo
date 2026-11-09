@@ -35,8 +35,8 @@ export async function draftFromSource(input: {
   organizationId: string;
   actingAs: string;
   sourceId: string;
-  /** Who the course is for, in the content owner's words. */
-  audience?: string;
+  /** Who the course is for, in the content owner's words, as the request sent it. Blank is absent. */
+  audience?: unknown;
   /** What learners should be able to do, as the request sent it. Absent, nothing guides the draft. */
   goal?: unknown;
   /**
@@ -54,8 +54,9 @@ export async function draftFromSource(input: {
 }): Promise<Draft | undefined> {
   const { database, cachedDatabase, ai, organizationId, actingAs, sourceId } = input;
 
-  const audience = input.audience?.trim() || undefined;
-  if (audience !== undefined && (audience.length > MAX_AUDIENCE || audience.includes("\u0000"))) {
+  const audience =
+    typeof input.audience === "string" ? input.audience.trim() || undefined : input.audience;
+  if (audience !== undefined && !isStorableText(audience, MAX_AUDIENCE)) {
     throw new InvalidAiRequest(
       `Describe the learners in at most ${MAX_AUDIENCE} characters, such as "grade 2, English speakers".`,
     );
