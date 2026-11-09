@@ -36,7 +36,7 @@ import { PdfReview } from "#components/pdf-review";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, withDeadline } from "#lib/deadline";
-import { SUGGESTED_LANGUAGES, languageNames, resolveLanguageTag } from "#lib/languages";
+import { SUGGESTED_LANGUAGES, languageName, resolveLanguageTag } from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
 import { PDF_LIMITS, PdfReadError } from "#lib/pdf/read";
 import {
@@ -652,7 +652,7 @@ function AddSource() {
             <datalist id={`${id}-languages`}>
               {SUGGESTED_LANGUAGES.map((tag) => (
                 <option key={tag} value={tag}>
-                  {languageNames.of(tag)}
+                  {languageName(tag)}
                 </option>
               ))}
             </datalist>

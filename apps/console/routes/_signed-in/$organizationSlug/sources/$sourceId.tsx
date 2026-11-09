@@ -50,7 +50,7 @@ import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
 import {
   SUGGESTED_LANGUAGES,
   languageFieldValue,
-  languageNames,
+  languageName,
   resolveLanguageTag,
 } from "#lib/languages";
 import { MAX_TITLE, titleProblem } from "#lib/limits";
@@ -366,7 +366,7 @@ function DraftCourse(props: { source: Source }) {
           <datalist id={`${id}-languages`}>
             {SUGGESTED_LANGUAGES.map((tag) => (
               // By name, so choosing one reads as the field starts and as typed.
-              <option key={tag} value={languageNames.of(tag)} />
+              <option key={tag} value={languageName(tag)} />
             ))}
           </datalist>
           <FieldDescription id={`${id}-instruction-language-hint`}>
@@ -409,9 +409,6 @@ function DraftCourse(props: { source: Source }) {
     </form>
   );
 }
-
-/** A language's name where the browser knows it, its tag otherwise. */
-const languageName = (tag: string) => languageNames.of(tag) ?? tag;
 
 /** One row of a draft's brief. */
 function BriefRow(props: { term: string; children: ReactNode }) {

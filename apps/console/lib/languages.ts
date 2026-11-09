@@ -22,7 +22,10 @@ export const SUGGESTED_LANGUAGES = [
   "ja",
   "ar",
 ];
-export const languageNames = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
+const languageNames = new Intl.DisplayNames(["en"], { type: "language", fallback: "none" });
+
+/** A language's name where the browser knows it, its tag otherwise. */
+export const languageName = (tag: string) => languageNames.of(tag) ?? tag;
 
 /**
  * Every two-letter tag by its English name, lowercase, as this browser names
