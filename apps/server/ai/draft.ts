@@ -203,8 +203,8 @@ Material: "{{title}}"{{language}}.
 
 /**
  * The model at times sends its objectives as JSON text in a string, a whole
- * draft or `{"objectives": []}` (P1 evaluation: 2 of 39 drafts, beside one that
- * was not JSON). Decoded once, as an array or an object holding only
+ * draft or `{"objectives": []}` (2 of 39 evaluated drafts, beside one that was
+ * not JSON; ADR 0029). Decoded once, as an array or an object holding only
  * `objectives`, then validated like any answer. No repair: anything else stays
  * the wrong shape.
  */
