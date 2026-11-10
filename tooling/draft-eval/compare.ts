@@ -86,7 +86,7 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
     ["Side", "Objectives kept", "Tasks kept", "Items kept", "Quotes ambiguous", "Refusal lines"],
   ];
   const problems: string[] = [];
-  const decoded: string[] = [];
+  const decodedRuns: string[] = [];
 
   for (const side of sides) {
     let objectives = [0, 0];
@@ -107,7 +107,7 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
         for (const failed of checks?.failed ?? []) {
           problems.push(`${side.name} ${fixture}#${record.run}: ${failed}`);
         }
-        if (checks?.decoded) decoded.push(`${side.name} ${fixture}#${record.run}`);
+        if (checks?.decoded) decodedRuns.push(`${side.name} ${fixture}#${record.run}`);
       }
       const failedChecks = ok.filter(
         (record) => (record.checks as { failed: string[] }).failed.length > 0,
@@ -186,10 +186,10 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
   );
   // Apart from the failures: decoded, these drafts count as answered, yet the
   // model did not keep to the shape asked for.
-  if (decoded.length) {
+  if (decodedRuns.length) {
     out.push(
       "",
-      `Objectives sent as JSON text and decoded by Braivo:\n${decoded.map((line) => `- ${line}`).join("\n")}`,
+      `Objectives sent as JSON text and decoded by Braivo:\n${decodedRuns.map((line) => `- ${line}`).join("\n")}`,
     );
   }
 

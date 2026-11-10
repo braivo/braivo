@@ -18,7 +18,7 @@ describe("the console in Polish", () => {
     };
   });
 
-  test("starts a draft's questions in the language the console speaks", async () => {
+  test("starts the draft form's language at the one the console speaks", async () => {
     renderAt("/example/sources/s1", { braivo: authoring() });
 
     const field = await screen.findByLabelText<HTMLInputElement>(

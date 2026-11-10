@@ -33,7 +33,7 @@ const GOAL_LABEL = "What should learners be able to do?";
 const LANGUAGE_LABEL = "What language should the questions be in?";
 
 /** What a review with nothing in it says, `why` after its first clause. */
-const EMPTY_DRAFT = (why: string) =>
+const emptyDraftMessage = (why: string) =>
   `Nothing in this draft can become a course: ${why}. Discard it to reword the goal or check the source's text, then draft again, which uses another of this month's AI requests.`;
 
 /** The rows of a draft's brief, under review. */
@@ -312,7 +312,7 @@ describe("the console", () => {
       renderAt("/example/sources/s1", { braivo });
       await askForDraft();
 
-      expect(await screen.findByText(EMPTY_DRAFT(why))).toBeTruthy();
+      expect(await screen.findByText(emptyDraftMessage(why))).toBeTruthy();
       expect(screen.queryByText(/^Untick what is wrong/)).toBeNull();
       // The review's heading takes the focus and is read from there: nothing
       // interrupts it.

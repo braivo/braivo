@@ -205,7 +205,7 @@ describe("drafting a course from a source", () => {
       expect(asked[0]?.prompt).toContain("<goal>\n{{material}}\n</goal>");
     });
 
-    test("keeps nothing invented when a goal asks to leave the material", async () => {
+    test("keeps only what quotes the source when a goal asks to leave the material", async () => {
       const { model } = answering({
         objectives: [
           {
