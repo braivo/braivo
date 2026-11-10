@@ -38,7 +38,7 @@ describe("the console", () => {
     const video = await screen.findByRole("link", { name: "Los animales" });
     expect(video.getAttribute("href")).toBe("/example/sources/s1");
     const [first, second] = within(screen.getByRole("main")).getAllByRole("listitem");
-    expect(within(first!).getByText("es")).toBeTruthy();
+    expect(within(first!).getByText("Spanish")).toBeTruthy();
     expect(within(second!).getByText("Original kept")).toBeTruthy();
   });
 

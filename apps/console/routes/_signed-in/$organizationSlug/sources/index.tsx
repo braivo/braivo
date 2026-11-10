@@ -96,7 +96,9 @@ function Sources() {
               >
                 {source.title}
               </Link>
-              {source.language && <Badge variant="secondary">{source.language}</Badge>}
+              {source.language && (
+                <Badge variant="secondary">{languageName(source.language)}</Badge>
+              )}
               {source.original && <Badge variant="outline">Original kept</Badge>}
             </li>
           ))}

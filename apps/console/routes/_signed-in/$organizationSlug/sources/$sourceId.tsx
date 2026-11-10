@@ -99,7 +99,7 @@ function SourcePage() {
       </Link>
       <Heading>{source.title}</Heading>
       <p className="mb-4 flex flex-wrap gap-2">
-        {source.language && <Badge variant="secondary">{source.language}</Badge>}
+        {source.language && <Badge variant="secondary">{languageName(source.language)}</Badge>}
         {source.original && (
           // A download, never shown inline: the server answers it as an attachment.
           <a
