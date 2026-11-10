@@ -41,6 +41,8 @@ A number is an identity, not a date: a new ADR takes the next free one, and the 
 - [0020: Source content is an immutable text snapshot, added the same way whoever extracts it](0020-source-content.md)
 - [0021: Citations are quotes Braivo locates, stored as code-point ranges](0021-citations.md)
 - [0054: Review shows an objective's own passages, once the learner has answered on it](0054-review-shows-an-objectives-own-passages.md)
+- [0062: The native apps sign in with Google's and Apple's ID tokens, on the installation's origin](0062-native-apps-sign-in-with-id-tokens.md)
+- [0063: An Apple identity on an address Apple does not control signs in, but confirms nothing](0063-apple-identities-on-addresses-apple-does-not-control.md)
 - [0022: `braivo` signs in through the device flow and acts as the content owner](0022-machine-access.md)
 - [0023: `braivo mcp` serves Braivo's API as tools, through the official SDK](0023-mcp-server.md) — superseded by 0045
 - [0045: Braivo's MCP server is `/mcp`: the API as tools, in-process, as an OAuth connection bound to one school](0045-remote-mcp.md)
