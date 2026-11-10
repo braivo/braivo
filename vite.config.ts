@@ -164,6 +164,7 @@ export default defineConfig({
                     "!../content/course-ref.ts",
                     "!../content/explanation.ts",
                     "!../content/findings.ts",
+                    "!../content/language-tag.ts",
                     "!../application/learner-day.ts",
                     "!../application/standing.ts",
                   ],

@@ -18,6 +18,30 @@ import {
   answerLeaving,
 } from "./render.tsx";
 
+/** Unlike the source's title, which the review suggests for the course. */
+const GOAL = "Greet people";
+
+/** Fills in the goal the form requires and sends it, answering its button. */
+async function askForDraft(goal = GOAL) {
+  const button = await screen.findByRole("button", { name: "Draft a course" });
+  fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: goal } });
+  fireEvent.click(button);
+  return button;
+}
+
+const GOAL_LABEL = "What should learners be able to do?";
+const LANGUAGE_LABEL = "What language should the questions be in?";
+
+/** What a review with nothing in it says, `why` after its first clause. */
+const emptyDraftMessage = (why: string) =>
+  `Nothing in this draft can become a course: ${why}. Discard it to reword the goal or check the source's text, then draft again, which uses another of this month's AI requests.`;
+
+/** The rows of a draft's brief, under review. */
+async function briefList() {
+  const list = (await screen.findByText("Drafted from")).closest("dl")!;
+  return { list, rows: Array.from(list.children, (row) => row.textContent) };
+}
+
 describe("the console", () => {
   const LEAVE_REVIEW =
     "Leave this page? The draft and your changes to it will be lost, and drafting again uses another of this month's AI requests.";
@@ -30,13 +54,21 @@ describe("the console", () => {
     const { router } = renderAt("/example/sources/s1", { braivo });
 
     expect(await screen.findByText("Hola significa hello.")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Learners"), { target: { value: "grade 2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Draft a course" }));
+    fireEvent.change(screen.getByLabelText("Who are the learners?"), {
+      target: { value: "grade 2" },
+    });
+    await askForDraft();
 
     // Reviewed before anything is stored, with what Braivo left out said.
     expect(await screen.findByText(drafted.refused[0]!)).toBeTruthy();
     expect(braivo.draftCourse).toHaveBeenCalledWith(
-      { organizationId: "org-1", sourceId: "s1", audience: "grade 2" },
+      {
+        organizationId: "org-1",
+        sourceId: "s1",
+        goal: GOAL,
+        audience: "grade 2",
+        instructionLanguage: "en",
+      },
       { signal: expect.any(AbortSignal) },
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Keep “Hi?”" }));
@@ -64,6 +96,240 @@ describe("the console", () => {
     );
   });
 
+  test("asks for the goal first: nothing is sent without one, and it is sent trimmed", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    const button = await screen.findByRole("button", { name: "Draft a course" });
+    const goal = screen.getByLabelText<HTMLTextAreaElement>(GOAL_LABEL);
+    expect(goal.required).toBe(true);
+    expect(goal.maxLength).toBe(300);
+    expect(goal.getAttribute("aria-describedby")).toBeTruthy();
+    expect(document.getElementById(goal.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "For example: order food and ask for the bill politely.",
+    );
+    // Optional beside it, with no default put in its place, and asking for age
+    // or level, never the language the field above asks.
+    const audience = screen.getByLabelText<HTMLInputElement>("Who are the learners?");
+    expect(audience.required).toBe(false);
+    expect(audience.placeholder).toBe("");
+    expect(document.getElementById(audience.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Optional: their age or level, such as grade 2 or adult beginners.",
+    );
+
+    // Spaces pass `required`, so the form's own handler refuses them.
+    fireEvent.change(goal, { target: { value: "   " } });
+    fireEvent.submit(button.closest("form")!);
+    expect(braivo.draftCourse).not.toHaveBeenCalled();
+    expect(goal.validationMessage).toBe("Say what learners should be able to do.");
+
+    fireEvent.change(goal, { target: { value: "  order food  " } });
+    expect(goal.validationMessage).toBe("");
+    fireEvent.click(button);
+
+    await vi.waitFor(() =>
+      expect(braivo.draftCourse).toHaveBeenCalledWith(
+        { organizationId: "org-1", sourceId: "s1", goal: "order food", instructionLanguage: "en" },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+  });
+
+  test("reviews a draft under what was asked, its title the source's, editable", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    fireEvent.change(await screen.findByLabelText("Who are the learners?"), {
+      target: { value: "grade 2" },
+    });
+    await askForDraft(
+      "Order food and ask for the bill politely in a small cafe with friends, then leave a tip",
+    );
+
+    // As it was sent, under the labels the form asked by, each its own row.
+    expect((await briefList()).rows).toEqual([
+      "Drafted fromThe whole source",
+      "GoalOrder food and ask for the bill politely in a small cafe with friends, then leave a tip",
+      "Learnersgrade 2",
+      "Questions inEnglish",
+    ]);
+    // The source's title, not a cut of the goal, which is shown above.
+    const title = screen.getByLabelText<HTMLInputElement>("Course title");
+    expect(title.value).toBe("Saludos");
+
+    fireEvent.change(title, { target: { value: "At the cafe" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create course" }));
+    await vi.waitFor(() =>
+      expect(braivo.acceptDraft).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "At the cafe" }),
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+  });
+
+  test("asks what language the questions are in, the console's own until changed", async () => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
+    expect(field.value).toBe("English");
+    expect(field.required).toBe(true);
+    expect(document.getElementById(field.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "The language of titles, questions, and explanations, such as Spanish. What the source teaches stays as it is.",
+    );
+
+    // Spaces pass `required`, so the form's own handler refuses them.
+    fireEvent.change(field, { target: { value: "   " } });
+    await askForDraft();
+    expect(braivo.draftCourse).not.toHaveBeenCalled();
+    expect(field.validationMessage).toBe("Say what language to write them in.");
+
+    // By name, as the add-material form takes one, sent as its tag.
+    fireEvent.change(field, { target: { value: "Spanish" } });
+    expect(field.validationMessage).toBe("");
+    await askForDraft();
+    await vi.waitFor(() =>
+      expect(braivo.draftCourse).toHaveBeenCalledWith(
+        { organizationId: "org-1", sourceId: "s1", goal: GOAL, instructionLanguage: "es" },
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect((await briefList()).rows).toContain("Questions inSpanish");
+
+    // Kept when discarded, as the goal is, and as the owner last named it.
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    expect(screen.getByLabelText<HTMLInputElement>(LANGUAGE_LABEL).value).toBe("Spanish");
+  });
+
+  test("suggests languages by name, so the field never flips to a code", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
+
+    const suggested = Array.from(field.list!.options, (option) => option.value);
+    expect(suggested).toEqual(expect.arrayContaining(["English", "Spanish", "Polish"]));
+    expect(suggested).not.toContain("es");
+  });
+
+  test.each([
+    ["a name no language has", "Spansh"],
+    ["a word too long to be a tag", "Klingonish"],
+    ["a name with its region", "Brazilian Portuguese"],
+  ])("asks again for %s, in a teacher's words, sending nothing", async (_label, typed) => {
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    const field = await screen.findByLabelText<HTMLInputElement>(LANGUAGE_LABEL);
+    fireEvent.change(field, { target: { value: typed } });
+
+    await askForDraft();
+
+    expect(braivo.draftCourse).not.toHaveBeenCalled();
+    expect(field.validationMessage).toBe(
+      "Choose a language from the list, or type its English name or its code, such as pt-BR.",
+    );
+    // Changing it clears the complaint, so it can be sent again.
+    fireEvent.change(field, { target: { value: "Spanish" } });
+    expect(field.validationMessage).toBe("");
+  });
+
+  test.each([
+    // Named in English, though only a three-letter tag says them.
+    ["Filipino", "fil"],
+    ["cantonese", "yue"],
+    ["Hawaiian", "haw"],
+    // A tag still works, in its usual form, and reads by name in the review.
+    ["ES", "es"],
+    ["pt-br", "pt-BR"],
+    ["zh-hant", "zh-Hant"],
+  ])("takes %s as %s, reviewing it by name", async (typed, tag) => {
+    // The runtime's name for it, as the review shows it: ICU versions differ
+    // ("Chinese, Traditional" or "Traditional Chinese").
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag)!;
+    expect(name).not.toBe(tag);
+    const braivo = authoring();
+    renderAt("/example/sources/s1", { braivo });
+    fireEvent.change(await screen.findByLabelText(LANGUAGE_LABEL), { target: { value: typed } });
+
+    await askForDraft();
+
+    await vi.waitFor(() =>
+      expect(braivo.draftCourse).toHaveBeenCalledWith(
+        expect.objectContaining({ instructionLanguage: tag }),
+        { signal: expect.any(AbortSignal) },
+      ),
+    );
+    expect((await briefList()).rows).toContain(`Questions in${name}`);
+
+    // Drafting again unchanged sends the same: the form never fills in a name
+    // it would refuse, as "Brazilian Portuguese" would be.
+    fireEvent.click(screen.getByRole("button", { name: "Discard draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await vi.waitFor(() => expect(braivo.draftCourse).toHaveBeenCalledTimes(2));
+    expect(braivo.draftCourse).toHaveBeenLastCalledWith(
+      expect.objectContaining({ instructionLanguage: tag }),
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  test("asks the required questions first, the optional one after", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    const goal = await screen.findByLabelText(GOAL_LABEL);
+    const language = screen.getByLabelText(LANGUAGE_LABEL);
+    const audience = screen.getByLabelText("Who are the learners?");
+
+    expect(goal.compareDocumentPosition(language) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      language.compareDocumentPosition(audience) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("keeps the goal when a review is discarded, as drafting again needs it", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    await askForDraft("Order food");
+    fireEvent.click(await screen.findByRole("button", { name: "Discard draft" }));
+
+    expect(screen.getByLabelText<HTMLTextAreaElement>(GOAL_LABEL).value).toBe("Order food");
+  });
+
+  test("names only what was asked, and interrupts no one with what was left out", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+    await askForDraft("Order food");
+
+    expect((await briefList()).rows).toEqual([
+      "Drafted fromThe whole source",
+      "GoalOrder food",
+      "Questions inEnglish",
+    ]);
+    expect(screen.getByText("Left out of the draft")).toBeTruthy();
+    expect(screen.queryAllByRole("alert")).toEqual([]);
+  });
+
+  test.each([
+    [
+      "everything left out",
+      ["“Hola” isn't in the material."],
+      "Braivo left out all the AI proposed, as listed above",
+    ],
+    // Never that the source lacks the goal, which nothing checked.
+    ["nothing proposed", [], "Braivo's AI proposed nothing for this goal"],
+  ])(
+    "says why a draft with %s has nothing to create, and what to do",
+    async (_label, refused, why) => {
+      const braivo = {
+        ...authoring(),
+        draftCourse: vi.fn(async () => ({ objectives: [], refused })),
+      };
+      renderAt("/example/sources/s1", { braivo });
+      await askForDraft();
+
+      expect(await screen.findByText(emptyDraftMessage(why))).toBeTruthy();
+      expect(screen.queryByText(/^Untick what is wrong/)).toBeNull();
+      // The review's heading takes the focus and is read from there: nothing
+      // interrupts it.
+      expect(screen.queryAllByRole("alert")).toEqual([]);
+      // Nothing to name or create: only the way back is offered.
+      expect(screen.queryByLabelText("Course title")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Create course" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
+    },
+  );
+
   test("holds drafting still while it runs, says so, and keeps the focus on its button", async () => {
     const drafting = Promise.withResolvers<typeof drafted>();
     const braivo = { ...authoring(), draftCourse: vi.fn(() => drafting.promise) };
@@ -72,8 +338,10 @@ describe("the console", () => {
     const form = button.closest("form")!;
     // Present from the start, so what it says next is announced.
     const status = within(form).getByRole("status");
-    expect(status.textContent).toBe("You review the draft before learners see any of it.");
-    expect(within(form).getByText(/reads the whole source.*a few minutes/)).toBeTruthy();
+    expect(status.textContent).toBe(
+      "Braivo's AI reads the whole source, which can take a few minutes. You review the draft before learners see any of it.",
+    );
+    fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: GOAL } });
     button.focus();
 
     fireEvent.click(button);
@@ -85,7 +353,10 @@ describe("the console", () => {
     expectLockedInFocus(button);
     // Enter in a field submits however the button is marked.
     fireEvent.submit(form);
-    expect((screen.getByLabelText("Learners") as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByLabelText("Who are the learners?") as HTMLInputElement).readOnly).toBe(
+      true,
+    );
+    expect((screen.getByLabelText(GOAL_LABEL) as HTMLTextAreaElement).readOnly).toBe(true);
     expect(braivo.draftCourse).toHaveBeenCalledTimes(1);
     drafting.resolve(drafted);
     // The button is gone: the review shown in its place takes the focus, and
@@ -101,6 +372,7 @@ describe("the console", () => {
     const braivo = { ...authoring(), draftCourse: vi.fn(() => drafting.promise) };
     renderAt("/example/sources/s1", { braivo });
     const button = await screen.findByRole("button", { name: "Draft a course" });
+    fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: GOAL } });
     button.focus();
     fireEvent.click(button);
     // As clicking the source's text does: the focus goes to the page.
@@ -117,7 +389,7 @@ describe("the console", () => {
     const braivo = authoring();
     braivo.acceptDraft.mockImplementation(() => creating.promise);
     const { router } = renderAt("/example/sources/s1", { braivo });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     const button = await screen.findByRole("button", { name: "Create course" });
     // Enter in the title, which the review then locks.
     screen.getByLabelText("Course title").focus();
@@ -142,7 +414,7 @@ describe("the console", () => {
   test("keeps a draft under review when Braivo's AI is turned off meanwhile", async () => {
     const organizations = [{ ...school, aiEnabled: true }];
     const { router } = renderAt("/example/sources/s1", { organizations, braivo: authoring() });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Hello?”" }));
 
     organizations[0] = { ...school, aiEnabled: false };
@@ -167,7 +439,7 @@ describe("the console", () => {
       organizations,
       braivo: { ...authoring(), draftCourse: vi.fn(() => drafting.promise) },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
 
     organizations[0] = { ...school, aiEnabled: false };
     await router.invalidate();
@@ -186,6 +458,7 @@ describe("the console", () => {
       braivo: { ...authoring(), draftCourse: vi.fn(() => drafting.promise) },
     });
     const button = await screen.findByRole("button", { name: "Draft a course" });
+    fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: GOAL } });
     button.focus();
     fireEvent.click(button);
     organizations[0] = { ...school, aiEnabled: false };
@@ -204,7 +477,8 @@ describe("the console", () => {
 
     const heading = await screen.findByRole("heading", { name: "Draft a course" });
     expect(screen.queryByRole("button", { name: "Draft a course" })).toBeNull();
-    expect(screen.queryByLabelText("Learners")).toBeNull();
+    expect(screen.queryByLabelText("Who are the learners?")).toBeNull();
+    expect(screen.queryByLabelText(GOAL_LABEL)).toBeNull();
     const said = heading.nextElementSibling!.textContent;
     expect(said).toMatch(/off for this organization/);
     expect(said).toMatch(/Ask whoever runs Braivo/);
@@ -239,7 +513,7 @@ describe("the console", () => {
         braivo: { ...authoring(), draftCourse: vi.fn().mockRejectedValue(refusal) },
       });
 
-      fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+      await askForDraft();
 
       const alert = await screen.findByText(/off for this organization/);
       expect(alert.textContent).toMatch(/Ask whoever runs Braivo for you to turn it on/);
@@ -256,7 +530,7 @@ describe("the console", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
 
     expectProxyTimeoutExplained(await screen.findByText(/timed out/));
   });
@@ -265,7 +539,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello?”" }));
     expect(document.activeElement).toBe(screen.getByLabelText("Question"));
     // An open edit is not yet part of the course.
@@ -325,7 +599,7 @@ describe("the console", () => {
     } as typeof drafted);
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     expect(
       await screen.findByText(
         "“Hola.” is accepted, “Hola” is not: a learner who leaves out the final mark is marked wrong. Check whether it should count too.",
@@ -373,7 +647,7 @@ describe("the console", () => {
     } as unknown as typeof drafted);
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Edit “Hello?” and add “Hola”" }));
     // Dropping its objective closes the edit, the suggestion with it.
     fireEvent.click(screen.getByRole("checkbox", { name: "Keep objective 1" }));
@@ -412,7 +686,7 @@ describe("the console", () => {
     } as typeof drafted);
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     const add = { name: "Edit “Hello?” and add “Hola”" };
     expect(await screen.findByRole("button", add)).toBeTruthy();
 
@@ -429,7 +703,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     const title = await screen.findByRole("textbox", { name: "Objective 1" });
     expect((title as HTMLInputElement).required).toBe(true);
     fireEvent.change(title, { target: { value: "   " } });
@@ -483,7 +757,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Bye?”" }));
     // An objective's title comes first, as it does on the page.
     const title = screen.getByRole("textbox", { name: "Objective 2" });
@@ -539,7 +813,7 @@ describe("the console", () => {
     };
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     expect(await screen.findByText("The source is too long to draft from.")).toBeTruthy();
 
     braivo.draftCourse.mockImplementation(async () => drafted);
@@ -561,7 +835,7 @@ describe("the console", () => {
       braivo: { ...authoring(), draftCourse },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     await vi.waitFor(() => expect(signal).toBeDefined());
     await router.navigate({
       to: "/$organizationSlug/sources",
@@ -576,7 +850,7 @@ describe("the console", () => {
     const { router } = renderAt("/example/sources/s1", {
       braivo: { ...authoring(), listCourses: async () => [] },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     const create = await screen.findByRole("button", { name: "Create course" });
 
     // Blocked, the navigation never settles.
@@ -609,7 +883,7 @@ describe("the console", () => {
       to: "/$organizationSlug/sources/$sourceId",
       params: { organizationSlug: "example", sourceId: "s1" },
     });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     await screen.findByRole("button", { name: "Create course" });
 
     window.history.back();
@@ -627,7 +901,7 @@ describe("the console", () => {
     const braivo = authoring();
     braivo.acceptDraft.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     const { router } = renderAt("/example/sources/s1", { braivo });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
     const retry = await screen.findByRole("button", { name: "Try again" });
 
@@ -651,7 +925,7 @@ describe("the console", () => {
     answerLeaving(true);
     const { router } = renderAt("/example/sources/s1", { braivo: authoring() });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     expect(await screen.findByRole("button", { name: "Create course" })).toBeTruthy();
     await router.navigate({
       to: "/$organizationSlug/sources/$sourceId",
@@ -688,7 +962,7 @@ describe("the console", () => {
     });
     const { router } = renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
     await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
     await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
@@ -711,7 +985,7 @@ describe("the console", () => {
     braivo.acceptDraft.mockImplementation(() => creating.promise);
     const { router } = renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
     await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
     void router.navigate({
@@ -744,7 +1018,7 @@ describe("the console", () => {
     braivo.acceptDraft.mockImplementation(() => creating.promise);
     const { router } = renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
     await vi.waitFor(() => expect(braivo.acceptDraft).toHaveBeenCalled());
     await router.navigate({ to: "/$organizationSlug", params: { organizationSlug: "example" } });
@@ -762,7 +1036,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.change(await screen.findByLabelText("Course title"), {
       target: { value: "C".repeat(501) },
     });
@@ -776,7 +1050,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.change(await screen.findByLabelText("Course title"), {
       target: { value: "Saludos\u0000" },
     });
@@ -794,7 +1068,7 @@ describe("the console", () => {
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.change(await screen.findByLabelText("Course title"), { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
@@ -809,7 +1083,7 @@ describe("the console", () => {
     braivo.acceptDraft.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     const { router } = renderAt("/example/sources/s1", { braivo });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Hi?”" }));
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
@@ -841,7 +1115,7 @@ describe("the console", () => {
       (_input?: unknown, options?: { signal?: AbortSignal }) => stall(options),
     );
     const { router } = renderAt("/example/sources/s1", { braivo });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     const create = await screen.findByRole("button", { name: "Create course" });
     const status = within(create.closest("form")!).getByRole("status");
     expect(status.textContent).toBe("");
@@ -881,7 +1155,7 @@ describe("the console", () => {
         new BraivoError(status, `Braivo answered ${status}.`),
       );
       renderAt("/example/sources/s1", { braivo });
-      fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+      await askForDraft();
       fireEvent.click(await screen.findByRole("button", { name: "Create course" }));
 
       expect(
@@ -900,7 +1174,7 @@ describe("the console", () => {
       return "course-1";
     });
     const { router } = renderAt("/example/sources/s1", { braivo });
-    fireEvent.click(await screen.findByRole("button", { name: "Draft a course" }));
+    await askForDraft();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Keep “Hi?”" }));
     fireEvent.click(screen.getByRole("button", { name: "Create course" }));
 
@@ -941,6 +1215,7 @@ describe("the console", () => {
       },
     });
     const draft = await screen.findByRole("button", { name: "Draft a course" });
+    fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: GOAL } });
     await auth.signOut();
 
     fireEvent.click(draft);

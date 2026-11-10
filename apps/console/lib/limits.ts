@@ -8,6 +8,10 @@
  */
 export const MAX_TITLE = 500;
 
+/** The server's limits on a draft's goal and audience (`MAX_GOAL`, `MAX_AUDIENCE`). */
+export const MAX_GOAL = 300;
+export const MAX_AUDIENCE = 200;
+
 /** What the server would refuse in a title, said of `subject` ("the course", "objective 2"). */
 export function titleProblem(title: string, subject: string): string | undefined {
   const trimmed = title.trim();

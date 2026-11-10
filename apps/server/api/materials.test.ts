@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { runMigrations } from "@braivo/db";
-import { session } from "@braivo/db/schema";
+import { aiRequest, session } from "@braivo/db/schema";
 import * as testing from "@braivo/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vite-plus/test";
@@ -607,7 +607,12 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: { model, organizations: new Set([organizationId]) },
     });
-    const draft = (source: string, cookie: string, body: object = {}, app = drafting) =>
+    const draft = (
+      source: string,
+      cookie: string,
+      body: object = { instructionLanguage: "en" },
+      app = drafting,
+    ) =>
       app.request(`/api/organizations/${organizationId}/sources/${source}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie },
@@ -615,7 +620,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       });
 
     cachedStatements.length = 0;
-    const drafted = await draft(sourceId, teacher.cookie, { audience: "grade 2" });
+    const drafted = await draft(sourceId, teacher.cookie, {
+      audience: "grade 2",
+      instructionLanguage: "en",
+    });
     expect(drafted.status).toBe(200);
     // The source alone comes through the cache; who may draft, and the quota
     // charged, never do.
@@ -642,7 +650,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         "Objective “Say hello”, task “Hola?”: none of its quotes was found in the source.",
       ],
     });
-    expect(asked[0]).toContain("Learners: grade 2.");
+    expect(asked[0]).toContain("<learners>\ngrade 2\n</learners>");
 
     // Served by Bun, the request is let wait for the model past Bun's idle timeout.
     const timeout = vi.fn();
@@ -651,7 +659,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       },
       { timeout },
     );
@@ -664,7 +672,10 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     expect((await draft(sourceId, learner.cookie, [])).status).toBe(400);
     expect(cachedStatements).toEqual([]);
     expect((await draft(crypto.randomUUID(), teacher.cookie)).status).toBe(404);
-    const long = await draft(sourceId, teacher.cookie, { audience: "a".repeat(201) });
+    const long = await draft(sourceId, teacher.cookie, {
+      audience: "a".repeat(201),
+      instructionLanguage: "en",
+    });
     expect(long.status).toBe(400);
     // Owning an organization is not the operator's leave to spend on it.
     const elsewhere = createApi({
@@ -673,13 +684,98 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       baseUrl,
       ai: { model, organizations: new Set(["another-org"]) },
     });
-    const refused = await draft(sourceId, teacher.cookie, {}, elsewhere);
+    const refused = await draft(sourceId, teacher.cookie, undefined, elsewhere);
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({
       error: expect.stringContaining("ask its operator"),
       code: "AI_NOT_ENTITLED",
     });
     expect(asked).toHaveLength(2);
+  });
+
+  test("refuses a goal, an audience, or a language it cannot use, by name, before anything is asked or charged", async () => {
+    const added = await postSource(
+      { title: "Goal", text: "Hola significa hello." },
+      teacher.cookie,
+    );
+    const { sourceId } = (await added.json()) as { sourceId: string };
+    const prompts: string[] = [];
+    const model: Model = {
+      id: "test-model",
+      answer: async ({ prompt }) => {
+        prompts.push(prompt);
+        return { objectives: [] };
+      },
+    };
+    const drafting = createApi({
+      auth,
+      database,
+      cachedDatabase,
+      baseUrl,
+      ai: { model, organizations: new Set([organizationId]) },
+    });
+    const draft = (body: object, cookie = teacher.cookie) =>
+      drafting.request(`/api/organizations/${organizationId}/sources/${sourceId}/draft`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({ instructionLanguage: "en", ...body }),
+      });
+    const ledger = () => database.$count(aiRequest, eq(aiRequest.organizationId, organizationId));
+    const charged = await ledger();
+
+    for (const goal of ["", "   ", "a".repeat(301), 7, null, ["ask"], "a\u0000b", "\ud800"]) {
+      const refused = await draft({ goal });
+      expect(refused.status, JSON.stringify(goal)).toBe(400);
+      expect(await refused.json()).toEqual({ error: expect.stringMatching(/\bgoal\b/) });
+    }
+    // An audience is checked as a goal is, blank counting as absent.
+    for (const audience of ["a".repeat(201), 7, null, ["grade 2"]]) {
+      const refused = await draft({ goal: "Greet", audience });
+      expect(refused.status, JSON.stringify(audience)).toBe(400);
+      expect(await refused.json()).toEqual({
+        error: expect.stringMatching(/^Describe the learners/),
+      });
+    }
+    // Refused before the role, as any invalid body: it reveals nothing.
+    expect((await draft({ goal: " " }, learner.cookie)).status).toBe(400);
+    expect(prompts).toEqual([]);
+    expect(await ledger()).toBe(charged);
+
+    // The language for learners' instructions is required, a tag, named when
+    // missing or not one: never inferred from the learners.
+    for (const instructionLanguage of [
+      undefined,
+      "",
+      "Spanish",
+      "not a tag",
+      "a".repeat(36),
+      7,
+      null,
+    ]) {
+      const refused = await draft({ audience: "English-speaking adults", instructionLanguage });
+      expect(refused.status, JSON.stringify(instructionLanguage)).toBe(400);
+      expect(await refused.json()).toEqual({
+        error: expect.stringMatching(/language for learners' instructions/),
+      });
+    }
+    expect(prompts).toEqual([]);
+    expect(await ledger()).toBe(charged);
+
+    // Any language's tag, not only those the console speaks, in its usual form.
+    expect((await draft({ instructionLanguage: "DE-at" })).status).toBe(200);
+    expect(prompts[0]).toContain("<instruction_language>\nde-AT\n</instruction_language>");
+    prompts.length = 0;
+
+    // Counted trimmed, and asked trimmed.
+    const longest = "a".repeat(300);
+    const asked = await draft({ goal: `  ${longest}  ` });
+    expect(asked.status).toBe(200);
+    expect(await asked.json()).toEqual({ objectives: [], refused: [] });
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain(`<goal>\n${longest}\n</goal>`);
+    expect(prompts[0]).not.toContain("<learners>");
+    // Recorded as any draft that reached the model.
+    expect(await ledger()).toBe(charged + 2);
   });
 
   test("reads a PDF's text, page by page, for an organization the operator lets", async () => {
@@ -806,7 +902,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
         monthlyLimit: 2,
       },
     });
-    const draft = (source: string, body: object = {}) =>
+    const draft = (source: string, body: object = { instructionLanguage: "en" }) =>
       limited.request(`/api/organizations/${limitedOrganization}/sources/${source}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
@@ -816,6 +912,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
     // Refused before the model is asked, so they cost nothing.
     expect((await draft(sourceId, [])).status).toBe(400);
     expect((await draft(sourceId, { audience: "a".repeat(201) })).status).toBe(400);
+    expect((await draft(sourceId, { audience: "English-speaking adults" })).status).toBe(400);
     const long = await draft(await add("a".repeat(200_001)));
     expect(long.status).toBe(400);
     expect(await long.json()).toEqual({
@@ -915,7 +1012,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       app.request(`/api/organizations/${organizationId}/sources/${sourceId}/draft`, {
         method: "POST",
         headers: { "content-type": "application/json", cookie: teacher.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       });
 
     const none = await draft(api);
@@ -926,7 +1023,7 @@ describe.skipIf(!connectionString)("the materials routes", () => {
       {
         method: "POST",
         headers: { "content-type": "application/json", cookie: learner.cookie },
-        body: "{}",
+        body: '{"instructionLanguage": "en"}',
       },
     );
     expect(learnerDraft.status).toBe(403);

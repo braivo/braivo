@@ -5,7 +5,7 @@ import { activateLocale } from "@braivo/i18n";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { beginners } from "./fixtures.ts";
+import { authoring, beginners } from "./fixtures.ts";
 import { renderAt } from "./render.tsx";
 
 describe("the console in Polish", () => {
@@ -16,6 +16,15 @@ describe("the console in Polish", () => {
       vi.unstubAllEnvs();
       return activateLocale("en");
     };
+  });
+
+  test("starts the draft form's language at the one the console speaks", async () => {
+    renderAt("/example/sources/s1", { braivo: authoring() });
+
+    const field = await screen.findByLabelText<HTMLInputElement>(
+      "What language should the questions be in?",
+    );
+    expect(field.value).toBe("Polish");
   });
 
   test("says how many days ago a learner practised, by its plural forms", async () => {

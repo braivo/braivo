@@ -127,7 +127,12 @@ describe.skipIf(!connectionString)("from a teacher's PDF to a tutor", () => {
     );
 
     const draft = await client.draftCourse(
-      { organizationId, sourceId, audience: "grade 2, English speakers" },
+      {
+        organizationId,
+        sourceId,
+        audience: "grade 2, English speakers",
+        instructionLanguage: "en",
+      },
       teacher,
     );
     expect(draft.refused).toEqual([]);

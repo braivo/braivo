@@ -4,6 +4,7 @@
 import type { Database } from "@braivo/db";
 
 import { type Draft, draftCourse } from "../ai/index.ts";
+import { isStorableText, parseLanguageTag } from "../content/index.ts";
 import { readSource } from "../persistence/index.ts";
 import { type Ai, aiFor, InvalidAiRequest } from "./ai.ts";
 
@@ -15,6 +16,9 @@ const MAX_CHARACTERS = 200_000;
 
 /** Long enough to describe a class — "grade 2, English speakers learning Spanish". */
 const MAX_AUDIENCE = 200;
+
+/** A sentence or two of what learners should be able to do. */
+const MAX_GOAL = 300;
 
 /**
  * Drafts a course from one of an organization's sources with the
@@ -31,18 +35,47 @@ export async function draftFromSource(input: {
   organizationId: string;
   actingAs: string;
   sourceId: string;
-  /** Who the course is for, in the content owner's words. */
-  audience?: string;
+  /** Who the course is for, in the content owner's words, as the request sent it. Blank is absent. */
+  audience?: unknown;
+  /** What learners should be able to do, as the request sent it. Absent, nothing guides the draft. */
+  goal?: unknown;
+  /**
+   * The language of titles, prompts, and explanations, as the request sent it.
+   * A tag, as a source's language is: of any language, not only those Braivo's
+   * apps speak, since a course's language is not the interface's
+   * (docs/specs/localization.md, Boundaries), and never a name for the model to
+   * interpret. Required: inferred from the learners, it was read as the
+   * language they learn (ADR 0029).
+   */
+  instructionLanguage: unknown;
   now: Date;
   /** The request's: the model is not kept answering someone who left. */
   signal?: AbortSignal;
 }): Promise<Draft | undefined> {
   const { database, cachedDatabase, ai, organizationId, actingAs, sourceId } = input;
 
-  const audience = input.audience?.trim() || undefined;
-  if (audience !== undefined && (audience.length > MAX_AUDIENCE || audience.includes("\u0000"))) {
+  const audience =
+    typeof input.audience === "string" ? input.audience.trim() || undefined : input.audience;
+  if (audience !== undefined && !isStorableText(audience, MAX_AUDIENCE)) {
     throw new InvalidAiRequest(
       `Describe the learners in at most ${MAX_AUDIENCE} characters, such as "grade 2, English speakers".`,
+    );
+  }
+
+  if (input.goal !== undefined && !isStorableText(input.goal, MAX_GOAL)) {
+    throw new InvalidAiRequest(
+      `Say in the goal what learners should be able to do, in 1 to ${MAX_GOAL} characters of text.`,
+    );
+  }
+  const goal = input.goal?.trim();
+
+  const instructionLanguage =
+    typeof input.instructionLanguage === "string"
+      ? parseLanguageTag(input.instructionLanguage)
+      : undefined;
+  if (instructionLanguage === undefined) {
+    throw new InvalidAiRequest(
+      "Name the language for learners' instructions as a BCP 47 tag such as es or en-US, not a language's name.",
     );
   }
 
@@ -62,7 +95,9 @@ export async function draftFromSource(input: {
     signal: input.signal,
     work: async (model) => {
       const { draft, counts } = await draftCourse(model, source, {
+        goal,
         audience,
+        instructionLanguage,
         signal: input.signal,
       });
       return { result: draft, counts };

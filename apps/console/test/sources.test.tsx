@@ -38,7 +38,7 @@ describe("the console", () => {
     const video = await screen.findByRole("link", { name: "Los animales" });
     expect(video.getAttribute("href")).toBe("/example/sources/s1");
     const [first, second] = within(screen.getByRole("main")).getAllByRole("listitem");
-    expect(within(first!).getByText("es")).toBeTruthy();
+    expect(within(first!).getByText("Spanish")).toBeTruthy();
     expect(within(second!).getByText("Original kept")).toBeTruthy();
   });
 
@@ -147,17 +147,10 @@ describe("the console", () => {
     };
 
     // Where a browser shows tags alone (iOS Safari), the name typed in full.
+    // Which names resolve to which tags: lib/languages.test.ts, without
+    // rendering the form for each.
     expect(await sent(" sPaNiSh ")).toBe("es");
-    expect(await sent("Polish")).toBe("pl");
-    // Any language with a two-letter tag, not only those suggested.
-    expect(await sent("Czech")).toBe("cs");
-    // A name two tags share, one deprecated: the current one.
-    expect(await sent("Romanian")).toBe("ro");
-    // `ak`, never `tw`, which some engines also name Akan.
-    expect(await sent("Akan")).toBe("ak");
     expect(await sent("es-MX")).toBe("es-MX");
-    // Not one it knows: Braivo's refusal says why.
-    expect(await sent("Klingon")).toBe("Klingon");
   });
 
   test("holds the form still while it is sent, the focus kept where it was", async () => {

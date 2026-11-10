@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { MAX_ACCEPTED, normalizeAnswer } from "./answer.ts";
-import { parseLanguageTag } from "./source.ts";
+import { parseLanguageTag } from "./language-tag.ts";
 import { isStorable, isStorableText } from "./text.ts";
 
 /**

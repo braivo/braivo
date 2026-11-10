@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { normalizeSourceText, parseLanguageTag, parseSourceUrl, sourceDigest } from "./source.ts";
+import { normalizeSourceText, parseSourceUrl, sourceDigest } from "./source.ts";
 
 describe("what makes two sources the same", () => {
   const lesson = { title: "Unidad 1", text: "Hola", url: "https://example.com/u1", language: "es" };
@@ -101,23 +101,5 @@ describe("reading a source's link", () => {
     ["too long once encoded", `https://example.com/${"é".repeat(400)}`],
   ])("refuses a link that is %s", (_label, value) => {
     expect(parseSourceUrl(value)).toBeUndefined();
-  });
-});
-
-describe("reading a source's language", () => {
-  test("gives each language one spelling", () => {
-    expect(parseLanguageTag("es")).toBe("es");
-    expect(parseLanguageTag(" es-mx ")).toBe("es-MX");
-    expect(parseLanguageTag("zh-hant-tw")).toBe("zh-Hant-TW");
-  });
-
-  test.each([
-    ["empty", ""],
-    ["not a tag", "Spanish language"],
-    ["a language's name", "Spanish"],
-    ["private use only", "x-klingon"],
-    ["too long to be a language", `es-${"a".repeat(40)}`],
-  ])("refuses a tag that is %s", (_label, value) => {
-    expect(parseLanguageTag(value)).toBeUndefined();
   });
 });

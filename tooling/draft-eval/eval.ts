@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { checkDraft, checkReading } from "./checks.ts";
+import { checkDraft, checkReading, type GoalInMaterial } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -33,9 +33,15 @@ export type Fixture = {
   review: string;
   title?: string;
   language?: string;
+  /** Ignored by a checkout that does not read a goal, so a baseline shows the draft without one. */
+  goal?: string;
   audience?: string;
+  /** Required of a draft, as drafting requires it. */
+  instructionLanguage?: string;
   mediaType?: string;
   offTopic?: string[];
+  goalInMaterial?: GoalInMaterial;
+  outsideMaterial?: string[];
   lines?: string[];
   order?: [string, string][];
 };
@@ -153,10 +159,23 @@ export async function runEvaluation(options: {
           const { draft, counts } = await ai.draftCourse(
             capturing,
             { id: fixture, title: spec.title ?? fixture, text: material, language: spec.language },
-            { audience: spec.audience },
+            {
+              goal: spec.goal,
+              audience: spec.audience,
+              instructionLanguage: spec.instructionLanguage!,
+            },
           );
           Object.assign(record, { result: draft, counts });
-          record.checks = checkDraft({ material, raw: record.raw, draft, offTopic: spec.offTopic });
+          record.checks = checkDraft({
+            material,
+            raw: record.raw,
+            draft,
+            offTopic: spec.offTopic,
+            goalInMaterial: spec.goalInMaterial,
+            outsideMaterial: spec.outsideMaterial,
+            instructionLanguage: spec.instructionLanguage,
+            materialLanguage: spec.language,
+          });
         } else {
           const { pages, counts } = await ai.extractPages(capturing, {
             mediaType: spec.mediaType!,

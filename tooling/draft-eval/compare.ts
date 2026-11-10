@@ -86,6 +86,7 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
     ["Side", "Objectives kept", "Tasks kept", "Items kept", "Quotes ambiguous", "Refusal lines"],
   ];
   const problems: string[] = [];
+  const decodedRuns: string[] = [];
 
   for (const side of sides) {
     let objectives = [0, 0];
@@ -102,9 +103,11 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
             `${side.name} ${fixture}#${record.run} failed: ${record.error.failure ?? record.error.name}: ${record.error.message}`,
           );
         }
-        for (const failed of (record.checks as { failed?: string[] } | undefined)?.failed ?? []) {
+        const checks = record.checks as { failed?: string[]; decoded?: boolean } | undefined;
+        for (const failed of checks?.failed ?? []) {
           problems.push(`${side.name} ${fixture}#${record.run}: ${failed}`);
         }
+        if (checks?.decoded) decodedRuns.push(`${side.name} ${fixture}#${record.run}`);
       }
       const failedChecks = ok.filter(
         (record) => (record.checks as { failed: string[] }).failed.length > 0,
@@ -181,6 +184,14 @@ export function compareEvaluations(baselineDir: string, candidateDir: string): s
       ? `Failed runs and checks:\n${problems.map((line) => `- ${line}`).join("\n")}`
       : "No run or check failed.",
   );
+  // Apart from the failures: decoded, these drafts count as answered, yet the
+  // model did not keep to the shape asked for.
+  if (decodedRuns.length) {
+    out.push(
+      "",
+      `Objectives sent as JSON text and decoded by Braivo:\n${decodedRuns.map((line) => `- ${line}`).join("\n")}`,
+    );
+  }
 
   // One per comparison, beside the candidate's runs, named by what both sides
   // recorded (a folder's name says nothing of which runs it holds): another
@@ -208,8 +219,9 @@ function byFixture(a: string[], b: string[]): number {
 }
 
 const CHECKLIST = [
-  "One assessable target per objective",
-  "The task tests its objective, not a neighbour",
+  "One assessable target per objective: a word or phrase, or one rule over several words, never words sharing only a topic",
+  "Answering the task shows its objective's ability, not a neighbour's: understanding a reply is not asking",
+  "The task's prompt and explanation are in the language asked for; its answer in the language the objective practises",
   "The keyed answer is right and supported by its quote (located is not supported)",
   "The explanation teaches the distinction tested",
   "Its feedback gives no other task's answer away",

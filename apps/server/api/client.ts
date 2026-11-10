@@ -131,6 +131,7 @@ export type { ExplanationCounts } from "../content/explanation.ts";
 export { countExplanations, hasExplanation } from "../content/explanation.ts";
 export type { Finding } from "../content/findings.ts";
 export { taskFindings } from "../content/findings.ts";
+export { parseLanguageTag } from "../content/language-tag.ts";
 export { calendarDayIn, learnerDayIn } from "../application/learner-day.ts";
 export type { Standing } from "../application/standing.ts";
 export { countStandings, standingOf } from "../application/standing.ts";
@@ -896,7 +897,14 @@ export type BraivoClient = {
    * `reason`.
    */
   draftCourse(
-    input: { organizationId: string; sourceId: string; audience?: string },
+    input: {
+      organizationId: string;
+      sourceId: string;
+      goal?: string;
+      audience?: string;
+      /** The language of titles, prompts, and explanations, as a BCP 47 tag. */
+      instructionLanguage: string;
+    },
     options?: RequestOptions,
   ): Promise<Draft>;
 
@@ -1821,10 +1829,13 @@ export function createClient(options: ClientOptions = {}): BraivoClient {
       }
     },
 
-    async draftCourse({ organizationId, sourceId, audience }, requestOptions) {
+    async draftCourse(
+      { organizationId, sourceId, goal, audience, instructionLanguage },
+      requestOptions,
+    ) {
       const response = await post(
         `${organizationPath(organizationId)}/sources/${encodeURIComponent(sourceId)}/draft`,
-        { audience },
+        { goal, audience, instructionLanguage },
         requestOptions,
       );
 

@@ -68,11 +68,16 @@ function testServer(
 describe.skipIf(!connectionString)("createServer", () => {
   let cookie!: string;
   /** A request from an administrator of `organizationId`. */
-  const asAdmin = (server: ReturnType<typeof testServer>, method: string, path: string) =>
+  const asAdmin = (
+    server: ReturnType<typeof testServer>,
+    method: string,
+    path: string,
+    body = "{}",
+  ) =>
     server.request(`${baseUrl}/api/organizations/${organizationId}${path}`, {
       method,
       headers: { "content-type": "application/json", origin: baseUrl, cookie },
-      ...(method === "POST" && { body: "{}" }),
+      ...(method === "POST" && { body }),
     });
 
   beforeAll(async () => {
@@ -425,8 +430,9 @@ describe.skipIf(!connectionString)("createServer", () => {
       ai: { ANTHROPIC_API_KEY: "key", BRAIVO_AI_ORGANIZATIONS: "server-test-other-org" },
     });
 
-    expect((await asAdmin(testServer(), "POST", "/sources/none/draft")).status).toBe(501);
-    expect((await asAdmin(notEntitled, "POST", "/sources/none/draft")).status).toBe(403);
+    const drafting = '{"instructionLanguage": "en"}';
+    expect((await asAdmin(testServer(), "POST", "/sources/none/draft", drafting)).status).toBe(501);
+    expect((await asAdmin(notEntitled, "POST", "/sources/none/draft", drafting)).status).toBe(403);
   });
 });
 

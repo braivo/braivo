@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { BraivoError, type Draft, type Source, taskFindings } from "@braivo/server/client";
+import {
+  BraivoError,
+  type Draft,
+  parseLanguageTag,
+  type Source,
+  taskFindings,
+} from "@braivo/server/client";
 import {
   AuthoredTask,
   type EditableTask,
@@ -23,6 +29,7 @@ import {
   FieldSet,
 } from "@braivo/ui/components/field";
 import { Input } from "@braivo/ui/components/input";
+import { Textarea } from "@braivo/ui/components/textarea";
 import { useLingui } from "@lingui/react/macro";
 import { createFileRoute, Link, useBlocker, useRouter } from "@tanstack/react-router";
 import {
@@ -40,7 +47,13 @@ import { FindingLines } from "#components/findings";
 import { SignInAgainLink } from "#components/sign-in-again-link";
 import { useAbortOnUnmount } from "#lib/abort-on-unmount";
 import { bodyDeadline, REQUEST_DEADLINE_MS, withDeadline } from "#lib/deadline";
-import { MAX_TITLE, titleProblem } from "#lib/limits";
+import {
+  SUGGESTED_LANGUAGES,
+  languageFieldValue,
+  languageName,
+  resolveLanguageTag,
+} from "#lib/languages";
+import { MAX_AUDIENCE, MAX_GOAL, MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -54,7 +67,7 @@ export const Route = createFileRoute("/_signed-in/$organizationSlug/sources/$sou
       ),
     ),
   }),
-  // Marked, as a course drafted from it takes its title by default.
+  // Marked, as a course drafted from it may share its title.
   head: (head) => pageHead(head, head.loaderData && `${head.loaderData.source.title} · Source`),
   // Remounted for another source, so no draft carries over to it.
   remountDeps: ({ params }) => params,
@@ -86,7 +99,7 @@ function SourcePage() {
       </Link>
       <Heading>{source.title}</Heading>
       <p className="mb-4 flex flex-wrap gap-2">
-        {source.language && <Badge variant="secondary">{source.language}</Badge>}
+        {source.language && <Badge variant="secondary">{languageName(source.language)}</Badge>}
         {source.original && (
           // A download, never shown inline: the server answers it as an attachment.
           <a
@@ -186,6 +199,9 @@ function SourceText({ text }: { text: string }) {
   );
 }
 
+/** What a draft was asked for, as sent: its brief. */
+type DraftBrief = { goal: string; audience?: string; instructionLanguage: string };
+
 /**
  * Asks Braivo's AI for a course drafted from this source, then lets the
  * content owner keep what is right and author it (docs/adr/0029-server-drafting.md).
@@ -196,10 +212,14 @@ function SourceText({ text }: { text: string }) {
 function DraftCourse(props: { source: Source }) {
   const { source } = props;
   const { braivo, organization } = Route.useRouteContext();
+  const { i18n } = useLingui();
   const organizationId = organization.id;
   const router = useRouter();
   const [drafting, setDrafting] = useState(false);
   const [draft, setDraft] = useState<Draft>();
+  // The review's brief, frozen at sending. It outlives a
+  // discarded review, so drafting again need not retype a required goal.
+  const [brief, setBrief] = useState<DraftBrief>();
   // The review replaces this form, so it takes the focus if the form held it.
   const [focusReview, setFocusReview] = useState(false);
   const [error, setError] = useState<string>();
@@ -221,7 +241,26 @@ function DraftCourse(props: { source: Source }) {
     // aria-disabled does not stop Enter in the field from submitting the form.
     if (drafting) return;
     const form = event.currentTarget;
-    const audience = (new FormData(form).get("audience") as string).trim();
+    const reportInvalid = (field: HTMLTextAreaElement | HTMLInputElement, message: string) => {
+      field.setCustomValidity(message);
+      field.reportValidity();
+    };
+    const goalField = form.elements.namedItem("goal") as HTMLTextAreaElement;
+    const goal = goalField.value.trim();
+    // `required` passes spaces (docs/apps.md, Text).
+    if (!goal) return reportInvalid(goalField, "Say what learners should be able to do.");
+    const languageField = form.elements.namedItem("instructionLanguage") as HTMLInputElement;
+    const language = languageField.value.trim();
+    if (!language) return reportInvalid(languageField, "Say what language to write them in.");
+    // Checked as the server would, which words it for an API's caller, not a teacher.
+    const instructionLanguage = parseLanguageTag(resolveLanguageTag(language));
+    if (!instructionLanguage) {
+      return reportInvalid(
+        languageField,
+        "Choose a language from the list, or type its English name or its code, such as pt-BR.",
+      );
+    }
+    const audience = (new FormData(form).get("audience") as string).trim() || undefined;
     const signal = abortOnUnmount();
 
     setDrafting(true);
@@ -230,11 +269,12 @@ function DraftCourse(props: { source: Source }) {
       // Unbounded: drafting takes minutes, and a retry spends another AI request.
       const drafted = await explainAiFailure(
         braivo.draftCourse(
-          { organizationId, sourceId: source.id, audience: audience || undefined },
+          { organizationId, sourceId: source.id, goal, audience, instructionLanguage },
           { signal },
         ),
       );
       setFocusReview(form.contains(document.activeElement));
+      setBrief({ goal, audience, instructionLanguage });
       setDraft(drafted);
     } catch (thrown) {
       if (signal?.aborted) return;
@@ -247,11 +287,12 @@ function DraftCourse(props: { source: Source }) {
     }
   }
 
-  if (draft) {
+  if (draft && brief) {
     return (
       <ReviewDraft
         source={source}
         draft={draft}
+        brief={brief}
         takeFocus={focusReview}
         onDiscard={() => {
           setDraft(undefined);
@@ -289,17 +330,63 @@ function DraftCourse(props: { source: Source }) {
       </Heading>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor={`${id}-audience`}>Learners</FieldLabel>
+          <FieldLabel htmlFor={`${id}-goal`}>What should learners be able to do?</FieldLabel>
+          <Textarea
+            id={`${id}-goal`}
+            name="goal"
+            required
+            maxLength={MAX_GOAL}
+            rows={2}
+            readOnly={drafting}
+            defaultValue={brief?.goal}
+            onChange={(event) => event.target.setCustomValidity("")}
+            aria-describedby={`${id}-goal-hint`}
+          />
+          <FieldDescription id={`${id}-goal-hint`}>
+            For example: order food and ask for the bill politely.
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-instruction-language`}>
+            What language should the questions be in?
+          </FieldLabel>
+          <Input
+            id={`${id}-instruction-language`}
+            name="instructionLanguage"
+            required
+            list={`${id}-languages`}
+            readOnly={drafting}
+            // The language this console speaks until told otherwise; a course's
+            // language is the owner's to choose (generation-6).
+            defaultValue={languageFieldValue(brief?.instructionLanguage ?? i18n.locale)}
+            onChange={(event) => event.target.setCustomValidity("")}
+            aria-describedby={`${id}-instruction-language-hint`}
+          />
+          <datalist id={`${id}-languages`}>
+            {SUGGESTED_LANGUAGES.map((tag) => (
+              // By name, so choosing one reads as the field starts and as typed.
+              <option key={tag} value={languageName(tag)} />
+            ))}
+          </datalist>
+          <FieldDescription id={`${id}-instruction-language-hint`}>
+            The language of titles, questions, and explanations, such as Spanish. What the source
+            teaches stays as it is.
+          </FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${id}-audience`}>Who are the learners?</FieldLabel>
           <Input
             id={`${id}-audience`}
             name="audience"
-            maxLength={200}
+            maxLength={MAX_AUDIENCE}
             readOnly={drafting}
-            placeholder="Grade 2, English speakers learning Spanish"
+            defaultValue={brief?.audience}
             aria-describedby={`${id}-audience-hint`}
           />
+          {/* Their age or level, not their language, which the field above asks:
+              an audience naming two languages drew drafts into the wrong one (ADR 0029). */}
           <FieldDescription id={`${id}-audience-hint`}>
-            Who the course is for. Braivo's AI reads the whole source, which can take a few minutes.
+            Optional: their age or level, such as grade 2 or adult beginners.
           </FieldDescription>
         </Field>
         {error && (
@@ -317,11 +404,21 @@ function DraftCourse(props: { source: Source }) {
           <MutedText role="status">
             {drafting
               ? "Braivo's AI is drafting the course, which can take a few minutes…"
-              : "You review the draft before learners see any of it."}
+              : "Braivo's AI reads the whole source, which can take a few minutes. You review the draft before learners see any of it."}
           </MutedText>
         </Field>
       </FieldGroup>
     </form>
+  );
+}
+
+/** One row of a draft's brief. */
+function BriefRow(props: { term: string; children: ReactNode }) {
+  return (
+    <div className="contents">
+      <dt className="text-muted-foreground">{props.term}</dt>
+      <dd className="wrap-break-word">{props.children}</dd>
+    </div>
   );
 }
 
@@ -333,11 +430,12 @@ function DraftCourse(props: { source: Source }) {
 function ReviewDraft(props: {
   source: Source;
   draft: Draft;
+  brief: DraftBrief;
   /** Whether the heading takes the focus once shown. */
   takeFocus: boolean;
   onDiscard: () => void;
 }) {
-  const { source, draft, takeFocus, onDiscard } = props;
+  const { source, draft, brief, takeFocus, onDiscard } = props;
   const { braivo, organization } = Route.useRouteContext();
   const { t } = useLingui();
   const organizationId = organization.id;
@@ -568,15 +666,27 @@ function ReviewDraft(props: {
       <Heading level={2} id={`${id}-heading`} ref={heading} tabIndex={-1}>
         Review the draft
       </Heading>
-      <MutedText>
-        {submitted
-          ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
-          : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
-      </MutedText>
+      {/* What it was asked for, so the owner judges the draft against it, by
+          the names the form asked with. */}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+        <BriefRow term="Drafted from">The whole source</BriefRow>
+        <BriefRow term="Goal">{brief.goal}</BriefRow>
+        {brief.audience && <BriefRow term="Learners">{brief.audience}</BriefRow>}
+        <BriefRow term="Questions in">{languageName(brief.instructionLanguage)}</BriefRow>
+      </dl>
+      {draft.objectives.length > 0 && (
+        <MutedText>
+          {submitted
+            ? "The review is locked: trying again sends the same choices, to finish this course rather than make another."
+            : "Untick what is wrong, or correct an objective's title or a task's words and answer. Nothing is stored until you create the course."}
+        </MutedText>
+      )}
       {draft.refused.length > 0 && (
         // `wrap-anywhere`: a grid, whose column is otherwise as wide as the
-        // longest word a reason quotes, such as a link.
-        <Alert className="wrap-anywhere">
+        // longest word a reason quotes, such as a link. A note, not an alert:
+        // it arrives with the review, whose heading takes the focus, and being
+        // assertive would talk over it.
+        <Alert role="note" className="wrap-anywhere">
           {/* Not only what Braivo could not find in the source: also invalid tasks,
               and what is past a cap. Each reason says which. */}
           <AlertTitle>Left out of the draft</AlertTitle>
@@ -590,7 +700,19 @@ function ReviewDraft(props: {
           </AlertDescription>
         </Alert>
       )}
-      {draft.objectives.length === 0 && <MutedText>The draft proposes no objectives.</MutedText>}
+      {/* Only what Braivo knows left it empty: what it refused, or that the AI
+          proposed nothing. Never that the source lacks the goal, which nothing
+          checked (generation, Gaps). */}
+      {draft.objectives.length === 0 && (
+        <p className="text-sm">
+          Nothing in this draft can become a course:{" "}
+          {draft.refused.length > 0
+            ? "Braivo left out all the AI proposed, as listed above"
+            : "Braivo's AI proposed nothing for this goal"}
+          . Discard it to reword the goal or check the source's text, then draft again, which uses
+          another of this month's AI requests.
+        </p>
+      )}
       {/* Still while sending, and once sent: see `submitted`. */}
       <FieldSet disabled={creating || submitted !== undefined}>
         {draft.objectives.map((objective, index) => {
@@ -702,19 +824,24 @@ function ReviewDraft(props: {
             </article>
           );
         })}
-        <Field data-invalid={error?.field === `${id}-title` || undefined}>
-          <FieldLabel htmlFor={`${id}-title`}>Course title</FieldLabel>
-          <Input
-            id={`${id}-title`}
-            name="title"
-            required
-            maxLength={MAX_TITLE}
-            defaultValue={source.title}
-            onChange={() => clearFieldError(`${id}-title`)}
-            {...ariaFor(`${id}-title`)}
-          />
-          {fieldError(`${id}-title`)}
-        </Field>
+        {/* No title to ask for, nor course to create, from a draft of nothing. */}
+        {draft.objectives.length > 0 && (
+          <Field data-invalid={error?.field === `${id}-title` || undefined}>
+            <FieldLabel htmlFor={`${id}-title`}>Course title</FieldLabel>
+            <Input
+              id={`${id}-title`}
+              name="title"
+              required
+              maxLength={MAX_TITLE}
+              // The source's: a goal is a sentence about learners, rarely a
+              // course's name, and the review shows it above.
+              defaultValue={source.title}
+              onChange={() => clearFieldError(`${id}-title`)}
+              {...ariaFor(`${id}-title`)}
+            />
+            {fieldError(`${id}-title`)}
+          </Field>
+        )}
       </FieldSet>
       <FieldGroup>
         {error && !error.field && (
@@ -725,14 +852,16 @@ function ReviewDraft(props: {
         <Field orientation="horizontal">
           {/* Not while a task is open: its unsaved edit would be left out.
               While sending, aria-disabled, so that it keeps the focus. */}
-          <Button
-            type="submit"
-            ref={createButton}
-            disabled={kept.length === 0 || editing !== undefined}
-            aria-disabled={creating}
-          >
-            {submitted && !creating ? "Try again" : "Create course"}
-          </Button>
+          {draft.objectives.length > 0 && (
+            <Button
+              type="submit"
+              ref={createButton}
+              disabled={kept.length === 0 || editing !== undefined}
+              aria-disabled={creating}
+            >
+              {submitted && !creating ? "Try again" : "Create course"}
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"

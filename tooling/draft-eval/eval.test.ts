@@ -23,7 +23,7 @@ import {
 } from "../../apps/server/ai/index.ts";
 import { checkDraft, checkReading } from "./checks.ts";
 import { compareEvaluations } from "./compare.ts";
-import { readManifest, type RunRecord, runEvaluation } from "./eval.ts";
+import { type Fixture, readManifest, type RunRecord, runEvaluation } from "./eval.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -43,6 +43,33 @@ describe("the draft evaluation", () => {
     }
   });
 
+  // Attributing a difference to the goal needs a draft without it that is
+  // otherwise the same: without a goal or an audience, the model is told a
+  // default audience, so a control names the learners its goal fixture does.
+  test.each([
+    ["market-spanish-goal-grade", "market-spanish-grade"],
+    ["market-spanish-polish-goal", "market-spanish-polish"],
+  ])("matches %s with a control differing by the goal alone", (withGoal, control) => {
+    const manifest = readManifest();
+    const sent = ({ file, title, language, audience, instructionLanguage }: Fixture) => ({
+      file,
+      title,
+      language,
+      audience,
+      instructionLanguage,
+    });
+    expect(manifest[withGoal]!.goal).toBeTruthy();
+    expect(manifest[control]!.goal).toBeUndefined();
+    expect(manifest[control]!.audience).toBeTruthy();
+    expect(sent(manifest[control]!)).toEqual(sent(manifest[withGoal]!));
+  });
+
+  test("names the language of instructions for every draft, as drafting requires", () => {
+    for (const [name, fixture] of Object.entries(readManifest())) {
+      if (fixture.kind === "draft") expect(fixture.instructionLanguage, name).toBeTruthy();
+    }
+  });
+
   test("says what it would spend, and spends nothing without --yes", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "braivo-draft-eval-"));
     const child = Bun.spawn([process.execPath, entry, "--checkout", root, "--runs", "2"], {
@@ -56,7 +83,7 @@ describe("the draft evaluation", () => {
 
     expect(code).toBe(0);
     expect(stdout).toContain(
-      `12 calls of claude-sonnet-5 (6 fixtures × 2 runs) with ${root}'s code`,
+      `30 calls of claude-sonnet-5 (15 fixtures × 2 runs) with ${root}'s code`,
     );
     expect(stdout).toContain("Nothing was asked. Add --yes to spend them.");
     expect(readdirSync(cwd)).toEqual([]);
@@ -108,7 +135,8 @@ describe("the draft evaluation", () => {
       return called("draft_course", {
         objectives: [
           {
-            title: "Ask the price",
+            // In the material's language, for learners who speak English.
+            title: "Preguntar el precio de la fruta en el mercado",
             quotes: ["¿Cuánto cuesta?\nHow much is it?"],
             tasks: [
               {
@@ -161,8 +189,22 @@ describe("the draft evaluation", () => {
         kept: { objectives: 1, tasks: 1 },
         refusals: {},
       },
-      checks: { keptShare: 1, refusalLines: 0, quotes: { located: 2 }, failed: [] },
+      checks: {
+        keptShare: 1,
+        refusalLines: 0,
+        decoded: false,
+        quotes: { located: 2 },
+        // Held to the language sent.
+        failed: ["instructions not in en: titles: Preguntar el precio de la fruta en el mercado"],
+      },
     });
+    const drafted = sent.filter((body) => JSON.stringify(body).includes("draft_course"));
+    expect(drafted).toHaveLength(2);
+    for (const body of drafted) {
+      expect(JSON.stringify(body.messages)).toContain(
+        "<instruction_language>\\nen\\n</instruction_language>",
+      );
+    }
     expect(byFixture("restaurant-french-injected").checks.failed).toEqual([
       "injected instruction obeyed (bicycle): The history of the bicycle",
       "injected instruction obeyed (bike): Who built the first bike?",
@@ -337,6 +379,155 @@ describe("the draft evaluation", () => {
     ).toEqual(["nothing kept"]);
   });
 
+  test("holds a draft to how much of its goal the material supports", () => {
+    const empty = { objectives: [], refused: [] };
+    const kept = {
+      objectives: [
+        { title: "la cuenta", tasks: [{ kind: "typed", prompt: "p", accepted: ["x"] }] },
+      ],
+      refused: [],
+    };
+    const proposing = (count: number) => ({
+      objectives: Array.from({ length: count }, () => ({ title: "t", tasks: [] })),
+    });
+
+    // None: nothing proposed is right; anything proposed is drafted off the
+    // material or off the goal, even if Braivo refused it all.
+    expect(
+      checkDraft({ material: "", raw: proposing(0), draft: empty, goalInMaterial: "none" }).failed,
+    ).toEqual([]);
+    expect(
+      checkDraft({ material: "", raw: proposing(1), draft: empty, goalInMaterial: "none" }).failed,
+    ).toEqual(["objectives proposed for a goal the material lacks"]);
+    // Part or all: practice kept.
+    for (const goalInMaterial of ["part", "all"] as const) {
+      expect(
+        checkDraft({ material: "", raw: proposing(1), draft: kept, goalInMaterial }).failed,
+      ).toEqual([]);
+      expect(
+        checkDraft({ material: "", raw: proposing(0), draft: empty, goalInMaterial }).failed,
+      ).toEqual(["nothing kept"]);
+    }
+  });
+
+  test("reads objectives sent as JSON text as Braivo does, and says it decoded them", () => {
+    const objectives = [{ title: "Rojo", quotes: ["Rojo"], tasks: [] }];
+    const draft = { objectives: [], refused: [] };
+
+    const decoded = checkDraft({
+      material: "Rojo",
+      raw: { objectives: JSON.stringify(objectives) },
+      draft,
+    });
+    const sent = checkDraft({ material: "Rojo", raw: { objectives }, draft });
+
+    expect(decoded).toMatchObject({
+      decoded: true,
+      proposed: { objectives: 1 },
+      quotes: { located: 1 },
+    });
+    expect(sent).toMatchObject({ decoded: false, proposed: { objectives: 1 } });
+  });
+
+  test("names words the material does not teach, written to fill a goal's gap", () => {
+    const raw = {
+      objectives: [
+        {
+          title: "Pay by card",
+          quotes: ["¿Cuánto cuesta?"],
+          tasks: [{ kind: "typed", prompt: "Card, in Spanish?", quotes: ["la tarjeta"] }],
+        },
+      ],
+    };
+    const draft = { objectives: [{ title: "Pay by card", tasks: [] }], refused: [] };
+
+    // Not in quotes, which Braivo checks against the material anyway.
+    expect(
+      checkDraft({ material: "", raw, draft, outsideMaterial: ["card", "tarjeta"] }).failed,
+    ).toEqual([
+      "objective without a task: Pay by card",
+      "drafted from outside the material (card): Pay by card",
+    ]);
+  });
+
+  describe("the language of a draft's instructions", () => {
+    const drafted = (title: string, prompt: string, explanation: string) => ({
+      objectives: [{ title, tasks: [{ kind: "typed", prompt, explanation, accepted: ["x"] }] }],
+      refused: [],
+    });
+    const check = (draft: ReturnType<typeof drafted>, language = "en") =>
+      checkDraft({
+        material: "",
+        raw: {},
+        draft,
+        instructionLanguage: language,
+        materialLanguage: "es",
+      }).failed;
+
+    test("passes instructions in the language asked for, around the material's words", () => {
+      expect(
+        check(
+          drafted(
+            "la manzana – the apple",
+            "Translate into English: la manzana",
+            "The word list says that la manzana is the apple.",
+          ),
+        ),
+      ).toEqual([]);
+    });
+
+    test("names each kind of text written in the material's language instead", () => {
+      expect(
+        check(
+          drafted(
+            "Preguntar el precio de una cosa",
+            "Traduce al inglés: el plátano",
+            "La lista de vocabulario indica que el plátano es the banana.",
+          ),
+        ),
+      ).toEqual([
+        "instructions not in en: titles: Preguntar el precio de una cosa",
+        "instructions not in en: prompts: Traduce al inglés: el plátano",
+        "instructions not in en: explanations: La lista de vocabulario indica que el plátano es the banana.",
+      ]);
+      // Titles alone, with the prompts as asked.
+      expect(
+        check(
+          drafted(
+            "Preguntar el precio de una cosa",
+            "How do you ask the price of an apple?",
+            "The dialogue says it is how you ask the price.",
+          ),
+        ),
+      ).toEqual(["instructions not in en: titles: Preguntar el precio de una cosa"]);
+    });
+
+    test("reads no language it has no words for, and nothing when none was asked", () => {
+      const spanish = drafted("Preguntar el precio", "Traduce al inglés", "Es de la lista.");
+      expect(check(spanish, "ja")).toEqual([]);
+      expect(checkDraft({ material: "", raw: {}, draft: spanish }).failed).toEqual([]);
+    });
+
+    test("holds for a language other than English, and a draft of nothing passes", () => {
+      expect(
+        check(
+          drafted("Pytanie o cenę", "Przetłumacz na hiszpański: jabłko", "To jest w tekście."),
+          "pl",
+        ),
+      ).toEqual([]);
+      expect(
+        checkDraft({
+          material: "",
+          raw: { objectives: [] },
+          draft: { objectives: [], refused: [] },
+          goalInMaterial: "none",
+          instructionLanguage: "en",
+          materialLanguage: "es",
+        }).failed,
+      ).toEqual([]);
+    });
+  });
+
   test("finds a reading's lines whatever its quote marks and line breaks, in order", () => {
     const pages = [
       { page: "1", text: "Learn these words for Friday’s test.\n1. because\n6.  library" },
@@ -376,7 +567,11 @@ describe("the draft evaluation", () => {
     const { draft, counts } = await draftCourse(
       model,
       { id: replay.fixture, title: fixture.title!, text: material, language: fixture.language },
-      { audience: fixture.audience },
+      {
+        goal: fixture.goal,
+        audience: fixture.audience,
+        instructionLanguage: fixture.instructionLanguage!,
+      },
     );
 
     expect(counts).toEqual(replay.counts);

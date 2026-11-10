@@ -58,6 +58,7 @@ const draft = (model: Ai, options: { signal?: AbortSignal; database?: Database }
     organizationId,
     actingAs: teacherId,
     sourceId,
+    instructionLanguage: "en",
     now,
     signal: options.signal,
   });
