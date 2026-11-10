@@ -78,8 +78,7 @@ function threeLetterTagOf(name: string): string | undefined {
  * judge. A tag is taken as it is before three-letter names are looked through,
  * so `pt-BR` or `fil` never waits on naming them all.
  */
-export const resolveLanguageTag = (typed?: string) => {
-  if (!typed) return typed;
+export const resolveLanguageTag = (typed: string): string => {
   const name = typed.toLowerCase();
   return (
     TWO_LETTER_TAG_BY_NAME.get(name) ??
@@ -95,7 +94,5 @@ export const resolveLanguageTag = (typed?: string) => {
 export function languageFieldValue(tag: string): string {
   const name = languageNames.of(tag);
   const canonical = parseLanguageTag(tag);
-  return name && canonical && parseLanguageTag(resolveLanguageTag(name)!) === canonical
-    ? name
-    : tag;
+  return name && canonical && parseLanguageTag(resolveLanguageTag(name)) === canonical ? name : tag;
 }

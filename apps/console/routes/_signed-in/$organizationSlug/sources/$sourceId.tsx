@@ -53,7 +53,7 @@ import {
   languageName,
   resolveLanguageTag,
 } from "#lib/languages";
-import { MAX_TITLE, titleProblem } from "#lib/limits";
+import { MAX_AUDIENCE, MAX_GOAL, MAX_TITLE, titleProblem } from "#lib/limits";
 import { AI_OFF_MESSAGE, authorsOnly, explainAiFailure, orNotFound } from "#lib/refusals";
 import { pageHead } from "#lib/title";
 
@@ -253,7 +253,7 @@ function DraftCourse(props: { source: Source }) {
     const language = languageField.value.trim();
     if (!language) return reportInvalid(languageField, "Say what language to write them in.");
     // Checked as the server would, which words it for an API's caller, not a teacher.
-    const instructionLanguage = parseLanguageTag(resolveLanguageTag(language)!);
+    const instructionLanguage = parseLanguageTag(resolveLanguageTag(language));
     if (!instructionLanguage) {
       return reportInvalid(
         languageField,
@@ -335,7 +335,7 @@ function DraftCourse(props: { source: Source }) {
             id={`${id}-goal`}
             name="goal"
             required
-            maxLength={300}
+            maxLength={MAX_GOAL}
             rows={2}
             readOnly={drafting}
             defaultValue={brief?.goal}
@@ -379,7 +379,7 @@ function DraftCourse(props: { source: Source }) {
           <Input
             id={`${id}-audience`}
             name="audience"
-            maxLength={200}
+            maxLength={MAX_AUDIENCE}
             readOnly={drafting}
             defaultValue={brief?.audience}
             placeholder="Grade 2, English speakers learning Spanish"

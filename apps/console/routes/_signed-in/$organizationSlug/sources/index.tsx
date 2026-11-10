@@ -472,11 +472,12 @@ function AddSource() {
       if (unreadable) return fail(unreadable, "original");
     }
 
+    const language = optional("language");
     const fields = {
       organizationId,
       title: data.get("title") as string,
       url: optional("url"),
-      language: resolveLanguageTag(optional("language")),
+      language: language && resolveLanguageTag(language),
     };
     // The request's size, refused before sending, as Braivo would refuse it
     // with a bare 413. Before the upload too when the text is known: a file
