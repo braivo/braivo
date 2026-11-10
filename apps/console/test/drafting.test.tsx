@@ -224,14 +224,18 @@ describe("the console", () => {
 
   test.each([
     // Named in English, though only a three-letter tag says them.
-    ["Filipino", "fil", "Filipino"],
-    ["cantonese", "yue", "Cantonese"],
-    ["Hawaiian", "haw", "Hawaiian"],
+    ["Filipino", "fil"],
+    ["cantonese", "yue"],
+    ["Hawaiian", "haw"],
     // A tag still works, in its usual form, and reads by name in the review.
-    ["ES", "es", "Spanish"],
-    ["pt-br", "pt-BR", "Brazilian Portuguese"],
-    ["zh-hant", "zh-Hant", "Chinese, Traditional"],
-  ])("takes %s as %s, reviewing it as %s", async (typed, tag, name) => {
+    ["ES", "es"],
+    ["pt-br", "pt-BR"],
+    ["zh-hant", "zh-Hant"],
+  ])("takes %s as %s, reviewing it by name", async (typed, tag) => {
+    // The runtime's name for it, as the review shows it: ICU versions differ
+    // ("Chinese, Traditional" or "Traditional Chinese").
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag)!;
+    expect(name).not.toBe(tag);
     const braivo = authoring();
     renderAt("/example/sources/s1", { braivo });
     fireEvent.change(await screen.findByLabelText(LANGUAGE_LABEL), { target: { value: typed } });
