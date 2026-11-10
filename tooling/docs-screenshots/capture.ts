@@ -360,7 +360,7 @@ async function firstCourse(
     "Draft a course",
   );
   const draft = page.getByRole("button", { name: "Draft a course" });
-  const promise = page.getByText("You review the draft before learners see any of it.");
+  const promise = page.getByText(/You review the draft before learners see any of it\./);
   await region(page, shot("3-draft"), drafting, promise, draft);
   await draft.click();
 

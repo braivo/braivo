@@ -105,10 +105,16 @@ describe("the console", () => {
     expect(goal.maxLength).toBe(300);
     expect(goal.getAttribute("aria-describedby")).toBeTruthy();
     expect(document.getElementById(goal.getAttribute("aria-describedby")!)?.textContent).toBe(
-      "For example: order food and ask for the bill politely. Braivo's AI reads the whole source, which can take a few minutes.",
+      "For example: order food and ask for the bill politely.",
     );
-    // Optional beside it, with no default put in its place.
-    expect(screen.getByLabelText<HTMLInputElement>("Who are the learners?").required).toBe(false);
+    // Optional beside it, with no default put in its place, and asking for age
+    // or level, never the language the field above asks.
+    const audience = screen.getByLabelText<HTMLInputElement>("Who are the learners?");
+    expect(audience.required).toBe(false);
+    expect(audience.placeholder).toBe("");
+    expect(document.getElementById(audience.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Optional: their age or level, such as grade 2 or adult beginners.",
+    );
 
     // Spaces pass `required`, so the form's own handler refuses them.
     fireEvent.change(goal, { target: { value: "   " } });
@@ -332,8 +338,9 @@ describe("the console", () => {
     const form = button.closest("form")!;
     // Present from the start, so what it says next is announced.
     const status = within(form).getByRole("status");
-    expect(status.textContent).toBe("You review the draft before learners see any of it.");
-    expect(within(form).getByText(/reads the whole source.*a few minutes/)).toBeTruthy();
+    expect(status.textContent).toBe(
+      "Braivo's AI reads the whole source, which can take a few minutes. You review the draft before learners see any of it.",
+    );
     fireEvent.change(screen.getByLabelText(GOAL_LABEL), { target: { value: GOAL } });
     button.focus();
 

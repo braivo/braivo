@@ -343,8 +343,7 @@ function DraftCourse(props: { source: Source }) {
             aria-describedby={`${id}-goal-hint`}
           />
           <FieldDescription id={`${id}-goal-hint`}>
-            For example: order food and ask for the bill politely. Braivo's AI reads the whole
-            source, which can take a few minutes.
+            For example: order food and ask for the bill politely.
           </FieldDescription>
         </Field>
         <Field>
@@ -382,10 +381,13 @@ function DraftCourse(props: { source: Source }) {
             maxLength={MAX_AUDIENCE}
             readOnly={drafting}
             defaultValue={brief?.audience}
-            placeholder="Grade 2, English speakers learning Spanish"
             aria-describedby={`${id}-audience-hint`}
           />
-          <FieldDescription id={`${id}-audience-hint`}>Optional.</FieldDescription>
+          {/* Their age or level, not their language, which the field above asks:
+              an audience naming two languages drew drafts into the wrong one (ADR 0029). */}
+          <FieldDescription id={`${id}-audience-hint`}>
+            Optional: their age or level, such as grade 2 or adult beginners.
+          </FieldDescription>
         </Field>
         {error && (
           <Alert variant="destructive">
@@ -402,7 +404,7 @@ function DraftCourse(props: { source: Source }) {
           <MutedText role="status">
             {drafting
               ? "Braivo's AI is drafting the course, which can take a few minutes…"
-              : "You review the draft before learners see any of it."}
+              : "Braivo's AI reads the whole source, which can take a few minutes. You review the draft before learners see any of it."}
           </MutedText>
         </Field>
       </FieldGroup>
