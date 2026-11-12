@@ -10,7 +10,6 @@ import {
   type PersonalOrganizationErasure,
   readAccountErasureCommitted,
   readAccountErasurePreview,
-  readUserIdByEmail,
   withAccountLock,
 } from "../persistence/index.ts";
 import type { FileStore } from "../storage/index.ts";
@@ -25,6 +24,7 @@ import {
   writeErasureIntent,
 } from "./erasure-log.ts";
 import { filesOf } from "./files.ts";
+import { readConfirmedUserIdByEmail } from "./unconfirmed-email.ts";
 
 export type { AccountErasureCounts, AffectedOrganization, PersonalOrganizationErasure };
 
@@ -56,7 +56,7 @@ export async function previewAccountErasure(input: {
 }): Promise<{ target: AccountErasureTarget; counts: AccountErasureCounts }> {
   const { database } = input;
   const email = normalized(input.email);
-  const userId = (await readUserIdByEmail(database, email)) ?? null;
+  const userId = (await readConfirmedUserIdByEmail(database, email)) ?? null;
   const { organizations, personal, counts } = await readAccountErasurePreview(database, {
     userId,
     email,
@@ -115,13 +115,22 @@ export async function eraseAccount(input: {
    * the personal organization that record names emptied first.
    */
   resolved?: readonly PendingErasureOutcome[];
+  /**
+   * Revokes the account's Apple authorizations at Apple (ADR 0062), and those
+   * of links waiting for a code to the address, with no account too; called
+   * once nothing predictable can refuse, under the account's lock, before the
+   * intent and the deletion; the server's commands pass Braivo's. Absent, no
+   * Apple authorization is revoked: `apple` is then `none`.
+   */
+  revokeApple?: (target: { userId: string | null; email: string }) => Promise<AppleRevocation>;
 }): Promise<{
   recordId: string;
   removed: AccountErasureCounts;
   personal: PersonalOrganizationErasure | null;
   filesDeleted: boolean;
+  apple: AppleRevocation;
 }> {
-  const { database, target, log, files, resolved = [] } = input;
+  const { database, target, log, files, resolved = [], revokeApple } = input;
   const { userId, email } = target;
   const superseded = resolved
     .filter(({ outcome, record }) => outcome === "not committed" && record.userId === userId)
@@ -138,6 +147,7 @@ export async function eraseAccount(input: {
   }
 
   let pending: string | undefined;
+  let apple: AppleRevocation = "none";
   const { record, removed, personal } = await withAccountLock(
     database,
     target,
@@ -146,6 +156,12 @@ export async function eraseAccount(input: {
       if (userId !== null && !locks.accountRow) {
         throw new Error("An account's erasure intent must be written while its row is held.");
       }
+      // At Apple first, its token going with the account's rows, but only
+      // once every check has passed, the only owner's too, as revoking ends
+      // the person's authorization of the app. A failure past this point
+      // (the database's) leaves it revoked, the account kept: rare, and
+      // signing in with Apple again authorizes afresh.
+      if (revokeApple) apple = await revokeApple({ userId, email });
       const record = await writeErasureIntent(
         log,
         { scope: "account", userId, personalOrganizationId: target.personal?.id ?? null },
@@ -175,8 +191,16 @@ export async function eraseAccount(input: {
       );
     }
   }
-  return { recordId: record.id, removed, personal, filesDeleted };
+  return { recordId: record.id, removed, personal, filesDeleted, apple };
 }
+
+/**
+ * Whether erasing revoked the Apple authorizations of the account and of links
+ * waiting for a code to its address (ADR 0062, ADR 0063): `none` with neither;
+ * `not revoked` when any kept no token, Apple refused, or Apple or the secret
+ * is not configured where the erasure runs.
+ */
+export type AppleRevocation = "none" | "revoked" | "not revoked";
 
 /** What became of an account erasure left pending, found again by its email. */
 export type PendingErasureOutcome = {

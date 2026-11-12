@@ -35,9 +35,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
   // them: each creates only once both have passed the first check.
   test("never leaves one account owning two, however its setups interleave", async () => {
     const userId = `setup-race-${crypto.randomUUID()}`;
-    await database
-      .insert(user)
-      .values({ id: userId, name: "Racer", email: `${userId}@example.com`, createdAt: at });
+    await database.insert(user).values({
+      id: userId,
+      name: "Racer",
+      email: `${userId}@example.com`,
+      emailVerified: true,
+      createdAt: at,
+    });
     let waiting = 2;
     let bothChecked!: () => void;
     const checked = new Promise<void>((resolve) => (bothChecked = resolve));
@@ -78,9 +82,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
 
   test("makes one personal organization per account, however many setups run at once (ADR 0059)", async () => {
     const userId = `personal-race-${crypto.randomUUID()}`;
-    await database
-      .insert(user)
-      .values({ id: userId, name: " Ada Own ", email: `${userId}@example.com`, createdAt: at });
+    await database.insert(user).values({
+      id: userId,
+      name: " Ada Own ",
+      email: `${userId}@example.com`,
+      emailVerified: true,
+      createdAt: at,
+    });
 
     const results = await Promise.all(
       [1, 2, 3].map(() => setUpPersonalOrganization({ database, actingAs: userId, now: at })),
@@ -95,9 +103,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
 
   test("lets the owner of a personal organization set up a school, as it counts schools alone (ADR 0059)", async () => {
     const userId = `setup-personal-${crypto.randomUUID()}`;
-    await database
-      .insert(user)
-      .values({ id: userId, name: "Own", email: `${userId}@example.com`, createdAt: at });
+    await database.insert(user).values({
+      id: userId,
+      name: "Own",
+      email: `${userId}@example.com`,
+      emailVerified: true,
+      createdAt: at,
+    });
     const own = `own-${crypto.randomUUID()}`;
     await database
       .insert(organization)
@@ -173,9 +185,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
 
   test("undoes its organization when another takes the address before it registers", async () => {
     const userId = `setup-domain-${crypto.randomUUID()}`;
-    await database
-      .insert(user)
-      .values({ id: userId, name: "Late", email: `${userId}@example.com`, createdAt: at });
+    await database.insert(user).values({
+      id: userId,
+      name: "Late",
+      email: `${userId}@example.com`,
+      emailVerified: true,
+      createdAt: at,
+    });
     const other = `other-${crypto.randomUUID()}`;
     await database
       .insert(organization)
@@ -218,9 +234,13 @@ describe.skipIf(!connectionString)("setting up an organization", () => {
   });
   test("undoes its organization when registering the address fails", async () => {
     const userId = `setup-failed-${crypto.randomUUID()}`;
-    await database
-      .insert(user)
-      .values({ id: userId, name: "Unlucky", email: `${userId}@example.com`, createdAt: at });
+    await database.insert(user).values({
+      id: userId,
+      name: "Unlucky",
+      email: `${userId}@example.com`,
+      emailVerified: true,
+      createdAt: at,
+    });
     let created = "";
 
     const setUp = setUpOrganization({

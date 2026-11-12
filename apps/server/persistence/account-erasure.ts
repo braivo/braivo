@@ -3,6 +3,7 @@
 
 import type { Database, Transaction } from "@braivo/db";
 import {
+  appleLink,
   account,
   accountErasure,
   aiRequest,
@@ -64,6 +65,7 @@ export type AccountErasureCounts = {
   invitationsReceived: number;
   mailClaims: number;
   signInCodes: number;
+  appleLinks: number;
   verifications: number;
   /** Kept with no user. */
   aiRequests: number;
@@ -199,6 +201,7 @@ async function readCounts(
     invitationsReceived: await database.$count(invitation, eq(invitedAddress, email)),
     mailClaims: await database.$count(invitationMailClaim, eq(invitationMailClaim.email, email)),
     signInCodes: await database.$count(learnerSignInCode, eq(learnerSignInCode.email, email)),
+    appleLinks: await database.$count(appleLink, eq(appleLink.email, email)),
     verifications: (await verificationIdsNaming(database, scope)).length,
     aiRequests: await count(aiRequest, () =>
       and(eq(aiRequest.userId, id), outside(aiRequest.organizationId)),
@@ -416,6 +419,8 @@ export async function deleteAccount(
   await transaction.delete(learnerSignInCode).where(eq(learnerSignInCode.email, email));
   await transaction.delete(invitation).where(eq(invitedAddress, email));
   await transaction.delete(invitationMailClaim).where(eq(invitationMailClaim.email, email));
+  // Released at Apple by the erasure's revoker first; gone here whatever it managed.
+  await transaction.delete(appleLink).where(eq(appleLink.email, email));
   if (personal) await deleteOrganizationContents(transaction, personal.id);
   if (userId !== null) await transaction.delete(user).where(eq(user.id, userId));
   await transaction.insert(accountErasure).values({ id: erasureId });

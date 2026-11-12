@@ -61,6 +61,7 @@ export function createServer(options: {
       baseURL: config.baseUrl,
       sendMail: options.sendMail,
       google: config.google,
+      apple: config.apple,
       reviewerEmails: config.reviewerEmails,
       clientIdMetadataDocuments: options.clientIdMetadataDocuments,
       wrapClientMetadataFetch: options.wrapClientMetadataFetch,

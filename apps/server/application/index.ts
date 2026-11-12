@@ -105,6 +105,7 @@ export { readLearnerProgress, withoutHistory } from "./learner-progress.ts";
 export type { LearnerSignIn, SentLearnerCode } from "./learner-sign-in.ts";
 export { nameNewLearner, sendLearnerSignInCode, signInLearner } from "./learner-sign-in.ts";
 export type { NextObjective } from "./next-objective.ts";
+export { issueSignInNonce } from "./sign-in-nonce.ts";
 export { chooseNextObjective } from "./next-objective.ts";
 export { isTimeZone } from "./daily-limit.ts";
 export { defineObjectives, InvalidDefinition, listObjectives } from "./objectives.ts";

@@ -131,7 +131,7 @@ export {
   readUser,
   deleteMember,
   makeMemberOwner,
-  readUserIdByEmail,
+  readUserByEmail,
   updateMemberRole,
   isOnlyOwner,
 } from "./membership.ts";
@@ -153,7 +153,21 @@ export {
   updateOrganizationName,
   updateToolsReadLearnerData,
 } from "./organization.ts";
+export { endAccountAccess } from "./account-access.ts";
+export type { AppleIdentity, PendingAppleLink } from "./apple-identity.ts";
+export {
+  claimAppleLink,
+  claimAppleLinksFor,
+  claimLapsedAppleLinks,
+  hasLiveAppleLink,
+  isAppleIdentityLinked,
+  keepAppleRefreshToken,
+  readAppleIdentities,
+  keepOneAppleIdentity,
+  storeAppleLink,
+} from "./apple-identity.ts";
 export { claimSignInCode } from "./sign-in-code.ts";
+export { spendSignInNonce, storeSignInNonce } from "./sign-in-nonce.ts";
 export type { Source, SourceSummary } from "./source.ts";
 export { createSource, readSource, readSources } from "./source.ts";
 export { markPublished } from "./publication.ts";

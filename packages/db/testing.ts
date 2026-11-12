@@ -113,12 +113,15 @@ export async function seedOrganization(
           id,
           name: id,
           email: `${id}@example.com`,
-          emailVerified: false,
+          // As a code or Google leaves every account; only Apple's on another
+          // address is unconfirmed (ADR 0063), which a suite seeds itself.
+          emailVerified: true,
           createdAt: at,
           updatedAt: at,
         })),
       )
-      .onConflictDoNothing();
+      // Confirmed again, whatever an earlier run or suite left, as the settings below.
+      .onConflictDoUpdate({ target: user.id, set: { emailVerified: true } });
   }
 
   // Its settings back to their defaults, which an earlier run may have changed.

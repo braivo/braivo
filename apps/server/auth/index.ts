@@ -23,4 +23,5 @@ export {
   removeReviewerPassword,
   setReviewerPassword,
 } from "./reviewer.ts";
+export { revokeAppleAuthorizationsOf } from "./apple-link.ts";
 export { isOrganizationOrigin } from "./origin.ts";

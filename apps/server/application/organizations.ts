@@ -88,14 +88,27 @@ async function ownedNonPersonal(database: Database, userId: string) {
 }
 
 /**
+ * Whether the account's email is confirmed: a school is what another person
+ * could inherit, so an unconfirmed one sets none up (ADR 0063). A personal
+ * organization is the account's own, set up either way.
+ */
+async function emailConfirmed(database: Database, userId: string): Promise<boolean> {
+  return (await readUser(database, userId))?.emailVerified === true;
+}
+
+/**
  * Whether someone may set up an organization (ADR 0018): owning no school
- * (ADR 0059). An `admin` or `member` elsewhere may; administering is not owning.
+ * (ADR 0059), their email confirmed. An `admin` or `member` elsewhere may;
+ * administering is not owning.
  */
 export async function maySetUpOrganization(input: {
   database: Database;
   actingAs: string;
 }): Promise<boolean> {
-  return (await ownedNonPersonal(input.database, input.actingAs)).length === 0;
+  return (
+    (await emailConfirmed(input.database, input.actingAs)) &&
+    (await ownedNonPersonal(input.database, input.actingAs)).length === 0
+  );
 }
 
 /**
@@ -128,7 +141,8 @@ export class SetUpRefused extends Error {
       | "ADDRESS_INVALID"
       | "ADDRESS_RESERVED"
       | "ADDRESS_TAKEN"
-      | "ALREADY_OWNER",
+      | "ALREADY_OWNER"
+      | "EMAIL_UNCONFIRMED",
     message: string,
   ) {
     super(message);
@@ -170,8 +184,8 @@ function parseOrganizationName(value: string): string | undefined {
 }
 
 /**
- * Self-serve onboarding (ADR 0018): someone owning no organization creates
- * one, its `owner`, served at `<slug>.<selfServeDomain>`. One per account, a
+ * Self-serve onboarding (ADR 0018): someone owning no organization, their
+ * email confirmed, creates one, its `owner`, served at `<slug>.<selfServeDomain>`. One per account, a
  * limit of this path alone, not a defence against squatting; more take the
  * operator.
  *
@@ -222,6 +236,12 @@ export async function setUpOrganization(input: {
     throw error;
   }
 
+  if (!(await emailConfirmed(database, actingAs))) {
+    throw new SetUpRefused(
+      "EMAIL_UNCONFIRMED",
+      "Confirm your email with a code sent there before setting up an organization.",
+    );
+  }
   const owns = () => ownedNonPersonal(database, actingAs);
   if ((await owns()).length > 0) throw alreadyOwns;
   if (

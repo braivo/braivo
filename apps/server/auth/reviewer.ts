@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { unconfirmedEmailMessage } from "../application/unconfirmed-email.ts";
 import type { Auth } from "./auth.ts";
 import { MIN_REVIEWER_PASSWORD_LENGTH } from "./auth.ts";
 
@@ -35,6 +36,7 @@ export async function setReviewerPassword(
     throw new Error("A reviewer's password has at most 128 characters.");
   const found = await internalAdapter.findUserByEmail(input.email.toLowerCase());
   if (!found) throw new Error(`No account uses ${input.email}: sign in with it once first.`);
+  if (!found.user.emailVerified) throw new Error(unconfirmedEmailMessage(input.email));
   const hash = await password.hash(input.password);
   const credential = await internalAdapter.findCredentialAccount(found.user.id);
   if (credential) await internalAdapter.updatePassword(found.user.id, hash);
@@ -58,6 +60,7 @@ export async function removeReviewerPassword(auth: Auth, email: string): Promise
   const { adapter, internalAdapter } = await auth.$context;
   const found = await internalAdapter.findUserByEmail(email.toLowerCase());
   if (!found) return false;
+  if (!found.user.emailVerified) throw new Error(unconfirmedEmailMessage(email));
   const where = [
     { field: "userId", value: found.user.id },
     { field: "providerId", value: CREDENTIAL },

@@ -6,6 +6,7 @@ import type { Database } from "@braivo/db";
 import type { TaskBody } from "../content/index.ts";
 import { readLearnerExport, readOrganizationBySlug } from "../persistence/index.ts";
 import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
+import { readConfirmedUserIdByEmail } from "./unconfirmed-email.ts";
 
 /**
  * A learner's data as one organization holds it, or as the account holds it
@@ -104,6 +105,8 @@ export async function exportLearner(input: {
     organizationId = found.id;
   }
 
+  // Refused before anything is read: whoever asks may not have made it (ADR 0063).
+  await readConfirmedUserIdByEmail(database, email);
   const rows = await readLearnerExport(database, { email, organizationId });
   if (rows === undefined) throw new Error(`No account has the email ${email}.`);
   if (organizationId !== undefined && rows.organizations.length === 0) {

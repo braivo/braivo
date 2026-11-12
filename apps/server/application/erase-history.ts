@@ -10,7 +10,6 @@ import {
   isOnlyOwner,
   readErasurePreview,
   readOrganizationBySlug,
-  readUserIdByEmail,
   withLearnerHistoryLock,
 } from "../persistence/index.ts";
 import {
@@ -20,6 +19,7 @@ import {
   type OrganizationErasure,
   writeErasureIntent,
 } from "./erasure-log.ts";
+import { readConfirmedUserIdByEmail } from "./unconfirmed-email.ts";
 
 export type { ErasureCounts };
 
@@ -44,7 +44,7 @@ export async function previewHistoryErasure(input: {
   if (organization === undefined) {
     throw new Error(`No organization has the slug ${organizationSlug}.`);
   }
-  const learnerId = await readUserIdByEmail(database, email);
+  const learnerId = await readConfirmedUserIdByEmail(database, email);
   if (learnerId === undefined) throw new Error(`No account has the email ${email}.`);
 
   const { counts, epoch, known } = await readErasurePreview(database, {

@@ -107,7 +107,7 @@ describe("the learn app", () => {
     const { visit } = renderAt("/login?redirect=%2Fc%2F4732", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
-      signInSettings: async () => ({ google: true, legal: null }),
+      signInSettings: async () => ({ google: true, apple: false, legal: null }),
     });
 
     fireEvent.click(await screen.findByRole("button", { name: "Continue with Google" }));
@@ -165,7 +165,7 @@ describe("the learn app", () => {
     const { visit } = renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
-      signInSettings: async () => ({ google: true, legal: null }),
+      signInSettings: async () => ({ google: true, apple: false, legal: null }),
     });
 
     expect(
@@ -181,7 +181,7 @@ describe("the learn app", () => {
     renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: async () => ({ name: "Fernwood" }),
-      signInSettings: async () => ({ google: false, legal: null }),
+      signInSettings: async () => ({ google: false, apple: false, legal: null }),
     });
 
     expect(
@@ -246,7 +246,7 @@ describe("the learn app", () => {
     renderAt("/login?failed=1", {
       signedIn: false,
       hostOrganization: fernwood,
-      signInSettings: async () => ({ google: true, legal: null }),
+      signInSettings: async () => ({ google: true, apple: false, legal: null }),
     });
     expect(await screen.findByRole("heading", { name: "Logowanie: Fernwood" })).toBeTruthy();
     await vi.waitFor(() => expect(document.title).toBe("Zaloguj się · Fernwood"));

@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { generateKeyPairSync } from "node:crypto";
+
 import { describe, expect, test } from "vite-plus/test";
 
 import { readDatabaseUrl, readErasureLogConfig, readServeConfig } from "./config.ts";
@@ -210,6 +212,56 @@ describe("signing in with Google", () => {
     ).toEqual({ clientId: "id", clientSecret: "secret" });
     for (const half of [{ GOOGLE_CLIENT_ID: "id" }, { GOOGLE_CLIENT_SECRET: "secret" }]) {
       expect(() => readServeConfig({ ...valid, ...half })).toThrow("go together");
+    }
+  });
+});
+
+describe("signing in with Apple", () => {
+  const pem = (type: "ec" | "rsa") =>
+    (type === "ec"
+      ? generateKeyPairSync("ec", { namedCurve: "P-256" })
+      : generateKeyPairSync("rsa", { modulusLength: 2048 })
+    ).privateKey
+      .export({ type: "pkcs8", format: "pem" })
+      .toString();
+  const key = pem("ec");
+  const apple = {
+    APPLE_BUNDLE_IDS: " app.example.learn , app.example.learn.ipad ",
+    APPLE_TEAM_ID: " TEAM123456 ",
+    APPLE_KEY_ID: "KEY1234567",
+    APPLE_PRIVATE_KEY: key,
+  };
+
+  test("is offered only with all four settings", () => {
+    expect(readServeConfig(valid).apple).toBeUndefined();
+    expect(readServeConfig({ ...valid, ...apple }).apple).toEqual({
+      bundleIds: ["app.example.learn", "app.example.learn.ipad"],
+      teamId: "TEAM123456",
+      keyId: "KEY1234567",
+      privateKey: key.trim(),
+    });
+    for (const name of Object.keys(apple)) {
+      expect(() => readServeConfig({ ...valid, ...apple, [name]: " " })).toThrow(
+        `${name} not set: APPLE_BUNDLE_IDS, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY go together`,
+      );
+    }
+  });
+
+  test("takes the key's line breaks written as \\n", () => {
+    const escaped = key.trim().replaceAll("\n", "\\n");
+    expect(
+      readServeConfig({ ...valid, ...apple, APPLE_PRIVATE_KEY: escaped }).apple?.privateKey,
+    ).toBe(key.trim());
+  });
+
+  test("refuses an empty bundle ID, and a key that is not a P-256 PKCS #8 PEM", () => {
+    expect(() => readServeConfig({ ...valid, ...apple, APPLE_BUNDLE_IDS: "a.b,,c.d" })).toThrow(
+      "APPLE_BUNDLE_IDS",
+    );
+    for (const broken of ["not a key", pem("rsa")]) {
+      expect(() => readServeConfig({ ...valid, ...apple, APPLE_PRIVATE_KEY: broken })).toThrow(
+        "APPLE_PRIVATE_KEY",
+      );
     }
   });
 });

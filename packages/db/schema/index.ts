@@ -3,6 +3,7 @@
 
 // Every table, for queries and for Drizzle Kit. Better Auth's are generated into
 // `auth.ts` by its CLI and never hand-edited; Braivo's own are in the others.
+export * from "./apple-link.ts";
 export * from "./auth.ts";
 export * from "./domain.ts";
 export * from "./group.ts";

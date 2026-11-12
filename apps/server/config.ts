@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createPrivateKey } from "node:crypto";
+
 import * as z from "zod";
+
+import type { AppleConfig } from "./auth/apple.ts";
 
 /**
  * Everything the server reads from the environment, and every rule about what
@@ -27,6 +31,8 @@ export type ServerConfig = {
   };
   /** Google's OAuth client, offering "Continue with Google", or none: email codes alone. */
   google?: { clientId: string; clientSecret: string };
+  /** Sign in with Apple for the native apps (ADR 0062), or none. */
+  apple?: AppleConfig;
   /**
    * The operator's privacy policy and terms, which `/login` says signing in
    * agrees to, or neither: whoever runs an installation writes their own.
@@ -102,6 +108,10 @@ type VariableName =
   | "BRAIVO_AI_MONTHLY_LIMIT"
   | "GOOGLE_CLIENT_ID"
   | "GOOGLE_CLIENT_SECRET"
+  | "APPLE_BUNDLE_IDS"
+  | "APPLE_TEAM_ID"
+  | "APPLE_KEY_ID"
+  | "APPLE_PRIVATE_KEY"
   | "BRAIVO_PRIVACY_URL"
   | "BRAIVO_TERMS_URL"
   | "BRAIVO_SELF_SERVE_DOMAIN"
@@ -146,6 +156,7 @@ export function readServerConfig(environment: Environment): ServerConfig {
     baseUrl: readUrl(environment, "BRAIVO_URL"),
     ...ai,
     ...readGoogle(environment),
+    ...readApple(environment),
     ...readLegal(environment),
     ...selfServe,
     ...readRegions(environment, selfServe.selfServeDomain !== undefined),
@@ -253,6 +264,83 @@ function readGoogle(environment: Environment): { google?: ServerConfig["google"]
     );
   }
   return { google: { clientId, clientSecret } };
+}
+
+const APPLE_VARIABLES = [
+  "APPLE_BUNDLE_IDS",
+  "APPLE_TEAM_ID",
+  "APPLE_KEY_ID",
+  "APPLE_PRIVATE_KEY",
+] as const satisfies readonly VariableName[];
+
+/** Whether `pem` is a Sign in with Apple key: a P-256 key's PKCS #8 PEM, as Apple's .p8 holds. */
+function isAppleKey(pem: string): boolean {
+  try {
+    const key = createPrivateKey(pem);
+    return (
+      pem.includes("-----BEGIN PRIVATE KEY-----") &&
+      key.asymmetricKeyType === "ec" &&
+      key.asymmetricKeyDetails?.namedCurve === "prime256v1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sign in with Apple for the native apps (ADR 0062): the apps' bundle IDs,
+ * comma-separated, and the team's Sign in with Apple key, its ID, and its
+ * PEM, whose line breaks may be written `\n`. All or none; the key read now,
+ * so a broken one stops the server rather than every sign-in.
+ */
+function readApple(environment: Environment): { apple?: AppleConfig } {
+  const value = (name: (typeof APPLE_VARIABLES)[number]) => environment[name]?.trim() ?? "";
+  const missing = APPLE_VARIABLES.filter((name) => value(name) === "");
+  if (missing.length === APPLE_VARIABLES.length) return {};
+  if (missing.length > 0) {
+    throw new Error(
+      `${missing.join(", ")} not set: ${APPLE_VARIABLES.join(", ")} go together: set all four to offer Sign in with Apple, or none.`,
+    );
+  }
+  const bundleIds = value("APPLE_BUNDLE_IDS")
+    .split(",")
+    .map((id) => id.trim());
+  if (bundleIds.some((id) => id === "")) {
+    throw new Error("APPLE_BUNDLE_IDS lists the apps' bundle IDs, comma-separated, none empty.");
+  }
+  const privateKey = value("APPLE_PRIVATE_KEY").replaceAll("\\n", "\n");
+  if (!isAppleKey(privateKey)) {
+    throw new Error(
+      "APPLE_PRIVATE_KEY must be the Sign in with Apple key's PKCS #8 PEM, a P-256 key, as Apple's .p8 file holds it.",
+    );
+  }
+  return {
+    apple: {
+      bundleIds,
+      teamId: value("APPLE_TEAM_ID"),
+      keyId: value("APPLE_KEY_ID"),
+      privateKey,
+    },
+  };
+}
+
+/**
+ * What revoking a kept Apple token takes, for `account erase`, which needs
+ * neither otherwise: the secret its tokens are encrypted under, and Apple's
+ * key. Either missing or broken, that erasure goes on unrevoked, saying so,
+ * rather than refusing an account holder's request over a setting.
+ */
+export function readAppleRevocation(environment: Environment): {
+  secret?: string;
+  apple?: AppleConfig;
+} {
+  const secret = environment.BETTER_AUTH_SECRET?.trim();
+  try {
+    return { ...(secret && { secret }), ...readApple(environment) };
+  } catch (error) {
+    console.warn(`Apple is not configured here: ${(error as Error).message}`);
+    return { ...(secret && { secret }) };
+  }
 }
 
 /**

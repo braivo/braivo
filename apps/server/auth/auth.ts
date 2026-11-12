@@ -32,20 +32,31 @@ import {
 import {
   claimSignInCode,
   countPendingInvitations,
-  organizationOwnsLearningContent,
+  isAppleIdentityLinked,
   isPersonalOrganization,
+  organizationOwnsLearningContent,
   readLearnDomain,
   readOrganizationRoles,
   readPendingInvitationRole,
 } from "../persistence/index.ts";
+import { linkAppleByCode, revokeKeptAppleToken, takeAppleLinkId } from "./apple-link.ts";
+import { type AppleConfig, isAppleEmailVerified, isAppleMailbox } from "./apple.ts";
 import {
   aliasGoogleJwks,
   type ClientMetadataFetch,
   fetchPinned,
   fetchStrictlyPublic,
 } from "./client-metadata.ts";
+import {
+  afterCodeSignIn,
+  assertConfirmingInSession,
+  beforeCodeSignIn,
+  confirmElsewhere,
+  refuseUnconfirmedGrant,
+} from "./confirmation.ts";
 import { constraints } from "./constraints.ts";
 import { invitationDelivery, NO_LEARN_DOMAIN, PERSONAL_ORGANIZATION } from "./invitations.ts";
+import { afterIdTokenSignIn, beforeIdTokenSignIn } from "./native-sign-in.ts";
 import { slugProblem } from "./slug.ts";
 
 /**
@@ -62,13 +73,15 @@ export const DEVICE_CLIENTS: ReadonlySet<string> = new Set(["braivo-cli"]);
  * does for `@gmail.com` and for a Workspace account, whose ID token carries
  * `hd`; for any other address it can outlive the mailbox's ownership, letting
  * a former owner reach the next one's account. `hd` need not equal the email's
- * domain: a Workspace account may use a secondary one. Other providers fail
+ * domain: a Workspace account may use a secondary one. Apple's does for its
+ * own mail domains and Hide My Email's relay (ADR 0062). Other providers fail
  * closed until given a rule of their own.
  */
 function providerIsAuthoritativeForEmail(
   oauth: { providerId: string; profile?: Record<string, unknown> } | undefined,
   email: unknown,
 ): boolean {
+  if (oauth?.providerId === "apple") return isAppleMailbox(email);
   if (oauth?.providerId !== "google") return false;
   const hd = oauth.profile?.hd;
   if (typeof hd === "string" && hd !== "") return true;
@@ -95,6 +108,8 @@ type AuthOptions = {
   sendMail: SendMail;
   /** Google's OAuth client, offering sign-in with Google; without one, codes alone. */
   google?: { clientId: string; clientSecret: string };
+  /** Sign in with Apple for the native apps (ADR 0062), by ID token alone; without it, none. */
+  apple?: AppleConfig;
   /**
    * How an unregistered client is found by its client ID metadata document
    * (CIMD), its ID that document's URL (ADR 0045):
@@ -246,33 +261,45 @@ function isTakenEmail(error: unknown): boolean {
  * (ADR 0018), made if there is none, as Better Auth's code sign-in makes one,
  * its hooks run. Server-only: no route reaches it, and it opens no session.
  */
-const verifiedAccounts = {
-  id: "braivo-verified-accounts",
-  endpoints: {
-    verifiedAccount: createAuthEndpoint(
-      "/braivo/verified-account",
-      { method: "POST", body: z.object({ email: z.email() }), metadata: { SERVER_ONLY: true } },
-      async (context) => {
-        const email = context.body.email.toLowerCase();
-        const { internalAdapter } = context.context;
-        const found = async () => (await internalAdapter.findUserByEmail(email))?.user;
-        // Every account's email is verified already: by a code, or by Google.
-        // Another sign-in at once (another tab) may make it first, and the
-        // email's uniqueness refuse this one: that account is the one.
-        const user =
-          (await found()) ??
-          (await internalAdapter
-            .createUser({ email, name: "", emailVerified: true }, { method: "email-otp" })
-            .catch(async (error: unknown) => {
-              const made = isTakenEmail(error) && (await found());
-              if (!made) throw error;
-              return made;
-            }));
-        return context.json({ user: { id: user.id, name: user.name } });
-      },
-    ),
-  },
-} satisfies BetterAuthPlugin;
+const verifiedAccounts = (database: Database) =>
+  ({
+    id: "braivo-verified-accounts",
+    endpoints: {
+      verifiedAccount: createAuthEndpoint(
+        "/braivo/verified-account",
+        { method: "POST", body: z.object({ email: z.email() }), metadata: { SERVER_ONLY: true } },
+        async (context) => {
+          const email = context.body.email.toLowerCase();
+          const { internalAdapter } = context.context;
+          const found = async () => (await internalAdapter.findUserByEmail(email))?.user;
+          const existing = await found();
+          // The learn domain's code proves the mailbox: an email Sign in with
+          // Apple left unconfirmed is confirmed here, elsewhere (ADR 0063).
+          if (existing && !existing.emailVerified) {
+            await confirmElsewhere(context, database, existing.id);
+          }
+          // Another sign-in at once (another tab) may make it first, and the
+          // email's uniqueness refuse this one: that account is the one.
+          const user =
+            existing ??
+            (await internalAdapter
+              .createUser({ email, name: "", emailVerified: true }, { method: "email-otp" })
+              .catch(async (error: unknown) => {
+                const made = isTakenEmail(error) && (await found());
+                if (!made) throw error;
+                // Made meanwhile, perhaps by Apple on this address: this
+                // code proves the mailbox all the same.
+                if (!made.emailVerified) {
+                  await confirmElsewhere(context, database, made.id);
+                  return (await found()) ?? made;
+                }
+                return made;
+              }));
+          return context.json({ user: { id: user.id, name: user.name } });
+        },
+      ),
+    },
+  }) satisfies BetterAuthPlugin;
 
 /** Refuses a slug that cannot address an organization, as a 400 carrying the reason. */
 function assertSlugAllowed(slug: string): void {
@@ -343,16 +370,68 @@ export function createAuth(options: AuthOptions) {
 
     // Google's callback is `<baseURL>/api/auth/callback/google`, the redirect
     // URI its OAuth client must list. Asked to choose an account every time,
-    // since on a shared device the one Google remembers may be someone else's;
-    // by redirect alone, as nothing of Braivo's signs in with a Google ID
-    // token directly.
-    socialProviders: options.google && {
-      google: { ...options.google, prompt: "select_account", disableIdTokenSignIn: true },
+    // since on a shared device the one Google remembers may be someone else's.
+    // The native apps send Google's ID token instead (ADR 0062), its audience
+    // this same client ID, which they name as their server client ID; only
+    // with a nonce Braivo issued (the before hook).
+    socialProviders: {
+      ...(options.google && { google: { ...options.google, prompt: "select_account" } }),
+      // Apple for the native apps alone, by ID token (the before hook refuses
+      // its redirect), the audience one of their bundle IDs. Its verified
+      // email counts as verified only where Apple controls the mailbox, so
+      // Better Auth never marks another address verified, nor links to an
+      // account by one; `validateUserInfo` reads Apple's own claim.
+      ...(options.apple && {
+        apple: {
+          clientId: [...options.apple.bundleIds],
+          audience: [...options.apple.bundleIds],
+          // Run once the token is verified. An identity Apple has not
+          // verified the email of, and not linked yet, is refused here, in
+          // Better Auth's handler, so it answers 403: past here, an email
+          // another account holds would end as `account not linked`.
+          mapProfileToUser: async (profile) => {
+            const verified = isAppleEmailVerified(profile);
+            if (!verified && !(await isAppleIdentityLinked(options.database, profile.sub))) {
+              throw new APIError("FORBIDDEN", {
+                code: "email_not_verified",
+                message: "The sign-in provider has not verified this email.",
+              });
+            }
+            return { emailVerified: verified && isAppleMailbox(profile.email) };
+          },
+        },
+      }),
     },
-    // Braivo calls no Google API, so the access and refresh tokens kept are
-    // encrypted: a database leak then yields none that works. The ID token,
-    // kept as is, signs in nowhere, ID-token sign-in being off.
-    account: { encryptOAuthTokens: true },
+    account: {
+      // So a provider controlling the mailbox may link to an account whose
+      // email Apple left unconfirmed, confirming it (ADR 0063,
+      // `validateUserInfo`). Any other provider is still refused linking:
+      // Better Auth refuses an unverified email (the Apple mapping makes one
+      // of every address Apple does not control), and `validateUserInfo` one
+      // the provider does not control.
+      accountLinking: { requireLocalEmailVerified: false },
+      // The access and refresh tokens kept are encrypted: a database leak then
+      // yields none that works. Braivo uses none but Apple's refresh token,
+      // kept only to revoke it (ADR 0062). An ID token, kept as is, signs in
+      // nowhere again: its nonce is spent.
+      encryptOAuthTokens: true,
+      additionalFields: {
+        // The Apple app (bundle ID) a kept refresh token was issued to, which
+        // revoking it names.
+        refreshTokenClientId: { type: "string", required: false, input: false, returned: false },
+      },
+    },
+    databaseHooks: {
+      account: {
+        delete: {
+          // Unlinking Apple ends the person's authorization of the app there
+          // too (ADR 0062, ADR 0063), whatever unlinks it.
+          after: async (deleted) => {
+            if (deleted.providerId === "apple") await revokeKeptAppleToken(options, deleted);
+          },
+        },
+      },
+    },
     onAPIError: {
       // An unexpected error reaches the API's `onError`, which logs it
       // described, instead of Better Auth logging it whole. Its `APIError`s
@@ -373,11 +452,21 @@ export function createAuth(options: AuthOptions) {
     user: {
       // Only a provider-verified email (ADR 0018): an unverified one could make
       // or reach the account of whoever owns the address. Checked on every
-      // sign-in, as Google answers afresh each time, and for every OAuth
-      // provider, Google's being the one today, so one added later fails closed.
+      // sign-in, as a provider answers afresh each time, and for every OAuth
+      // provider, Google's and Apple's today, so one added later fails closed.
       validateUserInfo: async ({ user, source }, context) => {
         if (source.method !== "oauth") return undefined;
-        if (user.emailVerified !== true) {
+        const fromApple = source.oauth?.providerId === "apple";
+        // An Apple identity already linked signs in whatever email its token
+        // now carries, the account's own unchanged (ADR 0062): one made with
+        // Hide My Email must outlive the relay. `sign-in` is Better Auth's
+        // action for a linked identity alone.
+        if (fromApple && source.action === "sign-in") return undefined;
+        // Apple's own claim: the profile's `emailVerified` is Braivo's mapping.
+        const verified = fromApple
+          ? isAppleEmailVerified(source.oauth?.profile)
+          : user.emailVerified === true;
+        if (!verified) {
           return {
             error: "email_not_verified",
             errorDescription: "The sign-in provider has not verified this email.",
@@ -386,11 +475,24 @@ export function createAuth(options: AuthOptions) {
         // Verified is not enough (ADR 0018); checked at creation, linking, and
         // every sign-in alike.
         if (!providerIsAuthoritativeForEmail(source.oauth, user.email)) {
+          // Apple's token on another address makes an account, its email
+          // unconfirmed (the mapping), and is linked to no existing one by
+          // email (ADR 0063).
+          if (fromApple && source.action === "create-user") return undefined;
           return {
             error: "email_not_authoritative",
             errorDescription:
               "The sign-in provider is not authoritative for this email; use a code.",
           };
+        }
+        // A provider controlling the mailbox proves it as a code does: an
+        // account whose email Apple left unconfirmed is confirmed elsewhere,
+        // before Better Auth links it and marks it verified (ADR 0063).
+        if (source.action === "link-account" && user.id !== undefined) {
+          const stored = await context.context.internalAdapter.findUserById(user.id);
+          if (stored && !stored.emailVerified) {
+            await confirmElsewhere(context, options.database, stored.id);
+          }
         }
         // An account is whoever controls its email (ADR 0018): a provider
         // account now under another address, as after a school renames one,
@@ -419,7 +521,15 @@ export function createAuth(options: AuthOptions) {
         ) {
           await authorizing.set(true);
         }
+        await refuseUnconfirmedGrant(context);
         await refuseAnotherOrganization(context);
+        if (context.path === "/sign-in/social") {
+          await beforeIdTokenSignIn(options.database, context.body);
+          return;
+        }
+        if (context.path === "/email-otp/verify-email") {
+          await assertConfirmingInSession(context);
+        }
         // A code is its digits: anything else is refused before it is
         // compared, as one that cannot be decrypted is compared as nothing.
         const { otp } = (context.body ?? {}) as { otp?: unknown };
@@ -428,6 +538,11 @@ export function createAuth(options: AuthOptions) {
           !(typeof otp === "string" && new RegExp(`^\\d{${SIGN_IN_CODE.digits}}$`).test(otp))
         ) {
           throw new APIError("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
+        }
+        if (context.path === "/sign-in/email-otp") {
+          await takeAppleLinkId(context.body);
+          await beforeCodeSignIn(context);
+          return;
         }
         if (context.path === "/sign-in/email") {
           const { email, password } = (context.body ?? {}) as {
@@ -449,8 +564,10 @@ export function createAuth(options: AuthOptions) {
         }
         if (context.path !== "/email-otp/send-verification-otp") return;
         const { email, type } = (context.body ?? {}) as { email?: unknown; type?: unknown };
-        // Its other kinds serve flows that are off (`disabledPaths`).
-        if (type !== "sign-in") {
+        // A code confirming an email in place, within its Apple session (ADR
+        // 0063); the others serve flows that are off (`disabledPaths`).
+        if (type === "email-verification") await assertConfirmingInSession(context);
+        else if (type !== "sign-in") {
           throw new APIError("BAD_REQUEST", {
             code: "SIGN_IN_CODES_ONLY",
             message: "Only sign-in codes are sent.",
@@ -475,6 +592,12 @@ export function createAuth(options: AuthOptions) {
         }
       }),
       after: createAuthMiddleware(async (context) => {
+        if (context.path === "/sign-in/social") return afterIdTokenSignIn(options, context);
+        if (context.path === "/sign-in/email-otp") {
+          // Confirmed first, if it was unconfirmed, then linked (ADR 0063).
+          await afterCodeSignIn(options.database, context);
+          return linkAppleByCode(options, context);
+        }
         if (context.path !== "/email-otp/send-verification-otp") return;
         // The address still waits its minute: hence "in a minute".
         if (await signInCodeSendFailed.get()) {
@@ -810,7 +933,7 @@ export function createAuth(options: AuthOptions) {
           ]),
       // After every plugin declaring the tables it constrains, or theirs win.
       constraints,
-      verifiedAccounts,
+      verifiedAccounts(options.database),
     ],
 
     // Off where the plugin has no switch of its own. Direct `auth.api` calls
@@ -829,8 +952,8 @@ export function createAuth(options: AuthOptions) {
       "/oauth2/delete-client",
       "/oauth2/client/rotate-secret",
       "/oauth2/client/rotate-keys",
-      // Google signs in, making or finding the account by its email; nothing
-      // links a provider to an account by hand.
+      // A provider signs in, making or finding the account as `validateUserInfo`
+      // allows; nothing links one to an account by hand.
       "/link-social",
       // Nor unlinks one: a reviewer would drop their password, outliving
       // `reviewer remove-password`'s look for it (ADR 0018). Nothing of Braivo's calls it.
@@ -844,11 +967,10 @@ export function createAuth(options: AuthOptions) {
       "/request-password-reset",
       "/reset-password",
       "/verify-password",
-      // Email codes sign in and nothing else: resetting a password would give
-      // an account made by code a password, and the rest serve flows Braivo
-      // does not offer.
+      // Email codes sign in, and confirm an email in place (`/email-otp/verify-email`,
+      // access-61): resetting a password would give an account made by code a
+      // password, and the rest serve flows Braivo does not offer.
       "/email-otp/check-verification-otp",
-      "/email-otp/verify-email",
       "/email-otp/request-password-reset",
       "/forget-password/email-otp",
       "/email-otp/reset-password",

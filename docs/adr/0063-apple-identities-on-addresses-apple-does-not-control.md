@@ -1,6 +1,6 @@
 # 0063: An Apple identity on an address Apple does not control signs in, but confirms nothing
 
-Status: accepted (2026-11-10), not yet implemented; amends [ADR 0018](0018-sign-in-and-invitations.md) (every account's email verified)
+Status: accepted (2026-11-10), amended (2026-11-10: no device or connection granted while unconfirmed; a lapsed link revoked when the next is made or spent), implemented (2026-11-10); amends [ADR 0018](0018-sign-in-and-invitations.md) (every account's email verified)
 
 ## Context
 
@@ -12,7 +12,8 @@ An Apple Account's email may be one Apple does not host, such as a Gmail or scho
 - **An unconfirmed email reaches nothing that an email names, nor anything another person could inherit.** Each refuses the account, saying that its email is unconfirmed, until the email is confirmed:
   - an invitation (ADR 0018);
   - the operator's commands that find an account by its email;
-  - setting up a school.
+  - setting up a school;
+  - approving a device's sign-in or granting a connection, whose credentials could outlive the account changing hands.
 
   A personal organization holds only the account's own material, so it is allowed.
 
@@ -20,7 +21,7 @@ An Apple Account's email may be one Apple does not host, such as a Gmail or scho
   - **Confirmed in a session the account's Apple identity signed in:** nothing else changes. The app asks for this code itself, while signed in with Apple, before anything that needs a confirmed email.
   - **First confirmed anywhere else, including a sign-in by code on the web or a learn domain:** the Apple identity is unlinked, its token revoked, and every other session of the account ended. Once confirmed, later sign-ins by code change nothing. Whoever now holds the mailbox is not taken to be the Apple Account's holder, and a session already open would otherwise outlast the unlinking.
 - **Apple's token on such an address, for an email another account holds, however made, is linked by a code.**
-  - Braivo refuses the sign-in and returns a link ID, which is stored as its hash, spent once, and holds the verified Apple identity and its exchanged token for 10 minutes. A link that lapses revokes the token.
+  - Braivo refuses the sign-in and returns a link ID, which is stored as its hash, spent once, and holds the verified Apple identity and its exchanged token for 10 minutes. A link that lapses revokes the token, when the next link is made or spent, there being no jobs to do it on time ([ADR 0046](0046-material-in-steps.md)), unless its identity is linked, or held by another live link, by then.
   - The app sends a code to the same email. A code sign-in that carries the link ID for that same email links Apple to the account, confirms its email, and signs in, with no second Apple sheet.
   - An account holds one Apple identity: linking another unlinks the old one, revokes its token, and ends every other session of the account.
 
@@ -30,6 +31,7 @@ An Apple Account's email may be one Apple does not host, such as a Gmail or scho
 - **A code before Apple's first sign-in on such an address:** an extra step after Sign in with Apple, which App Review flags. The code comes instead when the learner needs a confirmed email.
 - **Keeping the Apple identity, or its sessions, when someone else confirms the email:** whoever had the address before keeps signing in, and is inside every school its new holder joins.
 - **Accounts keyed by Apple's subject alone:** two accounts for one person who also signs in by code.
+- **Fencing each credential's issuance against a confirmation elsewhere,** instead of refusing devices and connections while unconfirmed: a check inside every issuing path, Better Auth's own, which a device redemption already under way would still pass.
 - **Linking with a second Apple sign-in after the code:** a second sheet, and a second route that must redeem nonces.
 
 ## Consequences

@@ -95,6 +95,8 @@ const SIGN_IN_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/email-otp/send-verification-otp",
   "/api/auth/sign-in/email-otp",
   "/api/auth/sign-in/social",
+  // Confirming an email within its Apple session (ADR 0063).
+  "/api/auth/email-otp/verify-email",
   // A reviewer's password (ADR 0018).
   "/api/auth/sign-in/email",
 ]);
