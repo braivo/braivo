@@ -510,12 +510,13 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     }
   });
 
-  test("sends sign-in codes only, and answers none of the code's other endpoints", async () => {
+  test("sends a confirmed account sign-in codes only, and answers none of the code's other endpoints", async () => {
     // Each would reset a password, verify, or change an email: flows Braivo
     // does not offer, and the first would give an account a password.
+    // Confirming an email in place is the Apple session's alone (access-61,
+    // `api/unconfirmed-email.test.ts`): a confirmed account is refused it.
     const others = await Promise.all([
       post("/email-otp/check-verification-otp", { email: owner.email, type: "sign-in", otp: "0" }),
-      post("/email-otp/verify-email", { email: owner.email, otp: "0" }),
       post("/email-otp/request-password-reset", { email: owner.email }),
       post("/forget-password/email-otp", { email: owner.email }),
       post("/email-otp/reset-password", { email: owner.email, otp: "0", password: "x".repeat(12) }),
@@ -525,9 +526,15 @@ describe.skipIf(!connectionString)("Better Auth against PostgreSQL", () => {
     const kinds = await Promise.all(
       ["email-verification", "forget-password"].map((type) => sendCode(owner.email, type)),
     );
+    const confirming = await post(
+      "/email-otp/verify-email",
+      { email: owner.email, otp: "000000" },
+      { cookie: ownerCookie },
+    );
 
-    expect(others.map((answer) => answer.status)).toEqual(Array(7).fill(404));
-    expect(kinds.map((answer) => answer.status)).toEqual([400, 400]);
+    expect(others.map((answer) => answer.status)).toEqual(Array(6).fill(404));
+    expect(kinds.map((answer) => answer.status)).toEqual([403, 400]);
+    expect(confirming.status).toBe(403);
   });
 
   test("the session resolves back to the signed-in user", async () => {

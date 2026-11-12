@@ -11,6 +11,7 @@ import {
   completeHandoff,
   describeHandoff,
   endLearnerSession,
+  issueSignInNonce,
   nameNewLearner,
   redeemHandoff,
   sendLearnerSignInCode,
@@ -67,22 +68,42 @@ export function sessionRoutes(
   const origin = new URL(baseUrl).origin;
   const routes = new Hono();
 
+  /** 404 anywhere but the installation's host. */
+  const installationOnly = createMiddleware(async (context, next) =>
+    requestHost(context).installation ? next() : context.body(null, 404),
+  );
+
   /** 404 on the installation's host, which signs in through Better Auth. */
   const learnDomainOnly = createMiddleware(async (context, next) =>
     requestHost(context).installation ? context.body(null, 404) : next(),
   );
 
   /**
-   * What `/login` offers besides an emailed code, which it always does: Google,
-   * when the installation has an OAuth client for it, and the operator's
-   * privacy policy and terms to agree to. The console is built once for any
-   * installation, so it asks.
+   * What sign-in offers besides an emailed code, which it always does: Google,
+   * when the installation has an OAuth client for it; Apple, in the native apps
+   * alone, when it has Apple's key (ADR 0062); and the operator's privacy
+   * policy and terms to agree to. The console and the apps are built once for
+   * any installation, so they ask.
    */
   routes.get("/api/sign-in-settings", (context) =>
     context.json<SignInSettings>({
       google: auth.options.socialProviders?.google !== undefined,
+      apple: auth.options.socialProviders?.apple !== undefined,
       legal: legal ?? null,
     }),
+  );
+
+  /**
+   * A nonce for a native app's ID token (ADR 0062), on the installation's host
+   * alone, where Better Auth signs it in. JSON, as every write: the apps send
+   * `{}`.
+   */
+  routes.post(
+    "/api/sign-in/nonce",
+    installationOnly,
+    perClientLimit(auth, CLIENT_LIMIT),
+    ...trustedJsonWrite(),
+    async (context) => context.json(await issueSignInNonce({ database, now: new Date() }), 201),
   );
 
   /**

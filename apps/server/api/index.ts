@@ -9,16 +9,109 @@
 // is made or signed in to by an email code: `POST /api/auth/email-otp/send-verification-otp`
 // `{ "email", "type": "sign-in" }` mails one (429 if one went to that address
 // within the minute), and `POST /api/auth/sign-in/email-otp` `{ "email", "otp",
-// "name"? }` redeems it, `name` naming a new account (ADR 0018). With Google's
+// "name"? }` redeems it, `name` naming a new account (ADR 0018); the
+// installation's code contract below holds for both. With Google's
 // OAuth client configured, `POST /api/auth/sign-in/social` `{ "provider":
 // "google", "callbackURL", "errorCallbackURL" }`, a JSON write, answers Google's
 // address; Google returns to `/api/auth/callback/google`, which redirects to
 // `callbackURL` signed in, or to `errorCallbackURL` with an `error` query
 // parameter (to `/login` when it cannot tell where the sign-in began).
 //
-// `GET /api/sign-in-settings` — `{ "google": boolean, "legal": { "privacy",
-// "terms" } | null }`: whether `/login` offers Google besides email codes, and
-// the operator's pages that signing in agrees to. No session needed.
+// The installation's codes (access-1, access-2), whatever they are for, a
+// learn domain's apart (`/api/session/code` below):
+//
+// - Sending, `POST /api/auth/email-otp/send-verification-otp`: 200 `{
+//   "success": true }`, every address alike. 400 `INVALID_EMAIL` a malformed
+//   address; 400 `SIGN_IN_CODES_ONLY` a `type` not offered; 429
+//   `SIGN_IN_CODE_COOLDOWN` a code went to the address within the minute
+//   (the one already sent still works: go on to it, offering to send again
+//   once the minute is over); 429 without that code, the client's own limit
+//   (wait, then send); 503 `SIGN_IN_CODE_SEND_FAILED` the mail could not be
+//   sent (try again in a minute). Asked again while good, the same code is
+//   sent again, its ten minutes renewed and its guesses kept.
+// - Redeeming, a code of six digits good for ten minutes and five guesses:
+//   400 `INVALID_OTP` a wrong code, a guess counted (let the person correct
+//   it), and as well one not six digits (counted as none), none sent, or one
+//   spent; 400 `OTP_EXPIRED` one expired (it may read as `INVALID_OTP` once
+//   cleared); 403 `TOO_MANY_ATTEMPTS` after five wrong guesses, the right one
+//   refused too. Expired, spent, or locked, send a new code.
+//
+// The native apps sign in with Google's or Apple's ID token instead (ADR
+// 0062), on `BRAIVO_URL`'s host. Every request is JSON (`{}` where there is no
+// body); one carrying the session's cookie also sends `Origin: BRAIVO_URL`,
+// which Better Auth requires then (`403 MISSING_OR_NULL_ORIGIN` otherwise).
+// The session is the cookie, kept across launches, as after a code.
+//
+// - `POST /api/sign-in/nonce`: 201 `{ "nonce", "expiresAt" }`, a nonce good
+//   once for ten minutes; 429 past 120 a minute from one client; 404 on any
+//   other host. The app hands the provider, as its nonce, the lowercase hex
+//   SHA-256 of the raw nonce string's UTF-8 bytes, verbatim (64 characters,
+//   `0-9a-f`), and keeps the raw nonce. (Apple's provider also accepts the
+//   hash of that hash; the raw nonce is still spent once.)
+// - Google: `POST /api/auth/sign-in/social` `{ "provider": "google",
+//   "idToken": { "token", "nonce" } }`, `nonce` the raw one: 200 `{ "token",
+//   "user" }` and the session's cookie. The nonce is spent first, whatever
+//   follows, so any refusal needs a new nonce and a new sheet. 400
+//   `NONCE_REQUIRED` with none; 401 `NONCE_INVALID` unknown, expired, or
+//   spent; 401 `INVALID_TOKEN` a token whose signature, issuer, audience (the
+//   installation's Google client ID, the apps' server client ID), expiry, or
+//   nonce claim (the hash above) does not hold; 403 `email_not_verified`,
+//   `email_not_authoritative`, `email_changed` as for Google's redirect
+//   (access-30). An account with no name takes the token's; a named one keeps
+//   its own. Access and refresh tokens sent beside it are ignored.
+// - Apple, where `GET /api/sign-in-settings` says `"apple": true`: the same
+//   route, `{ "provider": "apple", "idToken": { "token", "nonce", "user"? },
+//   "authorizationCode"? }`, with the same nonce rules and refusals, the
+//   audience one of the apps' bundle IDs. `user` is Apple's first-time
+//   `{ "name": { "firstName", "lastName" } }`, naming an account with none;
+//   the app keeps it until a sign-in succeeds. `authorizationCode`, Apple's
+//   for this authorization, is the credential's `authorizationCode` bytes as
+//   the UTF-8 string they hold (not base64), exchanged after the sign-in to
+//   keep the authorization revocable; its failure refuses nothing. 400
+//   `ID_TOKEN_REQUIRED` without a token (Apple has no redirect here); 403
+//   `email_not_verified` where Apple's `email_verified` is not true, for an
+//   identity not linked yet; 401 `APPLE_UNLINKED` if the identity was unlinked
+//   while signing in, its session ended.
+//   - An identity already linked signs in to its account whatever address its
+//     token now carries.
+//   - An address Apple controls (`@icloud.com`, `@me.com`, `@mac.com`,
+//     `@privaterelay.appleid.com`) makes an account, or signs in to and links
+//     the one with that email.
+//   - Any other address makes an account where none has it, its email
+//     unconfirmed (ADR 0063); where one has it, 401 `APPLE_LINK_REQUIRED`
+//     `{ "code", "message", "linkId", "email" }`, nothing signed in. The app
+//     then sends a code to `email` and signs in with it within ten minutes
+//     (the installation's code contract above),
+//     `POST /api/auth/sign-in/email-otp` `{ "email", "otp", "appleLinkId" }`:
+//     the code sign-in's answer, with `"appleLinked": true` once Apple is
+//     linked (`user.name` then Apple's, for an account with none), or `false`
+//     for a link spent, lapsed, or for another email, the sign-in standing,
+//     the app offering Apple again.
+//   - An account holds one Apple identity: a new one replaces the old,
+//     revoking it and ending every other session and connection.
+// - An unconfirmed email (`GET /api/auth/get-session`'s `user.emailVerified`
+//   false) is confirmed in place with the Apple session's cookie: `POST
+//   /api/auth/email-otp/send-verification-otp` `{ "email", "type":
+//   "email-verification" }` mails a code, and `POST
+//   /api/auth/email-otp/verify-email` `{ "email", "otp" }` confirms it, 200
+//   `{ "status": true, "token": null, "user" }`, the session kept, under the
+//   installation's code contract above (the address's minute shared with
+//   sign-in codes; a sign-in code is not this one, `INVALID_OTP`); both 403
+//   `EMAIL_CONFIRMATION_NOT_ALLOWED` without a session of the account the
+//   email names, or once it is confirmed. A code sign-in, a learn domain's
+//   too, confirms it as well, but unlinks Apple and ends every other session
+//   (ADR 0063). While unconfirmed,
+//   accepting an invitation answers Better Auth's 403
+//   `EMAIL_VERIFICATION_REQUIRED_BEFORE_ACCEPTING_OR_REJECTING_INVITATION`, and
+//   setting up a school (`POST /api/organization-setup`), approving a device
+//   (`/api/auth/device/approve`), and granting a connection
+//   (`/api/auth/oauth2/authorize`, `/continue`, `/consent`) 403
+//   `EMAIL_UNCONFIRMED`; a personal organization is set up as for anyone.
+//
+// `GET /api/sign-in-settings` — `{ "google": boolean, "apple": boolean,
+// "legal": { "privacy", "terms" } | null }`: whether sign-in offers Google
+// besides email codes, Apple in the native apps alone, and the operator's
+// pages that signing in agrees to. No session needed.
 //
 // `BRAIVO_URL`'s host is the console's and its tools'. On any other — an
 // organization's learn domain — `/api/auth/*`, `/api/handoffs/*`,
@@ -511,8 +604,10 @@
 // "code" }` for a name or slug that cannot be one (`NAME_INVALID`,
 // `ADDRESS_INVALID`, `ADDRESS_RESERVED`); 409 `{ "error", "code" }` for an
 // address taken (`ADDRESS_TAKEN`) or a school the user already owns
-// (`ALREADY_OWNER`); 404 where only the operator creates them; 401 without a
-// session. `error` is English; a client words `code` in its own language.
+// (`ALREADY_OWNER`); 403 `EMAIL_UNCONFIRMED` for an account whose email is
+// unconfirmed (ADR 0063); 404 where only the operator creates them; 401
+// without a session. `error` is English; a client words `code` in its own
+// language.
 // With `{ "personal": true }` alone, it sets up the session's account's
 // personal organization instead (ADR 0060), a browser's session only (403 to a token or a
 // connection, with an `error`): `{ "organization" }` as listed, `"personal":

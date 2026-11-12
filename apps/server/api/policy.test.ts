@@ -41,9 +41,11 @@ const routes = [
   "POST /api/auth/email-otp/send-verification-otp",
   "POST /api/auth/sign-in/email-otp",
   "POST /api/auth/sign-in/social",
+  "POST /api/auth/email-otp/verify-email",
   "POST /api/auth/sign-out",
   "POST /api/auth/organization/accept-invitation",
   "GET  /api/sign-in-settings",
+  "POST /api/sign-in/nonce",
   "POST /api/session/code",
   "GET  /api/session/sign-in",
   "POST /api/session/sign-in",
@@ -298,9 +300,11 @@ GET  /api/auth/organization/list                                                
 POST /api/auth/email-otp/send-verification-otp                                  400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-in/email-otp                                                400     400     403     400     403     403     403     403     1MB
 POST /api/auth/sign-in/social                                                   400     400     403     400     403     403     403     403     1MB
+POST /api/auth/email-otp/verify-email                                           403     403     403     403     403     403     403     403     1MB
 POST /api/auth/sign-out                                                         200     200     200     200     403     403     415     415     1MB
 POST /api/auth/organization/accept-invitation                                   400     400     403     400     403     403     415     415     1MB
 GET  /api/sign-in-settings                                                      200     200     200     200       ·       ·       ·       ·       ·
+POST /api/sign-in/nonce                                                         201     201     201     201     403     403     403     403     1MB
 POST /api/session/code                                                          404     404     404     404     404     404     404     404     404
 GET  /api/session/sign-in                                                       404     404     404     404       ·       ·       ·       ·       ·
 POST /api/session/sign-in                                                       404     404     404     404     404     404     404     404     404
@@ -385,9 +389,11 @@ GET  /api/auth/organization/list                                                
 POST /api/auth/email-otp/send-verification-otp                                  404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-in/email-otp                                                404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-in/social                                                   404     404     401     404     404     404     404     404     404
+POST /api/auth/email-otp/verify-email                                           404     404     401     404     404     404     404     404     404
 POST /api/auth/sign-out                                                         404     404     401     404     404     404     404     404     404
 POST /api/auth/organization/accept-invitation                                   404     404     401     404     404     404     404     404     404
 GET  /api/sign-in-settings                                                      200     200     401     200       ·       ·       ·       ·       ·
+POST /api/sign-in/nonce                                                         404     404     401     404     404     404     404     404     404
 POST /api/session/code                                                          400     400     401     400     403     403     403     403     1MB
 GET  /api/session/sign-in                                                       302     302     401     302       ·       ·       ·       ·       ·
 POST /api/session/sign-in                                                       400     400     401     400     403     403     403     403     1MB

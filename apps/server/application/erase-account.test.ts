@@ -72,9 +72,16 @@ function memoryLog(onIntent?: () => Promise<void>) {
 
 const find = () => previewAccountErasure({ database, email: adaEmail });
 
+/** Who erasure asked to revoke at Apple (ADR 0062), in order. */
+const revoked: string[] = [];
+const revokeApple = async ({ userId }: { userId: string | null }) => {
+  if (userId !== null) revoked.push(userId);
+  return "revoked" as const;
+};
+
 async function erase(log = memoryLog()) {
   const { target } = await find();
-  return { ...(await eraseAccount({ database, target, log, files: undefined })), log };
+  return { ...(await eraseAccount({ database, target, log, files: undefined, revokeApple })), log };
 }
 
 /** Until some statement like `pattern` (SQL `like`) waits for another transaction's lock. */
@@ -412,15 +419,20 @@ describe.skipIf(!connectionString)("erasing an account", () => {
         .set({ role: "owner" })
         .where(eq(member.id, `${birchwood}:${ada}`));
       const log = memoryLog();
+      revoked.length = 0;
       await expect(erase(log)).rejects.toThrow(/only owner of .*birchwood/);
       expect(log.writes).toEqual([]);
+      // Revoking ends the authorization at Apple: never for an erasure refused.
+      expect(revoked).toEqual([]);
       expect(await database.$count(user, eq(user.id, ada))).toBe(1);
       expect(await database.$count(member, eq(member.userId, ada))).toBe(2);
     });
 
     test("an owner beside another is erased, and the organization keeps the other", async () => {
       await database.update(member).set({ role: "owner" }).where(eq(member.userId, ada));
-      await erase();
+      revoked.length = 0;
+      expect((await erase()).apple).toBe("revoked");
+      expect(revoked).toEqual([ada]);
       expect(await database.$count(user, eq(user.id, ada))).toBe(0);
       expect(await database.$count(member, eq(member.organizationId, fernwood))).toBe(1);
     });

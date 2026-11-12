@@ -592,7 +592,8 @@ export function authoringRoutes(
   /**
    * Where an organization set up here would be served, for the console to
    * offer setting one up: `null` where the operator creates them (ADR 0018);
-   * whether this account may now, owning none; and its data regions (ADR 0040).
+   * whether this account may now, owning none, its email confirmed (ADR 0063);
+   * and its data regions (ADR 0040).
    */
   routes.get("/api/organization-setup", requireAccount, async (context) =>
     context.json({
@@ -643,7 +644,8 @@ export function authoringRoutes(
     } catch (error) {
       if (!(error instanceof SetUpRefused)) throw error;
       const conflict = error.code === "ADDRESS_TAKEN" || error.code === "ALREADY_OWNER";
-      return context.json({ error: error.message, code: error.code }, conflict ? 409 : 400);
+      const status = error.code === "EMAIL_UNCONFIRMED" ? 403 : conflict ? 409 : 400;
+      return context.json({ error: error.message, code: error.code }, status);
     }
   });
 

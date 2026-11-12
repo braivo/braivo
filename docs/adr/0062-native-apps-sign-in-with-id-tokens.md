@@ -1,6 +1,6 @@
 # 0062: The native apps sign in with Google's and Apple's ID tokens, on the installation's origin
 
-Status: accepted (2026-11-10), not yet implemented; amends [ADR 0018](0018-sign-in-and-invitations.md) (Google by redirect alone)
+Status: accepted (2026-11-10), implemented (2026-11-10); amends [ADR 0018](0018-sign-in-and-invitations.md) (Google by redirect alone)
 
 ## Context
 

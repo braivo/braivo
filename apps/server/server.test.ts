@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Konstantin Tarkus
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { generateKeyPairSync } from "node:crypto";
 import { type AddressInfo, createServer as createTcpServer, type Socket } from "node:net";
 import { createInterface } from "node:readline";
 
@@ -28,6 +29,10 @@ interface Env {
   BRAIVO_AI_ORGANIZATIONS?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  APPLE_BUNDLE_IDS?: string;
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  APPLE_PRIVATE_KEY?: string;
   BRAIVO_PRIVACY_URL?: string;
   BRAIVO_TERMS_URL?: string;
   FILES: { get(key: string): Promise<unknown> };
@@ -38,6 +43,7 @@ function testServer(
   options: {
     ai?: Pick<Env, "ANTHROPIC_API_KEY" | "BRAIVO_AI_ORGANIZATIONS">;
     google?: Pick<Env, "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET">;
+    apple?: Pick<Env, "APPLE_BUNDLE_IDS" | "APPLE_TEAM_ID" | "APPLE_KEY_ID" | "APPLE_PRIVATE_KEY">;
     legal?: Pick<Env, "BRAIVO_PRIVACY_URL" | "BRAIVO_TERMS_URL">;
     cachedDatabase?: Database;
     files?: FileStore;
@@ -51,6 +57,7 @@ function testServer(
     FILES: { get: async () => undefined },
     ...options.ai,
     ...options.google,
+    ...options.apple,
     ...options.legal,
   };
   return createServer({
@@ -97,8 +104,16 @@ describe.skipIf(!connectionString)("createServer", () => {
     cookie = admin.cookie;
   });
 
-  test("offers Google sign-in, and links the operator's legal pages, as the environment says", async () => {
+  test("offers Google and Apple sign-in, and links the operator's legal pages, as the environment says", async () => {
     const google = { GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "secret" };
+    const apple = {
+      APPLE_BUNDLE_IDS: "example.braivo.app",
+      APPLE_TEAM_ID: "TEAM123456",
+      APPLE_KEY_ID: "KEY1234567",
+      APPLE_PRIVATE_KEY: generateKeyPairSync("ec", { namedCurve: "P-256" })
+        .privateKey.export({ type: "pkcs8", format: "pem" })
+        .toString(),
+    };
     const legal = {
       BRAIVO_PRIVACY_URL: "https://fernwood.example/privacy",
       BRAIVO_TERMS_URL: "https://fernwood.example/terms",
@@ -106,9 +121,19 @@ describe.skipIf(!connectionString)("createServer", () => {
     const settings = async (server: ReturnType<typeof testServer>) =>
       (await server.request(`${baseUrl}/api/sign-in-settings`)).json();
 
-    expect(await settings(testServer({ google }))).toEqual({ google: true, legal: null });
+    expect(await settings(testServer({ google }))).toEqual({
+      google: true,
+      apple: false,
+      legal: null,
+    });
+    expect(await settings(testServer({ apple }))).toEqual({
+      google: false,
+      apple: true,
+      legal: null,
+    });
     expect(await settings(testServer({ legal }))).toEqual({
       google: false,
+      apple: false,
       legal: {
         privacy: "https://fernwood.example/privacy",
         terms: "https://fernwood.example/terms",

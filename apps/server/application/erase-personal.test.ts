@@ -107,9 +107,16 @@ function upload(files: FileStore, organizationId: string, actingAs: string, text
   });
 }
 
+/** Who erasure asked to revoke at Apple (ADR 0062). */
+const revoked: string[] = [];
+
 async function erase(email: string, log: ReadableErasureLog, files: FileStore | undefined) {
   const { target } = await previewAccountErasure({ database, email });
-  return eraseAccount({ database, target, log, files });
+  const revokeApple = async ({ userId }: { userId: string | null }) => {
+    if (userId !== null) revoked.push(userId);
+    return "none" as const;
+  };
+  return eraseAccount({ database, target, log, files, revokeApple });
 }
 
 const resolve = (email: string, log: ReadableErasureLog, files: FileStore, timeoutMs = 10_000) =>
@@ -509,9 +516,11 @@ describe.skipIf(!connectionString)("erasing an account with its personal organiz
     await upload(files, own.id, ada.id, "bytes");
     const { log, read } = await directoryLog();
 
+    revoked.length = 0;
     await expect(erase(ada.email, log, undefined)).rejects.toThrow(
       `BRAIVO_FILES must be set, as serve has it, to delete the files of personal organization ${own.id}. Nothing was erased.`,
     );
+    expect(revoked).toEqual([]);
     expect(await database.$count(user, eq(user.id, ada.id))).toBe(1);
     expect(await log.store.list("")).toEqual([]);
 

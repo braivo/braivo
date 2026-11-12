@@ -158,6 +158,10 @@ describe.skipIf(!connectionString)("the client against the real API", () => {
     await testing.clearLearnerHistory(database, [learnerId]);
   });
 
+  test("says what sign-in offers in the shape it declares", async () => {
+    expect(await client.signInSettings()).toEqual({ google: false, apple: false, legal: null });
+  });
+
   test("says what a host serves: a domain its organization, the installation's itself", async () => {
     // `seedOrganization` names an organization after its ID.
     expect(await onOrganizationDomain.host()).toEqual({

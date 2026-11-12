@@ -197,7 +197,7 @@ export type Membership = { id: string; name: string; learnDomain: string | null 
 /** Self-serve setup (ADR 0018), and its data regions (ADR 0040), as `api/index.ts` documents. */
 export type OrganizationSetup = {
   domain: string;
-  /** Owning none, this account may set one up; owning one, it may not. */
+  /** Whether this account may set one up: owning none, its email confirmed (ADR 0063). */
   maySetUp: boolean;
   dataRegion: string | null;
   otherRegions: { region: string; setupUrl: string | null }[];
@@ -275,11 +275,15 @@ export type Host = { organization: HostOrganization | null; installation: boolea
 export type SessionUser = { id: string; name: string };
 
 /**
- * What `/login` offers besides an emailed code (`GET /api/sign-in-settings`):
- * Google, and the operator's privacy policy and terms, which signing in agrees
- * to, both or neither.
+ * What sign-in offers besides an emailed code (`GET /api/sign-in-settings`):
+ * Google; Apple, in the native apps alone (ADR 0062); and the operator's
+ * privacy policy and terms, which signing in agrees to, both or neither.
  */
-export type SignInSettings = { google: boolean; legal: { privacy: string; terms: string } | null };
+export type SignInSettings = {
+  google: boolean;
+  apple: boolean;
+  legal: { privacy: string; terms: string } | null;
+};
 
 /** What a learn domain's sign-in signs in to, for the installation's `/login` to say. */
 export type Handoff = { organization: { name: string }; hostname: string };

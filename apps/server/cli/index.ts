@@ -33,9 +33,11 @@ import {
   registerOAuthClient,
   removeOAuthClient,
   removeReviewerPassword,
+  revokeAppleAuthorizationsOf,
   setReviewerPassword,
 } from "../auth/index.ts";
 import {
+  readAppleRevocation,
   readAuthConfig,
   readDatabaseUrl,
   readErasureLogConfig,
@@ -531,13 +533,27 @@ async function main(argv: readonly string[]): Promise<number> {
         return 1;
       }
 
-      const { recordId, removed, personal, filesDeleted } = await eraseAccount({
+      const apple = { database, ...readAppleRevocation(process.env) };
+      const erased = await eraseAccount({
         database,
         target,
         log,
         files,
         resolved,
+        // Said as soon as it is known: a failure after the commit (the
+        // files, the log) must not swallow it, as nothing kept can say it again.
+        revokeApple: async (target) => {
+          const outcome = await revokeAppleAuthorizationsOf(apple, target);
+          if (outcome === "revoked") console.log("Apple:        authorization revoked.");
+          if (outcome === "not revoked") {
+            console.log(
+              "Apple:        not revoked. Tell the person to remove the app under Sign in with Apple in their Apple Account's settings.",
+            );
+          }
+          return outcome;
+        },
       });
+      const { recordId, removed, personal, filesDeleted } = erased;
       console.log(`Erased:       ${formatAccountCounts(removed)}`);
       if (personal) {
         console.log(
@@ -693,6 +709,7 @@ function formatAccountCounts(counts: AccountErasureCounts): string {
     `invitations received ${counts.invitationsReceived}`,
     `invitation mail claims ${counts.mailClaims}`,
     `sign-in codes ${counts.signInCodes}`,
+    `Apple links ${counts.appleLinks}`,
     `verification rows ${counts.verifications}`,
   ].join(", ");
 }

@@ -55,22 +55,31 @@ export async function readMemberRolesByEmail(
   return row ? splitRoles(row.role) : [];
 }
 
-/** The account `email` names, as sign-in stores it: trimmed and lowercased. */
-export async function readUserIdByEmail(
+/**
+ * The account `email` names, as sign-in stores it: trimmed and lowercased,
+ * and whether that email is confirmed (ADR 0063).
+ */
+export async function readUserByEmail(
   database: Database,
   email: string,
-): Promise<string | undefined> {
-  const [row] = await database.select({ id: user.id }).from(user).where(eq(user.email, email));
-  return row?.id;
+): Promise<{ id: string; emailVerified: boolean } | undefined> {
+  const [row] = await database
+    .select({ id: user.id, emailVerified: user.emailVerified })
+    .from(user)
+    .where(eq(user.email, email));
+  return row;
 }
 
-/** An account's email and name, or `undefined` when there is no such account. */
+/**
+ * An account's email, whether it is confirmed (ADR 0063), and name, or
+ * `undefined` when there is no such account.
+ */
 export async function readUser(
   database: Database,
   userId: string,
-): Promise<{ email: string; name: string } | undefined> {
+): Promise<{ email: string; emailVerified: boolean; name: string } | undefined> {
   const [row] = await database
-    .select({ email: user.email, name: user.name })
+    .select({ email: user.email, emailVerified: user.emailVerified, name: user.name })
     .from(user)
     .where(eq(user.id, userId));
   return row;

@@ -56,6 +56,7 @@ const recordTables: Record<string, Record<string, Classification>> = {
     refresh_token_expires_at: "withheld: its secret token's expiry",
     scope: "withheld: what its secret tokens may do",
     password: "secret",
+    refresh_token_client_id: "withheld: which app its secret token was issued to",
     created_at: "withheld: not in v1, when the provider was linked",
     updated_at: housekeeping,
   },
@@ -152,6 +153,10 @@ const otherTables: Record<string, { naming: string[]; why: string }> = {
   invitation: {
     naming: ["email", "inviter_id"],
     why: "not in v1: an invitation to an email, the school's",
+  },
+  apple_link: {
+    naming: ["email"],
+    why: "not in v1: an Apple sign-in waiting ten minutes for a code to an email, and its secret token",
   },
   invitation_mail_claim: {
     naming: ["email"],
@@ -256,6 +261,7 @@ type Erasure = {
 const {
   account,
   aiRequest,
+  appleLink,
   attempt,
   deviceCode,
   group,
@@ -327,6 +333,7 @@ const erasures: Record<string, Erasure> = {
     find: ({ id }) => eq(organization.personalOwnerId, id),
   },
   "invitation.email": { how: "explicit", find: ({ email }) => eq(invitation.email, email) },
+  "apple_link.email": { how: "explicit", find: ({ email }) => eq(appleLink.email, email) },
   "invitation_mail_claim.email": {
     how: "explicit",
     find: ({ email }) => eq(invitationMailClaim.email, email),
@@ -516,6 +523,13 @@ async function seedPerson(person: Person, organizationId: string, other: Person)
     .insert(groupMember)
     .values({ organizationId, groupId, userId: id, role: "learner" });
   await database.insert(invitationMailClaim).values({ email, organizationId, claimedAt: at });
+  await database.insert(appleLink).values({
+    idHash: `link-${tag}`,
+    email,
+    subject: `subject-${tag}`,
+    name: "",
+    expiresAt: new Date(at.getTime() + 600_000),
+  });
   await database.insert(invitation).values([
     {
       id: `to-${tag}`,
@@ -644,6 +658,7 @@ async function clear() {
   await database
     .delete(invitationMailClaim)
     .where(inArray(invitationMailClaim.email, [ada.email, ben.email]));
+  await database.delete(appleLink).where(inArray(appleLink.email, [ada.email, ben.email]));
   for (const id of organizations) await testing.clearLearningData(database, id);
   await database.delete(organization).where(inArray(organization.id, organizations));
 }

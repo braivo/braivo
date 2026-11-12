@@ -3,6 +3,7 @@
 
 import { APIError } from "better-auth/api";
 
+import { unconfirmedEmailMessage } from "../application/unconfirmed-email.ts";
 import { type Auth, MEMBERSHIP_LIMIT } from "./auth.ts";
 import { PERSONAL_ORGANIZATION } from "./invitations.ts";
 import { isReservedSlug, slugProblem } from "./slug.ts";
@@ -21,6 +22,7 @@ export async function createOrganization(
   if (!owner) {
     throw new Error(`No account uses ${input.ownerEmail}. They sign in once, then run this again.`);
   }
+  if (!owner.user.emailVerified) throw new Error(unconfirmedEmailMessage(input.ownerEmail));
   const { name, slug } = input;
   const created = await createOwnedOrganization(auth, { name, slug, ownerId: owner.user.id });
   if (created === "slug taken") throw new Error(`An organization already has the slug "${slug}".`);
@@ -92,6 +94,7 @@ export async function addMember(
   // Better Auth stores emails lowercased.
   const found = await internalAdapter.findUserByEmail(email.toLowerCase());
   if (!found) throw new Error(`No account uses ${email}. They sign in once, then run this again.`);
+  if (!found.user.emailVerified) throw new Error(unconfirmedEmailMessage(email));
 
   try {
     await auth.api.addMember({

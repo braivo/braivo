@@ -7,7 +7,15 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runMigrations } from "@braivo/db";
-import { learnerSignInCode, member, organization, user, verification } from "@braivo/db/schema";
+import {
+  account,
+  appleLink,
+  learnerSignInCode,
+  member,
+  organization,
+  user,
+  verification,
+} from "@braivo/db/schema";
 import { clearLearningData, sharedDatabase } from "@braivo/db/testing";
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -72,6 +80,7 @@ async function clear() {
     ),
   );
   await database.delete(user).where(eq(user.email, ada.email));
+  await database.delete(appleLink).where(eq(appleLink.email, ada.email));
   await database.delete(learnerSignInCode).where(eq(learnerSignInCode.organizationId, fernwood));
   await database.delete(organization).where(eq(organization.id, fernwood));
 }
@@ -132,6 +141,48 @@ describe.skipIf(!connectionString)("account erase", { timeout: 30_000 }, () => {
     expect(typed.code, typed.stderr).toBe(0);
     expect(typed.stdout).toContain("Erased:");
     expect(await accounts()).toBe(0);
+  });
+
+  test("tells the person to remove the app at Apple when no Apple token it could revoke is kept (ADR 0062)", async () => {
+    const plain = await run(erase("--yes"));
+    expect(plain.stdout).not.toContain("Apple:");
+
+    await database
+      .insert(user)
+      .values({ ...ada, emailVerified: true, createdAt: at, updatedAt: at });
+    await database.insert(account).values({
+      id: `${prefix}-apple`,
+      accountId: `${prefix}-apple-subject`,
+      providerId: "apple",
+      userId: ada.id,
+      createdAt: at,
+      updatedAt: at,
+    });
+    const withApple = await run(erase("--yes"));
+    expect(withApple.code, withApple.stderr).toBe(0);
+    expect(withApple.stdout).toContain(
+      "Apple:        not revoked. Tell the person to remove the app under Sign in with Apple",
+    );
+    expect(await accounts()).toBe(0);
+  });
+
+  test("an Apple link waiting for a code to the address is erased with no account, and counted", async () => {
+    await database.delete(user).where(eq(user.id, ada.id));
+    await database.insert(appleLink).values({
+      idHash: `${prefix}-link`,
+      email: ada.email,
+      subject: `${prefix}-subject`,
+      name: "",
+      expiresAt: new Date(Date.now() + 600_000),
+    });
+    const done = await run(erase("--yes"));
+
+    expect(done.code, done.stderr).toBe(0);
+    expect(done.stdout).not.toContain("Nothing to erase");
+    expect(done.stdout).toContain("Apple links 1");
+    // Its authorization cannot be revoked here (no secret, no Apple key): said so.
+    expect(done.stdout).toContain("Apple:        not revoked.");
+    expect(await database.$count(appleLink, eq(appleLink.email, ada.email))).toBe(0);
   });
 
   test("--yes needs no answer, the log record is private and done, and a second run changes nothing", async () => {
@@ -245,10 +296,23 @@ describe.skipIf(!connectionString)("account erase", { timeout: 30_000 }, () => {
     expect(shown.stdout).toContain("files 1");
     expect(shown.stdout).not.toContain(`School:       ${own.slug}`);
 
-    // Its files cannot be deleted: the rows go, the bytes stay, the record pending.
+    // Its files cannot be deleted: the rows go, the bytes stay, the record
+    // pending. Apple's outcome is said all the same, its link gone with the
+    // account: nothing could say it again.
+    await database.insert(account).values({
+      id: `${prefix}-apple`,
+      accountId: `${prefix}-apple-subject`,
+      providerId: "apple",
+      userId: ada.id,
+      createdAt: at,
+      updatedAt: at,
+    });
     await chmod(stored, 0o555);
     const failed = await run(erase("--yes")).finally(() => chmod(stored, 0o755));
     expect(failed.code).toBe(1);
+    expect(failed.stdout).toContain(
+      "Apple:        not revoked. Tell the person to remove the app under Sign in with Apple",
+    );
     const [, recordId] = /Log record (\S+) is pending; run this command again/.exec(failed.stderr)!;
     expect(await accounts()).toBe(0);
     expect(await database.$count(organization, eq(organization.id, own.id))).toBe(0);

@@ -11,10 +11,10 @@ import {
   type Organization,
   readOrganizationBySlug,
   readOrganizationRoles,
-  readUserIdByEmail,
   updateMemberRole,
 } from "../persistence/index.ts";
 import { assertMayAdminister } from "./permission.ts";
+import { readConfirmedUserIdByEmail } from "./unconfirmed-email.ts";
 
 /**
  * The roles an administrator gives a member: one of them expresses every set
@@ -134,7 +134,7 @@ export async function previewOwnerPromotion(input: {
       `${organization.name} is a personal organization, its owner's alone: it takes no other owner.`,
     );
   }
-  const userId = await readUserIdByEmail(database, email);
+  const userId = await readConfirmedUserIdByEmail(database, email);
   if (userId === undefined) throw new Error(`No account has the email ${email}.`);
   const roles = await readOrganizationRoles(database, { organizationId: organization.id, userId });
   if (roles.length === 0) {

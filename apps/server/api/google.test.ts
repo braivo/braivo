@@ -172,7 +172,7 @@ describe.skipIf(!connectionString)("signing in with Google", () => {
     expect(away.map((answer) => answer.status)).toEqual([403, 403]);
   });
 
-  test("signs in by Google's redirect alone: no ID token, no linking by hand", async () => {
+  test("takes an ID token only with a nonce (native-sign-in.test.ts), and links nothing by hand", async () => {
     const idToken = await startGoogle(undefined, { idToken: { token: "a.b.c" } });
     const linking = await api.request("/api/auth/link-social", {
       method: "POST",
@@ -180,7 +180,8 @@ describe.skipIf(!connectionString)("signing in with Google", () => {
       body: JSON.stringify({ provider: "google" }),
     });
 
-    expect(idToken.status).toBe(404);
+    expect(idToken.status).toBe(400);
+    expect(((await idToken.json()) as { code: string }).code).toBe("NONCE_REQUIRED");
     expect(linking.status).toBe(404);
   });
 

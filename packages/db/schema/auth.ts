@@ -62,6 +62,7 @@ export const account = pgTable(
     updatedAt: timestamp("updated_at")
       .$onUpdate(() => new Date())
       .notNull(),
+    refreshTokenClientId: text("refresh_token_client_id"),
   },
   (table) => [
     uniqueIndex("account_provider_account_uidx").on(table.providerId, table.accountId),

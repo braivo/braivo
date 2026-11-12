@@ -544,8 +544,11 @@ export async function readInvitationPage(input: {
   const page: InvitationPage = { organization: { name: found.organization.name }, status };
   if (viewer === undefined) return page;
 
-  const email = (await readUser(database, viewer))?.email;
-  const recipient = email?.toLowerCase() === found.email.toLowerCase();
+  const account = await readUser(database, viewer);
+  // An unconfirmed email names no one an invitation was sent to (ADR 0063):
+  // its account is not shown what was offered there.
+  const recipient =
+    account?.emailVerified === true && account.email.toLowerCase() === found.email.toLowerCase();
   if (!recipient) return { ...page, recipient };
   // As they are now, whatever the invitation offered: a member by another
   // way, or one whose role changed since accepting (access-52).
