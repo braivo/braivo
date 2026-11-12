@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Evidence } from "../learning/index.ts";
 import { ConflictingEvidence, createCourse, createObjectives } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 import { NotPermitted } from "./permission.ts";
 import {
@@ -42,11 +43,13 @@ function record(
   learnerId = learner,
   gradedBy = grader,
   receivedAt = now,
+  accessKind: AccessKind = "browser",
 ) {
   return recordGradedEvidence({
     database,
     organizationId,
     gradedBy,
+    accessKind,
     learnerId,
     evidence: evidenceBatch,
     now: receivedAt,
@@ -119,6 +122,20 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
 
     expect(await stored(learner)).toEqual([]);
   });
+
+  test.each([
+    ["a batch", () => [evidence()]],
+    ["an empty batch", () => []],
+  ])(
+    "refuses an administrator's tool %s, which would change learning unreviewed",
+    async (_, batch) => {
+      await expect(record(batch(), learner, grader, now, "tool")).rejects.toBeInstanceOf(
+        NotPermitted,
+      );
+
+      expect(await stored(learner)).toEqual([]);
+    },
+  );
 
   test("refuses evidence whose date is not a date", async () => {
     // It compares false against the allowance, so only an explicit check stops

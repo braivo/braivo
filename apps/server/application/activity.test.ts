@@ -1076,6 +1076,20 @@ describe.skipIf(!connectionString)("the learner loop", () => {
     }
   });
 
+  test("rests a task against a second new attempt that arrives at once", async () => {
+    // Each reads the rest under the learner's history lock, so the second sees the first.
+    for (let race = 0; race < 10; race++) {
+      await testing.clearLearnerHistory(database, [learner]);
+      const submitted = await Promise.all([
+        answer("first", pastTenseTask, 0, later(1)),
+        answer("second", pastTenseTask, 0, later(1)),
+      ]);
+
+      expect(submitted.map((result) => result.kind).toSorted()).toEqual(["graded", "resting"]);
+      expect(await stored()).toHaveLength(1);
+    }
+  });
+
   test("bounds attempt IDs to 1–128 characters", async () => {
     expect(await answer("", pastTenseTask, 0, start)).toEqual({ kind: "invalid" });
     expect(await answer("x".repeat(129), pastTenseTask, 0, start)).toEqual({ kind: "invalid" });

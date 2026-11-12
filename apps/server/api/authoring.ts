@@ -367,13 +367,20 @@ export function authoringRoutes(
    * and the learner are named in the path because they are what is written to;
    * the grader is the session's user, never named, and whether they may grade
    * here is the use case's decision, not this route's. Its 403 probes nothing:
-   * no learner or objective is looked up until the grader check passes.
+   * no learner or objective is looked up until the grader check passes. A
+   * tool's refusal is explained here; the use case refuses it too (ADR 0050).
    */
   routes.post(
     "/api/organizations/:organizationId/learners/:learnerId/evidence",
     ...trustedJsonWrite(),
     requireAccount,
     async (context) => {
+      if (presentsToolCredential(context)) {
+        return context.json(
+          { error: "Evidence is recorded with a browser session, never a tool's credential." },
+          403,
+        );
+      }
       const batch = parseEvidence(await jsonBody(context));
       if (batch === undefined) return context.body(null, 400);
 
@@ -382,6 +389,7 @@ export function authoringRoutes(
           database,
           organizationId: context.req.param("organizationId"),
           gradedBy: context.var.userId,
+          accessKind: context.var.accessKind,
           learnerId: context.req.param("learnerId"),
           ...batch,
           now: new Date(),

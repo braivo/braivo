@@ -432,7 +432,7 @@ describe("the learn app", () => {
   });
 
   test.each([404, 409])(
-    "after a reload, forgets an answer refused with %i and loads the course as usual",
+    "after a reload, forgets an answer refused with %i and loads the course as usual, saying so once",
     async (status) => {
       renderAt("/c/4732", {
         signedIn: true,
@@ -452,7 +452,8 @@ describe("the learn app", () => {
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       expect(submitAttempt).toHaveBeenCalledTimes(1);
       expect(nextActivity).toHaveBeenCalledTimes(1);
-      expect(screen.queryByText(LAST_REFUSED)).toBeNull();
+      // Without it, the next question would look as if the answer had counted.
+      expect(await screen.findByText(LAST_REFUSED)).toBeTruthy();
       cleanup();
 
       const again = renderAt("/c/4732", {
@@ -461,6 +462,7 @@ describe("the learn app", () => {
       });
       expect(await screen.findByRole("button", { name: "comí" })).toBeTruthy();
       expect(again.submitAttempt).not.toHaveBeenCalled();
+      expect(screen.queryByText(LAST_REFUSED)).toBeNull();
     },
   );
 
@@ -1196,7 +1198,7 @@ describe("the learn app", () => {
     expect(after!.id).not.toBe(before!.id);
   });
 
-  test("rests a task answered moments ago elsewhere, rather than asking again", async () => {
+  test("rests a task answered moments ago elsewhere, rather than asking again, saying this answer wasn't recorded", async () => {
     const nextActivity = vi
       .fn<BraivoClient["nextActivity"]>()
       .mockResolvedValueOnce(activity)
@@ -1211,6 +1213,30 @@ describe("the learn app", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
 
-    expect(await screen.findByText("Take a short break")).toBeTruthy();
+    const rest = await screen.findByRole("region", { name: "Take a short break" });
+    const line = await screen.findByText(LAST_REFUSED);
+    expect(line.compareDocumentPosition(rest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
+  });
+
+  test("offers what is there now after an answer refused with 404, saying it wasn't recorded", async () => {
+    const nextActivity = vi
+      .fn<BraivoClient["nextActivity"]>()
+      .mockResolvedValueOnce(activity)
+      .mockResolvedValueOnce(anotherActivity);
+    renderAt("/c/4732", {
+      signedIn: true,
+      nextActivity,
+      submitAttempt: async () => {
+        throw new BraivoError(404, "retired");
+      },
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "hablé" }));
+
+    const question = await screen.findByRole("button", { name: "comí" });
+    const line = await screen.findByText(LAST_REFUSED);
+    expect(line.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(unfinishedAttempt("ada", "c1")).toBeUndefined();
   });
 });

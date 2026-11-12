@@ -368,7 +368,8 @@
 // records what a learner did. The grader is the session's user and is never
 // named in the request; they must hold `owner` or `admin` in the organization,
 // because a learner is a `member` and would otherwise be able to grade
-// themselves. Body, at most 1000 records:
+// themselves, and send it from a browser's session (ADR 0050). Body, at most
+// 1000 records:
 //
 //   { "evidence": [
 //       { "id": "…", "objectiveId": "…", "outcome": "success", "at": "2026-06-01T00:00:00.000Z" }
@@ -391,9 +392,9 @@
 //        characters or starting with `attempt:`, which is reserved for evidence
 //        graded from attempts
 //   403  the request could have been forged (it must be `application/json`, and
-//        any `Origin` it sends must be this installation's), or the grader may
-//        not grade here, or the learner or an objective is not this
-//        organization's
+//        any `Origin` it sends must be this installation's), a token sent
+//        it (explained) or a connection did, or the grader may not grade
+//        here, or the learner or an objective is not this organization's
 //   413  the body is larger than 1 MB
 //   409  a record's `id` already holds a different result for this learner in
 //        this organization — another outcome, date, or objective. Nothing in

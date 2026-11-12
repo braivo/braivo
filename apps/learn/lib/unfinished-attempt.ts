@@ -104,9 +104,9 @@ export function clearUnfinishedAttempt(learnerId: string, courseId: string) {
 }
 
 /**
- * A notice owed after an answer was refused for good: `refused`, a resend on
- * load's (400, 403, 413), which a reload cannot explain; `history-erased`, any
- * answer's, its history gone (learner-loop-25). Kept apart from the attempt,
+ * A notice owed after an answer was refused for good: `refused`, a reload's
+ * resend (400, 403, 404, 409, 413) or a live answer's 404 or 409, which the
+ * reload alone would show as if it counted; `history-erased`, any answer's, its history gone (learner-loop-25). Kept apart from the attempt,
  * already deleted, so it outlives a next-activity read that fails and is tried
  * again; cleared once shown (learner-loop-20).
  */

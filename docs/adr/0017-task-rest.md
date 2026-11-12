@@ -1,6 +1,6 @@
 # 0017: A task rests after it is answered, and practice moves on meanwhile
 
-Status: accepted (2026-09-25)
+Status: accepted (2026-09-25), amended (2026-11-12: racing attempts on one task are checked in turn)
 
 ## Context
 
@@ -32,4 +32,4 @@ A task a learner answered rests before that learner is asked it again: for `TASK
 - Deciding costs a count of the learner's recent attempts for each objective found resting, and selection runs once more for each; few objectives can rest at once, since each needs fewer than three attempts on other objectives since its own.
 - A grade lost on the way back and fetched by a resend minutes later leaves less of the rest after the learner sees it. Tracking delivery would cost more than that edge is worth; revisit if experiments show it matters.
 - Attempts recorded in the same millisecond do not count as after one another, so a tie keeps a rest rather than ending it.
-- Two new attempts submitted at the same moment can both pass the check and both be recorded as evidence. The window is a race between one learner's own requests, and is accepted for now.
+- Two new attempts submitted at the same moment are checked in turn: every write of a learner's attempts at an organization holds one lock per learner and organization (`apps/server/persistence/learner-history.ts`), the one an erasure of their history takes, so the second sees the first and rests. Accepting that race was replaced once that lock existed.
