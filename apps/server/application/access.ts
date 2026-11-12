@@ -7,10 +7,11 @@ import { toolsMayReadLearnerData } from "../persistence/index.ts";
 import { NotPermitted } from "./permission.ts";
 
 /**
- * How a request reached Braivo, from the credential it came with: a person's
- * `browser` session, or a `tool`'s, a device-flow token (ADR 0022) or a
- * connection (ADR 0045) alike, whatever is behind it. A use case reading
- * others' data takes it required, so a new caller cannot default to browser.
+ * Which class of credential acted, as the guards resolved it: `browser`, a
+ * cookie session, whatever client holds it; `tool`, a device-flow token (ADR
+ * 0022) or a connection (ADR 0045) alike. It says nothing of whether a person
+ * or an AI started the request. A use case reading others' data, or recording
+ * evidence, takes it required, so a new caller cannot default to browser.
  */
 export type AccessKind = "browser" | "tool";
 
