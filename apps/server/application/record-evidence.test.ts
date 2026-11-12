@@ -123,13 +123,19 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     expect(await stored(learner)).toEqual([]);
   });
 
-  test("refuses an administrator's tool, which would change learning unreviewed", async () => {
-    await expect(record([evidence()], learner, grader, now, "tool")).rejects.toBeInstanceOf(
-      NotPermitted,
-    );
+  test.each([
+    ["a batch", () => [evidence()]],
+    ["an empty batch", () => []],
+  ])(
+    "refuses an administrator's tool %s, which would change learning unreviewed",
+    async (_, batch) => {
+      await expect(record(batch(), learner, grader, now, "tool")).rejects.toBeInstanceOf(
+        NotPermitted,
+      );
 
-    expect(await stored(learner)).toEqual([]);
-  });
+      expect(await stored(learner)).toEqual([]);
+    },
+  );
 
   test("refuses evidence whose date is not a date", async () => {
     // It compares false against the allowance, so only an explicit check stops
