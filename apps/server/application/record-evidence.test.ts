@@ -8,6 +8,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import type { Evidence } from "../learning/index.ts";
 import { ConflictingEvidence, createCourse, createObjectives } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { chooseNextObjective } from "./next-objective.ts";
 import { NotPermitted } from "./permission.ts";
 import {
@@ -42,11 +43,13 @@ function record(
   learnerId = learner,
   gradedBy = grader,
   receivedAt = now,
+  accessKind: AccessKind = "browser",
 ) {
   return recordGradedEvidence({
     database,
     organizationId,
     gradedBy,
+    accessKind,
     learnerId,
     evidence: evidenceBatch,
     now: receivedAt,
@@ -116,6 +119,14 @@ describe.skipIf(!connectionString)("recording graded evidence", () => {
     // objective is their organization's and so are they. Only the role stops
     // them awarding themselves successes in the table estimates are built from.
     await expect(record([evidence()], learner, learner)).rejects.toBeInstanceOf(NotPermitted);
+
+    expect(await stored(learner)).toEqual([]);
+  });
+
+  test("refuses an administrator's tool, which would change learning unreviewed", async () => {
+    await expect(record([evidence()], learner, grader, now, "tool")).rejects.toBeInstanceOf(
+      NotPermitted,
+    );
 
     expect(await stored(learner)).toEqual([]);
   });

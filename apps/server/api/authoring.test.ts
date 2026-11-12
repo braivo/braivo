@@ -290,6 +290,34 @@ describe.skipIf(!connectionString)("the authoring routes", () => {
     expect(await stored(learner.id)).toEqual([]);
   });
 
+  test("refuses evidence from a token, a cookie beside one included, explained", async () => {
+    // Whatever the organization lets tools read: grading is no read (ADR 0050).
+    await testing.setToolsReadLearnerData(database, organizationId, true);
+    try {
+      for (const headers of [
+        { authorization: `Bearer ${teacher.token}` } as Record<string, string>,
+        { cookie: teacher.cookie, authorization: `Bearer ${teacher.token}` },
+      ]) {
+        const response = await api.request(
+          `/api/organizations/${organizationId}/learners/${learner.id}/evidence`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", ...headers },
+            body: JSON.stringify(graded()),
+          },
+        );
+
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual({
+          error: "Evidence is recorded with a browser session, never a tool's credential.",
+        });
+      }
+      expect(await stored(learner.id)).toEqual([]);
+    } finally {
+      await testing.setToolsReadLearnerData(database, organizationId, false);
+    }
+  });
+
   test.each([
     ["application/json; charset=utf-8", 204],
     ["application/jsonp", 403],

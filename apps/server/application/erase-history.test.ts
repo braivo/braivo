@@ -133,6 +133,7 @@ function grade(
     database,
     organizationId: input.org ?? fernwood,
     gradedBy: owner,
+    accessKind: "browser",
     learnerId,
     historyEpoch: input.epoch,
     evidence: [
@@ -792,6 +793,7 @@ describe.skipIf(!connectionString)("erasing one school's history", () => {
           database,
           organizationId: fernwood,
           gradedBy: owner,
+          accessKind: "browser",
           learnerId: ada,
           evidence: [
             { id: "new", objectiveId: fern.objectiveId, outcome: "success", at: future(600_000) },

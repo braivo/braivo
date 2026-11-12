@@ -10,6 +10,7 @@ import {
   withLearnerHistoryLock,
   recordEvidence,
 } from "../persistence/index.ts";
+import type { AccessKind } from "./access.ts";
 import { ATTEMPT_EVIDENCE_PREFIX } from "./activity.ts";
 import { assertMayAdminister, isMember, NotPermitted } from "./permission.ts";
 
@@ -50,6 +51,9 @@ export const MAX_EVIDENCE_ID_LENGTH = 256;
  *
  * Checks run in this order, and any failure refuses the whole batch:
  *
+ * 0. The request is a browser's, never a tool's, whatever it sends: one record
+ *    from a tool would reset a member's learning at once, unreviewed, where
+ *    what a tool authors waits for a person to publish (ADR 0050).
  * 1. Every date is valid and not ahead of `now`, and every ID is at most
  *    `MAX_EVIDENCE_ID_LENGTH` and outside the namespace attempts are graded
  *    into. This reads only the payload, so a caller who may not grade learns
@@ -73,13 +77,15 @@ export const MAX_EVIDENCE_ID_LENGTH = 256;
  * Checks 3 to 5 and the write run under the lock an erasure takes, so a batch
  * lands wholly before one, and is erased, or after it, and is refused.
  *
- * An empty batch does nothing and checks nothing.
+ * Past check 0, an empty batch does nothing and checks nothing.
  */
 export async function recordGradedEvidence(input: {
   database: Database;
   organizationId: string;
   /** The signed-in actor claiming to have graded this, who must administer the organization. */
   gradedBy: string;
+  /** How `gradedBy` came: a tool records nothing (ADR 0050). */
+  accessKind: AccessKind;
   learnerId: string;
   evidence: readonly Evidence[];
   /** The history epoch the sender read (`readLearnerProgress`), if it did. */
@@ -87,7 +93,9 @@ export async function recordGradedEvidence(input: {
   /** When the evidence was received, which is what its dates are held to. */
   now: Date;
 }): Promise<void> {
-  const { database, organizationId, gradedBy, learnerId, evidence, historyEpoch, now } = input;
+  const { database, organizationId, gradedBy, accessKind, learnerId, evidence, historyEpoch, now } =
+    input;
+  if (accessKind !== "browser") throw new NotPermitted("Only a browser records evidence.");
   if (evidence.length === 0) return;
 
   // `Invalid Date` compares false against everything, so an unchecked one would

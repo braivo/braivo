@@ -670,8 +670,9 @@ export type BraivoClient = {
    * Records what a learner did, on behalf of an organization. The session must
    * hold `owner` or `admin` there, not `author`: grading is an administrator's act, and a
    * learner able to grade themselves would be writing the history their own
-   * estimates are rebuilt from. An empty `evidence` records nothing and checks
-   * no permission.
+   * estimates are rebuilt from. A browser's session alone: a token gets a
+   * {@link BraivoError} with status 403 (ADR 0050). Otherwise, an empty
+   * `evidence` records nothing and checks no permission.
    *
    * Redelivering a result is a no-op, so retrying after a timeout is safe. One
    * that disagrees with what its `id` already holds in that organization is a
