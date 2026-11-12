@@ -163,13 +163,18 @@ export const Route = createFileRoute("/_signed-in/c/$courseRef")({
 
 /**
  * Refusals the same answer would meet again, such as a request a page built
- * before an update sends: no reload explains them, so the learner is told.
+ * before an update sends: a live answer's said on the page, which Continue then
+ * reloads whole; a reload's resend's, above what loads.
  */
 const REFUSALS_SAID = [400, 403, 413];
 
 /**
  * Refusals after which an answer is forgotten, never resent: none records it,
- * and a 409 is not retried once the rest ends (ADR 0017).
+ * and a 409 is not retried once the rest ends (ADR 0017). A 404 or 409 is said
+ * once above what loads next, live or on a resend, generically: it may be a
+ * retired task, a reused ID, or another attempt recorded first, and the reload
+ * alone would look as if the answer counted. A course gone meanwhile shows not
+ * found, the notice kept for a later visit, still true then.
  */
 const FINAL_REFUSALS = [...REFUSALS_SAID, 404, 409];
 
@@ -258,8 +263,8 @@ type Resumed = { attempt: UnfinishedAttempt; grade?: Grade };
  * Resends the answer this tab left unfinished in the course, if any, so a
  * reload before Continue still shows its feedback; its ID records it at most
  * once (learner-loop-11). Refused, it is forgotten and the course loads as
- * usual, showing the rest or what is there now; a refusal reloading cannot
- * explain is marked, for the page to say.
+ * usual, showing the rest or what is there now, the refusal marked for the
+ * page to say.
  */
 async function resume(
   braivo: BraivoClient,
@@ -288,10 +293,7 @@ async function resume(
     if (error instanceof BraivoError && FINAL_REFUSALS.includes(error.status)) {
       // Forgotten first: storage too full for the notice has room once the attempt goes.
       clearUnfinishedAttempt(learnerId, courseId);
-      if (isHistoryErased(error)) markRefusalNotice(learnerId, courseId, "history-erased");
-      else if (REFUSALS_SAID.includes(error.status)) {
-        markRefusalNotice(learnerId, courseId, "refused");
-      }
+      markRefusalNotice(learnerId, courseId, isHistoryErased(error) ? "history-erased" : "refused");
       // Recorded nothing: the review is the next attempt's to say.
       if (reviewedTeaching) markReviewed(learnerId, activity.objective.id);
       return undefined;
@@ -1458,11 +1460,11 @@ function Practice({
           if (reviewed) markReviewed(user.id, objective.id);
         }
         if (isHistoryErased(error)) markRefusalNotice(user.id, courseId, "history-erased");
-        // Reloading explains these. 401: the guard sends the learner to sign
-        // in. 404: the course is gone, or the task was retired while on screen;
-        // the reload offers what is there now. 409: the task was answered
-        // moments ago elsewhere, another tab say, and the reload says when it
-        // may be answered again.
+        else if ([404, 409].includes(error.status)) markRefusalNotice(user.id, courseId, "refused");
+        // Reloading shows what is true now. 401: the guard sends the learner to
+        // sign in. 404: the course is gone, or the task was retired while on
+        // screen. 409: the task was answered moments ago elsewhere, another tab
+        // say, and the reload says when it may be answered again.
         if ([401, 404, 409].includes(error.status)) {
           await reloadCourse(router);
           return;
